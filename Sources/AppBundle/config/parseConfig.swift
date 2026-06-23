@@ -75,6 +75,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "gaps": Parser(\.gaps, parseGaps),
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
+    "zones": Parser(\.zones, parseZones),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
@@ -206,6 +207,16 @@ func parseConfigVersion(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace)
 
 func parseInt(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Int> {
     raw.int.orFailure(expectedActualTypeError(expected: .int, actual: raw.type, backtrace))
+}
+
+func parseDouble(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Double> {
+    if let double = raw.double {
+        return .success(double)
+    }
+    if let int = raw.int {
+        return .success(Double(int))
+    }
+    return .failure(expectedActualTypeError(expected: [.double, .int], actual: raw.type, backtrace))
 }
 
 func parseString(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<String> {

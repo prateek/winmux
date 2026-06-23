@@ -4,16 +4,33 @@ import Common
 extension Monitor {
     @MainActor
     var activeWorkspace: Workspace {
-        if let existing = winMuxWorkspaceState.visibleWorkspace(for: self) {
+        let viewport = workspaceViewportForWorkspaceAssignment
+        if viewport.rect.topLeftCorner != rect.topLeftCorner || viewport.zoneId != zoneId {
+            return viewport.activeWorkspace
+        }
+        if let existing = winMuxWorkspaceState.visibleWorkspace(for: viewport) {
             return existing
         }
         rearrangeWorkspacesOnMonitors()
-        return self.activeWorkspace
+        if let existing = winMuxWorkspaceState.visibleWorkspace(for: viewport) {
+            return existing
+        }
+        die("Current monitor viewport '\(MonitorViewportId(viewport))' has no active workspace after reconciliation")
     }
 
     @MainActor
     func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        rect.topLeftCorner.setActiveWorkspace(workspace)
+        workspaceViewportForWorkspaceAssignment.rect.topLeftCorner.setActiveWorkspace(workspace)
+    }
+
+    @MainActor
+    private var workspaceViewportForWorkspaceAssignment: Monitor {
+        guard zoneId == nil else { return self }
+        let zoneViewports = workspaceViewports.filter {
+            $0.zoneId != nil &&
+                $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
+        }
+        return zoneViewports.first(where: \.isDefaultZone) ?? zoneViewports.first ?? self
     }
 }
 

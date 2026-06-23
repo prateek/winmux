@@ -4,6 +4,7 @@ import PrivateApi
 
 @MainActor
 func checkAccessibilityPermissions() {
+    if shouldSkipPermissionPromptsForE2E { return }
     let options = [axTrustedCheckOptionPrompt: true]
     if !AXIsProcessTrustedWithOptions(options as CFDictionary) {
         resetAccessibility() // Because macOS doesn't reset it for us when the app signature changes...
@@ -12,8 +13,13 @@ func checkAccessibilityPermissions() {
 }
 
 func requestScreenRecordingPermissionsIfNeeded() {
+    if shouldSkipPermissionPromptsForE2E { return }
     guard !CGPreflightScreenCaptureAccess() else { return }
     _ = CGRequestScreenCaptureAccess()
+}
+
+private var shouldSkipPermissionPromptsForE2E: Bool {
+    ProcessInfo.processInfo.environment["WINMUX_E2E_SKIP_PERMISSION_PROMPTS"] == "1"
 }
 
 private func resetAccessibility() {

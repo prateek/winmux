@@ -1,0 +1,10 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[workspace-sidebar]
+enabled = false
+
+[mode.main.binding]
+alt-h = 'focus left'
+alt-l = 'focus right'

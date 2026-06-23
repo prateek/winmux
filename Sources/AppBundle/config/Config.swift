@@ -16,6 +16,8 @@ func getDefaultConfigUrlFromProject() -> URL {
 var defaultConfigUrl: URL {
     if isUnitTest {
         return getDefaultConfigUrlFromProject()
+    } else if let path = ProcessInfo.processInfo.environment["WINMUX_DEFAULT_CONFIG_PATH"], !path.isEmpty {
+        return URL(filePath: path)
     } else {
         return Bundle.main.url(forResource: "default-config", withExtension: "toml")
             // Useful for debug builds that are not app bundles
@@ -29,7 +31,12 @@ var defaultConfigUrl: URL {
     }
     return parsedConfig.config
 }()
-@MainActor var config: Config = defaultConfig // todo move to Ctx?
+@MainActor var config: Config = defaultConfig { // todo move to Ctx?
+    didSet {
+        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config))
+        invalidateMonitorCaches()
+    }
+}
 @MainActor var configUrl: URL = defaultConfigUrl
 
 struct Config: ConvenienceCopyable {
@@ -60,10 +67,28 @@ struct Config: ConvenienceCopyable {
     var gaps: Gaps = .zero
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
+    var zones: [ZoneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: [any Command] = []
+}
+
+struct ZoneConfig: ConvenienceCopyable, Equatable, Sendable {
+    var monitor: MonitorDescription?
+    var layout: ZoneLayoutKind?
+    var defaultZone: String?
+    var columns: [ZoneColumnConfig] = []
+}
+
+enum ZoneLayoutKind: String, Equatable, Sendable {
+    case columns
+}
+
+struct ZoneColumnConfig: ConvenienceCopyable, Equatable, Sendable {
+    var id: String = ""
+    var name: String?
+    var width: Double = 0
 }
 
 enum DefaultContainerOrientation: String {

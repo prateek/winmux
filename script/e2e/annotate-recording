@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT_PATH="${1:-}"
+CAPTIONS_PATH="${2:-}"
+OUTPUT_PATH="${3:-}"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <input.mov> <captions.tsv> <output.mov>
+
+captions.tsv format:
+  start_seconds<TAB>end_seconds<TAB>title<TAB>subtitle<TAB>command_or_action
+EOF
+}
+
+die() {
+    printf '[winmux-annotate] error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+[ -n "$INPUT_PATH" ] && [ -n "$CAPTIONS_PATH" ] && [ -n "$OUTPUT_PATH" ] || {
+    usage >&2
+    exit 1
+}
+
+require_cmd ffmpeg
+require_cmd ffprobe
+require_cmd magick
+
+[ -s "$INPUT_PATH" ] || die "Missing or empty input video: $INPUT_PATH"
+[ -s "$CAPTIONS_PATH" ] || die "Missing or empty captions file: $CAPTIONS_PATH"
+mkdir -p "$(dirname "$OUTPUT_PATH")"
+
+video_width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "$INPUT_PATH")"
+video_height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 "$INPUT_PATH")"
+duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INPUT_PATH")"
+[ -n "$video_width" ] && [ -n "$video_height" ] || die "Could not read video dimensions from $INPUT_PATH"
+
+font="/System/Library/Fonts/SFNS.ttf"
+if [ ! -f "$font" ]; then
+    font="/System/Library/Fonts/Supplemental/Arial.ttf"
+fi
+[ -f "$font" ] || die "Could not find a usable caption font"
+mono_font="/System/Library/Fonts/SFNSMono.ttf"
+if [ ! -f "$mono_font" ]; then
+    mono_font="$font"
+fi
+
+recording_name="$(basename "$OUTPUT_PATH" .mov)"
+recordings_dir="$(cd "$(dirname "$OUTPUT_PATH")" && pwd -P)"
+run_dir="$(cd "${recordings_dir}/.." && pwd -P)"
+asset_dir="${run_dir}/logs/${recording_name}.annotation-assets"
+mkdir -p "$asset_dir"
+rm -f "${asset_dir}/"*.png
+
+margin=$((video_width / 34))
+if [ "$margin" -lt 72 ]; then margin=72; fi
+card_width=$((video_width * 54 / 100))
+max_card_width=$((video_width - (margin * 2)))
+if [ "$card_width" -gt "$max_card_width" ]; then card_width="$max_card_width"; fi
+card_height=$((video_height * 18 / 100))
+if [ "$card_height" -lt 190 ]; then card_height=190; fi
+if [ "$card_height" -gt 260 ]; then card_height=260; fi
+card_x="$margin"
+card_y=$((video_height - margin - card_height))
+card_x2=$((card_x + card_width))
+card_y2=$((card_y + card_height))
+accent_x2=$((card_x + 12))
+text_x=$((card_x + 42))
+badge_y=$((card_y + 46))
+title_y=$((card_y + 105))
+subtitle_y=$((card_y + 158))
+command_box_y1=$((card_y + card_height - 65))
+command_box_y2=$((card_y + card_height - 20))
+command_text_y=$((command_box_y1 + 31))
+command_box_x1="$text_x"
+command_box_x2=$((card_x2 - 32))
+badge_size=$((video_width / 118))
+title_size=$((video_width / 55))
+subtitle_size=$((video_width / 92))
+command_size=$((video_width / 110))
+if [ "$badge_size" -lt 22 ]; then badge_size=22; fi
+if [ "$title_size" -lt 40 ]; then title_size=40; fi
+if [ "$subtitle_size" -lt 25 ]; then subtitle_size=25; fi
+if [ "$command_size" -lt 22 ]; then command_size=22; fi
+
+render_card() {
+    local title="$1"
+    local subtitle="$2"
+    local command="$3"
+    local output="$4"
+
+    magick \
+        -size "${video_width}x${video_height}" xc:none \
+        -fill 'rgba(10,12,18,0.80)' \
+        -draw "roundrectangle ${card_x},${card_y} ${card_x2},${card_y2} 24,24" \
+        -fill 'rgba(80,220,170,0.95)' \
+        -draw "roundrectangle ${card_x},${card_y} ${accent_x2},${card_y2} 24,24" \
+        -font "$font" \
+        -fill '#93F2C7' \
+        -pointsize "$badge_size" \
+        -annotate +"${text_x}+${badge_y}" 'WINMUX COLUMN ZONES' \
+        -fill '#FFFFFF' \
+        -pointsize "$title_size" \
+        -annotate +"${text_x}+${title_y}" "$title" \
+        -fill '#D9DEE8' \
+        -pointsize "$subtitle_size" \
+        -annotate +"${text_x}+${subtitle_y}" "$subtitle" \
+        "$output"
+
+    if [ -n "$command" ]; then
+        magick "$output" \
+            -fill 'rgba(255,255,255,0.10)' \
+            -draw "roundrectangle ${command_box_x1},${command_box_y1} ${command_box_x2},${command_box_y2} 14,14" \
+            -font "$mono_font" \
+            -fill '#F4F7FA' \
+            -pointsize "$command_size" \
+            -annotate +"$((command_box_x1 + 18))+${command_text_y}" "$command" \
+            "$output"
+    fi
+}
+
+input_args=(-hide_banner -loglevel error -y -i "$INPUT_PATH")
+filter_parts=('[0:v]setpts=PTS-STARTPTS[base0]')
+previous='[base0]'
+caption_count=0
+
+while IFS=$'\t' read -r start_time end_time title subtitle command || [ -n "${start_time:-}" ]; do
+    case "${start_time:-}" in
+        ''|'#'*) continue ;;
+    esac
+    [ -n "${end_time:-}" ] || die "Caption ${caption_count} is missing end time"
+    [ -n "${title:-}" ] || die "Caption ${caption_count} is missing title"
+    subtitle="${subtitle:-}"
+    command="${command:-}"
+
+    caption_count=$((caption_count + 1))
+    overlay_path="${asset_dir}/caption-${caption_count}.png"
+    render_card "$title" "$subtitle" "$command" "$overlay_path"
+    input_args+=(-loop 1 -t "$duration" -i "$overlay_path")
+
+    next="[v${caption_count}]"
+    filter_parts+=("${previous}[${caption_count}:v]overlay=0:0:enable=between(t\\,${start_time}\\,${end_time})${next}")
+    previous="$next"
+done <"$CAPTIONS_PATH"
+
+[ "$caption_count" -gt 0 ] || die "Captions file did not contain any captions: $CAPTIONS_PATH"
+
+filter_complex="$(IFS=';'; printf '%s' "${filter_parts[*]}")"
+
+ffmpeg "${input_args[@]}" \
+    -filter_complex "$filter_complex" \
+    -map "$previous" \
+    -map 0:a? \
+    -c:v h264_videotoolbox \
+    -b:v 12M \
+    -pix_fmt yuv420p \
+    -c:a copy \
+    -movflags +faststart \
+    "$OUTPUT_PATH"
+
+[ -s "$OUTPUT_PATH" ] || die "Annotated recording did not produce a non-empty file: $OUTPUT_PATH"
+printf 'input=%s\n' "$INPUT_PATH"
+printf 'output=%s\n' "$OUTPUT_PATH"
+printf 'captions=%s\n' "$CAPTIONS_PATH"
+printf 'caption_count=%s\n' "$caption_count"
+printf 'width=%s\n' "$video_width"
+printf 'height=%s\n' "$video_height"
+printf 'result=success\n'

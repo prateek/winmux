@@ -159,6 +159,9 @@ public enum FormatVar: Equatable {
         case monitorAppKitNsScreenScreensId = "monitor-appkit-nsscreen-screens-id"
         case monitorName = "monitor-name"
         case monitorIsMain = "monitor-is-main"
+        case monitorIsZone = "monitor-is-zone"
+        case monitorZoneId = "monitor-zone-id"
+        case monitorPhysicalId_oneBased = "monitor-physical-id"
     }
 }
 

@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REQUIRE_REVIEW=0
+RUN_DIR=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--require-review] <artifact-run-dir>
+
+Checks media, guest-control logs, clean-slate logs, and optional review verdict
+for a WinMux Tart e2e artifact directory.
+EOF
+}
+
+die() {
+    printf '[winmux-verify] error: %s\n' "$*" >&2
+    exit 1
+}
+
+log() {
+    printf '[winmux-verify] %s\n' "$*"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --require-review)
+            REQUIRE_REVIEW=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            usage >&2
+            die "Unknown option: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "Only one artifact run directory is supported"
+            RUN_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+[ -n "$RUN_DIR" ] || {
+    usage >&2
+    die "Missing artifact run directory"
+}
+[ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
+
+LOGS_DIR="${RUN_DIR}/logs"
+SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
+RECORDINGS_DIR="${RUN_DIR}/recordings"
+CONFIG_PATH="${RUN_DIR}/config/winmux.toml"
+PREFLIGHT_LOG="${LOGS_DIR}/preflight.log"
+
+require_file() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+value_from_log() {
+    local key="$1"
+    local path="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
+}
+
+require_file "$PREFLIGHT_LOG"
+require_file "$CONFIG_PATH"
+require_file "${LOGS_DIR}/guest-control-check.log"
+require_file "${LOGS_DIR}/guest-privacy-setup.log"
+require_file "${LOGS_DIR}/guest-clean-slate.log"
+require_file "${LOGS_DIR}/guest-capture-ready.log"
+
+capture_mode="$(value_from_log capture_mode "$PREFLIGHT_LOG")"
+require_guest_control="$(value_from_log require_guest_control "$PREFLIGHT_LOG")"
+vm_display="$(value_from_log vm_display "$PREFLIGHT_LOG")"
+record_seconds="$(value_from_log record_seconds "$PREFLIGHT_LOG")"
+annotate_recording="$(value_from_log annotate_recording "$PREFLIGHT_LOG")"
+
+[ "$capture_mode" = "guest" ] || die "Product artifact must use guest capture, got capture_mode=$capture_mode"
+[ "$require_guest_control" = "1" ] || die "Product artifact must require guest control, got require_guest_control=$require_guest_control"
+
+recording_count="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | wc -l | tr -d ' ')"
+[ "$recording_count" = "1" ] || die "Expected exactly one .mov recording, found $recording_count"
+recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | head -1)"
+require_file "$recording_path"
+recording_name="$(basename "$recording_path" .mov)"
+
+before_count="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '00-before-*.png' | wc -l | tr -d ' ')"
+after_count="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | wc -l | tr -d ' ')"
+[ "$before_count" -ge 1 ] || die "Missing before screenshot"
+[ "$after_count" -ge 1 ] || die "Missing after screenshot"
+
+duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$recording_path")"
+width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "$recording_path")"
+height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 "$recording_path")"
+codec="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$recording_path")"
+frames="$(ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 "$recording_path")"
+
+awk -v duration="$duration" -v expected="$record_seconds" 'BEGIN { exit(duration + 0 >= expected * 0.80 ? 0 : 1) }' \
+    || die "Recording duration ${duration}s is shorter than 80% of requested ${record_seconds}s"
+[ -n "$codec" ] || die "Recording codec is missing"
+[ "${frames:-0}" -gt 10 ] || die "Recording frame count is too low: ${frames:-0}"
+
+if [[ "$vm_display" =~ ^([0-9]+)x([0-9]+)px$ ]]; then
+    expected_width="${BASH_REMATCH[1]}"
+    expected_height="${BASH_REMATCH[2]}"
+    [ "$width" = "$expected_width" ] || die "Recording width $width does not match VM display width $expected_width"
+    [ "$height" = "$expected_height" ] || die "Recording height $height does not match VM display height $expected_height"
+fi
+
+grep -F 'result=success' "${LOGS_DIR}/guest-control-check.log" >/dev/null || die "Guest control did not report success"
+grep -F 'privacy_setup_done' "${LOGS_DIR}/guest-privacy-setup.log" >/dev/null || die "Privacy setup did not finish"
+grep -F 'clean_slate_done' "${LOGS_DIR}/guest-clean-slate.log" >/dev/null || die "Clean-slate setup did not finish"
+grep -F 'terminal_running=no' "${LOGS_DIR}/guest-clean-slate.log" >/dev/null || die "Terminal still running after clean slate"
+grep -F 'system_settings_running=no' "${LOGS_DIR}/guest-clean-slate.log" >/dev/null || die "System Settings still running after clean slate"
+grep -F 'textedit_running=no' "${LOGS_DIR}/guest-clean-slate.log" >/dev/null || die "TextEdit still running before scenario"
+grep -F 'capture_probe_done' "${LOGS_DIR}/guest-capture-ready.log" >/dev/null || die "Guest capture readiness did not finish"
+
+guest_capture_log="$(find "$LOGS_DIR" -maxdepth 1 -type f -name '*.guest-screencapture.log' | head -1)"
+require_file "$guest_capture_log"
+grep -F 'capture_mode=guest' "$guest_capture_log" >/dev/null || die "Recording log does not show guest capture"
+grep -F 'result=success' "$guest_capture_log" >/dev/null || die "Recording log does not report success"
+grep -F "width=${width}" "$guest_capture_log" >/dev/null || die "Recording log missing decoded width"
+grep -F "height=${height}" "$guest_capture_log" >/dev/null || die "Recording log missing decoded height"
+
+contact_sheet="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '*.contact-sheet.jpg' | head -1)"
+if [ -z "$contact_sheet" ]; then
+    recording_name="$(basename "$recording_path" .mov)"
+    contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+    ffmpeg -hide_banner -loglevel error -y -i "$recording_path" -vf "fps=1/7,scale=860:-1,tile=4x1" "$contact_sheet"
+fi
+require_file "$contact_sheet"
+
+annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
+annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
+raw_recording="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
+if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotation_plan" ]; then
+    require_file "$annotation_log"
+    require_file "$annotation_plan"
+    require_file "$raw_recording"
+    grep -F 'result=success' "$annotation_log" >/dev/null || die "Annotation log does not report success"
+    awk -F '\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        NF < 5 || $5 !~ /(Run|Config|Edit|Debug):/ {
+            printf("Annotation row %d is missing a user-facing command/config/action: %s\n", NR, $0) > "/dev/stderr"
+            exit 1
+        }
+    ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
+fi
+
+if [ "$REQUIRE_REVIEW" = "1" ]; then
+    review_path="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    require_file "$review_path"
+    verdict="$(tail -n 1 "$review_path")"
+    case "$verdict" in
+        PASS|PASS_WITH_NOTES) ;;
+        *) die "Review verdict must be PASS or PASS_WITH_NOTES, got: $verdict" ;;
+    esac
+fi
+
+log "recording=$recording_path"
+log "duration=${duration}s width=${width} height=${height} codec=${codec} frames=${frames}"
+log "contact_sheet=$contact_sheet"
+log "PASS"

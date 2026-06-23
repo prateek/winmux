@@ -3,6 +3,7 @@ import AppKit
 extension Monitor {
     @MainActor
     var workspaceSidebarInset: CGFloat {
+        guard zoneId == nil else { return 0 }
         guard config.workspaceSidebar.enabled else { return 0 }
         return workspaceSidebarResolvedPanelMonitors().contains { $0.rect.topLeftCorner == rect.topLeftCorner }
             ? CGFloat(config.workspaceSidebar.collapsedWidth)
@@ -11,6 +12,7 @@ extension Monitor {
 
     @MainActor
     var visibleRectPaddedByOuterGaps: Rect {
+        guard zoneId == nil else { return visibleRect }
         let topLeft = visibleRect.topLeftCorner
         let gaps = ResolvedGaps(gaps: config.gaps, monitor: self)
         let leftInset = gaps.outer.left.toDouble() + workspaceSidebarInset
@@ -24,6 +26,6 @@ extension Monitor {
 
     @MainActor
     var monitorId_oneBased: Int? {
-        sortedMonitors.firstIndex { $0.rect.topLeftCorner == rect.topLeftCorner }.map { $0 + 1 }
+        sortedPhysicalMonitors.firstIndex { $0.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner }.map { $0 + 1 }
     }
 }

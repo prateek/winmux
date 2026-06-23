@@ -156,6 +156,9 @@ extension String {
                     case .monitorAppKitNsScreenScreensId: .success(.int(m.monitorAppKitNsScreenScreensId))
                     case .monitorName: .success(.string(m.name))
                     case .monitorIsMain: .success(.bool(m.isMain))
+                    case .monitorIsZone: .success(.bool(m.zoneId != nil))
+                    case .monitorZoneId: .success(.string(m.zoneId ?? ""))
+                    case .monitorPhysicalId_oneBased: .success(m.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                 }
             case (.app(let a), .app(let f)):
                 return switch f {

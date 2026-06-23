@@ -25,6 +25,15 @@ protocol Monitor: WinMuxAny {
     var width: CGFloat { get }
     var height: CGFloat { get }
     var isMain: Bool { get }
+    var zoneId: String? { get }
+    var isDefaultZone: Bool { get }
+    var physicalMonitor: Monitor { get }
+}
+
+extension Monitor {
+    var zoneId: String? { nil }
+    var isDefaultZone: Bool { false }
+    var physicalMonitor: Monitor { self }
 }
 
 final class LazyMonitor: Monitor {
@@ -103,6 +112,7 @@ nonisolated(unsafe) private var monitorsOverrideForTests: [Monitor]? = nil
 @MainActor
 func setMonitorsForTests(_ monitors: [Monitor]?) {
     monitorsOverrideForTests = monitors
+    invalidateMonitorCaches()
 }
 
 var mainMonitor: Monitor {
@@ -124,9 +134,11 @@ var mainMonitor: Monitor {
 // NSScreen must be accessed from the main thread anyway, so off-main callers compute fresh.
 nonisolated(unsafe) private var monitorsCache: [Monitor]? = nil
 nonisolated(unsafe) private var sortedMonitorsCache: [Monitor]? = nil
+nonisolated(unsafe) private var physicalMonitorsCache: [Monitor]? = nil
+nonisolated(unsafe) private var sortedPhysicalMonitorsCache: [Monitor]? = nil
 nonisolated(unsafe) private var monitorsCacheObserver: NSObjectProtocol? = nil
 
-private func computeMonitors() -> [Monitor] {
+private func computePhysicalMonitors() -> [Monitor] {
     let screens = NSScreen.screens
     guard !screens.isEmpty else { return [mainMonitor] }
     return screens.withIndex.map { index, screen in
@@ -134,39 +146,61 @@ private func computeMonitors() -> [Monitor] {
     }
 }
 
-var monitors: [Monitor] {
+private func computeWorkspaceViewports() -> [Monitor] {
+    getCurrentZoneTopologySnapshot().workspaceViewports(for: computePhysicalMonitors())
+}
+
+func invalidateMonitorCaches() {
+    physicalMonitorsCache = nil
+    sortedPhysicalMonitorsCache = nil
+    monitorsCache = nil
+    sortedMonitorsCache = nil
+}
+
+var physicalMonitors: [Monitor] {
     if isUnitTest, let override = monitorsOverrideForTests {
         return override
     }
     if isUnitTest { return [mainMonitor] }
-    guard Thread.isMainThread else { return computeMonitors() }
+    guard Thread.isMainThread else { return computePhysicalMonitors() }
     if monitorsCacheObserver == nil {
         monitorsCacheObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main,
         ) { _ in
-            monitorsCache = nil
-            sortedMonitorsCache = nil
+            invalidateMonitorCaches()
         }
     }
+    if let cached = physicalMonitorsCache { return cached }
+    let computed = computePhysicalMonitors()
+    physicalMonitorsCache = computed
+    return computed
+}
+
+var sortedPhysicalMonitors: [Monitor] {
+    if Thread.isMainThread, !isUnitTest, let cached = sortedPhysicalMonitorsCache { return cached }
+    let sorted = sortMonitorsBySpatialOrder(physicalMonitors)
+    if Thread.isMainThread, !isUnitTest { sortedPhysicalMonitorsCache = sorted }
+    return sorted
+}
+
+var workspaceViewports: [Monitor] {
+    if isUnitTest {
+        return getCurrentZoneTopologySnapshot().workspaceViewports(for: physicalMonitors)
+    }
+    guard Thread.isMainThread else { return computeWorkspaceViewports() }
     if let cached = monitorsCache { return cached }
-    let computed = computeMonitors()
+    let computed = getCurrentZoneTopologySnapshot().workspaceViewports(for: physicalMonitors)
     monitorsCache = computed
     return computed
 }
 
+var monitors: [Monitor] { workspaceViewports }
+
 var sortedMonitors: [Monitor] {
     if Thread.isMainThread, !isUnitTest, let cached = sortedMonitorsCache { return cached }
-    let sorted = monitors.sorted {
-        if $0.rect.minX != $1.rect.minX {
-            return $0.rect.minX < $1.rect.minX
-        }
-        if $0.rect.minY != $1.rect.minY {
-            return $0.rect.minY < $1.rect.minY
-        }
-        return $0.monitorAppKitNsScreenScreensId < $1.monitorAppKitNsScreenScreensId
-    }
+    let sorted = sortMonitorsBySpatialOrder(monitors)
     if Thread.isMainThread, !isUnitTest { sortedMonitorsCache = sorted }
     return sorted
 }
