@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation, slices 0-8 accepted
+Status: implementation complete, slices 0-9 accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -215,6 +215,13 @@ the root output and source provenance without chat history: source review
 verdict, source capture mode, source guest-control flag, source recording hash,
 root output hash, artifact-copy hash, duration, codec, pixel format, resolution,
 samples, caption-boundary frames for transition demos, and a no-context review.
+
+Documentation-only slices may reuse already accepted Tart-derived media instead
+of producing a fresh recording. Their artifact directory must include the
+reviewed docs snapshot, snapshot hash, referenced artifact paths, verifier
+commands and results for the referenced media, review output, and a short
+manifest under `logs/` that records the evidence chain without relying on chat
+history.
 
 ## Terminology
 
@@ -990,6 +997,98 @@ Pre-slice cleanup before the next slice starts:
 - [x] Before the next Tart product run, reduce reviewer-facing retry noise by adding clearer retry summaries and stronger SSH/TCC readiness checks.
 - [x] Before any future routing or automation slice, add either a fast hook-level callback behavior test or first-class callback evidence logs.
 - [x] Inventory the accepted Slice 8 dirty set, including the untracked config and guest script, and exclude accidental `gitHashGenerated.swift` churn from the commit.
+
+### Slice 9: User-Facing Columnar Zones Docs
+
+Goal: publish the feature in the user-facing README so an ultrawide user can
+configure zones, bindings, presets, scenes, and simple window routing without
+reading the implementation plan.
+
+This is a documentation slice, not a new desktop-behavior slice. It must still
+attach accepted Tart-derived video evidence:
+
+- root demo video: `demo-columnar-zones.mp4`;
+- source Tart artifact: `artifacts/e2e/slice-7-root-demo-20260624T042021Z`;
+- routing proof artifact: `artifacts/e2e/slice-8-20260624T045815Z`.
+
+Slice 9 scope:
+
+- Add a concise README section after multi-monitor behavior, because zones are
+  an ultrawide extension of the monitor mental model.
+- Include one inline `[[zones]]` columns example, ergonomic bindings, `list-zones`
+  inspection guidance, selector disambiguation, one preset/scene example, and
+  one `[[on-window-detected]]` routing example.
+- Link the root columnar-zones demo video from the README.
+- Keep non-claims explicit by avoiding grid/freeform layouts, draggable dividers,
+  per-zone sidebars, or a visual editor.
+
+Slice 9 validation:
+
+- Run a fast markdown/config-surface sanity check by comparing README examples
+  against the accepted e2e fixtures and command names.
+- Re-run the root demo verifier with `--require-review`.
+- Re-run the Slice 8 artifact verifier with `--require-review`.
+- Run a no-context subagent review of the README section and attached video
+  evidence before closing this slice.
+- Run the three no-context retrospection agents and bake any accepted blocking
+  findings into the next checklist, or record that the implementation plan is
+  complete if there is no next slice.
+
+Slice 9 accepted artifact:
+
+- artifact directory: `artifacts/e2e/slice-9-docs-20260624T052928Z`;
+- README snapshot: `artifacts/e2e/slice-9-docs-20260624T052928Z/README.md`;
+- README snapshot SHA-256: `dc451683c64e7958dacd4514f30ea1c7c4227399116bea941ca8b694238c1054`;
+- docs-slice manifest: `artifacts/e2e/slice-9-docs-20260624T052928Z/logs/docs-slice-manifest.txt`;
+- review: `artifacts/e2e/slice-9-docs-20260624T052928Z/reviews/no-ctx-artifact-review.md`;
+- verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- referenced root demo: `demo-columnar-zones.mp4`, SHA-256 `bd772ca45ffa9706ed21096d85c2ba2a93555b3f31c7d7dad9f9fdf284ad63ba`;
+- root demo source artifact: `artifacts/e2e/slice-7-root-demo-20260624T042021Z`;
+- routing proof artifact: `artifacts/e2e/slice-8-20260624T045815Z`;
+- retrospectives:
+  - `artifacts/e2e/slice-9-docs-20260624T052928Z/retrospectives/process-plan.md`;
+  - `artifacts/e2e/slice-9-docs-20260624T052928Z/retrospectives/code-harness.md`;
+  - `artifacts/e2e/slice-9-docs-20260624T052928Z/retrospectives/artifact-product.md`.
+
+Verification:
+
+- `make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-20260624T042021Z ARGS=--require-review` passed with H.264, 3440x1440, duration `41.983333s`, and `yuv420p`.
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-8-20260624T045815Z ARGS=--require-review` passed with H.264, 3440x1440, duration `43.983333s`, 1949 frames, and the documented historical strict-caption exception.
+- `git ls-files --error-unmatch demo-columnar-zones.mp4` passed, proving the linked root demo is tracked.
+- README and artifact snapshot hashes match.
+
+What the accepted docs prove:
+
+- the public README now explains the ultrawide columnar-zones mental model;
+- the README gives a working `[[zones]]` columns example, focus/move bindings,
+  `list-zones` inspection guidance, selector disambiguation, `[[zone-layouts]]`,
+  `[[zone-scenes]]`, `use-zone-layout`, `use-zone-scene`, and
+  `[[on-window-detected]]` routing;
+- the linked root demo is a tracked, accepted Tart-derived product demo;
+- the routing example is backed by the accepted Slice 8 title-routing proof.
+
+Accepted notes:
+
+- The README routing regex intentionally uses `Slack|Messages|route-comms` as a
+  broader user-facing example. The accepted Slice 8 media/proof uses the exact
+  `route-comms` fixture, with the same `[[on-window-detected]]` plus
+  `move-node-to-zone Comms --fail-if-noop` command shape.
+- The root demo primarily demonstrates scenes and inspection commands. Earlier
+  accepted artifacts cover `focus-zone` and `move-node-to-zone`, while Slice 8
+  covers automatic title routing.
+- The Slice 8 artifact keeps its documented historical caption exception; future
+  routing docs and recordings should use the strict `--fail-if-noop` form.
+
+Plan completion cleanup:
+
+- [x] Read all three Slice 9 retrospective reports and carry accepted blockers.
+- [x] Preserve docs-slice validation evidence in a manifest under the Slice 9
+  artifact logs.
+- [x] Close Slice 9 in this plan with artifact paths, hashes, review verdict,
+  verifier evidence, claims, non-claims, notes, and retrospectives.
+- [x] Record that the columnar-zones implementation plan is complete after Slice
+  9. Future docs/release slices should add a reusable docs-slice verifier or
+  reviewer packet before relying on this pattern again.
 
 ## Call-Site Audit
 

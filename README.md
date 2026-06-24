@@ -37,6 +37,68 @@ Monitors share the global project/workspace state. Each monitor can be treated a
 
 Monitors can not be attached to the same workspace at the same time. They can be on the same project at the same time.
 
+### Columnar Zones
+On ultrawide displays, WinMux can split one physical monitor into named column zones. Each zone acts like its own workspace viewport, so Reference, Work, and Comms can stay visible at the same time without turning the whole display into one huge tiling surface.
+
+See [demo-columnar-zones.mp4](demo-columnar-zones.mp4) for the workflow.
+
+```toml
+[[zones]]
+monitor = 1
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[mode.main.binding]
+alt-h = 'focus-zone Reference'
+alt-l = 'focus-zone Comms'
+alt-shift-h = 'move-node-to-zone Reference'
+alt-shift-l = 'move-node-to-zone Comms'
+```
+
+Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
+
+For repeatable setups, define layout presets and scenes:
+
+```toml
+[[zone-layouts]]
+id = 'focus'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Queue', width = 0.18 },
+  { id = 'main', name = 'Build', width = 0.64 },
+  { id = 'right', name = 'Notes', width = 0.18 },
+]
+
+[[zone-scenes]]
+id = 'deep-work'
+layout-preset = 'focus'
+workspaces = [
+  { zone = 'left', workspace = 'FocusQueue' },
+  { zone = 'main', workspace = 'FocusBuild' },
+  { zone = 'right', workspace = 'FocusNotes' },
+]
+
+[mode.main.binding]
+alt-1 = 'use-zone-layout focus'
+alt-2 = 'use-zone-scene deep-work'
+```
+
+Use `use-zone-layout` when you only want to resize the columns. Use `use-zone-scene` when you want to resize columns and switch each zone to a named workspace.
+
+Window rules can route new windows into a zone by using the same command surface:
+
+```toml
+[[on-window-detected]]
+if.window-title-regex-substring = 'Slack|Messages|route-comms'
+run = ['move-node-to-zone Comms --fail-if-noop']
+```
+
 #### App Launching
 WinMux supports single-modifer keybindings (e.g. triggering an action on press of `⌘`)
 
