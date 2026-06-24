@@ -102,6 +102,8 @@ Before guest capture, the harness prepares the disposable guest:
 
 Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` inside the guest. Debug bare-executable launches also pass `WINMUX_DEFAULT_CONFIG_PATH` so SwiftUI settings initialization can parse the staged config before the app reloads `--config-path`. `WINMUX_E2E_STARTUP_TRACE` writes startup milestones to `logs/winmux-startup-trace.log`.
 
+Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. The harness also warms guest transport with three consecutive successful probes before privacy setup and again before recording, which keeps reviewer-facing proof logs cleaner.
+
 Scenario command proofs must distinguish setup from proof. Setup commands may create or place windows, but proof commands must use the exact behavior being tested, assert before and after state, and fail on no-op when movement is the claim. Prepared product slices should capture a clean before screenshot, stage the visible ready state, capture `01-ready-slice-N.png`, then start the proof recording. Do not use fallback commands that would hide a broken zone selector or command path.
 
 Stateful scenario assertions should exit with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` (default `86`) so `guest_script_retry` stops immediately instead of replaying a half-mutated window-management state. Transport failures can retry; semantic proof failures should fail the run.

@@ -150,6 +150,40 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focusedWindow.nodeWorkspace === work)
     }
 
+    func testOnWindowDetectedMoveNodeToZoneUsesDetectedWindowId() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 47, parent: work.rootTilingContainer, title: "route-comms.rtf")
+        let focusedWindow = TestWindow.new(id: 48, parent: work.rootTilingContainer, title: "focused-work.rtf")
+        XCTAssertTrue(focusedWindow.focusWindow())
+        configureRouteCommsCallback()
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+    }
+
+    func testOnWindowDetectedMoveNodeToZoneIgnoresNonMatchingTitle() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 49, parent: work.rootTilingContainer, title: "notes.rtf")
+        let focusedWindow = TestWindow.new(id: 50, parent: work.rootTilingContainer, title: "focused-work.rtf")
+        XCTAssertTrue(focusedWindow.focusWindow())
+        configureRouteCommsCallback()
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === work)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+    }
+
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")
@@ -317,6 +351,21 @@ private func configureZoneScenes() -> [String: Monitor] {
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
     })
+}
+
+@MainActor
+private func configureRouteCommsCallback() {
+    var errors: [String] = []
+    let regex = parseCaseInsensitiveRegex("route-comms").getOrNil(appendErrorTo: &errors).orDie()
+    XCTAssertEqual(errors, [])
+    config.onWindowDetected = [
+        WindowDetectedCallback(
+            matcher: WindowDetectedCallbackMatcher(windowTitleRegexSubstring: regex),
+            rawRun: [
+                MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Comms")).copy(\.failIfNoop, true)),
+            ],
+        ),
+    ]
 }
 
 @MainActor

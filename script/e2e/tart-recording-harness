@@ -385,6 +385,7 @@ guest_script_retry() {
     local script="$1"
     local log_path="$2"
     local attempt=1
+    local failure_count=0
 
     : >"$log_path"
     while [ "$attempt" -le "$GUEST_ACTION_ATTEMPTS" ]; do
@@ -394,12 +395,21 @@ guest_script_retry() {
             guest_script "$script"
         } >>"$log_path" 2>&1 || status=$?
         if [ "$status" -eq 0 ]; then
-            printf 'result=success\n' >>"$log_path"
+            {
+                printf 'result=success\n'
+                printf 'failure_count=%s\n' "$failure_count"
+                printf 'final_result=success\n'
+            } >>"$log_path"
             return
         fi
+        failure_count=$((failure_count + 1))
         if [ "$status" -eq "$GUEST_ACTION_SEMANTIC_FAILURE_EXIT" ]; then
             log "Guest action attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} hit a semantic scenario failure; see $log_path"
-            printf 'result=semantic_failure\n' >>"$log_path"
+            {
+                printf 'result=semantic_failure\n'
+                printf 'failure_count=%s\n' "$failure_count"
+                printf 'final_result=semantic_failure\n'
+            } >>"$log_path"
             return "$status"
         fi
 
@@ -411,12 +421,46 @@ guest_script_retry() {
         fi
     done
 
+    {
+        printf 'failure_count=%s\n' "$failure_count"
+        printf 'final_result=failure\n'
+    } >>"$log_path"
     return 1
 }
 
 warm_guest_transport() {
     local label="$1"
-    guest_script_retry "true" "${LOGS_DIR}/guest-control-warmup-${label}.log"
+    local log_path="${LOGS_DIR}/guest-control-warmup-${label}.log"
+    local consecutive_successes=0
+    local attempt=1
+
+    : >"$log_path"
+    while [ "$attempt" -le "$GUEST_ACTION_ATTEMPTS" ]; do
+        local status=0
+        {
+            printf 'attempt=%s\n' "$attempt"
+            guest_script "true"
+        } >>"$log_path" 2>&1 || status=$?
+        if [ "$status" -eq 0 ]; then
+            consecutive_successes=$((consecutive_successes + 1))
+            printf 'probe_result=success\n' >>"$log_path"
+            printf 'consecutive_successes=%s\n' "$consecutive_successes" >>"$log_path"
+            if [ "$consecutive_successes" -ge 3 ]; then
+                printf 'result=success\n' >>"$log_path"
+                return
+            fi
+        else
+            consecutive_successes=0
+            printf 'probe_result=failure\n' >>"$log_path"
+            printf 'consecutive_successes=0\n' >>"$log_path"
+            log "Guest transport warm-up ${label} attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} failed; see $log_path"
+            sleep "$GUEST_ACTION_RETRY_SECONDS"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    printf 'result=failure\n' >>"$log_path"
+    return 1
 }
 
 wait_for_guest_control() {
@@ -1906,6 +1950,7 @@ run_recorded_scenario() {
     fi
     if [ "$CAPTURE_MODE" = "guest" ]; then
         ensure_guest_artifact_mount
+        warm_guest_transport "before-privacy"
         prepare_guest_privacy_permissions
     fi
     if [ "$guest_control_ready" = "1" ]; then

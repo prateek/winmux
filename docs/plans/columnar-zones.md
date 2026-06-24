@@ -987,8 +987,8 @@ Pre-slice cleanup before the next slice starts:
 - [x] Tighten future Slice 8-style captions and verifier checks to require the strict `--fail-if-noop` callback command, while preserving the accepted artifact as a historical exception.
 - [x] Resolve the plan's callback-log mismatch by making the accepted Slice 8 evidence explicit and not promising a separate callback log for this artifact.
 - [x] Add a verifier guard that rejects manual `move-node-to-zone` commands in the recorded automatic-routing proof action log.
-- [ ] Before the next Tart product run, reduce reviewer-facing retry noise by adding clearer retry summaries or stronger SSH/TCC readiness checks.
-- [ ] Before any future routing or automation slice, add either a fast hook-level callback behavior test or first-class callback evidence logs.
+- [x] Before the next Tart product run, reduce reviewer-facing retry noise by adding clearer retry summaries and stronger SSH/TCC readiness checks.
+- [x] Before any future routing or automation slice, add either a fast hook-level callback behavior test or first-class callback evidence logs.
 - [x] Inventory the accepted Slice 8 dirty set, including the untracked config and guest script, and exclude accidental `gitHashGenerated.swift` churn from the commit.
 
 ## Call-Site Audit

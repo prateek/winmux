@@ -3,21 +3,23 @@ import AppKit
 
 final class TestWindow: Window, CustomStringConvertible {
     private var _rect: Rect?
+    private var _title: String?
     private var _isHiddenInCorner: Bool = false
     var nativeIsMacosFullscreen: Bool = false
     var nativeIsMacosMinimized: Bool = false
 
     @MainActor
-    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?) {
+    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?, _ title: String?) {
         _rect = rect
+        _title = title
         super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
         lastKnownActualRect = rect
     }
 
     @discardableResult
     @MainActor
-    static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
-        let wi = TestWindow(id, parent, adaptiveWeight, rect)
+    static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil, title: String? = nil) -> TestWindow {
+        let wi = TestWindow(id, parent, adaptiveWeight, rect, title)
         TestApp.shared._windows.append(wi)
         return wi
     }
@@ -36,7 +38,7 @@ final class TestWindow: Window, CustomStringConvertible {
 
     override var title: String {
         get async { // redundant async. todo create bug report to Swift
-            description
+            _title ?? description
         }
     }
 
