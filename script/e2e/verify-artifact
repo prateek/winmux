@@ -126,6 +126,34 @@ require_manifest_value() {
     printf '%s\n' "$value"
 }
 
+require_manifest_drag_screenshot() {
+    local manifest_path="$1"
+    local manifest_key="$2"
+    local filename
+    filename="$(require_manifest_value "$manifest_path" drag-screenshots "$manifest_key")"
+
+    [[ "$filename" == *.png ]] || die "Proof manifest drag screenshot ${manifest_key} must name a PNG: $filename"
+    [[ "$filename" != */* ]] || die "Proof manifest drag screenshot ${manifest_key} must be a screenshot filename, not a path: $filename"
+
+    local path="${SCREENSHOTS_DIR}/${filename}"
+    require_file "$path"
+
+    local byte_count
+    byte_count="$(wc -c <"$path" | tr -d ' ')"
+    [ "$byte_count" -gt 50000 ] || die "Drag screenshot ${filename} is too small to be a full-frame proof: ${byte_count} bytes"
+
+    local dimensions
+    dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$path")" \
+        || die "Drag screenshot ${filename} is not readable image media"
+    local expected_dimensions="${width:-}x${height:-}"
+    if [ "$expected_dimensions" != "x" ]; then
+        [ "$dimensions" = "$expected_dimensions" ] \
+            || die "Drag screenshot ${filename} dimensions ${dimensions} do not match recording ${expected_dimensions}"
+    fi
+
+    printf '%s\n' "$path"
+}
+
 ensure_review_packet() {
     local packet_path="${RUN_DIR}/reviews/reviewer-packet.md"
     local packet_log="${LOGS_DIR}/${recording_name}.review-packet.log"
@@ -163,6 +191,17 @@ ensure_review_packet() {
         "${absolute_run_dir}/reviews/no-ctx-artifact-review.md" \
         "${relative_run_dir}/reviews/no-ctx-artifact-review.md" \
         || die "Review packet missing review output path"
+    if [ -s "${LOGS_DIR}/${recording_name}.proof-manifest.tsv" ]; then
+        local drag_screenshot
+        while IFS= read -r drag_screenshot; do
+            [ -n "$drag_screenshot" ] || continue
+            review_packet_contains_any "$packet_path" \
+                "${RUN_DIR}/screenshots/${drag_screenshot}" \
+                "${absolute_run_dir}/screenshots/${drag_screenshot}" \
+                "${relative_run_dir}/screenshots/${drag_screenshot}" \
+                || die "Review packet missing manifest drag screenshot path: $drag_screenshot"
+        done < <(/usr/bin/awk -F'\t' '$1 == "drag-screenshots" { print $3 }' "${LOGS_DIR}/${recording_name}.proof-manifest.tsv")
+    fi
     review_packet_contains_any "$packet_path" \
         "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" \
         "make e2e-verify-slice RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
@@ -189,12 +228,19 @@ require_drag_proof_manifest() {
     local manifest_path="$1"
     require_file "$manifest_path"
 
-    local source_title target_zone target_name source_point target_point coordinate_policy required_frames caption_chip
+    local source_title target_zone target_name snap_target not_snap_target source_point target_point hover_seconds
+    local pickup_screenshot path_screenshot hover_screenshot coordinate_policy required_frames caption_chip
     source_title="$(require_manifest_value "$manifest_path" drag-source title)"
     target_zone="$(require_manifest_value "$manifest_path" drag-target zone-id)"
     target_name="$(require_manifest_value "$manifest_path" drag-target zone-name)"
+    snap_target="$(require_manifest_value "$manifest_path" drag-target snap-target)"
+    not_snap_target="$(require_manifest_value "$manifest_path" drag-target not-snap-target)"
     source_point="$(require_manifest_value "$manifest_path" drag-points source)"
     target_point="$(require_manifest_value "$manifest_path" drag-points target)"
+    hover_seconds="$(require_manifest_value "$manifest_path" drag-points target-hover-hold-seconds)"
+    pickup_screenshot="$(require_manifest_drag_screenshot "$manifest_path" pickup)"
+    path_screenshot="$(require_manifest_drag_screenshot "$manifest_path" path)"
+    hover_screenshot="$(require_manifest_drag_screenshot "$manifest_path" hover)"
     coordinate_policy="$(require_manifest_value "$manifest_path" drag-points coordinate-policy)"
     required_frames="$(require_manifest_value "$manifest_path" visual-floor required-frames)"
     caption_chip="$(require_manifest_value "$manifest_path" caption chip)"
@@ -202,12 +248,30 @@ require_drag_proof_manifest() {
     [ -n "$source_title" ] || die "Proof manifest source title is empty"
     [ -n "$target_zone" ] || die "Proof manifest target zone is empty"
     [ -n "$target_name" ] || die "Proof manifest target zone name is empty"
+    [ "$snap_target" = zone-row ] || die "Proof manifest must state snap-target=zone-row, got: ${snap_target:-missing}"
+    [ "$not_snap_target" = window-within-zone ] || die "Proof manifest must state not-snap-target=window-within-zone"
     [[ "$source_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest source point is not x,y: $source_point"
     [[ "$target_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest target point is not x,y: $target_point"
+    assert_numeric_gt "$hover_seconds" "2.5" "Slice 5 hover hold is too short to demonstrate the zone-row affordance"
+    local pickup_hash path_hash hover_hash ready_hash
+    pickup_hash="$(file_sha256 "$pickup_screenshot")"
+    path_hash="$(file_sha256 "$path_screenshot")"
+    hover_hash="$(file_sha256 "$hover_screenshot")"
+    [ "$pickup_hash" != "$path_hash" ] || die "Drag pickup and path screenshots are identical"
+    [ "$path_hash" != "$hover_hash" ] || die "Drag path and hover screenshots are identical"
+    [ "$pickup_hash" != "$hover_hash" ] || die "Drag pickup and hover screenshots are identical"
+    local ready_screenshot
+    ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' | head -1)"
+    if [ -s "$ready_screenshot" ]; then
+        ready_hash="$(file_sha256 "$ready_screenshot")"
+        [ "$pickup_hash" != "$ready_hash" ] || die "Drag pickup screenshot duplicates the ready screenshot"
+        [ "$path_hash" != "$ready_hash" ] || die "Drag path screenshot duplicates the ready screenshot"
+        [ "$hover_hash" != "$ready_hash" ] || die "Drag hover screenshot duplicates the ready screenshot"
+    fi
     [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* ]] \
         || die "Proof manifest must justify fixed drag points with state and video assertions"
-    [[ "$required_frames" == *source* && "$required_frames" == *target* && "$required_frames" == *path* ]] \
-        || die "Proof manifest visual floor must require source, target, and path frames"
+    [[ "$required_frames" == *source* && "$required_frames" == *proxy* && "$required_frames" == *highlight* && "$required_frames" == *path* ]] \
+        || die "Proof manifest visual floor must require source, proxy, highlighted target, and path frames"
     if [ -s "$annotation_plan" ]; then
         grep -F "$caption_chip" "$annotation_plan" >/dev/null || die "Proof manifest caption chip is missing from annotation plan"
     fi
@@ -576,6 +640,9 @@ require_slice_5_sidebar_drag_proof() {
     grep -F 'sidebar-zone=Work' "$sidebar_before" >/dev/null || die "Slice 5 sidebar-before log missing Work zone"
     grep -F 'sidebar-zone=Comms' "$sidebar_before" >/dev/null || die "Slice 5 sidebar-before log missing Comms zone"
     grep -F 'action=drag-to-zone' "$sidebar_action" >/dev/null || die "Slice 5 action log missing drag-to-zone proof"
+    grep -F 'interaction-model=sidebar-zone-drop' "$sidebar_action" >/dev/null || die "Slice 5 action log missing sidebar-zone-drop interaction model"
+    grep -F 'snap-target=zone-row' "$sidebar_action" >/dev/null || die "Slice 5 action log missing snap-target=zone-row"
+    grep -F 'not-snap-target=window-within-zone' "$sidebar_action" >/dev/null || die "Slice 5 action log missing not-snap-target=window-within-zone"
     grep -F 'drag-result=success' "$sidebar_action" >/dev/null || die "Slice 5 action log missing drag-result=success"
 
     local source_title source_id target_zone target_name before_zone after_zone before_workspace after_workspace after_id
@@ -608,12 +675,19 @@ require_slice_5_sidebar_drag_proof() {
             || die "Slice 5 proof manifest target zone does not match action log"
         [ "$(manifest_value "$proof_manifest" drag-target zone-name)" = "$target_name" ] \
             || die "Slice 5 proof manifest target zone name does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = zone-row ] \
+            || die "Slice 5 proof manifest must show a zone-row snap target"
+        [ "$(manifest_value "$proof_manifest" drag-target not-snap-target)" = window-within-zone ] \
+            || die "Slice 5 proof manifest must rule out window-within-zone snapping"
         [ "$(manifest_value "$proof_manifest" drag-source before-zone)" = "$before_zone" ] \
             || die "Slice 5 proof manifest before-zone does not match action log"
         [ "$(manifest_value "$proof_manifest" drag-result after-zone)" = "$after_zone" ] \
             || die "Slice 5 proof manifest after-zone does not match action log"
     fi
 
+    require_file "${SCREENSHOTS_DIR}/02-drag-pickup-slice-5.png"
+    require_file "${SCREENSHOTS_DIR}/03-drag-path-slice-5.png"
+    require_file "${SCREENSHOTS_DIR}/04-drag-hover-comms-slice-5.png"
     [ "$(field_for_id "$windows_before" "$source_id" title)" = "$source_title" ] \
         || die "Slice 5 source id/title missing from before window log"
     [ "$(field_for_id "$windows_after" "$source_id" title)" = "$source_title" ] \
@@ -632,11 +706,15 @@ require_slice_5_sidebar_drag_proof() {
         || die "Slice 5 sidebar-after log does not show the source item in right"
 
     grep -F "Config: [workspace-sidebar] enabled = true" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing sidebar config chip"
-    grep -F "Action: drag sidebar item to Comms zone" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing drag action chip"
+    grep -F "Action: drag sidebar item move-demo.rtf" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing pickup action chip"
+    grep -F "Action: hover over Comms zone target" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing zone hover chip"
+    grep -F "Action: release on Comms zone target" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing zone release chip"
     grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing list-zones chip"
     grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing list-windows chip"
-    awk -F '\t' '$5 == "Action: drag sidebar item to Comms zone" { found = 1; ok = (($1 + 0) <= 4) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
-        || die "Slice 5 drag action caption must start early enough to cover the visible drag"
+    awk -F '\t' '$5 == "Action: drag sidebar item move-demo.rtf" { found = 1; ok = (($1 + 0) <= 7) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 5 drag action caption must start early enough to cover pickup"
+    awk -F '\t' '$5 == "Action: hover over Comms zone target" { found = 1; ok = (($2 - $1) >= 8) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 5 hover caption must be long enough to inspect the zone-row affordance"
 }
 
 assert_numeric_gt() {

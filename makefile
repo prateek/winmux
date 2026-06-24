@@ -101,6 +101,7 @@ e2e-pre-tart-checks:
 	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	./script/e2e/package-root-demo --self-test && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
+	./script/e2e/tart-recording-harness warmup-policy-self-test && \
 	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
 e2e-verify-slice:
@@ -133,7 +134,7 @@ e2e-slice-4:
 
 e2e-slice-5:
 	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-5 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=40 ./script/e2e/tart-recording-harness slice-5'
+	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-5 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=60 ./script/e2e/tart-recording-harness slice-5'
 
 e2e-slice-6:
 	$(MAKE) e2e-pre-tart-checks

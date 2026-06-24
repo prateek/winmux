@@ -67,6 +67,15 @@ fi
 
 mkdir -p "$REVIEWS_DIR"
 
+drag_screenshot_lines() {
+    [ -s "$proof_manifest" ] || return 0
+    /usr/bin/awk -F'\t' -v screenshots_dir="$SCREENSHOTS_DIR" '
+        $1 == "drag-screenshots" {
+            printf("- %s drag screenshot: %s/%s\n", $2, screenshots_dir, $3)
+        }
+    ' "$proof_manifest"
+}
+
 slice_specific_checks() {
     case "$recording_name" in
         slice-2-config-zones)
@@ -89,9 +98,11 @@ EOF
             ;;
         slice-5-sidebar-drag|*drag*)
             cat <<'EOF'
-- Confirm the source sidebar item, target zone row/section, and hover or drop path are visible in full-frame action samples.
-- Confirm the drag proof manifest names the source item, target zone, fixed points, coordinate policy, caption beat, and before/after state logs.
-- Reject final-placement-only drag proof.
+- Confirm the source sidebar item, dragged proxy, pointer/path, highlighted target zone row/section, hover hold, release, and final placement are visible in full-frame action samples or in-drag screenshots.
+- Name the exact media file used to verify each drag beat: source pickup, proxy/path, hover highlight, release/drop, and final placement.
+- Confirm the drag proof manifest names the source item, target zone, snap target semantics, fixed points, coordinate policy, caption beat, in-drag screenshots, and before/after state logs.
+- State whether the UX snaps to a sidebar zone row or to a window within a zone. For Slice 5, the expected answer is zone row.
+- Reject final-placement-only drag proof, a too-fast blur, or any review that assumes drag happened without inspecting action frames.
 EOF
             ;;
         slice-6-zone-layout-presets)
@@ -152,6 +163,7 @@ packet fills the artifact paths and slice-specific checks.
 - contact sheet: ${contact_sheet}
 - sample frames: ${samples_dir}
 - caption boundary frames: ${boundary_samples_glob}
+$(drag_screenshot_lines)
 
 ## Inputs And Logs
 

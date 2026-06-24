@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation complete, slices 0-9 accepted
+Status: implementation complete, slices 0-9 accepted; Slice 5 drag-affordance replacement accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -195,6 +195,9 @@ The verifier must check:
 - guest-control, privacy, clean-slate, capture-readiness, and recording logs show success;
 - before/after screenshots exist;
 - standard timeline samples and a contact sheet exist or can be generated;
+- drag/action manifests include exact snap-target semantics, per-beat media,
+  full-frame in-drag screenshots matching the recording resolution, and distinct
+  hashes so stale or duplicate stills cannot satisfy pickup/path/hover proof;
 - slice-specific proof logs satisfy that slice's behavioral invariants when the verifier knows the recording name;
 - when `--require-review` is set, the review exists and ends in `PASS` or `PASS_WITH_NOTES`.
 
@@ -205,7 +208,8 @@ Gate order for every product slice:
 3. Run `make e2e-verify-slice RUN_DIR=...`.
 4. Locally inspect screenshots, standard samples, and contact sheet for obvious hard failures.
 5. Run the no-context artifact review.
-6. Run `make e2e-verify-slice RUN_DIR=... ARGS=--require-review`.
+6. Run `make e2e-verify-slice-check RUN_DIR=... ARGS=--require-review` so the
+   post-review gate cannot silently regenerate missing packet or sample files.
 7. Run the three no-context retrospection agents.
 8. Update this plan with slice result, accepted findings, and the next pre-slice cleanup checklist.
 9. Start the next slice only after the checklist is complete.
@@ -608,7 +612,10 @@ Work:
 
 This slice should not add per-zone sidebars. If that becomes useful, add it later behind explicit config with a clear inset policy.
 
-Tart video gate: record the sidebar showing zone/workspace state and at least one drag or move into a zone target.
+Tart video gate: record the sidebar showing zone/workspace state and a visible
+drag into a zone target. The video must show source pickup, dragged proxy/path,
+Comms zone-row hover highlight, release, and final placement. Logs alone and
+final-placement-only media do not satisfy this slice.
 
 Slice 5 proof storyboard:
 
@@ -618,16 +625,53 @@ Slice 5 proof storyboard:
 - Record only the proof action after the ready screenshot. The chosen first proof object is a window sidebar item. Workspace and tab-group drags are explicitly deferred unless needed to implement the same target plumbing.
 - Caption chips:
   - `Config: [workspace-sidebar] enabled = true`;
-  - `Action: drag sidebar item to Comms zone`;
+  - `Action: drag sidebar item move-demo.rtf`;
+  - `Action: hover over Comms zone target`;
+  - `Action: release on Comms zone target`;
   - `Run: winmux list-zones`;
   - `Run: winmux list-windows --monitor all`.
-- Logs must include `slice-5-sidebar-state-before.log`, `slice-5-sidebar-action.log`, `slice-5-sidebar-state-after.log`, `slice-5-windows-before.log`, `slice-5-windows-after.log`, and `slice-5-zones.log`.
-- The verifier must prove the ready screenshot exists, the `.done` marker contains `result=success`, the sidebar logs list all three zone sections, the action targets `right`/Comms, and the same object ends in the right zone.
+- Logs must include `slice-5-sidebar-state-before.log`, `slice-5-sidebar-action.log`, `slice-5-sidebar-state-after.log`, `slice-5-windows-before.log`, `slice-5-windows-after.log`, `slice-5-zones.log`, and `slice-5-sidebar-drag.proof-manifest.tsv`.
+- The artifact must include in-drag screenshots `02-drag-pickup-slice-5.png`, `03-drag-path-slice-5.png`, and `04-drag-hover-comms-slice-5.png`.
+- The verifier must prove the ready screenshot exists, the `.done` marker contains `result=success`, the sidebar logs list all three zone sections, the action targets `right`/Comms, the action log and manifest identify the snap target as the sidebar zone row and not a window within the zone, in-drag screenshots exist, hover lasts long enough to inspect the affordance, and the same object ends in the right zone.
 - Non-claims: this slice does not add per-zone sidebars, freeform layouts, app routing rules, or scene switching.
 
 Artifact review gate: no-context subagent confirms the sidebar zone UX is visible, legible, and consistent with the baseline screenshots before Slice 6 starts.
 
-Accepted Slice 5 result:
+Accepted Slice 5 replacement result:
+
+- artifact: `artifacts/e2e/slice-5-20260624T054827Z`;
+- recording: `artifacts/e2e/slice-5-20260624T054827Z/recordings/slice-5-sidebar-drag.mov`;
+- raw recording: `artifacts/e2e/slice-5-20260624T054827Z/recordings/raw/slice-5-sidebar-drag.raw.mov`;
+- contact sheet: `artifacts/e2e/slice-5-20260624T054827Z/screenshots/slice-5-sidebar-drag.contact-sheet.jpg`;
+- in-drag screenshots: `02-drag-pickup-slice-5.png`, `03-drag-path-slice-5.png`, and `04-drag-hover-comms-slice-5.png`;
+- proof manifest: `artifacts/e2e/slice-5-20260624T054827Z/logs/slice-5-sidebar-drag.proof-manifest.tsv`;
+- proof: `artifacts/e2e/slice-5-20260624T054827Z/slice-5-sidebar-drag-proof.txt`;
+- no-context review: `artifacts/e2e/slice-5-20260624T054827Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-5-20260624T054827Z ARGS=--require-review` passed after the reviewer packet was regenerated with manifest-listed drag screenshot paths;
+- retrospectives: `artifacts/e2e/slice-5-20260624T054827Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`;
+- failed correction attempt: `artifacts/e2e/slice-5-20260624T054533Z` failed before product proof during guest transport warm-up, which is now covered by `warmup-policy-self-test`.
+
+What the accepted replacement proves:
+
+- the sidebar exposes physical-monitor zone rows for `Reference`, `Work`, and `Comms`;
+- the visible drag starts from the `move-demo.rtf` Work sidebar item, shows a dragged proxy/path, holds over the highlighted `Comms` zone row, releases onto that row, and ends with the same window id in the Comms/right zone;
+- the snap/drop target is the sidebar zone row, not a window inside the destination zone and not the normal window intent-zone overlay;
+- `move-demo.rtf` moves from `main` / workspace `2` to `right` / workspace `3`;
+- the reviewed video is a strict guest-captured 3440x1440 Tart artifact with polished captions, preserved raw capture, and per-beat user-facing action chips.
+
+Slice 5 replacement non-claims:
+
+- no workspace-row drag proof, tab-group drag proof, per-zone sidebars, freeform layouts, app routing rules, scene switching, or visual editor behavior is claimed by this slice.
+
+Slice 5 correction cleanup completed:
+
+- [x] Hardened the no-context review prompt and reviewer packet so drag reviewers must name exact media files for source pickup, proxy/path, hover highlight, release/drop, and final placement.
+- [x] Hardened `verify-artifact` so Slice 5 requires zone-row snap semantics, not-window snap semantics, a long hover beat, full-resolution distinct in-drag screenshots, and per-beat screenshot paths in the reviewer packet.
+- [x] Added `warmup-policy-self-test` to the pre-Tart gate for the guest transport readiness policy that recovered from the observed SSH auth flake.
+- [x] Reran the Slice 5 replacement Tart capture, manually inspected pickup/path/hover/final screenshots, reran the strict verifier, reran no-context artifact review, and ran all three no-context retrospections before closing the slice.
+
+Superseded Slice 5 result:
 
 - artifact: `artifacts/e2e/slice-5-20260624T013034Z`;
 - recording: `artifacts/e2e/slice-5-20260624T013034Z/recordings/slice-5-sidebar-drag.mov`;
@@ -635,22 +679,22 @@ Accepted Slice 5 result:
 - contact sheet: `artifacts/e2e/slice-5-20260624T013034Z/screenshots/slice-5-sidebar-drag.contact-sheet.jpg`;
 - proof: `artifacts/e2e/slice-5-20260624T013034Z/slice-5-sidebar-drag-proof.txt`;
 - no-context review: `artifacts/e2e/slice-5-20260624T013034Z/reviews/no-ctx-artifact-review.md`;
-- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`, now superseded;
 - post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-5-20260624T013034Z ARGS=--require-review` passed;
 - retrospectives: `artifacts/e2e/slice-5-20260624T013034Z/retrospectives/testing-artifact-gates.md`, `code-harness.md`, and `artifact-product.md`.
 
-What the accepted artifact proves:
+Why it is superseded:
+
+- the video and review did not conclusively show the drag affordance in progress;
+- the action was too fast and concentrated in the far-left sidebar;
+- the reviewer inferred the drag from final placement and logs instead of proving source pickup, proxy/path, hover highlight, release, and snap semantics from frames;
+- the artifact predates the manifest/in-drag-screenshot hardening.
+
+What the superseded artifact still proves:
 
 - the sidebar can show physical-monitor zone targets for `Reference`, `Work`, and `Comms`;
-- a sidebar window item can be dragged to a zone target;
 - the same `move-demo.rtf` window id moves from `main` / workspace `2` to `right` / workspace `3`;
 - the reviewed video is a strict guest-captured 3440x1440 Tart artifact with polished captions and preserved raw capture.
-
-Slice 5 notes carried forward:
-
-- future drag demos should slow the drag slightly or hold the target hover so the action reads in full-width video and contact-sheet samples;
-- keep the lower-third narrower when possible, as long as the user-facing command/config/action chip stays readable;
-- hardcoded drag coordinates were acceptable for this proof only because the verifier and logs caught failed attempts. Do not broaden this pattern without deriving or validating target frames.
 
 ### Slice 6: Presets, Scenes, and Freeform Layouts
 

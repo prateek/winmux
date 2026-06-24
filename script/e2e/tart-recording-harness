@@ -83,7 +83,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8>
+Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -207,6 +207,71 @@ shell_quote() {
 
 file_sha256() {
     shasum -a 256 "$1" | awk '{ print $1 }'
+}
+
+guest_transport_warmup_satisfied() {
+    local total_successes="$1"
+    local consecutive_successes="$2"
+    [ "$total_successes" -ge 3 ] && [ "$consecutive_successes" -ge 2 ]
+}
+
+simulate_guest_transport_warmup() {
+    local max_attempts="$1"
+    shift
+    local consecutive_successes=0
+    local total_successes=0
+    local attempt=1
+    local outcome
+
+    for outcome in "$@"; do
+        [ "$attempt" -le "$max_attempts" ] || break
+        case "$outcome" in
+            success)
+                consecutive_successes=$((consecutive_successes + 1))
+                total_successes=$((total_successes + 1))
+                if guest_transport_warmup_satisfied "$total_successes" "$consecutive_successes"; then
+                    printf 'result=success attempt=%s total_successes=%s consecutive_successes=%s\n' \
+                        "$attempt" "$total_successes" "$consecutive_successes"
+                    return 0
+                fi
+                ;;
+            failure)
+                consecutive_successes=0
+                ;;
+            *)
+                die "Unknown warm-up simulation outcome: $outcome"
+                ;;
+        esac
+        attempt=$((attempt + 1))
+    done
+
+    printf 'result=failure attempts=%s total_successes=%s consecutive_successes=%s\n' \
+        $((attempt - 1)) "$total_successes" "$consecutive_successes"
+    return 1
+}
+
+assert_warmup_policy_pass() {
+    local label="$1"
+    shift
+    simulate_guest_transport_warmup "$@" >/dev/null \
+        || die "Warm-up policy self-test expected pass but failed: $label"
+}
+
+assert_warmup_policy_fail() {
+    local label="$1"
+    shift
+    if simulate_guest_transport_warmup "$@" >/dev/null; then
+        die "Warm-up policy self-test expected failure but passed: $label"
+    fi
+}
+
+warmup_policy_self_test() {
+    assert_warmup_policy_pass "observed transient auth miss" 10 success failure success success
+    assert_warmup_policy_pass "late adjacent recovery" 10 success success failure success success
+    assert_warmup_policy_fail "only two total successes" 10 success failure success failure failure
+    assert_warmup_policy_fail "three successes without adjacent pair" 10 success failure success failure success
+    assert_warmup_policy_fail "max attempts exhausted before adjacent recovery" 3 success failure success success
+    log "Warm-up policy self-test passed"
 }
 
 vm_exists() {
@@ -432,10 +497,12 @@ warm_guest_transport() {
     local label="$1"
     local log_path="${LOGS_DIR}/guest-control-warmup-${label}.log"
     local consecutive_successes=0
+    local total_successes=0
     local attempt=1
+    local max_attempts="${WINMUX_E2E_GUEST_TRANSPORT_WARMUP_ATTEMPTS:-10}"
 
     : >"$log_path"
-    while [ "$attempt" -le "$GUEST_ACTION_ATTEMPTS" ]; do
+    while [ "$attempt" -le "$max_attempts" ]; do
         local status=0
         {
             printf 'attempt=%s\n' "$attempt"
@@ -443,17 +510,28 @@ warm_guest_transport() {
         } >>"$log_path" 2>&1 || status=$?
         if [ "$status" -eq 0 ]; then
             consecutive_successes=$((consecutive_successes + 1))
-            printf 'probe_result=success\n' >>"$log_path"
-            printf 'consecutive_successes=%s\n' "$consecutive_successes" >>"$log_path"
-            if [ "$consecutive_successes" -ge 3 ]; then
-                printf 'result=success\n' >>"$log_path"
+            total_successes=$((total_successes + 1))
+            {
+                printf 'probe_result=success\n'
+                printf 'total_successes=%s\n' "$total_successes"
+                printf 'consecutive_successes=%s\n' "$consecutive_successes"
+            } >>"$log_path"
+            if guest_transport_warmup_satisfied "$total_successes" "$consecutive_successes"; then
+                {
+                    printf 'result=success\n'
+                    printf 'total_successes=%s\n' "$total_successes"
+                    printf 'consecutive_successes=%s\n' "$consecutive_successes"
+                } >>"$log_path"
                 return
             fi
         else
             consecutive_successes=0
-            printf 'probe_result=failure\n' >>"$log_path"
-            printf 'consecutive_successes=0\n' >>"$log_path"
-            log "Guest transport warm-up ${label} attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} failed; see $log_path"
+            {
+                printf 'probe_result=failure\n'
+                printf 'total_successes=%s\n' "$total_successes"
+                printf 'consecutive_successes=0\n'
+            } >>"$log_path"
+            log "Guest transport warm-up ${label} attempt ${attempt}/${max_attempts} failed; see $log_path"
             sleep "$GUEST_ACTION_RETRY_SECONDS"
         fi
         attempt=$((attempt + 1))
@@ -944,10 +1022,12 @@ CAPTIONS
             ;;
         slice-5-sidebar-drag)
             cat >"$captions_path" <<'CAPTIONS'
-0	3	Sidebar-ready zones	The sidebar shows Reference, Work, and Comms on one physical display.	Config: [workspace-sidebar] enabled = true
-3	16	Drag to a zone target	A visible sidebar item moves into the Comms zone target.	Action: drag sidebar item to Comms zone
-16	28	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
-28	40	Final placement	The moved item remains in Comms after the drag completes.	Run: winmux list-windows --monitor all
+0	6	Sidebar-ready zones	The sidebar shows Reference, Work, and Comms on one physical display.	Config: [workspace-sidebar] enabled = true
+6	15	Pick up a sidebar item	The dragged proxy follows the `move-demo.rtf` sidebar row.	Action: drag sidebar item move-demo.rtf
+15	28	Hover on Comms zone	The Comms zone row highlights; this is a zone drop target, not a window snap.	Action: hover over Comms zone target
+28	40	Release into the zone	Drop onto Comms to move the item into that zone's active workspace.	Action: release on Comms zone target
+40	50	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
+50	60	Final placement	The moved item remains in Comms after the drop completes.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
         slice-6-zone-layout-presets)
@@ -2033,6 +2113,9 @@ case "$ACTION" in
         ;;
     annotation-preflight)
         annotation_preflight
+        ;;
+    warmup-policy-self-test)
+        warmup_policy_self_test
         ;;
     smoke|slice-0)
         smoke

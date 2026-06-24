@@ -36,6 +36,10 @@ WAIT_ERR="${ARTIFACTS_DIR}/logs/slice-5-cli-wait.err"
 STATE_FILE="${ARTIFACTS_DIR}/logs/slice-5-window-ids.env"
 DONE="${ARTIFACTS_DIR}/logs/slice-5-sidebar-drag.done"
 PROOF="${ARTIFACTS_DIR}/slice-5-sidebar-drag-proof.txt"
+SCREENSHOTS_DIR="${ARTIFACTS_DIR}/screenshots"
+DRAG_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/02-drag-pickup-slice-5.png"
+DRAG_PATH_SCREENSHOT="${SCREENSHOTS_DIR}/03-drag-path-slice-5.png"
+DRAG_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/04-drag-hover-comms-slice-5.png"
 
 DOC_DIR="${HOME}/winmux-e2e/sidebar-zone-docs"
 LEFT_DOC="${DOC_DIR}/left-reference.rtf"
@@ -238,6 +242,7 @@ setup_slice() {
         "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${SIDEBAR_BEFORE_LOG}" "${SIDEBAR_AFTER_LOG}" \
         "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" "${ACTION_MANIFEST}" "${ZONE_LOG}" \
         "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${PROOF}" "${APP_LOG}" "${APP_LOG_LOCAL}" \
+        "${DRAG_PICKUP_SCREENSHOT}" "${DRAG_PATH_SCREENSHOT}" "${DRAG_HOVER_SCREENSHOT}" \
         "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" \
         "${LAUNCH_PLIST_COPY}"
     rm -rf "${DOC_DIR}"
@@ -254,7 +259,7 @@ setup_slice() {
     test -x "${SOURCE_CLI}"
     test -f "${CONFIG}"
     rm -rf "${BIN_DIR}"
-    mkdir -p "${BIN_DIR}" "${DOC_DIR}"
+    mkdir -p "${BIN_DIR}" "${DOC_DIR}" "${SCREENSHOTS_DIR}"
     /bin/cp "${SOURCE_APP}" "${APP}"
     /bin/cp "${SOURCE_CLI}" "${CLI}"
     chmod +x "${APP}" "${CLI}"
@@ -331,28 +336,54 @@ run_drag_jxa() {
     /usr/bin/osascript -l JavaScript <<JXA
 ObjC.import('ApplicationServices')
 
+const app = Application.currentApplication()
+app.includeStandardAdditions = true
+
+function shellQuote(value) {
+  return "'" + String(value).replace(/'/g, "'\\''") + "'"
+}
+
 function post(type, x, y) {
   const event = $.CGEventCreateMouseEvent(null, type, $.CGPointMake(Number(x), Number(y)), $.kCGMouseButtonLeft)
   $.CGEventPost($.kCGHIDEventTap, event)
+}
+
+function dragTo(x1, y1, x2, y2, steps, stepDelay) {
+  for (let i = 1; i <= steps; i++) {
+    const t = i / Number(steps)
+    const x = Number(x1) + ((Number(x2) - Number(x1)) * t)
+    const y = Number(y1) + ((Number(y2) - Number(y1)) * t)
+    post($.kCGEventLeftMouseDragged, x, y)
+    delay(stepDelay)
+  }
+}
+
+function capture(path) {
+  delay(0.35)
+  app.doShellScript('/usr/sbin/screencapture -x -D ${GUEST_DISPLAY_ID} ' + shellQuote(path))
 }
 
 const sx = Number('${source_x}')
 const sy = Number('${source_y}')
 const tx = Number('${target_x}')
 const ty = Number('${target_y}')
+const pickupX = sx + 20
+const pickupY = sy - 18
+const pathX = sx + ((tx - sx) * 0.72)
+const pathY = sy + ((ty - sy) * 0.72)
 
 post($.kCGEventMouseMoved, sx, sy)
-delay(0.25)
+delay(0.8)
 post($.kCGEventLeftMouseDown, sx, sy)
 delay(0.25)
-for (let i = 1; i <= 28; i++) {
-  const t = i / 28.0
-  const x = sx + ((tx - sx) * t)
-  const y = sy + ((ty - sy) * t)
-  post($.kCGEventLeftMouseDragged, x, y)
-  delay(0.035)
-}
-delay(0.20)
+dragTo(sx, sy, pickupX, pickupY, 8, 0.06)
+capture('${DRAG_PICKUP_SCREENSHOT}')
+dragTo(pickupX, pickupY, pathX, pathY, 34, 0.07)
+capture('${DRAG_PATH_SCREENSHOT}')
+dragTo(pathX, pathY, tx, ty, 22, 0.08)
+delay(1.4)
+capture('${DRAG_HOVER_SCREENSHOT}')
+delay(2.2)
 post($.kCGEventLeftMouseUp, tx, ty)
 JXA
 }
@@ -378,6 +409,11 @@ proof_slice() {
     before_workspace="$(workspace_for_title "${WINDOW_BEFORE_LOG}" 'move-demo.rtf')"
     {
         echo 'action=drag-to-zone'
+        echo 'interaction-model=sidebar-zone-drop'
+        echo 'drop-affordance=Comms zone row highlight plus dragged-window proxy'
+        echo 'snap-target=zone-row'
+        echo 'snap-target-detail=drop moves the window to the active workspace shown by the Comms zone'
+        echo 'not-snap-target=window-within-zone'
         echo 'source=sidebar-window-item'
         echo "source-title=move-demo.rtf"
         echo "source-window-id=${MOVE_ID}"
@@ -387,6 +423,10 @@ proof_slice() {
         echo 'target-zone-name=Comms'
         echo 'source-point=96,318'
         echo 'target-point=120,145'
+        echo 'target-hover-hold-seconds=3.6'
+        echo "drag-pickup-screenshot=${DRAG_PICKUP_SCREENSHOT}"
+        echo "drag-path-screenshot=${DRAG_PATH_SCREENSHOT}"
+        echo "drag-hover-screenshot=${DRAG_HOVER_SCREENSHOT}"
     } | tee "${ACTION_LOG}"
 
     {
@@ -396,12 +436,19 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-source before-workspace "${before_workspace}"
         printf '%s\t%s\t%s\n' drag-target zone-id right
         printf '%s\t%s\t%s\n' drag-target zone-name Comms
+        printf '%s\t%s\t%s\n' drag-target snap-target zone-row
+        printf '%s\t%s\t%s\n' drag-target snap-target-detail 'drop moves the item to the active workspace shown by the target zone'
+        printf '%s\t%s\t%s\n' drag-target not-snap-target window-within-zone
         printf '%s\t%s\t%s\n' drag-points source '96,318'
         printf '%s\t%s\t%s\n' drag-points target '120,145'
+        printf '%s\t%s\t%s\n' drag-points target-hover-hold-seconds '3.6'
         printf '%s\t%s\t%s\n' drag-points coordinate-policy 'fixed-with-state-and-video-assertions: source and target points are accepted only with sidebar before/after logs, visible action caption frames, and a non-noop zone transition'
         printf '%s\t%s\t%s\n' drag-points mapping-assertion 'source item starts in Work/main; target row is Comms/right; verifier compares manifest, action log, sidebar logs, and sampled caption frames'
-        printf '%s\t%s\t%s\n' visual-floor required-frames 'source item, target zone row, and drag path must be visible in full-frame samples'
-        printf '%s\t%s\t%s\n' caption chip 'Action: drag sidebar item to Comms zone'
+        printf '%s\t%s\t%s\n' drag-screenshots pickup '02-drag-pickup-slice-5.png'
+        printf '%s\t%s\t%s\n' drag-screenshots path '03-drag-path-slice-5.png'
+        printf '%s\t%s\t%s\n' drag-screenshots hover '04-drag-hover-comms-slice-5.png'
+        printf '%s\t%s\t%s\n' visual-floor required-frames 'source item, dragged proxy, target zone row highlight, hover hold, drop path, and final placement must be visible in full-frame samples or in-drag screenshots'
+        printf '%s\t%s\t%s\n' caption chip 'Action: hover over Comms zone target'
         printf '%s\t%s\t%s\n' verification before-sidebar-log "${SIDEBAR_BEFORE_LOG}"
         printf '%s\t%s\t%s\n' verification after-sidebar-log "${SIDEBAR_AFTER_LOG}"
         printf '%s\t%s\t%s\n' verification before-window-log "${WINDOW_BEFORE_LOG}"
@@ -410,6 +457,10 @@ proof_slice() {
 
     run_drag_jxa 96 318 120 145
     sleep 4
+
+    test -s "${DRAG_PICKUP_SCREENSHOT}"
+    test -s "${DRAG_PATH_SCREENSHOT}"
+    test -s "${DRAG_HOVER_SCREENSHOT}"
 
     for _ in $(seq 1 30); do
         refresh_window_log "${WINDOW_AFTER_LOG}"
@@ -459,6 +510,11 @@ proof_slice() {
         echo
         echo 'Visible drag action:'
         cat "${ACTION_LOG}"
+        echo
+        echo 'Drag interaction model:'
+        echo 'The proof drops onto the Comms zone row in the sidebar.'
+        echo 'The snap target is the zone row, not a window inside the zone.'
+        echo 'On release, WinMux moves the dragged window into the active workspace shown by that zone.'
         echo
         echo 'Drag proof manifest:'
         cat "${ACTION_MANIFEST}"

@@ -96,9 +96,14 @@ Hard FAIL conditions:
 - movement or command-proof slices accept no-op moves without explicitly proving
   the no-op path with a strict flag such as `--fail-if-noop`;
 - drag/action-proof slices omit a proof manifest that names the source item,
-  target row/zone, fixed points or exported target frames, caption beat, and
-  before/after logs; fixed coordinates are acceptable only when the manifest and
-  sampled frames make the mapping auditable;
+  target row/zone, snap target semantics, fixed points or exported target
+  frames, caption beat, and before/after logs; fixed coordinates are acceptable
+  only when the manifest and sampled frames make the mapping auditable;
+- drag/action-proof slices do not visibly show the interaction in progress. The
+  reviewer must inspect action frames or in-drag screenshots that show source
+  pickup, dragged proxy/path, target hover/drop highlight, and release. Do not
+  infer these from final placement, logs, or captions alone. The review must
+  name the exact inspected media file for each required drag beat;
 - screenshots are blank, not ultrawide when an ultrawide was required, or taken at
   meaningless checkpoints;
 - the review cannot compare against the baseline media/product surfaces.
@@ -113,9 +118,13 @@ Slice-specific checks:
 - Slice 4 must show `focus-zone`, `move-node-to-zone`, and compatibility behavior
   for `focus-monitor 1`; logs alone are not enough.
 - Slice 5 must show the sidebar enabled with zone/workspace state and a visible
-  drag or move target. The action frames must visibly include the source sidebar
-  item, the zone target or zone section, and the drop or hover path. Final
-  placement alone is not enough for a sidebar drag proof.
+  drag in progress. The action frames or in-drag screenshots must visibly include
+  the source sidebar item, dragged proxy, pointer/path, highlighted Comms zone
+  row, hover hold, release/drop, and final placement. The review must state
+  whether the UX is snapping to a sidebar zone row or to a window within a zone.
+  For the Slice 5 zone proof, the expected answer is: zone row. Final placement
+  alone, a too-fast blur, a review without per-beat media filenames, or a
+  reviewer assumption that drag happened is a hard failure.
 - Slice 6A must show `[[zone-layouts]]` plus `winmux use-zone-layout focus`.
   The proof must show live windows and changed widths while the same windows stay
   bound to their zone ids and workspaces.
