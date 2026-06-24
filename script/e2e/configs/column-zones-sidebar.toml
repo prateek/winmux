@@ -19,11 +19,6 @@ width = 240
 collapsed-width = 64
 show-date = false
 
-[workspace-sidebar.workspace-labels]
-reference = 'Reference'
-work = 'Work'
-comms = 'Comms'
-
 [mode.main.binding]
 alt-h = 'focus-zone Reference'
 alt-l = 'focus-zone Comms'

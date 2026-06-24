@@ -3,6 +3,7 @@ import SwiftUI
 enum WorkspaceSidebarDropTargetKind: Equatable {
     case workspace(String)
     case newWorkspace(projectId: WorkspaceProjectId, monitorScopeId: String)
+    case zone(monitorScopeId: String, zoneId: String)
     case monitor(String)
 }
 

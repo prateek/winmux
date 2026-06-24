@@ -8,6 +8,9 @@ func clearWorkspaceSidebarModelState() {
     if !TrayMenuModel.shared.workspaceSidebarMonitorScopes.isEmpty {
         TrayMenuModel.shared.workspaceSidebarMonitorScopes = []
     }
+    if !TrayMenuModel.shared.workspaceSidebarZoneTargets.isEmpty {
+        TrayMenuModel.shared.workspaceSidebarZoneTargets = []
+    }
     if !TrayMenuModel.shared.workspaceSidebarProjects.isEmpty {
         TrayMenuModel.shared.workspaceSidebarProjects = []
     }
@@ -21,6 +24,8 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
         TrayMenuModel.shared.workspaceSidebarMonitorScopes != state.monitorScopes ||
         TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId != state.focusedMonitorScopeId ||
         TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector != state.showsMonitorSelector
+    let didZoneTargetChange =
+        TrayMenuModel.shared.workspaceSidebarZoneTargets != state.zoneTargets
     let didProjectChange =
         TrayMenuModel.shared.workspaceSidebarProjects != state.projects ||
         TrayMenuModel.shared.workspaceSidebarActiveProjectId != state.activeProjectId
@@ -35,6 +40,7 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
     if didWorkspaceChange ||
         state.topPadding != previousTopPadding ||
         didMonitorScopeChange ||
+        didZoneTargetChange ||
         didProjectChange ||
         WorkspaceSidebarPanel.visiblePanels.isEmpty
     {
@@ -49,6 +55,7 @@ private func updateWorkspaceSidebarTrayModel(with state: WorkspaceSidebarModelSt
     TrayMenuModel.shared.workspaceSidebarProjects = state.projects
     TrayMenuModel.shared.workspaceSidebarActiveProjectId = state.activeProjectId
     TrayMenuModel.shared.workspaceSidebarMonitorScopes = state.monitorScopes
+    TrayMenuModel.shared.workspaceSidebarZoneTargets = state.zoneTargets
     TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId = state.focusedMonitorScopeId
     TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector = state.showsMonitorSelector
 }

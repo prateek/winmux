@@ -242,6 +242,16 @@ func moveTabGroupFromSidebar(_ windowId: UInt32, toWorkspace workspaceName: Stri
 }
 
 @MainActor
+func moveWindowToZoneFromSidebar(_ windowId: UInt32, monitorScopeId: String, zoneId: String) {
+    moveSidebarSourceToZone(windowId, subject: .window, monitorScopeId: monitorScopeId, zoneId: zoneId)
+}
+
+@MainActor
+func moveTabGroupToZoneFromSidebar(_ windowId: UInt32, monitorScopeId: String, zoneId: String) {
+    moveSidebarSourceToZone(windowId, subject: .group, monitorScopeId: monitorScopeId, zoneId: zoneId)
+}
+
+@MainActor
 func moveWindowToNewWorkspaceFromSidebar(_ windowId: UInt32, projectId: WorkspaceProjectId, monitorScopeId: String) {
     moveSidebarSourceToNewWorkspace(windowId, subject: .window, projectId: projectId, monitorScopeId: monitorScopeId)
 }
@@ -261,6 +271,43 @@ private func moveSidebarSource(_ windowId: UInt32, subject: WindowDragSubject, t
         syncClosedWindowsCacheToCurrentWorld()
         suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId))
         applySidebarWorkspaceMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace)
+        await updateWorkspaceSidebarModel()
+    }
+}
+
+@MainActor
+func moveSidebarSourceToZoneNow(
+    _ windowId: UInt32,
+    subject: WindowDragSubject,
+    monitorScopeId: String,
+    zoneId: String,
+) -> Bool {
+    guard let sourceWindow = Window.get(byId: windowId),
+          let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId)
+    else { return false }
+    let targetWorkspace = targetZone.activeWorkspace
+    let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard sourceNode.nodeWorkspace !== targetWorkspace else { return false }
+    syncClosedWindowsCacheToCurrentWorld()
+    suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId))
+    applySidebarWorkspaceMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace)
+    return true
+}
+
+@MainActor
+private func moveSidebarSourceToZone(
+    _ windowId: UInt32,
+    subject: WindowDragSubject,
+    monitorScopeId: String,
+    zoneId: String,
+) {
+    runWorkspaceSidebarSession {
+        guard moveSidebarSourceToZoneNow(
+            windowId,
+            subject: subject,
+            monitorScopeId: monitorScopeId,
+            zoneId: zoneId,
+        ) else { return }
         await updateWorkspaceSidebarModel()
     }
 }
@@ -302,7 +349,18 @@ func previewWorkspaceSidebarDrop(_ windowId: UInt32, subject: WindowDragSubject,
         return
     }
     guard case .workspace(let workspaceName) = target else {
-        if case .newWorkspace(let projectId, let monitorScopeId) = target {
+        if case .zone(let monitorScopeId, let zoneId) = target,
+           let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId)
+        {
+            setWorkspaceSidebarDropPreviewIfChanged(workspaceSidebarDropPreview(
+                sourceWindow: sourceWindow,
+                subject: subject,
+                targetWorkspaceName: targetZone.activeWorkspace.name,
+                targetsNewWorkspace: false,
+                targetProjectId: nil,
+                targetMonitorScopeId: monitorScopeId,
+            ))
+        } else if case .newWorkspace(let projectId, let monitorScopeId) = target {
             setWorkspaceSidebarDropPreviewIfChanged(workspaceSidebarDropPreview(
                 sourceWindow: sourceWindow,
                 subject: subject,
@@ -716,7 +774,22 @@ private func commitActiveWorkspaceSidebarDragIfPossible() -> Bool {
                 moveWindowToNewWorkspaceFromSidebar(sourceWindow.windowId, projectId: projectId, monitorScopeId: monitorScopeId)
             }
             return true
+        case .zone(let monitorScopeId, let zoneId):
+            if activeDrag.subject == .group {
+                moveTabGroupToZoneFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
+            } else {
+                moveWindowToZoneFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
+            }
+            return true
         case .monitor:
             return false
+    }
+}
+
+@MainActor
+func workspaceSidebarZoneMonitor(monitorScopeId: String, zoneId: String) -> Monitor? {
+    sortedMonitors.first {
+        $0.zoneId == zoneId &&
+            workspaceSidebarMonitorScopeId(for: $0) == monitorScopeId
     }
 }

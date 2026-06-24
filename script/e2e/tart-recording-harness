@@ -880,10 +880,10 @@ CAPTIONS
             ;;
         slice-5-sidebar-drag)
             cat >"$captions_path" <<'CAPTIONS'
-0	8	Sidebar-ready zones	The sidebar shows Reference, Work, and Comms on one physical display.	Config: [workspace-sidebar] enabled = true
-8	20	Drag to a zone target	A visible sidebar item moves into the Comms zone target.	Action: drag sidebar item to Comms zone
-20	30	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
-30	40	Final placement	The moved item remains in Comms after the drag completes.	Run: winmux list-windows --monitor all
+0	3	Sidebar-ready zones	The sidebar shows Reference, Work, and Comms on one physical display.	Config: [workspace-sidebar] enabled = true
+3	16	Drag to a zone target	A visible sidebar item moves into the Comms zone target.	Action: drag sidebar item to Comms zone
+16	28	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
+28	40	Final placement	The moved item remains in Comms after the drag completes.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
         *)

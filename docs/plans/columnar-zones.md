@@ -576,7 +576,7 @@ Pre-slice cleanup before Slice 5 starts:
 - [x] Decide and document the `list-monitors` versus `list-zones` contract before further scripts depend on listing output.
 - [x] Restore current-verifier reproducibility for the accepted Slice 3 baseline, or explicitly document a versioned historical exception before treating old artifacts as regression inputs.
 - [x] Inventory untracked required Slice 4 files and commit or otherwise intentionally carry them forward before starting Slice 5. Committed in `6ee808e3`.
-- [ ] Replace the Slice 5 guest-script scaffold with the real idempotent setup/proof implementation before running `make e2e-slice-5`.
+- [x] Replace the Slice 5 guest-script scaffold with the real idempotent setup/proof implementation before running `make e2e-slice-5`.
 
 Work:
 
@@ -607,9 +607,44 @@ Slice 5 proof storyboard:
 
 Artifact review gate: no-context subagent confirms the sidebar zone UX is visible, legible, and consistent with the baseline screenshots before Slice 6 starts.
 
+Accepted Slice 5 result:
+
+- artifact: `artifacts/e2e/slice-5-20260624T013034Z`;
+- recording: `artifacts/e2e/slice-5-20260624T013034Z/recordings/slice-5-sidebar-drag.mov`;
+- raw recording: `artifacts/e2e/slice-5-20260624T013034Z/recordings/raw/slice-5-sidebar-drag.raw.mov`;
+- contact sheet: `artifacts/e2e/slice-5-20260624T013034Z/screenshots/slice-5-sidebar-drag.contact-sheet.jpg`;
+- proof: `artifacts/e2e/slice-5-20260624T013034Z/slice-5-sidebar-drag-proof.txt`;
+- no-context review: `artifacts/e2e/slice-5-20260624T013034Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-5-20260624T013034Z ARGS=--require-review` passed;
+- retrospectives: `artifacts/e2e/slice-5-20260624T013034Z/retrospectives/testing-artifact-gates.md`, `code-harness.md`, and `artifact-product.md`.
+
+What the accepted artifact proves:
+
+- the sidebar can show physical-monitor zone targets for `Reference`, `Work`, and `Comms`;
+- a sidebar window item can be dragged to a zone target;
+- the same `move-demo.rtf` window id moves from `main` / workspace `2` to `right` / workspace `3`;
+- the reviewed video is a strict guest-captured 3440x1440 Tart artifact with polished captions and preserved raw capture.
+
+Slice 5 notes carried forward:
+
+- future drag demos should slow the drag slightly or hold the target hover so the action reads in full-width video and contact-sheet samples;
+- keep the lower-third narrower when possible, as long as the user-facing command/config/action chip stays readable;
+- hardcoded drag coordinates were acceptable for this proof only because the verifier and logs caught failed attempts. Do not broaden this pattern without deriving or validating target frames.
+
 ### Slice 6: Presets, Scenes, and Freeform Layouts
 
 Goal: add the behaviors inspired by StackWM, BentoBox, and BetterStage after the core model is stable.
+
+Pre-slice cleanup before Slice 6 starts:
+
+- [x] Read all three Slice 5 retrospection reports and keep accepted blockers in this checklist.
+- [ ] Centralize sidebar zone-target resolution into one helper that returns the resolved monitor, active workspace, and display name for a `WorkspaceSidebarDropTargetKind.zone`.
+- [ ] Add a fast multi-monitor sidebar zone-target test with duplicate zone ids across two physical monitors, proving panel filtering and zone resolution stay scoped to the intended physical monitor.
+- [ ] Replace or explicitly justify fixed sidebar drag coordinates for future drag proofs. Prefer rendered target frames, Accessibility/debug export, or explicit drop-target logs; if fixed points remain, assert they map to the expected source item and target zone row.
+- [ ] Add a visible-action proof floor for future drag artifacts: action frames must show the source item, zone target/section, and drop or hover path. Final placement alone is not enough.
+- [ ] Add a product-quality floor for new recordings: hide nonessential system UI where feasible, avoid obvious test-fixture content when product-like content would work, and make the action legible without custom crops.
+- [ ] Consider a filled reviewer packet helper that prints artifact paths, baseline surfaces, required logs, review output path, and verifier command for the no-context reviewer.
 
 Possible additions:
 
@@ -701,6 +736,7 @@ Tart e2e checklist:
 - artifacts are copied to `artifacts/e2e/slice-N-<timestamp>/`;
 - each scenario fails if expected windows are absent, zones are blank, or commands return errors;
 - each slice video is watchable and shows the behavior added by that slice;
+- drag or move-proof slices include action frames where the source item, target, and drop or hover path are visible enough for a reviewer to judge without relying on logs;
 - each slice artifact directory contains `reviews/no-ctx-artifact-review.md`;
 - the review result is `PASS` or `PASS_WITH_NOTES` before the next slice starts.
 

@@ -5,6 +5,7 @@ struct WorkspaceSidebarModelState {
     let projects: [WorkspaceSidebarProjectViewModel]
     let activeProjectId: WorkspaceProjectId
     let monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
+    let zoneTargets: [WorkspaceSidebarZoneTargetViewModel]
     let focusedMonitorScopeId: String
     let showsMonitorSelector: Bool
     let topPadding: CGFloat

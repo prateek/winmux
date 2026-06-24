@@ -20,3 +20,14 @@ struct WorkspaceSidebarMonitorScopeViewModel: Hashable, Identifiable {
     let systemImageName: String
     let isFocusedMonitor: Bool
 }
+
+struct WorkspaceSidebarZoneTargetViewModel: Hashable, Identifiable {
+    let id: String
+    let monitorScopeId: String
+    let zoneId: String
+    let displayName: String
+    let activeWorkspaceName: String
+    let activeWorkspaceDisplayName: String
+    let isFocused: Bool
+    let isDefaultZone: Bool
+}

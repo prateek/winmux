@@ -99,6 +99,7 @@ private func workspaceSidebarSnapshotForTopFilterBar(
         projects: projects,
         activeProjectId: workspaceProjectDefaultId,
         monitorScopes: monitorScopes,
+        zoneTargets: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
         targetMonitorScopeId: workspaceSidebarDefaultScopeId,
         focusedMonitorScopeId: "",

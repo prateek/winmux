@@ -12,6 +12,7 @@ private func sidebarWorkspaceDropInteractionRect(for target: WorkspaceSidebarDro
     )
 }
 
+@MainActor
 func isActionableSidebarWorkspaceDropTarget(
     sourceWorkspaceName: String?,
     targetKind: WorkspaceSidebarDropTargetKind?,
@@ -19,6 +20,11 @@ func isActionableSidebarWorkspaceDropTarget(
     switch targetKind {
         case .workspace(let workspaceName):
             return sourceWorkspaceName != workspaceName
+        case .zone(let monitorScopeId, let zoneId):
+            guard let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+                return false
+            }
+            return sourceWorkspaceName != targetZone.activeWorkspace.name
         case .monitor:
             return true
         case .newWorkspace:
@@ -58,6 +64,22 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
                     interactionRect: sidebarWorkspaceDropInteractionRect(for: target),
                     title: sourceLabel,
                     subtitle: "Drop to send this item to \(workspaceName)",
+                    previewStyle: .sidebarWorkspaceMove,
+                    previewGeometry: .rounded,
+                    isGroup: isGroup,
+                )
+            case .zone(let monitorScopeId, let zoneId):
+                guard let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+                    return nil
+                }
+                let workspace = targetZone.activeWorkspace
+                guard workspace.name != sourceWorkspaceName else { return nil }
+                return WindowDragIntentDestination(
+                    kind: .moveToWorkspace(workspaceName: workspace.name),
+                    previewRect: workspaceSidebarCursorPreviewRect(at: mouseLocation),
+                    interactionRect: sidebarWorkspaceDropInteractionRect(for: target),
+                    title: sourceLabel,
+                    subtitle: "Drop to send this item to \(workspaceSidebarZoneDisplayName(targetZone))",
                     previewStyle: .sidebarWorkspaceMove,
                     previewGeometry: .rounded,
                     isGroup: isGroup,

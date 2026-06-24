@@ -46,7 +46,10 @@ struct WorkspaceSidebarWorkspaceSection: View {
         }
         return nil
     }
-    var isDropTarget: Bool { dragPreview?.targetWorkspaceName == workspace.name }
+    var isDropTarget: Bool {
+        dragPreview?.targetWorkspaceName == workspace.name &&
+            dragPreview?.targetMonitorScopeId == nil
+    }
     var activeSidebarDragSourceWindowId: UInt32? { dragPreview?.sourceWindowId }
     var isShowingInUseOverlay: Bool { activeInUseOverrideWorkspaceName == workspace.name }
     var isSearchSelectedWorkspace: Bool { selectedSearchTarget == .workspace(workspace.name) }
@@ -360,7 +363,7 @@ extension WorkspaceSidebarWorkspaceSection {
 
     @ViewBuilder
     var dropPreviewRow: some View {
-        if dragPreview?.targetWorkspaceName == workspace.name {
+        if isDropTarget {
             WorkspaceSidebarDropPreviewView(preview: dragPreview.orDie(), rowHeight: rowHeight)
             .transition(.asymmetric(
                 insertion: .move(edge: .top).combined(with: .scale(scale: 0.96, anchor: .top)).combined(with: .opacity),

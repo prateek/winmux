@@ -253,6 +253,25 @@ field_for_title() {
     }' "$path"
 }
 
+field_for_id() {
+    local path="$1"
+    local id="$2"
+    local field="$3"
+    /usr/bin/awk -F'|' -v id="$id" -v field="$field" '$1 == id {
+        if (field == "title") {
+            print $2
+            exit
+        }
+        prefix = field "="
+        for (i = 1; i <= NF; i++) {
+            if (index($i, prefix) == 1) {
+                print substr($i, length(prefix) + 1)
+                exit
+            }
+        }
+    }' "$path"
+}
+
 monitor_field_for_zone() {
     local path="$1"
     local zone="$2"
@@ -415,13 +434,51 @@ require_slice_5_sidebar_drag_proof() {
     grep -F 'sidebar-zone=Work' "$sidebar_before" >/dev/null || die "Slice 5 sidebar-before log missing Work zone"
     grep -F 'sidebar-zone=Comms' "$sidebar_before" >/dev/null || die "Slice 5 sidebar-before log missing Comms zone"
     grep -F 'action=drag-to-zone' "$sidebar_action" >/dev/null || die "Slice 5 action log missing drag-to-zone proof"
-    grep -F 'target-zone=right' "$sidebar_action" >/dev/null || die "Slice 5 action log missing right target zone"
-    grep -F 'after-zone=right' "$windows_after" >/dev/null || die "Slice 5 windows-after log missing right-zone placement"
+    grep -F 'drag-result=success' "$sidebar_action" >/dev/null || die "Slice 5 action log missing drag-result=success"
+
+    local source_title source_id target_zone target_name before_zone after_zone before_workspace after_workspace after_id
+    source_title="$(value_from_log source-title "$sidebar_action")"
+    source_id="$(value_from_log source-window-id "$sidebar_action")"
+    target_zone="$(value_from_log target-zone "$sidebar_action")"
+    target_name="$(value_from_log target-zone-name "$sidebar_action")"
+    before_zone="$(value_from_log before-zone "$sidebar_action")"
+    before_workspace="$(value_from_log before-workspace "$sidebar_action")"
+    after_id="$(value_from_log window-id-after "$sidebar_action")"
+    after_zone="$(value_from_log after-zone "$sidebar_action")"
+    after_workspace="$(value_from_log after-workspace "$sidebar_action")"
+    [ "$source_title" = "move-demo.rtf" ] || die "Slice 5 action source title changed: ${source_title:-missing}"
+    [ -n "$source_id" ] && [ -n "$after_id" ] || die "Slice 5 action log missing source/after window ids"
+    [ "$source_id" = "$after_id" ] || die "Slice 5 moved window id changed: $source_id -> $after_id"
+    [ "$target_zone" = right ] || die "Slice 5 action target zone is not right: ${target_zone:-missing}"
+    [ "$target_name" = Comms ] || die "Slice 5 action target name is not Comms: ${target_name:-missing}"
+    [ "$before_zone" = main ] || die "Slice 5 action did not start in main zone: ${before_zone:-missing}"
+    [ "$after_zone" = right ] || die "Slice 5 action did not end in right zone: ${after_zone:-missing}"
+    [ -n "$before_workspace" ] && [ -n "$after_workspace" ] || die "Slice 5 action missing before/after workspace"
+    [ "$before_workspace" != "$after_workspace" ] || die "Slice 5 action workspace did not change"
+
+    [ "$(field_for_id "$windows_before" "$source_id" title)" = "$source_title" ] \
+        || die "Slice 5 source id/title missing from before window log"
+    [ "$(field_for_id "$windows_after" "$source_id" title)" = "$source_title" ] \
+        || die "Slice 5 source id/title missing from after window log"
+    [ "$(field_for_id "$windows_before" "$source_id" zone)" = "$before_zone" ] \
+        || die "Slice 5 before window log does not match action before-zone"
+    [ "$(field_for_id "$windows_after" "$source_id" zone)" = "$after_zone" ] \
+        || die "Slice 5 after window log does not match action after-zone"
+    [ "$(field_for_id "$windows_before" "$source_id" workspace)" = "$before_workspace" ] \
+        || die "Slice 5 before window log does not match action before-workspace"
+    [ "$(field_for_id "$windows_after" "$source_id" workspace)" = "$after_workspace" ] \
+        || die "Slice 5 after window log does not match action after-workspace"
+    grep -F "sidebar-item=${source_id}|title=${source_title}|zone=main|workspace=${before_workspace}" "$sidebar_before" >/dev/null \
+        || die "Slice 5 sidebar-before log does not show the source item in main"
+    grep -F "sidebar-item=${source_id}|title=${source_title}|zone=right|workspace=${after_workspace}" "$sidebar_after" >/dev/null \
+        || die "Slice 5 sidebar-after log does not show the source item in right"
 
     grep -F "Config: [workspace-sidebar] enabled = true" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing sidebar config chip"
     grep -F "Action: drag sidebar item to Comms zone" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing drag action chip"
     grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing list-zones chip"
     grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null || die "Slice 5 annotations missing list-windows chip"
+    awk -F '\t' '$5 == "Action: drag sidebar item to Comms zone" { found = 1; ok = (($1 + 0) <= 4) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 5 drag action caption must start early enough to cover the visible drag"
 }
 
 require_no_ds_store

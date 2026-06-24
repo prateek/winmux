@@ -96,7 +96,7 @@ e2e-pre-tart-checks:
 	bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
 	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
-	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor'"'"''
+	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
 e2e-verify-slice:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact $(ARGS) "$(RUN_DIR)"'

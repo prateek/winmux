@@ -3,6 +3,7 @@ import AppKit
 import XCTest
 
 extension WorkspaceSidebarDragTest {
+    @MainActor
     func testSameWorkspaceSidebarDropTargetIsNotActionable() {
         XCTAssertFalse(
             isActionableSidebarWorkspaceDropTarget(
@@ -12,6 +13,7 @@ extension WorkspaceSidebarDragTest {
         )
     }
 
+    @MainActor
     func testDifferentWorkspaceSidebarDropTargetIsActionable() {
         XCTAssertTrue(
             isActionableSidebarWorkspaceDropTarget(
@@ -21,6 +23,7 @@ extension WorkspaceSidebarDragTest {
         )
     }
 
+    @MainActor
     func testNewWorkspaceSidebarDropTargetIsActionable() {
         XCTAssertTrue(
             isActionableSidebarWorkspaceDropTarget(
@@ -30,6 +33,7 @@ extension WorkspaceSidebarDragTest {
         )
     }
 
+    @MainActor
     func testBlankSidebarAreaIsNotActionable() {
         XCTAssertFalse(
             isActionableSidebarWorkspaceDropTarget(
@@ -39,6 +43,7 @@ extension WorkspaceSidebarDragTest {
         )
     }
 
+    @MainActor
     func testMonitorSidebarDropTargetIsActionable() {
         XCTAssertTrue(
             isActionableSidebarWorkspaceDropTarget(
@@ -258,6 +263,7 @@ extension WorkspaceSidebarDragTest {
     @MainActor
     func testMonitorScopesDedupeZoneViewportsByPhysicalMonitor() {
         setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
         let main = WorkspaceSidebarDragTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -295,6 +301,113 @@ extension WorkspaceSidebarDragTest {
             workspaceSidebarMonitorScopeId(for: main),
         ])
         XCTAssertEqual(workspaceSidebarMonitor(forScopeId: workspaceSidebarMonitorScopeId(for: main))?.zoneId, "main")
+    }
+
+    @MainActor
+    func testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope() {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+            sortedMonitors: sortedMonitors,
+            currentFocus: focus,
+        )
+
+        XCTAssertEqual(targets.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(targets.map(\.displayName), ["Reference", "Work", "Comms"])
+        XCTAssertEqual(targets.map(\.activeWorkspaceName), ["reference", "work", "comms"])
+        XCTAssertEqual(Set(targets.map(\.monitorScopeId)).count, 1)
+        XCTAssertEqual(targets.singleOrNil { $0.zoneId == "main" }?.isFocused, true)
+    }
+
+    @MainActor
+    func testSameZoneSidebarDropTargetIsNotActionable() {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+
+        XCTAssertFalse(isActionableSidebarWorkspaceDropTarget(
+            sourceWorkspaceName: "comms",
+            targetKind: .zone(
+                monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
+                zoneId: "right",
+            ),
+        ))
+    }
+
+    @MainActor
+    func testDifferentZoneSidebarDropTargetIsActionable() {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+
+        XCTAssertTrue(isActionableSidebarWorkspaceDropTarget(
+            sourceWorkspaceName: "work",
+            targetKind: .zone(
+                monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
+                zoneId: "right",
+            ),
+        ))
+    }
+
+    @MainActor
+    func testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace() {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let window = TestWindow.new(id: 801, parent: work.rootTilingContainer)
+
+        XCTAssertTrue(moveSidebarSourceToZoneNow(
+            window.windowId,
+            subject: .window,
+            monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
+            zoneId: "right",
+        ))
+
+        XCTAssertTrue(window.nodeWorkspace === comms)
+        XCTAssertFalse(work.rootTilingContainer.allLeafWindowsRecursive.contains(window))
+    }
+
+    @MainActor
+    func testMoveTabGroupFromSidebarToZoneMovesWholeGroup() {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let tabGroup = TilingContainer(parent: work.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 811, parent: tabGroup)
+        let second = TestWindow.new(id: 812, parent: tabGroup)
+
+        XCTAssertTrue(moveSidebarSourceToZoneNow(
+            first.windowId,
+            subject: .group,
+            monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
+            zoneId: "right",
+        ))
+
+        XCTAssertTrue(tabGroup.nodeWorkspace === comms)
+        XCTAssertTrue(first.nodeWorkspace === comms)
+        XCTAssertTrue(second.nodeWorkspace === comms)
+        XCTAssertFalse(work.rootTilingContainer.allLeafWindowsRecursive.contains(first))
     }
 
     @MainActor
@@ -373,4 +486,34 @@ extension WorkspaceSidebarDragTest {
         XCTAssertTrue(shouldRenderWorkspaceSidebarProjectPage(index: 2, displayIndex: 1, swipeDirection: 1, projectCount: 4))
         XCTAssertFalse(shouldRenderWorkspaceSidebarProjectPage(index: 3, displayIndex: 1, swipeDirection: 1, projectCount: 4))
     }
+}
+
+@MainActor
+private func configureWorkspaceSidebarThreeZones(defaultZone: String = "main") -> [String: Monitor] {
+    let main = WorkspaceSidebarDragTestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = true
+    config.workspaceSidebar.enableFocus = false
+    config.zones = [
+        ZoneConfig(
+            monitor: .sequenceNumber(1),
+            layout: .columns,
+            defaultZone: defaultZone,
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+            ],
+        ),
+    ]
+    return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        monitor.zoneId.map { ($0, monitor) }
+    })
 }

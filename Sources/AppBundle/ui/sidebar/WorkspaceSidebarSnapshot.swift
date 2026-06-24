@@ -5,6 +5,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
     var projects: [WorkspaceSidebarProjectViewModel]
     var activeProjectId: WorkspaceProjectId
     var monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
+    var zoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
     var selectedMonitorScopeId: String
     var targetMonitorScopeId: String
     var focusedMonitorScopeId: String
@@ -18,6 +19,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
         projects: [],
         activeProjectId: workspaceProjectDefaultId,
         monitorScopes: [],
+        zoneTargets: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
         targetMonitorScopeId: workspaceSidebarDefaultScopeId,
         focusedMonitorScopeId: "",
@@ -61,6 +63,8 @@ enum WorkspaceSidebarAction: Equatable {
     case deleteWorkspace(String)
     case moveWindow(UInt32, toWorkspace: String)
     case moveTabGroup(UInt32, toWorkspace: String)
+    case moveWindowToZone(UInt32, monitorScopeId: String, zoneId: String)
+    case moveTabGroupToZone(UInt32, monitorScopeId: String, zoneId: String)
     case moveWindowToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
     case moveTabGroupToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
     case previewWindowDrop(UInt32, target: WorkspaceSidebarDropTargetKind)

@@ -101,7 +101,9 @@ Slice-specific checks:
 - Slice 4 must show `focus-zone`, `move-node-to-zone`, and compatibility behavior
   for `focus-monitor 1`; logs alone are not enough.
 - Slice 5 must show the sidebar enabled with zone/workspace state and a visible
-  drag or move target.
+  drag or move target. The action frames must visibly include the source sidebar
+  item, the zone target or zone section, and the drop or hover path. Final
+  placement alone is not enough for a sidebar drag proof.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

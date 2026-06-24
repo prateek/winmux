@@ -9,6 +9,10 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
         sortedMonitors: availableMonitors,
         focusedMonitorScopeId: focusedMonitorScopeId,
     )
+    let zoneTargets = buildWorkspaceSidebarZoneTargetViewModels(
+        sortedMonitors: availableMonitors,
+        currentFocus: currentFocus,
+    )
     let activeProjectId = currentFocus.workspace.projectId
     let projects = buildWorkspaceSidebarProjectViewModels()
     let workspaces = await buildWorkspaceSidebarWorkspaceViewModels(
@@ -22,6 +26,7 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
         projects: projects,
         activeProjectId: activeProjectId,
         monitorScopes: monitorScopes,
+        zoneTargets: zoneTargets,
         focusedMonitorScopeId: focusedMonitorScopeId,
         showsMonitorSelector: availableMonitors.count > 1,
         topPadding: CGFloat(gaps.outer.top),
