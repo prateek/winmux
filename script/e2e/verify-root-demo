@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REQUIRE_REVIEW=0
+RUN_DIR=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--require-review] <root-demo-artifact-dir>
+
+Checks an existing root-demo package artifact without generating or modifying
+files.
+EOF
+}
+
+die() {
+    printf '[winmux-root-demo-verify] error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_file() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+value_from_log() {
+    local key="$1"
+    local path="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
+}
+
+file_sha256() {
+    shasum -a 256 "$1" | awk '{ print $1 }'
+}
+
+last_nonempty_line() {
+    /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+stream_value() {
+    local path="$1"
+    local key="$2"
+    ffprobe \
+        -v error \
+        -select_streams v:0 \
+        -show_entries "stream=${key}" \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$path" | head -1
+}
+
+format_value() {
+    local path="$1"
+    local key="$2"
+    ffprobe \
+        -v error \
+        -show_entries "format=${key}" \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$path" | head -1
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --require-review)
+            REQUIRE_REVIEW=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            usage >&2
+            die "Unknown option: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "Only one artifact run directory is supported"
+            RUN_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+[ -n "$RUN_DIR" ] || {
+    usage >&2
+    die "Missing artifact run directory"
+}
+[ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
+command -v ffprobe >/dev/null 2>&1 || die "Missing required command: ffprobe"
+
+LOGS_DIR="${RUN_DIR}/logs"
+SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
+REVIEWS_DIR="${RUN_DIR}/reviews"
+PACKAGE_LOG="${LOGS_DIR}/root-demo-package.log"
+FFPROBE_JSON="${LOGS_DIR}/root-demo.ffprobe.json"
+ANNOTATION_PLAN="${LOGS_DIR}/root-demo.annotations.tsv"
+REVIEW_PACKET="${REVIEWS_DIR}/reviewer-packet.md"
+REVIEW="${REVIEWS_DIR}/no-ctx-artifact-review.md"
+SAMPLES_DIR="${SCREENSHOTS_DIR}/demo-columnar-zones.samples"
+CONTACT_SHEET="${SCREENSHOTS_DIR}/demo-columnar-zones.contact-sheet.jpg"
+
+require_file "$PACKAGE_LOG"
+grep -F 'result=success' "$PACKAGE_LOG" >/dev/null || die "Package log does not contain result=success"
+
+root_demo="$(value_from_log root_demo "$PACKAGE_LOG")"
+artifact_copy="$(value_from_log root_demo_artifact_copy "$PACKAGE_LOG")"
+source_recording="$(value_from_log source_recording "$PACKAGE_LOG")"
+source_review="$(value_from_log source_review "$PACKAGE_LOG")"
+source_run_dir="$(value_from_log source_run_dir "$PACKAGE_LOG")"
+root_sha="$(value_from_log root_demo_sha256 "$PACKAGE_LOG")"
+artifact_sha="$(value_from_log root_demo_artifact_copy_sha256 "$PACKAGE_LOG")"
+
+require_file "$root_demo"
+require_file "$artifact_copy"
+require_file "$source_recording"
+require_file "$source_review"
+[ -d "$source_run_dir" ] || die "Source run directory is missing: $source_run_dir"
+[ -n "$root_sha" ] || die "Package log missing root_demo_sha256"
+[ -n "$artifact_sha" ] || die "Package log missing root_demo_artifact_copy_sha256"
+[ "$(file_sha256 "$root_demo")" = "$root_sha" ] || die "Root demo hash does not match package log"
+[ "$(file_sha256 "$artifact_copy")" = "$artifact_sha" ] || die "Artifact copy hash does not match package log"
+[ "$root_sha" = "$artifact_sha" ] || die "Root demo and artifact copy hashes differ"
+
+duration="$(format_value "$root_demo" duration)"
+width="$(stream_value "$root_demo" width)"
+height="$(stream_value "$root_demo" height)"
+codec="$(stream_value "$root_demo" codec_name)"
+pix_fmt="$(stream_value "$root_demo" pix_fmt)"
+profile="$(stream_value "$root_demo" profile)"
+
+awk -v duration="$duration" 'BEGIN { exit(duration >= 30 ? 0 : 1) }' \
+    || die "Root demo duration is too short: $duration"
+[ "$width" = "3440" ] || die "Root demo width is not 3440: $width"
+[ "$height" = "1440" ] || die "Root demo height is not 1440: $height"
+[ "$codec" = "h264" ] || die "Root demo codec is not h264: $codec"
+[ "$pix_fmt" = "yuv420p" ] || die "Root demo pixel format is not yuv420p: $pix_fmt"
+[ -n "$profile" ] || die "Root demo profile is missing"
+
+for key in duration width height codec pix_fmt profile; do
+    [ -n "$(value_from_log "$key" "$PACKAGE_LOG")" ] || die "Package log missing $key"
+done
+require_file "$FFPROBE_JSON"
+grep -F '"pix_fmt": "yuv420p"' "$FFPROBE_JSON" >/dev/null || die "ffprobe JSON missing yuv420p"
+
+[ "$(value_from_log source_review_verdict "$PACKAGE_LOG")" = "PASS" ] \
+    || [ "$(value_from_log source_review_verdict "$PACKAGE_LOG")" = "PASS_WITH_NOTES" ] \
+    || die "Source review verdict is not accepted"
+[ "$(value_from_log source_require_guest_control "$PACKAGE_LOG")" = "1" ] \
+    || die "Source require_guest_control is not 1"
+[ "$(value_from_log source_capture_mode "$PACKAGE_LOG")" = "guest" ] \
+    || die "Source capture_mode is not guest"
+grep -F 'next slice allowed: yes' "$source_review" >/dev/null || die "Source review does not allow next slice"
+
+source_guest_capture="${source_run_dir}/logs/slice-6b-zone-scenes.guest-screencapture.log"
+require_file "$source_guest_capture"
+grep -F 'capture_mode=guest' "$source_guest_capture" >/dev/null || die "Source guest capture log missing capture_mode=guest"
+grep -F 'result=success' "$source_guest_capture" >/dev/null || die "Source guest capture log missing result=success"
+
+require_file "$ANNOTATION_PLAN"
+require_file "$CONTACT_SHEET"
+require_file "$REVIEW_PACKET"
+[ -d "$SAMPLES_DIR" ] || die "Sample directory is missing: $SAMPLES_DIR"
+standard_count="$(find "$SAMPLES_DIR" -maxdepth 1 -type f -name 'standard-*.png' | wc -l | tr -d ' ')"
+caption_count="$(find "$SAMPLES_DIR" -maxdepth 1 -type f -name 'caption-[0-9][0-9].png' | wc -l | tr -d ' ')"
+boundary_count="$(find "$SAMPLES_DIR" -maxdepth 1 -type f -name 'caption-[0-9][0-9]-boundary-*.png' | wc -l | tr -d ' ')"
+caption_rows="$(awk -F '\t' '$0 != "" && $1 !~ /^#/ { count++ } END { print count + 0 }' "$ANNOTATION_PLAN")"
+[ "$standard_count" -ge 6 ] || die "Root demo standard samples are missing"
+[ "$caption_count" -ge "$caption_rows" ] || die "Root demo caption samples are missing"
+[ "$boundary_count" -ge $((caption_rows * 3)) ] || die "Root demo caption boundary samples are missing"
+
+grep -F 'caption boundary frames' "$REVIEW_PACKET" >/dev/null || die "Reviewer packet does not mention caption boundary frames"
+
+if [ "$REQUIRE_REVIEW" = "1" ]; then
+    require_file "$REVIEW"
+    grep -F 'next slice allowed: yes' "$REVIEW" >/dev/null || die "Review does not allow next slice"
+    case "$(last_nonempty_line "$REVIEW")" in
+        PASS|PASS_WITH_NOTES) ;;
+        *) die "Review does not end in PASS or PASS_WITH_NOTES" ;;
+    esac
+fi
+
+printf 'root_demo=%s\n' "$root_demo"
+printf 'artifact_dir=%s\n' "$RUN_DIR"
+printf 'duration=%s\n' "$duration"
+printf 'resolution=%sx%s\n' "$width" "$height"
+printf 'codec=%s\n' "$codec"
+printf 'pix_fmt=%s\n' "$pix_fmt"
+printf 'result=success\n'

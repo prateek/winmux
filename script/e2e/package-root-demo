@@ -1,0 +1,490 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE_RUN_DIR="artifacts/e2e/slice-6b-20260624T034817Z"
+OUTPUT_VIDEO="demo-columnar-zones.mp4"
+ARTIFACT_DIR=""
+REFRESH_EXISTING=0
+SELF_TEST=0
+SELF_TEST_TMP_DIR=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--source-run-dir <slice-6b-dir>] [--output <mp4>] [--artifact-dir <dir>] [--refresh-existing]
+       $(basename "$0") --self-test
+
+Packages the accepted Slice 6B strict Tart artifact into a repo-root product
+demo video and writes a Slice 7 review packet with hashes, metadata, and sample
+frames. Use --refresh-existing to rebuild package evidence for an existing root
+MP4 without re-encoding it.
+EOF
+}
+
+die() {
+    printf '[winmux-root-demo] error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_file() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+value_from_log() {
+    local key="$1"
+    local path="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
+}
+
+file_sha256() {
+    shasum -a 256 "$1" | awk '{ print $1 }'
+}
+
+last_nonempty_line() {
+    /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+clamp_sample_time() {
+    local requested="$1"
+    local duration="$2"
+    awk -v requested="$requested" -v duration="$duration" 'BEGIN {
+        t = requested + 0
+        if (t < 0.250) {
+            t = 0.250
+        }
+        max = duration - 0.250
+        if (max < 0) {
+            max = 0
+        }
+        if (t > max) {
+            t = max
+        }
+        printf "%.3f", t
+    }'
+}
+
+sample_recording_frame() {
+    local recording="$1"
+    local duration="$2"
+    local requested="$3"
+    local output="$4"
+    local seconds
+    seconds="$(clamp_sample_time "$requested" "$duration")"
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -ss "$seconds" \
+        -i "$recording" \
+        -frames:v 1 \
+        "$output"
+    require_file "$output"
+}
+
+stream_value() {
+    local path="$1"
+    local key="$2"
+    ffprobe \
+        -v error \
+        -select_streams v:0 \
+        -show_entries "stream=${key}" \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$path" | head -1
+}
+
+format_value() {
+    local path="$1"
+    local key="$2"
+    ffprobe \
+        -v error \
+        -show_entries "format=${key}" \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$path" | head -1
+}
+
+frame_count() {
+    local path="$1"
+    local frames
+    frames="$(stream_value "$path" nb_frames)"
+    if [ -z "$frames" ] || [ "$frames" = "N/A" ]; then
+        frames="$(ffprobe \
+            -v error \
+            -count_frames \
+            -select_streams v:0 \
+            -show_entries stream=nb_read_frames \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "$path" | head -1)"
+    fi
+    printf '%s\n' "$frames"
+}
+
+generate_recording_samples() {
+    local recording="$1"
+    local duration="$2"
+    local samples_dir="$3"
+    local contact_sheet="$4"
+    local captions_path="$5"
+
+    rm -rf "$samples_dir"
+    mkdir -p "$samples_dir"
+
+    sample_recording_frame "$recording" "$duration" 0.500 "${samples_dir}/standard-00-start.png"
+    sample_recording_frame "$recording" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.10 }')" "${samples_dir}/standard-01-10pct.png"
+    sample_recording_frame "$recording" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.25 }')" "${samples_dir}/standard-02-25pct.png"
+    sample_recording_frame "$recording" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.50 }')" "${samples_dir}/standard-03-50pct.png"
+    sample_recording_frame "$recording" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.75 }')" "${samples_dir}/standard-04-75pct.png"
+    sample_recording_frame "$recording" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d - 1.0 }')" "${samples_dir}/standard-05-near-end.png"
+
+    if [ -s "$captions_path" ]; then
+        local caption_index=0
+        local start_seconds
+        local end_seconds
+        while IFS=$'\t' read -r start_seconds end_seconds; do
+            caption_index=$((caption_index + 1))
+            local caption_label
+            caption_label="$(printf '%02d' "$caption_index")"
+            local sample_seconds
+            sample_seconds="$(awk -v start="$start_seconds" -v end="$end_seconds" 'BEGIN {
+                midpoint = (start + end) / 2
+                offset = start + 0.500
+                sample = offset
+                if (midpoint > offset) {
+                    sample = midpoint
+                }
+                printf "%.3f", sample
+            }')"
+            sample_recording_frame "$recording" "$duration" "$sample_seconds" "${samples_dir}/caption-${caption_label}.png"
+            sample_recording_frame "$recording" "$duration" "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start - 0.500 }')" "${samples_dir}/caption-${caption_label}-boundary-before.png"
+            sample_recording_frame "$recording" "$duration" "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')" "${samples_dir}/caption-${caption_label}-boundary-start.png"
+            sample_recording_frame "$recording" "$duration" "$(awk -v end="$end_seconds" 'BEGIN { printf "%.3f", end - 0.100 }')" "${samples_dir}/caption-${caption_label}-boundary-end.png"
+        done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
+    fi
+
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -framerate 1 \
+        -pattern_type glob \
+        -i "${samples_dir}/standard-*.png" \
+        -vf "scale=860:-1,tile=3x2" \
+        -frames:v 1 \
+        "$contact_sheet"
+    require_file "$contact_sheet"
+}
+
+run_self_test() {
+    require_cmd ffmpeg
+    require_cmd ffprobe
+    local tmp_dir
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/winmux-root-demo-test.XXXXXX")"
+    SELF_TEST_TMP_DIR="$tmp_dir"
+    trap 'rm -rf "$SELF_TEST_TMP_DIR"' EXIT
+
+    local source="${tmp_dir}/source.mov"
+    local output="${tmp_dir}/demo.mp4"
+    local tmp_output="${output}.tmp.mp4"
+    local sample="${tmp_dir}/sample.png"
+
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -f lavfi \
+        -i testsrc2=size=640x360:rate=10 \
+        -t 1 \
+        -pix_fmt yuv420p \
+        "$source"
+    require_file "$source"
+
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -i "$source" \
+        -an \
+        -c:v libx264 \
+        -preset ultrafast \
+        -crf 35 \
+        -pix_fmt yuv420p \
+        -movflags +faststart \
+        "$tmp_output"
+    require_file "$tmp_output"
+    mv "$tmp_output" "$output"
+    require_file "$output"
+    [ "$(stream_value "$output" width)" = "640" ] || die "self-test output width mismatch"
+    sample_recording_frame "$output" "$(format_value "$output" duration)" 0.500 "$sample"
+    printf 'result=success\n'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --source-run-dir)
+            [ "$#" -ge 2 ] || die "Missing value for --source-run-dir"
+            SOURCE_RUN_DIR="$2"
+            shift 2
+            ;;
+        --output)
+            [ "$#" -ge 2 ] || die "Missing value for --output"
+            OUTPUT_VIDEO="$2"
+            shift 2
+            ;;
+        --artifact-dir)
+            [ "$#" -ge 2 ] || die "Missing value for --artifact-dir"
+            ARTIFACT_DIR="$2"
+            shift 2
+            ;;
+        --refresh-existing)
+            REFRESH_EXISTING=1
+            shift
+            ;;
+        --self-test)
+            SELF_TEST=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            die "Unknown argument: $1"
+            ;;
+    esac
+done
+
+require_cmd ffmpeg
+require_cmd ffprobe
+require_cmd shasum
+
+if [ "$SELF_TEST" = "1" ]; then
+    run_self_test
+    exit 0
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+cd "$REPO_ROOT"
+
+[ -d "$SOURCE_RUN_DIR" ] || die "Source artifact directory does not exist: $SOURCE_RUN_DIR"
+SOURCE_RUN_ABS="$(cd "$SOURCE_RUN_DIR" && pwd -P)"
+SOURCE_RECORDING="${SOURCE_RUN_ABS}/recordings/slice-6b-zone-scenes.mov"
+SOURCE_REVIEW="${SOURCE_RUN_ABS}/reviews/no-ctx-artifact-review.md"
+SOURCE_PREFLIGHT="${SOURCE_RUN_ABS}/logs/preflight.log"
+SOURCE_GUEST_CAPTURE="${SOURCE_RUN_ABS}/logs/slice-6b-zone-scenes.guest-screencapture.log"
+SOURCE_REVIEW_PACKET="${SOURCE_RUN_ABS}/reviews/reviewer-packet.md"
+SOURCE_SAMPLES="${SOURCE_RUN_ABS}/screenshots/slice-6b-zone-scenes.samples"
+SOURCE_CONTACT_SHEET="${SOURCE_RUN_ABS}/screenshots/slice-6b-zone-scenes.contact-sheet.jpg"
+SOURCE_PROOF="${SOURCE_RUN_ABS}/slice-6b-zone-scene-proof.txt"
+SOURCE_ANNOTATIONS="${SOURCE_RUN_ABS}/logs/slice-6b-zone-scenes.annotations.tsv"
+
+require_file "$SOURCE_RECORDING"
+require_file "$SOURCE_REVIEW"
+require_file "$SOURCE_PREFLIGHT"
+require_file "$SOURCE_GUEST_CAPTURE"
+require_file "$SOURCE_REVIEW_PACKET"
+require_file "$SOURCE_CONTACT_SHEET"
+require_file "$SOURCE_PROOF"
+require_file "$SOURCE_ANNOTATIONS"
+[ -d "$SOURCE_SAMPLES" ] || die "Source sample directory is missing: $SOURCE_SAMPLES"
+
+case "$(last_nonempty_line "$SOURCE_REVIEW")" in
+    PASS|PASS_WITH_NOTES) ;;
+    *) die "Source artifact review does not end in PASS or PASS_WITH_NOTES: $SOURCE_REVIEW" ;;
+esac
+grep -F 'next slice allowed: yes' "$SOURCE_REVIEW" >/dev/null \
+    || die "Source artifact review does not allow the next slice"
+
+[ "$(value_from_log require_guest_control "$SOURCE_PREFLIGHT")" = "1" ] \
+    || die "Source artifact was not recorded with require_guest_control=1"
+[ "$(value_from_log capture_mode "$SOURCE_PREFLIGHT")" = "guest" ] \
+    || die "Source artifact was not recorded with capture_mode=guest"
+grep -F 'capture_mode=guest' "$SOURCE_GUEST_CAPTURE" >/dev/null \
+    || die "Source guest screencapture log does not prove guest capture mode"
+grep -F 'result=success' "$SOURCE_GUEST_CAPTURE" >/dev/null \
+    || die "Source guest screencapture log does not prove successful guest capture"
+
+if [ -z "$ARTIFACT_DIR" ]; then
+    ARTIFACT_DIR="artifacts/e2e/slice-7-root-demo-$(date -u +%Y%m%dT%H%M%SZ)"
+fi
+
+ARTIFACT_ABS="${REPO_ROOT}/${ARTIFACT_DIR}"
+LOGS_DIR="${ARTIFACT_ABS}/logs"
+SCREENSHOTS_DIR="${ARTIFACT_ABS}/screenshots"
+RECORDINGS_DIR="${ARTIFACT_ABS}/recordings"
+REVIEWS_DIR="${ARTIFACT_ABS}/reviews"
+mkdir -p "$LOGS_DIR" "$SCREENSHOTS_DIR" "$RECORDINGS_DIR" "$REVIEWS_DIR"
+
+OUTPUT_ABS="${REPO_ROOT}/${OUTPUT_VIDEO}"
+TMP_OUTPUT="${OUTPUT_ABS}.tmp.mp4"
+if [ "$REFRESH_EXISTING" = "1" ]; then
+    require_file "$OUTPUT_ABS"
+else
+    rm -f "$TMP_OUTPUT"
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -i "$SOURCE_RECORDING" \
+        -an \
+        -c:v libx264 \
+        -preset medium \
+        -crf 22 \
+        -pix_fmt yuv420p \
+        -movflags +faststart \
+        "$TMP_OUTPUT"
+    require_file "$TMP_OUTPUT"
+    mv "$TMP_OUTPUT" "$OUTPUT_ABS"
+fi
+
+artifact_recording="${RECORDINGS_DIR}/$(basename "$OUTPUT_VIDEO")"
+cp "$OUTPUT_ABS" "$artifact_recording"
+require_file "$artifact_recording"
+
+duration="$(format_value "$OUTPUT_ABS" duration)"
+width="$(stream_value "$OUTPUT_ABS" width)"
+height="$(stream_value "$OUTPUT_ABS" height)"
+codec="$(stream_value "$OUTPUT_ABS" codec_name)"
+profile="$(stream_value "$OUTPUT_ABS" profile)"
+pix_fmt="$(stream_value "$OUTPUT_ABS" pix_fmt)"
+avg_frame_rate="$(stream_value "$OUTPUT_ABS" avg_frame_rate)"
+frames="$(frame_count "$OUTPUT_ABS")"
+size="$(format_value "$OUTPUT_ABS" size)"
+source_duration="$(format_value "$SOURCE_RECORDING" duration)"
+source_width="$(stream_value "$SOURCE_RECORDING" width)"
+source_height="$(stream_value "$SOURCE_RECORDING" height)"
+source_codec="$(stream_value "$SOURCE_RECORDING" codec_name)"
+source_profile="$(stream_value "$SOURCE_RECORDING" profile)"
+source_pix_fmt="$(stream_value "$SOURCE_RECORDING" pix_fmt)"
+source_avg_frame_rate="$(stream_value "$SOURCE_RECORDING" avg_frame_rate)"
+source_frames="$(frame_count "$SOURCE_RECORDING")"
+source_size="$(format_value "$SOURCE_RECORDING" size)"
+
+awk -v duration="$duration" 'BEGIN { exit(duration >= 30 ? 0 : 1) }' \
+    || die "Root demo duration is too short: $duration"
+[ "$width" = "3440" ] || die "Root demo width is not 3440: $width"
+[ "$height" = "1440" ] || die "Root demo height is not 1440: $height"
+[ "$codec" = "h264" ] || die "Root demo codec is not h264: $codec"
+[ "$pix_fmt" = "yuv420p" ] || die "Root demo pixel format is not yuv420p: $pix_fmt"
+
+ffprobe \
+    -v error \
+    -count_frames \
+    -show_entries format=duration,size \
+    -show_entries stream=codec_name,profile,pix_fmt,width,height,avg_frame_rate,nb_frames,nb_read_frames \
+    -of json \
+    "$OUTPUT_ABS" \
+    >"${LOGS_DIR}/root-demo.ffprobe.json"
+require_file "${LOGS_DIR}/root-demo.ffprobe.json"
+
+samples_dir="${SCREENSHOTS_DIR}/demo-columnar-zones.samples"
+contact_sheet="${SCREENSHOTS_DIR}/demo-columnar-zones.contact-sheet.jpg"
+root_annotation_plan="${LOGS_DIR}/root-demo.annotations.tsv"
+cp "$SOURCE_ANNOTATIONS" "$root_annotation_plan"
+require_file "$root_annotation_plan"
+generate_recording_samples "$OUTPUT_ABS" "$duration" "$samples_dir" "$contact_sheet" "$root_annotation_plan"
+
+source_sha="$(file_sha256 "$SOURCE_RECORDING")"
+output_sha="$(file_sha256 "$OUTPUT_ABS")"
+artifact_sha="$(file_sha256 "$artifact_recording")"
+[ "$output_sha" = "$artifact_sha" ] || die "Artifact copy hash does not match root output"
+
+cat >"${LOGS_DIR}/root-demo-package.log" <<EOF
+result=success
+source_run_dir=${SOURCE_RUN_ABS}
+source_recording=${SOURCE_RECORDING}
+source_recording_sha256=${source_sha}
+source_review=${SOURCE_REVIEW}
+source_review_verdict=$(last_nonempty_line "$SOURCE_REVIEW")
+source_require_guest_control=$(value_from_log require_guest_control "$SOURCE_PREFLIGHT")
+source_capture_mode=$(value_from_log capture_mode "$SOURCE_PREFLIGHT")
+source_duration=${source_duration}
+source_width=${source_width}
+source_height=${source_height}
+source_codec=${source_codec}
+source_profile=${source_profile}
+source_pix_fmt=${source_pix_fmt}
+source_avg_frame_rate=${source_avg_frame_rate}
+source_frames=${source_frames}
+source_size=${source_size}
+root_demo=${OUTPUT_ABS}
+root_demo_artifact_copy=${artifact_recording}
+root_demo_sha256=${output_sha}
+root_demo_artifact_copy_sha256=${artifact_sha}
+duration=${duration}
+width=${width}
+height=${height}
+codec=${codec}
+profile=${profile}
+pix_fmt=${pix_fmt}
+avg_frame_rate=${avg_frame_rate}
+frames=${frames}
+size=${size}
+artifact_dir=${ARTIFACT_ABS}
+EOF
+require_file "${LOGS_DIR}/root-demo-package.log"
+
+cat >"${REVIEWS_DIR}/reviewer-packet.md" <<EOF
+# No-Context Root Demo Review Packet
+
+Start the reviewer subagent with \`fork_context=false\`. Do not include chat
+history or implementation explanation. Use
+\`script/e2e/prompts/no-context-artifact-review.md\` as the review policy; this
+packet fills the root demo paths and Slice 7-specific checks.
+
+## Slice
+
+- name: slice-7-root-columnar-demo
+- intended behavior: package the accepted strict Tart Slice 6B zone-scenes recording as a repo-root product demo for columnar zones.
+- artifact directory: ${ARTIFACT_ABS}
+- review output: ${REVIEWS_DIR}/no-ctx-artifact-review.md
+- package log: ${LOGS_DIR}/root-demo-package.log
+
+## Root Demo
+
+- tracked root demo: ${OUTPUT_ABS}
+- artifact recording copy: ${artifact_recording}
+- ffprobe metadata: ${LOGS_DIR}/root-demo.ffprobe.json
+- annotation plan: ${root_annotation_plan}
+- sample frames: ${samples_dir}
+- caption boundary frames: ${samples_dir}/caption-*-boundary-*.png
+- contact sheet: ${contact_sheet}
+- source accepted Tart artifact: ${SOURCE_RUN_ABS}
+- source primary recording: ${SOURCE_RECORDING}
+- source review: ${SOURCE_REVIEW}
+- source review packet: ${SOURCE_REVIEW_PACKET}
+- source contact sheet: ${SOURCE_CONTACT_SHEET}
+- source sample frames: ${SOURCE_SAMPLES}
+- source proof: ${SOURCE_PROOF}
+
+## Baseline And Product Surfaces
+
+- ${REPO_ROOT}/demo.mp4
+- ${REPO_ROOT}/demo2.mp4
+- ${REPO_ROOT}/demo3.mp4
+- ${REPO_ROOT}/resources/screenshots/winmux-overview.png
+- ${REPO_ROOT}/resources/screenshots/tab-groups.png
+- ${REPO_ROOT}/README.md
+- https://github.com/zimengxiong/winmux
+- https://macoswm.com/wm/winmux
+
+## Required Checks
+
+- Confirm the root demo is playable, h264/yuv420p-compatible, 3440x1440, and long enough to show the full columnar-zone workflow.
+- Confirm the package log proves the source was the accepted strict guest-captured Tart Slice 6B artifact, with \`require_guest_control=1\`, \`capture_mode=guest\`, and source review verdict \`PASS\` or \`PASS_WITH_NOTES\`.
+- Inspect the root demo directly, not only the source artifact. Use the root demo samples, caption-boundary frames, and contact sheet.
+- Confirm the demo would make sense on the repo root next to \`demo.mp4\`, \`demo2.mp4\`, and \`demo3.mp4\`: restrained macOS presentation, clean desktop, legible captions, visible live windows, and concrete WinMux config/command chips.
+- Confirm the recording shows triage scene state before \`winmux use-zone-scene deep-work\`, then deep-work state after it.
+- Confirm the demo does not claim sidebar drag UX, app routing rules, freeform layouts, draggable dividers, or a visual editor.
+
+End the review with exactly one of: PASS, PASS_WITH_NOTES, FAIL.
+EOF
+require_file "${REVIEWS_DIR}/reviewer-packet.md"
+
+printf 'artifact_dir=%s\n' "$ARTIFACT_ABS"
+printf 'root_demo=%s\n' "$OUTPUT_ABS"
+printf 'reviewer_packet=%s\n' "${REVIEWS_DIR}/reviewer-packet.md"
+printf 'result=success\n'

@@ -38,6 +38,27 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-6b` records zone scenes with `script/e2e/configs/zone-scenes.toml`. The setup phase stages separate triage and deep-work TextEdit documents, binds them to named workspaces, activates the `triage` scene, and captures `01-ready-slice-6b.png`. The recording then runs `winmux use-zone-scene deep-work`. The verifier checks before/action/after caption anchors, before/after active zone workspaces, layout width changes, visible TextEdit documents, the ready screenshot, and caption chips for `[[zone-scenes]]`, `use-zone-scene`, `list-zones`, and `list-windows --workspace visible`.
 
+`make e2e-package-root-demo` packages an accepted strict Tart artifact into the
+tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
+Slice 6B recording, fails unless that source artifact has strict guest-capture
+proof and an accepted no-context review, then writes a Slice 7 packet under
+`artifacts/e2e/slice-7-root-demo-<timestamp>/reviews/reviewer-packet.md`.
+The current packager is Slice 6B-compatible: `--source-run-dir` must point at an
+artifact shaped like the accepted Slice 6B zone-scenes run. Refresh package
+evidence without re-encoding the root MP4 with `--refresh-existing`.
+
+Override the source or output with:
+
+```bash
+make e2e-package-root-demo ARGS="--source-run-dir artifacts/e2e/<run> --output demo-columnar-zones.mp4"
+```
+
+Verify an existing root-demo package without generating files:
+
+```bash
+make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timestamp> ARGS=--require-review
+```
+
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
 Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.

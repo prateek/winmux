@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation, slices 0-6B accepted
+Status: implementation, slices 0-7 accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -176,6 +176,13 @@ make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp>
 make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp> ARGS=--require-review
 ```
 
+Root-demo packaging slices use a separate non-mutating check because they package
+an already accepted Tart recording rather than producing a fresh guest run:
+
+```bash
+make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timestamp> ARGS=--require-review
+```
+
 The verifier must check:
 
 - exactly one recording exists and is playable;
@@ -202,6 +209,12 @@ Gate order for every product slice:
 7. Run the three no-context retrospection agents.
 8. Update this plan with slice result, accepted findings, and the next pre-slice cleanup checklist.
 9. Start the next slice only after the checklist is complete.
+
+Packaging-slice artifacts must still include enough stored evidence to verify
+the root output and source provenance without chat history: source review
+verdict, source capture mode, source guest-control flag, source recording hash,
+root output hash, artifact-copy hash, duration, codec, pixel format, resolution,
+samples, caption-boundary frames for transition demos, and a no-context review.
 
 ## Terminology
 
@@ -785,6 +798,95 @@ Pre-slice cleanup before the next slice starts:
 - [x] Add semantic-failure handling for stateful guest scenarios so invariant failures stop retries instead of replaying a half-mutated VM state.
 - [x] Generate caption-boundary sample frames and require them in check-only verification so transition timing is inspectable before no-context review.
 - [x] Update the shared no-context artifact-review prompt with Slice 6A and Slice 6B checks, plus guidance to inspect generated boundary frames.
+
+### Slice 7: Root Columnar Demo
+
+Goal: add a root-level product demo video that shows the columnar zone workflow
+end to end.
+
+This slice does not add new product behavior. It packages an already accepted
+strict Tart recording into a tracked repo-root demo video, then runs a fresh
+no-context product/artifact review against the root demo, baseline videos,
+screenshots, README, GitHub README, and public listing.
+
+Pre-slice cleanup before Slice 7 starts:
+
+- [x] Read all three Slice 6B retrospective reports and keep accepted blockers in this checklist.
+- [x] Use the accepted Slice 6B artifact as the source so the root demo inherits a strict guest-captured Tart proof instead of a host-only recording.
+- [x] Keep root-demo packaging repeatable with a script/Make target rather than a one-off ffmpeg command.
+- [x] Update the no-context artifact-review prompt with Slice 7-specific rules for repo-root videos.
+
+Slice 7 scope:
+
+- Add `demo-columnar-zones.mp4` at the repo root.
+- Add `script/e2e/package-root-demo` and `make e2e-package-root-demo`.
+- Require the source artifact to have an accepted no-context review, `require_guest_control=1`, `capture_mode=guest`, successful guest screencapture proof, and a playable 3440x1440 recording.
+- Generate a Slice 7 packaging artifact under `artifacts/e2e/slice-7-root-demo-<timestamp>/` with ffprobe metadata, hashes, sample frames, contact sheet, and a no-context reviewer packet.
+- Run a fresh no-context artifact review with `fork_context=false` before treating the root demo as accepted.
+
+Slice 7 proof source:
+
+- source artifact: `artifacts/e2e/slice-6b-20260624T034817Z`;
+- source recording: `artifacts/e2e/slice-6b-20260624T034817Z/recordings/slice-6b-zone-scenes.mov`;
+- source review: `artifacts/e2e/slice-6b-20260624T034817Z/reviews/no-ctx-artifact-review.md`, verdict `PASS`.
+
+Slice 7 review requirements:
+
+- inspect the generated root `demo-columnar-zones.mp4` directly;
+- compare it against `demo.mp4`, `demo2.mp4`, `demo3.mp4`, `resources/screenshots/winmux-overview.png`, `resources/screenshots/tab-groups.png`, `README.md`, the GitHub README, and the public product listing when reachable;
+- confirm the root demo is legible and stylistically compatible with WinMux's existing root demos;
+- confirm the source package log proves strict guest capture and accepted source review;
+- confirm the video shows the triage scene before `winmux use-zone-scene deep-work` and the deep-work scene after it;
+- confirm the root demo makes no claims about sidebar drag UX, app routing rules, freeform layouts, draggable dividers, or visual editing.
+
+Non-claims:
+
+- this slice does not add new commands, config, sidebar behavior, tab-group routing, app rules, freeform layouts, draggable dividers, or visual editing;
+- this slice packages an accepted Tart artifact, so it does not boot a fresh Tart VM unless the source artifact is replaced.
+
+Accepted Slice 7 result:
+
+- root demo: `demo-columnar-zones.mp4`;
+- artifact directory: `artifacts/e2e/slice-7-root-demo-20260624T042021Z`;
+- artifact recording copy: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/recordings/demo-columnar-zones.mp4`;
+- package log: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/logs/root-demo-package.log`;
+- ffprobe metadata: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/logs/root-demo.ffprobe.json`;
+- samples and boundary frames: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.samples/`;
+- root demo SHA-256: `bd772ca45ffa9706ed21096d85c2ba2a93555b3f31c7d7dad9f9fdf284ad63ba`;
+- media summary: H.264 High profile, `yuv420p`, 3440x1440, 41.983333s, 1747 frames;
+- source artifact: `artifacts/e2e/slice-6b-20260624T034817Z`, source review verdict `PASS`, `require_guest_control=1`, `capture_mode=guest`;
+- package verifier: `make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-20260624T042021Z ARGS=--require-review` passed;
+- no-context review: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- retrospectives: `artifacts/e2e/slice-7-root-demo-20260624T042021Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`.
+
+What the accepted artifact proves:
+
+- the repo-root `demo-columnar-zones.mp4` is a playable, root-showcase-ready columnar-zones demo;
+- the video packages the accepted strict guest-captured Slice 6B scene workflow, with provenance back to the Tart run and source review;
+- the demo shows triage documents before `winmux use-zone-scene deep-work`, then deep-work documents after it;
+- root-demo caption-boundary samples preserve the command timing evidence that caught the earlier Slice 6B review failure.
+
+Accepted notes:
+
+- `demo-columnar-zones.mp4` is a supplemental columnar-zones/scene-switching demo. It should not replace the existing sidebar/tab-group/product demos or be described as proving sidebar drag UX, app routing, freeform layouts, draggable dividers, tab groups, or visual editing.
+- The no-context reviewer noted that `demo-columnar-zones.mp4` must be added to git before it can actually publish as a root showcase asset. That is part of the Slice 7 commit scope.
+
+Slice 7 non-claims:
+
+- no new commands, config semantics, sidebar behavior, tab-group routing, app/window routing, grid/freeform layouts, draggable dividers, or visual editor.
+
+Pre-slice cleanup before the next slice starts:
+
+- [x] Read all three Slice 7 retrospective reports and keep accepted blockers in this checklist.
+- [x] Close Slice 7 in this plan with artifact paths, root demo path, package provenance, verifier/review evidence, retrospectives, claims, non-claims, and accepted notes.
+- [x] Add and run a non-mutating root-demo package verifier.
+- [x] Preserve root-demo transition timing evidence by generating root MP4 caption-boundary frames from the source annotation plan.
+- [x] Add a `package-root-demo --self-test` fixture check and wire it into `make e2e-pre-tart-checks`.
+- [x] Clarify that `script/e2e/package-root-demo --source-run-dir` expects a Slice 6B-compatible source artifact unless the packager is generalized later.
+- [x] Add `demo-columnar-zones.mp4` and the Slice 7 harness/docs changes to the next commit before starting new slice work.
+- [ ] Before the next stateful guest scenario, confirm semantic invariant failures exit with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` and do not retry against mutated state.
+- [ ] Before the next Tart transition slice, write exact before/action/after timing into the storyboard and verifier/reviewer handoff.
 
 ## Call-Site Audit
 

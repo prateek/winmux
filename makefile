@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-verify-slice-check e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-verify-slice-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -93,10 +93,13 @@ e2e-pre-tart-checks:
 	guest_scripts=(script/e2e/guest/*.sh) && \
 	bash -n script/e2e/tart-recording-harness && \
 	bash -n script/e2e/annotate-recording && \
+	bash -n script/e2e/package-root-demo && \
+	bash -n script/e2e/verify-root-demo && \
 	bash -n script/e2e/write-review-packet && \
 	bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	./script/e2e/package-root-demo --self-test && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
@@ -105,6 +108,12 @@ e2e-verify-slice:
 
 e2e-verify-slice-check:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact --check-only $(ARGS) "$(RUN_DIR)"'
+
+e2e-verify-root-demo-check:
+	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-root-demo $(ARGS) "$(RUN_DIR)"'
+
+e2e-package-root-demo:
+	/bin/bash -lc 'cd "$(CURDIR)" && ./script/e2e/package-root-demo $(ARGS)'
 
 e2e-slice-1:
 	$(MAKE) e2e-pre-tart-checks

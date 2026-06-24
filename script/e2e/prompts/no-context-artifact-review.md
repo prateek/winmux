@@ -123,6 +123,11 @@ Slice-specific checks:
   The proof must show triage documents before the command and deep-work documents
   after it. Inspect caption-boundary frames around the command and after-state
   captions; final state plus logs is not enough.
+- Slice 7 root demo may use a repo-root `.mp4` and a packaging artifact instead
+  of a new Tart run, but only if the package log proves the source was an
+  accepted strict guest-captured Tart artifact. Inspect the root demo directly
+  against the baseline root videos and product surfaces; source-artifact review
+  is supporting evidence, not a substitute for watching the root demo.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
