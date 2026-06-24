@@ -87,6 +87,33 @@ func parseUseZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneLayoutCm
     parseSpecificCmdArgs(UseZoneLayoutCmdArgs(rawArgs: args), args)
 }
 
+public struct UseZoneSceneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .useZoneScene,
+        allowInConfig: true,
+        help: use_zone_scene_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.sceneId, parseZoneSceneId, placeholder: "<scene-id>")],
+    )
+
+    public init(sceneId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.sceneId = .initialized(sceneId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var sceneId: Lateinit<String> = .uninitialized
+}
+
+func parseUseZoneSceneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneSceneCmdArgs> {
+    parseSpecificCmdArgs(UseZoneSceneCmdArgs(rawArgs: args), args)
+}
+
 public struct ListZonesCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -142,6 +169,13 @@ private func parseZoneLayoutId(i: PosArgParserInput) -> ParsedCliArgs<String> {
     }
 }
 
+private func parseZoneSceneId(i: PosArgParserInput) -> ParsedCliArgs<String> {
+    switch parseZoneSceneIdentifier(i.arg) {
+        case .success(let sceneId): .succ(sceneId, advanceBy: 1)
+        case .failure(let msg): .fail(msg, advanceBy: 1)
+    }
+}
+
 private func parseZoneLayoutIdentifier(_ raw: String) -> Parsed<String> {
     if raw.isEmpty {
         return .failure("<layout-id> must not be empty")
@@ -150,6 +184,18 @@ private func parseZoneLayoutIdentifier(_ raw: String) -> Parsed<String> {
         char.isLetter || char.isNumber || char == "-" || char == "_"
     }) else {
         return .failure("<layout-id> must use only letters, numbers, hyphens, and underscores")
+    }
+    return .success(raw)
+}
+
+private func parseZoneSceneIdentifier(_ raw: String) -> Parsed<String> {
+    if raw.isEmpty {
+        return .failure("<scene-id> must not be empty")
+    }
+    guard raw.allSatisfy({ char in
+        char.isLetter || char.isNumber || char == "-" || char == "_"
+    }) else {
+        return .failure("<scene-id> must use only letters, numbers, hyphens, and underscores")
     }
     return .success(raw)
 }

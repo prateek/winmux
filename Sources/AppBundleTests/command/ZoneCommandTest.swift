@@ -19,6 +19,10 @@ final class ZoneCommandTest: XCTestCase {
             "use-zone-layout --monitor 1 focus",
             UseZoneLayoutCmdArgs(layoutId: "focus", monitor: .sequenceNumber(1)),
         )
+        testParseCommandSucc(
+            "use-zone-scene --monitor 1 deep-work",
+            UseZoneSceneCmdArgs(sceneId: "deep-work", monitor: .sequenceNumber(1)),
+        )
         testParseCommandSucc("list-zones --json", ListZonesCmdArgs(rawArgs: []).copy(\.json, true))
     }
 
@@ -229,6 +233,37 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone layout preset 'missing'"))
     }
 
+    func testUseZoneSceneActivatesBoundWorkspacesAndLayout() async throws {
+        let zones = configureZoneScenes()
+        let triageDraft = Workspace.get(byName: "TriageDraft")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(triageDraft))
+        XCTAssertTrue(triageDraft.focusWorkspace())
+
+        let result = try await parseCommand("use-zone-scene deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone scene 'deep-work' on monitor 1 with layout 'focus': left=FocusQueue, main=FocusBuild, right=FocusNotes"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [180, 840, 180])
+        let activeByZone = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+            monitor.zoneId.map { ($0, monitor.activeWorkspace.name) }
+        })
+        XCTAssertEqual(activeByZone, [
+            "left": "FocusQueue",
+            "main": "FocusBuild",
+            "right": "FocusNotes",
+        ])
+    }
+
+    func testUseZoneSceneRejectsUnknownScene() async throws {
+        _ = configureZoneScenes()
+
+        let result = try await parseCommand("use-zone-scene missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone scene 'missing'"))
+    }
+
     func testZoneCommandsFailWhenNoZonesAreConfigured() async throws {
         configureNoZones()
         let workspace = Workspace.get(byName: "work")
@@ -245,6 +280,25 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(moveResult.exitCode, 1)
         XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("No zones are configured"))
     }
+}
+
+@MainActor
+private func configureZoneScenes() -> [String: Monitor] {
+    configureZoneLayoutPresets()
+    config.zoneScenes = [
+        ZoneSceneConfig(
+            id: "deep-work",
+            layoutPreset: "focus",
+            workspaces: [
+                ZoneSceneWorkspaceConfig(zone: "left", workspace: WorkspaceName.parse("FocusQueue").getOrDie()),
+                ZoneSceneWorkspaceConfig(zone: "main", workspace: WorkspaceName.parse("FocusBuild").getOrDie()),
+                ZoneSceneWorkspaceConfig(zone: "right", workspace: WorkspaceName.parse("FocusNotes").getOrDie()),
+            ],
+        ),
+    ]
+    return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        monitor.zoneId.map { ($0, monitor) }
+    })
 }
 
 @MainActor

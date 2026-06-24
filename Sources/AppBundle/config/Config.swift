@@ -67,6 +67,7 @@ struct Config: ConvenienceCopyable {
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
     var zoneLayouts: [ZoneLayoutConfig] = []
+    var zoneScenes: [ZoneSceneConfig] = []
     var zones: [ZoneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
@@ -87,6 +88,17 @@ struct ZoneLayoutConfig: ConvenienceCopyable, Equatable, Sendable {
     var layout: ZoneLayoutKind?
     var defaultZone: String?
     var columns: [ZoneColumnConfig] = []
+}
+
+struct ZoneSceneConfig: ConvenienceCopyable, Equatable, Sendable {
+    var id: String = ""
+    var layoutPreset: String?
+    var workspaces: [ZoneSceneWorkspaceConfig] = []
+}
+
+struct ZoneSceneWorkspaceConfig: ConvenienceCopyable, Equatable, Sendable {
+    var zone: String = ""
+    var workspace: WorkspaceName?
 }
 
 enum ZoneLayoutKind: String, Equatable, Sendable {

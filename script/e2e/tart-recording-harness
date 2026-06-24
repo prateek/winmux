@@ -28,6 +28,9 @@ fi
 if [ "$ACTION" = "slice-6" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-layout-presets.toml"
 fi
+if [ "$ACTION" = "slice-6b" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -52,6 +55,7 @@ SSH_USER="${WINMUX_E2E_SSH_USER:-admin}"
 SSH_PASSWORD="${WINMUX_E2E_SSH_PASSWORD:-admin}"
 GUEST_ACTION_ATTEMPTS="${WINMUX_E2E_GUEST_ACTION_ATTEMPTS:-5}"
 GUEST_ACTION_RETRY_SECONDS="${WINMUX_E2E_GUEST_ACTION_RETRY_SECONDS:-3}"
+GUEST_ACTION_SEMANTIC_FAILURE_EXIT="${WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT:-86}"
 GUEST_CAPTURE_READY_ATTEMPTS="${WINMUX_E2E_GUEST_CAPTURE_READY_ATTEMPTS:-30}"
 GUEST_CAPTURE_READY_RETRY_SECONDS="${WINMUX_E2E_GUEST_CAPTURE_READY_RETRY_SECONDS:-2}"
 CAPTURE_MODE="${WINMUX_E2E_CAPTURE_MODE:-}"
@@ -76,7 +80,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6>
+Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -97,6 +101,7 @@ Environment:
   WINMUX_E2E_SSH_USER=admin         SSH user for ssh guest control.
   WINMUX_E2E_SSH_PASSWORD=admin     SSH password for ssh guest control.
   WINMUX_E2E_GUEST_ACTION_ATTEMPTS=5  Retries for guest artifact actions.
+  WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT=86  Guest exit code that stops retries.
   WINMUX_E2E_GUEST_CAPTURE_READY_ATTEMPTS=30  Screenshot probes before guest capture starts.
   WINMUX_E2E_CAPTURE_MODE=host|guest  Capture from the host display or the guest display.
   WINMUX_E2E_GUEST_ARTIFACTS_DIR=...  Guest path for the shared artifacts mount.
@@ -250,6 +255,7 @@ write_preflight_log() {
         printf 'ssh_user=%s\n' "$SSH_USER"
         printf 'guest_action_attempts=%s\n' "$GUEST_ACTION_ATTEMPTS"
         printf 'guest_action_retry_seconds=%s\n' "$GUEST_ACTION_RETRY_SECONDS"
+        printf 'guest_action_semantic_failure_exit=%s\n' "$GUEST_ACTION_SEMANTIC_FAILURE_EXIT"
         printf 'guest_capture_ready_attempts=%s\n' "$GUEST_CAPTURE_READY_ATTEMPTS"
         printf 'guest_capture_ready_retry_seconds=%s\n' "$GUEST_CAPTURE_READY_RETRY_SECONDS"
         printf 'capture_mode=%s\n' "$CAPTURE_MODE"
@@ -379,12 +385,19 @@ guest_script_retry() {
 
     : >"$log_path"
     while [ "$attempt" -le "$GUEST_ACTION_ATTEMPTS" ]; do
-        if {
+        local status=0
+        {
             printf 'attempt=%s\n' "$attempt"
             guest_script "$script"
-        } >>"$log_path" 2>&1; then
+        } >>"$log_path" 2>&1 || status=$?
+        if [ "$status" -eq 0 ]; then
             printf 'result=success\n' >>"$log_path"
             return
+        fi
+        if [ "$status" -eq "$GUEST_ACTION_SEMANTIC_FAILURE_EXIT" ]; then
+            log "Guest action attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} hit a semantic scenario failure; see $log_path"
+            printf 'result=semantic_failure\n' >>"$log_path"
+            return "$status"
         fi
 
         log "Guest action attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} failed; see $log_path"
@@ -898,6 +911,16 @@ CAPTIONS
 28	36	Windows stay bound	The same TextEdit windows remain in their original zone workspaces.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
+        slice-6b-zone-scenes)
+            cat >"$captions_path" <<'CAPTIONS'
+0	6	Scene-ready zones	The triage scene shows Inbox, Draft, and Updates workspaces.	Config: [[zone-scenes]] triage + deep-work
+6	16	Before scene = triage	Live triage documents are visible before the switch.	Action: before scene = triage
+16	27	Switch the scene	One command applies the focus layout and workspace bindings.	Run: winmux use-zone-scene deep-work
+27	34	After scene = deep-work	Focus Queue, Build, and Notes replace the triage workspaces.	Action: after scene = deep-work
+34	39	Inspect zone workspaces	The active workspace in each zone now comes from the scene.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
+39	42	Inspect visible windows	Only the deep-work TextEdit documents are visible after the switch.	Run: winmux list-windows --workspace visible
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -957,7 +980,8 @@ annotation_preflight() {
         slice-3-stable-identity \
         slice-4-zone-commands \
         slice-5-sidebar-drag \
-        slice-6-zone-layout-presets
+        slice-6-zone-layout-presets \
+        slice-6b-zone-scenes
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1044,6 +1068,8 @@ generate_recording_samples() {
         local end_seconds
         while IFS=$'\t' read -r start_seconds end_seconds; do
             caption_index=$((caption_index + 1))
+            local caption_label
+            caption_label="$(printf '%02d' "$caption_index")"
             local sample_seconds
             sample_seconds="$(awk -v start="$start_seconds" -v end="$end_seconds" 'BEGIN {
                 midpoint = (start + end) / 2
@@ -1058,7 +1084,22 @@ generate_recording_samples() {
                 "$path" \
                 "$duration" \
                 "$sample_seconds" \
-                "${samples_dir}/caption-$(printf '%02d' "$caption_index").png"
+                "${samples_dir}/caption-${caption_label}.png"
+            sample_recording_frame \
+                "$path" \
+                "$duration" \
+                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start - 0.500 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-before.png"
+            sample_recording_frame \
+                "$path" \
+                "$duration" \
+                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-start.png"
+            sample_recording_frame \
+                "$path" \
+                "$duration" \
+                "$(awk -v end="$end_seconds" 'BEGIN { printf "%.3f", end - 0.100 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-end.png"
         done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
     fi
 
@@ -1770,6 +1811,34 @@ run_slice_6_zone_layout_presets() {
         "${LOGS_DIR}/slice-6-run.log"
 }
 
+run_slice_6b_zone_scene_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE6B_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-6b-setup.log"
+}
+
+run_slice_6b_zone_scenes() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE6B_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-6b-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -1860,6 +1929,10 @@ slice_6() {
     run_recorded_scenario "slice-6-zone-layout-presets" "00-before-slice-6" "99-after-slice-6" "run_slice_6_zone_layout_presets" "run_slice_6_zone_layout_setup" "01-ready-slice-6"
 }
 
+slice_6b() {
+    run_recorded_scenario "slice-6b-zone-scenes" "00-before-slice-6b" "99-after-slice-6b" "run_slice_6b_zone_scenes" "run_slice_6b_zone_scene_setup" "01-ready-slice-6b"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -1890,6 +1963,9 @@ case "$ACTION" in
         ;;
     slice-6)
         slice_6
+        ;;
+    slice-6b)
+        slice_6b
         ;;
     *)
         usage >&2

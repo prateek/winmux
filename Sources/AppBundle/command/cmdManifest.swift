@@ -49,6 +49,7 @@ extension CmdArgs {
             case let args as SwapCmdArgs: SwapCommand(args: args)
             case let args as TriggerBindingCmdArgs: TriggerBindingCommand(args: args)
             case let args as UseZoneLayoutCmdArgs: UseZoneLayoutCommand(args: args)
+            case let args as UseZoneSceneCmdArgs: UseZoneSceneCommand(args: args)
             case let args as VolumeCmdArgs: VolumeCommand(args: args)
             case let args as WorkspaceCmdArgs: WorkspaceCommand(args: args)
             case let args as WorkspaceBackAndForthCmdArgs: WorkspaceBackAndForthCommand(args: args)

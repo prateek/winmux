@@ -38,6 +38,23 @@ private let zoneLayoutParser: [String: any ParserProtocol<ZoneLayoutConfig>] = [
     "columns": Parser(\.columns, parseZoneColumns),
 ]
 
+private let zoneSceneParser: [String: any ParserProtocol<ZoneSceneConfig>] = [
+    "id": Parser(\.id, parseZoneId),
+    "layout-preset": Parser(\.layoutPreset) { raw, backtrace in
+        parseZoneId(raw, backtrace).map(Optional.some)
+    },
+    "workspaces": Parser(\.workspaces, parseZoneSceneWorkspaces),
+]
+
+private let zoneSceneWorkspaceParser: [String: any ParserProtocol<ZoneSceneWorkspaceConfig>] = [
+    "zone": Parser(\.zone, parseZoneId),
+    "workspace": Parser(\.workspace) { raw, backtrace in
+        parseString(raw, backtrace)
+            .flatMap { WorkspaceName.parse($0).toParsedToml(backtrace) }
+            .map(Optional.some)
+    },
+]
+
 private let zoneColumnParser: [String: any ParserProtocol<ZoneColumnConfig>] = [
     "id": Parser(\.id, parseZoneId),
     "name": Parser(\.name) { raw, backtrace in
@@ -86,6 +103,26 @@ func parseZoneLayouts(
     return layouts
 }
 
+func parseZoneScenes(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [ZoneSceneConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    let scenes = array.enumerated().map { index, rawScene in
+        let sceneBacktrace = backtrace + .index(index)
+        var scene = parseTable(rawScene, ZoneSceneConfig(), zoneSceneParser, sceneBacktrace, &errors)
+        validateZoneScene(&scene, sceneBacktrace, &errors)
+        return scene
+    }
+    validateZoneScenes(scenes, backtrace, &errors)
+    return scenes
+}
+
 private func parseZoneColumns(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
@@ -100,6 +137,23 @@ private func parseZoneColumns(
         var column = parseTable(rawColumn, ZoneColumnConfig(), zoneColumnParser, backtrace + .index(index), &errors)
         validateZoneColumn(&column, backtrace + .index(index), &errors)
         return column
+    }
+}
+
+private func parseZoneSceneWorkspaces(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [ZoneSceneWorkspaceConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    return array.enumerated().map { index, rawBinding in
+        var binding = parseTable(rawBinding, ZoneSceneWorkspaceConfig(), zoneSceneWorkspaceParser, backtrace + .index(index), &errors)
+        validateZoneSceneWorkspace(&binding, backtrace + .index(index), &errors)
+        return binding
     }
 }
 
@@ -194,6 +248,31 @@ private func validateZoneLayout(
     }
 }
 
+private func validateZoneScene(
+    _ scene: inout ZoneSceneConfig,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    if scene.id.isEmpty {
+        errors.append(.semantic(backtrace + .key("id"), "Missing required key"))
+    }
+    if scene.layoutPreset == nil {
+        errors.append(.semantic(backtrace + .key("layout-preset"), "Missing required key"))
+    }
+    if scene.workspaces.isEmpty {
+        errors.append(.semantic(backtrace + .key("workspaces"), "Must contain at least one workspace binding"))
+    }
+
+    let duplicatedZones = scene.workspaces.map(\.zone)
+        .grouped { $0 }
+        .filter { zone, bindings in !zone.isEmpty && bindings.count > 1 }
+        .keys
+        .sorted()
+    if !duplicatedZones.isEmpty {
+        errors.append(.semantic(backtrace + .key("workspaces"), "Contains duplicated zone bindings: \(duplicatedZones.joined(separator: ", "))"))
+    }
+}
+
 private func validateZones(
     _ zones: [ZoneConfig],
     _ backtrace: TomlBacktrace,
@@ -230,11 +309,48 @@ private func validateZoneLayouts(
     }
 }
 
+private func validateZoneScenes(
+    _ scenes: [ZoneSceneConfig],
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    let duplicatedIds = scenes.map(\.id)
+        .grouped { $0 }
+        .filter { id, scenes in !id.isEmpty && scenes.count > 1 }
+        .keys
+        .sorted()
+    if !duplicatedIds.isEmpty {
+        errors.append(.semantic(backtrace, "Contains duplicated scene ids: \(duplicatedIds.joined(separator: ", "))"))
+    }
+}
+
 func validateZoneLayoutReferences(_ config: Config, _ errors: inout [TomlParseError]) {
     let layoutIds = Set(config.zoneLayouts.map(\.id))
     for (index, zone) in config.zones.enumerated() {
         guard let layoutPreset = zone.layoutPreset, !layoutIds.contains(layoutPreset) else { continue }
         errors.append(.semantic(.rootKey("zones") + .index(index) + .key("layout-preset"), "Unknown zone layout preset '\(layoutPreset)'"))
+    }
+}
+
+func validateZoneSceneReferences(_ config: Config, _ errors: inout [TomlParseError]) {
+    var layoutsById: [String: ZoneLayoutConfig] = [:]
+    for layout in config.zoneLayouts where !layout.id.isEmpty && layoutsById[layout.id] == nil {
+        layoutsById[layout.id] = layout
+    }
+    for (sceneIndex, scene) in config.zoneScenes.enumerated() {
+        guard let layoutPreset = scene.layoutPreset else { continue }
+        guard let layout = layoutsById[layoutPreset] else {
+            errors.append(.semantic(.rootKey("zone-scenes") + .index(sceneIndex) + .key("layout-preset"), "Unknown zone layout preset '\(layoutPreset)'"))
+            continue
+        }
+
+        let layoutZoneIds = Set(layout.columns.map(\.id))
+        for (bindingIndex, binding) in scene.workspaces.enumerated() where !binding.zone.isEmpty && !layoutZoneIds.contains(binding.zone) {
+            errors.append(.semantic(
+                .rootKey("zone-scenes") + .index(sceneIndex) + .key("workspaces") + .index(bindingIndex) + .key("zone"),
+                "Must name one of the zones in layout preset '\(layoutPreset)'",
+            ))
+        }
     }
 }
 
@@ -254,5 +370,18 @@ private func validateZoneColumn(
 ) {
     if column.id.isEmpty {
         errors.append(.semantic(backtrace + .key("id"), "Missing required key"))
+    }
+}
+
+private func validateZoneSceneWorkspace(
+    _ binding: inout ZoneSceneWorkspaceConfig,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    if binding.zone.isEmpty {
+        errors.append(.semantic(backtrace + .key("zone"), "Missing required key"))
+    }
+    if binding.workspace == nil {
+        errors.append(.semantic(backtrace + .key("workspace"), "Missing required key"))
     }
 }

@@ -1,0 +1,52 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Inbox', width = 0.30 },
+  { id = 'main', name = 'Draft', width = 0.40 },
+  { id = 'right', name = 'Updates', width = 0.30 },
+]
+
+[[zone-layouts]]
+id = 'focus'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Queue', width = 0.18 },
+  { id = 'main', name = 'Build', width = 0.64 },
+  { id = 'right', name = 'Notes', width = 0.18 },
+]
+
+[[zone-scenes]]
+id = 'triage'
+layout-preset = 'balanced'
+workspaces = [
+  { zone = 'left', workspace = 'TriageInbox' },
+  { zone = 'main', workspace = 'TriageDraft' },
+  { zone = 'right', workspace = 'TriageUpdates' },
+]
+
+[[zone-scenes]]
+id = 'deep-work'
+layout-preset = 'focus'
+workspaces = [
+  { zone = 'left', workspace = 'FocusQueue' },
+  { zone = 'main', workspace = 'FocusBuild' },
+  { zone = 'right', workspace = 'FocusNotes' },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[workspace-sidebar]
+enabled = false
+
+[mode.main.binding]
+alt-1 = 'use-zone-scene triage'
+alt-2 = 'use-zone-scene deep-work'

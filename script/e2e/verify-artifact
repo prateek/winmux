@@ -286,6 +286,8 @@ generate_recording_samples() {
         local end_seconds
         while IFS=$'\t' read -r start_seconds end_seconds; do
             caption_index=$((caption_index + 1))
+            local caption_label
+            caption_label="$(printf '%02d' "$caption_index")"
             local sample_seconds
             sample_seconds="$(awk -v start="$start_seconds" -v end="$end_seconds" 'BEGIN {
                 midpoint = (start + end) / 2
@@ -300,7 +302,22 @@ generate_recording_samples() {
                 "$recording" \
                 "$duration" \
                 "$sample_seconds" \
-                "${samples_dir}/caption-$(printf '%02d' "$caption_index").png"
+                "${samples_dir}/caption-${caption_label}.png"
+            sample_recording_frame \
+                "$recording" \
+                "$duration" \
+                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start - 0.500 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-before.png"
+            sample_recording_frame \
+                "$recording" \
+                "$duration" \
+                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-start.png"
+            sample_recording_frame \
+                "$recording" \
+                "$duration" \
+                "$(awk -v end="$end_seconds" 'BEGIN { printf "%.3f", end - 0.100 }')" \
+                "${samples_dir}/caption-${caption_label}-boundary-end.png"
         done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
     fi
 
@@ -326,17 +343,19 @@ ensure_recording_samples() {
     local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
     local standard_count=0
     local caption_count=0
+    local boundary_count=0
     local caption_rows=0
 
     if [ -d "$samples_dir" ]; then
         standard_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'standard-*.png' | wc -l | tr -d ' ')"
-        caption_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-*.png' | wc -l | tr -d ' ')"
+        caption_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9].png' | wc -l | tr -d ' ')"
+        boundary_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9]-boundary-*.png' | wc -l | tr -d ' ')"
     fi
     if [ -s "$captions_path" ]; then
         caption_rows="$(awk -F '\t' '$0 != "" && $1 !~ /^#/ { count++ } END { print count + 0 }' "$captions_path")"
     fi
 
-    if [ "$standard_count" -lt 6 ] || [ "$caption_count" -lt "$caption_rows" ] || [ ! -s "$contact_sheet" ]; then
+    if [ "$standard_count" -lt 6 ] || [ "$caption_count" -lt "$caption_rows" ] || [ "$boundary_count" -lt $((caption_rows * 3)) ] || [ ! -s "$contact_sheet" ]; then
         [ "$CHECK_ONLY" != "1" ] || die "Recording samples/contact sheet are missing or stale in --check-only mode: $samples_dir"
         generate_recording_samples "$recording" "$name" "$duration"
     fi
@@ -345,8 +364,10 @@ ensure_recording_samples() {
     [ "$standard_count" -ge 6 ] || die "Recording samples missing standard timeline frames"
     if [ -s "$captions_path" ]; then
         caption_rows="$(awk -F '\t' '$0 != "" && $1 !~ /^#/ { count++ } END { print count + 0 }' "$captions_path")"
-        caption_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-*.png' | wc -l | tr -d ' ')"
+        caption_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9].png' | wc -l | tr -d ' ')"
+        boundary_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9]-boundary-*.png' | wc -l | tr -d ' ')"
         [ "$caption_count" -ge "$caption_rows" ] || die "Recording samples missing caption/action frames"
+        [ "$boundary_count" -ge $((caption_rows * 3)) ] || die "Recording samples missing caption boundary frames"
     fi
     require_file "$contact_sheet"
 }
@@ -706,6 +727,95 @@ require_slice_6_zone_layout_presets_proof() {
         || die "Slice 6 annotations missing list-windows chip"
 }
 
+require_slice_6b_zone_scene_proof() {
+    local proof="${RUN_DIR}/slice-6b-zone-scene-proof.txt"
+    local done="${LOGS_DIR}/slice-6b-zone-scene.done"
+    local scene_before="${LOGS_DIR}/slice-6b-scene-before.log"
+    local scene_after="${LOGS_DIR}/slice-6b-scene-after.log"
+    local switch_log="${LOGS_DIR}/slice-6b-use-zone-scene.log"
+    local windows_before="${LOGS_DIR}/slice-6b-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-6b-windows-after.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-6b.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 6B"
+    require_file "$scene_before"
+    require_file "$scene_after"
+    require_file "$switch_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$ready_screenshot"
+
+    grep -F 'PASS: use-zone-scene switched from triage to deep-work, applied the focus layout, and activated the configured workspace in each zone.' "$proof" >/dev/null \
+        || die "Slice 6B proof does not contain the expected PASS claim"
+    grep -F '$ winmux use-zone-scene deep-work' "$switch_log" >/dev/null || die "Slice 6B switch log missing use-zone-scene command"
+    grep -F "Using zone scene 'deep-work' on monitor" "$switch_log" >/dev/null || die "Slice 6B switch log missing command success output"
+
+    grep -F 'zone=left|layout=balanced|' "$scene_before" >/dev/null || die "Slice 6B before scene missing left balanced layout"
+    grep -F 'zone=main|layout=balanced|' "$scene_before" >/dev/null || die "Slice 6B before scene missing main balanced layout"
+    grep -F 'zone=right|layout=balanced|' "$scene_before" >/dev/null || die "Slice 6B before scene missing right balanced layout"
+    grep -F 'zone=left|layout=focus|' "$scene_after" >/dev/null || die "Slice 6B after scene missing left focus layout"
+    grep -F 'zone=main|layout=focus|' "$scene_after" >/dev/null || die "Slice 6B after scene missing main focus layout"
+    grep -F 'zone=right|layout=focus|' "$scene_after" >/dev/null || die "Slice 6B after scene missing right focus layout"
+
+    grep -F 'workspace=TriageInbox|' "$scene_before" >/dev/null || die "Slice 6B before scene missing TriageInbox"
+    grep -F 'workspace=TriageDraft|' "$scene_before" >/dev/null || die "Slice 6B before scene missing TriageDraft"
+    grep -F 'workspace=TriageUpdates|' "$scene_before" >/dev/null || die "Slice 6B before scene missing TriageUpdates"
+    grep -F 'workspace=FocusQueue|' "$scene_after" >/dev/null || die "Slice 6B after scene missing FocusQueue"
+    grep -F 'workspace=FocusBuild|' "$scene_after" >/dev/null || die "Slice 6B after scene missing FocusBuild"
+    grep -F 'workspace=FocusNotes|' "$scene_after" >/dev/null || die "Slice 6B after scene missing FocusNotes"
+
+    local before_left_width before_main_width before_right_width after_left_width after_main_width after_right_width
+    before_left_width="$(monitor_field_for_zone "$scene_before" left width)"
+    before_main_width="$(monitor_field_for_zone "$scene_before" main width)"
+    before_right_width="$(monitor_field_for_zone "$scene_before" right width)"
+    after_left_width="$(monitor_field_for_zone "$scene_after" left width)"
+    after_main_width="$(monitor_field_for_zone "$scene_after" main width)"
+    after_right_width="$(monitor_field_for_zone "$scene_after" right width)"
+    [ -n "$before_left_width" ] && [ -n "$before_main_width" ] && [ -n "$before_right_width" ] \
+        || die "Slice 6B before scene missing widths"
+    [ -n "$after_left_width" ] && [ -n "$after_main_width" ] && [ -n "$after_right_width" ] \
+        || die "Slice 6B after scene missing widths"
+    assert_numeric_lt "$after_left_width" "$before_left_width" "Slice 6B left width did not shrink"
+    assert_numeric_gt "$after_main_width" "$before_main_width" "Slice 6B main width did not grow"
+    assert_numeric_lt "$after_right_width" "$before_right_width" "Slice 6B right width did not shrink"
+
+    local title expected_zone after_zone before_zone
+    for title in triage-inbox.rtf triage-draft.rtf triage-updates.rtf; do
+        case "$title" in
+            triage-inbox.rtf) expected_zone=left ;;
+            triage-draft.rtf) expected_zone=main ;;
+            triage-updates.rtf) expected_zone=right ;;
+        esac
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        [ "$before_zone" = "$expected_zone" ] || die "Slice 6B before zone for $title was ${before_zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_after" "$title" id)" ] || die "Slice 6B after windows should not include $title"
+    done
+    for title in focus-queue.rtf focus-build.rtf focus-notes.rtf; do
+        case "$title" in
+            focus-queue.rtf) expected_zone=left ;;
+            focus-build.rtf) expected_zone=main ;;
+            focus-notes.rtf) expected_zone=right ;;
+        esac
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        [ "$after_zone" = "$expected_zone" ] || die "Slice 6B after zone for $title was ${after_zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_before" "$title" id)" ] || die "Slice 6B before windows should not include $title"
+    done
+
+    grep -F "Config: [[zone-scenes]] triage + deep-work" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing zone-scenes config chip"
+    grep -F "Action: before scene = triage" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing before-scene action chip"
+    grep -F "Run: winmux use-zone-scene deep-work" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing use-zone-scene chip"
+    grep -F "Action: after scene = deep-work" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing after-scene action chip"
+    grep -F "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing list-zones workspace chip"
+    grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
+        || die "Slice 6B annotations missing list-windows chip"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -824,6 +934,9 @@ case "$recording_name" in
         ;;
     slice-6-zone-layout-presets)
         require_slice_6_zone_layout_presets_proof
+        ;;
+    slice-6b-zone-scenes)
+        require_slice_6b_zone_scene_proof
         ;;
 esac
 

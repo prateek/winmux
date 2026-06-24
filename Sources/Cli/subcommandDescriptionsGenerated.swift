@@ -46,6 +46,7 @@ let subcommandDescriptions = [
     ["  swap", "Swaps the focused window with another window."],
     ["  trigger-binding", "Trigger WinMux binding as if it was pressed by user"],
     ["  use-zone-layout", "Switch a monitor to a named zone layout preset"],
+    ["  use-zone-scene", "Switch a monitor to a named zone scene"],
     ["  volume", "Manipulate volume"],
     ["  workspace-back-and-forth", "Switch between the focused workspace and previously focused workspace back and forth"],
     ["  workspace", "Focus the specified workspace"],

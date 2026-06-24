@@ -292,6 +292,54 @@ func setActiveZoneLayout(_ layoutId: String, for physicalMonitor: Monitor) -> Re
     return .success(())
 }
 
+struct ZoneSceneActivationResult {
+    let sceneId: String
+    let layoutId: String
+    let bindings: [(zone: String, workspace: String)]
+}
+
+@MainActor
+func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<ZoneSceneActivationResult, String> {
+    guard let scene = config.zoneScenes.first(where: { $0.id == sceneId }) else {
+        return .failure("Unknown zone scene '\(sceneId)'")
+    }
+    guard let layoutId = scene.layoutPreset else {
+        return .failure("Zone scene '\(sceneId)' is missing layout-preset")
+    }
+
+    switch setActiveZoneLayout(layoutId, for: physicalMonitor) {
+        case .success:
+            break
+        case .failure(let message):
+            return .failure(message)
+    }
+
+    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
+    let targetTopLeft = targetPhysicalMonitor.rect.topLeftCorner
+    let zoneMonitors = sortMonitorsBySpatialOrder(monitors.filter {
+        $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
+    })
+
+    var appliedBindings: [(zone: String, workspace: String)] = []
+    for binding in scene.workspaces {
+        guard let workspaceName = binding.workspace?.raw else {
+            return .failure("Zone scene '\(sceneId)' has a workspace binding without a workspace name")
+        }
+        guard let zoneMonitor = zoneMonitors.first(where: { $0.zoneId == binding.zone }) else {
+            return .failure("Zone scene '\(sceneId)' references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+        }
+
+        let workspace = Workspace.get(byName: workspaceName)
+        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: zoneMonitor) else {
+            return .failure("Can't activate workspace '\(workspaceName)' in zone '\(binding.zone)'")
+        }
+        appliedBindings.append((zone: binding.zone, workspace: workspaceName))
+    }
+
+    Workspace.reconcileWorkspaceState()
+    return .success(ZoneSceneActivationResult(sceneId: sceneId, layoutId: layoutId, bindings: appliedBindings))
+}
+
 func zoneLayoutPhysicalIdentity(for monitor: Monitor) -> String {
     let topLeft = monitor.physicalMonitor.rect.topLeftCorner
     return "physical:\(topLeft.x),\(topLeft.y)"

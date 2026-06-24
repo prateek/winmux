@@ -73,6 +73,42 @@ extension ConfigTest {
         ])
     }
 
+    func testParseZoneSceneWorkspaceBindings() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'focus'
+                layout = 'columns'
+                default-zone = 'main'
+                columns = [
+                    { id = 'left', name = 'Queue', width = 0.20 },
+                    { id = 'main', name = 'Build', width = 0.60 },
+                    { id = 'right', name = 'Notes', width = 0.20 },
+                ]
+
+            [[zone-scenes]]
+                id = 'deep-work'
+                layout-preset = 'focus'
+                workspaces = [
+                    { zone = 'left', workspace = 'FocusQueue' },
+                    { zone = 'main', workspace = 'FocusBuild' },
+                    { zone = 'right', workspace = 'FocusNotes' },
+                ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'focus'
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneScenes.count, 1)
+        assertEquals(parsed.zoneScenes[0].id, "deep-work")
+        assertEquals(parsed.zoneScenes[0].layoutPreset, "focus")
+        assertEquals(parsed.zoneScenes[0].workspaces.map(\.zone), ["left", "main", "right"])
+        assertEquals(parsed.zoneScenes[0].workspaces.compactMap { $0.workspace?.raw }, ["FocusQueue", "FocusBuild", "FocusNotes"])
+    }
+
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """
@@ -91,6 +127,42 @@ extension ConfigTest {
             "zones[0].columns: Contains duplicated zone ids: left",
             "zones[0].default-zone: Must name one of the configured zone ids",
             "zones[0].columns: Column widths must sum to 1.0",
+        ])
+    }
+
+    func testRejectInvalidZoneSceneReferences() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'focus'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+
+            [[zone-scenes]]
+                id = 'bad'
+                layout-preset = 'missing'
+                workspaces = [
+                    { zone = 'main', workspace = 'FocusBuild' },
+                ]
+
+            [[zone-scenes]]
+                id = 'bad'
+                layout-preset = 'focus'
+                workspaces = [
+                    { zone = 'left', workspace = 'FocusQueue' },
+                    { zone = 'left', workspace = 'FocusNotes' },
+                ]
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-scenes[1].workspaces: Contains duplicated zone bindings: left",
+            "zone-scenes: Contains duplicated scene ids: bad",
+            "zone-scenes[0].layout-preset: Unknown zone layout preset 'missing'",
+            "zone-scenes[1].workspaces[0].zone: Must name one of the zones in layout preset 'focus'",
+            "zone-scenes[1].workspaces[1].zone: Must name one of the zones in layout preset 'focus'",
         ])
     }
 

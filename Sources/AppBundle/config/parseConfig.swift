@@ -76,6 +76,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
     "zone-layouts": Parser(\.zoneLayouts, parseZoneLayouts),
+    "zone-scenes": Parser(\.zoneScenes, parseZoneScenes),
     "zones": Parser(\.zones, parseZones),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
@@ -171,6 +172,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     }
 
     validateZoneLayoutReferences(config, &errors)
+    validateZoneSceneReferences(config, &errors)
 
     if config.enableNormalizationFlattenContainers {
         let containsSplitCommand = config.modes.values.lazy.flatMap { $0.bindings.values }

@@ -52,7 +52,9 @@ Required checks:
    action that corresponds to the visible step, such as `winmux reload-config`,
    `winmux move-node-to-monitor Reference`, or the `[[zones]]` config surface.
    Prefer explicit chips such as `Run: ...`, `Config: ...`, `Edit: ...`, or
-   `Action: ...`.
+   `Action: ...`. When the slice proves a before/action/after transition, inspect
+   generated boundary frames such as `caption-NN-boundary-before.png`,
+   `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
@@ -114,6 +116,13 @@ Slice-specific checks:
   drag or move target. The action frames must visibly include the source sidebar
   item, the zone target or zone section, and the drop or hover path. Final
   placement alone is not enough for a sidebar drag proof.
+- Slice 6A must show `[[zone-layouts]]` plus `winmux use-zone-layout focus`.
+  The proof must show live windows and changed widths while the same windows stay
+  bound to their zone ids and workspaces.
+- Slice 6B must show `[[zone-scenes]]` plus `winmux use-zone-scene deep-work`.
+  The proof must show triage documents before the command and deep-work documents
+  after it. Inspect caption-boundary frames around the command and after-state
+  captions; final state plus logs is not enough.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

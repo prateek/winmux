@@ -170,6 +170,9 @@ let trigger_binding_help_generated = """
 let use_zone_layout_help_generated = """
     USAGE: use-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
     """
+let use_zone_scene_help_generated = """
+    USAGE: use-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>
+    """
 let volume_help_generated = """
     USAGE: volume [-h|--help] (up|down) [--no-gui]
        OR: volume [-h|--help] (mute-toggle|mute-off|mute-on) [--no-gui]

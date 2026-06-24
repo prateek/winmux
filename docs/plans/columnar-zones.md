@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation, slices 0-6A accepted
+Status: implementation, slices 0-6B accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -744,11 +744,47 @@ Slice 6B Tart storyboard:
   - `Action: before scene = triage`;
   - `Run: winmux use-zone-scene deep-work`;
   - `Action: after scene = deep-work`;
-  - `Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}|%{monitor-active-workspace}'`;
-  - `Run: winmux list-windows --monitor all`.
+  - `Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'`;
+  - `Run: winmux list-windows --workspace visible`.
 - Logs must include `slice-6b-scene-before.log`, `slice-6b-use-zone-scene.log`, `slice-6b-scene-after.log`, `slice-6b-windows-before.log`, `slice-6b-windows-after.log`, `slice-6b-zone-scene.done`, and `slice-6b-zone-scene-proof.txt`.
 - The verifier must prove the `.done` marker contains `result=success`, the ready screenshot exists, the action caption rows exist, the layout id changes from `balanced` to `focus`, the active workspaces change from the `triage` workspace set to the `deep-work` workspace set, the Work/main zone grows, and the visible TextEdit window titles after the action belong to the `deep-work` scene in the expected zones.
 - Non-claims: this sub-slice does not add app routing rules, grid/freeform layouts, draggable dividers, visual editor, sidebar UX changes, or automatic tab-group rules beyond making zone scene workspace bindings first-class.
+
+Accepted Slice 6B result:
+
+- failed setup artifact: `artifacts/e2e/slice-6b-20260624T031738Z`; setup retried the same semantic state failure because inactive deep-work windows were still visible in the triage-ready window log. This run is superseded.
+- failed review artifact: `artifacts/e2e/slice-6b-20260624T033255Z`; state logs and final media were correct, but the scene switched before the `Run: winmux use-zone-scene deep-work` caption, so the before/action/after video was out of order. This run is superseded.
+- accepted artifact: `artifacts/e2e/slice-6b-20260624T034817Z`;
+- recording: `artifacts/e2e/slice-6b-20260624T034817Z/recordings/slice-6b-zone-scenes.mov`;
+- raw recording: `artifacts/e2e/slice-6b-20260624T034817Z/recordings/raw/slice-6b-zone-scenes.raw.mov`;
+- screenshots: `00-before-slice-6b.png`, `01-ready-slice-6b.png`, `99-after-slice-6b.png`, and `slice-6b-zone-scenes.contact-sheet.jpg`;
+- proof: `artifacts/e2e/slice-6b-20260624T034817Z/slice-6b-zone-scene-proof.txt`;
+- mechanical verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-6b-20260624T034817Z` passed;
+- no-context review: `artifacts/e2e/slice-6b-20260624T034817Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-6b-20260624T034817Z ARGS=--require-review` and `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-6b-20260624T034817Z ARGS=--require-review` passed;
+- retrospectives: `artifacts/e2e/slice-6b-20260624T034817Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`.
+
+What the accepted artifact proves:
+
+- top-level `[[zone-scenes]]` entries can bind a named zone layout preset to per-zone workspace names;
+- `winmux use-zone-scene deep-work` applies the `focus` layout and activates `FocusQueue`, `FocusBuild`, and `FocusNotes` in the left, main, and right zones;
+- the visible TextEdit documents change from triage documents to deep-work documents under strict guest capture;
+- `list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'` exposes the active workspace in each zone, and `list-windows --workspace visible` proves only the deep-work TextEdit documents are visible after the switch.
+
+Slice 6B non-claims:
+
+- no app/window routing rules, grid/freeform layouts, draggable dividers, visual editor, sidebar UX changes, or automatic tab-group rules.
+
+Pre-slice cleanup before the next slice starts:
+
+- [x] Read all three Slice 6B retrospective reports and keep accepted blockers in this checklist.
+- [x] Close Slice 6B in this plan with artifact paths, verifier/review evidence, retrospectives, claims, non-claims, and failed-attempt notes.
+- [x] Align the Slice 6B storyboard with the accepted command chips, especially `Run: winmux list-windows --workspace visible`.
+- [x] Commit or intentionally inventory all required Slice 6B source, harness, config, guest-script, test, prompt, and doc files before adding new slice changes.
+- [x] Add semantic-failure handling for stateful guest scenarios so invariant failures stop retries instead of replaying a half-mutated VM state.
+- [x] Generate caption-boundary sample frames and require them in check-only verification so transition timing is inspectable before no-context review.
+- [x] Update the shared no-context artifact-review prompt with Slice 6A and Slice 6B checks, plus guidance to inspect generated boundary frames.
 
 ## Call-Site Audit
 

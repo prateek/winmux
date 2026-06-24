@@ -54,6 +54,7 @@ ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-
 after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
+boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
@@ -100,6 +101,14 @@ EOF
 - Confirm the proof is a geometry change with live windows, not only CLI output, and that the same windows remain in their named zones.
 EOF
             ;;
+        slice-6b-zone-scenes)
+            cat <<'EOF'
+- Confirm the recording has a readable before/action/after transition: triage scene visible, `winmux use-zone-scene deep-work`, then deep-work scene visible.
+- Sample frames around the command-caption boundary. Fail if Focus Queue/Build/Notes are visible before the `Run: winmux use-zone-scene deep-work` caption starts, or if the triage scene persists after the after-scene caption begins.
+- Confirm captions expose the `[[zone-scenes]]` config surface, the exact scene switch command, and the list commands users would run to inspect zone workspaces and visible windows.
+- Confirm the proof shows live TextEdit documents changing from triage workspaces to deep-work workspaces, not only a layout width change or CLI output.
+EOF
+            ;;
         *)
             cat <<'EOF'
 - Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.
@@ -134,6 +143,7 @@ packet fills the artifact paths and slice-specific checks.
 - after screenshot: ${after_screenshot}
 - contact sheet: ${contact_sheet}
 - sample frames: ${samples_dir}
+- caption boundary frames: ${boundary_samples_glob}
 
 ## Inputs And Logs
 
