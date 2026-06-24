@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_DIR="${1:-}"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <artifact-run-dir>
+
+Writes <artifact-run-dir>/reviews/reviewer-packet.md with the filled artifact
+paths, baseline media, verifier command, and slice-specific review checks for a
+no-context artifact reviewer.
+EOF
+}
+
+die() {
+    printf '[winmux-review-packet] error: %s\n' "$*" >&2
+    exit 1
+}
+
+[ -n "$RUN_DIR" ] || {
+    usage >&2
+    die "Missing artifact run directory"
+}
+[ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
+
+LOGS_DIR="${RUN_DIR}/logs"
+SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
+RECORDINGS_DIR="${RUN_DIR}/recordings"
+REVIEWS_DIR="${RUN_DIR}/reviews"
+PACKET_PATH="${REVIEWS_DIR}/reviewer-packet.md"
+REVIEW_OUTPUT_PATH="${REVIEWS_DIR}/no-ctx-artifact-review.md"
+CONFIG_PATH="${RUN_DIR}/config/winmux.toml"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+
+require_file() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+single_match() {
+    local pattern="$1"
+    local path
+    path="$(find "$RUN_DIR" -path "$pattern" -type f | sort | head -1)"
+    printf '%s\n' "$path"
+}
+
+recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | sort | head -1)"
+require_file "$recording_path"
+recording_name="$(basename "$recording_path" .mov)"
+raw_recording_path="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
+before_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '00-before-*.png' | sort | head -1)"
+ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' | sort | head -1)"
+after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
+contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
+annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
+annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
+proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
+
+mkdir -p "$REVIEWS_DIR"
+
+slice_specific_checks() {
+    case "$recording_name" in
+        slice-2-config-zones)
+            cat <<'EOF'
+- Confirm three live labeled TextEdit windows are visible in Reference, Work, and Comms.
+- Confirm the visual proof is more than CLI output and the captions expose the `[[zones]]` config and WinMux commands.
+EOF
+            ;;
+        slice-3-stable-identity)
+            cat <<'EOF'
+- Confirm before, reload, and after beats are all visible, not just final state.
+- Confirm labeled windows stay attached to left, main, and right zone ids after the config reload.
+EOF
+            ;;
+        slice-4-zone-commands)
+            cat <<'EOF'
+- Confirm `list-zones`, `focus-zone Reference`, `focus-zone Work`, `move-node-to-zone Comms --fail-if-noop`, and `focus-monitor 1` are visible through captions and correlated logs.
+- Reject no-op movement proofs unless strict no-op failure is shown.
+EOF
+            ;;
+        slice-5-sidebar-drag|*drag*)
+            cat <<'EOF'
+- Confirm the source sidebar item, target zone row/section, and hover or drop path are visible in full-frame action samples.
+- Confirm the drag proof manifest names the source item, target zone, fixed points, coordinate policy, caption beat, and before/after state logs.
+- Reject final-placement-only drag proof.
+EOF
+            ;;
+        *)
+            cat <<'EOF'
+- Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.
+- Confirm captions expose concrete WinMux user actions, commands, or config.
+EOF
+            ;;
+    esac
+}
+
+{
+    cat <<EOF
+# No-Context Artifact Review Packet
+
+Start the reviewer subagent with \`fork_context=false\`. Do not include chat
+history or implementation explanation. Use
+\`script/e2e/prompts/no-context-artifact-review.md\` as the review policy; this
+packet fills the artifact paths and slice-specific checks.
+
+## Slice
+
+- name: ${recording_name}
+- artifact directory: ${RUN_DIR}
+- review output: ${REVIEW_OUTPUT_PATH}
+- verifier command: make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review
+
+## Media
+
+- primary recording: ${recording_path}
+- raw recording: ${raw_recording_path}
+- before screenshot: ${before_screenshot}
+- ready screenshot: ${ready_screenshot:-not present}
+- after screenshot: ${after_screenshot}
+- contact sheet: ${contact_sheet}
+- sample frames: ${samples_dir}
+
+## Inputs And Logs
+
+- copied config: ${CONFIG_PATH}
+- proof file: ${proof_file:-not present}
+- annotation plan: ${annotation_plan}
+- annotation log: ${annotation_log}
+- drag proof manifest: ${proof_manifest}
+- preflight log: ${LOGS_DIR}/preflight.log
+- guest control log: ${LOGS_DIR}/guest-control-check.log
+- privacy setup log: ${LOGS_DIR}/guest-privacy-setup.log
+- clean slate log: ${LOGS_DIR}/guest-clean-slate.log
+- capture ready log: ${LOGS_DIR}/guest-capture-ready.log
+
+## Baseline And Product Surfaces
+
+- ${REPO_ROOT}/demo.mp4
+- ${REPO_ROOT}/demo2.mp4
+- ${REPO_ROOT}/demo3.mp4
+- ${REPO_ROOT}/resources/screenshots/winmux-overview.png
+- ${REPO_ROOT}/resources/screenshots/tab-groups.png
+- ${REPO_ROOT}/README.md
+- https://github.com/zimengxiong/winmux
+- https://macoswm.com/wm/winmux
+
+## Slice-Specific Checks
+
+EOF
+    slice_specific_checks
+    cat <<EOF
+
+## Product-Quality Floor
+
+- The desktop must start clean: no Terminal, sshd prompt, permission prompt,
+  setup assistant, System Settings, unrelated windows, notification banners, or widgets.
+- The reviewed recording must be the annotated primary recording, with the raw
+  recording used only to debug capture or overlay issues.
+- Captions must be restrained, legible, and concrete. They must show the WinMux
+  config, command, or direct action an end user would perform.
+- The visible behavior must match the logs. Logs can support the proof but cannot
+  substitute for action visible in the video or sampled frames.
+- Compare content and style against the baseline media and product surfaces.
+EOF
+} >"$PACKET_PATH"
+
+require_file "$PACKET_PATH"
+printf 'packet=%s\n' "$PACKET_PATH"
+printf 'review_output=%s\n' "$REVIEW_OUTPUT_PATH"
+printf 'result=success\n'

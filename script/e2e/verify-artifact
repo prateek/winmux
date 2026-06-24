@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REQUIRE_REVIEW=0
 RUN_DIR=""
 
@@ -91,6 +92,77 @@ verify_hash_from_preflight() {
 
 is_historical_slice_3_artifact() {
     [ "$(basename "$RUN_DIR")" = "slice-3-20260623T234421Z" ]
+}
+
+is_historical_slice_5_artifact() {
+    [ "$(basename "$RUN_DIR")" = "slice-5-20260624T013034Z" ]
+}
+
+manifest_value() {
+    local path="$1"
+    local kind="$2"
+    local key="$3"
+    /usr/bin/awk -F'\t' -v kind="$kind" -v key="$key" '$1 == kind && $2 == key { print $3; exit }' "$path"
+}
+
+require_manifest_value() {
+    local path="$1"
+    local kind="$2"
+    local key="$3"
+    local value
+    value="$(manifest_value "$path" "$kind" "$key")"
+    [ -n "$value" ] || die "Proof manifest missing ${kind}/${key}: $path"
+    printf '%s\n' "$value"
+}
+
+ensure_review_packet() {
+    local packet_path="${RUN_DIR}/reviews/reviewer-packet.md"
+    local packet_log="${LOGS_DIR}/${recording_name}.review-packet.log"
+
+    if [ ! -s "$packet_path" ]; then
+        [ -x "${SCRIPT_DIR}/write-review-packet" ] || die "Missing executable review packet writer: ${SCRIPT_DIR}/write-review-packet"
+        "${SCRIPT_DIR}/write-review-packet" "$RUN_DIR" >"$packet_log" 2>&1 || {
+            cat "$packet_log" >&2 || true
+            die "Review packet generation failed"
+        }
+    fi
+
+    require_file "$packet_path"
+    grep -F "$recording_path" "$packet_path" >/dev/null || die "Review packet missing primary recording path"
+    grep -F "$contact_sheet" "$packet_path" >/dev/null || die "Review packet missing contact sheet path"
+    grep -F "${RUN_DIR}/reviews/no-ctx-artifact-review.md" "$packet_path" >/dev/null || die "Review packet missing review output path"
+    grep -F "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" "$packet_path" >/dev/null \
+        || die "Review packet missing verifier command"
+    grep -F 'resources/screenshots/winmux-overview.png' "$packet_path" >/dev/null || die "Review packet missing baseline screenshots"
+    grep -F 'Product-Quality Floor' "$packet_path" >/dev/null || die "Review packet missing product-quality floor"
+}
+
+require_drag_proof_manifest() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+
+    local source_title target_zone target_name source_point target_point coordinate_policy required_frames caption_chip
+    source_title="$(require_manifest_value "$manifest_path" drag-source title)"
+    target_zone="$(require_manifest_value "$manifest_path" drag-target zone-id)"
+    target_name="$(require_manifest_value "$manifest_path" drag-target zone-name)"
+    source_point="$(require_manifest_value "$manifest_path" drag-points source)"
+    target_point="$(require_manifest_value "$manifest_path" drag-points target)"
+    coordinate_policy="$(require_manifest_value "$manifest_path" drag-points coordinate-policy)"
+    required_frames="$(require_manifest_value "$manifest_path" visual-floor required-frames)"
+    caption_chip="$(require_manifest_value "$manifest_path" caption chip)"
+
+    [ -n "$source_title" ] || die "Proof manifest source title is empty"
+    [ -n "$target_zone" ] || die "Proof manifest target zone is empty"
+    [ -n "$target_name" ] || die "Proof manifest target zone name is empty"
+    [[ "$source_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest source point is not x,y: $source_point"
+    [[ "$target_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest target point is not x,y: $target_point"
+    [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* ]] \
+        || die "Proof manifest must justify fixed drag points with state and video assertions"
+    [[ "$required_frames" == *source* && "$required_frames" == *target* && "$required_frames" == *path* ]] \
+        || die "Proof manifest visual floor must require source, target, and path frames"
+    if [ -s "$annotation_plan" ]; then
+        grep -F "$caption_chip" "$annotation_plan" >/dev/null || die "Proof manifest caption chip is missing from annotation plan"
+    fi
 }
 
 require_success_marker() {
@@ -456,6 +528,22 @@ require_slice_5_sidebar_drag_proof() {
     [ -n "$before_workspace" ] && [ -n "$after_workspace" ] || die "Slice 5 action missing before/after workspace"
     [ "$before_workspace" != "$after_workspace" ] || die "Slice 5 action workspace did not change"
 
+    if ! is_historical_slice_5_artifact; then
+        require_drag_proof_manifest "$proof_manifest"
+        [ "$(manifest_value "$proof_manifest" drag-source title)" = "$source_title" ] \
+            || die "Slice 5 proof manifest source title does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-source window-id)" = "$source_id" ] \
+            || die "Slice 5 proof manifest source window id does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-target zone-id)" = "$target_zone" ] \
+            || die "Slice 5 proof manifest target zone does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-target zone-name)" = "$target_name" ] \
+            || die "Slice 5 proof manifest target zone name does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-source before-zone)" = "$before_zone" ] \
+            || die "Slice 5 proof manifest before-zone does not match action log"
+        [ "$(manifest_value "$proof_manifest" drag-result after-zone)" = "$after_zone" ] \
+            || die "Slice 5 proof manifest after-zone does not match action log"
+    fi
+
     [ "$(field_for_id "$windows_before" "$source_id" title)" = "$source_title" ] \
         || die "Slice 5 source id/title missing from before window log"
     [ "$(field_for_id "$windows_after" "$source_id" title)" = "$source_title" ] \
@@ -546,10 +634,12 @@ grep -F "height=${height}" "$guest_capture_log" >/dev/null || die "Recording log
 
 ensure_recording_samples "$recording_path" "$recording_name" "$duration"
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+ensure_review_packet
 
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 raw_recording="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
+proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotation_plan" ]; then
     require_file "$annotation_log"
     require_file "$annotation_plan"
@@ -571,6 +661,14 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
             exit 1
         }
     ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
+fi
+
+if [[ "$recording_name" == *drag* ]]; then
+    if is_historical_slice_5_artifact; then
+        log "historical exception: Slice 5 artifact predates drag proof manifest hardening"
+    else
+        require_drag_proof_manifest "$proof_manifest"
+    fi
 fi
 
 case "$recording_name" in

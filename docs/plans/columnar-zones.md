@@ -641,10 +641,10 @@ Pre-slice cleanup before Slice 6 starts:
 - [x] Read all three Slice 5 retrospection reports and keep accepted blockers in this checklist.
 - [x] Centralize sidebar zone-target resolution into one helper that returns the resolved monitor, active workspace, and display name for a `WorkspaceSidebarDropTargetKind.zone`.
 - [x] Add a fast multi-monitor sidebar zone-target test with duplicate zone ids across two physical monitors, proving panel filtering and zone resolution stay scoped to the intended physical monitor.
-- [ ] Replace or explicitly justify fixed sidebar drag coordinates for future drag proofs. Prefer rendered target frames, Accessibility/debug export, or explicit drop-target logs; if fixed points remain, assert they map to the expected source item and target zone row.
-- [ ] Add a visible-action proof floor for future drag artifacts: action frames must show the source item, zone target/section, and drop or hover path. Final placement alone is not enough.
-- [ ] Add a product-quality floor for new recordings: hide nonessential system UI where feasible, avoid obvious test-fixture content when product-like content would work, and make the action legible without custom crops.
-- [ ] Consider a filled reviewer packet helper that prints artifact paths, baseline surfaces, required logs, review output path, and verifier command for the no-context reviewer.
+- [x] Replace or explicitly justify fixed sidebar drag coordinates for future drag proofs. Fixed points now require `logs/<recording>.proof-manifest.tsv` with source item, target row/zone, points, coordinate policy, caption chip, and before/after state logs.
+- [x] Add a visible-action proof floor for future drag artifacts: drag manifests and reviewer prompts require source item, zone target/section, and drop or hover path in sampled full-frame action frames. Final placement alone is not enough.
+- [x] Add a product-quality floor for new recordings: generated reviewer packets and prompts require clean desktop state, restrained concrete captions, full-frame legibility, and comparison against baseline WinMux media/product surfaces.
+- [x] Consider a filled reviewer packet helper that prints artifact paths, baseline surfaces, required logs, review output path, and verifier command for the no-context reviewer.
 
 Possible additions:
 

@@ -29,6 +29,7 @@ SIDEBAR_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-5-sidebar-state-after.log"
 WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-5-windows-setup.log"
 WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-5-windows-before.log"
 WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-5-windows-after.log"
+ACTION_MANIFEST="${ARTIFACTS_DIR}/logs/slice-5-sidebar-drag.proof-manifest.tsv"
 ZONE_LOG="${ARTIFACTS_DIR}/logs/slice-5-zones.log"
 CLI_LOG="${ARTIFACTS_DIR}/logs/slice-5-cli.log"
 WAIT_ERR="${ARTIFACTS_DIR}/logs/slice-5-cli-wait.err"
@@ -235,7 +236,7 @@ PLIST
 setup_slice() {
     rm -f \
         "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${SIDEBAR_BEFORE_LOG}" "${SIDEBAR_AFTER_LOG}" \
-        "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" "${ZONE_LOG}" \
+        "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" "${ACTION_MANIFEST}" "${ZONE_LOG}" \
         "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${PROOF}" "${APP_LOG}" "${APP_LOG_LOCAL}" \
         "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" \
         "${LAUNCH_PLIST_COPY}"
@@ -388,6 +389,25 @@ proof_slice() {
         echo 'target-point=120,145'
     } | tee "${ACTION_LOG}"
 
+    {
+        printf '%s\t%s\t%s\n' drag-source title 'move-demo.rtf'
+        printf '%s\t%s\t%s\n' drag-source window-id "${MOVE_ID}"
+        printf '%s\t%s\t%s\n' drag-source before-zone "${before_zone}"
+        printf '%s\t%s\t%s\n' drag-source before-workspace "${before_workspace}"
+        printf '%s\t%s\t%s\n' drag-target zone-id right
+        printf '%s\t%s\t%s\n' drag-target zone-name Comms
+        printf '%s\t%s\t%s\n' drag-points source '96,318'
+        printf '%s\t%s\t%s\n' drag-points target '120,145'
+        printf '%s\t%s\t%s\n' drag-points coordinate-policy 'fixed-with-state-and-video-assertions: source and target points are accepted only with sidebar before/after logs, visible action caption frames, and a non-noop zone transition'
+        printf '%s\t%s\t%s\n' drag-points mapping-assertion 'source item starts in Work/main; target row is Comms/right; verifier compares manifest, action log, sidebar logs, and sampled caption frames'
+        printf '%s\t%s\t%s\n' visual-floor required-frames 'source item, target zone row, and drag path must be visible in full-frame samples'
+        printf '%s\t%s\t%s\n' caption chip 'Action: drag sidebar item to Comms zone'
+        printf '%s\t%s\t%s\n' verification before-sidebar-log "${SIDEBAR_BEFORE_LOG}"
+        printf '%s\t%s\t%s\n' verification after-sidebar-log "${SIDEBAR_AFTER_LOG}"
+        printf '%s\t%s\t%s\n' verification before-window-log "${WINDOW_BEFORE_LOG}"
+        printf '%s\t%s\t%s\n' verification after-window-log "${WINDOW_AFTER_LOG}"
+    } >"${ACTION_MANIFEST}"
+
     run_drag_jxa 96 318 120 145
     sleep 4
 
@@ -412,6 +432,16 @@ proof_slice() {
             echo 'drag-result=failure'
         fi
     } | tee -a "${ACTION_LOG}" | tee -a "${WINDOW_AFTER_LOG}" >/dev/null
+    {
+        printf '%s\t%s\t%s\n' drag-result window-id-after "${after_id}"
+        printf '%s\t%s\t%s\n' drag-result after-zone "${after_zone}"
+        printf '%s\t%s\t%s\n' drag-result after-workspace "${after_workspace}"
+        if [ "${after_zone}" = right ]; then
+            printf '%s\t%s\t%s\n' drag-result result success
+        else
+            printf '%s\t%s\t%s\n' drag-result result failure
+        fi
+    } >>"${ACTION_MANIFEST}"
 
     [ "${MOVE_ID}" = "${after_id}" ]
     [ "${after_zone}" = right ]
@@ -429,6 +459,9 @@ proof_slice() {
         echo
         echo 'Visible drag action:'
         cat "${ACTION_LOG}"
+        echo
+        echo 'Drag proof manifest:'
+        cat "${ACTION_MANIFEST}"
         echo
         echo 'Sidebar zones after drag:'
         cat "${SIDEBAR_AFTER_LOG}"

@@ -165,6 +165,7 @@ ensure_tools() {
         require_cmd magick
         [ -x "${SCRIPT_DIR}/annotate-recording" ] || die "Missing executable annotator: ${SCRIPT_DIR}/annotate-recording"
     fi
+    [ -x "${SCRIPT_DIR}/write-review-packet" ] || die "Missing executable review packet writer: ${SCRIPT_DIR}/write-review-packet"
     require_cmd screencapture
     require_cmd osascript
     require_cmd make
@@ -1012,6 +1013,16 @@ generate_recording_samples() {
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
 }
 
+write_review_packet() {
+    local name="$1"
+    local packet_log="${LOGS_DIR}/${name}.review-packet.log"
+
+    if ! "${SCRIPT_DIR}/write-review-packet" "$RUN_DIR" >"$packet_log" 2>&1; then
+        cat "$packet_log" >&2 || true
+        die "Review packet generation failed for $name"
+    fi
+}
+
 wait_for_recording() {
     local name="$1"
     local pid
@@ -1035,6 +1046,7 @@ wait_for_recording() {
         } >>"${LOGS_DIR}/${name}.guest-screencapture.log"
     fi
     generate_recording_samples "$name" "$duration"
+    write_review_packet "$name"
 }
 
 run_guest_smoke() {

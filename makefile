@@ -93,9 +93,10 @@ e2e-pre-tart-checks:
 	guest_scripts=(script/e2e/guest/*.sh) && \
 	bash -n script/e2e/tart-recording-harness && \
 	bash -n script/e2e/annotate-recording && \
+	bash -n script/e2e/write-review-packet && \
 	bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
 e2e-verify-slice:

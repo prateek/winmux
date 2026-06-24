@@ -12,6 +12,8 @@ Slice:
 - name: <slice-name>
 - intended behavior: <one-paragraph behavior>
 - artifact directory: <artifact-dir>
+- reviewer packet, when present:
+  <artifact-dir>/reviews/reviewer-packet.md
 - recording: <artifact-dir>/recordings/<recording>.mov
 - raw recording, when annotation is enabled:
   <artifact-dir>/recordings/raw/<recording>.raw.mov
@@ -27,6 +29,9 @@ Slice:
 Write the review to <artifact-dir>/reviews/no-ctx-artifact-review.md.
 
 Required checks:
+0. If `reviews/reviewer-packet.md` exists, read it first. Treat it as the
+   filled path/index packet for this artifact, but still apply every rule in
+   this prompt.
 1. Inspect the recording metadata with ffprobe. It must be playable, non-empty,
    guest-captured for product slices, and at least 80% of the requested duration.
 2. Inspect the before screenshot. It must show a clean desktop: no Terminal,
@@ -87,6 +92,10 @@ Hard FAIL conditions:
   failures that the scenario silently ignored;
 - movement or command-proof slices accept no-op moves without explicitly proving
   the no-op path with a strict flag such as `--fail-if-noop`;
+- drag/action-proof slices omit a proof manifest that names the source item,
+  target row/zone, fixed points or exported target frames, caption beat, and
+  before/after logs; fixed coordinates are acceptable only when the manifest and
+  sampled frames make the mapping auditable;
 - screenshots are blank, not ultrawide when an ultrawide was required, or taken at
   meaningless checkpoints;
 - the review cannot compare against the baseline media/product surfaces.

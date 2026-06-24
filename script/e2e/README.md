@@ -14,6 +14,8 @@ Artifacts are written under `artifacts/e2e/slice-N-<timestamp>/` with screenshot
 
 Product recordings are post-produced by default. The final `recordings/<name>.mov` is the reviewed video and includes a restrained lower-third caption overlay that explains the visible action and shows the WinMux config, CLI command, or action a user would use to perform it. The untouched guest capture is kept under `recordings/raw/<name>.raw.mov`, with caption timing in `logs/<name>.annotations.tsv` and render proof in `logs/<name>.annotation.log`. The harness also writes standard timeline samples under `screenshots/<name>.samples/` and a six-up contact sheet at `screenshots/<name>.contact-sheet.jpg`. Set `WINMUX_E2E_ANNOTATE_RECORDING=0` only for local capture debugging.
 
+Every finished recording also gets a filled no-context reviewer packet at `reviews/reviewer-packet.md`, with exact media paths, logs, baselines, product surfaces, and the verifier command. Give the packet to the reviewer instead of hand-copying paths from the run directory.
+
 `make e2e-smoke` validates the capture pipeline and will still produce a host-visible recording if guest control is unavailable. Product slices must use strict guest control and guest display capture:
 
 ```bash
@@ -65,9 +67,11 @@ Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` insi
 
 Scenario command proofs must distinguish setup from proof. Setup commands may create or place windows, but proof commands must use the exact behavior being tested, assert before and after state, and fail on no-op when movement is the claim. Prepared product slices should capture a clean before screenshot, stage the visible ready state, capture `01-ready-slice-N.png`, then start the proof recording. Do not use fallback commands that would hide a broken zone selector or command path.
 
+Drag proofs must include `logs/<recording>.proof-manifest.tsv`. If fixed JXA points remain, the manifest must name the source item, target zone/row, source and target points, coordinate policy, caption chip, required action frames, and before/after state logs. The verifier requires this manifest for new `*drag*` recordings, and the no-context reviewer must reject final-placement-only drag videos.
+
 Slice 0 and later slices should fail or be re-recorded if screenshots or video show permission prompts, `sshd` prompts, unrelated app windows, widgets, notification banners, boot screens, or setup screens after capture begins.
 
-After each slice run, spawn a no-context artifact reviewer before starting the next slice. Use `script/e2e/prompts/no-context-artifact-review.md` as the prompt source. Give that reviewer the slice goal, the artifact directory, the local baseline media (`demo.mp4`, `demo2.mp4`, `demo3.mp4`, and `resources/screenshots/*.png`), and the product surfaces from the root README/GitHub/public listing. The reviewer writes `reviews/no-ctx-artifact-review.md` inside the artifact directory and must end with `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
+After each slice run, spawn a no-context artifact reviewer before starting the next slice. Give the reviewer `reviews/reviewer-packet.md` plus `script/e2e/prompts/no-context-artifact-review.md`; the packet supplies the slice goal placeholders, media, logs, local baseline media (`demo.mp4`, `demo2.mp4`, `demo3.mp4`, and `resources/screenshots/*.png`), product surfaces, and verifier command. The reviewer writes `reviews/no-ctx-artifact-review.md` inside the artifact directory and must end with `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
 
 Only `PASS` or `PASS_WITH_NOTES` lets the next gate start. Hard failures such as unclean desktop state, permission prompts, sshd prompts, unrelated windows, host-only product recordings, missing live behavior, or uninspected video frames require a fix and re-recording.
 
