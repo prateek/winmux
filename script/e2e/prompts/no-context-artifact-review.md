@@ -31,7 +31,8 @@ Write the review to <artifact-dir>/reviews/no-ctx-artifact-review.md.
 Required checks:
 0. If `reviews/reviewer-packet.md` exists, read it first. Treat it as the
    filled path/index packet for this artifact, but still apply every rule in
-   this prompt.
+   this prompt. Treat the packet's slice-specific checks and product-quality
+   floor as required criteria for the current slice.
 1. Inspect the recording metadata with ffprobe. It must be playable, non-empty,
    guest-captured for product slices, and at least 80% of the requested duration.
 2. Inspect the before screenshot. It must show a clean desktop: no Terminal,

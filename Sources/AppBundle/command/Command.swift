@@ -65,6 +65,7 @@ extension Command {
                  is StackWithCommand,
                  is SummonWorkspaceCommand,
                  is SwapCommand,
+                 is UseZoneLayoutCommand,
                  is VolumeCommand,
                  is WorkspaceBackAndForthCommand,
                  is WorkspaceCommand:

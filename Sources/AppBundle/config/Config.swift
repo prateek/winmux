@@ -33,8 +33,7 @@ var defaultConfigUrl: URL {
 }()
 @MainActor var config: Config = defaultConfig { // todo move to Ctx?
     didSet {
-        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config))
-        invalidateMonitorCaches()
+        refreshZoneTopologySnapshot()
     }
 }
 @MainActor var configUrl: URL = defaultConfigUrl
@@ -67,6 +66,7 @@ struct Config: ConvenienceCopyable {
     var gaps: Gaps = .zero
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
+    var zoneLayouts: [ZoneLayoutConfig] = []
     var zones: [ZoneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
@@ -76,6 +76,14 @@ struct Config: ConvenienceCopyable {
 
 struct ZoneConfig: ConvenienceCopyable, Equatable, Sendable {
     var monitor: MonitorDescription?
+    var layoutPreset: String?
+    var layout: ZoneLayoutKind?
+    var defaultZone: String?
+    var columns: [ZoneColumnConfig] = []
+}
+
+struct ZoneLayoutConfig: ConvenienceCopyable, Equatable, Sendable {
+    var id: String = ""
     var layout: ZoneLayoutKind?
     var defaultZone: String?
     var columns: [ZoneColumnConfig] = []

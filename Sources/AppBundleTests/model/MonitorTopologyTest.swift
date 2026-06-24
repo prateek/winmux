@@ -308,6 +308,80 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
     }
 
+    func testActiveZoneLayoutPresetSwitchChangesGeometryAndKeepsZoneIdentity() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zoneLayouts = [
+            ZoneLayoutConfig(
+                id: "balanced",
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ],
+            ),
+            ZoneLayoutConfig(
+                id: "focus",
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
+                ],
+            ),
+        ]
+        config.zones = [
+            ZoneConfig(
+                monitor: .main,
+                layoutPreset: "balanced",
+            ),
+        ]
+        let originalViewports = workspaceViewports
+        XCTAssertEqual(originalViewports.map(\.zoneLayoutId), ["balanced", "balanced", "balanced"])
+        assertRectsEqual(originalViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 250, height: 800),
+            Rect(topLeftX: 250, topLeftY: 0, width: 500, height: 800),
+            Rect(topLeftX: 750, topLeftY: 0, width: 250, height: 800),
+        ])
+        let left = Workspace.get(byName: "left-workspace")
+        let center = Workspace.get(byName: "center-workspace")
+        let right = Workspace.get(byName: "right-workspace")
+        XCTAssertTrue(originalViewports[0].setActiveWorkspace(left))
+        XCTAssertTrue(originalViewports[1].setActiveWorkspace(center))
+        XCTAssertTrue(originalViewports[2].setActiveWorkspace(right))
+
+        switch setActiveZoneLayout("focus", for: main) {
+            case .success: break
+            case .failure(let msg): XCTFail(msg)
+        }
+        let updatedViewports = workspaceViewports
+
+        XCTAssertEqual(updatedViewports.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(updatedViewports.map(\.zoneId), ["left", "main", "right"])
+        assertRectsEqual(updatedViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 150, height: 800),
+            Rect(topLeftX: 150, topLeftY: 0, width: 700, height: 800),
+            Rect(topLeftX: 850, topLeftY: 0, width: 150, height: 800),
+        ])
+        XCTAssertTrue(MonitorViewportId(originalViewports[0]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[0])))
+        XCTAssertTrue(MonitorViewportId(originalViewports[1]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[1])))
+        XCTAssertTrue(MonitorViewportId(originalViewports[2]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[2])))
+        XCTAssertTrue(updatedViewports[0].activeWorkspace === left)
+        XCTAssertTrue(updatedViewports[1].activeWorkspace === center)
+        XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
+    }
+
     func testMonitorViewportIdDecodesLegacyPointOnlyIdentity() throws {
         let data = #"{"topLeftCorner":[10,20]}"#.data(using: .utf8).orDie()
 

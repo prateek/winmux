@@ -2,24 +2,46 @@ import AppKit
 import Common
 
 struct ZoneTopologySnapshot: Sendable {
-    static let empty = ZoneTopologySnapshot(zones: [], gaps: .zero, workspaceSidebar: WorkspaceSidebarConfig())
+    static let empty = ZoneTopologySnapshot(
+        zones: [],
+        zoneLayouts: [],
+        gaps: .zero,
+        workspaceSidebar: WorkspaceSidebarConfig(),
+        activeZoneLayoutSelections: [:],
+    )
 
     let zones: [ZoneConfig]
+    let zoneLayouts: [ZoneLayoutConfig]
     let gaps: Gaps
     let workspaceSidebar: WorkspaceSidebarConfig
+    let activeZoneLayoutSelections: [String: String]
 
-    init(_ config: Config, environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init(
+        _ config: Config,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        activeZoneLayoutSelections: [String: String] = activeZoneLayoutSelectionsSnapshot(),
+    ) {
         self.init(
             zones: Self.effectiveZones(config.zones, environment: environment),
+            zoneLayouts: config.zoneLayouts,
             gaps: config.gaps,
             workspaceSidebar: config.workspaceSidebar,
+            activeZoneLayoutSelections: activeZoneLayoutSelections,
         )
     }
 
-    init(zones: [ZoneConfig], gaps: Gaps, workspaceSidebar: WorkspaceSidebarConfig) {
+    init(
+        zones: [ZoneConfig],
+        zoneLayouts: [ZoneLayoutConfig],
+        gaps: Gaps,
+        workspaceSidebar: WorkspaceSidebarConfig,
+        activeZoneLayoutSelections: [String: String],
+    ) {
         self.zones = zones
+        self.zoneLayouts = zoneLayouts
         self.gaps = gaps
         self.workspaceSidebar = workspaceSidebar
+        self.activeZoneLayoutSelections = activeZoneLayoutSelections
     }
 
     var isEmpty: Bool { zones.isEmpty }
@@ -67,19 +89,23 @@ struct ZoneTopologySnapshot: Sendable {
         zoneConfig: ZoneConfig,
         sortedPhysicalMonitors: [Monitor],
     ) -> [Monitor] {
-        guard zoneConfig.layout == .columns, !zoneConfig.columns.isEmpty else { return [physicalMonitor] }
+        guard let zoneLayout = resolvedZoneLayout(for: physicalMonitor, zoneConfig: zoneConfig),
+              zoneLayout.layout == .columns,
+              !zoneLayout.columns.isEmpty
+        else { return [physicalMonitor] }
 
         let baseRect = physicalWorkspaceRect(for: physicalMonitor, sortedPhysicalMonitors: sortedPhysicalMonitors)
-        let defaultZoneId = zoneConfig.defaultZone ?? zoneConfig.columns.first?.id
+        let defaultZoneId = zoneLayout.defaultZone ?? zoneLayout.columns.first?.id
         var nextLeft = baseRect.topLeftX
 
-        return zoneConfig.columns.enumerated().map { index, column in
-            let isLast = index == zoneConfig.columns.count - 1
+        return zoneLayout.columns.enumerated().map { index, column in
+            let isLast = index == zoneLayout.columns.count - 1
             let width = isLast ? baseRect.maxX - nextLeft : baseRect.width * CGFloat(column.width)
             let rect = Rect(topLeftX: nextLeft, topLeftY: baseRect.topLeftY, width: width, height: baseRect.height)
             nextLeft += width
             return ZoneMonitor(
                 physicalMonitor: physicalMonitor,
+                zoneLayoutId: zoneLayout.id,
                 zoneId: column.id,
                 zoneName: column.name,
                 rect: rect,
@@ -87,6 +113,32 @@ struct ZoneTopologySnapshot: Sendable {
                 isDefaultZone: column.id == defaultZoneId,
             )
         }
+    }
+
+    private func resolvedZoneLayout(for physicalMonitor: Monitor, zoneConfig: ZoneConfig) -> ResolvedZoneLayout? {
+        let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor)
+        let candidateIds = [
+            activeZoneLayoutSelections[physicalIdentity],
+            zoneConfig.layoutPreset,
+        ].compactMap { $0 }
+
+        for id in candidateIds {
+            if let layout = zoneLayouts.first(where: { $0.id == id }) {
+                return ResolvedZoneLayout(
+                    id: id,
+                    layout: layout.layout,
+                    defaultZone: layout.defaultZone,
+                    columns: layout.columns,
+                )
+            }
+        }
+
+        return ResolvedZoneLayout(
+            id: nil,
+            layout: zoneConfig.layout,
+            defaultZone: zoneConfig.defaultZone,
+            columns: zoneConfig.columns,
+        )
     }
 
     private func physicalWorkspaceRect(
@@ -175,6 +227,7 @@ struct ZoneTopologySnapshot: Sendable {
 
 private struct ZoneMonitor: Monitor {
     let physicalMonitor: Monitor
+    let zoneLayoutId: String?
     let zoneId: String?
     let zoneName: String?
     let rect: Rect
@@ -188,7 +241,61 @@ private struct ZoneMonitor: Monitor {
     var isMain: Bool { physicalMonitor.isMain && isDefaultZone }
 }
 
+private struct ResolvedZoneLayout {
+    let id: String?
+    let layout: ZoneLayoutKind?
+    let defaultZone: String?
+    let columns: [ZoneColumnConfig]
+}
+
+nonisolated(unsafe) private var activeZoneLayoutSelectionsByPhysicalIdentity: [String: String] = [:]
 nonisolated(unsafe) private var currentZoneTopologySnapshot: ZoneTopologySnapshot = .empty
+
+func activeZoneLayoutSelectionsSnapshot() -> [String: String] {
+    activeZoneLayoutSelectionsByPhysicalIdentity
+}
+
+@MainActor
+func resetActiveZoneLayoutSelectionsForTests() {
+    activeZoneLayoutSelectionsByPhysicalIdentity = [:]
+    refreshZoneTopologySnapshot()
+}
+
+@MainActor
+func refreshZoneTopologySnapshot() {
+    setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config))
+    invalidateMonitorCaches()
+}
+
+@MainActor
+func setActiveZoneLayout(_ layoutId: String, for physicalMonitor: Monitor) -> Result<Void, String> {
+    guard config.zoneLayouts.contains(where: { $0.id == layoutId }) else {
+        return .failure("Unknown zone layout preset '\(layoutId)'")
+    }
+
+    let physicalCandidates = sortMonitorsBySpatialOrder(physicalMonitors)
+    let targetPhysical = physicalMonitor.physicalMonitor
+    let targetTopLeft = targetPhysical.rect.topLeftCorner
+    let hasZoneConfig = config.zones.contains { zone in
+        guard let monitorDescription = zone.monitor,
+              let resolved = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: physicalCandidates)
+        else { return false }
+        return resolved.rect.topLeftCorner == targetTopLeft
+    }
+    guard hasZoneConfig else {
+        return .failure("No zone config targets monitor \(targetPhysical.monitorId_oneBased ?? 0)")
+    }
+
+    activeZoneLayoutSelectionsByPhysicalIdentity[zoneLayoutPhysicalIdentity(for: targetPhysical)] = layoutId
+    refreshZoneTopologySnapshot()
+    Workspace.reconcileWorkspaceState()
+    return .success(())
+}
+
+func zoneLayoutPhysicalIdentity(for monitor: Monitor) -> String {
+    let topLeft = monitor.physicalMonitor.rect.topLeftCorner
+    return "physical:\(topLeft.x),\(topLeft.y)"
+}
 
 func setCurrentZoneTopologySnapshot(_ snapshot: ZoneTopologySnapshot) {
     currentZoneTopologySnapshot = snapshot

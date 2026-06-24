@@ -160,6 +160,7 @@ public enum FormatVar: Equatable {
         case monitorName = "monitor-name"
         case monitorIsMain = "monitor-is-main"
         case monitorIsZone = "monitor-is-zone"
+        case monitorZoneLayoutId = "monitor-zone-layout-id"
         case monitorZoneId = "monitor-zone-id"
         case monitorZoneName = "monitor-zone-name"
         case monitorPhysicalId_oneBased = "monitor-physical-id"

@@ -15,6 +15,10 @@ final class ZoneCommandTest: XCTestCase {
                                  .copy(\.windowId, 7)
                                  .copy(\.focusFollowsWindow, true)
                                  .copy(\.failIfNoop, true))
+        testParseCommandSucc(
+            "use-zone-layout --monitor 1 focus",
+            UseZoneLayoutCmdArgs(layoutId: "focus", monitor: .sequenceNumber(1)),
+        )
         testParseCommandSucc("list-zones --json", ListZonesCmdArgs(rawArgs: []).copy(\.json, true))
     }
 
@@ -179,6 +183,52 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(referenceRow["monitor-active-workspace"] as? String, "reference")
     }
 
+    func testUseZoneLayoutSwitchesFocusedMonitorPreset() async throws {
+        configureZoneLayoutPresets()
+
+        let result = try await parseCommand("use-zone-layout focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone layout 'focus' on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [180, 840, 180])
+
+        let listResult = try await parseCommand(
+            "list-zones --format '%{monitor-zone-layout-id}|%{monitor-zone-id}|%{monitor-width}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(listResult.exitCode, 0)
+        XCTAssertEqual(listResult.stdout, [
+            "focus|left|180.0",
+            "focus|main|840.0",
+            "focus|right|180.0",
+        ])
+    }
+
+    func testUseZoneLayoutCanOverrideInlineZoneConfig() async throws {
+        configureInlineZonesWithLayoutPresets()
+
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), [nil, nil, nil])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
+
+        let result = try await parseCommand("use-zone-layout focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [180, 840, 180])
+    }
+
+    func testUseZoneLayoutRejectsUnknownPreset() async throws {
+        configureZoneLayoutPresets()
+
+        let result = try await parseCommand("use-zone-layout missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone layout preset 'missing'"))
+    }
+
     func testZoneCommandsFailWhenNoZonesAreConfigured() async throws {
         configureNoZones()
         let workspace = Workspace.get(byName: "work")
@@ -195,6 +245,86 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(moveResult.exitCode, 1)
         XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("No zones are configured"))
     }
+}
+
+@MainActor
+private func configureZoneLayoutPresets() {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zoneLayouts = [
+        ZoneLayoutConfig(
+            id: "balanced",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+            ],
+        ),
+        ZoneLayoutConfig(
+            id: "focus",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
+            ],
+        ),
+    ]
+    config.zones = [
+        ZoneConfig(
+            monitor: .sequenceNumber(1),
+            layoutPreset: "balanced",
+        ),
+    ]
+}
+
+@MainActor
+private func configureInlineZonesWithLayoutPresets() {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zoneLayouts = [
+        ZoneLayoutConfig(
+            id: "focus",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
+            ],
+        ),
+    ]
+    config.zones = [
+        ZoneConfig(
+            monitor: .sequenceNumber(1),
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+            ],
+        ),
+    ]
 }
 
 @MainActor

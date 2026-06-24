@@ -27,6 +27,7 @@ protocol Monitor: WinMuxAny {
     var isMain: Bool { get }
     var zoneId: String? { get }
     var zoneName: String? { get }
+    var zoneLayoutId: String? { get }
     var isDefaultZone: Bool { get }
     var physicalMonitor: Monitor { get }
 }
@@ -34,6 +35,7 @@ protocol Monitor: WinMuxAny {
 extension Monitor {
     var zoneId: String? { nil }
     var zoneName: String? { nil }
+    var zoneLayoutId: String? { nil }
     var isDefaultZone: Bool { false }
     var physicalMonitor: Monitor { self }
 }

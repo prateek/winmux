@@ -45,6 +45,10 @@ Constraints:
 - Mark any recommendation as BLOCKING if the next slice should not start until it
   is done.
 - Do not edit files except your report.
+- Do not run repair-capable artifact commands such as `verify-artifact` unless
+  the coordinator explicitly asks for it. Those commands may generate reviewer
+  packets, samples, or contact sheets. Prefer existing verifier logs and media
+  files for report-only retrospection.
 ```
 
 Coordinator integration:

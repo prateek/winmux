@@ -25,6 +25,9 @@ fi
 if [ "$ACTION" = "slice-5" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones-sidebar.toml"
 fi
+if [ "$ACTION" = "slice-6" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-layout-presets.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -73,7 +76,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5>
+Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -867,7 +870,7 @@ CAPTIONS
 0	10	Open zone windows	Three labeled TextEdit documents become live WinMux windows.	Run: open -a TextEdit left-reference.rtf
 10	18	Bind by zone name	Windows are assigned to Reference, Work, and Comms.	Run: winmux move-node-to-monitor Reference
 18	27	Reload shifted widths	The config changes column widths but keeps the same zone ids.	Run: winmux reload-config
-27	36	Same zones, new geometry	The CLI shows changed rects with windows still in their zones.	Run: winmux list-monitors --format 'zone=%{monitor-zone-id}|left=%{monitor-left}|width=%{monitor-width}'
+27	36	Same zones, new geometry	The CLI shows changed widths with windows still in their zones.	Run: winmux list-monitors --format '%{monitor-zone-id}|%{monitor-width}'
 CAPTIONS
             ;;
         slice-4-zone-commands)
@@ -885,6 +888,14 @@ CAPTIONS
 3	16	Drag to a zone target	A visible sidebar item moves into the Comms zone target.	Action: drag sidebar item to Comms zone
 16	28	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
 28	40	Final placement	The moved item remains in Comms after the drag completes.	Run: winmux list-windows --monitor all
+CAPTIONS
+            ;;
+        slice-6-zone-layout-presets)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Preset-backed zones	Reference, Work, and Comms start from the balanced preset.	Config: [[zone-layouts]] balanced + focus
+8	18	Switch the monitor layout	One command changes the current physical monitor's active zone preset.	Run: winmux use-zone-layout focus
+18	28	Same zone ids, new widths	Work grows while Reference and Comms stay named zone targets.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}'
+28	36	Windows stay bound	The same TextEdit windows remain in their original zone workspaces.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
         *)
@@ -915,6 +926,57 @@ annotate_recording() {
     fi
     [ -s "$path" ] || die "Annotated recording did not produce a non-empty file: $path"
     [ -s "$raw_path" ] || die "Raw recording was not preserved: $raw_path"
+}
+
+annotation_preflight() {
+    require_cmd ffmpeg
+    require_cmd ffprobe
+    require_cmd magick
+    [ -x "${SCRIPT_DIR}/annotate-recording" ] || die "Missing executable annotator: ${SCRIPT_DIR}/annotate-recording"
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    mkdir -p "${tmp_dir}/recordings" "${tmp_dir}/logs"
+    local input="${tmp_dir}/recordings/raw.mov"
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -f lavfi \
+        -i 'color=c=black:s=1280x720:r=10' \
+        -t 1 \
+        -pix_fmt yuv420p \
+        "$input"
+
+    local name captions output render_log
+    for name in \
+        harness-smoke \
+        slice-1-zone-spike \
+        slice-2-config-zones \
+        slice-3-stable-identity \
+        slice-4-zone-commands \
+        slice-5-sidebar-drag \
+        slice-6-zone-layout-presets
+    do
+        captions="${tmp_dir}/logs/${name}.annotations.tsv"
+        output="${tmp_dir}/recordings/${name}.mov"
+        render_log="${tmp_dir}/logs/${name}.annotation.log"
+        write_annotation_plan "$name" "$captions"
+        awk -F '\t' '
+            $0 == "" || $1 ~ /^#/ { next }
+            length($5) > 100 {
+                printf("Caption command/action chip is too long for preflight (%d chars): %s\n", length($5), $5) > "/dev/stderr"
+                exit 1
+            }
+        ' "$captions" || die "Annotation preflight found an overlong chip in $name"
+        if ! "${SCRIPT_DIR}/annotate-recording" "$input" "$captions" "$output" >"$render_log" 2>&1; then
+            cat "$render_log" >&2 || true
+            die "Annotation preflight failed for $name"
+        fi
+        grep -F 'result=success' "$render_log" >/dev/null || die "Annotation preflight did not report success for $name"
+    done
+    log "Annotation preflight rendered all caption plans"
 }
 
 clamp_sample_time() {
@@ -1680,6 +1742,34 @@ run_slice_5_sidebar_drag() {
         "${LOGS_DIR}/slice-5-run.log"
 }
 
+run_slice_6_zone_layout_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6-zone-layout-presets.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE6_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-6-setup.log"
+}
+
+run_slice_6_zone_layout_presets() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6-zone-layout-presets.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE6_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-6-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -1766,12 +1856,19 @@ slice_5() {
     run_recorded_scenario "slice-5-sidebar-drag" "00-before-slice-5" "99-after-slice-5" "run_slice_5_sidebar_drag" "run_slice_5_sidebar_setup" "01-ready-slice-5"
 }
 
+slice_6() {
+    run_recorded_scenario "slice-6-zone-layout-presets" "00-before-slice-6" "99-after-slice-6" "run_slice_6_zone_layout_presets" "run_slice_6_zone_layout_setup" "01-ready-slice-6"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
         ;;
     preflight)
         preflight
+        ;;
+    annotation-preflight)
+        annotation_preflight
         ;;
     smoke|slice-0)
         smoke
@@ -1790,6 +1887,9 @@ case "$ACTION" in
         ;;
     slice-5)
         slice_5
+        ;;
+    slice-6)
+        slice_6
         ;;
     *)
         usage >&2

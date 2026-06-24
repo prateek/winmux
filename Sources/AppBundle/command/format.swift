@@ -157,6 +157,7 @@ extension String {
                     case .monitorName: .success(.string(m.name))
                     case .monitorIsMain: .success(.bool(m.isMain))
                     case .monitorIsZone: .success(.bool(m.zoneId != nil))
+                    case .monitorZoneLayoutId: .success(.string(m.zoneLayoutId ?? ""))
                     case .monitorZoneId: .success(.string(m.zoneId ?? ""))
                     case .monitorZoneName: .success(.string(m.zoneName ?? ""))
                     case .monitorPhysicalId_oneBased: .success(m.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))

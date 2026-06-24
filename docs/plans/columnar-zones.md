@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation, slices 0-4 accepted
+Status: implementation, slices 0-6A accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -73,7 +73,7 @@ Required MVP behavior:
 
 Deferred behavior:
 
-- named layout presets and scene switching;
+- scene switching beyond named layout presets;
 - grid or rectangle layouts;
 - draggable zone dividers;
 - app/window rules that route to zones;
@@ -660,6 +660,71 @@ Do not start this slice until column zones pass the validation and sidebar tests
 Tart video gate: record layout switching or scene behavior introduced by this slice. If this slice is split later, each sub-slice keeps the same video gate.
 
 Artifact review gate: no-context subagent confirms any new scene or layout UI reads as an extension of WinMux rather than a separate product.
+
+Slice 6A scope:
+
+- Add top-level `[[zone-layouts]]` presets with stable ids, layout kind, default zone, and columns.
+- Let `[[zones]]` choose a preset with `layout-preset = '<id>'`.
+- Reject configs that combine `layout-preset` with inline `layout`, `default-zone`, or `columns`, and reject missing preset references.
+- Add `use-zone-layout [--monitor <monitor-pattern>] <layout-id>` as a runtime switch. The command targets the focused physical monitor by default and does not rewrite the config file.
+- Add `%{monitor-zone-layout-id}` so `list-zones` can prove which preset is active.
+- Keep scene binding, app rules, grid/freeform layouts, and visual editing deferred.
+
+Slice 6A Tart storyboard:
+
+- Use `script/e2e/configs/zone-layout-presets.toml`, with `balanced` and `focus` presets on monitor 1.
+- Run setup before the reviewed recording: launch WinMux, place live TextEdit windows into `Reference`, `Work`, and `Comms`, confirm `balanced`, and capture `01-ready-slice-6.png`.
+- Record only the proof action after the ready screenshot. The proof command is `winmux use-zone-layout focus`.
+- Caption chips:
+  - `Config: [[zone-layouts]] balanced + focus`;
+  - `Run: winmux use-zone-layout focus`;
+  - `Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}'`;
+  - `Run: winmux list-windows --monitor all`.
+- Logs must include `slice-6-layout-before.log`, `slice-6-use-zone-layout.log`, `slice-6-layout-after.log`, `slice-6-windows-before.log`, and `slice-6-windows-after.log`.
+- The verifier must prove the `.done` marker contains `result=success`, the ready screenshot exists, the layout id changes from `balanced` to `focus`, the Work/main width grows while Reference/Comms shrink, and the same TextEdit window ids remain in the same zone ids and workspaces.
+- Non-claims: this sub-slice does not add scenes, app routing rules, grid/freeform layouts, draggable dividers, or a visual editor.
+
+Accepted Slice 6A result:
+
+- artifact: `artifacts/e2e/slice-6-20260624T021954Z`;
+- recording: `artifacts/e2e/slice-6-20260624T021954Z/recordings/slice-6-zone-layout-presets.mov`;
+- raw recording: `artifacts/e2e/slice-6-20260624T021954Z/recordings/raw/slice-6-zone-layout-presets.raw.mov`;
+- screenshots: `00-before-slice-6.png`, `01-ready-slice-6.png`, `99-after-slice-6.png`, and `slice-6-zone-layout-presets.contact-sheet.jpg`;
+- proof: `artifacts/e2e/slice-6-20260624T021954Z/slice-6-zone-layout-presets-proof.txt`;
+- mechanical verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-6-20260624T021954Z` passed;
+- no-context review: `artifacts/e2e/slice-6-20260624T021954Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-6-20260624T021954Z ARGS=--require-review` and the same command with an absolute `RUN_DIR` both passed;
+- retrospectives: `artifacts/e2e/slice-6-20260624T021954Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`;
+- accepted post-production note: the artifact was re-annotated from its preserved raw guest capture to fix command-chip clipping and ImageMagick `%{...}` interpolation, then re-sampled, re-reviewed, and reverified.
+
+What the accepted artifact proves:
+
+- top-level `[[zone-layouts]]` presets can define reusable `balanced` and `focus` column layouts;
+- a monitor configured with `layout-preset = 'balanced'` starts with the balanced geometry;
+- `winmux use-zone-layout focus` switches the current physical monitor to the `focus` preset at runtime;
+- `list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}'` exposes the active layout id;
+- the same TextEdit window ids remain in the same zone ids and workspaces while Work grows and Reference/Comms shrink.
+
+Slice 6A non-claims:
+
+- no scene binding, app routing rules, grid/freeform layouts, draggable dividers, visual editor, sidebar UX, or tab-group UI behavior beyond stable window bindings.
+
+Pre-slice cleanup before the next slice starts:
+
+- [x] Read all three Slice 6A retrospective reports and keep accepted blockers in this checklist.
+- [x] Close Slice 6A in this plan with artifact paths, verifier/review evidence, retrospectives, claims, and non-claims.
+- [x] Commit or intentionally inventory all required Slice 6A source, harness, config, guest-script, test, prompt, and doc files before starting the next slice.
+- [x] Add a cheap annotation render preflight to `make e2e-pre-tart-checks` so caption clipping/interpolation failures are caught before Tart.
+- [x] Align Slice 6A's visible command chip with the actual layout-id proof command and re-run artifact review on the final video.
+- [x] Decide and test the `use-zone-layout` inline-zone behavior. The accepted contract is that a runtime preset can override any zone-enabled physical monitor, including monitors configured with inline columns.
+- [x] Add prompt guidance that no-context retrospection agents should not run repair-capable artifact commands unless explicitly asked.
+- [x] Make reviewer packets mark drag proof manifests as not applicable for non-drag slices.
+- [ ] Name the next slice's exact proof target, storyboard, expected logs, screenshots, caption chips, verifier assertions, and non-claims before its Tart run.
+- [ ] For the next layout/scene/freeform recording, avoid stale final-state labels such as documents that still say `Balanced preset` after switching away from balanced.
+- [ ] For the next transition recording, add explicit before/action/after media anchors to the storyboard and verifier/reviewer handoff so samples cannot skip the actual switch moment.
+- [x] Add or explicitly run relative and absolute `RUN_DIR` verifier coverage for reviewer-packet paths before the next Tart run.
+- [ ] Consider a non-mutating artifact verifier mode so report-only agents can validate existing outputs without generating samples or reviewer packets.
 
 ## Call-Site Audit
 

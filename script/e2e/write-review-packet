@@ -58,6 +58,11 @@ annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
+if [ -s "$proof_manifest" ] || [[ "$recording_name" == *drag* ]]; then
+    proof_manifest_label="$proof_manifest"
+else
+    proof_manifest_label="not applicable"
+fi
 
 mkdir -p "$REVIEWS_DIR"
 
@@ -86,6 +91,13 @@ EOF
 - Confirm the source sidebar item, target zone row/section, and hover or drop path are visible in full-frame action samples.
 - Confirm the drag proof manifest names the source item, target zone, fixed points, coordinate policy, caption beat, and before/after state logs.
 - Reject final-placement-only drag proof.
+EOF
+            ;;
+        slice-6-zone-layout-presets)
+            cat <<'EOF'
+- Confirm the recording starts from a prepared visible balanced layout, then visibly changes after `winmux use-zone-layout focus`.
+- Confirm captions expose both the `[[zone-layouts]]` config surface and the exact `use-zone-layout` command.
+- Confirm the proof is a geometry change with live windows, not only CLI output, and that the same windows remain in their named zones.
 EOF
             ;;
         *)
@@ -129,7 +141,7 @@ packet fills the artifact paths and slice-specific checks.
 - proof file: ${proof_file:-not present}
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
-- drag proof manifest: ${proof_manifest}
+- drag proof manifest: ${proof_manifest_label}
 - preflight log: ${LOGS_DIR}/preflight.log
 - guest control log: ${LOGS_DIR}/guest-control-check.log
 - privacy setup log: ${LOGS_DIR}/guest-privacy-setup.log

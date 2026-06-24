@@ -167,6 +167,9 @@ let swap_help_generated = """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>
     """
+let use_zone_layout_help_generated = """
+    USAGE: use-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
+    """
 let volume_help_generated = """
     USAGE: volume [-h|--help] (up|down) [--no-gui]
        OR: volume [-h|--help] (mute-toggle|mute-off|mute-on) [--no-gui]

@@ -33,6 +33,46 @@ extension ConfigTest {
         ])
     }
 
+    func testParseNamedZoneLayoutPreset() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                default-zone = 'main'
+                columns = [
+                    { id = 'left', name = 'Reference', width = 0.25 },
+                    { id = 'main', name = 'Work', width = 0.50 },
+                    { id = 'right', name = 'Comms', width = 0.25 },
+                ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'balanced'
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneLayouts, [
+            ZoneLayoutConfig(
+                id: "balanced",
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ],
+            ),
+        ])
+        assertEquals(parsed.zones, [
+            ZoneConfig(
+                monitor: .sequenceNumber(1),
+                layoutPreset: "balanced",
+            ),
+        ])
+    }
+
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """
@@ -51,6 +91,45 @@ extension ConfigTest {
             "zones[0].columns: Contains duplicated zone ids: left",
             "zones[0].default-zone: Must name one of the configured zone ids",
             "zones[0].columns: Column widths must sum to 1.0",
+        ])
+    }
+
+    func testRejectInvalidZoneLayoutPresetReferences() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'focus'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+
+            [[zone-layouts]]
+                id = 'focus'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'missing'
+
+            [[zones]]
+                monitor = 2
+                layout-preset = 'focus'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-layouts: Contains duplicated layout ids: focus",
+            "zones[1].layout: Cannot be combined with layout-preset",
+            "zones[1].columns: Cannot be combined with layout-preset",
+            "zones[0].layout-preset: Unknown zone layout preset 'missing'",
         ])
     }
 

@@ -34,9 +34,11 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-5` records the sidebar zone-target workflow with `script/e2e/configs/column-zones-sidebar.toml`. The setup phase opens the sidebar, stages `Reference`, `Work`, and `Comms`, captures `01-ready-slice-5.png`, then records a visible drag of `move-demo.rtf` from the Work sidebar item into the Comms zone target. The verifier checks the sidebar before/after logs, action log, window before/after logs, zone log, and caption chips.
 
+`make e2e-slice-6` records named zone layout presets with `script/e2e/configs/zone-layout-presets.toml`. The setup phase stages live TextEdit windows in `Reference`, `Work`, and `Comms` under the `balanced` preset, captures `01-ready-slice-6.png`, then records `winmux use-zone-layout focus`. The verifier checks before/after layout ids and widths, the switch command log, window before/after logs, the ready screenshot, and caption chips for `[[zone-layouts]]`, `use-zone-layout`, `list-zones`, and `list-windows`.
+
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
-Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, runs `shellcheck` when installed, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
+Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
 
 After a run, use the mechanical verifier before spawning the no-context reviewer:
 

@@ -118,6 +118,14 @@ require_manifest_value() {
 ensure_review_packet() {
     local packet_path="${RUN_DIR}/reviews/reviewer-packet.md"
     local packet_log="${LOGS_DIR}/${recording_name}.review-packet.log"
+    local absolute_run_dir
+    local repo_root
+    local relative_run_dir=""
+    absolute_run_dir="$(cd "$RUN_DIR" && pwd -P)"
+    repo_root="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+    case "$absolute_run_dir" in
+        "$repo_root"/*) relative_run_dir="${absolute_run_dir#"$repo_root"/}" ;;
+    esac
 
     if [ ! -s "$packet_path" ]; then
         [ -x "${SCRIPT_DIR}/write-review-packet" ] || die "Missing executable review packet writer: ${SCRIPT_DIR}/write-review-packet"
@@ -128,13 +136,41 @@ ensure_review_packet() {
     fi
 
     require_file "$packet_path"
-    grep -F "$recording_path" "$packet_path" >/dev/null || die "Review packet missing primary recording path"
-    grep -F "$contact_sheet" "$packet_path" >/dev/null || die "Review packet missing contact sheet path"
-    grep -F "${RUN_DIR}/reviews/no-ctx-artifact-review.md" "$packet_path" >/dev/null || die "Review packet missing review output path"
-    grep -F "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" "$packet_path" >/dev/null \
+    review_packet_contains_any "$packet_path" \
+        "$recording_path" \
+        "${absolute_run_dir}/recordings/${recording_name}.mov" \
+        "${relative_run_dir}/recordings/${recording_name}.mov" \
+        || die "Review packet missing primary recording path"
+    review_packet_contains_any "$packet_path" \
+        "$contact_sheet" \
+        "${absolute_run_dir}/screenshots/${recording_name}.contact-sheet.jpg" \
+        "${relative_run_dir}/screenshots/${recording_name}.contact-sheet.jpg" \
+        || die "Review packet missing contact sheet path"
+    review_packet_contains_any "$packet_path" \
+        "${RUN_DIR}/reviews/no-ctx-artifact-review.md" \
+        "${absolute_run_dir}/reviews/no-ctx-artifact-review.md" \
+        "${relative_run_dir}/reviews/no-ctx-artifact-review.md" \
+        || die "Review packet missing review output path"
+    review_packet_contains_any "$packet_path" \
+        "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" \
+        "make e2e-verify-slice RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
+        "make e2e-verify-slice RUN_DIR=${relative_run_dir} ARGS=--require-review" \
         || die "Review packet missing verifier command"
     grep -F 'resources/screenshots/winmux-overview.png' "$packet_path" >/dev/null || die "Review packet missing baseline screenshots"
     grep -F 'Product-Quality Floor' "$packet_path" >/dev/null || die "Review packet missing product-quality floor"
+}
+
+review_packet_contains_any() {
+    local packet_path="$1"
+    shift
+    local candidate
+    for candidate in "$@"; do
+        [ -n "$candidate" ] || continue
+        if grep -F "$candidate" "$packet_path" >/dev/null; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 require_drag_proof_manifest() {
@@ -569,6 +605,98 @@ require_slice_5_sidebar_drag_proof() {
         || die "Slice 5 drag action caption must start early enough to cover the visible drag"
 }
 
+assert_numeric_gt() {
+    local left="$1"
+    local right="$2"
+    local message="$3"
+    /usr/bin/awk -v left="$left" -v right="$right" 'BEGIN { exit(left > right ? 0 : 1) }' \
+        || die "$message: expected $left > $right"
+}
+
+assert_numeric_lt() {
+    local left="$1"
+    local right="$2"
+    local message="$3"
+    /usr/bin/awk -v left="$left" -v right="$right" 'BEGIN { exit(left < right ? 0 : 1) }' \
+        || die "$message: expected $left < $right"
+}
+
+require_slice_6_zone_layout_presets_proof() {
+    local proof="${RUN_DIR}/slice-6-zone-layout-presets-proof.txt"
+    local done="${LOGS_DIR}/slice-6-zone-layout-presets.done"
+    local layout_before="${LOGS_DIR}/slice-6-layout-before.log"
+    local layout_after="${LOGS_DIR}/slice-6-layout-after.log"
+    local switch_log="${LOGS_DIR}/slice-6-use-zone-layout.log"
+    local windows_before="${LOGS_DIR}/slice-6-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-6-windows-after.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-6.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 6"
+    require_file "$layout_before"
+    require_file "$layout_after"
+    require_file "$switch_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$ready_screenshot"
+
+    grep -F 'PASS: use-zone-layout switched a physical monitor from balanced to focus while windows stayed bound to the same zone ids and workspaces.' "$proof" >/dev/null \
+        || die "Slice 6 proof does not contain the expected PASS claim"
+    grep -F '$ winmux use-zone-layout focus' "$switch_log" >/dev/null || die "Slice 6 switch log missing use-zone-layout command"
+    grep -F "Using zone layout 'focus' on monitor" "$switch_log" >/dev/null || die "Slice 6 switch log missing command success output"
+
+    local zone
+    for zone in left main right; do
+        grep -F "zone=${zone}|layout=balanced|" "$layout_before" >/dev/null || die "Slice 6 before layout missing balanced zone=$zone"
+        grep -F "zone=${zone}|layout=focus|" "$layout_after" >/dev/null || die "Slice 6 after layout missing focus zone=$zone"
+    done
+
+    local before_left_width before_main_width before_right_width after_left_width after_main_width after_right_width
+    before_left_width="$(monitor_field_for_zone "$layout_before" left width)"
+    before_main_width="$(monitor_field_for_zone "$layout_before" main width)"
+    before_right_width="$(monitor_field_for_zone "$layout_before" right width)"
+    after_left_width="$(monitor_field_for_zone "$layout_after" left width)"
+    after_main_width="$(monitor_field_for_zone "$layout_after" main width)"
+    after_right_width="$(monitor_field_for_zone "$layout_after" right width)"
+    [ -n "$before_left_width" ] && [ -n "$before_main_width" ] && [ -n "$before_right_width" ] \
+        || die "Slice 6 before layout missing widths"
+    [ -n "$after_left_width" ] && [ -n "$after_main_width" ] && [ -n "$after_right_width" ] \
+        || die "Slice 6 after layout missing widths"
+    assert_numeric_lt "$after_left_width" "$before_left_width" "Slice 6 left width did not shrink"
+    assert_numeric_gt "$after_main_width" "$before_main_width" "Slice 6 main width did not grow"
+    assert_numeric_lt "$after_right_width" "$before_right_width" "Slice 6 right width did not shrink"
+
+    local title expected_zone before_id after_id before_zone after_zone before_workspace after_workspace
+    for title in left-reference.rtf main-work.rtf right-comms.rtf; do
+        case "$title" in
+            left-reference.rtf) expected_zone=left ;;
+            main-work.rtf) expected_zone=main ;;
+            right-comms.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        after_id="$(field_for_title "$windows_after" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$after_id" ] || die "Slice 6 missing window title before/after: $title"
+        [ "$before_id" = "$after_id" ] || die "Slice 6 window id changed for $title: $before_id -> $after_id"
+        [ "$before_zone" = "$expected_zone" ] || die "Slice 6 before zone for $title was $before_zone, expected $expected_zone"
+        [ "$after_zone" = "$expected_zone" ] || die "Slice 6 after zone for $title was $after_zone, expected $expected_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+            || die "Slice 6 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+
+    grep -F "Config: [[zone-layouts]] balanced + focus" "$annotation_plan" >/dev/null \
+        || die "Slice 6 annotations missing zone-layouts config chip"
+    grep -F "Run: winmux use-zone-layout focus" "$annotation_plan" >/dev/null \
+        || die "Slice 6 annotations missing use-zone-layout chip"
+    grep -F "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}'" "$annotation_plan" >/dev/null \
+        || die "Slice 6 annotations missing list-zones layout chip"
+    grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
+        || die "Slice 6 annotations missing list-windows chip"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -684,6 +812,9 @@ case "$recording_name" in
         ;;
     slice-5-sidebar-drag)
         require_slice_5_sidebar_drag_proof
+        ;;
+    slice-6-zone-layout-presets)
+        require_slice_6_zone_layout_presets_proof
         ;;
 esac
 

@@ -94,6 +94,10 @@ render_card() {
     local subtitle="$2"
     local command="$3"
     local output="$4"
+    local escaped_title escaped_subtitle escaped_command
+    escaped_title="$(magick_escape_text "$title")"
+    escaped_subtitle="$(magick_escape_text "$subtitle")"
+    escaped_command="$(magick_escape_text "$command")"
 
     magick \
         -size "${video_width}x${video_height}" xc:none \
@@ -107,10 +111,10 @@ render_card() {
         -annotate +"${text_x}+${badge_y}" 'WINMUX COLUMN ZONES' \
         -fill '#FFFFFF' \
         -pointsize "$title_size" \
-        -annotate +"${text_x}+${title_y}" "$title" \
+        -annotate +"${text_x}+${title_y}" "$escaped_title" \
         -fill '#D9DEE8' \
         -pointsize "$subtitle_size" \
-        -annotate +"${text_x}+${subtitle_y}" "$subtitle" \
+        -annotate +"${text_x}+${subtitle_y}" "$escaped_subtitle" \
         "$output"
 
     if [ -n "$command" ]; then
@@ -120,9 +124,16 @@ render_card() {
             -font "$mono_font" \
             -fill '#F4F7FA' \
             -pointsize "$command_size" \
-            -annotate +"$((command_box_x1 + 18))+${command_text_y}" "$command" \
+            -annotate +"$((command_box_x1 + 18))+${command_text_y}" "$escaped_command" \
             "$output"
     fi
+}
+
+magick_escape_text() {
+    local text="$1"
+    text="${text//\\/\\\\}"
+    text="${text//%/\\%}"
+    printf '%s\n' "$text"
 }
 
 input_args=(-hide_banner -loglevel error -y -i "$INPUT_PATH")
