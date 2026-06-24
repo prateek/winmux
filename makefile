@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-verify-slice-check e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -102,6 +102,9 @@ e2e-pre-tart-checks:
 
 e2e-verify-slice:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact $(ARGS) "$(RUN_DIR)"'
+
+e2e-verify-slice-check:
+	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact --check-only $(ARGS) "$(RUN_DIR)"'
 
 e2e-slice-1:
 	$(MAKE) e2e-pre-tart-checks

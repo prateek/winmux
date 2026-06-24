@@ -47,8 +47,10 @@ Constraints:
 - Do not edit files except your report.
 - Do not run repair-capable artifact commands such as `verify-artifact` unless
   the coordinator explicitly asks for it. Those commands may generate reviewer
-  packets, samples, or contact sheets. Prefer existing verifier logs and media
-  files for report-only retrospection.
+  packets, samples, or contact sheets. If you need a mechanical artifact check,
+  use `make e2e-verify-slice-check RUN_DIR=<artifact-dir> ARGS=--require-review`,
+  which must not create samples or reviewer packets. Prefer existing verifier
+  logs and media files for report-only retrospection.
 ```
 
 Coordinator integration:

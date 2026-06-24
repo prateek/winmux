@@ -720,11 +720,35 @@ Pre-slice cleanup before the next slice starts:
 - [x] Decide and test the `use-zone-layout` inline-zone behavior. The accepted contract is that a runtime preset can override any zone-enabled physical monitor, including monitors configured with inline columns.
 - [x] Add prompt guidance that no-context retrospection agents should not run repair-capable artifact commands unless explicitly asked.
 - [x] Make reviewer packets mark drag proof manifests as not applicable for non-drag slices.
-- [ ] Name the next slice's exact proof target, storyboard, expected logs, screenshots, caption chips, verifier assertions, and non-claims before its Tart run.
-- [ ] For the next layout/scene/freeform recording, avoid stale final-state labels such as documents that still say `Balanced preset` after switching away from balanced.
-- [ ] For the next transition recording, add explicit before/action/after media anchors to the storyboard and verifier/reviewer handoff so samples cannot skip the actual switch moment.
+- [x] Name the next slice's exact proof target, storyboard, expected logs, screenshots, caption chips, verifier assertions, and non-claims before its Tart run.
+- [x] For the next layout/scene/freeform recording, avoid stale final-state labels such as documents that still say `Balanced preset` after switching away from balanced.
+- [x] For the next transition recording, add explicit before/action/after media anchors to the storyboard and verifier/reviewer handoff so samples cannot skip the actual switch moment.
 - [x] Add or explicitly run relative and absolute `RUN_DIR` verifier coverage for reviewer-packet paths before the next Tart run.
-- [ ] Consider a non-mutating artifact verifier mode so report-only agents can validate existing outputs without generating samples or reviewer packets.
+- [x] Add a non-mutating artifact verifier mode so report-only agents can validate existing outputs without generating samples or reviewer packets.
+
+Slice 6B scope:
+
+- Add top-level `[[zone-scenes]]` with stable ids, a `layout-preset`, and per-zone workspace bindings.
+- Add `use-zone-scene [--monitor <monitor-pattern>] <scene-id>` as a runtime switch. The command targets the focused physical monitor by default, creates missing named workspaces, applies the scene layout preset, and activates the configured workspace in each zone.
+- Reject scenes with missing ids, missing layout presets, unknown layout presets, missing or duplicate zone bindings, empty workspace names, or zone ids that are not present in the referenced layout preset.
+- Keep app/window routing rules, grid/freeform layouts, draggable dividers, and visual editing deferred.
+
+Slice 6B Tart storyboard:
+
+- Use `script/e2e/configs/zone-scenes.toml`, with `balanced` and `focus` layouts and `triage` plus `deep-work` scenes.
+- Setup before the reviewed recording: launch WinMux, stage live TextEdit windows named for the `triage` scene in `Triage Inbox`, `Triage Draft`, and `Triage Updates`, stage separate windows named for the `deep-work` scene in `Focus Queue`, `Focus Build`, and `Focus Notes`, activate `triage`, and capture `01-ready-slice-6b.png`.
+- Record a clean before/action/after transition. The proof command is `winmux use-zone-scene deep-work`.
+- Avoid stale labels: all visible document titles and contents must name either the active `triage` scene before the action or the active `deep-work` scene after it.
+- Caption chips:
+  - `Config: [[zone-scenes]] triage + deep-work`;
+  - `Action: before scene = triage`;
+  - `Run: winmux use-zone-scene deep-work`;
+  - `Action: after scene = deep-work`;
+  - `Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-zone-layout-id}|%{monitor-active-workspace}'`;
+  - `Run: winmux list-windows --monitor all`.
+- Logs must include `slice-6b-scene-before.log`, `slice-6b-use-zone-scene.log`, `slice-6b-scene-after.log`, `slice-6b-windows-before.log`, `slice-6b-windows-after.log`, `slice-6b-zone-scene.done`, and `slice-6b-zone-scene-proof.txt`.
+- The verifier must prove the `.done` marker contains `result=success`, the ready screenshot exists, the action caption rows exist, the layout id changes from `balanced` to `focus`, the active workspaces change from the `triage` workspace set to the `deep-work` workspace set, the Work/main zone grows, and the visible TextEdit window titles after the action belong to the `deep-work` scene in the expected zones.
+- Non-claims: this sub-slice does not add app routing rules, grid/freeform layouts, draggable dividers, visual editor, sidebar UX changes, or automatic tab-group rules beyond making zone scene workspace bindings first-class.
 
 ## Call-Site Audit
 

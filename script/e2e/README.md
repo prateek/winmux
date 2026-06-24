@@ -48,6 +48,14 @@ make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp>
 
 After the review file exists, rerun it with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, generated sample frames, and the contact sheet. Reload scenarios also verify immutable config hashes when preflight recorded them. It is a tripwire; the no-context reviewer still inspects the media and product fit.
 
+For report-only checks, use the non-mutating verifier:
+
+```bash
+make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-N-<timestamp> ARGS=--require-review
+```
+
+This fails if generated samples or reviewer packets are missing, instead of creating them.
+
 When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
 
 Caption plans use tab-separated fields:
