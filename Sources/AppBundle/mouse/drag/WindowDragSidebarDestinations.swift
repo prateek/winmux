@@ -21,7 +21,7 @@ func isActionableSidebarWorkspaceDropTarget(
         case .workspace(let workspaceName):
             return sourceWorkspaceName != workspaceName
         case .zone(let monitorScopeId, let zoneId):
-            guard let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+            guard let targetZone = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
                 return false
             }
             return sourceWorkspaceName != targetZone.activeWorkspace.name
@@ -69,7 +69,7 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
                     isGroup: isGroup,
                 )
             case .zone(let monitorScopeId, let zoneId):
-                guard let targetZone = workspaceSidebarZoneMonitor(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+                guard let targetZone = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
                     return nil
                 }
                 let workspace = targetZone.activeWorkspace
@@ -79,7 +79,7 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
                     previewRect: workspaceSidebarCursorPreviewRect(at: mouseLocation),
                     interactionRect: sidebarWorkspaceDropInteractionRect(for: target),
                     title: sourceLabel,
-                    subtitle: "Drop to send this item to \(workspaceSidebarZoneDisplayName(targetZone))",
+                    subtitle: "Drop to send this item to \(targetZone.displayName)",
                     previewStyle: .sidebarWorkspaceMove,
                     previewGeometry: .rounded,
                     isGroup: isGroup,

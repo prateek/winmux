@@ -639,8 +639,8 @@ Goal: add the behaviors inspired by StackWM, BentoBox, and BetterStage after the
 Pre-slice cleanup before Slice 6 starts:
 
 - [x] Read all three Slice 5 retrospection reports and keep accepted blockers in this checklist.
-- [ ] Centralize sidebar zone-target resolution into one helper that returns the resolved monitor, active workspace, and display name for a `WorkspaceSidebarDropTargetKind.zone`.
-- [ ] Add a fast multi-monitor sidebar zone-target test with duplicate zone ids across two physical monitors, proving panel filtering and zone resolution stay scoped to the intended physical monitor.
+- [x] Centralize sidebar zone-target resolution into one helper that returns the resolved monitor, active workspace, and display name for a `WorkspaceSidebarDropTargetKind.zone`.
+- [x] Add a fast multi-monitor sidebar zone-target test with duplicate zone ids across two physical monitors, proving panel filtering and zone resolution stay scoped to the intended physical monitor.
 - [ ] Replace or explicitly justify fixed sidebar drag coordinates for future drag proofs. Prefer rendered target frames, Accessibility/debug export, or explicit drop-target logs; if fixed points remain, assert they map to the expected source item and target zone row.
 - [ ] Add a visible-action proof floor for future drag artifacts: action frames must show the source item, zone target/section, and drop or hover path. Final placement alone is not enough.
 - [ ] Add a product-quality floor for new recordings: hide nonessential system UI where feasible, avoid obvious test-fixture content when product-like content would work, and make the action legible without custom crops.
