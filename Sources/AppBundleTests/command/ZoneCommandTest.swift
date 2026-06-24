@@ -132,6 +132,24 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focusedWindow.nodeWorkspace === work)
     }
 
+    func testMoveNodeToZoneUsesEnvironmentWindowId() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 45, parent: work.rootTilingContainer)
+        let focusedWindow = TestWindow.new(id: 46, parent: work.rootTilingContainer)
+        XCTAssertTrue(focusedWindow.focusWindow())
+
+        let result = try await MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Comms")).copy(\.failIfNoop, true))
+            .run(.defaultEnv.copy(\.windowId, 45), .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+    }
+
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")

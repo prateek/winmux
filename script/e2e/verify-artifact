@@ -105,6 +105,10 @@ is_historical_slice_5_artifact() {
     [ "$(basename "$RUN_DIR")" = "slice-5-20260624T013034Z" ]
 }
 
+is_historical_slice_8_artifact() {
+    [ "$(basename "$RUN_DIR")" = "slice-8-20260624T045815Z" ]
+}
+
 manifest_value() {
     local path="$1"
     local kind="$2"
@@ -816,6 +820,80 @@ require_slice_6b_zone_scene_proof() {
         || die "Slice 6B annotations missing list-windows chip"
 }
 
+require_slice_8_window_routing_proof() {
+    local proof="${RUN_DIR}/slice-8-window-routing-proof.txt"
+    local done="${LOGS_DIR}/slice-8-window-routing.done"
+    local setup_log="${LOGS_DIR}/slice-8-routing-setup.log"
+    local before_windows="${LOGS_DIR}/slice-8-routing-before.log"
+    local open_log="${LOGS_DIR}/slice-8-open-routed-window.log"
+    local after_windows="${LOGS_DIR}/slice-8-routing-after.log"
+    local zones="${LOGS_DIR}/slice-8-zones.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-8.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 8"
+    require_file "$setup_log"
+    require_file "$before_windows"
+    require_file "$open_log"
+    require_file "$after_windows"
+    require_file "$zones"
+    require_file "$ready_screenshot"
+
+    grep -F 'PASS: on-window-detected routed route-comms.rtf to the Comms zone through move-node-to-zone.' "$proof" >/dev/null \
+        || die "Slice 8 proof does not contain the expected PASS claim"
+    grep -F "if.window-title-regex-substring = 'route-comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 8 config missing route-comms matcher"
+    grep -F "run = ['move-node-to-zone Comms --fail-if-noop']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 8 config missing strict move-node-to-zone callback"
+    if is_historical_slice_8_artifact; then
+        grep -F 'Config: [[on-window-detected]] route-comms -> move-node-to-zone Comms' "$setup_log" >/dev/null \
+            || die "Slice 8 setup log missing rule summary"
+    else
+        grep -F 'Config: [[on-window-detected]] route-comms -> move-node-to-zone Comms --fail-if-noop' "$setup_log" >/dev/null \
+            || die "Slice 8 setup log missing strict rule summary"
+    fi
+    grep -F '|route-comms.rtf|' "$before_windows" >/dev/null \
+        && die "Slice 8 before log already contains route-comms.rtf"
+    grep -F '$ open -a TextEdit route-comms.rtf' "$open_log" >/dev/null \
+        || die "Slice 8 action log missing exact open command"
+    grep -F '$ winmux move-node-to-zone' "$open_log" >/dev/null \
+        && die "Slice 8 automatic routing proof log must not include a manual move-node-to-zone command"
+
+    local route_id route_zone route_workspace
+    route_id="$(field_for_title "$after_windows" 'route-comms.rtf' id)"
+    route_zone="$(field_for_title "$after_windows" 'route-comms.rtf' zone)"
+    route_workspace="$(field_for_title "$after_windows" 'route-comms.rtf' workspace)"
+    [ -n "$route_id" ] || die "Slice 8 after log missing route-comms.rtf"
+    [ "$route_zone" = right ] || die "Slice 8 route-comms.rtf was not in right zone: ${route_zone:-missing}"
+    [ -n "$route_workspace" ] || die "Slice 8 route-comms.rtf missing workspace"
+    grep -F "routed-window-id=${route_id}" "$proof" >/dev/null \
+        || die "Slice 8 proof does not name routed window id from after log"
+    grep -F "routed-zone=right" "$proof" >/dev/null \
+        || die "Slice 8 proof does not name routed zone"
+    grep -F 'zone=left|name=Reference|' "$zones" >/dev/null || die "Slice 8 zones log missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$zones" >/dev/null || die "Slice 8 zones log missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$zones" >/dev/null || die "Slice 8 zones log missing Comms/right"
+
+    if is_historical_slice_8_artifact; then
+        grep -F "Config: [[on-window-detected]] move-node-to-zone Comms" "$annotation_plan" >/dev/null \
+            || die "Slice 8 annotations missing on-window-detected config chip"
+        log "historical exception: accepted Slice 8 artifact predates strict caption chip hardening"
+    else
+        grep -F "Config: [[on-window-detected]] move-node-to-zone Comms --fail-if-noop" "$annotation_plan" >/dev/null \
+            || die "Slice 8 annotations missing strict on-window-detected config chip"
+    fi
+    grep -F "Action: before route, Work is active" "$annotation_plan" >/dev/null \
+        || die "Slice 8 annotations missing before-route action chip"
+    grep -F "Run: open -a TextEdit route-comms.rtf" "$annotation_plan" >/dev/null \
+        || die "Slice 8 annotations missing open command chip"
+    grep -F "Action: rule moved route-comms.rtf to Comms" "$annotation_plan" >/dev/null \
+        || die "Slice 8 annotations missing rule-moved action chip"
+    grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
+        || die "Slice 8 annotations missing list-windows chip"
+    grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null \
+        || die "Slice 8 annotations missing list-zones chip"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -938,6 +1016,9 @@ case "$recording_name" in
     slice-6b-zone-scenes)
         require_slice_6b_zone_scene_proof
         ;;
+    slice-8-window-routing)
+        require_slice_8_window_routing_proof
+        ;;
 esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
@@ -948,6 +1029,8 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
         PASS|PASS_WITH_NOTES) ;;
         *) die "Review verdict must be PASS or PASS_WITH_NOTES, got: $verdict" ;;
     esac
+    grep -F 'next slice allowed: yes' "$review_path" >/dev/null \
+        || die "Review must explicitly allow the next slice"
 fi
 
 log "recording=$recording_path"

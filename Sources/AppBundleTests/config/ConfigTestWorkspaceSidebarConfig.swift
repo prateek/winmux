@@ -211,6 +211,25 @@ extension ConfigTest {
         assertEquals(errors, [])
     }
 
+    func testParseOnWindowDetectedZoneRouting() {
+        let (config, errors) = parseConfig(
+            """
+            [[on-window-detected]]
+                if.window-title-regex-substring = 'route-comms'
+                run = ['move-node-to-zone Comms --fail-if-noop']
+            """,
+        )
+
+        assertEquals(errors, [])
+        let callback = config.onWindowDetected.singleOrNil().orDie()
+        XCTAssertNotNil(callback.matcher.windowTitleRegexSubstring)
+        XCTAssertEqual(callback.run.count, 1)
+        let command = callback.run.first as? MoveNodeToZoneCommand
+        let args = command.orDie().args
+        XCTAssertEqual(args.zone.val, ZoneSelector("Comms"))
+        XCTAssertTrue(args.failIfNoop)
+    }
+
     func testRegex() {
         var devNull: [String] = []
         XCTAssertTrue("System Settings".contains(parseCaseInsensitiveRegex("settings").getOrNil(appendErrorTo: &devNull)!))

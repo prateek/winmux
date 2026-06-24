@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: implementation, slices 0-7 accepted
+Status: implementation, slices 0-8 accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -885,8 +885,111 @@ Pre-slice cleanup before the next slice starts:
 - [x] Add a `package-root-demo --self-test` fixture check and wire it into `make e2e-pre-tart-checks`.
 - [x] Clarify that `script/e2e/package-root-demo --source-run-dir` expects a Slice 6B-compatible source artifact unless the packager is generalized later.
 - [x] Add `demo-columnar-zones.mp4` and the Slice 7 harness/docs changes to the next commit before starting new slice work.
-- [ ] Before the next stateful guest scenario, confirm semantic invariant failures exit with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` and do not retry against mutated state.
-- [ ] Before the next Tart transition slice, write exact before/action/after timing into the storyboard and verifier/reviewer handoff.
+- [x] Before the next stateful guest scenario, confirm semantic invariant failures exit with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` and do not retry against mutated state.
+- [x] Before the next Tart transition slice, write exact before/action/after timing into the storyboard and verifier/reviewer handoff.
+
+### Slice 8: Window Rules Route To Zones
+
+Goal: make automatic routing ergonomic by proving that existing
+`[[on-window-detected]]` rules can send matching windows to a named zone with
+`move-node-to-zone`.
+
+This slice should not add a second app-rule DSL. The end-user shape is:
+
+```toml
+[[on-window-detected]]
+if.window-title-regex-substring = 'route-comms'
+run = ['move-node-to-zone Comms --fail-if-noop']
+```
+
+The rule runs with `WINMUX_WINDOW_ID` set by the existing window-detected hook,
+so `move-node-to-zone` targets the detected window instead of relying on global
+focus.
+
+Pre-slice cleanup before Slice 8 starts:
+
+- [x] Confirmed `guest_script_retry` stops immediately when a guest script exits with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT`, and Slice 6B already uses that pattern for stateful proof assertions.
+- [x] Define the exact before/action/after timing before implementation: ready state from 0-8s, open routed window at 16s, automatic rule movement visible by 28s, final inspection by 36s.
+- [x] Keep this as an `on-window-detected` plus `move-node-to-zone` workflow unless implementation proves the existing hook cannot target `WINMUX_WINDOW_ID` reliably.
+
+Slice 8 scope:
+
+- Add a config fixture with `[[on-window-detected]]` routing a new TextEdit document whose title matches `route-comms` to the `Comms` zone.
+- Add focused parser/command behavior tests proving `move-node-to-zone` works when the target window is supplied by command environment, the same way `on-window-detected` invokes callback commands.
+- Add a Tart scenario that starts from visible `Reference`, `Work`, and `Comms` zones, opens the matching document while Work is active, and proves the matching window is automatically moved to Comms/right.
+- Add mechanical verifier checks for the rule config, before/action/after window logs, no manual move command in the recorded proof action log, and exact caption chips.
+- Keep a clean non-claim boundary: no new app-rule DSL, no background daemon, no visual editor, no freeform layouts, and no tab-group-specific routing beyond routing the detected window.
+
+Slice 8 Tart storyboard:
+
+- Use `script/e2e/configs/zone-window-routing.toml`.
+- Setup before the reviewed recording: launch WinMux with three configured zones, stage persistent visible windows in Reference, Work, and Comms, focus Work, confirm no `route-comms.rtf` window is visible, and capture `01-ready-slice-8.png`.
+- Record a clean before/action/after transition. The proof action is opening `route-comms.rtf`; the config rule should move that new window to Comms/right without a manual move command.
+- Captions:
+  - `Config: [[on-window-detected]] move-node-to-zone Comms --fail-if-noop`;
+  - `Action: before route, Work is active`;
+  - `Run: open -a TextEdit route-comms.rtf`;
+  - `Action: rule moved route-comms.rtf to Comms`;
+  - `Run: winmux list-windows --workspace visible`;
+  - `Run: winmux list-zones`.
+- Logs must include `slice-8-routing-setup.log`, `slice-8-routing-before.log`, `slice-8-open-routed-window.log`, `slice-8-routing-after.log`, `slice-8-zones.log`, `slice-8-window-routing.done`, and `slice-8-window-routing-proof.txt`.
+- The verifier must prove the `.done` marker contains `result=success`, the ready screenshot exists, the config contains the `on-window-detected` rule, the before log has no `route-comms.rtf`, the open/action log shows the user-facing `open -a TextEdit route-comms.rtf` action and no manual `move-node-to-zone` command, the after log shows `route-comms.rtf` in `right`/Comms, and the annotation plan has the exact config/action/listing chips.
+
+Artifact review gate: no-context subagent confirms the recording makes automatic rule-based routing visible without reading code, and that it stays visually consistent with the existing product demos and Slice 7 root demo.
+
+Slice 8 non-claims:
+
+- no new rule language beyond `on-window-detected`;
+- no app bundle id routing proof unless the title-based proof fails and the slice is revised;
+- no tab-group-specific automatic routing, app launch management, grid/freeform layouts, draggable dividers, or visual editor.
+
+Slice 8 accepted artifact:
+
+- artifact directory: `artifacts/e2e/slice-8-20260624T045815Z`;
+- primary recording: `artifacts/e2e/slice-8-20260624T045815Z/recordings/slice-8-window-routing.mov`;
+- raw recording: `artifacts/e2e/slice-8-20260624T045815Z/recordings/raw/slice-8-window-routing.raw.mov`;
+- screenshots: `00-before-slice-8.png`, `01-ready-slice-8.png`, `99-after-slice-8.png`, and `slice-8-window-routing.contact-sheet.jpg`;
+- proof file: `artifacts/e2e/slice-8-20260624T045815Z/slice-8-window-routing-proof.txt`;
+- copied config hash: `ce33a9318783a481f0753d57152decbc758f1dcf9e7d9917f46069e1880f8be2`;
+- media metadata: H.264, 3440x1440, 43.983333s, 1949 frames.
+
+Verification:
+
+- `swift test --filter 'ZoneCommandTest/testMoveNodeToZoneUsesEnvironmentWindowId|ConfigTest/testParseOnWindowDetectedZoneRouting'` passed after rerunning the parser test with its real `ConfigTest/...` XCTest filter.
+- `make e2e-pre-tart-checks` passed, including shell syntax/lint, package-root self-test, annotation preflight, and 50 focused Swift tests.
+- `TART_HOME=/Volumes/RiftTartVMs make e2e-slice-8` passed and deleted the temporary Tart VM.
+- `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-8-20260624T045815Z` passed.
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-8-20260624T045815Z ARGS=--require-review` passed after no-context review.
+- review: `artifacts/e2e/slice-8-20260624T045815Z/reviews/no-ctx-artifact-review.md`, verdict `PASS_WITH_NOTES`, `next slice allowed: yes`.
+- retrospectives:
+  - `artifacts/e2e/slice-8-20260624T045815Z/retrospectives/process-plan.md`;
+  - `artifacts/e2e/slice-8-20260624T045815Z/retrospectives/code-harness.md`;
+  - `artifacts/e2e/slice-8-20260624T045815Z/retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- a user can configure a title-matching `[[on-window-detected]]` rule that runs `move-node-to-zone Comms --fail-if-noop`;
+- `move-node-to-zone` can target the detected window through the command environment instead of relying on global focus;
+- the recording starts with Reference, Work, and Comms anchor windows, Work active, and no `route-comms.rtf`;
+- the recorded proof action is `open -a TextEdit route-comms.rtf`;
+- after the action, `route-comms.rtf` is visible in the Comms/right zone without a recorded manual move command.
+
+Accepted notes:
+
+- The accepted artifact contains transient pre-proof transport/TCC retry noise: `guest-privacy-setup.log` retried after a locked TCC database and an SSH auth failure, and `slice-8-run.log` retried once after an SSH auth failure before the guest proof script ran. The final guest-control, privacy, clean-slate, capture, annotation, and scenario logs all report success, and the reviewer accepted the noise as non-blocking.
+- The accepted primary caption chip abbreviated the rule as `move-node-to-zone Comms` while the copied config and proof include `--fail-if-noop`. This artifact is a documented historical exception; future Slice 8-style artifacts require the full `Config: [[on-window-detected]] move-node-to-zone Comms --fail-if-noop` chip.
+- The accepted artifact does not include a dedicated callback-execution log. The proof is config plus absence-before, exact open action, no manual move command in the proof action log, and final routed state. Future routing/automation slices should add either a fast hook-level callback test or structured callback evidence if the routing contract expands.
+
+Pre-slice cleanup before the next slice starts:
+
+- [x] Read all three Slice 8 retrospective reports and carry accepted blockers into this checklist.
+- [x] Close Slice 8 in this plan with artifact paths, media metadata, proof, verifier/review evidence, retrospectives, claims, non-claims, and accepted notes.
+- [x] Tighten future Slice 8-style captions and verifier checks to require the strict `--fail-if-noop` callback command, while preserving the accepted artifact as a historical exception.
+- [x] Resolve the plan's callback-log mismatch by making the accepted Slice 8 evidence explicit and not promising a separate callback log for this artifact.
+- [x] Add a verifier guard that rejects manual `move-node-to-zone` commands in the recorded automatic-routing proof action log.
+- [ ] Before the next Tart product run, reduce reviewer-facing retry noise by adding clearer retry summaries or stronger SSH/TCC readiness checks.
+- [ ] Before any future routing or automation slice, add either a fast hook-level callback behavior test or first-class callback evidence logs.
+- [x] Inventory the accepted Slice 8 dirty set, including the untracked config and guest script, and exclude accidental `gitHashGenerated.swift` churn from the commit.
 
 ## Call-Site Audit
 

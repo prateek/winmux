@@ -109,6 +109,14 @@ EOF
 - Confirm the proof shows live TextEdit documents changing from triage workspaces to deep-work workspaces, not only a layout width change or CLI output.
 EOF
             ;;
+        slice-8-window-routing)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.
+- Sample frames around the `Run: open -a TextEdit route-comms.rtf` caption boundary. Fail if the routed window is already visible before the open action.
+- Confirm captions expose the `[[on-window-detected]] move-node-to-zone Comms --fail-if-noop` config surface, the exact `open -a TextEdit route-comms.rtf` action, and the inspection commands `winmux list-windows --workspace visible` and `winmux list-zones`.
+- Confirm the proof shows `route-comms.rtf` moving to the Comms/right zone automatically, without a manual `move-node-to-zone` proof command during the recording.
+EOF
+            ;;
         *)
             cat <<'EOF'
 - Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.

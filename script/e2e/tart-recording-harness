@@ -31,6 +31,9 @@ fi
 if [ "$ACTION" = "slice-6b" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
+if [ "$ACTION" = "slice-8" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-window-routing.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -80,7 +83,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b>
+Usage: $(basename "$0") <preflight|annotation-preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -921,6 +924,16 @@ CAPTIONS
 39	42	Inspect visible windows	Only the deep-work TextEdit documents are visible after the switch.	Run: winmux list-windows --workspace visible
 CAPTIONS
             ;;
+        slice-8-window-routing)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Rule-ready zones	Reference, Work, and Comms are visible before the matching window exists.	Config: [[on-window-detected]] move-node-to-zone Comms --fail-if-noop
+8	16	Before route	Work is active and route-comms.rtf is absent.	Action: before route, Work is active
+16	28	Open matching document	TextEdit opens the document whose title matches the routing rule.	Run: open -a TextEdit route-comms.rtf
+28	36	Rule moved the window	The detected window lands in the Comms zone without a manual move.	Action: rule moved route-comms.rtf to Comms
+36	40	Inspect visible windows	The window log shows route-comms.rtf in the right zone.	Run: winmux list-windows --workspace visible
+40	44	Inspect zones	Zone state remains Reference, Work, and Comms on the ultrawide display.	Run: winmux list-zones
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -981,7 +994,8 @@ annotation_preflight() {
         slice-4-zone-commands \
         slice-5-sidebar-drag \
         slice-6-zone-layout-presets \
-        slice-6b-zone-scenes
+        slice-6b-zone-scenes \
+        slice-8-window-routing
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1839,6 +1853,34 @@ run_slice_6b_zone_scenes() {
         "${LOGS_DIR}/slice-6b-run.log"
 }
 
+run_slice_8_window_routing_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE8_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-8-setup.log"
+}
+
+run_slice_8_window_routing() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE8_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-8-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -1933,6 +1975,10 @@ slice_6b() {
     run_recorded_scenario "slice-6b-zone-scenes" "00-before-slice-6b" "99-after-slice-6b" "run_slice_6b_zone_scenes" "run_slice_6b_zone_scene_setup" "01-ready-slice-6b"
 }
 
+slice_8() {
+    run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -1966,6 +2012,9 @@ case "$ACTION" in
         ;;
     slice-6b)
         slice_6b
+        ;;
+    slice-8)
+        slice_8
         ;;
     *)
         usage >&2

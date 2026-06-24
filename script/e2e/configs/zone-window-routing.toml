@@ -1,0 +1,20 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zones]]
+monitor = 1
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[on-window-detected]]
+if.window-title-regex-substring = 'route-comms'
+run = ['move-node-to-zone Comms --fail-if-noop']
+
+[workspace-sidebar]
+enabled = false

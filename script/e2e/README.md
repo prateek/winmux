@@ -38,6 +38,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-6b` records zone scenes with `script/e2e/configs/zone-scenes.toml`. The setup phase stages separate triage and deep-work TextEdit documents, binds them to named workspaces, activates the `triage` scene, and captures `01-ready-slice-6b.png`. The recording then runs `winmux use-zone-scene deep-work`. The verifier checks before/action/after caption anchors, before/after active zone workspaces, layout width changes, visible TextEdit documents, the ready screenshot, and caption chips for `[[zone-scenes]]`, `use-zone-scene`, `list-zones`, and `list-windows --workspace visible`.
 
+`make e2e-slice-8` records window-rule routing with `script/e2e/configs/zone-window-routing.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` anchor documents, focuses Work, confirms `route-comms.rtf` is absent, and captures `01-ready-slice-8.png`. The recording opens `route-comms.rtf`; the configured `[[on-window-detected]]` callback runs `move-node-to-zone Comms --fail-if-noop` against the detected window id. The verifier checks the config rule, before/action/after window logs, zone log, ready screenshot, success marker, no manual move command in the recorded proof action log, and caption chips for the strict config command, open action, `list-windows --workspace visible`, and `list-zones`.
+
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
 Slice 6B recording, fails unless that source artifact has strict guest-capture

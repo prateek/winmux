@@ -128,6 +128,12 @@ Slice-specific checks:
   accepted strict guest-captured Tart artifact. Inspect the root demo directly
   against the baseline root videos and product surfaces; source-artifact review
   is supporting evidence, not a substitute for watching the root demo.
+- Slice 8 must show `[[on-window-detected]]` plus
+  `move-node-to-zone Comms --fail-if-noop`. The proof must show Work active with
+  no `route-comms.rtf`, then the user action `open -a TextEdit route-comms.rtf`,
+  then `route-comms.rtf` in the Comms/right zone. Reject any artifact where the
+  recorded proof uses a manual `move-node-to-zone` command to move the routed
+  window, or where the routed window is visible before the open-action caption.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
