@@ -28,4 +28,14 @@ extension Monitor {
     var monitorId_oneBased: Int? {
         sortedPhysicalMonitors.firstIndex { $0.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner }.map { $0 + 1 }
     }
+
+    @MainActor
+    var defaultWorkspaceViewport: Monitor {
+        guard zoneId == nil else { return self }
+        let zoneViewports = workspaceViewports.filter {
+            $0.zoneId != nil &&
+                $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
+        }
+        return zoneViewports.first(where: \.isDefaultZone) ?? zoneViewports.first ?? self
+    }
 }

@@ -15,6 +15,7 @@ struct FocusMonitorCommand: Command {
 }
 
 extension MonitorTarget {
+    @MainActor
     func resolve(_ currentMonitor: Monitor, wrapAround: Bool) -> Result<Monitor, String> {
         switch self {
             case .direction(let direction):
@@ -38,11 +39,11 @@ extension MonitorTarget {
                 }
                 return .success(targetMonitor)
             case .patterns(let patterns):
-                let monitors = sortedMonitors
-                guard let targetMonitor = patterns.lazy.compactMap({ $0.resolveMonitor(sortedMonitors: monitors) }).first else {
+                let monitors = sortedPhysicalMonitors
+                guard let targetMonitor = patterns.lazy.compactMap({ $0.resolvePhysicalMonitor(sortedPhysicalMonitors: monitors) }).first else {
                     return .failure("None of the monitors match the pattern(s)")
                 }
-                return .success(targetMonitor)
+                return .success(targetMonitor.defaultWorkspaceViewport)
         }
     }
 }

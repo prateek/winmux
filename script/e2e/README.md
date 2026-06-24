@@ -26,6 +26,10 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-2` runs the config-backed column-zone scenario with `script/e2e/configs/column-zones.toml`. The recording opens three labeled TextEdit documents and places them into the configured `Reference`, `Work`, and `Comms` columns so the artifact shows live windows, not only CLI output.
 
+`make e2e-slice-3` starts with the same config, stages `script/e2e/configs/column-zones-shifted.toml` as `config/winmux-shifted.toml`, copies the initial config to `config/winmux-active.toml` inside the guest, then runs `winmux reload-config` after replacing only the active config. `config/winmux.toml` and `config/winmux-shifted.toml` are immutable artifact evidence; reload scenarios mutate only `config/winmux-active.toml`. The proof logs compare `slice-3-monitors-before.log` and `slice-3-monitors-after.log` to show changed zone geometry, and compare the before/after window logs to show the labeled windows stayed in `left`, `main`, and `right`.
+
+`make e2e-slice-4` records the command workflow. It uses `focus-zone Reference`, `focus-zone Work`, `move-node-to-zone Comms --fail-if-noop`, `focus-monitor 1`, and `list-zones`; the verifier requires the ready screenshot `01-ready-slice-4.png` plus the Slice 4 focus, move, compatibility, window, and zone logs.
+
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
 Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, runs `shellcheck` when installed, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
@@ -36,7 +40,7 @@ After a run, use the mechanical verifier before spawning the no-context reviewer
 make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp>
 ```
 
-After the review file exists, rerun it with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, and a generated contact sheet. It is a tripwire; the no-context reviewer still inspects the media and product fit.
+After the review file exists, rerun it with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, and a generated contact sheet. Reload scenarios also verify immutable config hashes when preflight recorded them. It is a tripwire; the no-context reviewer still inspects the media and product fit.
 
 When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
 

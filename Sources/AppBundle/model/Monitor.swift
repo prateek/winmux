@@ -26,12 +26,14 @@ protocol Monitor: WinMuxAny {
     var height: CGFloat { get }
     var isMain: Bool { get }
     var zoneId: String? { get }
+    var zoneName: String? { get }
     var isDefaultZone: Bool { get }
     var physicalMonitor: Monitor { get }
 }
 
 extension Monitor {
     var zoneId: String? { nil }
+    var zoneName: String? { nil }
     var isDefaultZone: Bool { false }
     var physicalMonitor: Monitor { self }
 }

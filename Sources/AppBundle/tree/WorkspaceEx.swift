@@ -4,7 +4,8 @@ import Common
 func resolvedForceAssignedMonitor(forWorkspaceName name: String) -> Monitor? {
     config.workspaceToMonitorForceAssignment[name]?
         .lazy
-        .compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }
+        .compactMap { $0.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) }
+        .compactMap { $0.defaultWorkspaceViewport }
         .first
 }
 

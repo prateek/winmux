@@ -14,6 +14,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case focus
     case focusBackAndForth = "focus-back-and-forth"
     case focusMonitor = "focus-monitor"
+    case focusZone = "focus-zone"
     case fullscreen
     case joinWith = "join-with"
     case layout
@@ -23,6 +24,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case listMonitors = "list-monitors"
     case listWindows = "list-windows"
     case listWorkspaces = "list-workspaces"
+    case listZones = "list-zones"
     case macosNativeFullscreen = "macos-native-fullscreen"
     case macosNativeMinimize = "macos-native-minimize"
     case mode
@@ -31,6 +33,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case moveNodeToMonitor = "move-node-to-monitor"
     case moveNodeToProject = "move-node-to-project"
     case moveNodeToWorkspace = "move-node-to-workspace"
+    case moveNodeToZone = "move-node-to-zone"
     case moveWorkspaceToMonitor = "move-workspace-to-monitor"
     case openSidebar = "open-sidebar"
     case palette
@@ -78,6 +81,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(FocusBackAndForthCmdArgs.init)
             case .focusMonitor:
                 result[kind.rawValue] = SubCommandParser(parseFocusMonitorCmdArgs)
+            case .focusZone:
+                result[kind.rawValue] = SubCommandParser(parseFocusZoneCmdArgs)
             case .fullscreen:
                 result[kind.rawValue] = SubCommandParser(parseFullscreenCmdArgs)
             case .joinWith:
@@ -96,6 +101,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseListWindowsCmdArgs)
             case .listWorkspaces:
                 result[kind.rawValue] = SubCommandParser(parseListWorkspacesCmdArgs)
+            case .listZones:
+                result[kind.rawValue] = SubCommandParser(parseListZonesCmdArgs)
             case .macosNativeFullscreen:
                 result[kind.rawValue] = SubCommandParser(parseMacosNativeFullscreenCmdArgs)
             case .macosNativeMinimize:
@@ -114,6 +121,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseMoveNodeToProjectCmdArgs)
             case .moveNodeToWorkspace:
                 result[kind.rawValue] = SubCommandParser(parseMoveNodeToWorkspaceCmdArgs)
+            case .moveNodeToZone:
+                result[kind.rawValue] = SubCommandParser(parseMoveNodeToZoneCmdArgs)
             case .moveWorkspaceToMonitor:
                 result[kind.rawValue] = SubCommandParser(parseWorkspaceToMonitorCmdArgs)
                 // deprecated

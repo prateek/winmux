@@ -204,7 +204,7 @@ private func deleteWorkspaceProjectMovingWindowsToFallback(_ projectId: Workspac
         return viewport.id
     }
     for viewportId in viewportsShowingDeletedProject {
-        _ = switchWorkspaceProject(fallbackId, on: viewportId.topLeftCorner.monitorApproximation)
+        _ = switchWorkspaceProject(fallbackId, on: viewportId.currentMonitorApproximation)
     }
 
     for workspace in Workspace.all.filter({ $0.projectId == projectId }) {
@@ -249,7 +249,7 @@ private func closeWindowsAndDeleteWorkspaceProject(_ projectId: WorkspaceProject
         return viewport.id
     }
     for viewportId in viewportsShowingDeletedProject {
-        _ = switchWorkspaceProject(fallbackId, on: viewportId.topLeftCorner.monitorApproximation)
+        _ = switchWorkspaceProject(fallbackId, on: viewportId.currentMonitorApproximation)
     }
 
     for workspace in Workspace.all.filter({ $0.projectId == projectId }) {

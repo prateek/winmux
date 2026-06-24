@@ -60,18 +60,66 @@ struct WorkspaceProjectId: RawRepresentable, Hashable, Identifiable, Sendable, C
 
 struct MonitorViewportId: Hashable, Sendable, Codable, CustomStringConvertible {
     let topLeftCorner: CGPoint
+    let stableIdentity: String
 
     var description: String {
-        "\(topLeftCorner.x),\(topLeftCorner.y)"
+        stableIdentity == Self.physicalIdentity(topLeftCorner: topLeftCorner)
+            ? "\(topLeftCorner.x),\(topLeftCorner.y)"
+            : "\(stableIdentity)@\(topLeftCorner.x),\(topLeftCorner.y)"
     }
 
     init(topLeftCorner: CGPoint) {
         self.topLeftCorner = topLeftCorner
+        self.stableIdentity = Self.physicalIdentity(topLeftCorner: topLeftCorner)
     }
 
     @MainActor
     init(_ monitor: Monitor) {
-        self.topLeftCorner = monitor.rect.topLeftCorner
+        let topLeftCorner = monitor.rect.topLeftCorner
+        self.topLeftCorner = topLeftCorner
+        if let zoneId = monitor.zoneId {
+            self.stableIdentity = Self.zoneIdentity(
+                physicalTopLeftCorner: monitor.physicalMonitor.rect.topLeftCorner,
+                zoneId: zoneId,
+            )
+        } else {
+            self.stableIdentity = Self.physicalIdentity(topLeftCorner: topLeftCorner)
+        }
+    }
+
+    func hasSameStableIdentity(as other: MonitorViewportId) -> Bool {
+        stableIdentity == other.stableIdentity
+    }
+
+    @MainActor
+    var currentMonitorApproximation: Monitor {
+        monitors.first { MonitorViewportId($0).stableIdentity == stableIdentity } ?? topLeftCorner.monitorApproximation
+    }
+
+    private static func physicalIdentity(topLeftCorner: CGPoint) -> String {
+        "physical:\(topLeftCorner.x),\(topLeftCorner.y)"
+    }
+
+    private static func zoneIdentity(physicalTopLeftCorner: CGPoint, zoneId: String) -> String {
+        "zone:\(physicalTopLeftCorner.x),\(physicalTopLeftCorner.y):\(zoneId)"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case topLeftCorner
+        case stableIdentity
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        topLeftCorner = try container.decode(CGPoint.self, forKey: .topLeftCorner)
+        stableIdentity = try container.decodeIfPresent(String.self, forKey: .stableIdentity)
+            ?? Self.physicalIdentity(topLeftCorner: topLeftCorner)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(topLeftCorner, forKey: .topLeftCorner)
+        try container.encode(stableIdentity, forKey: .stableIdentity)
     }
 }
 

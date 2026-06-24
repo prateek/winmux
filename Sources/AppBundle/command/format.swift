@@ -158,7 +158,13 @@ extension String {
                     case .monitorIsMain: .success(.bool(m.isMain))
                     case .monitorIsZone: .success(.bool(m.zoneId != nil))
                     case .monitorZoneId: .success(.string(m.zoneId ?? ""))
+                    case .monitorZoneName: .success(.string(m.zoneName ?? ""))
                     case .monitorPhysicalId_oneBased: .success(m.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
+                    case .monitorActiveWorkspace: .success(.string(m.activeWorkspace.name))
+                    case .monitorLeft: .success(.string(m.rect.topLeftX.description))
+                    case .monitorTop: .success(.string(m.rect.topLeftY.description))
+                    case .monitorWidth: .success(.string(m.rect.width.description))
+                    case .monitorHeight: .success(.string(m.rect.height.description))
                 }
             case (.app(let a), .app(let f)):
                 return switch f {

@@ -19,10 +19,11 @@ BASE_VM="${WINMUX_E2E_BASE_VM:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 VM_NAME="${WINMUX_E2E_VM_NAME:-winmux-e2e-${RUN_ID}}"
 VM_DISPLAY="${WINMUX_E2E_VM_DISPLAY:-3440x1440px}"
 DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/harness-smoke.toml"
-if [ "$ACTION" = "slice-2" ]; then
+if [ "$ACTION" = "slice-2" ] || [ "$ACTION" = "slice-3" ] || [ "$ACTION" = "slice-4" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones.toml"
 fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
+RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
 DISPLAY_ID="${WINMUX_E2E_DISPLAY_ID:-1}"
 GUEST_DISPLAY_ID="${WINMUX_E2E_GUEST_DISPLAY_ID:-$DISPLAY_ID}"
@@ -69,7 +70,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|smoke|slice-0|slice-1|slice-2>
+Usage: $(basename "$0") <preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -78,6 +79,8 @@ Environment:
   WINMUX_E2E_BASE_VM=...            Base VM or OCI image to clone.
   WINMUX_E2E_VM_NAME=...            VM name. Defaults to a run-specific name.
   WINMUX_E2E_VM_DISPLAY=3440x1440px Guest display resolution. Empty string skips tart set.
+  WINMUX_E2E_CONFIG=...             Config copied into the artifact run.
+  WINMUX_E2E_RELOAD_CONFIG=...      Second config staged for slice-3 reload validation.
   WINMUX_E2E_RECORD_SECONDS=12      Video length for smoke recordings.
   WINMUX_E2E_ANNOTATE_RECORDING=1   Add polished caption overlays to final videos.
   WINMUX_E2E_FFMPEG_SCREEN_DEVICE=  ffmpeg avfoundation screen device.
@@ -187,6 +190,10 @@ shell_quote() {
     printf "'"
 }
 
+file_sha256() {
+    shasum -a 256 "$1" | awk '{ print $1 }'
+}
+
 vm_exists() {
     tart get "$1" >/dev/null 2>&1
 }
@@ -215,6 +222,11 @@ write_preflight_log() {
         printf 'build_path=%s\n' "$BUILD_PATH"
         printf 'reuse_build=%s\n' "$REUSE_BUILD"
         printf 'config_path=%s\n' "$CONFIG_PATH"
+        printf 'config_sha256=%s\n' "$(file_sha256 "$CONFIG_PATH")"
+        printf 'reload_config_path=%s\n' "$RELOAD_CONFIG_PATH"
+        if [ "$ACTION" = "slice-3" ] && [ -f "$RELOAD_CONFIG_PATH" ]; then
+            printf 'reload_config_sha256=%s\n' "$(file_sha256 "$RELOAD_CONFIG_PATH")"
+        fi
         printf 'artifact_dir=%s\n' "$RUN_DIR"
         printf 'display_id=%s\n' "$DISPLAY_ID"
         printf 'guest_display_id=%s\n' "$GUEST_DISPLAY_ID"
@@ -249,6 +261,10 @@ preflight() {
     ensure_tart_home
     [ -f "$CONFIG_PATH" ] || die "Missing WinMux e2e config: $CONFIG_PATH"
     cp "$CONFIG_PATH" "$CONFIG_OUT_DIR/winmux.toml"
+    if [ "$ACTION" = "slice-3" ]; then
+        [ -f "$RELOAD_CONFIG_PATH" ] || die "Missing WinMux e2e reload config: $RELOAD_CONFIG_PATH"
+        cp "$RELOAD_CONFIG_PATH" "$CONFIG_OUT_DIR/winmux-shifted.toml"
+    fi
     ensure_base_vm_available
     write_preflight_log
 }
@@ -742,6 +758,10 @@ test -s ${guest_path_quoted}
     [ -s "$path" ] || die "Screenshot did not produce a non-empty file: $path"
 }
 
+scrub_finder_metadata() {
+    find "$RUN_DIR" -name .DS_Store -delete
+}
+
 start_recording() {
     local name="$1"
     local path="${RECORDINGS_DIR}/${name}.mov"
@@ -835,10 +855,19 @@ CAPTIONS
             ;;
         slice-3-stable-identity)
             cat >"$captions_path" <<'CAPTIONS'
-0	6	Before reload	Each labeled window starts in its configured zone.	Run: winmux list-windows --monitor all
-6	14	Column widths change	The config shifts geometry without changing zone ids.	Edit: ~/.config/winmux/winmux.toml
-14	23	Reload config	WinMux applies the new layout in the running app.	Run: winmux reload-config
-23	32	Same zones, new geometry	Workspaces remain attached to left, main, and right.	Run: winmux list-workspaces --all
+0	10	Open zone windows	Three labeled TextEdit documents become live WinMux windows.	Run: open -a TextEdit left-reference.rtf
+10	18	Bind by zone name	Windows are assigned to Reference, Work, and Comms.	Run: winmux move-node-to-monitor Reference
+18	27	Reload shifted widths	The config changes column widths but keeps the same zone ids.	Run: winmux reload-config
+27	36	Same zones, new geometry	The CLI shows changed rects with windows still in their zones.	Run: winmux list-monitors --format 'zone=%{monitor-zone-id}|width=%{monitor-width}'
+CAPTIONS
+            ;;
+        slice-4-zone-commands)
+            cat >"$captions_path" <<'CAPTIONS'
+0	10	Command-ready zones	Reference, Work, and Comms are configured and visible.	Run: winmux list-zones
+10	18	Focus by zone name	The active workspace moves to the Reference column.	Run: winmux focus-zone Reference
+18	26	Return to Work	Zone names are stable user-facing command targets.	Run: winmux focus-zone Work
+26	36	Move with no-op protection	The focused window moves from Work to Comms and must not be a no-op.	Run: winmux move-node-to-zone Comms --fail-if-noop
+36	44	Physical monitor compatibility	Monitor 1 still means the physical display's default zone.	Run: winmux focus-monitor 1
 CAPTIONS
             ;;
         *)
@@ -901,6 +930,7 @@ wait_for_recording() {
         -y \
         -i "$path" \
         -vf "fps=1/7,scale=860:-1,tile=4x1" \
+        -frames:v 1 \
         "$contact_sheet"
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
 }
@@ -1478,6 +1508,36 @@ echo slice_2_scenario_installed=${scenario_path_quoted}"
     guest_script_retry "/bin/bash ${scenario_path_quoted}" "${LOGS_DIR}/slice-2-run.log"
 }
 
+run_slice_3_stable_identity() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-3-stable-identity.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-3-run.log"
+}
+
+run_slice_4_zone_commands() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-4-zone-commands.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-4-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -1519,8 +1579,9 @@ run_recorded_scenario() {
         log "Skipping guest scenario because guest control is unavailable"
         printf 'skipped: guest control unavailable\n' >"${LOGS_DIR}/${recording_name}.scenario.log"
     fi
-    wait_for_recording "$recording_name"
     capture_screenshot "$after_name"
+    wait_for_recording "$recording_name"
+    scrub_finder_metadata
     log "Scenario artifacts: $RUN_DIR"
 }
 
@@ -1534,6 +1595,14 @@ slice_1() {
 
 slice_2() {
     run_recorded_scenario "slice-2-config-zones" "00-before-slice-2" "99-after-slice-2" "run_slice_2_config"
+}
+
+slice_3() {
+    run_recorded_scenario "slice-3-stable-identity" "00-before-slice-3" "99-after-slice-3" "run_slice_3_stable_identity"
+}
+
+slice_4() {
+    run_recorded_scenario "slice-4-zone-commands" "00-before-slice-4" "99-after-slice-4" "run_slice_4_zone_commands"
 }
 
 case "$ACTION" in
@@ -1551,6 +1620,12 @@ case "$ACTION" in
         ;;
     slice-2)
         slice_2
+        ;;
+    slice-3)
+        slice_3
+        ;;
+    slice-4)
+        slice_4
         ;;
     *)
         usage >&2

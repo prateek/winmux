@@ -20,17 +20,22 @@ extension Monitor {
 
     @MainActor
     func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        workspaceViewportForWorkspaceAssignment.rect.topLeftCorner.setActiveWorkspace(workspace)
+        let viewport = workspaceViewportForWorkspaceAssignment
+        if !isValidAssignment(workspace: workspace, screen: viewport.rect.topLeftCorner) {
+            return false
+        }
+        let viewportId = MonitorViewportId(viewport)
+        guard !winMuxWorkspaceState.isWorkspaceActive(workspace.id, outside: viewportId) else {
+            return false
+        }
+        _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: viewportId)
+        checkWorkspaceHierarchyInvariants()
+        return true
     }
 
     @MainActor
     private var workspaceViewportForWorkspaceAssignment: Monitor {
-        guard zoneId == nil else { return self }
-        let zoneViewports = workspaceViewports.filter {
-            $0.zoneId != nil &&
-                $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
-        }
-        return zoneViewports.first(where: \.isDefaultZone) ?? zoneViewports.first ?? self
+        defaultWorkspaceViewport
     }
 }
 
@@ -162,7 +167,8 @@ func checkWorkspaceHierarchyInvariants(requireActiveMonitorViewports: Bool = fal
 @MainActor
 func rearrangeWorkspacesOnMonitors() {
     let oldViewportsById = winMuxWorkspaceState.monitorViewportsById
-    let currentMonitorIds = Set(monitors.map(MonitorViewportId.init))
+    let currentMonitors = monitors
+    let currentMonitorIds = Set(currentMonitors.map(MonitorViewportId.init))
     let activeViewportIds = Set(oldViewportsById.compactMap { viewportId, viewport -> MonitorViewportId? in
         guard let workspaceId = viewport.activeWorkspaceId,
               let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
@@ -181,11 +187,18 @@ func rearrangeWorkspacesOnMonitors() {
         return viewportId
     }.toSet()
 
-    let newMonitors = monitors.map(MonitorViewportId.init)
+    let newMonitors = currentMonitors.map(MonitorViewportId.init)
     var newMonitorToOldMonitorMapping: [MonitorViewportId: MonitorViewportId] = [:]
     for newMonitor in newMonitors where oldVisibleMonitors.contains(newMonitor) {
         check(oldVisibleMonitors.remove(newMonitor) != nil)
         newMonitorToOldMonitorMapping[newMonitor] = newMonitor
+    }
+    for newMonitor in newMonitors {
+        if newMonitorToOldMonitorMapping[newMonitor] != nil { continue }
+        if let oldMonitor = oldVisibleMonitors.first(where: { $0.hasSameStableIdentity(as: newMonitor) }) {
+            check(oldVisibleMonitors.remove(oldMonitor) != nil)
+            newMonitorToOldMonitorMapping[newMonitor] = oldMonitor
+        }
     }
     for newMonitor in newMonitors {
         if newMonitorToOldMonitorMapping[newMonitor] != nil { continue }
@@ -197,7 +210,7 @@ func rearrangeWorkspacesOnMonitors() {
 
     winMuxWorkspaceState.monitorViewportsById = [:]
 
-    for newMonitor in newMonitors {
+    for (newMonitor, monitor) in zip(newMonitors, currentMonitors) {
         let newScreen = newMonitor.topLeftCorner
         let mappedOldMonitor = newMonitorToOldMonitorMapping[newMonitor]
         let preservedViewport = mappedOldMonitor.flatMap { oldViewportsById[$0] } ?? oldViewportsById[newMonitor]
@@ -214,17 +227,17 @@ func rearrangeWorkspacesOnMonitors() {
             .flatMap { oldViewportsById[$0]?.activeWorkspaceId }
             .flatMap { winMuxWorkspaceState.workspaceById[$0] }
         if let existingVisibleWorkspace,
-           newScreen.setActiveWorkspace(existingVisibleWorkspace)
+           monitor.setActiveWorkspace(existingVisibleWorkspace)
         {
             continue
         }
         let projectId = existingVisibleWorkspace?.projectId ?? workspaceProjectDefaultId
         let workspace = getOrCreateFallbackWorkspace(
             projectId: projectId,
-            monitor: newScreen.monitorApproximation,
+            monitor: monitor,
             excluding: existingVisibleWorkspace,
         )
-        check(newScreen.setActiveWorkspace(workspace),
+        check(monitor.setActiveWorkspace(workspace),
               "Generated incompatible fallback workspace (\(workspace)) for the display viewport (\(newScreen)")
     }
 }

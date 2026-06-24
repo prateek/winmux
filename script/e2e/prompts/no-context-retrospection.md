@@ -17,6 +17,8 @@ Inputs to inspect:
 - docs/plans/columnar-zones.md
 - script/e2e/README.md
 - script/e2e/tart-recording-harness
+- script/e2e/guest/*.sh, when present
+- script/e2e/configs/*.toml, when present
 - script/e2e/prompts/*.md
 - current git status/diff
 - the accepted slice artifact directory: <artifact-dir>

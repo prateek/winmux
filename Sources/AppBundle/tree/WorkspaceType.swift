@@ -159,7 +159,7 @@ extension Workspace {
     var visibleMonitor: Monitor? {
         winMuxWorkspaceState.monitorViewportsById.first { _, viewport in
             viewport.activeWorkspaceId == id
-        }?.key.topLeftCorner.monitorApproximation
+        }?.key.currentMonitorApproximation
     }
 
     @MainActor

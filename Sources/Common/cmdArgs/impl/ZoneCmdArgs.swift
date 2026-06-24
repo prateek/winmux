@@ -1,0 +1,109 @@
+public struct ZoneSelector: Equatable, Sendable, CustomStringConvertible {
+    public let raw: String
+
+    public init(_ raw: String) {
+        self.raw = raw
+    }
+
+    public var description: String { raw }
+}
+
+public struct FocusZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .focusZone,
+        allowInConfig: true,
+        help: focus_zone_help_generated,
+        flags: [:],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+    }
+
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseFocusZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<FocusZoneCmdArgs> {
+    parseSpecificCmdArgs(FocusZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct MoveNodeToZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .moveNodeToZone,
+        allowInConfig: true,
+        help: move_node_to_zone_help_generated,
+        flags: [
+            "--window-id": optionalWindowIdFlag(),
+            "--focus-follows-window": trueBoolFlag(\.focusFollowsWindow),
+            "--fail-if-noop": trueBoolFlag(\.failIfNoop),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+    }
+
+    public var failIfNoop: Bool = false
+    public var focusFollowsWindow: Bool = false
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseMoveNodeToZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToZoneCmdArgs> {
+    parseSpecificCmdArgs(MoveNodeToZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct ListZonesCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .listZones,
+        allowInConfig: false,
+        help: list_zones_help_generated,
+        flags: [
+            "--format": formatParser(\._format, for: .monitor),
+            "--count": trueBoolFlag(\.outputOnlyCount),
+            "--json": trueBoolFlag(\.json),
+        ],
+        posArgs: [],
+        conflictingOptions: [
+            ["--count", "--format"],
+            ["--count", "--json"],
+        ],
+    )
+
+    public var _format: [StringInterToken] = []
+    public var outputOnlyCount: Bool = false
+    public var json: Bool = false
+}
+
+extension ListZonesCmdArgs {
+    public var format: [StringInterToken] {
+        _format.isEmpty
+            ? [
+                .interVar("monitor-zone-id"), .interVar("right-padding"), .literal(" | "),
+                .interVar("monitor-zone-name"), .interVar("right-padding"), .literal(" | "),
+                .literal("monitor "), .interVar("monitor-physical-id"), .interVar("right-padding"), .literal(" | "),
+                .interVar("monitor-active-workspace"),
+            ]
+            : _format
+    }
+}
+
+func parseListZonesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListZonesCmdArgs> {
+    parseSpecificCmdArgs(ListZonesCmdArgs(rawArgs: args), args)
+        .validateJsonFormat()
+}
+
+private func parseZoneSelector(i: PosArgParserInput) -> ParsedCliArgs<ZoneSelector> {
+    i.arg.isEmpty
+        ? .fail("<zone> must not be empty", advanceBy: 1)
+        : .succ(ZoneSelector(i.arg), advanceBy: 1)
+}

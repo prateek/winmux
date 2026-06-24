@@ -19,11 +19,12 @@ extension DynamicConfigValue {
             case .constant(let value):
                 return value
             case .perMonitor(let array, let defaultValue):
-                let sortedMonitors = sortedMonitors
+                let sortedPhysicalMonitors = sortedPhysicalMonitors
                 return array
                     .lazy
                     .compactMap {
-                        $0.description.resolveMonitor(sortedMonitors: sortedMonitors)?.rect.topLeftCorner == monitor.rect.topLeftCorner
+                        $0.description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors)?.rect.topLeftCorner ==
+                            monitor.physicalMonitor.rect.topLeftCorner
                             ? $0.value
                             : nil
                     }

@@ -139,7 +139,7 @@ struct WinMuxWorkspaceState {
 
     func isWorkspaceActive(_ workspaceId: WorkspaceId, outside viewportId: MonitorViewportId) -> Bool {
         monitorViewportsById.contains { otherViewportId, viewport in
-            otherViewportId != viewportId && viewport.activeWorkspaceId == workspaceId
+            !otherViewportId.hasSameStableIdentity(as: viewportId) && viewport.activeWorkspaceId == workspaceId
         }
     }
 

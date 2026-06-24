@@ -26,13 +26,13 @@ final class ListMonitorsTest: XCTestCase {
         setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config, environment: ["WINMUX_ZONES_SPIKE": "1"]))
 
         let result = try await parseCommand(
-            "list-monitors --format '%{monitor-id}|%{monitor-zone-id}|%{monitor-is-zone}|%{monitor-physical-id}|%{monitor-name}'",
+            "list-monitors --format '%{monitor-id}|%{monitor-zone-id}|%{monitor-is-zone}|%{monitor-physical-id}|%{monitor-left},%{monitor-top},%{monitor-width},%{monitor-height}|%{monitor-name}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.stdout, [
-            "1|left|true|1|Main / Left",
-            "1|main|true|1|Main / Main",
-            "1|right|true|1|Main / Right",
+            "1|left|true|1|0.0,0.0,300.0,800.0|Main / Left",
+            "1|main|true|1|300.0,0.0,300.0,800.0|Main / Main",
+            "1|right|true|1|600.0,0.0,300.0,800.0|Main / Right",
         ])
     }
 }

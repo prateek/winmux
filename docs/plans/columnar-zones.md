@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: proposal
+Status: implementation, slices 0-4 accepted
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -183,9 +183,12 @@ The verifier must check:
 - decoded resolution matches the configured ultrawide Tart display unless an override is documented;
 - product slices used `require_guest_control=1` and `capture_mode=guest`;
 - when `annotate_recording=1`, annotation logs, caption timing, and the preserved raw capture exist;
+- caption command/action chips are exact user-facing commands or config/action references, with placeholders rejected;
+- immutable input config hashes match preflight when recorded;
 - guest-control, privacy, clean-slate, capture-readiness, and recording logs show success;
 - before/after screenshots exist;
 - a contact sheet exists or can be generated;
+- slice-specific proof logs satisfy that slice's behavioral invariants when the verifier knows the recording name;
 - when `--require-review` is set, the review exists and ends in `PASS` or `PASS_WITH_NOTES`.
 
 Gate order for every product slice:
@@ -468,17 +471,51 @@ Pre-slice cleanup before Slice 3 starts:
 - [x] Define Slice 3's exact Tart proof before implementation: stage three labeled windows in the original `left`/`main`/`right` config, write before logs for workspace, window, zone id, and viewport point, copy in a changed-width config, run `reload-config`, then write after logs proving the same workspace/window labels remain on the same zone ids while at least one viewport point changes.
 - [x] Decide before Slice 3 whether duplicate monitor selectors that resolve to the same physical display through different descriptions, tiny-display empty rectangles, and stable-id migration are implemented now or explicitly deferred to Slice 3's identity work. Stable-id migration is in scope through legacy `MonitorViewportId` decode fallback. Cross-description duplicate selector detection and tiny-display empty-rect hardening are deferred unless they block this slice's stable identity proof.
 
+Slice 3 result:
+
+- failed artifact directory: `artifacts/e2e/slice-3-20260623T233026Z`; the guest proof and recording completed, but harness contact-sheet post-processing failed before the after screenshot. This run is superseded.
+- accepted artifact directory: `artifacts/e2e/slice-3-20260623T234421Z`;
+- annotated recording: `artifacts/e2e/slice-3-20260623T234421Z/recordings/slice-3-stable-identity.mov`;
+- raw guest recording: `artifacts/e2e/slice-3-20260623T234421Z/recordings/raw/slice-3-stable-identity.raw.mov`;
+- screenshots: `artifacts/e2e/slice-3-20260623T234421Z/screenshots/00-before-slice-3.png` and `artifacts/e2e/slice-3-20260623T234421Z/screenshots/99-after-slice-3.png`;
+- proof: `artifacts/e2e/slice-3-20260623T234421Z/slice-3-stable-identity-proof.txt`;
+- mechanical verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-3-20260623T234421Z` passed;
+- no-context review: `artifacts/e2e/slice-3-20260623T234421Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-3-20260623T234421Z ARGS=--require-review` passed;
+- retrospectives: `artifacts/e2e/slice-3-20260623T234421Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`;
+- artifact claim: config reload changed zone geometry from `1032/1376/1032` to `688/2064/688` while the same live TextEdit windows, zone ids, and workspace ids stayed bound to `left`, `main`, and `right`.
+- non-claims: this slice does not prove sidebar UX, tab groups, drag affordances, `focus-zone`, `move-node-to-zone`, or physical-monitor command compatibility.
+- accepted note: the accepted artifact mutated `config/winmux.toml` in place, so the copied configs are not reliable before/after evidence in that historical artifact. The media and logs still prove the slice. Future reload runs preserve immutable `config/winmux.toml` and `config/winmux-shifted.toml`, mutate only `config/winmux-active.toml`, and record/verify config hashes.
+
 ### Slice 4: Commands and Selectors
 
 Goal: make zones ergonomic without breaking monitor commands.
+
+Pre-slice cleanup before Slice 4 starts:
+
+- [x] Read all three Slice 3 retrospection reports.
+- [x] Preserve immutable config inputs for future reload artifacts by using `config/winmux-active.toml` as the guest-mutated config.
+- [x] Capture the after screenshot before recording post-processing so a contact-sheet or annotation failure cannot erase final-state visual evidence.
+- [x] Fix contact-sheet generation with `-frames:v 1` so one tiled image is written to one `.jpg` path.
+- [x] Add verifier rejection for `.DS_Store` artifact noise.
+- [x] Add verifier checks for config hashes when preflight records them.
+- [x] Add Slice 3-specific verifier checks for before/after monitor, window, workspace, and proof logs.
+- [x] Reject placeholder command chips such as `...`, `<command>`, and `winmux <command>` in annotation plans.
+- [x] Update the no-context artifact-review prompt to harden config-provenance checks for reload/config-change slices.
+- [x] Update the no-context retrospection prompt to inspect slice guest scripts and config fixtures.
+- [x] Record the Slice 3 result, accepted historical config-packaging note, and this Slice 4 cleanup checklist in the plan.
+- [x] Define the Slice 4 proof storyboard before command implementation: exact commands, visible before/after checkpoints, strict `--fail-if-noop` movement proof, compatibility proof for `focus-monitor 1`, captions with exact command chips, and verifier assertions.
+- [x] Add focused command-selector tests before the Slice 4 Tart run. `swift test --filter ZoneCommandTest` and `make e2e-pre-tart-checks` pass with parser, selector, physical-monitor compatibility, window move, tab-group move, and `list-zones` coverage.
 
 Add:
 
 - `focus-zone <zone>`
 - `move-node-to-zone <zone>`
-- `move-workspace-to-zone <workspace> <zone>` if the existing command shape makes this cheap;
 - `list-zones` for scripts and debugging;
 - JSON output fields that include both physical monitor and zone id where relevant.
+
+Deferred from this slice unless it blocks Tart proof: `move-workspace-to-zone <workspace> <zone>`. The existing workspace move command has monitor-assignment semantics that need a narrower design than the window/tab-group command path.
 
 Preserve:
 
@@ -491,11 +528,54 @@ For tab groups, make `move-node-to-zone` move the nearest tab group when the foc
 
 Tart video gate: record `focus-zone`, `move-node-to-zone`, and the compatibility behavior for `focus-monitor 1`.
 
+Slice 4 proof storyboard:
+
+- Prepare three labeled TextEdit windows before the proof actions if possible, then capture a `01-ready-slice-4.png` checkpoint with windows visible in `Reference`, `Work`, and `Comms`.
+- Caption 1: `Run: winmux focus-zone Reference`. The recording must visibly move focus to the left zone and log `focused-zone=left`.
+- Caption 2: `Run: winmux focus-zone Work`. The recording must visibly return focus to the main zone and log `focused-zone=main`.
+- Caption 3: `Run: winmux move-node-to-zone Comms --fail-if-noop`. The proof must start with a focused labeled window outside `Comms`, run a no-op-sensitive move, and show/log that the same window moved to zone id `right`.
+- Caption 4: `Run: winmux focus-monitor 1`. The proof must show that physical monitor compatibility still targets the configured default or last-focused zone on physical monitor 1, not "zone number 1" as a separate physical display.
+- Logs must include `slice-4-focus-zone.log`, `slice-4-move-node-to-zone.log`, `slice-4-focus-monitor-compat.log`, `slice-4-windows-before.log`, `slice-4-windows-after.log`, and `slice-4-zones.log`.
+- Verifier assertions must require exact command chips, strict guest capture, successful focus/move command logs, at least one no-op-sensitive movement proof, and media checkpoints that correspond to the logged actions.
+
 Artifact review gate: no-context subagent confirms the command workflow is understandable from the recording and stays consistent with WinMux's sidebar/tab/intent-zone positioning before Slice 5 starts.
+
+Slice 4 result:
+
+- stale artifact directory: `artifacts/e2e/slice-4-20260624T002446Z`; the command proof and recording completed, but the guest success marker was empty, so current verifier hardening supersedes this run.
+- accepted artifact directory: `artifacts/e2e/slice-4-20260624T002907Z`;
+- annotated recording: `artifacts/e2e/slice-4-20260624T002907Z/recordings/slice-4-zone-commands.mov`;
+- raw guest recording: `artifacts/e2e/slice-4-20260624T002907Z/recordings/raw/slice-4-zone-commands.raw.mov`;
+- screenshots: `00-before-slice-4.png`, `01-ready-slice-4.png`, `99-after-slice-4.png`, and `slice-4-zone-commands.contact-sheet.jpg`;
+- proof: `artifacts/e2e/slice-4-20260624T002907Z/slice-4-zone-commands-proof.txt`;
+- mechanical verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-4-20260624T002907Z` passed;
+- no-context review: `artifacts/e2e/slice-4-20260624T002907Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- post-review verifier: `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-4-20260624T002907Z ARGS=--require-review` passed;
+- retrospectives: `artifacts/e2e/slice-4-20260624T002907Z/retrospectives/process-plan.md`, `code-harness.md`, and `artifact-product.md`;
+- artifact claim: `list-zones`, `focus-zone Reference`, `focus-zone Work`, `move-node-to-zone Comms --fail-if-noop`, and physical `focus-monitor 1` compatibility are visible enough in the media and proven in logs under strict guest capture. The moved `move-demo.rtf` window keeps the same window id and moves from Work/main to Comms/right.
+- accepted notes: the first focus caption starts before the managed windows are visible, so the first visual beat is weak. Future product slices must start proof captions from a prepared visible state and include better timeline samples.
+- non-claims: this slice does not prove sidebar UX, drag targets, per-zone sidebar rendering, intent-zone hover behavior, or root-demo-level polish.
 
 ### Slice 5: Sidebar and Drag UX
 
 Goal: make zones visible and usable from the sidebar.
+
+Pre-slice cleanup before Slice 5 starts:
+
+- [ ] Read all three Slice 4 retrospection reports and keep the accepted blockers in this checklist.
+- [ ] Define the exact Slice 5 proof storyboard before UI implementation: sidebar-visible ready state, one chosen object type for drag or move proof, before/after logs, `01-ready-slice-5.png`, final screenshot, exact caption chips, and explicit non-claims.
+- [ ] Add a pre-record setup or ready-state phase so proof captions begin only after the sidebar and zone state they describe are visible.
+- [ ] Add standard sampled frames or an improved contact sheet that includes start, ready state, each caption/action boundary, and near-end final state for every product recording.
+- [ ] Strengthen `verify-artifact` so slice `.done` markers must contain `result=success`, not just non-empty content.
+- [ ] Keep artifacts free of Finder metadata before review handoff and rerun the verifier immediately after local media inspection.
+- [ ] Wire Slice 5 into the harness before Tart: Make target, guest script, sidebar-enabled config, harness action, annotation plan, verifier case, README, and prompt/doc updates.
+- [ ] Make guest retries safe for side-effectful UI scripts by warming transport before recording and ensuring scenario setup is idempotent.
+- [ ] Add fast tests for `move-node-to-zone --fail-if-noop`, `--window-id`, no-zone failure paths, `zone:` selector execution, and `list-zones --count`/JSON output.
+- [ ] Add at least one pure sidebar scope test proving sidebar physical-monitor scope remains distinct from zone viewport scope.
+- [ ] Decide and document the `list-monitors` versus `list-zones` contract before further scripts depend on listing output.
+- [ ] Restore current-verifier reproducibility for the accepted Slice 3 baseline, or explicitly document a versioned historical exception before treating old artifacts as regression inputs.
+- [ ] Inventory untracked required Slice 4 files and commit or otherwise intentionally carry them forward before starting Slice 5.
 
 Work:
 

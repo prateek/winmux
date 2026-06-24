@@ -245,6 +245,81 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(viewports[2].activeWorkspace === right)
     }
 
+    func testZoneViewportIdentitySurvivesColumnWidthChange() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [
+            ZoneConfig(
+                monitor: .main,
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ],
+            ),
+        ]
+        let originalViewports = workspaceViewports
+        XCTAssertEqual(originalViewports.map(\.zoneId), ["left", "main", "right"])
+
+        let left = Workspace.get(byName: "left-workspace")
+        let center = Workspace.get(byName: "center-workspace")
+        let right = Workspace.get(byName: "right-workspace")
+        XCTAssertTrue(originalViewports[0].setActiveWorkspace(left))
+        XCTAssertTrue(originalViewports[1].setActiveWorkspace(center))
+        XCTAssertTrue(originalViewports[2].setActiveWorkspace(right))
+
+        config.zones = [
+            ZoneConfig(
+                monitor: .main,
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.20),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.60),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.20),
+                ],
+            ),
+        ]
+        Workspace.reconcileWorkspaceState()
+        let updatedViewports = workspaceViewports
+
+        XCTAssertEqual(updatedViewports.map(\.zoneId), ["left", "main", "right"])
+        assertRectsEqual(updatedViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 200, height: 800),
+            Rect(topLeftX: 200, topLeftY: 0, width: 600, height: 800),
+            Rect(topLeftX: 800, topLeftY: 0, width: 200, height: 800),
+        ])
+        XCTAssertTrue(MonitorViewportId(originalViewports[1]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[1])))
+        XCTAssertTrue(MonitorViewportId(originalViewports[2]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[2])))
+        XCTAssertNotEqual(originalViewports[1].rect.topLeftCorner, updatedViewports[1].rect.topLeftCorner)
+        XCTAssertNotEqual(originalViewports[2].rect.topLeftCorner, updatedViewports[2].rect.topLeftCorner)
+        XCTAssertTrue(updatedViewports[0].activeWorkspace === left)
+        XCTAssertTrue(updatedViewports[1].activeWorkspace === center)
+        XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
+    }
+
+    func testMonitorViewportIdDecodesLegacyPointOnlyIdentity() throws {
+        let data = #"{"topLeftCorner":[10,20]}"#.data(using: .utf8).orDie()
+
+        let viewportId = try JSONDecoder().decode(MonitorViewportId.self, from: data)
+        let encoded = try JSONEncoder().encode(viewportId)
+        let encodedString = String(data: encoded, encoding: .utf8).orDie()
+
+        XCTAssertEqual(viewportId.topLeftCorner, CGPoint(x: 10, y: 20))
+        XCTAssertEqual(viewportId.stableIdentity, "physical:10.0,20.0")
+        XCTAssertTrue(encodedString.contains("stableIdentity"))
+    }
+
     func testPhysicalMonitorActiveWorkspaceDelegatesToDefaultZoneViewport() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,

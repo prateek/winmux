@@ -58,6 +58,10 @@ Required checks:
    visible workspace/window-management behavior, tab group/sidebar/intent-zone
    affordances when the slice claims them, restrained presentation, and no
    generic demo clutter.
+   For config reload or command-selector slices, compare copied configs against
+   preflight source paths and checksums when available. A copied input config
+   mutated in place is a hard failure unless the slice notes explicitly call out
+   a historical exception.
 7. Check that the artifact would make sense to an end user reviewing the feature.
 8. State whether the artifact shows a clean start state, action in progress,
    final expected state, visible WinMux/product surface relevant to the slice,

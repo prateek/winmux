@@ -67,8 +67,187 @@ value_from_log() {
     /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
 }
 
+file_sha256() {
+    shasum -a 256 "$1" | awk '{ print $1 }'
+}
+
+require_no_ds_store() {
+    local found
+    found="$(find "$RUN_DIR" -name .DS_Store -print -quit)"
+    [ -z "$found" ] || die "Artifact contains Finder metadata: $found"
+}
+
+verify_hash_from_preflight() {
+    local key="$1"
+    local path="$2"
+    local expected
+    expected="$(value_from_log "$key" "$PREFLIGHT_LOG")"
+    [ -n "$expected" ] || return 0
+    require_file "$path"
+    local actual
+    actual="$(file_sha256 "$path")"
+    [ "$actual" = "$expected" ] || die "$path hash $actual does not match preflight $key=$expected"
+}
+
+field_for_title() {
+    local path="$1"
+    local title="$2"
+    local field="$3"
+    /usr/bin/awk -F'|' -v title="$title" -v field="$field" '$2 == title {
+        if (field == "id") {
+            print $1
+            exit
+        }
+        prefix = field "="
+        for (i = 1; i <= NF; i++) {
+            if (index($i, prefix) == 1) {
+                print substr($i, length(prefix) + 1)
+                exit
+            }
+        }
+    }' "$path"
+}
+
+monitor_field_for_zone() {
+    local path="$1"
+    local zone="$2"
+    local field="$3"
+    /usr/bin/awk -F'|' -v zone="zone=${zone}" -v field="$field" '$1 == zone {
+        prefix = field "="
+        for (i = 1; i <= NF; i++) {
+            if (index($i, prefix) == 1) {
+                print substr($i, length(prefix) + 1)
+                exit
+            }
+        }
+    }' "$path"
+}
+
+require_slice_3_stable_identity_proof() {
+    local proof="${RUN_DIR}/slice-3-stable-identity-proof.txt"
+    local done="${LOGS_DIR}/slice-3-stable-identity.done"
+    local monitors_before="${LOGS_DIR}/slice-3-monitors-before.log"
+    local monitors_after="${LOGS_DIR}/slice-3-monitors-after.log"
+    local windows_before="${LOGS_DIR}/slice-3-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-3-windows-after.log"
+    local workspaces_before="${LOGS_DIR}/slice-3-workspaces-before.log"
+    local workspaces_after="${LOGS_DIR}/slice-3-workspaces-after.log"
+
+    require_file "$proof"
+    require_file "$done"
+    require_file "$monitors_before"
+    require_file "$monitors_after"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$workspaces_before"
+    require_file "$workspaces_after"
+    grep -F 'PASS: config reload changed zone geometry while labeled windows stayed bound to left/main/right zone ids.' "$proof" >/dev/null \
+        || die "Slice 3 proof does not contain the expected PASS claim"
+
+    for zone in left main right; do
+        grep -F "zone=${zone}|" "$monitors_before" >/dev/null || die "Slice 3 before monitors missing zone=$zone"
+        grep -F "zone=${zone}|" "$monitors_after" >/dev/null || die "Slice 3 after monitors missing zone=$zone"
+        grep -F "zone=${zone}|" "$workspaces_before" >/dev/null || die "Slice 3 before workspaces missing zone=$zone"
+        grep -F "zone=${zone}|" "$workspaces_after" >/dev/null || die "Slice 3 after workspaces missing zone=$zone"
+    done
+
+    local changed=0
+    for zone in left main right; do
+        for field in left width; do
+            before="$(monitor_field_for_zone "$monitors_before" "$zone" "$field")"
+            after="$(monitor_field_for_zone "$monitors_after" "$zone" "$field")"
+            [ -n "$before" ] && [ -n "$after" ] || die "Slice 3 missing monitor $field for zone=$zone"
+            if [ "$before" != "$after" ]; then
+                changed=1
+            fi
+        done
+    done
+    [ "$changed" = "1" ] || die "Slice 3 monitor geometry did not change after reload"
+
+    for title in left-reference.rtf main-work.rtf right-comms.rtf; do
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        after_id="$(field_for_title "$windows_after" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$after_id" ] || die "Slice 3 missing window title before/after: $title"
+        [ "$before_id" = "$after_id" ] || die "Slice 3 window id changed for $title: $before_id -> $after_id"
+        [ "$before_zone" = "$after_zone" ] || die "Slice 3 zone changed for $title: $before_zone -> $after_zone"
+        [ "$before_workspace" = "$after_workspace" ] || die "Slice 3 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+}
+
+require_slice_4_zone_commands_proof() {
+    local proof="${RUN_DIR}/slice-4-zone-commands-proof.txt"
+    local done="${LOGS_DIR}/slice-4-zone-commands.done"
+    local zones="${LOGS_DIR}/slice-4-zones.log"
+    local focus_zone="${LOGS_DIR}/slice-4-focus-zone.log"
+    local move_zone="${LOGS_DIR}/slice-4-move-node-to-zone.log"
+    local focus_monitor="${LOGS_DIR}/slice-4-focus-monitor-compat.log"
+    local windows_before="${LOGS_DIR}/slice-4-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-4-windows-after.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-4.png"
+
+    require_file "$proof"
+    require_file "$done"
+    require_file "$zones"
+    require_file "$focus_zone"
+    require_file "$move_zone"
+    require_file "$focus_monitor"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$ready_screenshot"
+
+    grep -F 'PASS: focus-zone, move-node-to-zone, list-zones, and focus-monitor physical compatibility are visible and logged.' "$proof" >/dev/null \
+        || die "Slice 4 proof does not contain the expected PASS claim"
+
+    grep -F 'zone=left|name=Reference|' "$zones" >/dev/null || die "Slice 4 zones log missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$zones" >/dev/null || die "Slice 4 zones log missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$zones" >/dev/null || die "Slice 4 zones log missing Comms/right"
+
+    grep -F '$ winmux focus-zone Reference' "$focus_zone" >/dev/null || die "Slice 4 focus log missing focus-zone Reference command"
+    grep -F 'reference-focused-zone=left' "$focus_zone" >/dev/null || die "Slice 4 focus log did not prove Reference focuses left"
+    grep -F '$ winmux focus-zone Work' "$focus_zone" >/dev/null || die "Slice 4 focus log missing focus-zone Work command"
+    grep -F 'work-focused-zone=main' "$focus_zone" >/dev/null || die "Slice 4 focus log did not prove Work focuses main"
+
+    grep -F '$ winmux move-node-to-zone Comms --fail-if-noop' "$move_zone" >/dev/null \
+        || die "Slice 4 move log missing strict move-node-to-zone command"
+    grep -F 'before-zone=main' "$move_zone" >/dev/null || die "Slice 4 move log missing before-zone=main"
+    grep -F 'after-zone=right' "$move_zone" >/dev/null || die "Slice 4 move log missing after-zone=right"
+    local before_id after_id
+    before_id="$(value_from_log window-id-before "$move_zone")"
+    after_id="$(value_from_log window-id-after "$move_zone")"
+    [ -n "$before_id" ] && [ -n "$after_id" ] || die "Slice 4 move log missing before/after window ids"
+    [ "$before_id" = "$after_id" ] || die "Slice 4 moved window id changed: $before_id -> $after_id"
+
+    local before_zone after_zone before_workspace after_workspace
+    before_zone="$(field_for_title "$windows_before" 'move-demo.rtf' zone)"
+    after_zone="$(field_for_title "$windows_after" 'move-demo.rtf' zone)"
+    before_workspace="$(field_for_title "$windows_before" 'move-demo.rtf' workspace)"
+    after_workspace="$(field_for_title "$windows_after" 'move-demo.rtf' workspace)"
+    [ "$before_zone" = main ] || die "Slice 4 move-demo.rtf did not start in main zone: ${before_zone:-missing}"
+    [ "$after_zone" = right ] || die "Slice 4 move-demo.rtf did not end in right zone: ${after_zone:-missing}"
+    [ -n "$before_workspace" ] && [ -n "$after_workspace" ] || die "Slice 4 missing move-demo workspace before/after"
+    [ "$before_workspace" != "$after_workspace" ] || die "Slice 4 move-demo workspace did not change"
+
+    grep -F '$ winmux focus-monitor 1' "$focus_monitor" >/dev/null || die "Slice 4 compatibility log missing focus-monitor 1 command"
+    grep -F 'focused-zone=main' "$focus_monitor" >/dev/null || die "Slice 4 focus-monitor compatibility did not land on main zone"
+    grep -F 'compat=physical-monitor-default-zone' "$focus_monitor" >/dev/null || die "Slice 4 compatibility proof claim missing"
+
+    grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null || die "Slice 4 annotations missing list-zones chip"
+    grep -F "Run: winmux focus-zone Reference" "$annotation_plan" >/dev/null || die "Slice 4 annotations missing focus-zone Reference chip"
+    grep -F "Run: winmux focus-zone Work" "$annotation_plan" >/dev/null || die "Slice 4 annotations missing focus-zone Work chip"
+    grep -F "Run: winmux move-node-to-zone Comms --fail-if-noop" "$annotation_plan" >/dev/null \
+        || die "Slice 4 annotations missing strict move-node-to-zone chip"
+    grep -F "Run: winmux focus-monitor 1" "$annotation_plan" >/dev/null || die "Slice 4 annotations missing focus-monitor compatibility chip"
+}
+
+require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
+verify_hash_from_preflight config_sha256 "$CONFIG_PATH"
+verify_hash_from_preflight reload_config_sha256 "${RUN_DIR}/config/winmux-shifted.toml"
 require_file "${LOGS_DIR}/guest-control-check.log"
 require_file "${LOGS_DIR}/guest-privacy-setup.log"
 require_file "${LOGS_DIR}/guest-clean-slate.log"
@@ -131,7 +310,7 @@ contact_sheet="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '*.contact-sh
 if [ -z "$contact_sheet" ]; then
     recording_name="$(basename "$recording_path" .mov)"
     contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
-    ffmpeg -hide_banner -loglevel error -y -i "$recording_path" -vf "fps=1/7,scale=860:-1,tile=4x1" "$contact_sheet"
+    ffmpeg -hide_banner -loglevel error -y -i "$recording_path" -vf "fps=1/7,scale=860:-1,tile=4x1" -frames:v 1 "$contact_sheet"
 fi
 require_file "$contact_sheet"
 
@@ -149,8 +328,25 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
             printf("Annotation row %d is missing a user-facing command/config/action: %s\n", NR, $0) > "/dev/stderr"
             exit 1
         }
+        $5 ~ /\.\.\.|<[^>]*>|winmux <command>/ {
+            printf("Annotation row %d uses a placeholder command/config/action: %s\n", NR, $0) > "/dev/stderr"
+            exit 1
+        }
     ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
 fi
+
+case "$recording_name" in
+    slice-3-stable-identity)
+        require_slice_3_stable_identity_proof
+        if [ -n "$(value_from_log config_sha256 "$PREFLIGHT_LOG")" ]; then
+            require_file "${RUN_DIR}/config/winmux-active.toml"
+        fi
+        verify_hash_from_preflight reload_config_sha256 "${RUN_DIR}/config/winmux-active.toml"
+        ;;
+    slice-4-zone-commands)
+        require_slice_4_zone_commands_proof
+        ;;
+esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
     review_path="${RUN_DIR}/reviews/no-ctx-artifact-review.md"

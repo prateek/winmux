@@ -130,20 +130,30 @@ struct WindowTabsConfig: ConvenienceCopyable, Equatable, Sendable {
 extension WorkspaceSidebarConfig {
     @MainActor
     func resolvedMonitor(sortedMonitors: [Monitor]) -> Monitor? {
-        monitor.lazy
-            .compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }
+        let sortedPhysicalMonitors = physicalMonitorCandidates(from: sortedMonitors)
+        return monitor.lazy
+            .compactMap { $0.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) }
             .first
     }
 
     @MainActor
     func resolvedMonitors(sortedMonitors: [Monitor]) -> [Monitor] {
-        guard !monitor.isEmpty else { return sortedMonitors }
+        let sortedPhysicalMonitors = physicalMonitorCandidates(from: sortedMonitors)
+        guard !monitor.isEmpty else { return sortedPhysicalMonitors }
         if monitor == [.main] {
-            return sortedMonitors
+            return sortedPhysicalMonitors
         }
         var seenTopLeftCorners = Set<CGPoint>()
         return monitor
-            .compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }
+            .compactMap { $0.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) }
             .filter { seenTopLeftCorners.insert($0.rect.topLeftCorner).inserted }
     }
+}
+
+private func physicalMonitorCandidates(from monitors: [Monitor]) -> [Monitor] {
+    var seenTopLeftCorners = Set<CGPoint>()
+    return sortMonitorsBySpatialOrder(
+        monitors.map(\.physicalMonitor)
+            .filter { seenTopLeftCorners.insert($0.rect.topLeftCorner).inserted },
+    )
 }
