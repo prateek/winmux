@@ -22,6 +22,9 @@ DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/harness-smoke.toml"
 if [ "$ACTION" = "slice-2" ] || [ "$ACTION" = "slice-3" ] || [ "$ACTION" = "slice-4" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones.toml"
 fi
+if [ "$ACTION" = "slice-5" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones-sidebar.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -70,7 +73,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4>
+Usage: $(basename "$0") <preflight|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -389,6 +392,11 @@ guest_script_retry() {
     done
 
     return 1
+}
+
+warm_guest_transport() {
+    local label="$1"
+    guest_script_retry "true" "${LOGS_DIR}/guest-control-warmup-${label}.log"
 }
 
 wait_for_guest_control() {
@@ -858,7 +866,7 @@ CAPTIONS
 0	10	Open zone windows	Three labeled TextEdit documents become live WinMux windows.	Run: open -a TextEdit left-reference.rtf
 10	18	Bind by zone name	Windows are assigned to Reference, Work, and Comms.	Run: winmux move-node-to-monitor Reference
 18	27	Reload shifted widths	The config changes column widths but keeps the same zone ids.	Run: winmux reload-config
-27	36	Same zones, new geometry	The CLI shows changed rects with windows still in their zones.	Run: winmux list-monitors --format 'zone=%{monitor-zone-id}|width=%{monitor-width}'
+27	36	Same zones, new geometry	The CLI shows changed rects with windows still in their zones.	Run: winmux list-monitors --format 'zone=%{monitor-zone-id}|left=%{monitor-left}|width=%{monitor-width}'
 CAPTIONS
             ;;
         slice-4-zone-commands)
@@ -868,6 +876,14 @@ CAPTIONS
 18	26	Return to Work	Zone names are stable user-facing command targets.	Run: winmux focus-zone Work
 26	36	Move with no-op protection	The focused window moves from Work to Comms and must not be a no-op.	Run: winmux move-node-to-zone Comms --fail-if-noop
 36	44	Physical monitor compatibility	Monitor 1 still means the physical display's default zone.	Run: winmux focus-monitor 1
+CAPTIONS
+            ;;
+        slice-5-sidebar-drag)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Sidebar-ready zones	The sidebar shows Reference, Work, and Comms on one physical display.	Config: [workspace-sidebar] enabled = true
+8	20	Drag to a zone target	A visible sidebar item moves into the Comms zone target.	Action: drag sidebar item to Comms zone
+20	30	Zone state updates	The sidebar and CLI agree on the active zone workspaces.	Run: winmux list-zones
+30	40	Final placement	The moved item remains in Comms after the drag completes.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
         *)
@@ -900,6 +916,102 @@ annotate_recording() {
     [ -s "$raw_path" ] || die "Raw recording was not preserved: $raw_path"
 }
 
+clamp_sample_time() {
+    local requested="$1"
+    local duration="$2"
+    awk -v requested="$requested" -v duration="$duration" 'BEGIN {
+        if (duration <= 0) {
+            printf "0.000"
+            exit
+        }
+        t = requested + 0
+        if (t < 0.250) {
+            t = 0.250
+        }
+        max = duration - 0.250
+        if (max < 0) {
+            max = 0
+        }
+        if (t > max) {
+            t = max
+        }
+        printf "%.3f", t
+    }'
+}
+
+sample_recording_frame() {
+    local path="$1"
+    local duration="$2"
+    local requested="$3"
+    local output="$4"
+    local seconds
+    seconds="$(clamp_sample_time "$requested" "$duration")"
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -ss "$seconds" \
+        -i "$path" \
+        -frames:v 1 \
+        "$output"
+    [ -s "$output" ] || die "Sample frame did not produce a non-empty file: $output"
+}
+
+generate_recording_samples() {
+    local name="$1"
+    local path="${RECORDINGS_DIR}/${name}.mov"
+    local duration="$2"
+    local samples_dir="${SCREENSHOTS_DIR}/${name}.samples"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
+
+    rm -rf "$samples_dir"
+    mkdir -p "$samples_dir"
+
+    sample_recording_frame "$path" "$duration" 0.500 "${samples_dir}/standard-00-start.png"
+    sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.10 }')" "${samples_dir}/standard-01-10pct.png"
+    sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.25 }')" "${samples_dir}/standard-02-25pct.png"
+    sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.50 }')" "${samples_dir}/standard-03-50pct.png"
+    sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.75 }')" "${samples_dir}/standard-04-75pct.png"
+    sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d - 1.0 }')" "${samples_dir}/standard-05-near-end.png"
+
+    if [ -s "$captions_path" ]; then
+        local caption_index=0
+        local start_seconds
+        local end_seconds
+        while IFS=$'\t' read -r start_seconds end_seconds; do
+            caption_index=$((caption_index + 1))
+            local sample_seconds
+            sample_seconds="$(awk -v start="$start_seconds" -v end="$end_seconds" 'BEGIN {
+                midpoint = (start + end) / 2
+                offset = start + 0.500
+                sample = offset
+                if (midpoint > offset) {
+                    sample = midpoint
+                }
+                printf "%.3f", sample
+            }')"
+            sample_recording_frame \
+                "$path" \
+                "$duration" \
+                "$sample_seconds" \
+                "${samples_dir}/caption-$(printf '%02d' "$caption_index").png"
+        done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
+    fi
+
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -framerate 1 \
+        -pattern_type glob \
+        -i "${samples_dir}/standard-*.png" \
+        -vf "scale=860:-1,tile=3x2" \
+        -frames:v 1 \
+        "$contact_sheet"
+    [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
+}
+
 wait_for_recording() {
     local name="$1"
     local pid
@@ -922,17 +1034,7 @@ wait_for_recording() {
             ffprobe -v error -show_entries stream=codec_name,width,height,avg_frame_rate -show_entries format=duration,size -of default=noprint_wrappers=1 "$path"
         } >>"${LOGS_DIR}/${name}.guest-screencapture.log"
     fi
-
-    local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
-    ffmpeg \
-        -hide_banner \
-        -loglevel error \
-        -y \
-        -i "$path" \
-        -vf "fps=1/7,scale=860:-1,tile=4x1" \
-        -frames:v 1 \
-        "$contact_sheet"
-    [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
+    generate_recording_samples "$name" "$duration"
 }
 
 run_guest_smoke() {
@@ -1538,11 +1640,41 @@ run_slice_4_zone_commands() {
         "${LOGS_DIR}/slice-4-run.log"
 }
 
+run_slice_5_sidebar_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-5-sidebar-drag.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE5_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-5-setup.log"
+}
+
+run_slice_5_sidebar_drag() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-5-sidebar-drag.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE5_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-5-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
     local after_name="$3"
     local scenario_fn="$4"
+    local setup_fn="${5:-}"
+    local ready_name="${6:-}"
 
     preflight
     ensure_host_build
@@ -1572,6 +1704,19 @@ run_recorded_scenario() {
     fi
 
     capture_screenshot "$before_name"
+    if [ -n "$setup_fn" ]; then
+        if [ "$guest_control_ready" = "1" ]; then
+            "$setup_fn"
+            if [ -n "$ready_name" ]; then
+                capture_screenshot "$ready_name"
+            fi
+        else
+            die "Prepared recording requires guest control"
+        fi
+    fi
+    if [ "$guest_control_ready" = "1" ]; then
+        warm_guest_transport "before-recording"
+    fi
     start_recording "$recording_name"
     if [ "$guest_control_ready" = "1" ]; then
         "$scenario_fn"
@@ -1605,6 +1750,10 @@ slice_4() {
     run_recorded_scenario "slice-4-zone-commands" "00-before-slice-4" "99-after-slice-4" "run_slice_4_zone_commands"
 }
 
+slice_5() {
+    run_recorded_scenario "slice-5-sidebar-drag" "00-before-slice-5" "99-after-slice-5" "run_slice_5_sidebar_drag" "run_slice_5_sidebar_setup" "01-ready-slice-5"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -1626,6 +1775,9 @@ case "$ACTION" in
         ;;
     slice-4)
         slice_4
+        ;;
+    slice-5)
+        slice_5
         ;;
     *)
         usage >&2

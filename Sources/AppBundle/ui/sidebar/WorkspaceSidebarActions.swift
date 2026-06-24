@@ -124,7 +124,7 @@ func selectedWorkspaceSidebarMonitorScope() -> Monitor? {
     else {
         return nil
     }
-    return sortedMonitors.first { workspaceSidebarMonitorScopeId(for: $0) == selectedScopeId }
+    return workspaceSidebarMonitor(forScopeId: selectedScopeId)
 }
 
 @MainActor
@@ -149,7 +149,7 @@ private func workspaceSidebarMonitorForScopeId(_ scopeId: String) -> Monitor? {
     else {
         return nil
     }
-    return sortedMonitors.first { workspaceSidebarMonitorScopeId(for: $0) == scopeId }
+    return workspaceSidebarMonitor(forScopeId: scopeId)
 }
 
 func workspaceSidebarWorkspaceCreateScope(

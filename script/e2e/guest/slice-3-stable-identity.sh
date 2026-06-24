@@ -412,4 +412,4 @@ cat \
 echo
 cat "${PROOF}"
 sleep 5
-touch "${DONE}"
+printf 'result=success\n' >"${DONE}"

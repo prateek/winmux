@@ -10,7 +10,7 @@ func workspaceSidebarMonitorScopeIsSentinel(_ scopeId: String) -> Bool {
 }
 
 func workspaceSidebarMonitorScopeId(for monitor: Monitor) -> String {
-    workspaceSidebarMonitorScopeId(for: monitor.rect.topLeftCorner)
+    workspaceSidebarMonitorScopeId(for: monitor.physicalMonitor.rect.topLeftCorner)
 }
 
 func workspaceSidebarMonitorScopeId(for point: CGPoint) -> String {
@@ -31,7 +31,7 @@ func workspaceSidebarMonitor(forScopeId scopeId: String) -> Monitor? {
         return focus.workspace.workspaceMonitor
     }
     guard let point = workspaceSidebarMonitorScopePoint(scopeId) else { return nil }
-    return sortedMonitors.first { $0.rect.topLeftCorner == point }
+    return sortedPhysicalMonitors.first { $0.rect.topLeftCorner == point }?.defaultWorkspaceViewport
 }
 
 func workspaceSidebarWorkspaceMatchesScope(

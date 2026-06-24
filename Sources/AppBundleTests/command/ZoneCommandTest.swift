@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import Foundation
 import XCTest
 
 @MainActor
@@ -26,6 +27,18 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(work.focusWorkspace())
 
         let result = try await FocusZoneCommand(args: FocusZoneCmdArgs(zone: ZoneSelector("Reference")))
+            .run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(focus.workspace === reference)
+    }
+
+    func testFocusZoneResolvesZoneIdPrefix() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+
+        let result = try await FocusZoneCommand(args: FocusZoneCmdArgs(zone: ZoneSelector("zone:left")))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -79,6 +92,38 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(window.nodeWorkspace === comms)
     }
 
+    func testMoveNodeToZoneFailsWhenNoopIsStrict() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let window = TestWindow.new(id: 42, parent: work.rootTilingContainer)
+        XCTAssertTrue(window.focusWindow())
+
+        let result = try await MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Work")).copy(\.failIfNoop, true))
+            .run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(window.nodeWorkspace === work)
+    }
+
+    func testMoveNodeToZoneUsesWindowId() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 43, parent: work.rootTilingContainer)
+        let focusedWindow = TestWindow.new(id: 44, parent: work.rootTilingContainer)
+        XCTAssertTrue(focusedWindow.focusWindow())
+
+        let result = try await MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Comms")).copy(\.windowId, 43))
+            .run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+    }
+
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")
@@ -114,6 +159,42 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(result.stdout.contains { $0.hasPrefix("main|Work|1|") })
         XCTAssertTrue(result.stdout.contains { $0.hasPrefix("right|Comms|1|") })
     }
+
+    func testListZonesCountAndJson() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+
+        let countResult = try await parseCommand("list-zones --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(countResult.exitCode, 0)
+        XCTAssertEqual(countResult.stdout, ["3"])
+
+        let jsonResult = try await parseCommand("list-zones --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(jsonResult.exitCode, 0)
+        let json = try XCTUnwrap(jsonResult.stdout.first)
+        let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
+        let referenceRow = try XCTUnwrap(rows.first { $0["monitor-zone-id"] as? String == "left" })
+        XCTAssertEqual(referenceRow["monitor-zone-name"] as? String, "Reference")
+        XCTAssertEqual("\(referenceRow["monitor-physical-id"] ?? "")", "1")
+        XCTAssertEqual(referenceRow["monitor-active-workspace"] as? String, "reference")
+    }
+
+    func testZoneCommandsFailWhenNoZonesAreConfigured() async throws {
+        configureNoZones()
+        let workspace = Workspace.get(byName: "work")
+        let window = TestWindow.new(id: 61, parent: workspace.rootTilingContainer)
+        XCTAssertTrue(window.focusWindow())
+
+        let focusResult = try await FocusZoneCommand(args: FocusZoneCmdArgs(zone: ZoneSelector("left")))
+            .run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focusResult.exitCode, 1)
+        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("No zones are configured"))
+
+        let moveResult = try await MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("left")))
+            .run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(moveResult.exitCode, 1)
+        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("No zones are configured"))
+    }
 }
 
 @MainActor
@@ -143,6 +224,21 @@ private func configureThreeZones(defaultZone: String = "main") -> [String: Monit
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
     })
+}
+
+@MainActor
+private func configureNoZones() {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zones = []
 }
 
 @MainActor

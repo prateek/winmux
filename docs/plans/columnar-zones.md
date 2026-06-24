@@ -187,7 +187,7 @@ The verifier must check:
 - immutable input config hashes match preflight when recorded;
 - guest-control, privacy, clean-slate, capture-readiness, and recording logs show success;
 - before/after screenshots exist;
-- a contact sheet exists or can be generated;
+- standard timeline samples and a contact sheet exist or can be generated;
 - slice-specific proof logs satisfy that slice's behavioral invariants when the verifier knows the recording name;
 - when `--require-review` is set, the review exists and ends in `PASS` or `PASS_WITH_NOTES`.
 
@@ -196,7 +196,7 @@ Gate order for every product slice:
 1. Run the fast pre-Tart gate.
 2. Run the Tart scenario.
 3. Run `make e2e-verify-slice RUN_DIR=...`.
-4. Locally inspect screenshots and contact sheet for obvious hard failures.
+4. Locally inspect screenshots, standard samples, and contact sheet for obvious hard failures.
 5. Run the no-context artifact review.
 6. Run `make e2e-verify-slice RUN_DIR=... ARGS=--require-review`.
 7. Run the three no-context retrospection agents.
@@ -251,7 +251,7 @@ Mixed call sites need explicit handling:
 - Zone selectors should be explicit: `zone:left`, `focus-zone left`, `move-node-to-zone right`.
 - Numeric monitor commands should select a physical display, then resolve to that display's last-focused zone or configured default zone. They should never mean "the Nth zone".
 - Directional monitor focus can traverse workspace viewports once zones are enabled, because that is the ergonomic behavior on an ultrawide.
-- `list-monitors` should remain physical; add `list-zones` or include a separate zones section in machine-readable output.
+- `list-zones` is the canonical zone enumeration surface. During these implementation slices, `list-monitors` remains a legacy workspace-viewport listing because earlier proofs and scripts use it for zone geometry. New zone-specific scripts should prefer `list-zones`; a later cleanup can split `list-monitors` back to physical-only output without changing selector semantics.
 
 ### Config Must Not Be Read From Off-Main Monitor Computation
 
@@ -563,19 +563,20 @@ Goal: make zones visible and usable from the sidebar.
 
 Pre-slice cleanup before Slice 5 starts:
 
-- [ ] Read all three Slice 4 retrospection reports and keep the accepted blockers in this checklist.
-- [ ] Define the exact Slice 5 proof storyboard before UI implementation: sidebar-visible ready state, one chosen object type for drag or move proof, before/after logs, `01-ready-slice-5.png`, final screenshot, exact caption chips, and explicit non-claims.
-- [ ] Add a pre-record setup or ready-state phase so proof captions begin only after the sidebar and zone state they describe are visible.
-- [ ] Add standard sampled frames or an improved contact sheet that includes start, ready state, each caption/action boundary, and near-end final state for every product recording.
-- [ ] Strengthen `verify-artifact` so slice `.done` markers must contain `result=success`, not just non-empty content.
-- [ ] Keep artifacts free of Finder metadata before review handoff and rerun the verifier immediately after local media inspection.
-- [ ] Wire Slice 5 into the harness before Tart: Make target, guest script, sidebar-enabled config, harness action, annotation plan, verifier case, README, and prompt/doc updates.
-- [ ] Make guest retries safe for side-effectful UI scripts by warming transport before recording and ensuring scenario setup is idempotent.
-- [ ] Add fast tests for `move-node-to-zone --fail-if-noop`, `--window-id`, no-zone failure paths, `zone:` selector execution, and `list-zones --count`/JSON output.
-- [ ] Add at least one pure sidebar scope test proving sidebar physical-monitor scope remains distinct from zone viewport scope.
-- [ ] Decide and document the `list-monitors` versus `list-zones` contract before further scripts depend on listing output.
-- [ ] Restore current-verifier reproducibility for the accepted Slice 3 baseline, or explicitly document a versioned historical exception before treating old artifacts as regression inputs.
-- [ ] Inventory untracked required Slice 4 files and commit or otherwise intentionally carry them forward before starting Slice 5.
+- [x] Read all three Slice 4 retrospection reports and keep the accepted blockers in this checklist.
+- [x] Define the exact Slice 5 proof storyboard before UI implementation: sidebar-visible ready state, one chosen object type for drag or move proof, before/after logs, `01-ready-slice-5.png`, final screenshot, exact caption chips, and explicit non-claims.
+- [x] Add a pre-record setup or ready-state phase so proof captions begin only after the sidebar and zone state they describe are visible.
+- [x] Add standard sampled frames or an improved contact sheet that includes start, ready state, each caption/action boundary, and near-end final state for every product recording.
+- [x] Strengthen `verify-artifact` so slice `.done` markers must contain `result=success`, not just non-empty content. The historical accepted Slice 3 artifact has a named exception; current Slice 3 reruns write `result=success`.
+- [x] Keep artifacts free of Finder metadata before review handoff and rerun the verifier immediately after local media inspection.
+- [x] Wire Slice 5 into the harness before Tart: Make target, guest script scaffold, sidebar-enabled config, harness action, annotation plan, verifier case, README, and prompt/doc updates.
+- [x] Warm guest transport before recording so transient SSH/auth failures happen before proof captions start.
+- [x] Add fast tests for `move-node-to-zone --fail-if-noop`, `--window-id`, no-zone failure paths, `zone:` selector execution, and `list-zones --count`/JSON output.
+- [x] Add at least one pure sidebar scope test proving sidebar physical-monitor scope remains distinct from zone viewport scope.
+- [x] Decide and document the `list-monitors` versus `list-zones` contract before further scripts depend on listing output.
+- [x] Restore current-verifier reproducibility for the accepted Slice 3 baseline, or explicitly document a versioned historical exception before treating old artifacts as regression inputs.
+- [x] Inventory untracked required Slice 4 files and commit or otherwise intentionally carry them forward before starting Slice 5. Committed in `6ee808e3`.
+- [ ] Replace the Slice 5 guest-script scaffold with the real idempotent setup/proof implementation before running `make e2e-slice-5`.
 
 Work:
 
@@ -588,6 +589,21 @@ Work:
 This slice should not add per-zone sidebars. If that becomes useful, add it later behind explicit config with a clear inset policy.
 
 Tart video gate: record the sidebar showing zone/workspace state and at least one drag or move into a zone target.
+
+Slice 5 proof storyboard:
+
+- Use `script/e2e/configs/column-zones-sidebar.toml`, which enables one physical sidebar panel and the same `Reference`, `Work`, and `Comms` zones.
+- Keep `00-before-slice-5.png` as the clean desktop proof before setup.
+- Run setup before the reviewed recording: launch WinMux, open the sidebar, stage visible workspace/window state for all three zones, make one window item or tab-group item visible in the sidebar, and capture `01-ready-slice-5.png`.
+- Record only the proof action after the ready screenshot. The chosen first proof object is a window sidebar item. Workspace and tab-group drags are explicitly deferred unless needed to implement the same target plumbing.
+- Caption chips:
+  - `Config: [workspace-sidebar] enabled = true`;
+  - `Action: drag sidebar item to Comms zone`;
+  - `Run: winmux list-zones`;
+  - `Run: winmux list-windows --monitor all`.
+- Logs must include `slice-5-sidebar-state-before.log`, `slice-5-sidebar-action.log`, `slice-5-sidebar-state-after.log`, `slice-5-windows-before.log`, `slice-5-windows-after.log`, and `slice-5-zones.log`.
+- The verifier must prove the ready screenshot exists, the `.done` marker contains `result=success`, the sidebar logs list all three zone sections, the action targets `right`/Comms, and the same object ends in the right zone.
+- Non-claims: this slice does not add per-zone sidebars, freeform layouts, app routing rules, or scene switching.
 
 Artifact review gate: no-context subagent confirms the sidebar zone UX is visible, legible, and consistent with the baseline screenshots before Slice 6 starts.
 

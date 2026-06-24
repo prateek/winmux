@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -90,13 +90,13 @@ e2e-guest-smoke:
 
 e2e-pre-tart-checks:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
+	guest_scripts=(script/e2e/guest/*.sh) && \
 	bash -n script/e2e/tart-recording-harness && \
 	bash -n script/e2e/annotate-recording && \
 	bash -n script/e2e/verify-artifact && \
-	bash -n script/e2e/guest/slice-3-stable-identity.sh && \
-	bash -n script/e2e/guest/slice-4-zone-commands.sh && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/verify-artifact script/e2e/guest/slice-3-stable-identity.sh script/e2e/guest/slice-4-zone-commands.sh; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
-	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest'"'"''
+	bash -n "$${guest_scripts[@]}" && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor'"'"''
 
 e2e-verify-slice:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact $(ARGS) "$(RUN_DIR)"'
@@ -116,6 +116,10 @@ e2e-slice-3:
 e2e-slice-4:
 	$(MAKE) e2e-pre-tart-checks
 	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-4 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=44 ./script/e2e/tart-recording-harness slice-4'
+
+e2e-slice-5:
+	$(MAKE) e2e-pre-tart-checks
+	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-5 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=40 ./script/e2e/tart-recording-harness slice-5'
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"

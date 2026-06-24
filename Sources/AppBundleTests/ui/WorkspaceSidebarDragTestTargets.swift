@@ -256,6 +256,48 @@ extension WorkspaceSidebarDragTest {
     }
 
     @MainActor
+    func testMonitorScopesDedupeZoneViewportsByPhysicalMonitor() {
+        setUpWorkspacesForTests()
+        let main = WorkspaceSidebarDragTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = true
+        config.workspaceSidebar.enableFocus = false
+        config.zones = [
+            ZoneConfig(
+                monitor: .sequenceNumber(1),
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ],
+            ),
+        ]
+        let zoneViewports = sortedMonitors
+        XCTAssertEqual(zoneViewports.compactMap(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(Set(zoneViewports.map { workspaceSidebarMonitorScopeId(for: $0) }).count, 1)
+
+        let scopes = buildWorkspaceSidebarMonitorScopes(
+            sortedMonitors: zoneViewports,
+            focusedMonitorScopeId: workspaceSidebarMonitorScopeId(for: zoneViewports[1]),
+        )
+
+        XCTAssertEqual(scopes.map(\.id), [
+            workspaceSidebarDefaultScopeId,
+            workspaceSidebarMonitorScopeId(for: main),
+        ])
+        XCTAssertEqual(workspaceSidebarMonitor(forScopeId: workspaceSidebarMonitorScopeId(for: main))?.zoneId, "main")
+    }
+
+    @MainActor
     func testWorkspaceSidebarFocusFilterDefaultsOff() {
         XCTAssertFalse(defaultConfig.workspaceSidebar.enableFocus)
     }

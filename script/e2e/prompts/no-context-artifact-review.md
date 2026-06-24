@@ -34,16 +34,19 @@ Required checks:
    Photos, Preview, notification banner, widgets, unrelated windows, or boot/setup
    screen.
 3. Inspect the after screenshot and representative frames from the recording.
-   Use an existing `screenshots/*.contact-sheet.jpg` if present; otherwise
-   generate one. Sample the start, about 10%, 25%, 50%, 75%, and near-end of the
-   recording. Do not rely only on logs.
+   Use existing `screenshots/<recording>.samples/*.png` and
+   `screenshots/*.contact-sheet.jpg` if present; otherwise generate equivalent
+   samples. Sample the start, about 10%, 25%, 50%, 75%, and near-end of the
+   recording, plus frames for each caption/action beat when captions are present.
+   Do not rely only on logs.
    The primary recording should include legible, restrained demo captions when
    `preflight.log` says `annotate_recording=1`; confirm the captions explain the
    visible action without hiding the windows or making the artifact look generic.
    The captions must also expose the user-facing WinMux config, command, or
    action that corresponds to the visible step, such as `winmux reload-config`,
    `winmux move-node-to-monitor Reference`, or the `[[zones]]` config surface.
-   Prefer explicit chips such as `Run: ...`, `Config: ...`, or `Edit: ...`.
+   Prefer explicit chips such as `Run: ...`, `Config: ...`, `Edit: ...`, or
+   `Action: ...`.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.

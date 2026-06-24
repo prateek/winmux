@@ -1,0 +1,29 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zones]]
+monitor = 1
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.30 },
+  { id = 'main', name = 'Work', width = 0.40 },
+  { id = 'right', name = 'Comms', width = 0.30 },
+]
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 240
+collapsed-width = 64
+show-date = false
+
+[workspace-sidebar.workspace-labels]
+reference = 'Reference'
+work = 'Work'
+comms = 'Comms'
+
+[mode.main.binding]
+alt-h = 'focus-zone Reference'
+alt-l = 'focus-zone Comms'

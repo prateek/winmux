@@ -37,7 +37,12 @@ func buildWorkspaceSidebarMonitorScopes(
             isFocusedMonitor: false,
         ))
     }
-    return scopes + sortedMonitors.enumerated().map { index, monitor in
+    var seenTopLeftCorners = Set<CGPoint>()
+    let physicalMonitors = sortMonitorsBySpatialOrder(
+        sortedMonitors.map(\.physicalMonitor)
+            .filter { seenTopLeftCorners.insert($0.rect.topLeftCorner).inserted },
+    )
+    return scopes + physicalMonitors.enumerated().map { index, monitor in
         let scopeId = workspaceSidebarMonitorScopeId(for: monitor)
         return WorkspaceSidebarMonitorScopeViewModel(
             id: scopeId,
