@@ -1241,6 +1241,122 @@ final class ZoneCommandTest: XCTestCase {
         ])
     }
 
+    func testListZoneBindingsEscapesFieldSeparatorsInTitles() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let window = TestWindow.new(id: 84, parent: work.rootTilingContainer, title: "Pipe|Equals=Backslash\\Line\nReturn\r")
+        XCTAssertTrue(window.focusWindow())
+
+        let result = try await parseCommand("bind-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+
+        let list = try await parseCommand("list-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.stdout, [
+            "node-id=window:84|node-type=window|window-ids=84|title=Pipe\\|Equals\\=Backslash\\\\Line\\nReturn\\r|zone=right|zone-name=Comms|workspace=comms|monitor=1|physical=physical:0.0,0.0",
+        ])
+    }
+
+    func testBindNodeToZoneRejectsWhenNoZonesConfigured() async throws {
+        configureNoZones()
+        let work = Workspace.get(byName: "work")
+        let window = TestWindow.new(id: 85, parent: work.rootTilingContainer, title: "No Zones")
+        XCTAssertTrue(window.focusWindow())
+
+        let result = try await parseCommand("bind-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("No zones are configured"))
+        XCTAssertTrue(window.nodeWorkspace === work)
+        let count = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(count.stdout, ["0"])
+    }
+
+    func testBindNodeToZoneRejectsDisabledZone() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let window = TestWindow.new(id: 86, parent: work.rootTilingContainer, title: "Stay Put")
+        XCTAssertTrue(window.focusWindow())
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let result = try await parseCommand("bind-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled. Use enable-zone Comms before targeting it."))
+        XCTAssertTrue(window.nodeWorkspace === work)
+        let count = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(count.stdout, ["0"])
+    }
+
+    func testBindNodeToZoneRebindOverwritesExistingBinding() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let window = TestWindow.new(id: 87, parent: work.rootTilingContainer, title: "Rebind Me")
+        XCTAssertTrue(window.focusWindow())
+
+        let first = try await parseCommand("bind-node-to-zone Reference").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(first.exitCode, 0)
+        XCTAssertTrue(window.nodeWorkspace === reference)
+
+        let second = try await parseCommand("bind-node-to-zone --window-id 87 Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(second.exitCode, 0)
+        XCTAssertEqual(second.stdout, ["Bound window:87 to zone right on monitor 1"])
+        XCTAssertTrue(window.nodeWorkspace === comms)
+
+        let count = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(count.stdout, ["1"])
+        let list = try await parseCommand("list-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.stdout, [
+            "node-id=window:87|node-type=window|window-ids=87|title=Rebind Me|zone=right|zone-name=Comms|workspace=comms|monitor=1|physical=physical:0.0,0.0",
+        ])
+    }
+
+    func testUnbindNodeZoneBindingReportsMissingBinding() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let window = TestWindow.new(id: 88, parent: work.rootTilingContainer, title: "Unbound")
+        XCTAssertTrue(window.focusWindow())
+
+        let result = try await parseCommand("unbind-node-zone-binding").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("No node zone binding exists for window:88"))
+    }
+
+    func testListZoneBindingsPrunesStaleTabGroupBindingAfterMembershipChanges() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let tabGroup = TilingContainer(parent: work.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 89, parent: tabGroup, title: "Group Alpha")
+        let second = TestWindow.new(id: 90, parent: tabGroup, title: "Group Beta")
+        XCTAssertTrue(first.focusWindow())
+
+        let bind = try await parseCommand("bind-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(bind.exitCode, 0)
+        let before = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(before.stdout, ["1"])
+
+        second.bind(to: comms.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+
+        let after = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(after.stdout, ["0"])
+    }
+
     func testUseZoneSceneRollsBackLayoutAndWorkspacesWhenLaterBindingFails() async throws {
         let zones = configureDuplicateZoneLayoutPresets()
         let primaryLeft = Workspace.get(byName: "primary-left")

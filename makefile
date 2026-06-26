@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 e2e-slice-17 release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -140,7 +140,7 @@ e2e-verify-slice-check:
 e2e-slice-closeout-check:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	test -n "$(RUN_DIR)" && \
-	./script/e2e/verify-artifact --check-only --require-review "$(RUN_DIR)" && \
+	./script/e2e/verify-artifact --check-only --require-review --check-sibling-artifacts "$(RUN_DIR)" && \
 	(test -s "$(RUN_DIR)/retrospectives/process-plan.md" || test -s "$(RUN_DIR)/reviews/retrospection-process-plan.md") && \
 	(test -s "$(RUN_DIR)/retrospectives/code-harness.md" || test -s "$(RUN_DIR)/reviews/retrospection-code-harness.md") && \
 	(test -s "$(RUN_DIR)/retrospectives/artifact-product.md" || test -s "$(RUN_DIR)/reviews/retrospection-artifact-product.md")'
@@ -201,6 +201,9 @@ e2e-slice-15:
 
 e2e-slice-16:
 	$(MAKE) e2e-run-product-slice SLICE=slice-16 ACTION=slice-16 RECORD_SECONDS=72
+
+e2e-slice-17:
+	$(MAKE) e2e-run-product-slice SLICE=slice-17 ACTION=slice-17 RECORD_SECONDS=70
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"

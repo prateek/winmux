@@ -4,18 +4,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REQUIRE_REVIEW=0
 CHECK_ONLY=0
+CHECK_SIBLING_ARTIFACTS=0
 SELF_TEST=0
 RUN_DIR=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--check-only] [--require-review] <artifact-run-dir>
+Usage: $(basename "$0") [--check-only] [--require-review] [--check-sibling-artifacts] <artifact-run-dir>
        $(basename "$0") --self-test
 
 Checks media, guest-control logs, clean-slate logs, and optional review verdict
 for a WinMux Tart e2e artifact directory.
 
 --check-only validates existing files without generating samples or reviewer packets.
+--check-sibling-artifacts rejects same-slice media artifacts that are neither accepted nor superseded.
 --self-test runs verifier helper tests without requiring a Tart artifact.
 EOF
 }
@@ -427,6 +429,10 @@ while [ "$#" -gt 0 ]; do
             CHECK_ONLY=1
             shift
             ;;
+        --check-sibling-artifacts)
+            CHECK_SIBLING_ARTIFACTS=1
+            shift
+            ;;
         --self-test)
             SELF_TEST=1
             shift
@@ -805,6 +811,54 @@ require_review_mentions_semantic_samples() {
     done < <(/usr/bin/awk -F'\t' '$1 == "semantic" { print $2 "\t" $5 }' "$manifest_path")
 }
 
+review_is_accepted() {
+    local review_path="$1"
+    [ -s "$review_path" ] || return 1
+    case "$(tail -n 1 "$review_path")" in
+        PASS|PASS_WITH_NOTES) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+artifact_has_product_media() {
+    local artifact_dir="$1"
+    [ -d "${artifact_dir}/recordings" ] || return 1
+    find "${artifact_dir}/recordings" -maxdepth 2 -type f \( -name '*.mov' -o -name '*.mp4' \) -print -quit | grep . >/dev/null
+}
+
+artifact_has_review_packet() {
+    local artifact_dir="$1"
+    [ -s "${artifact_dir}/reviews/reviewer-packet.md" ]
+}
+
+artifact_is_superseded() {
+    local artifact_dir="$1"
+    [ -s "${artifact_dir}/reviews/superseded.md" ] && [ -s "${artifact_dir}/logs/run-abort-status.txt" ]
+}
+
+require_no_stale_sibling_artifacts() {
+    local run_basename parent_dir slice_prefix candidate candidate_basename offenders
+    run_basename="$(basename "$RUN_DIR")"
+    parent_dir="$(dirname "$RUN_DIR")"
+    slice_prefix="$(printf '%s\n' "$run_basename" | /usr/bin/sed -E 's/-[0-9]{8}T[0-9]{6}Z$//')"
+    [ -n "$slice_prefix" ] || return 0
+    [ "$slice_prefix" != "$run_basename" ] || return 0
+
+    offenders=""
+    for candidate in "${parent_dir}/${slice_prefix}"-*; do
+        [ -d "$candidate" ] || continue
+        candidate_basename="$(basename "$candidate")"
+        if artifact_has_product_media "$candidate" || artifact_has_review_packet "$candidate"; then
+            if review_is_accepted "${candidate}/reviews/no-ctx-artifact-review.md" || artifact_is_superseded "$candidate"; then
+                continue
+            fi
+            offenders="${offenders}${candidate_basename} "
+        fi
+    done
+
+    [ -z "$offenders" ] || die "Same-slice artifact(s) have product media or reviewer packets but are neither accepted nor superseded: ${offenders}"
+}
+
 require_sample_manifest_label() {
     local manifest_path="$1"
     local label="$2"
@@ -898,6 +952,21 @@ require_slice_15_sample_manifest() {
         bind-command-start \
         after-node-binding \
         inspect-node-binding; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_17_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        ready-guardrails \
+        escaped-title-command \
+        rebind-command \
+        disabled-zone-failure \
+        missing-unbind-failure \
+        stale-prune-command \
+        final-empty-count; do
         require_sample_manifest_label "$manifest_path" "$label"
     done
 }
@@ -3226,6 +3295,200 @@ require_slice_15_node_zone_binding_proof() {
         || die "Slice 15 after-state caption must be long enough to inspect the moved tab group"
 }
 
+require_slice_17_node_binding_guardrails_proof() {
+    local proof="${RUN_DIR}/slice-17-node-binding-guardrails-proof.txt"
+    local done="${LOGS_DIR}/slice-17-node-binding-guardrails.done"
+    local setup_log="${LOGS_DIR}/slice-17-node-binding-guardrails-setup.log"
+    local board_log="${LOGS_DIR}/slice-17-live-state-board.log"
+    local board_freshness="${LOGS_DIR}/slice-17-board-freshness.log"
+    local timing_log="${LOGS_DIR}/slice-17-command-timing.log"
+    local state_file="${LOGS_DIR}/slice-17-window-ids.env"
+    local ready_bindings="${LOGS_DIR}/slice-17-zone-bindings-ready.log"
+    local escaped_command="${LOGS_DIR}/slice-17-escaped-title-command.log"
+    local escaped_bindings="${LOGS_DIR}/slice-17-escaped-title-bindings.log"
+    local rebind_command="${LOGS_DIR}/slice-17-rebind-command.log"
+    local rebind_bindings="${LOGS_DIR}/slice-17-rebind-bindings.log"
+    local disabled_command="${LOGS_DIR}/slice-17-disabled-zone-command.log"
+    local disabled_bindings="${LOGS_DIR}/slice-17-disabled-zone-bindings.log"
+    local missing_command="${LOGS_DIR}/slice-17-missing-unbind-command.log"
+    local missing_bindings="${LOGS_DIR}/slice-17-missing-unbind-bindings.log"
+    local stale_command="${LOGS_DIR}/slice-17-stale-prune-command.log"
+    local stale_before_bindings="${LOGS_DIR}/slice-17-stale-prune-before-bindings.log"
+    local stale_after_bindings="${LOGS_DIR}/slice-17-stale-prune-after-bindings.log"
+    local final_bindings="${LOGS_DIR}/slice-17-zone-bindings-final.log"
+    local windows_before="${LOGS_DIR}/slice-17-windows-before.log"
+    local windows_rebind="${LOGS_DIR}/slice-17-windows-after-rebind.log"
+    local windows_stale_before="${LOGS_DIR}/slice-17-windows-before-stale-prune.log"
+    local windows_stale_after="${LOGS_DIR}/slice-17-windows-after-stale-prune.log"
+    local zones_log="${LOGS_DIR}/slice-17-zones.log"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 17"
+    require_file "$setup_log"
+    require_file "$board_log"
+    require_file "$board_freshness"
+    require_file "$timing_log"
+    require_file "$state_file"
+    require_file "$ready_bindings"
+    require_file "$escaped_command"
+    require_file "$escaped_bindings"
+    require_file "$rebind_command"
+    require_file "$rebind_bindings"
+    require_file "$disabled_command"
+    require_file "$disabled_bindings"
+    require_file "$missing_command"
+    require_file "$missing_bindings"
+    require_file "$stale_command"
+    require_file "$stale_before_bindings"
+    require_file "$stale_after_bindings"
+    require_file "$final_bindings"
+    require_file "$windows_before"
+    require_file "$windows_rebind"
+    require_file "$windows_stale_before"
+    require_file "$windows_stale_after"
+    require_file "$zones_log"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-17.png"
+    require_slice_17_sample_manifest "$(sample_manifest_path)"
+
+    grep -F 'PASS: node binding commands reject disabled targets, report missing unbinds, overwrite rebinds, escape separator titles, and prune stale tab-group membership without claiming persistence.' "$proof" >/dev/null \
+        || die "Slice 17 proof does not contain the expected PASS claim"
+    grep -F 'Non-claim: runtime node bindings are not relaunch-persistent' "$setup_log" >/dev/null \
+        || die "Slice 17 setup log missing non-persistence non-claim"
+    grep -F 'non-claim=runtime node bindings are not relaunch-persistent' "$proof" >/dev/null \
+        || die "Slice 17 proof missing non-persistence non-claim"
+    grep -F '[window-tabs]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 17 config missing window-tabs table"
+    grep -F "alt-b = 'bind-node-to-zone Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 17 config missing bind-node-to-zone key binding"
+    if grep -F '[[zone-bindings]]' "$CONFIG_PATH" >/dev/null; then
+        die "Slice 17 config must not use workspace [[zone-bindings]]; this slice proves runtime node bindings"
+    fi
+
+    local escaped_id rebind_id unbound_id stale_alpha_id stale_beta_id stale_key
+    escaped_id="$(value_from_log ESCAPED_ID "$state_file")"
+    rebind_id="$(value_from_log REBIND_ID "$state_file")"
+    unbound_id="$(value_from_log UNBOUND_ID "$state_file")"
+    stale_alpha_id="$(value_from_log STALE_ALPHA_ID "$state_file")"
+    stale_beta_id="$(value_from_log STALE_BETA_ID "$state_file")"
+    stale_key="$(value_from_log STALE_TAB_GROUP_KEY "$state_file")"
+    [ -n "$escaped_id" ] || die "Slice 17 state file missing ESCAPED_ID"
+    [ -n "$rebind_id" ] || die "Slice 17 state file missing REBIND_ID"
+    [ -n "$unbound_id" ] || die "Slice 17 state file missing UNBOUND_ID"
+    [ -n "$stale_alpha_id" ] || die "Slice 17 state file missing STALE_ALPHA_ID"
+    [ -n "$stale_beta_id" ] || die "Slice 17 state file missing STALE_BETA_ID"
+    [ -n "$stale_key" ] || die "Slice 17 state file missing STALE_TAB_GROUP_KEY"
+
+    grep -F 'node-bindings=none' "$ready_bindings" >/dev/null \
+        || die "Slice 17 ready bindings log must explicitly show zero node bindings"
+    grep -F "checkpoint=ready" "$board_log" >/dev/null \
+        || die "Slice 17 board log missing ready checkpoint"
+    for checkpoint in ready-recording escaped-title rebind disabled-zone missing-unbind stale-prune final; do
+        grep -F "checkpoint=${checkpoint}" "$board_log" >/dev/null \
+            || die "Slice 17 board log missing checkpoint ${checkpoint}"
+        grep -F "checkpoint=${checkpoint}|attempt=" "$board_freshness" >/dev/null \
+            || die "Slice 17 board freshness log missing checkpoint ${checkpoint}"
+    done
+
+    grep -F "\$ winmux bind-node-to-zone --window-id ${escaped_id} Comms" "$escaped_command" >/dev/null \
+        || die "Slice 17 escaped command log missing exact bind command"
+    grep -F "Bound window:${escaped_id} to zone right on monitor 1" "$escaped_command" >/dev/null \
+        || die "Slice 17 escaped command log missing success output"
+    grep -F "node-id=window:${escaped_id}|" "$escaped_bindings" >/dev/null \
+        || die "Slice 17 escaped bindings log missing expected window id"
+    grep -F 'title=escaped\|equals\=guardrail.rtf' "$escaped_bindings" >/dev/null \
+        || die "Slice 17 escaped bindings log missing escaped separator title"
+    grep -F 'zone=right' "$escaped_bindings" >/dev/null \
+        || die "Slice 17 escaped bindings row must target Comms/right"
+
+    grep -F "\$ winmux bind-node-to-zone --window-id ${rebind_id} Reference" "$rebind_command" >/dev/null \
+        || die "Slice 17 rebind log missing Reference bind command"
+    grep -F "\$ winmux bind-node-to-zone --window-id ${rebind_id} Comms" "$rebind_command" >/dev/null \
+        || die "Slice 17 rebind log missing Comms bind command"
+    grep -F "node-id=window:${rebind_id}|" "$rebind_bindings" >/dev/null \
+        || die "Slice 17 rebind bindings log missing expected window id"
+    [ "$(grep -c '^node-id=' "$rebind_bindings" || true)" = 1 ] \
+        || die "Slice 17 rebind must overwrite the existing binding, not create more rows"
+    [ "$(binding_log_value "$rebind_bindings" zone)" = right ] \
+        || die "Slice 17 rebind binding row must end in zone=right"
+    [ "$(field_for_title "$windows_rebind" 'rebind-guardrail.rtf' zone)" = right ] \
+        || die "Slice 17 rebind window is not visible in Comms/right after rebind"
+
+    grep -F '$ winmux disable-zone Comms' "$disabled_command" >/dev/null \
+        || die "Slice 17 disabled command log missing disable-zone command"
+    grep -F "\$ winmux bind-node-to-zone --window-id ${unbound_id} Comms" "$disabled_command" >/dev/null \
+        || die "Slice 17 disabled command log missing failed bind command"
+    grep -F "Zone 'Comms' is disabled" "$disabled_command" >/dev/null \
+        || die "Slice 17 disabled command log missing disabled-zone error"
+    grep -F 'exit-code=1' "$disabled_command" >/dev/null \
+        || die "Slice 17 disabled command log must include a failing exit code"
+    grep -F 'node-bindings=none' "$disabled_bindings" >/dev/null \
+        || die "Slice 17 disabled-zone failure must not create a binding"
+
+    grep -F "\$ winmux unbind-node-zone-binding --window-id ${unbound_id}" "$missing_command" >/dev/null \
+        || die "Slice 17 missing-unbind log missing exact command"
+    grep -F "No node zone binding exists for window:${unbound_id}" "$missing_command" >/dev/null \
+        || die "Slice 17 missing-unbind log missing expected error"
+    grep -F 'exit-code=1' "$missing_command" >/dev/null \
+        || die "Slice 17 missing-unbind log must include a failing exit code"
+    grep -F 'node-bindings=none' "$missing_bindings" >/dev/null \
+        || die "Slice 17 missing unbind must not create a binding"
+
+    grep -F '$ winmux bind-node-to-zone Comms' "$stale_command" >/dev/null \
+        || die "Slice 17 stale log missing bind-node-to-zone command"
+    grep -F "\$ winmux close --window-id ${stale_beta_id}" "$stale_command" >/dev/null \
+        || die "Slice 17 stale log missing close command"
+    grep -F "node-id=${stale_key}|" "$stale_before_bindings" >/dev/null \
+        || die "Slice 17 stale before bindings log missing tab-group key"
+    grep -F 'node-type=tab-group' "$stale_before_bindings" >/dev/null \
+        || die "Slice 17 stale before bindings log must be a tab-group binding"
+    grep -F 'node-bindings=none' "$stale_after_bindings" >/dev/null \
+        || die "Slice 17 stale after bindings log must show the binding was pruned"
+    [ "$(field_for_title "$windows_stale_before" 'stale-alpha-guardrail.rtf' id)" = "$stale_alpha_id" ] \
+        || die "Slice 17 stale alpha id missing before prune"
+    [ "$(field_for_title "$windows_stale_before" 'stale-beta-guardrail.rtf' id)" = "$stale_beta_id" ] \
+        || die "Slice 17 stale beta id missing before prune"
+    [ "$(field_for_title "$windows_stale_after" 'stale-alpha-guardrail.rtf' zone)" = right ] \
+        || die "Slice 17 stale alpha must remain in Comms/right after prune"
+    [ -z "$(field_for_title "$windows_stale_after" 'stale-beta-guardrail.rtf' id)" ] \
+        || die "Slice 17 stale beta should be closed before final stale-prune proof"
+    grep -F 'node-bindings=none' "$final_bindings" >/dev/null \
+        || die "Slice 17 final bindings log must show no runtime node bindings"
+
+    local escaped_offset rebind_offset disabled_offset missing_offset stale_offset final_offset
+    escaped_offset="$(value_from_log escaped-command-offset-seconds "$timing_log")"
+    rebind_offset="$(value_from_log rebind-command-offset-seconds "$timing_log")"
+    disabled_offset="$(value_from_log disabled-command-offset-seconds "$timing_log")"
+    missing_offset="$(value_from_log missing-unbind-offset-seconds "$timing_log")"
+    stale_offset="$(value_from_log stale-prune-offset-seconds "$timing_log")"
+    final_offset="$(value_from_log final-count-offset-seconds "$timing_log")"
+    assert_numeric_between_inclusive "$escaped_offset" 8 18 \
+        "Slice 17 escaped title command must happen while its caption is on screen"
+    assert_numeric_between_inclusive "$rebind_offset" 18 28 \
+        "Slice 17 rebind command must happen while its caption is on screen"
+    assert_numeric_between_inclusive "$disabled_offset" 28 38 \
+        "Slice 17 disabled-zone command must happen while its caption is on screen"
+    assert_numeric_between_inclusive "$missing_offset" 38 48 \
+        "Slice 17 missing-unbind command must happen while its caption is on screen"
+    assert_numeric_between_inclusive "$stale_offset" 48 62 \
+        "Slice 17 stale-prune command must happen while its caption is on screen"
+    assert_numeric_between_inclusive "$final_offset" 62 70 \
+        "Slice 17 final count command must happen while its caption is on screen"
+
+    for chip in \
+        "Run: winmux list-zone-bindings --count" \
+        "Run: winmux bind-node-to-zone --window-id \"\$ESCAPED_ID\" Comms" \
+        "Run: winmux bind-node-to-zone --window-id \"\$REBIND_ID\" Reference" \
+        "Run: winmux disable-zone Comms && bind-node-to-zone Comms" \
+        "Run: winmux unbind-node-zone-binding --window-id \"\$UNBOUND_ID\"" \
+        "Run: winmux close --window-id \"\$STALE_BETA_ID\""; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 17 annotations missing chip: $chip"
+    done
+    grep -F 'no relaunch persistence is claimed' "$annotation_plan" >/dev/null \
+        || die "Slice 17 annotations must explicitly avoid a relaunch-persistence claim"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -3397,6 +3660,9 @@ case "$recording_name" in
     slice-16-mouse-snap-affordance)
         require_slice_16_mouse_snap_affordance_proof
         ;;
+    slice-17-node-binding-guardrails)
+        require_slice_17_node_binding_guardrails_proof
+        ;;
 esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
@@ -3411,7 +3677,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
         PASS|PASS_WITH_NOTES) ;;
         *) die "Review verdict must be PASS or PASS_WITH_NOTES, got: $verdict" ;;
     esac
-    grep -F 'next slice allowed: yes' "$review_path" >/dev/null \
+    grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
         || die "Review must explicitly allow the next slice"
     if requires_current_artifact_contract; then
         grep -F 'resources/screenshots/winmux-overview.png' "$review_path" >/dev/null \
@@ -3419,6 +3685,10 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
         grep -F 'demo.mp4' "$review_path" >/dev/null \
             || die "Review must cite repo-root demo baseline media"
     fi
+fi
+
+if [ "$CHECK_SIBLING_ARTIFACTS" = "1" ]; then
+    require_no_stale_sibling_artifacts
 fi
 
 log "recording=$recording_path"

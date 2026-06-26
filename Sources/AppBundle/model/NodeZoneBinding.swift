@@ -94,17 +94,30 @@ struct NodeZoneBindingListRow {
 
     var displayLine: String {
         [
-            "node-id=\(binding.key.description)",
-            "node-type=\(binding.key.kind.rawValue)",
-            "window-ids=\(binding.key.windowIds.map(String.init).joined(separator: ","))",
-            "title=\(binding.title)",
-            "zone=\(binding.zoneId)",
-            "zone-name=\(binding.zoneName ?? "")",
-            "workspace=\(currentWorkspaceName)",
-            "monitor=\(binding.physicalMonitorId.map(String.init) ?? "")",
-            "physical=\(binding.physicalIdentity)",
+            field("node-id", binding.key.description),
+            field("node-type", binding.key.kind.rawValue),
+            field("window-ids", binding.key.windowIds.map(String.init).joined(separator: ",")),
+            field("title", binding.title),
+            field("zone", binding.zoneId),
+            field("zone-name", binding.zoneName ?? ""),
+            field("workspace", currentWorkspaceName),
+            field("monitor", binding.physicalMonitorId.map(String.init) ?? ""),
+            field("physical", binding.physicalIdentity),
         ].joined(separator: "|")
     }
+
+    private func field(_ name: String, _ value: String) -> String {
+        "\(name)=\(escapeZoneBindingFieldValue(value))"
+    }
+}
+
+private func escapeZoneBindingFieldValue(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\n", with: "\\n")
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "|", with: "\\|")
+        .replacingOccurrences(of: "=", with: "\\=")
 }
 
 @MainActor

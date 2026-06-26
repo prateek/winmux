@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-16 accepted; Slice 17 definition is next
+Status: slices 0-17 accepted; next work must start from the Pre-Slice-18 cleanup notes below
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -94,8 +94,8 @@ Current implementation comparison:
 - `ZoneBinding` is first-class for workspace preferences through
   `[[zone-bindings]]` and `apply-zone-bindings`. The implementation can also
   move a window or focused tab group into a zone and can route new windows with
-  `on-window-detected`. Slice 15 is adding the missing runtime
-  `WindowOrTabGroup` binding entity through `bind-node-to-zone`,
+  `on-window-detected`. Slice 15 added the runtime `WindowOrTabGroup` binding
+  entity through `bind-node-to-zone`,
   `unbind-node-zone-binding`, and `list-zone-bindings`.
 
 ## Interaction Model
@@ -2201,10 +2201,10 @@ Pre-Slice-13 cleanup:
 - [x] Commit the accepted Slice 12 dirty set or write an explicit carry-forward
   inventory before starting implementation for the next slice. This changeset
   is the Slice 12 boundary.
-- [ ] Before another drag-heavy Tart run, add a mechanical overlay/no-overlay
+- [x] Before another drag-heavy Tart run, add a mechanical overlay/no-overlay
   sentinel or write an explicit plan waiver for why that run does not need one.
-  Conditional: Slice 13 is keyboard-led, so this is only required if the Slice 13
-  recording adds drag proof.
+  Slice 16 adds `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`
+  with no-Option and Option-held target-zone crops plus an RMSE floor.
 - [x] Before another movement-proof artifact, avoid static initial-zone labels
   inside movable proof documents or pair them with a visible live state board.
   Slice 13 requires a visible live state board with current zone, active
@@ -2728,12 +2728,14 @@ Pre-Slice-16 cleanup from Slice 15 retrospectives:
 
 Deferred node-binding follow-ups before expanding binding semantics:
 
-- Add negative command coverage for disabled zones, no zones, rebind overwrite,
-  unbind-missing, and stale-prune behavior.
-- Decide whether tab-group bindings should survive tab membership changes, since
-  the current runtime key is `tab-group:<sorted-window-ids>`.
-- Make `list-zone-bindings` output machine-safe for titles containing separator
-  characters before treating it as a stable automation format.
+- [x] Add negative command coverage for disabled zones, no zones, rebind
+  overwrite, unbind-missing, and stale-prune behavior.
+- [x] Decide the current runtime node binding does not survive tab membership
+  changes; because the runtime key is `tab-group:<sorted-window-ids>`, a
+  membership change prunes the stale record. A future durable binding can choose
+  a different stable tab-group identity deliberately.
+- [x] Make `list-zone-bindings` output machine-safe for titles containing
+  separator characters before treating it as a stable automation format.
 - Consider factoring the duplicated `moveWindowOrTabGroupToWorkspace` overloads
   after the command semantics settle.
 
@@ -2871,6 +2873,147 @@ Deferred non-blocking hardening:
   meant to help review.
 - Consider labeling command timing logs as proof-script-relative versus
   recording-relative before a future reviewer needs to use those offsets.
+
+## Slice 17: Node Binding Guardrails and Machine-Safe Inspection
+
+Goal: make runtime window/tab-group zone bindings reliable enough to build on
+without overclaiming persistence. This slice hardens the command surface around
+bad targets, stale records, rebinding, and automation-safe inspection.
+
+Primary product claim:
+
+- `bind-node-to-zone`, `unbind-node-zone-binding`, and `list-zone-bindings`
+  behave predictably for disabled/no-zone targets, rebinding, missing unbinds,
+  stale tab-group membership, and titles containing separator characters.
+
+Implementation requirements:
+
+- Keep `list-zone-bindings` as the current command surface, but make every field
+  value backslash-escaped for `\`, `|`, `=`, LF, and CR so scripts can parse the
+  pipe-delimited format without title ambiguity.
+- Add in-process command tests for no zones, disabled zones, rebind overwrite,
+  unbind-missing, stale tab-group prune, and escaped title output.
+- Preserve the Slice 15 non-claim: runtime node bindings are not durable across
+  relaunch, and tab-group bindings use current membership as identity.
+- Do not add app-rule, launch-time, or persistent tab-group binding semantics in
+  this slice.
+
+Tart proof requirement:
+
+- Record a short Slice 17 video that shows the user-facing command surface and
+  state board for the guardrails:
+  - escaped `list-zone-bindings` output for a title containing separators;
+  - rebinding the same window from Reference to Comms with the count staying at
+    one;
+  - disabled-zone and missing-unbind failures shown as expected guardrails;
+  - stale tab-group binding pruning after a visible membership change.
+- The no-zone rejection path is covered by the in-process command test because a
+  Tart recording must run with configured zones to demonstrate the other
+  guardrails; do not overclaim no-zone desktop behavior in the video.
+- On-screen captions must expose the WinMux commands exactly, for example
+  `winmux bind-node-to-zone Comms`,
+  `winmux list-zone-bindings`, and
+  `winmux unbind-node-zone-binding`.
+- The no-context artifact reviewer must reject the slice if the video only shows
+  final state, hides the command/error text, or claims relaunch persistence.
+- Do not proceed to Slice 18 until the Slice 17 Tart artifact has mechanical
+  verification, no-context artifact review, `--require-review` verification,
+  closeout, and the three no-context retrospectives.
+
+Current status:
+
+- [x] Source guardrail implementation started.
+- [x] Focused command tests added for the intended Slice 17 guardrails.
+- [x] Tart harness scenario, semantic sample manifest, and mechanical verifier
+  added for Slice 17.
+- [x] Review packet, no-context prompt, README, and plan updated to require
+  visible Slice 17 command/error/action proof before acceptance.
+- [x] Focused Swift validation passed:
+  `swift test --filter ZoneCommandTest`.
+- [x] `make e2e-pre-tart-checks` passed after source/doc changes.
+- [x] Re-run focused Swift, shell, annotation, verifier self-test, and
+  pre-Tart checks after the Slice 17 harness/reviewer edits.
+- [x] Slice 17 Tart artifact recorded.
+- [x] No-context artifact review passed and `next slice allowed: yes`.
+- [x] Three no-context retrospectives completed and baked into pre-Slice-18
+  cleanup.
+- [x] Slice 17 accepted and committed.
+
+Accepted result:
+
+- artifact: `artifacts/e2e/slice-17-20260626T221824Z`
+- recording:
+  `artifacts/e2e/slice-17-20260626T221824Z/recordings/slice-17-node-binding-guardrails.mov`
+- raw recording:
+  `artifacts/e2e/slice-17-20260626T221824Z/recordings/raw/slice-17-node-binding-guardrails.raw.mov`
+- review:
+  `artifacts/e2e/slice-17-20260626T221824Z/reviews/no-ctx-artifact-review.md`
+  reports `Verdict: PASS_WITH_NOTES`, has the exact line
+  `next slice allowed: yes`, and ends with `PASS_WITH_NOTES`.
+- mechanical verifier:
+  `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-17-20260626T221824Z`
+  passed with a 3440x1440 H.264 annotated video, duration `69.983333s`, and
+  3032 frames.
+- post-review verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-17-20260626T221824Z ARGS=--require-review`
+  passed.
+- main-thread closeout:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-17-20260626T221824Z`
+  passed after the sibling-artifact hygiene check, the no-context review, and
+  all three retrospectives were present.
+- pre-Tart gate:
+  `TART_HOME=/Volumes/RiftTartVMs make e2e-slice-17` embedded
+  `make e2e-pre-tart-checks`, including shell checks, command metadata,
+  package/verifier self-tests, annotation preflight, warmup-policy self-test,
+  and 112 selected Swift tests.
+- accepted claim: runtime node-binding commands reject disabled targets, report
+  missing unbinds, overwrite rebinds for the same window, expose
+  machine-safe escaped `list-zone-bindings` rows for separator-containing
+  titles, and prune stale tab-group bindings after a visible membership change.
+- accepted non-claims: no relaunch persistence, no app-rule bindings, no
+  launch-time rebinding, and no durable tab-group identity. Tab-group bindings
+  still use current membership as identity.
+- accepted review note: `screenshots/01-ready-slice-17.png` is a
+  setup/staging checkpoint. The count-zero proof-ready board is visible in the
+  primary recording samples, especially `standard-00-start.png` and
+  `caption-01.png`.
+- three no-context retrospective reports:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md` under the accepted artifact directory.
+
+Failed and superseded attempt ledger:
+
+- `artifacts/e2e/slice-17-20260626T215835Z`: pre-recording semantic setup
+  failure. It has no accepted media; `logs/run-abort-status.txt` reports
+  `recording_started=no`.
+- `artifacts/e2e/slice-17-20260626T220321Z`: produced media and a reviewer
+  packet, but the mechanical verifier rejected placeholder command chips such
+  as `--window-id <id>` in the captions. It is marked with
+  `reviews/superseded.md` and `logs/run-abort-status.txt`, superseded by
+  `slice-17-20260626T221824Z`.
+- `artifacts/e2e/slice-17-20260626T221450Z`: pre-recording capture-readiness
+  failure. It has no product media and is not an accepted artifact.
+
+Pre-Slice-18 cleanup from Slice 17 retrospectives:
+
+- [x] Read all three Slice 17 retrospectives and fold accepted blockers into
+  this checklist.
+- [x] Mark the media-producing stale run
+  `artifacts/e2e/slice-17-20260626T220321Z` superseded before relying on
+  Slice 17 artifact globs.
+- [x] Add a sibling-artifact hygiene check to closeout so same-slice media
+  artifacts must be either accepted or explicitly superseded.
+- [x] Tighten no-context review verification to require the exact lowercase
+  line `next slice allowed: yes`.
+- [x] Add `demo-columnar-zones.mp4` to the product baseline list used by
+  reviewer packets and no-context artifact reviews.
+- [x] Run the post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-17-20260626T221824Z`.
+- [x] Isolate the accepted Slice 17 dirty work and commit it before starting
+  Slice 18.
+- [ ] Conditional for future proof-board slices: make semantic ready labels
+  point at recording-time evidence, or name setup-only screenshots as setup
+  checkpoints, before the Tart proof run.
 
 ## Call-Site Audit
 

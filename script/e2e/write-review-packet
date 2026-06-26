@@ -181,6 +181,20 @@ EOF
 - Reject logs-only proof, final-state-only proof, single-window binding proof, command-after-move proof, missing tab group evidence, or review without naming exact media for before/command/after/list beats.
 EOF
             ;;
+        slice-17-node-binding-guardrails)
+            cat <<'EOF'
+- Confirm the desktop starts clean and the ready state shows a visible guardrail board plus staged proof windows, not Terminal, sshd prompts, permission prompts, unrelated app windows, widgets, or setup UI.
+- Confirm captions or the live board expose concrete, copyable user-facing commands for every proof beat, with no angle-bracket placeholders: `winmux list-zone-bindings --count`, `winmux bind-node-to-zone --window-id "$ESCAPED_ID" Comms`, `winmux bind-node-to-zone --window-id "$REBIND_ID" Reference`, `winmux bind-node-to-zone --window-id "$REBIND_ID" Comms`, `winmux disable-zone Comms`, `winmux bind-node-to-zone --window-id "$UNBOUND_ID" Comms`, `winmux unbind-node-zone-binding --window-id "$UNBOUND_ID"`, and `winmux close --window-id "$STALE_BETA_ID"`.
+- Inspect the semantic sample manifest and named frames for `ready-guardrails`, `escaped-title-command`, `rebind-command`, `disabled-zone-failure`, `missing-unbind-failure`, `stale-prune-command`, and `final-empty-count`. Reject if any sample is missing, stale, or only shows final state.
+- Confirm the escaped-title beat visibly shows a `list-zone-bindings` row where the title contains escaped separators such as `escaped\|equals\=guardrail.rtf`.
+- Confirm the rebind beat shows the same window rebound from Reference to Comms while `list-zone-bindings --count` stays at one and the final row names Comms/right.
+- Confirm the disabled-zone and missing-unbind beats show expected command failures on the board or captioned proof surface, with count remaining zero.
+- Confirm the stale tab-group beat shows the user action that changes membership, including a concrete command such as `winmux close --window-id "$STALE_BETA_ID"`, and then shows the binding pruned to zero.
+- State that this slice proves runtime node-binding guardrails and machine-safe inspection only. It does not prove relaunch persistence, app-rule bindings, launch-time rebinding, or durable tab-group identity.
+- Compare caption style and content against the repo-root demo videos, screenshots, README, and linked product surfaces. Reject command text that is hidden, too generic, or styled like unrelated marketing copy.
+- Reject logs-only proof, final-state-only proof, hidden command/error text, stale live-board text, a proof that omits the stale membership-change action, or any relaunch-persistence claim.
+EOF
+            ;;
         slice-5-sidebar-drag|*drag*)
             cat <<'EOF'
 - Confirm the source sidebar item, dragged proxy, pointer/path, highlighted target zone row/section, hover hold, release, and final placement are visible in full-frame action samples or in-drag screenshots.
@@ -325,6 +339,7 @@ $(drag_screenshot_lines)
 - ${REPO_ROOT}/demo.mp4
 - ${REPO_ROOT}/demo2.mp4
 - ${REPO_ROOT}/demo3.mp4
+- ${REPO_ROOT}/demo-columnar-zones.mp4
 - ${REPO_ROOT}/resources/screenshots/winmux-overview.png
 - ${REPO_ROOT}/resources/screenshots/tab-groups.png
 - ${REPO_ROOT}/README.md

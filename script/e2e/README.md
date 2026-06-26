@@ -72,6 +72,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-16` records mouse snap affordance semantics with the same `script/e2e/configs/zone-mouse-snap.toml` policy as Slice 12, but with stricter proof artifacts. The recording shows a no-Option freeform drag with no zone move, then an Option-held drag whose caption says `snap to Comms zone` and whose overlay targets the whole Comms zone, not a window or slot. The harness writes `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`, which compares the target-zone crop in the no-Option hover frame with the Option-held hover frame so the verifier has a mechanical overlay/no-overlay affordance check in addition to the human review.
 
+`make e2e-slice-17` records node-binding guardrails with `script/e2e/configs/zone-node-bindings.toml` and `script/e2e/guest/slice-17-node-binding-guardrails.sh`. The setup phase stages a visible proof board plus windows for escaped-title, rebind, disabled-zone, missing-unbind, and stale-tab-group cases. The proof records the real `winmux` commands, including `list-zone-bindings --count`, `bind-node-to-zone --window-id ...`, `disable-zone Comms`, `unbind-node-zone-binding --window-id ...`, and `close --window-id ...`. The verifier checks semantic sample labels, command timing windows, escaped separator output, stable rebind count, expected failure paths, stale tab-group pruning, final empty count, and the Slice 15 non-claim that runtime node bindings are not relaunch-persistent.
+
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
 Slice 6B recording, fails unless that source artifact has strict guest-capture

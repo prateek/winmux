@@ -25,7 +25,7 @@ Slice:
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
 - relevant logs: <list exact log paths>
-- baseline media: demo.mp4, demo2.mp4, demo3.mp4,
+- baseline media: demo.mp4, demo2.mp4, demo3.mp4, demo-columnar-zones.mp4,
   resources/screenshots/winmux-overview.png, resources/screenshots/tab-groups.png
 - product surfaces: README.md, https://github.com/zimengxiong/winmux,
   https://macoswm.com/wm/winmux
@@ -292,10 +292,30 @@ Slice-specific checks:
   If internal window ids are not rendered in the video, distinguish visible
   title/tab evidence from log-supported identity evidence instead of claiming
   the ids were visually inspected.
+- Slice 17 must show runtime node-binding guardrails and machine-safe
+  inspection. Inspect the primary annotated recording first, then use the raw
+  recording, contact sheet, semantic sample manifest, caption-boundary frames,
+  and final edge crops as supporting evidence. The proof must show a clean
+  ready state, visible command/action text, and named semantic samples for
+  `ready-guardrails`, `escaped-title-command`, `rebind-command`,
+  `disabled-zone-failure`, `missing-unbind-failure`, `stale-prune-command`,
+  and `final-empty-count`. Confirm the escaped-title beat shows escaped
+  separators such as `escaped\|equals\=guardrail.rtf`; rebind overwrites the
+  existing binding while count stays one; disabled-zone and missing-unbind
+  commands fail visibly with count remaining zero; stale tab-group membership
+  is changed by a visible concrete close command such as
+  `winmux close --window-id "$STALE_BETA_ID"` and then pruned to zero; and the
+  final count is empty. Captions or the live board must expose copyable
+  user-facing commands for the action, not only say what happened. Reject
+  logs-only proof, final-state-only proof, hidden command/error text, stale
+  live-board content, angle-bracket placeholders in command text, missing
+  stale-membership action, no comparison against the root demos/product
+  surfaces, or any claim that runtime node bindings survive relaunch.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
 - Use PASS_WITH_NOTES only for polish that does not block the next slice.
-- Include a line `next slice allowed: yes` or `next slice allowed: no`.
+- Include the exact lowercase line `next slice allowed: yes` or
+  `next slice allowed: no`; do not capitalize this key.
 - End the file with exactly one of: PASS, PASS_WITH_NOTES, FAIL.
 ```
