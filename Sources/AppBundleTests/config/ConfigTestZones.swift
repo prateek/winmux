@@ -109,6 +109,26 @@ extension ConfigTest {
         assertEquals(parsed.zoneScenes[0].workspaces.compactMap { $0.workspace?.raw }, ["FocusQueue", "FocusBuild", "FocusNotes"])
     }
 
+    func testParseZoneStyles() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[zone-styles]]
+                id = 'urgent'
+                color = '#d3455b'
+
+            [[zone-styles]]
+                id = 'calm'
+                color = '3EA2FF'
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneStyles, [
+            ZoneStyleConfig(id: "urgent", color: "#D3455B"),
+            ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
+        ])
+    }
+
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """
@@ -163,6 +183,30 @@ extension ConfigTest {
             "zone-scenes[0].layout-preset: Unknown zone layout preset 'missing'",
             "zone-scenes[1].workspaces[0].zone: Must name one of the zones in layout preset 'focus'",
             "zone-scenes[1].workspaces[1].zone: Must name one of the zones in layout preset 'focus'",
+        ])
+    }
+
+    func testRejectInvalidZoneStyles() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-styles]]
+                id = 'urgent'
+                color = 'not-a-color'
+
+            [[zone-styles]]
+                id = 'urgent'
+
+            [[zone-styles]]
+                color = '#3EA2FF'
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-styles[0].color: Must be a hex color like '#RRGGBB'",
+            "zone-styles[0].color: Missing required key",
+            "zone-styles[1].color: Missing required key",
+            "zone-styles[2].id: Missing required key",
+            "zone-styles: Contains duplicated style ids: urgent",
         ])
     }
 

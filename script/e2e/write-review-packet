@@ -62,6 +62,9 @@ annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
 proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
+if [ ! -s "$visible_geometry_board" ]; then
+    visible_geometry_board="not applicable"
+fi
 if [ -s "$proof_manifest" ] || [[ "$recording_name" == *drag* ]]; then
     proof_manifest_label="$proof_manifest"
 else
@@ -151,6 +154,18 @@ EOF
 - Confirm the same windows and active workspaces stay in the same zone ids across resize and balance.
 - Confirm the copied config hash is unchanged; this is runtime state, not a TOML rewrite.
 - Reject logs-only sizing proof, final-state-only proof, unreadable/subtle geometry, stale labels, missing before/command/after samples, command captions that omit the target zone or amount, and captions that obscure measured zone edges.
+EOF
+            ;;
+        slice-11b-zone-style-controls)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.
+- Sample frames around `Run: winmux set-zone-style Comms urgent` and `Run: winmux set-zone-style Comms calm`. Fail if the row color changes before the matching command caption appears.
+- Confirm the recording shows before-style, urgent-command-start, after-urgent, calm-command-start, after-calm, and final inspection states.
+- Confirm `[[zone-styles]]` is visible through the caption/config surface and the exact user commands are visible: `winmux set-zone-style Comms urgent` and `winmux set-zone-style Comms calm`.
+- Confirm the visual change is on the Comms zone chrome/sidebar row, including the styled row swatch/tint, not the TextEdit document content, not a layout resize, and not a workspace switch.
+- Confirm Comms changes from unstyled to urgent red `#D3455B`, then to calm blue `#3EA2FF`, while Reference and Work do not receive a style.
+- Confirm the same windows and active workspaces stay in the same zone ids across both style commands.
+- Reject logs-only style proof, final-state-only proof, a style swatch/tint too subtle to see, missing before/command/after samples, command captions that omit the target zone or style id, and any proof where the reviewer cannot distinguish a style change from a layout/workspace change.
 EOF
             ;;
         *)

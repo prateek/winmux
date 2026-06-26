@@ -66,6 +66,7 @@ extension Command {
                  is ProjectCommand,
                  is ResizeCommand,
                  is ResizeZoneCommand,
+                 is SetZoneStyleCommand,
                  is SplitCommand,
                  is StackWithCommand,
                  is SummonWorkspaceCommand,

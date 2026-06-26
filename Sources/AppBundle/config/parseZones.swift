@@ -55,6 +55,11 @@ private let zoneSceneWorkspaceParser: [String: any ParserProtocol<ZoneSceneWorks
     },
 ]
 
+private let zoneStyleParser: [String: any ParserProtocol<ZoneStyleConfig>] = [
+    "id": Parser(\.id, parseZoneId),
+    "color": Parser(\.color, parseZoneStyleColor),
+]
+
 private let zoneColumnParser: [String: any ParserProtocol<ZoneColumnConfig>] = [
     "id": Parser(\.id, parseZoneId),
     "name": Parser(\.name) { raw, backtrace in
@@ -123,6 +128,26 @@ func parseZoneScenes(
     return scenes
 }
 
+func parseZoneStyles(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [ZoneStyleConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    let styles = array.enumerated().map { index, rawStyle in
+        let styleBacktrace = backtrace + .index(index)
+        var style = parseTable(rawStyle, ZoneStyleConfig(), zoneStyleParser, styleBacktrace, &errors)
+        validateZoneStyle(&style, styleBacktrace, &errors)
+        return style
+    }
+    validateZoneStyles(styles, backtrace, &errors)
+    return styles
+}
+
 private func parseZoneColumns(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
@@ -170,6 +195,14 @@ private func parseZoneId(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace
 private func parseZoneColumnWidth(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Double> {
     parseDouble(raw, backtrace)
         .filter(.semantic(backtrace, "Must be greater than 0")) { $0 > 0 }
+}
+
+private func parseZoneStyleColor(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<String> {
+    parseString(raw, backtrace)
+        .flatMap { color in
+            normalizedWorkspaceSidebarColorHex(color)
+                .orFailure(.semantic(backtrace, "Must be a hex color like '#RRGGBB'"))
+        }
 }
 
 private func validateZone(
@@ -273,6 +306,19 @@ private func validateZoneScene(
     }
 }
 
+private func validateZoneStyle(
+    _ style: inout ZoneStyleConfig,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    if style.id.isEmpty {
+        errors.append(.semantic(backtrace + .key("id"), "Missing required key"))
+    }
+    if style.color.isEmpty {
+        errors.append(.semantic(backtrace + .key("color"), "Missing required key"))
+    }
+}
+
 private func validateZones(
     _ zones: [ZoneConfig],
     _ backtrace: TomlBacktrace,
@@ -291,6 +337,21 @@ private func validateZones(
     }
     if !duplicatedLabels.isEmpty {
         errors.append(.semantic(backtrace, "Contains duplicated monitor selectors: \(duplicatedLabels.sorted().joined(separator: ", "))"))
+    }
+}
+
+private func validateZoneStyles(
+    _ styles: [ZoneStyleConfig],
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    let duplicatedIds = styles.map(\.id)
+        .grouped { $0 }
+        .filter { id, styles in !id.isEmpty && styles.count > 1 }
+        .keys
+        .sorted()
+    if !duplicatedIds.isEmpty {
+        errors.append(.semantic(backtrace, "Contains duplicated style ids: \(duplicatedIds.joined(separator: ", "))"))
     }
 }
 

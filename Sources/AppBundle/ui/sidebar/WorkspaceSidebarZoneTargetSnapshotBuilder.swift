@@ -18,6 +18,8 @@ func buildWorkspaceSidebarZoneTargetViewModels(
             activeWorkspaceDisplayName: workspaceDisplayName(activeWorkspace.name),
             isFocused: currentFocus.workspace === activeWorkspace,
             isDefaultZone: monitor.isDefaultZone,
+            styleId: monitor.zoneStyleId,
+            styleColorHex: monitor.zoneStyleColorHex,
         )
     }
 }

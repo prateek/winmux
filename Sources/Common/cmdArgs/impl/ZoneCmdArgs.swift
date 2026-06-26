@@ -224,6 +224,38 @@ func parseBalanceZonesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<BalanceZonesCmdA
     parseSpecificCmdArgs(BalanceZonesCmdArgs(rawArgs: args), args)
 }
 
+public struct SetZoneStyleCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .setZoneStyle,
+        allowInConfig: true,
+        help: set_zone_style_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [
+            newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>"),
+            newMandatoryPosArgParser(\.styleId, parseZoneStyleId, placeholder: "<style-id>"),
+        ],
+    )
+
+    public init(zone: ZoneSelector, styleId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.styleId = .initialized(styleId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+    public var styleId: Lateinit<String> = .uninitialized
+}
+
+func parseSetZoneStyleCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SetZoneStyleCmdArgs> {
+    parseSpecificCmdArgs(SetZoneStyleCmdArgs(rawArgs: args), args)
+}
+
 public struct CycleZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -335,6 +367,7 @@ extension ListZonesCmdArgs {
             ? [
                 .interVar("monitor-zone-id"), .interVar("right-padding"), .literal(" | "),
                 .interVar("monitor-zone-name"), .interVar("right-padding"), .literal(" | "),
+                .literal("style "), .interVar("monitor-zone-style-id"), .interVar("right-padding"), .literal(" | "),
                 .literal("enabled "), .interVar("monitor-zone-enabled"), .interVar("right-padding"), .literal(" | "),
                 .literal("width "), .interVar("monitor-zone-effective-width"), .interVar("right-padding"), .literal(" | "),
                 .literal("monitor "), .interVar("monitor-physical-id"), .interVar("right-padding"), .literal(" | "),
@@ -411,6 +444,13 @@ private func parseZoneSceneId(i: PosArgParserInput) -> ParsedCliArgs<String> {
     }
 }
 
+private func parseZoneStyleId(i: PosArgParserInput) -> ParsedCliArgs<String> {
+    switch parseZoneStyleIdentifier(i.arg) {
+        case .success(let styleId): .succ(styleId, advanceBy: 1)
+        case .failure(let msg): .fail(msg, advanceBy: 1)
+    }
+}
+
 private func parseZoneLayoutIdentifier(_ raw: String) -> Parsed<String> {
     if raw.isEmpty {
         return .failure("<layout-id> must not be empty")
@@ -419,6 +459,18 @@ private func parseZoneLayoutIdentifier(_ raw: String) -> Parsed<String> {
         char.isLetter || char.isNumber || char == "-" || char == "_"
     }) else {
         return .failure("<layout-id> must use only letters, numbers, hyphens, and underscores")
+    }
+    return .success(raw)
+}
+
+private func parseZoneStyleIdentifier(_ raw: String) -> Parsed<String> {
+    if raw.isEmpty {
+        return .failure("<style-id> must not be empty")
+    }
+    guard raw.allSatisfy({ char in
+        char.isLetter || char.isNumber || char == "-" || char == "_"
+    }) else {
+        return .failure("<style-id> must use only letters, numbers, hyphens, and underscores")
     }
     return .success(raw)
 }

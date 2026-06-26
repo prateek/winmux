@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-11A accepted; pre-Slice-11B cleanup pending
+Status: slices 0-11B accepted; pre-Slice-11C cleanup in progress
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -60,6 +60,27 @@ Keep these concepts separate in code, config, tests, and demos:
   mouse gestures, launch rules, and automatic window routing should all call
   the same commands or command handlers rather than duplicating zone logic.
 
+Current implementation comparison:
+
+- `PhysicalMonitor`, `VirtualMonitor`, `WorkspaceViewport`, `Workspace`, and
+  `WindowOrTabGroup` are real code concepts. Zones are exposed as `Monitor`
+  viewports through `ZoneMonitor`; stable zone viewport identity lives in
+  `MonitorViewportId`; moving a tab group to a zone means moving the nearest
+  tab-group node into the target zone's active workspace.
+- `ZoneLayout`, `Zone`, `ZoneScene`, `ZoneRuntimeOverlay`, and `ZoneStyle` are
+  partially or fully represented in config and runtime state. A `Zone` is not a
+  durable object; it is a configured column plus a runtime `ConfiguredZoneSummary`
+  or `ZoneMonitor`.
+- `ZoneRuntimeOverlay` currently carries active layout, disabled zones, parked
+  workspaces, width overrides, and style overrides. It does not yet carry an
+  active scene id, active availability-set id, or snap policy.
+- `InputBinding` exists through command parsing and normal key bindings. Mouse
+  sidebar drag to a zone row calls the same move logic, but normal desktop
+  window dragging does not yet have configured whole-zone snap policy.
+- `ZoneAvailabilitySet` and `ZoneSnapPolicy` remain planned entities. Do not
+  imply they are shipped until their slices have code, fast tests, Tart video,
+  no-context artifact review, and retrospection.
+
 ## End-User Shape
 
 The user configures named zones on a physical monitor:
@@ -107,10 +128,10 @@ The ergonomic control surface should stay small and composable:
 - `resize-zone <zone> width [+|-]<percent>%` and `balance-zones` tune zone
   sizing without editing config.
 - `use-zone-scene <scene-id>` switches layout and workspace bindings together.
+- `set-zone-style <zone> <style-id>` changes visible zone chrome without
+  changing layout, size, or workspace bindings.
 - Later, `use-zone-availability <set-id>` should toggle groups such as
   `focus-only`, `comms-open`, and `mail-open` at the layout level.
-- Later, `set-zone-style <zone> <style-id>` should change visible zone chrome
-  without changing layout or workspace bindings.
 
 Mouse behavior should be explicit, configurable, and demoable:
 
@@ -1640,23 +1661,134 @@ Pre-Slice-11B cleanup evidence:
   passed after regenerating the Slice 11A reviewer packet with the stricter
   wording.
 
-### Future Slice 11B: Zone Style Controls
+### Slice 11B: Zone Style Controls
 
-Goal: add style controls only after Slice 11A proves the runtime overlay model.
+Goal: add style controls on top of the runtime overlay model proven by Slice 11A.
 
-Candidate command:
+Command:
 
 - `set-zone-style [--monitor <monitor-pattern>] <zone> <style-id>`
 
 Style requirements:
 
 - Styles must be config-defined tokens, not arbitrary command-only strings.
-- The first visible consumer should be obvious in the artifact, likely the
-  sidebar zone row. Do not ship `set-zone-style` if the only proof is logs.
+- The first visible consumer is the sidebar zone row with an explicit color
+  swatch. Do not accept
+  `set-zone-style` if the only proof is logs.
+- Applying a style must not change layout, width overrides, enabled zones, active
+  workspaces, or window/tab-group membership.
 - Fast tests must prove style id resolution, unavailable-zone errors, duplicate
   selector qualification, and that the style id reaches the visible view model.
 - The Tart verifier must reject subtle style changes that cannot be seen in the
-  recording.
+  recording, final-state-only proof, and any proof where a reviewer cannot tell
+  whether the feature changed style, layout, or workspace binding.
+
+Slice 11B implementation checklist:
+
+- [x] Add `[[zone-styles]]` config parsing with normalized hex colors and
+  duplicate style-id validation.
+- [x] Add runtime style overrides to `ZoneRuntimeOverlay` and expose
+  `zoneStyleId` / `zoneStyleColorHex` through `Monitor`,
+  `ConfiguredZoneSummary`, `list-zones`, and sidebar zone target view models.
+- [x] Add `set-zone-style` parsing, command dispatch, generated help metadata,
+  and style-specific command output.
+- [x] Add focused fast tests for parser validation, style application, unknown
+  style rejection, disabled-zone rejection, duplicate physical scope handling,
+  `list-zones` output, and sidebar view-model propagation.
+- [x] Add Tart scenario, captions, semantic sample manifest, verifier checks,
+  and reviewer-packet checks for unstyled -> urgent -> calm.
+- [x] Record the strict guest-captured Tart artifact, run no-context review, run
+  the three no-context retrospectives, bake accepted findings into the next
+  pre-slice cleanup, then commit the accepted Slice 11B boundary.
+
+Slice 11B Tart proof:
+
+- start from a clean desktop with Reference, Work, and Comms visible and the
+  sidebar open;
+- show the Comms zone row unstyled before the first command;
+- run `winmux set-zone-style Comms urgent` while its command caption is visible
+  and the old state is still visible;
+- show the Comms row visibly tinted urgent red `#D3455B`, including the row
+  swatch;
+- run `winmux set-zone-style Comms calm` while its command caption is visible
+  and the urgent state is still visible;
+- show the same Comms row visibly tinted calm blue `#3EA2FF`, including the row
+  swatch;
+- prove in logs and screenshots that Reference and Work stay unstyled and all
+  windows/workspaces remain in the same zone ids.
+
+Slice 11B non-claims:
+
+- no per-zone style persistence back into TOML;
+- no style editor UI beyond the runtime command and visible sidebar row;
+- no layout resize, availability-set change, scene change, or mouse snap policy.
+
+Slice 11B accepted result:
+
+- artifact: `artifacts/e2e/slice-11b-20260626T113708Z`;
+- primary recording:
+  `recordings/slice-11b-zone-style-controls.mov`, H.264, 3440x1440,
+  43.972891s, 1512 frames;
+- raw guest recording:
+  `recordings/raw/slice-11b-zone-style-controls.raw.mov`;
+- proof: `slice-11b-zone-style-controls-proof.txt`;
+- required screenshots:
+  `00-before-slice-11b.png`, `01-ready-slice-11b.png`,
+  `02-before-style-slice-11b.png`, `03-after-urgent-style-slice-11b.png`,
+  `04-after-calm-style-slice-11b.png`, and `99-after-slice-11b.png`;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md`, verdict `PASS`,
+  `next slice allowed: yes`;
+- no-context retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-11b-20260626T113708Z ARGS=--require-review`
+  passed;
+- command timing:
+  urgent command at 14s, calm command at 32s, both inside the visible command
+  caption windows.
+
+Slice 11B accepted claims:
+
+- `set-zone-style Comms urgent` applies the configured `urgent` style token to
+  the Comms sidebar zone row and visible swatch;
+- `set-zone-style Comms calm` applies the configured `calm` style token to the
+  same row and swatch;
+- Reference and Work remain unstyled;
+- the same Reference, Work, and Comms windows keep the same window ids,
+  workspaces, and zone ids across before, urgent, and calm phases;
+- the feature changes zone chrome only, not layout, availability, scene, or
+  workspace binding.
+
+Superseded Slice 11B attempts:
+
+- `artifacts/e2e/slice-11b-20260626T112738Z` was mechanically valid enough to
+  inspect but was not accepted and did not receive a no-context review. The
+  visual style proof was too subtle, so the row/swatch styling and reviewer
+  prompt were hardened before rerunning the accepted `113708Z` artifact.
+
+Pre-slice cleanup before Slice 11C starts:
+
+- [x] Read all three Slice 11B no-context retrospectives and fold shared
+  blockers into this checklist.
+- [x] Restore generated-hash churn so the Slice 11B dirty set stays scoped to
+  product, tests, harness, generated command metadata, and plan changes.
+- [x] Add verifier checks proving style changes do not alter zone name,
+  enabled state, workspace, geometry, or physical-monitor identity. Future logs
+  also compare layout id when present.
+- [x] Add a focused fast test proving `set-zone-style` preserves active layout,
+  width overrides, active workspaces, focus, and window membership.
+- [x] Make Slice 11B guest state assertions use
+  `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` so semantic failures stop
+  retries instead of replaying a half-mutated proof state.
+- [ ] Commit the accepted Slice 11B dirty set before implementing Slice 11C.
+- [ ] Define the Slice 11C availability-set contract before code changes.
+- [ ] Save pre-Tart gate output into future run directories, starting with the
+  next product Tart proof.
+- [ ] Decide before recording Slice 11C whether the media will carry a styled
+  zone as a preservation proof. If yes, add a mechanical swatch/color sentinel;
+  if no, record that deferral here.
 
 ### Future Slice 11C: Availability Sets and Cross-Zone Commands
 
@@ -1700,7 +1832,8 @@ Fast validation before Tart:
   enabled zone lists, and valid sets;
 - command tests for `use-zone-availability`, cycling, unknown ids, duplicate
   selectors, and preservation of parked workspaces;
-- topology tests proving width overrides survive availability set changes.
+- topology tests proving width and style overrides survive availability set
+  changes, including hidden and restored zones.
 
 Tart proof:
 

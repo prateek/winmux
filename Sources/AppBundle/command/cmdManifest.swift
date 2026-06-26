@@ -47,6 +47,7 @@ extension CmdArgs {
             case let args as ReloadConfigCmdArgs: ReloadConfigCommand(args: args)
             case let args as ResizeCmdArgs: ResizeCommand(args: args)
             case let args as ResizeZoneCmdArgs: ResizeZoneCommand(args: args)
+            case let args as SetZoneStyleCmdArgs: SetZoneStyleCommand(args: args)
             case let args as SplitCmdArgs: SplitCommand(args: args)
             case let args as StackWithCmdArgs: StackWithCommand(args: args)
             case is SubscribeCmdArgs: die("subscribe is handled separately")

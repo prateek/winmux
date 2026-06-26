@@ -44,6 +44,7 @@ let subcommandDescriptions = [
     ["  reload-config", "Reload currently active config"],
     ["  resize", "Resize the focused window"],
     ["  resize-zone", "Adjust runtime width of a configured zone"],
+    ["  set-zone-style", "Apply a configured style token to a zone"],
     ["  split", "Split focused window"],
     ["  stack-with", "Put the focused window into the same tab group as the nearest window in the specified direction."],
     ["  subscribe", "Subscribe to WinMux events and receive notifications via socket"],

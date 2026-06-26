@@ -66,6 +66,7 @@ struct Config: ConvenienceCopyable {
     var gaps: Gaps = .zero
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
+    var zoneStyles: [ZoneStyleConfig] = []
     var zoneLayouts: [ZoneLayoutConfig] = []
     var zoneScenes: [ZoneSceneConfig] = []
     var zones: [ZoneConfig] = []
@@ -99,6 +100,11 @@ struct ZoneSceneConfig: ConvenienceCopyable, Equatable, Sendable {
 struct ZoneSceneWorkspaceConfig: ConvenienceCopyable, Equatable, Sendable {
     var zone: String = ""
     var workspace: WorkspaceName?
+}
+
+struct ZoneStyleConfig: ConvenienceCopyable, Equatable, Sendable {
+    var id: String = ""
+    var color: String = ""
 }
 
 enum ZoneLayoutKind: String, Equatable, Sendable {

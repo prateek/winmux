@@ -51,6 +51,31 @@ zone_log_value() {
     ' "$path"
 }
 
+require_zone_fields_unchanged_across_style_phases() {
+    local before_log="$1"
+    local urgent_log="$2"
+    local calm_log="$3"
+    local slice_label="$4"
+    local zone_id field fields before_value urgent_value calm_value
+
+    fields="name enabled workspace left width physical"
+    if [ -n "$(zone_log_value "$before_log" left layout)" ]; then
+        fields="${fields} layout"
+    fi
+
+    for zone_id in left main right; do
+        for field in $fields; do
+            before_value="$(zone_log_value "$before_log" "$zone_id" "$field")"
+            urgent_value="$(zone_log_value "$urgent_log" "$zone_id" "$field")"
+            calm_value="$(zone_log_value "$calm_log" "$zone_id" "$field")"
+            [ -n "$before_value" ] \
+                || die "${slice_label} before zones log missing ${field} for ${zone_id}"
+            [ "$before_value" = "$urgent_value" ] && [ "$urgent_value" = "$calm_value" ] \
+                || die "${slice_label} ${field} changed for ${zone_id}: ${before_value} -> ${urgent_value:-missing} -> ${calm_value:-missing}"
+        done
+    done
+}
+
 visible_board_value() {
     local path="$1"
     local zone="$2"
@@ -510,6 +535,19 @@ require_slice_11a_sample_manifest() {
         balance-command-start \
         after-balance \
         list-zones-after-balance; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_11b_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-style \
+        urgent-command-start \
+        after-urgent \
+        calm-command-start \
+        after-calm; do
         require_sample_manifest_label "$manifest_path" "$label"
     done
 }
@@ -1620,6 +1658,160 @@ require_slice_11a_zone_width_controls_proof() {
         || die "Slice 11A balance command caption must cover the command/action interval"
 }
 
+require_slice_11b_zone_style_controls_proof() {
+    local proof="${RUN_DIR}/slice-11b-zone-style-controls-proof.txt"
+    local done="${LOGS_DIR}/slice-11b-zone-style-controls.done"
+    local setup_log="${LOGS_DIR}/slice-11b-style-setup.log"
+    local windows_before="${LOGS_DIR}/slice-11b-windows-before.log"
+    local windows_urgent="${LOGS_DIR}/slice-11b-windows-urgent.log"
+    local windows_calm="${LOGS_DIR}/slice-11b-windows-calm.log"
+    local zones_before="${LOGS_DIR}/slice-11b-zones-before.log"
+    local zones_urgent="${LOGS_DIR}/slice-11b-zones-urgent.log"
+    local zones_calm="${LOGS_DIR}/slice-11b-zones-calm.log"
+    local urgent_log="${LOGS_DIR}/slice-11b-set-zone-style-urgent.log"
+    local calm_log="${LOGS_DIR}/slice-11b-set-zone-style-calm.log"
+    local timing_log="${LOGS_DIR}/slice-11b-command-timing.log"
+    local sample_manifest="${LOGS_DIR}/slice-11b-zone-style-controls.sample-manifest.tsv"
+    local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-11b.png"
+    local before_style_screenshot="${SCREENSHOTS_DIR}/02-before-style-slice-11b.png"
+    local after_urgent_screenshot="${SCREENSHOTS_DIR}/03-after-urgent-style-slice-11b.png"
+    local after_calm_screenshot="${SCREENSHOTS_DIR}/04-after-calm-style-slice-11b.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 11B"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_urgent"
+    require_file "$windows_calm"
+    require_file "$zones_before"
+    require_file "$zones_urgent"
+    require_file "$zones_calm"
+    require_file "$urgent_log"
+    require_file "$calm_log"
+    require_file "$timing_log"
+    require_slice_11b_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "$transport_summary"
+    require_file "$ready_screenshot"
+    require_file "$before_style_screenshot"
+    require_file "$after_urgent_screenshot"
+    require_file "$after_calm_screenshot"
+
+    grep -F 'PASS: set-zone-style applies configured urgent and calm style tokens to the Comms zone while windows and workspaces stay in the same zone ids.' "$proof" >/dev/null \
+        || die "Slice 11B proof does not contain the expected PASS claim"
+    grep -F '[[zone-styles]]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing zone-styles table"
+    grep -F "id = 'urgent'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing urgent style id"
+    grep -F "color = '#D3455B'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing urgent color"
+    grep -F "id = 'calm'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing calm style id"
+    grep -F "color = '#3EA2FF'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing calm color"
+    grep -F "alt-u = 'set-zone-style Comms urgent'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing urgent binding"
+    grep -F "alt-c = 'set-zone-style Comms calm'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11B config missing calm binding"
+    grep -F 'Config: [[zone-styles]] urgent=#D3455B calm=#3EA2FF' "$setup_log" >/dev/null \
+        || die "Slice 11B setup log missing zone-styles summary"
+    grep -F 'Command: set-zone-style Comms urgent; set-zone-style Comms calm' "$setup_log" >/dev/null \
+        || die "Slice 11B setup log missing style command summary"
+
+    grep -F '$ winmux set-zone-style Comms urgent' "$urgent_log" >/dev/null \
+        || die "Slice 11B urgent log missing exact command"
+    grep -F "Styled zone 'Comms' on monitor 1 as 'urgent'" "$urgent_log" >/dev/null \
+        || die "Slice 11B urgent log missing success output"
+    grep -F '$ winmux set-zone-style Comms calm' "$calm_log" >/dev/null \
+        || die "Slice 11B calm log missing exact command"
+    grep -F "Styled zone 'Comms' on monitor 1 as 'calm'" "$calm_log" >/dev/null \
+        || die "Slice 11B calm log missing success output"
+
+    [ "$(zone_log_value "$zones_before" right style)" = "" ] \
+        || die "Slice 11B before zones log should not style Comms/right"
+    [ "$(zone_log_value "$zones_before" right color)" = "" ] \
+        || die "Slice 11B before zones log should not color Comms/right"
+    [ "$(zone_log_value "$zones_urgent" right style)" = "urgent" ] \
+        || die "Slice 11B urgent zones log missing urgent style for Comms/right"
+    [ "$(zone_log_value "$zones_urgent" right color)" = "#D3455B" ] \
+        || die "Slice 11B urgent zones log missing urgent color for Comms/right"
+    [ "$(zone_log_value "$zones_calm" right style)" = "calm" ] \
+        || die "Slice 11B calm zones log missing calm style for Comms/right"
+    [ "$(zone_log_value "$zones_calm" right color)" = "#3EA2FF" ] \
+        || die "Slice 11B calm zones log missing calm color for Comms/right"
+    for zone_id in left main; do
+        [ "$(zone_log_value "$zones_urgent" "$zone_id" style)" = "" ] \
+            || die "Slice 11B urgent style leaked to ${zone_id}"
+        [ "$(zone_log_value "$zones_calm" "$zone_id" style)" = "" ] \
+            || die "Slice 11B calm style leaked to ${zone_id}"
+    done
+    require_zone_fields_unchanged_across_style_phases \
+        "$zones_before" "$zones_urgent" "$zones_calm" "Slice 11B"
+
+    local urgent_offset calm_offset
+    urgent_offset="$(value_from_log urgent-command-offset-seconds "$timing_log")"
+    calm_offset="$(value_from_log calm-command-offset-seconds "$timing_log")"
+    [ -n "$urgent_offset" ] || die "Slice 11B timing log missing urgent command offset"
+    [ -n "$calm_offset" ] || die "Slice 11B timing log missing calm command offset"
+    assert_numeric_between_inclusive "$urgent_offset" 13 24 \
+        "Slice 11B urgent command must happen while the urgent command caption is on screen"
+    assert_numeric_between_inclusive "$calm_offset" 31 39 \
+        "Slice 11B calm command must happen while the calm command caption is on screen"
+
+    local title expected_zone before_id urgent_id calm_id before_zone urgent_zone calm_zone
+    local before_workspace urgent_workspace calm_workspace
+    for title in reference-style.rtf work-style.rtf comms-style.rtf; do
+        case "$title" in
+            reference-style.rtf) expected_zone=left ;;
+            work-style.rtf) expected_zone=main ;;
+            comms-style.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        urgent_id="$(field_for_title "$windows_urgent" "$title" id)"
+        calm_id="$(field_for_title "$windows_calm" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        urgent_zone="$(field_for_title "$windows_urgent" "$title" zone)"
+        calm_zone="$(field_for_title "$windows_calm" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        urgent_workspace="$(field_for_title "$windows_urgent" "$title" workspace)"
+        calm_workspace="$(field_for_title "$windows_calm" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$urgent_id" ] && [ -n "$calm_id" ] \
+            || die "Slice 11B missing window title across logs: $title"
+        [ "$before_id" = "$urgent_id" ] && [ "$urgent_id" = "$calm_id" ] \
+            || die "Slice 11B window id changed for $title: $before_id -> $urgent_id -> $calm_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$urgent_zone" = "$expected_zone" ] && [ "$calm_zone" = "$expected_zone" ] \
+            || die "Slice 11B zone changed for $title: $before_zone -> $urgent_zone -> $calm_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$urgent_workspace" ] && [ "$urgent_workspace" = "$calm_workspace" ] \
+            || die "Slice 11B workspace changed for $title: $before_workspace -> $urgent_workspace -> $calm_workspace"
+    done
+
+    grep -F "urgent-command-offset-seconds=${urgent_offset}" "$proof" >/dev/null \
+        || die "Slice 11B proof does not copy urgent command timing"
+    grep -F "calm-command-offset-seconds=${calm_offset}" "$proof" >/dev/null \
+        || die "Slice 11B proof does not copy calm command timing"
+    grep -F 'Before style:' "$proof" >/dev/null \
+        || die "Slice 11B proof missing before-style section"
+    grep -F 'Urgent style:' "$proof" >/dev/null \
+        || die "Slice 11B proof missing urgent-style section"
+    grep -F 'Calm style:' "$proof" >/dev/null \
+        || die "Slice 11B proof missing calm-style section"
+
+    grep -F "Config: [[zone-styles]] urgent + calm" "$annotation_plan" >/dev/null \
+        || die "Slice 11B annotations missing zone-styles config chip"
+    grep -F "Run: winmux set-zone-style Comms urgent" "$annotation_plan" >/dev/null \
+        || die "Slice 11B annotations missing urgent command chip"
+    grep -F "Action: Comms style urgent #D3455B" "$annotation_plan" >/dev/null \
+        || die "Slice 11B annotations missing urgent visible-state chip"
+    grep -F "Run: winmux set-zone-style Comms calm" "$annotation_plan" >/dev/null \
+        || die "Slice 11B annotations missing calm command chip"
+    grep -F "Action: Comms style calm #3EA2FF" "$annotation_plan" >/dev/null \
+        || die "Slice 11B annotations missing calm visible-state chip"
+    awk -F '\t' '$5 == "Run: winmux set-zone-style Comms urgent" { found = 1; ok = (($1 + 0) <= 13 && ($2 + 0) >= 23) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11B urgent command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux set-zone-style Comms calm" { found = 1; ok = (($1 + 0) <= 31 && ($2 + 0) >= 38) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11B calm command caption must cover the command/action interval"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -1750,6 +1942,9 @@ case "$recording_name" in
         ;;
     slice-11a-zone-width-controls)
         require_slice_11a_zone_width_controls_proof
+        ;;
+    slice-11b-zone-style-controls)
+        require_slice_11b_zone_style_controls_proof
         ;;
 esac
 

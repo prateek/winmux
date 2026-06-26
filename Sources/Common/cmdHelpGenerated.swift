@@ -162,6 +162,9 @@ let resize_help_generated = """
 let resize_zone_help_generated = """
     USAGE: resize-zone [-h|--help] [--monitor <monitor-pattern>] <zone> width [+|-]<percent>%
     """
+let set_zone_style_help_generated = """
+    USAGE: set-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>
+    """
 let split_help_generated = """
     USAGE: split [-h|--help] [--window-id <window-id>] (horizontal|vertical|opposite)
     """

@@ -163,6 +163,8 @@ public enum FormatVar: Equatable {
         case monitorZoneLayoutId = "monitor-zone-layout-id"
         case monitorZoneId = "monitor-zone-id"
         case monitorZoneName = "monitor-zone-name"
+        case monitorZoneStyleId = "monitor-zone-style-id"
+        case monitorZoneStyleColor = "monitor-zone-style-color"
         case monitorZoneEnabled = "monitor-zone-enabled"
         case monitorZoneConfiguredWidth = "monitor-zone-configured-width"
         case monitorZoneEffectiveWidth = "monitor-zone-effective-width"

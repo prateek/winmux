@@ -4,6 +4,7 @@ import Common
 struct ZoneTopologySnapshot: Sendable {
     static let empty = ZoneTopologySnapshot(
         zones: [],
+        zoneStyles: [],
         zoneLayouts: [],
         gaps: .zero,
         workspaceSidebar: WorkspaceSidebarConfig(),
@@ -11,6 +12,7 @@ struct ZoneTopologySnapshot: Sendable {
     )
 
     let zones: [ZoneConfig]
+    let zoneStyles: [ZoneStyleConfig]
     let zoneLayouts: [ZoneLayoutConfig]
     let gaps: Gaps
     let workspaceSidebar: WorkspaceSidebarConfig
@@ -23,6 +25,7 @@ struct ZoneTopologySnapshot: Sendable {
     ) {
         self.init(
             zones: Self.effectiveZones(config.zones, environment: environment),
+            zoneStyles: config.zoneStyles,
             zoneLayouts: config.zoneLayouts,
             gaps: config.gaps,
             workspaceSidebar: config.workspaceSidebar,
@@ -32,12 +35,14 @@ struct ZoneTopologySnapshot: Sendable {
 
     init(
         zones: [ZoneConfig],
+        zoneStyles: [ZoneStyleConfig],
         zoneLayouts: [ZoneLayoutConfig],
         gaps: Gaps,
         workspaceSidebar: WorkspaceSidebarConfig,
         runtimeOverlaysByPhysicalIdentity: [String: ZoneRuntimeOverlay],
     ) {
         self.zones = zones
+        self.zoneStyles = zoneStyles
         self.zoneLayouts = zoneLayouts
         self.gaps = gaps
         self.workspaceSidebar = workspaceSidebar
@@ -112,12 +117,15 @@ struct ZoneTopologySnapshot: Sendable {
             let isLast = index == enabledColumns.count - 1
             let width = isLast ? baseRect.maxX - nextLeft : baseRect.width * CGFloat(effectiveColumn.effectiveWidth / enabledWidthTotal)
             let rect = Rect(topLeftX: nextLeft, topLeftY: baseRect.topLeftY, width: width, height: baseRect.height)
+            let style = style(for: physicalMonitor, zoneId: column.id)
             nextLeft += width
             return ZoneMonitor(
                 physicalMonitor: physicalMonitor,
                 zoneLayoutId: zoneLayout.id,
                 zoneId: column.id,
                 zoneName: column.name,
+                zoneStyleId: style?.id,
+                zoneStyleColorHex: style?.color,
                 rect: rect,
                 visibleRect: rect,
                 isDefaultZone: column.id == defaultZoneId,
@@ -144,11 +152,14 @@ struct ZoneTopologySnapshot: Sendable {
             return effectiveColumns.map { effectiveColumn in
                 let column = effectiveColumn.column
                 let activeZoneMonitor = activeZoneMonitors.first { $0.zoneId == column.id }
+                let style = style(for: physicalMonitor, zoneId: column.id)
                 return ConfiguredZoneSummary(
                     physicalMonitor: physicalMonitor,
                     zoneLayoutId: zoneLayout.id,
                     zoneId: column.id,
                     zoneName: column.name,
+                    zoneStyleId: style?.id,
+                    zoneStyleColorHex: style?.color,
                     configuredWidth: column.width,
                     effectiveWidth: effectiveColumn.effectiveWidth,
                     runtimeWidthOverride: effectiveColumn.runtimeWidthOverride,
@@ -161,6 +172,11 @@ struct ZoneTopologySnapshot: Sendable {
                 )
             }
         }
+    }
+
+    private func style(for physicalMonitor: Monitor, zoneId: String) -> ZoneStyleConfig? {
+        guard let styleId = runtimeOverlay(for: physicalMonitor).styleOverridesByZoneId[zoneId] else { return nil }
+        return zoneStyles.first { $0.id == styleId }
     }
 
     private func disabledZoneIds(for physicalMonitor: Monitor) -> Set<String> {
@@ -305,6 +321,8 @@ private struct ZoneMonitor: Monitor {
     let zoneLayoutId: String?
     let zoneId: String?
     let zoneName: String?
+    let zoneStyleId: String?
+    let zoneStyleColorHex: String?
     let rect: Rect
     let visibleRect: Rect
     let isDefaultZone: Bool
@@ -334,6 +352,8 @@ struct ConfiguredZoneSummary {
     let zoneLayoutId: String?
     let zoneId: String
     let zoneName: String?
+    let zoneStyleId: String?
+    let zoneStyleColorHex: String?
     let configuredWidth: Double
     let effectiveWidth: Double
     let runtimeWidthOverride: Double?
@@ -367,6 +387,7 @@ struct ZoneRuntimeOverlay: Sendable, Equatable {
     var disabledZoneIds: Set<String> = []
     var parkedWorkspaceByZoneId: [String: WorkspaceId] = [:]
     var widthOverridesByLayoutIdentity: [String: [String: Double]] = [:]
+    var styleOverridesByZoneId: [String: String] = [:]
 }
 
 nonisolated(unsafe) private var zoneRuntimeOverlaysByPhysicalIdentity: [String: ZoneRuntimeOverlay] = [:]
@@ -452,6 +473,14 @@ struct ZoneWidthChangeResult {
     let widths: [ConfiguredZoneSummary]
 }
 
+struct ZoneStyleChangeResult {
+    let physicalMonitor: Monitor
+    let zoneId: String
+    let zoneName: String?
+    let styleId: String
+    let styleColorHex: String
+}
+
 @MainActor
 func setZoneAvailability(
     _ operation: ZoneAvailabilityOperation,
@@ -520,6 +549,44 @@ func setZoneAvailability(
         physicalMonitor: resolved.physicalMonitor,
         isEnabled: shouldEnable,
         changed: true,
+    ))
+}
+
+@MainActor
+func setZoneStyle(
+    selector: ZoneSelector,
+    styleId: String,
+    monitorDescription: MonitorDescription? = nil,
+) -> Result<ZoneStyleChangeResult, String> {
+    guard let style = config.zoneStyles.first(where: { $0.id == styleId }) else {
+        return .failure("Unknown zone style '\(styleId)'")
+    }
+
+    let resolved: ResolvedConfiguredZoneSelector
+    switch resolveConfiguredZoneSelector(selector, monitorDescription: monitorDescription) {
+        case .success(let zone):
+            resolved = zone
+        case .failure(let message):
+            return .failure(message)
+    }
+
+    guard resolved.isEnabled else {
+        return .failure("Zone '\(resolved.displayName)' is disabled. Use enable-zone \(selector.raw) before styling it.")
+    }
+
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: resolved.physicalMonitor)
+    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
+    runtimeOverlay.styleOverridesByZoneId[resolved.zoneId] = style.id
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+    refreshZoneTopologySnapshot()
+    Workspace.reconcileWorkspaceState()
+
+    return .success(ZoneStyleChangeResult(
+        physicalMonitor: resolved.physicalMonitor,
+        zoneId: resolved.zoneId,
+        zoneName: resolved.zoneName,
+        styleId: style.id,
+        styleColorHex: style.color,
     ))
 }
 

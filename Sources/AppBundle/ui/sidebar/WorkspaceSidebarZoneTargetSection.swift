@@ -89,6 +89,16 @@ private struct WorkspaceSidebarZoneTargetRow: View {
 
             Spacer(minLength: 0)
 
+            if let styleColor {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(styleColor)
+                    .frame(width: 11, height: 11)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.7)
+                    }
+            }
+
             if target.isFocused {
                 Circle()
                     .fill(workspaceSidebarActiveWorkspaceTint.opacity(0.86))
@@ -129,13 +139,23 @@ private struct WorkspaceSidebarZoneTargetRow: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isDropTarget)
     }
 
+    private var styleColor: Color? {
+        target.styleColorHex.flatMap(workspaceSidebarColor(hex:))
+    }
+
     private var zoneTint: Color {
-        target.isDefaultZone ? workspaceSidebarActiveWorkspaceTint : Color(nsColor: .systemTeal)
+        if let color = styleColor {
+            return color
+        }
+        return target.isDefaultZone ? workspaceSidebarActiveWorkspaceTint : Color(nsColor: .systemTeal)
     }
 
     private var rowFill: Color {
         if isDropTarget {
             return Color.accentColor.opacity(0.13)
+        }
+        if target.styleColorHex != nil {
+            return zoneTint.opacity(target.isFocused ? 0.16 : 0.10)
         }
         if target.isFocused {
             return workspaceSidebarActiveWorkspaceTint.opacity(0.075)

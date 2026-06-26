@@ -28,6 +28,8 @@ protocol Monitor: WinMuxAny {
     var zoneId: String? { get }
     var zoneName: String? { get }
     var zoneLayoutId: String? { get }
+    var zoneStyleId: String? { get }
+    var zoneStyleColorHex: String? { get }
     var isDefaultZone: Bool { get }
     var physicalMonitor: Monitor { get }
 }
@@ -36,6 +38,8 @@ extension Monitor {
     var zoneId: String? { nil }
     var zoneName: String? { nil }
     var zoneLayoutId: String? { nil }
+    var zoneStyleId: String? { nil }
+    var zoneStyleColorHex: String? { nil }
     var isDefaultZone: Bool { false }
     var physicalMonitor: Monitor { self }
 }

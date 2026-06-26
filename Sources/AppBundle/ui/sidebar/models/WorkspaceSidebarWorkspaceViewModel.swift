@@ -30,4 +30,6 @@ struct WorkspaceSidebarZoneTargetViewModel: Hashable, Identifiable {
     let activeWorkspaceDisplayName: String
     let isFocused: Bool
     let isDefaultZone: Bool
+    let styleId: String?
+    let styleColorHex: String?
 }

@@ -44,6 +44,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-11a` records runtime zone width controls with `script/e2e/configs/zone-width-controls.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with numeric geometry labels and captures `01-ready-slice-11a.png`. The proof runs `winmux resize-zone Work width +10%`, captures Work expanding while side zones shrink, then runs `winmux balance-zones` and captures all enabled zones returning to equal widths. The verifier checks before/resized/balanced zone geometry, preserved window ids and workspaces, command logs, ready and action screenshots, success marker, key bindings, and caption chips with the exact commands and numeric width changes.
 
+`make e2e-slice-11b` records runtime zone style controls with `script/e2e/configs/zone-style-controls.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11b.png`. The proof records `winmux set-zone-style Comms urgent`, captures the Comms zone row tinted urgent red, then records `winmux set-zone-style Comms calm` and captures the same row tinted calm blue. The verifier checks before/urgent/calm style fields, preserved window ids and workspaces, command logs, ready and action screenshots, success marker, key bindings, semantic sample labels, and caption chips with the exact commands and style ids.
+
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
 Slice 6B recording, fails unless that source artifact has strict guest-capture

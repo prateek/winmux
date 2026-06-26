@@ -178,6 +178,22 @@ Slice-specific checks:
   stale labels, missing before/command/after samples, command captions that omit
   target zone or amount, geometry changes that happen before the command caption,
   and captions that obscure measured zone edges.
+- Slice 11B must show runtime zone style controls with
+  `set-zone-style Comms urgent` and `set-zone-style Comms calm`. The proof must
+  show a readable unstyled Comms zone row before the first command, the urgent
+  command caption before the row changes, an after-urgent state where Comms is
+  visibly tinted red, the calm command caption before the second change, and an
+  after-calm state where the same Comms row and swatch are visibly blue. Inspect named
+  before/command/after samples or caption-boundary frames for both style
+  commands. The visual change must be on zone chrome or the sidebar zone row,
+  including the styled swatch/tint,
+  not TextEdit document text, not a layout resize, and not a workspace switch.
+  Confirm Reference and Work stay unstyled, and the same windows and active
+  workspaces remain in the same zone ids. Reject logs-only style proof,
+  final-state-only proof, subtle/unreadable swatch or tint, missing before/command/after
+  samples, command captions that omit the target zone or style id, color changes
+  that happen before the command caption, and any proof where the reviewer cannot
+  tell whether the feature changed style, layout, or workspace binding.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

@@ -38,6 +38,10 @@ final class ZoneCommandTest: XCTestCase {
             "cycle-zone-layout balanced focus",
             CycleZoneLayoutCmdArgs(layoutIds: ["balanced", "focus"]),
         )
+        testParseCommandSucc(
+            "set-zone-style --monitor 1 Comms urgent",
+            SetZoneStyleCmdArgs(zone: ZoneSelector("Comms"), styleId: "urgent", monitor: .sequenceNumber(1)),
+        )
         testParseCommandFail("resize-zone Work width 10", msg: "ERROR: <percent> must include a % suffix, for example +10%")
         testParseCommandSucc(
             "use-zone-layout --monitor 1 focus",
@@ -454,6 +458,111 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
     }
 
+    func testSetZoneStyleAppliesConfiguredStyleToListZonesAndSidebarTarget() async throws {
+        let zones = configureThreeZonesWithStyles()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let result = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Styled zone 'Comms' on monitor 1 as 'urgent'"])
+        XCTAssertEqual(sortedMonitors.singleOrNil { $0.zoneId == "right" }?.zoneStyleId, "urgent")
+        XCTAssertEqual(sortedMonitors.singleOrNil { $0.zoneId == "right" }?.zoneStyleColorHex, "#D3455B")
+
+        let list = try await parseCommand(
+            "list-zones --format '%{monitor-zone-id}|%{monitor-zone-style-id}|%{monitor-zone-style-color}|%{monitor-active-workspace}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.exitCode, 0)
+        XCTAssertTrue(list.stdout.contains("right|urgent|#D3455B|comms"))
+        XCTAssertTrue(list.stdout.contains("main|||work"))
+
+        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+            sortedMonitors: sortedMonitors,
+            currentFocus: focus,
+        )
+        let commsTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "right" })
+        XCTAssertEqual(commsTarget.styleId, "urgent")
+        XCTAssertEqual(commsTarget.styleColorHex, "#D3455B")
+    }
+
+    func testSetZoneStyleRejectsUnknownStyleAndDisabledZone() async throws {
+        _ = configureThreeZonesWithStyles()
+
+        let unknown = try await parseCommand("set-zone-style Comms missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(unknown.exitCode, 1)
+        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown zone style 'missing'"))
+        XCTAssertNil(sortedMonitors.singleOrNil { $0.zoneId == "right" }?.zoneStyleId)
+
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let disabled = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disabled.exitCode, 1)
+        XCTAssertTrue(disabled.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+    }
+
+    func testSetZoneStyleRequiresUnambiguousPhysicalScope() async throws {
+        _ = configureDuplicateZones()
+        config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
+
+        let ambiguous = try await parseCommand("set-zone-style left urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(ambiguous.exitCode, 1)
+        XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
+        XCTAssertEqual(zoneStyleIdsByPhysicalZone(), [:])
+
+        let scoped = try await parseCommand("set-zone-style --monitor 2 left urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(scoped.exitCode, 0)
+        XCTAssertEqual(scoped.stdout, ["Styled zone 'Reference' on monitor 2 as 'urgent'"])
+        XCTAssertEqual(zoneStyleIdsByPhysicalZone(), ["2:left": "urgent"])
+
+        let overspecified = try await parseCommand("set-zone-style --monitor 2 1:left urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(overspecified.exitCode, 1)
+        XCTAssertTrue(overspecified.stderr.joined(separator: "\n").contains("Use either --monitor or a physical monitor qualifier"))
+        XCTAssertEqual(zoneStyleIdsByPhysicalZone(), ["2:left": "urgent"])
+    }
+
+    func testSetZoneStylePreservesLayoutWidthsWorkspacesFocusAndWindowMembership() async throws {
+        configureZoneLayoutPresets()
+        config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
+        refreshZoneTopologySnapshot()
+
+        let zones = zoneMonitorsById()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let commsWindow = TestWindow.new(id: 76, parent: comms.rootTilingContainer)
+        XCTAssertTrue(work.focusWorkspace())
+
+        let useFocus = try await parseCommand("use-zone-layout focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(useFocus.exitCode, 0)
+        let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+        let before = zoneStateByZoneId()
+        let focusedWorkspace = focus.workspace
+
+        let result = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        let after = zoneStateByZoneId()
+        XCTAssertEqual(Set(after.keys), Set(before.keys))
+        for zoneId in ["left", "main", "right"] {
+            XCTAssertEqual(after[zoneId]?.structural, before[zoneId]?.structural, "style should not change structural zone state for \(zoneId)")
+        }
+        XCTAssertEqual(after["left"]?.styleId, nil)
+        XCTAssertEqual(after["main"]?.styleId, nil)
+        XCTAssertEqual(after["right"]?.styleId, "urgent")
+        XCTAssertEqual(after["right"]?.styleColorHex, "#D3455B")
+        XCTAssertTrue(focus.workspace === focusedWorkspace)
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+    }
+
     func testCycleZoneLayoutKeepsRuntimeWidthOverridesPerLayout() async throws {
         configureZoneLayoutPresets()
 
@@ -788,6 +897,17 @@ private func configureThreeZones(defaultZone: String = "main") -> [String: Monit
 }
 
 @MainActor
+private func configureThreeZonesWithStyles() -> [String: Monitor] {
+    let zones = configureThreeZones()
+    config.zoneStyles = [
+        ZoneStyleConfig(id: "urgent", color: "#D3455B"),
+        ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
+    ]
+    refreshZoneTopologySnapshot()
+    return zones
+}
+
+@MainActor
 private func configureNoZones() {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
@@ -909,5 +1029,67 @@ private func zoneLayoutIdsByPhysicalZone() -> [String: String] {
               let zoneLayoutId = monitor.zoneLayoutId
         else { return nil }
         return ("\(physicalId):\(zoneId)", zoneLayoutId)
+    })
+}
+
+@MainActor
+private func zoneStyleIdsByPhysicalZone() -> [String: String] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+              let zoneId = monitor.zoneId,
+              let zoneStyleId = monitor.zoneStyleId
+        else { return nil }
+        return ("\(physicalId):\(zoneId)", zoneStyleId)
+    })
+}
+
+@MainActor
+private func zoneMonitorsById() -> [String: Monitor] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        monitor.zoneId.map { ($0, monitor) }
+    })
+}
+
+private struct StructuralZoneState: Equatable {
+    let layoutId: String?
+    let workspaceName: String
+    let left: CGFloat
+    let width: CGFloat
+    let physicalId: Int?
+}
+
+private struct ZoneState: Equatable {
+    let layoutId: String?
+    let workspaceName: String
+    let left: CGFloat
+    let width: CGFloat
+    let physicalId: Int?
+    let styleId: String?
+    let styleColorHex: String?
+
+    var structural: StructuralZoneState {
+        StructuralZoneState(
+            layoutId: layoutId,
+            workspaceName: workspaceName,
+            left: left,
+            width: width,
+            physicalId: physicalId,
+        )
+    }
+}
+
+@MainActor
+private func zoneStateByZoneId() -> [String: ZoneState] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let zoneId = monitor.zoneId else { return nil }
+        return (zoneId, ZoneState(
+            layoutId: monitor.zoneLayoutId,
+            workspaceName: monitor.activeWorkspace.name,
+            left: monitor.rect.topLeftX,
+            width: monitor.rect.width,
+            physicalId: monitor.physicalMonitor.monitorId_oneBased,
+            styleId: monitor.zoneStyleId,
+            styleColorHex: monitor.zoneStyleColorHex,
+        ))
     })
 }
