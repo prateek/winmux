@@ -972,6 +972,96 @@ require_slice_8_window_routing_proof() {
         || die "Slice 8 annotations missing list-zones chip"
 }
 
+require_slice_10_zone_availability_proof() {
+    local proof="${RUN_DIR}/slice-10-zone-availability-proof.txt"
+    local done="${LOGS_DIR}/slice-10-zone-availability.done"
+    local setup_log="${LOGS_DIR}/slice-10-availability-setup.log"
+    local before_windows="${LOGS_DIR}/slice-10-windows-before.log"
+    local hidden_windows="${LOGS_DIR}/slice-10-windows-hidden.log"
+    local restored_windows="${LOGS_DIR}/slice-10-windows-restored.log"
+    local before_zones="${LOGS_DIR}/slice-10-zones-before.log"
+    local hidden_zones="${LOGS_DIR}/slice-10-zones-hidden.log"
+    local restored_zones="${LOGS_DIR}/slice-10-zones-restored.log"
+    local sidebar_before="${LOGS_DIR}/slice-10-sidebar-before.log"
+    local sidebar_hidden="${LOGS_DIR}/slice-10-sidebar-hidden.log"
+    local sidebar_restored="${LOGS_DIR}/slice-10-sidebar-restored.log"
+    local disable_log="${LOGS_DIR}/slice-10-disable-zone.log"
+    local enable_log="${LOGS_DIR}/slice-10-enable-zone.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-10.png"
+    local hidden_screenshot="${SCREENSHOTS_DIR}/02-hidden-slice-10.png"
+    local restored_screenshot="${SCREENSHOTS_DIR}/03-restored-slice-10.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 10"
+    require_file "$setup_log"
+    require_file "$before_windows"
+    require_file "$hidden_windows"
+    require_file "$restored_windows"
+    require_file "$before_zones"
+    require_file "$hidden_zones"
+    require_file "$restored_zones"
+    require_file "$sidebar_before"
+    require_file "$sidebar_hidden"
+    require_file "$sidebar_restored"
+    require_file "$disable_log"
+    require_file "$enable_log"
+    require_file "$ready_screenshot"
+    require_file "$hidden_screenshot"
+    require_file "$restored_screenshot"
+
+    grep -F 'PASS: disable-zone Comms hides the zone and parks its workspace; enable-zone Comms restores the workspace.' "$proof" >/dev/null \
+        || die "Slice 10 proof does not contain the expected PASS claim"
+    grep -F "alt-c = 'toggle-zone Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 10 config missing toggle-zone binding"
+    grep -F "alt-shift-c = 'enable-zone Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 10 config missing enable-zone binding"
+    grep -F "alt-ctrl-c = 'disable-zone Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 10 config missing disable-zone binding"
+    grep -F '$ winmux disable-zone Comms' "$disable_log" >/dev/null \
+        || die "Slice 10 disable log missing exact command"
+    grep -F "Disabled zone 'Comms' on monitor 1" "$disable_log" >/dev/null \
+        || die "Slice 10 disable log missing success output"
+    grep -F '$ winmux enable-zone Comms' "$enable_log" >/dev/null \
+        || die "Slice 10 enable log missing exact command"
+    grep -F "Enabled zone 'Comms' on monitor 1" "$enable_log" >/dev/null \
+        || die "Slice 10 enable log missing success output"
+
+    [ "$(field_for_title "$before_windows" 'comms-availability.rtf' zone)" = right ] \
+        || die "Slice 10 before log missing Comms document in right zone"
+    [ -z "$(field_for_title "$hidden_windows" 'comms-availability.rtf' id)" ] \
+        || die "Slice 10 hidden log still contains comms-availability.rtf"
+    [ "$(field_for_title "$restored_windows" 'comms-availability.rtf' zone)" = right ] \
+        || die "Slice 10 restored log missing Comms document in right zone"
+
+    grep -F 'zone=right|name=Comms|' "$before_zones" >/dev/null \
+        || die "Slice 10 before zones log missing Comms/right"
+    grep -F 'zone=right|name=Comms|' "$hidden_zones" >/dev/null \
+        && die "Slice 10 hidden zones log still contains Comms/right"
+    grep -F 'zone=right|name=Comms|' "$restored_zones" >/dev/null \
+        || die "Slice 10 restored zones log missing Comms/right"
+
+    local before_main_width hidden_main_width
+    before_main_width="$(awk -F'|' '$1 == "zone=main" { sub(/^width=/, "", $5); print $5; exit }' "$before_zones")"
+    hidden_main_width="$(awk -F'|' '$1 == "zone=main" { sub(/^width=/, "", $5); print $5; exit }' "$hidden_zones")"
+    awk -v before="$before_main_width" -v hidden="$hidden_main_width" 'BEGIN { exit(hidden > before ? 0 : 1) }' \
+        || die "Slice 10 Work/main width did not expand after Comms was hidden"
+
+    grep -F "Config: [[zones]] Reference + Work + Comms" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing zones config chip"
+    grep -F "Run: winmux disable-zone Comms" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing disable-zone chip"
+    grep -F "Action: Comms hidden, Work expands" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing hidden-state action chip"
+    grep -F "Run: winmux enable-zone Comms" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing enable-zone chip"
+    grep -F "Action: Comms restored with its workspace" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing restored-state action chip"
+    grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing list-zones chip"
+    grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
+        || die "Slice 10 annotations missing list-windows chip"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -1096,6 +1186,9 @@ case "$recording_name" in
         ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
+        ;;
+    slice-10-zone-availability)
+        require_slice_10_zone_availability_proof
         ;;
 esac
 

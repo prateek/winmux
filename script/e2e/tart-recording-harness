@@ -34,6 +34,9 @@ fi
 if [ "$ACTION" = "slice-8" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-window-routing.toml"
 fi
+if [ "$ACTION" = "slice-10" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-availability.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -83,7 +86,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8>
+Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1058,6 +1061,17 @@ CAPTIONS
 40	44	Inspect zones	Zone state remains Reference, Work, and Comms on the ultrawide display.	Run: winmux list-zones
 CAPTIONS
             ;;
+        slice-10-zone-availability)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Availability-ready zones	Reference, Work, and Comms are visible before the toggle.	Config: [[zones]] Reference + Work + Comms
+8	18	Hide Comms	The command makes the Comms zone unavailable without editing config.	Run: winmux disable-zone Comms
+18	28	Work expands	Comms is hidden; Work fills the recovered width.	Action: Comms hidden, Work expands
+28	38	Restore Comms	The command brings the parked Comms workspace back.	Run: winmux enable-zone Comms
+38	46	Comms restored	The same Comms document returns to the right zone.	Action: Comms restored with its workspace
+46	50	Inspect zones	The CLI shows Reference, Work, and Comms active again.	Run: winmux list-zones
+50	54	Inspect visible windows	Visible windows prove the parked workspace returned.	Run: winmux list-windows --workspace visible
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -1119,7 +1133,8 @@ annotation_preflight() {
         slice-5-sidebar-drag \
         slice-6-zone-layout-presets \
         slice-6b-zone-scenes \
-        slice-8-window-routing
+        slice-8-window-routing \
+        slice-10-zone-availability
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -2005,6 +2020,34 @@ run_slice_8_window_routing() {
         "${LOGS_DIR}/slice-8-run.log"
 }
 
+run_slice_10_zone_availability_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-10-zone-availability.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE10_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-10-setup.log"
+}
+
+run_slice_10_zone_availability() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-10-zone-availability.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE10_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-10-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -2104,6 +2147,10 @@ slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
 
+slice_10() {
+    run_recorded_scenario "slice-10-zone-availability" "00-before-slice-10" "99-after-slice-10" "run_slice_10_zone_availability" "run_slice_10_zone_availability_setup" "01-ready-slice-10"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2143,6 +2190,9 @@ case "$ACTION" in
         ;;
     slice-8)
         slice_8
+        ;;
+    slice-10)
+        slice_10
         ;;
     *)
         usage >&2

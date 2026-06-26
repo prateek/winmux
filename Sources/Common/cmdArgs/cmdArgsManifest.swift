@@ -7,8 +7,10 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
     case config
     case debugWindows = "debug-windows"
+    case disableZone = "disable-zone"
     case doctor
     case enable
+    case enableZone = "enable-zone"
     case execAndForget = "exec-and-forget"
     case flattenWorkspaceTree = "flatten-workspace-tree"
     case focus
@@ -45,6 +47,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case subscribe
     case summonWorkspace = "summon-workspace"
     case swap
+    case toggleZone = "toggle-zone"
     case triggerBinding = "trigger-binding"
     case useZoneLayout = "use-zone-layout"
     case useZoneScene = "use-zone-scene"
@@ -69,10 +72,14 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseConfigCmdArgs)
             case .debugWindows:
                 result[kind.rawValue] = SubCommandParser(DebugWindowsCmdArgs.init)
+            case .disableZone:
+                result[kind.rawValue] = SubCommandParser(parseDisableZoneCmdArgs)
             case .doctor:
                 result[kind.rawValue] = SubCommandParser(DoctorCmdArgs.init)
             case .enable:
                 result[kind.rawValue] = SubCommandParser(parseEnableCmdArgs)
+            case .enableZone:
+                result[kind.rawValue] = SubCommandParser(parseEnableZoneCmdArgs)
             case .execAndForget:
                 break // exec-and-forget is parsed separately
             case .flattenWorkspaceTree:
@@ -149,6 +156,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(SummonWorkspaceCmdArgs.init)
             case .swap:
                 result[kind.rawValue] = SubCommandParser(parseSwapCmdArgs)
+            case .toggleZone:
+                result[kind.rawValue] = SubCommandParser(parseToggleZoneCmdArgs)
             case .triggerBinding:
                 result[kind.rawValue] = SubCommandParser(parseTriggerBindingCmdArgs)
             case .useZoneLayout:

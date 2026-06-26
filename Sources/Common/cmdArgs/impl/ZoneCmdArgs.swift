@@ -60,6 +60,87 @@ func parseMoveNodeToZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToZone
     parseSpecificCmdArgs(MoveNodeToZoneCmdArgs(rawArgs: args), args)
 }
 
+public struct EnableZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .enableZone,
+        allowInConfig: true,
+        help: enable_zone_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseEnableZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<EnableZoneCmdArgs> {
+    parseSpecificCmdArgs(EnableZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct DisableZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .disableZone,
+        allowInConfig: true,
+        help: disable_zone_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseDisableZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<DisableZoneCmdArgs> {
+    parseSpecificCmdArgs(DisableZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct ToggleZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .toggleZone,
+        allowInConfig: true,
+        help: toggle_zone_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseToggleZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ToggleZoneCmdArgs> {
+    parseSpecificCmdArgs(ToggleZoneCmdArgs(rawArgs: args), args)
+}
+
 public struct UseZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }

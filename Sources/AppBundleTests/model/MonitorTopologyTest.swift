@@ -382,6 +382,69 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
     }
 
+    func testDisabledMiddleZoneReflowsRemainingColumnsAndCanBeRestored() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [
+            ZoneConfig(
+                monitor: .main,
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ],
+            ),
+        ]
+
+        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
+        assertRectsEqual(workspaceViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 800),
+            Rect(topLeftX: 300, topLeftY: 0, width: 600, height: 800),
+            Rect(topLeftX: 900, topLeftY: 0, width: 300, height: 800),
+        ])
+
+        switch setZoneAvailability(.disable, selector: ZoneSelector("Work")) {
+            case .success(let change):
+                XCTAssertFalse(change.isEnabled)
+                XCTAssertTrue(change.changed)
+            case .failure(let msg):
+                XCTFail(msg)
+        }
+
+        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "right"])
+        assertRectsEqual(workspaceViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 600, height: 800),
+            Rect(topLeftX: 600, topLeftY: 0, width: 600, height: 800),
+        ])
+        XCTAssertEqual(workspaceViewports.map(\.isMain), [true, false])
+
+        switch setZoneAvailability(.enable, selector: ZoneSelector("main")) {
+            case .success(let change):
+                XCTAssertTrue(change.isEnabled)
+                XCTAssertTrue(change.changed)
+            case .failure(let msg):
+                XCTFail(msg)
+        }
+
+        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
+        assertRectsEqual(workspaceViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 800),
+            Rect(topLeftX: 300, topLeftY: 0, width: 600, height: 800),
+            Rect(topLeftX: 900, topLeftY: 0, width: 300, height: 800),
+        ])
+        XCTAssertEqual(workspaceViewports.map(\.isMain), [false, true, false])
+    }
+
     func testMonitorViewportIdDecodesLegacyPointOnlyIdentity() throws {
         let data = #"{"topLeftCorner":[10,20]}"#.data(using: .utf8).orDie()
 

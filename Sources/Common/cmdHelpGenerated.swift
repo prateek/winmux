@@ -19,10 +19,16 @@ let config_help_generated = """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id>]
     """
+let disable_zone_help_generated = """
+    USAGE: disable-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
+    """
 let enable_help_generated = """
     USAGE: enable [-h|--help] toggle
        OR: enable [-h|--help] on [--fail-if-noop]
        OR: enable [-h|--help] off [--fail-if-noop]
+    """
+let enable_zone_help_generated = """
+    USAGE: enable-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
     """
 let exec_and_forget_help_generated = """
     USAGE: exec-and-forget <bash-script>
@@ -163,6 +169,9 @@ let swap_help_generated = """
     USAGE: swap [-h|--help] [--window-id <window-id>] [--swap-focus]
                 [--wrap-around]
                 (left|down|up|right|dfs-next|dfs-prev)
+    """
+let toggle_zone_help_generated = """
+    USAGE: toggle-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
     """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>

@@ -15,6 +15,9 @@ final class ZoneCommandTest: XCTestCase {
                                  .copy(\.windowId, 7)
                                  .copy(\.focusFollowsWindow, true)
                                  .copy(\.failIfNoop, true))
+        testParseCommandSucc("enable-zone Comms", EnableZoneCmdArgs(zone: ZoneSelector("Comms")))
+        testParseCommandSucc("disable-zone --monitor 1 Comms", DisableZoneCmdArgs(zone: ZoneSelector("Comms"), monitor: .sequenceNumber(1)))
+        testParseCommandSucc("toggle-zone 2:Comms", ToggleZoneCmdArgs(zone: ZoneSelector("2:Comms")))
         testParseCommandSucc(
             "use-zone-layout --monitor 1 focus",
             UseZoneLayoutCmdArgs(layoutId: "focus", monitor: .sequenceNumber(1)),
@@ -314,6 +317,101 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 1)
         XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone scene 'missing'"))
+    }
+
+    func testDisableZoneParksWorkspaceAndEnableZoneRestoresIt() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        _ = TestWindow.new(id: 70, parent: comms.rootTilingContainer)
+        XCTAssertTrue(comms.focusWorkspace())
+
+        let disableResult = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(disableResult.exitCode, 0)
+        XCTAssertEqual(disableResult.stdout, ["Disabled zone 'Comms' on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [400, 800])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertFalse(comms.isVisible)
+        XCTAssertTrue(focus.workspace !== comms)
+
+        let enableResult = try await parseCommand("enable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(enableResult.exitCode, 0)
+        XCTAssertEqual(enableResult.stdout, ["Enabled zone 'Comms' on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+    }
+
+    func testDisabledZoneCannotBeFocusedOrMovedTo() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let window = TestWindow.new(id: 71, parent: work.rootTilingContainer)
+        XCTAssertTrue(window.focusWindow())
+
+        let disableResult = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disableResult.exitCode, 0)
+
+        let focusResult = try await parseCommand("focus-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focusResult.exitCode, 1)
+        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+
+        let moveResult = try await parseCommand("move-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(moveResult.exitCode, 1)
+        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+        XCTAssertTrue(window.nodeWorkspace === work)
+    }
+
+    func testDisableZoneRejectsLastEnabledZone() async throws {
+        _ = configureThreeZones()
+
+        let disableLeft = try await parseCommand("disable-zone left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disableLeft.exitCode, 0)
+        let disableMain = try await parseCommand("disable-zone main").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disableMain.exitCode, 0)
+
+        let result = try await parseCommand("disable-zone right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("at least one zone must stay enabled"))
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["right"])
+    }
+
+    func testZoneAvailabilityCommandsUseConfiguredZoneSelectorForDisabledZones() async throws {
+        let zones = configureDuplicateZones()
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+
+        let ambiguous = try await parseCommand("disable-zone left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(ambiguous.exitCode, 1)
+        XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
+
+        let disable = try await parseCommand("disable-zone --monitor 2 left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
+            guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+                  let zoneId = monitor.zoneId
+            else { return nil }
+            return "\(physicalId):\(zoneId)"
+        }, ["1:left", "1:main", "2:main"])
+
+        let enable = try await parseCommand("toggle-zone 2:left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(enable.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
+            guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+                  let zoneId = monitor.zoneId
+            else { return nil }
+            return "\(physicalId):\(zoneId)"
+        }, ["1:left", "1:main", "2:left", "2:main"])
     }
 
     func testZoneCommandsFailWhenNoZonesAreConfigured() async throws {

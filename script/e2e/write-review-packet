@@ -128,6 +128,16 @@ EOF
 - Confirm the proof shows `route-comms.rtf` moving to the Comms/right zone automatically, without a manual `move-node-to-zone` proof command during the recording.
 EOF
             ;;
+        slice-10-zone-availability)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible and the sidebar enabled.
+- Sample frames around `Run: winmux disable-zone Comms` and `Run: winmux enable-zone Comms`.
+- Confirm the hidden-state screenshot and recording frames show Comms absent and Work/main expanded, not merely a log saying the command ran.
+- Confirm the restored-state screenshot and visible window logs show `comms-availability.rtf` restored to Comms/right.
+- Confirm captions expose the `[[zones]]` config surface, exact disable/enable commands, and inspection commands `winmux list-zones` and `winmux list-windows --workspace visible`.
+- Reject final-state-only proof, a hidden state where Comms is still an active zone/sidebar target, or a restore where the parked Comms workspace comes back in the wrong zone.
+EOF
+            ;;
         *)
             cat <<'EOF'
 - Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.

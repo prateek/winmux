@@ -143,6 +143,15 @@ Slice-specific checks:
   then `route-comms.rtf` in the Comms/right zone. Reject any artifact where the
   recorded proof uses a manual `move-node-to-zone` command to move the routed
   window, or where the routed window is visible before the open-action caption.
+- Slice 10 must show runtime zone availability with
+  `disable-zone Comms` and `enable-zone Comms`. The proof must show Reference,
+  Work, and Comms visible before the disable command; Comms absent and Work/main
+  expanded after disable; then Comms restored with its parked workspace after
+  enable. Inspect the hidden-state screenshot, restored-state screenshot,
+  caption-boundary frames, and visible window logs. Reject logs-only proof,
+  final-restored-state-only proof, a hidden state where Comms still appears as an
+  active zone/sidebar target, or a restore where the Comms document comes back in
+  the wrong zone.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
