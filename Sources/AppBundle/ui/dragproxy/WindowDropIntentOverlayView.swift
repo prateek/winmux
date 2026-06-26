@@ -10,15 +10,21 @@ struct WindowDropIntentOverlayView: View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(WindowIntentPreviewPalette.gridBaseFill)
 
-            ForEach(localZones) { zone in
-                dropZoneView(zone)
-            }
+            if model.activeZone == nil {
+                Image(systemName: "rectangle.dashed")
+                    .font(.system(size: wholeZoneIconSize, weight: .semibold))
+                    .foregroundStyle(WindowIntentPreviewPalette.gridSymbol(isActive: true))
+            } else {
+                ForEach(localZones) { zone in
+                    dropZoneView(zone)
+                }
 
-            WindowIntentPreviewGridLines()
-                .stroke(
-                    WindowIntentPreviewPalette.gridLineStroke,
-                    style: StrokeStyle(lineWidth: borderLineWidth, lineCap: .butt, lineJoin: .miter)
-                )
+                WindowIntentPreviewGridLines()
+                    .stroke(
+                        WindowIntentPreviewPalette.gridLineStroke,
+                        style: StrokeStyle(lineWidth: borderLineWidth, lineCap: .butt, lineJoin: .miter)
+                    )
+            }
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(WindowIntentPreviewPalette.gridOuterStroke, lineWidth: borderLineWidth)
@@ -41,6 +47,10 @@ struct WindowDropIntentOverlayView: View {
             width: model.targetFrame.width,
             height: model.targetFrame.height
         ))
+    }
+
+    private var wholeZoneIconSize: CGFloat {
+        min(max(min(model.targetFrame.width, model.targetFrame.height) * 0.16, 28), 72)
     }
 
     private func dropZoneView(_ zone: WindowIntentZone) -> some View {

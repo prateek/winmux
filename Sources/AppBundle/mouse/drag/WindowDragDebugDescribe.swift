@@ -32,6 +32,8 @@ func debugDescribe(_ kind: WindowDragIntentKind) -> String {
             "moveToWorkspace(\(workspaceName))"
         case .moveToWorkspaceZone(let workspaceName, let zone):
             "moveToWorkspaceZone(\(workspaceName), \(zone.rawValue))"
+        case .moveToZone(let zoneId, let workspaceName):
+            "moveToZone(zone:\(zoneId), workspace:\(workspaceName))"
         case .createWorkspace:
             "createWorkspace"
         case .sidebarHover:

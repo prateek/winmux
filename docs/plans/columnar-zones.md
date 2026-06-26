@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-11B accepted; pre-Slice-11C cleanup in progress
+Status: slices 0-12 accepted; pre-Slice-13 cleanup in progress
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -71,15 +71,45 @@ Current implementation comparison:
   partially or fully represented in config and runtime state. A `Zone` is not a
   durable object; it is a configured column plus a runtime `ConfiguredZoneSummary`
   or `ZoneMonitor`.
-- `ZoneRuntimeOverlay` currently carries active layout, disabled zones, parked
-  workspaces, width overrides, and style overrides. It does not yet carry an
-  active scene id, active availability-set id, or snap policy.
+- `ZoneRuntimeOverlay` currently carries active layout, active availability set,
+  disabled zones, parked workspaces, width overrides, and style overrides. The
+  first snap-policy implementation lives in config and the mouse drag resolver;
+  it is not yet runtime overlay state.
 - `InputBinding` exists through command parsing and normal key bindings. Mouse
-  sidebar drag to a zone row calls the same move logic, but normal desktop
-  window dragging does not yet have configured whole-zone snap policy.
-- `ZoneAvailabilitySet` and `ZoneSnapPolicy` remain planned entities. Do not
-  imply they are shipped until their slices have code, fast tests, Tart video,
-  no-context artifact review, and retrospection.
+  sidebar drag to a zone row calls the same move logic. Normal desktop window
+  dragging now has initial configured whole-zone snap policy in code and has
+  Slice 12 Tart proof.
+- `ZoneAvailabilitySet` is implemented. `ZoneSnapPolicy` now has an initial
+  config/model seam and fast-tested whole-zone drag resolver for desktop window
+  drags into whole-zone targets.
+
+## Interaction Model
+
+Keyboard and command workflows should stay thin over the same zone model:
+
+- `focus-zone <zone>` moves focus to a zone's active workspace.
+- `move-node-to-zone <zone>` moves the focused window or nearest tab group to
+  the target zone's active workspace.
+- `use-zone-layout`, `cycle-zone-layout`, `resize-zone`, and `balance-zones`
+  change zone geometry on the target physical monitor.
+- `enable-zone`, `disable-zone`, `toggle-zone`, `use-zone-availability`, and
+  `cycle-zone-availability` change visibility at one-zone or named-set scope.
+- `set-zone-style` changes zone chrome without changing layout or workspace
+  binding.
+- Example key bindings should compose these commands directly. The default idiom
+  is physical-monitor scoped when needed, for example
+  `alt-f = 'use-zone-availability focus-only'` or
+  `alt-shift-m = 'move-node-to-zone Comms --focus-follows-window'`.
+
+Mouse workflows should use a separate snap-policy layer:
+
+- default drag behavior stays freeform unless the active policy says otherwise;
+- configured drag policies can preview a whole-zone target and snap the window
+  or tab group into that zone's active workspace on release;
+- the first snap target is the zone itself, not a window or slot inside the
+  zone;
+- gesture configuration is an input layer over the same move/focus/layout
+  handlers used by keyboard commands.
 
 ## End-User Shape
 
@@ -1957,13 +1987,14 @@ Pre-Slice-12 cleanup:
   reports.
 - [x] Harden artifact-review guidance for availability-set slices so reviewers
   distinguish the top sidebar `Zones` section from parked workspace rows.
-- [ ] Commit the Slice 11C dirty set or write an explicit carry-forward
-  inventory before starting Slice 12 implementation.
-- [ ] Define Slice 12's first Tart proof scope before implementation: whole-zone
+- [x] Commit the Slice 11C dirty set or write an explicit carry-forward
+  inventory before starting Slice 12 implementation. Slice 11C was committed as
+  `998fe97b`.
+- [x] Define Slice 12's first Tart proof scope before implementation: whole-zone
   snap target, modifier/freeform cases, required in-drag frames, exact captions,
   logs, color/geometry sentinels if needed, and verifier/reviewer checks.
 
-### Future Slice 12: Mouse Snap Policy and Gestures
+### Slice 12: Mouse Snap Policy and Gestures
 
 Goal: make mouse interaction deliberate enough for one-handed use on an
 ultrawide.
@@ -1973,8 +2004,8 @@ Model the drag policy explicitly:
 - `freeform`: moving a floating window inside a zone stays freeform;
 - `snap-on-modifier`: dragging does not snap unless the configured modifier is
   held;
-- `snap-to-zone`: modifier-held drag previews the target zone and snaps on
-  release;
+- `snap-to-zone`: drag previews the target zone and snaps on release without
+  requiring a modifier;
 - `snap-to-window`: later, preview a slot/window target inside a zone.
 - `float-unless-snap`: moving a managed window with the mouse leaves it floating
   unless the snap modifier is held for the drop.
@@ -1988,6 +2019,33 @@ modifier = 'alt'
 gesture = 'drag'
 target = 'zone'
 ```
+
+Initial Slice 12 implementation scope:
+
+- add `mouse.zone-snap` config parsing with defaults:
+  `policy = 'freeform'`, `modifier = 'alt'`, `gesture = 'drag'`, and
+  `target = 'zone'`;
+- accept policies `freeform`, `snap-on-modifier`, `snap-to-zone`, and
+  `float-unless-snap`;
+- accept only the first target, `zone`; `snap-to-window` remains out of scope;
+- add fast parser tests for valid config, concise default config, and invalid
+  policy/modifier/gesture/target values;
+- add a desktop drag resolver that:
+  - leaves tab-strip drags and non-zone monitors on the existing path;
+  - suppresses accidental zone snap destinations under `freeform` or a missing
+    `snap-on-modifier` / `float-unless-snap` modifier;
+  - creates a whole-zone `.moveToZone` destination when the policy is active;
+  - uses the zone monitor rect for preview geometry and applies the existing
+    workspace move into the target zone's active workspace on release;
+- add fast mouse-policy tests for freeform suppression, modifier activation,
+  `snap-to-zone` activation without a modifier, `float-unless-snap` modifier
+  gating, non-zone/non-window-drag fallthrough, and whole-zone destination
+  metadata;
+- render a whole-zone drag overlay when the destination targets the zone itself
+  rather than a sub-zone drop cell;
+- this config/runtime seam is not an accepted standalone slice. Do not claim
+  completed desktop snapping until the Slice 12 behavior proof records the
+  actual pointer path, drag overlay, release, and final window movement.
 
 The first mouse implementation should target whole zones, not windows inside a
 zone. Window/slot snap can come after the zone-level affordance is proven.
@@ -2015,6 +2073,77 @@ Tart proof:
   or freeform placement;
 - reject any proof where the reviewer cannot see the pointer path, target
   overlay, snap boundary, or final destination without relying on logs.
+
+Slice 12 accepted result:
+
+- artifact: `artifacts/e2e/slice-12-20260626T134813Z`;
+- recording: `recordings/slice-12-mouse-zone-snap-drag.mov`, H.264,
+  3440x1440, annotated with desktop drag actions and mouse snap config context;
+- raw recording: `recordings/raw/slice-12-mouse-zone-snap-drag.raw.mov`;
+- proof: `slice-12-mouse-zone-snap-proof.txt`;
+- key screenshots: `02-freeform-pickup-slice-12.png`,
+  `03-freeform-hover-no-overlay-slice-12.png`,
+  `04-reset-before-snap-slice-12.png`, `05-snap-pickup-slice-12.png`,
+  `06-snap-path-slice-12.png`, `07-snap-hover-comms-slice-12.png`, and
+  `99-after-slice-12.png`;
+- no-context artifact review:
+  `artifacts/e2e/slice-12-20260626T134813Z/reviews/no-ctx-artifact-review.md`,
+  verdict `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-12-20260626T134813Z ARGS=--require-review`;
+- post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-12-20260626T134813Z`;
+- supplemental pre-Tart gate after retrospection fixes:
+  `make e2e-pre-tart-checks`, passing 84 selected tests including the mouse
+  parser tests and `WindowZoneSnapPolicyTest`;
+- retrospective reports:
+  `retrospection-process-plan.md`, `retrospection-code-harness.md`, and
+  `retrospection-artifact-product.md` under
+  `artifacts/e2e/slice-12-20260626T134813Z/reviews/`;
+- accepted claims: `[mouse.zone-snap]` parses with the configured policy,
+  modifier, gesture, and target; no-Alt desktop window drag stays freeform and
+  does not move the window to another zone; Alt-held desktop drag previews a
+  whole Comms/right zone target; release moves the same `snap-demo.rtf` window
+  id from Work/main to Comms/right;
+- accepted note: the reviewed video's first caption chip abbreviates the
+  literal modifier/target config, while the caption prose/action chips, copied
+  config, proof manifest, and logs expose `modifier = 'alt'` and
+  `target = 'zone'`. The future caption template now emits the full literal
+  config chip; this exception is not reusable for later mouse-policy artifacts;
+- non-claims: this Tart artifact does not prove snap-to-window, slot targeting,
+  tab-group mouse snap, persistent float-mode policy, runtime snap-policy
+  overlays, mouse gestures beyond desktop drag, a visual config editor, or
+  automatic overlay/no-overlay image sentinels.
+
+Superseded Slice 12 attempt:
+
+- `artifacts/e2e/slice-12-20260626T134736Z` contains a passing pre-Tart log but
+  no guest media, scenario log, or Tart proof. It is not an accepted artifact.
+
+Pre-Slice-13 cleanup:
+
+- [x] Complete the Slice 12 no-context artifact review and require `PASS` or
+  `PASS_WITH_NOTES` plus `next slice allowed: yes`.
+- [x] Run the post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-12-20260626T134813Z`.
+- [x] Read all three Slice 12 retrospection reports and fold accepted findings
+  into this plan.
+- [x] Add the Slice 12 mouse parser and zone snap policy tests to
+  `make e2e-pre-tart-checks`.
+- [x] Add direct fast tests for `snap-to-zone` and `float-unless-snap` resolver
+  semantics before expanding mouse policy behavior.
+- [x] Tighten the future Slice 12-style caption template so the config chip
+  includes literal `policy = 'snap-on-modifier'`, `modifier = 'alt'`, and
+  `target = 'zone'`.
+- [x] Add future semantic sample-manifest labels for snap release and final
+  placement.
+- [x] Commit the accepted Slice 12 dirty set or write an explicit carry-forward
+  inventory before starting implementation for the next slice. This changeset
+  is the Slice 12 boundary.
+- [ ] Before another drag-heavy Tart run, add a mechanical overlay/no-overlay
+  sentinel or write an explicit plan waiver for why that run does not need one.
+- [ ] Before another movement-proof artifact, avoid static initial-zone labels
+  inside movable proof documents or pair them with a visible live state board.
 
 ## Call-Site Audit
 

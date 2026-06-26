@@ -134,6 +134,7 @@ func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject,
     let targetWorkspaceName: String? = switch destination.kind {
         case .moveToWorkspace(let workspaceName): workspaceName
         case .moveToWorkspaceZone(let workspaceName, _): workspaceName
+        case .moveToZone(_, let workspaceName): workspaceName
         case .createWorkspace, .sidebarHover, .tabStack, .reorderTab, .detachTab, .stackSplit, .swap: nil
     }
     if targetWorkspaceName != nil {

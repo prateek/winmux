@@ -64,6 +64,7 @@ struct Config: ConvenienceCopyable {
 
     var autoAddNewWindowsToTabGroup: Bool = false
     var gaps: Gaps = .zero
+    var mouse = MouseConfig()
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
     var zoneStyles: [ZoneStyleConfig] = []
@@ -75,6 +76,32 @@ struct Config: ConvenienceCopyable {
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: [any Command] = []
+}
+
+struct MouseConfig: ConvenienceCopyable, Equatable, Sendable {
+    var zoneSnap = ZoneSnapConfig()
+}
+
+struct ZoneSnapConfig: ConvenienceCopyable, Equatable, Sendable {
+    var policy: ZoneSnapPolicy = .freeform
+    var modifier: NSEvent.ModifierFlags = .option
+    var gesture: ZoneSnapGesture = .drag
+    var target: ZoneSnapTarget = .zone
+}
+
+enum ZoneSnapPolicy: String, CaseIterable, Equatable, Sendable {
+    case freeform
+    case snapOnModifier = "snap-on-modifier"
+    case snapToZone = "snap-to-zone"
+    case floatUnlessSnap = "float-unless-snap"
+}
+
+enum ZoneSnapGesture: String, CaseIterable, Equatable, Sendable {
+    case drag
+}
+
+enum ZoneSnapTarget: String, CaseIterable, Equatable, Sendable {
+    case zone
 }
 
 struct ZoneConfig: ConvenienceCopyable, Equatable, Sendable {

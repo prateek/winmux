@@ -252,6 +252,13 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
             suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])
             applyWorkspaceZoneMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace, zone: zone)
             return true
+        case .moveToZone(_, let workspaceName):
+            guard let targetWorkspace = Workspace.existing(byName: workspaceName) else { return false }
+            syncClosedWindowsCacheToCurrentWorld()
+            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])
+            applySidebarWorkspaceMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace)
+            _ = sourceWindow.focusWindow()
+            return true
         case .createWorkspace(let projectId, let monitorScopeId):
             syncClosedWindowsCacheToCurrentWorld()
             suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])

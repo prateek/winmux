@@ -213,6 +213,22 @@ Slice-specific checks:
   active-set semantics, a restore where Comms returns unstyled or in the wrong
   zone, and any video where the reviewer cannot tell whether the action is a
   named set versus a manual zone toggle.
+- Slice 12 must show desktop mouse zone snap policy with `[mouse.zone-snap]`
+  configured for a whole-zone target. The proof must include two separate
+  visible drag attempts: first a freeform or missing-modifier drag where no snap
+  overlay appears and no zone move happens, then a modifier-held drag where the
+  target is visibly a whole zone, not a window or slot inside that zone. Inspect
+  the exact in-drag media for source pickup, pointer/path, modifier/snap-policy
+  caption, whole-zone overlay, target-zone highlight, release, and final
+  placement in the target zone's active workspace. The captions must expose the
+  relevant user-facing config/action, such as `[mouse.zone-snap]`,
+  `policy = 'snap-on-modifier'`, `modifier = 'alt'`, and
+  `Action: hold Alt while dragging`. Confirm the source window or tab group is
+  the same object before and after the snap. Reject logs-only proof,
+  final-state-only proof, a proof that only shows sidebar dragging, a proof
+  where the reviewer cannot see whether the snap target is a whole zone versus a
+  window/slot, missing freeform negative proof, missing modifier-held positive
+  proof, or any review that does not name per-beat media files for the drag.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

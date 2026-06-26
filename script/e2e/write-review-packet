@@ -108,6 +108,17 @@ EOF
 - Reject no-op movement proofs unless strict no-op failure is shown.
 EOF
             ;;
+        slice-12-mouse-zone-snap-drag)
+            cat <<'EOF'
+- Confirm the recording shows two separate desktop window drags, not a sidebar drag: first without Alt, then with Alt held.
+- Confirm the no-Alt drag has visible source pickup and hover/path over the target area, but no whole-zone snap overlay and no zone move in the after-freeform logs.
+- Confirm the positive drag shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
+- State whether the target is a whole zone or a window/slot inside a zone. For Slice 12, the expected answer is whole zone.
+- Confirm captions expose `[mouse.zone-snap]`, `policy = 'snap-on-modifier'`, `modifier = 'alt'`, and the user action `hold Alt while dragging`.
+- Name the exact media file used for each beat: freeform pickup, freeform no-overlay hover, reset-before-snap, Alt pickup, Alt path, whole-zone hover/overlay, release/final placement.
+- Reject final-placement-only proof, missing negative proof, missing modifier-held positive proof, an unclear snap target, or a review that assumes the overlay appeared without inspecting action frames.
+EOF
+            ;;
         slice-5-sidebar-drag|*drag*)
             cat <<'EOF'
 - Confirm the source sidebar item, dragged proxy, pointer/path, highlighted target zone row/section, hover hold, release, and final placement are visible in full-frame action samples or in-drag screenshots.

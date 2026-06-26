@@ -46,6 +46,9 @@ fi
 if [ "$ACTION" = "slice-11c" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-availability-sets.toml"
 fi
+if [ "$ACTION" = "slice-12" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mouse-snap.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -95,7 +98,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c>
+Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1114,6 +1117,18 @@ CAPTIONS
 59	64	Inspect state	The CLI exposes availability set labels, enabled zones, styles, and workspaces.	Run: winmux list-zones && winmux list-windows
 CAPTIONS
             ;;
+        slice-12-mouse-zone-snap-drag)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Snap-ready zones	The mouse policy is configured for whole-zone snapping with Alt.	Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = 'alt', target = 'zone'
+8	19	Drag without Alt	The first desktop drag stays freeform; no zone snap should appear.	Action: drag snap-demo.rtf without Alt
+19	27	No zone move	The same window remains bound to Work after the missing-modifier drag.	Run: winmux list-windows --monitor all
+27	35	Reset the source	The proof window is back in Work before the positive snap attempt.	Action: reset snap-demo.rtf to Work
+35	45	Hold Alt and drag	The configured modifier turns the desktop drag into a zone-snap preview.	Action: hold Alt while dragging snap-demo.rtf
+45	56	Whole-zone target	The overlay targets the Comms zone itself, not a window or slot.	Action: target = whole Comms zone
+56	64	Release into Comms	Drop with Alt held to move the same window to Comms' active workspace.	Action: release on Comms zone
+64	72	Inspect placement	The window log proves the same id moved from Work/main to Comms/right.	Run: winmux list-windows --monitor all
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -1179,7 +1194,8 @@ annotation_preflight() {
         slice-10-zone-availability \
         slice-11a-zone-width-controls \
         slice-11b-zone-style-controls \
-        slice-11c-zone-availability-sets
+        slice-11c-zone-availability-sets \
+        slice-12-mouse-zone-snap-drag
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1326,6 +1342,35 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic after-communications-restore screenshot screenshot \
                 "screenshots/06-after-communications-restore-slice-11c.png" \
                 "Comms remains restored with urgent styling after the state settles"
+            ;;
+        slice-12-mouse-zone-snap-drag)
+            append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
+                "screenshots/02-freeform-pickup-slice-12.png" \
+                "desktop window pickup without Alt"
+            append_sample_manifest_row "$manifest_path" semantic freeform-hover-no-overlay screenshot screenshot \
+                "screenshots/03-freeform-hover-no-overlay-slice-12.png" \
+                "missing-modifier drag over Comms has no whole-zone snap overlay"
+            append_sample_manifest_row "$manifest_path" semantic reset-before-snap screenshot screenshot \
+                "screenshots/04-reset-before-snap-slice-12.png" \
+                "same source window reset to Work before positive snap"
+            append_sample_manifest_row "$manifest_path" semantic snap-command-start caption-05 35.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "hold-Alt action caption while source window is still in Work"
+            append_sample_manifest_row "$manifest_path" semantic snap-pickup screenshot screenshot \
+                "screenshots/05-snap-pickup-slice-12.png" \
+                "Alt-held desktop window pickup"
+            append_sample_manifest_row "$manifest_path" semantic snap-path screenshot screenshot \
+                "screenshots/06-snap-path-slice-12.png" \
+                "Alt-held desktop drag path toward Comms"
+            append_sample_manifest_row "$manifest_path" semantic snap-hover-comms screenshot screenshot \
+                "screenshots/07-snap-hover-comms-slice-12.png" \
+                "whole Comms zone overlay is visible before release"
+            append_sample_manifest_row "$manifest_path" semantic snap-release caption-07 56.100 \
+                "screenshots/${name}.samples/caption-07-boundary-start.png" \
+                "release caption starts while the whole-zone target is still visible"
+            append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
+                "screenshots/99-after-slice-12.png" \
+                "same source window is placed in Comms/right after release"
             ;;
     esac
 }
@@ -2375,6 +2420,38 @@ run_slice_11c_zone_availability_sets() {
         "${LOGS_DIR}/slice-11c-run.log"
 }
 
+run_slice_12_mouse_zone_snap_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE12_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-12-setup.log"
+}
+
+run_slice_12_mouse_zone_snap() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE12_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-12-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -2490,6 +2567,10 @@ slice_11c() {
     run_recorded_scenario "slice-11c-zone-availability-sets" "00-before-slice-11c" "99-after-slice-11c" "run_slice_11c_zone_availability_sets" "run_slice_11c_zone_availability_sets_setup" "01-ready-slice-11c"
 }
 
+slice_12() {
+    run_recorded_scenario "slice-12-mouse-zone-snap-drag" "00-before-slice-12" "99-after-slice-12" "run_slice_12_mouse_zone_snap" "run_slice_12_mouse_zone_snap_setup" "01-ready-slice-12"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2541,6 +2622,9 @@ case "$ACTION" in
         ;;
     slice-11c)
         slice_11c
+        ;;
+    slice-12)
+        slice_12
         ;;
     *)
         usage >&2

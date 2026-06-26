@@ -702,6 +702,21 @@ require_slice_11c_sample_manifest() {
     done
 }
 
+require_slice_12_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        freeform-pickup \
+        freeform-hover-no-overlay \
+        reset-before-snap \
+        snap-command-start \
+        snap-pickup \
+        snap-path \
+        snap-hover-comms; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 transport_summary_value() {
     local path="$1"
     local phase="$2"
@@ -780,11 +795,14 @@ require_drag_proof_manifest() {
     [ -n "$source_title" ] || die "Proof manifest source title is empty"
     [ -n "$target_zone" ] || die "Proof manifest target zone is empty"
     [ -n "$target_name" ] || die "Proof manifest target zone name is empty"
-    [ "$snap_target" = zone-row ] || die "Proof manifest must state snap-target=zone-row, got: ${snap_target:-missing}"
+    case "$snap_target" in
+        zone-row|whole-zone) ;;
+        *) die "Proof manifest must state snap-target=zone-row or whole-zone, got: ${snap_target:-missing}" ;;
+    esac
     [ "$not_snap_target" = window-within-zone ] || die "Proof manifest must state not-snap-target=window-within-zone"
     [[ "$source_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest source point is not x,y: $source_point"
     [[ "$target_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest target point is not x,y: $target_point"
-    assert_numeric_gt "$hover_seconds" "2.5" "Slice 5 hover hold is too short to demonstrate the zone-row affordance"
+    assert_numeric_gt "$hover_seconds" "2.5" "Drag hover hold is too short to demonstrate the target affordance"
     local pickup_hash path_hash hover_hash ready_hash
     pickup_hash="$(file_sha256 "$pickup_screenshot")"
     path_hash="$(file_sha256 "$path_screenshot")"
@@ -800,8 +818,8 @@ require_drag_proof_manifest() {
         [ "$path_hash" != "$ready_hash" ] || die "Drag path screenshot duplicates the ready screenshot"
         [ "$hover_hash" != "$ready_hash" ] || die "Drag hover screenshot duplicates the ready screenshot"
     fi
-    [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* ]] \
-        || die "Proof manifest must justify fixed drag points with state and video assertions"
+    [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* || "$coordinate_policy" == derived-from-list-zones* ]] \
+        || die "Proof manifest must justify drag points with state/video assertions or zone-derived coordinates"
     [[ "$required_frames" == *source* && "$required_frames" == *proxy* && "$required_frames" == *highlight* && "$required_frames" == *path* ]] \
         || die "Proof manifest visual floor must require source, proxy, highlighted target, and path frames"
     if [ -s "$annotation_plan" ]; then
@@ -2165,6 +2183,141 @@ require_slice_11c_zone_availability_sets_proof() {
         || die "Slice 11C communications command caption must cover the command/action interval"
 }
 
+require_slice_12_mouse_zone_snap_proof() {
+    local proof="${RUN_DIR}/slice-12-mouse-zone-snap-proof.txt"
+    local done="${LOGS_DIR}/slice-12-mouse-zone-snap.done"
+    local setup_log="${LOGS_DIR}/slice-12-mouse-zone-snap-setup.log"
+    local action_log="${LOGS_DIR}/slice-12-mouse-zone-snap-action.log"
+    local windows_before="${LOGS_DIR}/slice-12-windows-before.log"
+    local windows_freeform="${LOGS_DIR}/slice-12-windows-after-freeform.log"
+    local windows_reset="${LOGS_DIR}/slice-12-windows-after-reset.log"
+    local windows_after="${LOGS_DIR}/slice-12-windows-after-snap.log"
+    local zones="${LOGS_DIR}/slice-12-zones.log"
+    local timing_log="${LOGS_DIR}/slice-12-command-timing.log"
+    local sample_manifest="${LOGS_DIR}/slice-12-mouse-zone-snap-drag.sample-manifest.tsv"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-12.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 12"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$windows_before"
+    require_file "$windows_freeform"
+    require_file "$windows_reset"
+    require_file "$windows_after"
+    require_file "$zones"
+    require_file "$timing_log"
+    require_drag_proof_manifest "$proof_manifest"
+    require_slice_12_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "$ready_screenshot"
+    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/06-snap-path-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-12.png"
+
+    grep -F "PASS: desktop drag without Alt stays freeform/no-zone-move; holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
+        || die "Slice 12 proof does not contain the expected PASS claim"
+    grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 12 config missing mouse zone snap table"
+    grep -F "policy = 'snap-on-modifier'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 12 config missing snap-on-modifier policy"
+    grep -F "modifier = 'alt'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 12 config missing alt modifier"
+    grep -F "target = 'zone'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 12 config missing whole-zone target"
+    grep -F "Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = 'alt', target = 'zone'" "$setup_log" >/dev/null \
+        || die "Slice 12 setup log missing mouse snap config summary"
+
+    grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing desktop snap action"
+    grep -F 'interaction-model=desktop-window-drag' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing desktop drag interaction model"
+    grep -F 'policy=snap-on-modifier' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing policy"
+    grep -F 'modifier=alt' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing modifier"
+    grep -F 'target=zone' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing target=zone"
+    grep -F 'snap-target=whole-zone' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing whole-zone snap target"
+    grep -F 'not-snap-target=window-within-zone' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing window-within-zone exclusion"
+    grep -F 'freeform-result=no-zone-move' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing freeform no-zone-move result"
+    grep -F 'snap-result=success' "$action_log" >/dev/null \
+        || die "Slice 12 action log missing snap success result"
+
+    local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace after_workspace
+    source_id="$(value_from_log source-window-id "$action_log")"
+    freeform_id="$(value_from_log freeform-window-id-after "$action_log")"
+    after_id="$(value_from_log window-id-after "$action_log")"
+    before_zone="$(value_from_log before-zone "$action_log")"
+    freeform_zone="$(value_from_log freeform-after-zone "$action_log")"
+    after_zone="$(value_from_log after-zone "$action_log")"
+    before_workspace="$(value_from_log before-workspace "$action_log")"
+    after_workspace="$(value_from_log after-workspace "$action_log")"
+    reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
+
+    [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
+        || die "Slice 12 window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
+    [ "$before_zone" = main ] || die "Slice 12 source did not start in Work/main: ${before_zone:-missing}"
+    [ "$freeform_zone" = main ] || die "Slice 12 freeform drag changed zone binding: ${freeform_zone:-missing}"
+    [ "$reset_zone" = main ] || die "Slice 12 reset did not return source to Work/main: ${reset_zone:-missing}"
+    [ "$after_zone" = right ] || die "Slice 12 Alt snap did not end in Comms/right: ${after_zone:-missing}"
+    [ -n "$before_workspace" ] && [ -n "$after_workspace" ] && [ "$before_workspace" != "$after_workspace" ] \
+        || die "Slice 12 Alt snap did not move to a different active workspace"
+
+    [ "$(field_for_title "$windows_before" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 12 before log missing snap-demo source id"
+    [ "$(field_for_title "$windows_before" 'snap-demo.rtf' zone)" = main ] \
+        || die "Slice 12 before log missing snap-demo in main"
+    [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 12 freeform log missing same snap-demo id"
+    [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' zone)" = main ] \
+        || die "Slice 12 freeform log should keep snap-demo in main"
+    [ "$(field_for_title "$windows_after" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 12 after log missing same snap-demo id"
+    [ "$(field_for_title "$windows_after" 'snap-demo.rtf' zone)" = right ] \
+        || die "Slice 12 after log should move snap-demo to right"
+
+    [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = whole-zone ] \
+        || die "Slice 12 proof manifest must show whole-zone snap target"
+    [ "$(manifest_value "$proof_manifest" drag-policy policy)" = snap-on-modifier ] \
+        || die "Slice 12 proof manifest missing snap-on-modifier policy"
+    [ "$(manifest_value "$proof_manifest" drag-policy modifier)" = alt ] \
+        || die "Slice 12 proof manifest missing alt modifier"
+    [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = no-alt-no-zone-move ] \
+        || die "Slice 12 proof manifest missing negative freeform proof"
+    [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = alt-held-whole-zone-snap ] \
+        || die "Slice 12 proof manifest missing positive snap proof"
+    [ "$(manifest_value "$proof_manifest" drag-result freeform-result)" = no-zone-move ] \
+        || die "Slice 12 proof manifest missing freeform result"
+    [ "$(manifest_value "$proof_manifest" drag-result result)" = success ] \
+        || die "Slice 12 proof manifest missing final success result"
+
+    if ! grep -F "Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = 'alt', target = 'zone'" "$annotation_plan" >/dev/null; then
+        grep -F "Config: [mouse.zone-snap] policy='snap-on-modifier'" "$annotation_plan" >/dev/null \
+            || die "Slice 12 annotations missing mouse snap config chip"
+    fi
+    grep -F "Action: drag snap-demo.rtf without Alt" "$annotation_plan" >/dev/null \
+        || die "Slice 12 annotations missing no-modifier drag chip"
+    grep -F "Action: hold Alt while dragging snap-demo.rtf" "$annotation_plan" >/dev/null \
+        || die "Slice 12 annotations missing Alt-held drag chip"
+    grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null \
+        || die "Slice 12 annotations missing whole-zone target chip"
+    grep -F "Action: release on Comms zone" "$annotation_plan" >/dev/null \
+        || die "Slice 12 annotations missing release chip"
+    grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
+        || die "Slice 12 annotations missing list-windows inspection chip"
+    awk -F '\t' '$5 == "Action: drag snap-demo.rtf without Alt" { found = 1; ok = (($1 + 0) <= 8 && ($2 + 0) >= 18) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 12 no-modifier drag caption must cover the negative drag interval"
+    awk -F '\t' '$5 == "Action: hold Alt while dragging snap-demo.rtf" { found = 1; ok = (($1 + 0) <= 35 && ($2 + 0) >= 44) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 12 Alt-held drag caption must cover the positive drag interval"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -2306,6 +2459,9 @@ case "$recording_name" in
         ;;
     slice-11c-zone-availability-sets)
         require_slice_11c_zone_availability_sets_proof
+        ;;
+    slice-12-mouse-zone-snap-drag)
+        require_slice_12_mouse_zone_snap_proof
         ;;
 esac
 

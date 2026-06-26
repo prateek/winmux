@@ -1,0 +1,214 @@
+@testable import AppBundle
+import AppKit
+import CoreGraphics
+import XCTest
+
+@MainActor
+final class WindowZoneSnapPolicyTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests() }
+
+    func testFreeformPolicySuppressesZoneDragDestinations() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .freeform
+
+        let resolution = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+        )
+
+        guard case .suppressDefaultDestinations = resolution else {
+            XCTFail("Expected freeform zone drag to suppress snap destinations")
+            return
+        }
+    }
+
+    func testSnapOnModifierRequiresConfiguredModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapOnModifier
+        config.mouse.zoneSnap.modifier = [.option, .shift]
+
+        let withoutShift = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+        )
+        guard case .suppressDefaultDestinations = withoutShift else {
+            XCTFail("Expected missing modifier to suppress zone snap")
+            return
+        }
+
+        let withShift = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [.maskAlternate, .maskShift],
+        )
+        guard case .use(let destination) = withShift else {
+            XCTFail("Expected configured modifier to produce a zone snap destination")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.previewRect.topLeftX, fixture.commsMonitor.rect.topLeftX)
+        XCTAssertEqual(destination.previewRect.width, fixture.commsMonitor.rect.width)
+        XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
+    }
+
+    func testSnapToZoneDoesNotRequireModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapToZone
+
+        let resolution = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+        )
+
+        guard case .use(let destination) = resolution else {
+            XCTFail("Expected snap-to-zone to create a destination without a modifier")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
+    }
+
+    func testFloatUnlessSnapRequiresConfiguredModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+
+        let withoutModifier = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+        )
+        guard case .suppressDefaultDestinations = withoutModifier else {
+            XCTFail("Expected float-unless-snap to suppress zone snap without the configured modifier")
+            return
+        }
+
+        let withModifier = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+        )
+        guard case .use(let destination) = withModifier else {
+            XCTFail("Expected float-unless-snap to create a zone snap destination when the modifier is held")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+    }
+
+    func testZoneSnapDoesNotInterceptTabStripOrNonZoneDrags() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapToZone
+
+        let tabStrip = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .tabStrip,
+            modifierFlags: [],
+        )
+        guard case .allowDefaultDestinations = tabStrip else {
+            XCTFail("Expected tab-strip drags to keep existing destination behavior")
+            return
+        }
+
+        let physicalMonitor = fixture.commsMonitor.physicalMonitor
+        let nonZone = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: physicalMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: physicalMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+        )
+        guard case .allowDefaultDestinations = nonZone else {
+            XCTFail("Expected non-zone monitors to keep existing destination behavior")
+            return
+        }
+    }
+}
+
+private struct ZoneSnapFixture {
+    let work: Workspace
+    let comms: Workspace
+    let commsMonitor: Monitor
+    let window: Window
+}
+
+@MainActor
+private func configureZoneSnapFixture() -> ZoneSnapFixture {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zones = [
+        ZoneConfig(
+            monitor: .sequenceNumber(1),
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+            ],
+        ),
+    ]
+
+    let work = Workspace.get(byName: "work")
+    let comms = Workspace.get(byName: "comms")
+    let zonesById = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        monitor.zoneId.map { ($0, monitor) }
+    })
+    XCTAssertTrue(zonesById["main"].orDie().setActiveWorkspace(work))
+    XCTAssertTrue(zonesById["right"].orDie().setActiveWorkspace(comms))
+    let window = TestWindow.new(id: 901, parent: work.rootTilingContainer)
+    return ZoneSnapFixture(
+        work: work,
+        comms: comms,
+        commsMonitor: zonesById["right"].orDie(),
+        window: window,
+    )
+}

@@ -1,0 +1,35 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[mouse.zone-snap]
+policy = 'snap-on-modifier'
+modifier = 'alt'
+gesture = 'drag'
+target = 'zone'
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 260
+collapsed-width = 64
+show-date = false
+
+[mode.main.binding]
+alt-h = 'focus-zone Reference'
+alt-j = 'focus-zone Work'
+alt-l = 'focus-zone Comms'
