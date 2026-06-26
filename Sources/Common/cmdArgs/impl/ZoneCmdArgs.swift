@@ -283,6 +283,60 @@ func parseCycleZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneLayo
     parseSpecificCmdArgs(CycleZoneLayoutCmdArgs(rawArgs: args), args)
 }
 
+public struct CycleZoneAvailabilityCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneAvailability,
+        allowInConfig: true,
+        help: cycle_zone_availability_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.availabilitySetIds, parseZoneAvailabilitySetIds, placeholder: "<set-id>...")],
+    )
+
+    public init(availabilitySetIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.availabilitySetIds = .initialized(availabilitySetIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var availabilitySetIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneAvailabilityCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneAvailabilityCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneAvailabilityCmdArgs(rawArgs: args), args)
+}
+
+public struct UseZoneAvailabilityCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .useZoneAvailability,
+        allowInConfig: true,
+        help: use_zone_availability_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.availabilitySetId, parseZoneAvailabilitySetId, placeholder: "<set-id>")],
+    )
+
+    public init(availabilitySetId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.availabilitySetId = .initialized(availabilitySetId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var availabilitySetId: Lateinit<String> = .uninitialized
+}
+
+func parseUseZoneAvailabilityCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneAvailabilityCmdArgs> {
+    parseSpecificCmdArgs(UseZoneAvailabilityCmdArgs(rawArgs: args), args)
+}
+
 public struct UseZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -367,6 +421,7 @@ extension ListZonesCmdArgs {
             ? [
                 .interVar("monitor-zone-id"), .interVar("right-padding"), .literal(" | "),
                 .interVar("monitor-zone-name"), .interVar("right-padding"), .literal(" | "),
+                .literal("availability "), .interVar("monitor-zone-availability-set-id"), .interVar("right-padding"), .literal(" | "),
                 .literal("style "), .interVar("monitor-zone-style-id"), .interVar("right-padding"), .literal(" | "),
                 .literal("enabled "), .interVar("monitor-zone-enabled"), .interVar("right-padding"), .literal(" | "),
                 .literal("width "), .interVar("monitor-zone-effective-width"), .interVar("right-padding"), .literal(" | "),
@@ -444,11 +499,47 @@ private func parseZoneSceneId(i: PosArgParserInput) -> ParsedCliArgs<String> {
     }
 }
 
+private func parseZoneAvailabilitySetId(i: PosArgParserInput) -> ParsedCliArgs<String> {
+    switch parseZoneAvailabilitySetIdentifier(i.arg) {
+        case .success(let setId): .succ(setId, advanceBy: 1)
+        case .failure(let msg): .fail(msg, advanceBy: 1)
+    }
+}
+
+private func parseZoneAvailabilitySetIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {
+    let args = i.nonFlagArgs()
+    guard !args.isEmpty else {
+        return .fail("<set-id> is mandatory", advanceBy: 0)
+    }
+    var setIds: [String] = []
+    for (offset, arg) in args.enumerated() {
+        switch parseZoneAvailabilitySetIdentifier(arg) {
+            case .success(let setId):
+                setIds.append(setId)
+            case .failure(let msg):
+                return .fail(msg, advanceBy: offset + 1)
+        }
+    }
+    return .succ(setIds, advanceBy: args.count)
+}
+
 private func parseZoneStyleId(i: PosArgParserInput) -> ParsedCliArgs<String> {
     switch parseZoneStyleIdentifier(i.arg) {
         case .success(let styleId): .succ(styleId, advanceBy: 1)
         case .failure(let msg): .fail(msg, advanceBy: 1)
     }
+}
+
+private func parseZoneAvailabilitySetIdentifier(_ raw: String) -> Parsed<String> {
+    if raw.isEmpty {
+        return .failure("<set-id> must not be empty")
+    }
+    guard raw.allSatisfy({ char in
+        char.isLetter || char.isNumber || char == "-" || char == "_"
+    }) else {
+        return .failure("<set-id> must use only letters, numbers, hyphens, and underscores")
+    }
+    return .success(raw)
 }
 
 private func parseZoneLayoutIdentifier(_ raw: String) -> Parsed<String> {

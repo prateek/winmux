@@ -129,6 +129,39 @@ extension ConfigTest {
         ])
     }
 
+    func testParseZoneAvailabilitySets() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                columns = [
+                    { id = 'left', width = 0.25 },
+                    { id = 'main', width = 0.50 },
+                    { id = 'right', width = 0.25 },
+                ]
+
+            [[zone-availability-sets]]
+                id = 'focus-only'
+                enabled-zones = ['main']
+
+            [[zone-availability-sets]]
+                id = 'communications'
+                enabled-zones = ['main', 'right']
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'balanced'
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneAvailabilitySets, [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ])
+    }
+
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """
@@ -207,6 +240,34 @@ extension ConfigTest {
             "zone-styles[1].color: Missing required key",
             "zone-styles[2].id: Missing required key",
             "zone-styles: Contains duplicated style ids: urgent",
+        ])
+    }
+
+    func testRejectInvalidZoneAvailabilitySets() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+
+            [[zone-availability-sets]]
+                id = 'focus'
+                enabled-zones = []
+
+            [[zone-availability-sets]]
+                id = 'focus'
+                enabled-zones = ['main', 'main', 'missing']
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-availability-sets[0].enabled-zones: Must contain at least one zone id",
+            "zone-availability-sets[1].enabled-zones: Contains duplicated zone ids: main",
+            "zone-availability-sets: Contains duplicated availability set ids: focus",
+            "zone-availability-sets[1].enabled-zones[2]: Unknown zone id 'missing'",
         ])
     }
 

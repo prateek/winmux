@@ -1792,7 +1792,7 @@ Pre-slice cleanup before Slice 11C starts:
   mechanically sample the visible swatch before hide, while restored, and after
   restore.
 
-### Future Slice 11C: Availability Sets and Cross-Zone Commands
+### Slice 11C: Availability Sets and Cross-Zone Commands
 
 Goal: make zone-level and layout-level availability ergonomic enough for real
 ultrawide workflows such as "open Comms", "hide Email", and "focus-only".
@@ -1891,16 +1891,16 @@ Fast validation before Tart:
 
 Tart proof:
 
-- show a three-zone layout with Reference, Work, and Comms visible;
-- apply `set-zone-style Comms urgent` before the availability-set sequence so
+- [x] show a three-zone layout with Reference, Work, and Comms visible;
+- [x] apply `set-zone-style Comms urgent` before the availability-set sequence so
   the proof carries a styled Comms zone across hide and restore;
-- run `winmux use-zone-availability focus-only` while the command caption is
+- [x] run `winmux use-zone-availability focus-only` while the command caption is
   visible before the state change;
-- show Comms/Reference disappear and Work expand;
-- run `winmux use-zone-availability communications`;
-- show Comms return with the same workspace/window identity and the urgent
+- [x] show Comms/Reference disappear and Work expand;
+- [x] run `winmux use-zone-availability communications`;
+- [x] show Comms return with the same workspace/window identity and the urgent
   swatch still visible;
-- write `logs/<slice-11c-recording>.color-sentinel.tsv` with Comms-row swatch
+- [x] write `logs/<slice-11c-recording>.color-sentinel.tsv` with Comms-row swatch
   samples before hide, during restore, and after restore. The verifier samples
   screenshot pixels from those regions, using the run-relative screenshot path,
   crop rectangle, expected `#D3455B`, minimum match percentage, and channel
@@ -1909,6 +1909,59 @@ Tart proof:
 - reviewer and verifier must reject final-state-only proof, missing command
   captions, logs-only proof, or any recording where the user cannot tell which
   zones are toggled.
+
+Accepted artifact:
+
+- artifact: `artifacts/e2e/slice-11c-20260626T125442Z`;
+- recording: `recordings/slice-11c-zone-availability-sets.mov`, H.264,
+  3440x1440, annotated with exact user-facing commands;
+- raw recording: `recordings/raw/slice-11c-zone-availability-sets.raw.mov`;
+- proof: `slice-11c-zone-availability-sets-proof.txt`;
+- key screenshots: `02-before-availability-slice-11c.png`,
+  `03-before-hide-urgent-slice-11c.png`, `04-after-focus-only-slice-11c.png`,
+  `05-during-communications-restore-slice-11c.png`, and
+  `06-after-communications-restore-slice-11c.png`;
+- mechanical verifier: `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-11c-20260626T125442Z`;
+- post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-11c-20260626T125442Z`;
+- pre-Tart gate log:
+  `artifacts/e2e/slice-11c-20260626T125442Z/logs/pre-tart-checks.log`;
+- no-context review: `PASS`, `next slice allowed: yes`, at
+  `artifacts/e2e/slice-11c-20260626T125442Z/reviews/no-ctx-artifact-review.md`;
+- retrospective reports:
+  `retrospection-process-plan.md`, `retrospection-code-harness.md`, and
+  `retrospection-artifact-product.md` under
+  `artifacts/e2e/slice-11c-20260626T125442Z/reviews/`;
+- accepted claims: `set-zone-style Comms urgent`,
+  `use-zone-availability focus-only`, `use-zone-availability communications`,
+  Work expansion, Comms/right restore with the same workspace/window, and urgent
+  style preservation across hide/restore;
+- non-claims: this Tart artifact does not visually prove
+  `cycle-zone-availability`, the `full-dashboard` set, persistent TOML edits,
+  mouse gestures, snap policy, or tab-group drag behavior.
+
+Pre-Slice-12 cleanup:
+
+- [x] Complete the Slice 11C no-context artifact review and require `PASS` or
+  `PASS_WITH_NOTES` plus `next slice allowed: yes`.
+- [x] Run the post-review closeout verifier with `--require-review`:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-11c-20260626T125442Z`.
+- [x] Read all three Slice 11C retrospection reports and fold accepted findings
+  into this plan.
+- [x] Add monitor-scoped `use-zone-availability --monitor` and
+  `cycle-zone-availability --monitor` fast tests.
+- [x] Add stale parked-workspace restore tests for deleted workspaces and
+  workspaces that became active elsewhere.
+- [x] Add a non-mutating product-slice closeout make target that requires the
+  no-context review, `--require-review` verifier pass, and three retrospection
+  reports.
+- [x] Harden artifact-review guidance for availability-set slices so reviewers
+  distinguish the top sidebar `Zones` section from parked workspace rows.
+- [ ] Commit the Slice 11C dirty set or write an explicit carry-forward
+  inventory before starting Slice 12 implementation.
+- [ ] Define Slice 12's first Tart proof scope before implementation: whole-zone
+  snap target, modifier/freeform cases, required in-drag frames, exact captions,
+  logs, color/geometry sentinels if needed, and verifier/reviewer checks.
 
 ### Future Slice 12: Mouse Snap Policy and Gestures
 

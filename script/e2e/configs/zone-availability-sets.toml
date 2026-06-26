@@ -1,0 +1,46 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zone-styles]]
+id = 'urgent'
+color = '#D3455B'
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[[zone-availability-sets]]
+id = 'focus-only'
+enabled-zones = ['main']
+
+[[zone-availability-sets]]
+id = 'communications'
+enabled-zones = ['main', 'right']
+
+[[zone-availability-sets]]
+id = 'full-dashboard'
+enabled-zones = ['left', 'main', 'right']
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 260
+collapsed-width = 64
+show-date = false
+
+[mode.main.binding]
+alt-u = 'set-zone-style Comms urgent'
+alt-f = 'use-zone-availability focus-only'
+alt-m = 'use-zone-availability communications'
+alt-a = 'cycle-zone-availability focus-only communications full-dashboard'

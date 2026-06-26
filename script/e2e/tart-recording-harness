@@ -43,6 +43,9 @@ fi
 if [ "$ACTION" = "slice-11b" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-style-controls.toml"
 fi
+if [ "$ACTION" = "slice-11c" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-availability-sets.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -92,7 +95,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b>
+Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1099,6 +1102,18 @@ CAPTIONS
 39	44	Calm visible	The same Comms zone remains in place with the blue calm style.	Action: Comms style calm #3EA2FF
 CAPTIONS
             ;;
+        slice-11c-zone-availability-sets)
+            cat >"$captions_path" <<'CAPTIONS'
+0	7	Set-ready zones	Reference, Work, and Comms start from named availability sets.	Config: [[zone-availability-sets]]
+7	16	Mark Comms urgent	The Comms zone is styled before availability changes.	Run: winmux set-zone-style Comms urgent
+16	23	Urgent before hide	Comms is still visible with the urgent swatch before hiding side zones.	Action: Comms urgent before availability
+23	34	Use focus-only	Apply the set that leaves only the Work zone enabled.	Run: winmux use-zone-availability focus-only
+34	40	Work expands	Reference and Comms are hidden; Work fills the available display width.	Action: focus-only enables main only
+40	51	Use communications	Apply the set that brings Comms back beside Work.	Run: winmux use-zone-availability communications
+51	59	Comms restored	The Comms workspace returns in the right zone with urgent styling intact.	Action: communications restores Comms #D3455B
+59	64	Inspect state	The CLI exposes availability set labels, enabled zones, styles, and workspaces.	Run: winmux list-zones && winmux list-windows
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -1163,7 +1178,8 @@ annotation_preflight() {
         slice-8-window-routing \
         slice-10-zone-availability \
         slice-11a-zone-width-controls \
-        slice-11b-zone-style-controls
+        slice-11b-zone-style-controls \
+        slice-11c-zone-availability-sets
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1284,6 +1300,32 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic after-calm screenshot screenshot \
                 "screenshots/04-after-calm-style-slice-11b.png" \
                 "Comms row visibly tinted calm blue"
+            ;;
+        slice-11c-zone-availability-sets)
+            append_sample_manifest_row "$manifest_path" semantic before-availability screenshot screenshot \
+                "screenshots/02-before-availability-slice-11c.png" \
+                "Reference, Work, and Comms visible before named availability set commands"
+            append_sample_manifest_row "$manifest_path" semantic urgent-command-start caption-02 7.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "urgent style command caption before the Comms swatch appears"
+            append_sample_manifest_row "$manifest_path" semantic before-hide-urgent screenshot screenshot \
+                "screenshots/03-before-hide-urgent-slice-11c.png" \
+                "Comms visible with urgent swatch before focus-only hides side zones"
+            append_sample_manifest_row "$manifest_path" semantic focus-only-command-start caption-04 23.100 \
+                "screenshots/${name}.samples/caption-04-boundary-start.png" \
+                "focus-only command caption while all three zones are still visible"
+            append_sample_manifest_row "$manifest_path" semantic after-focus-only screenshot screenshot \
+                "screenshots/04-after-focus-only-slice-11c.png" \
+                "Only Work is visible and expanded after use-zone-availability focus-only"
+            append_sample_manifest_row "$manifest_path" semantic communications-command-start caption-06 40.100 \
+                "screenshots/${name}.samples/caption-06-boundary-start.png" \
+                "communications command caption while Comms is still hidden"
+            append_sample_manifest_row "$manifest_path" semantic during-communications-restore screenshot screenshot \
+                "screenshots/05-during-communications-restore-slice-11c.png" \
+                "Comms restored beside Work immediately after communications is applied"
+            append_sample_manifest_row "$manifest_path" semantic after-communications-restore screenshot screenshot \
+                "screenshots/06-after-communications-restore-slice-11c.png" \
+                "Comms remains restored with urgent styling after the state settles"
             ;;
     esac
 }
@@ -2305,6 +2347,34 @@ run_slice_11b_zone_style_controls() {
         "${LOGS_DIR}/slice-11b-run.log"
 }
 
+run_slice_11c_zone_availability_sets_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-11c-zone-availability-sets.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE11C_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-11c-setup.log"
+}
+
+run_slice_11c_zone_availability_sets() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-11c-zone-availability-sets.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE11C_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-11c-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -2416,6 +2486,10 @@ slice_11b() {
     run_recorded_scenario "slice-11b-zone-style-controls" "00-before-slice-11b" "99-after-slice-11b" "run_slice_11b_zone_style_controls" "run_slice_11b_zone_style_controls_setup" "01-ready-slice-11b"
 }
 
+slice_11c() {
+    run_recorded_scenario "slice-11c-zone-availability-sets" "00-before-slice-11c" "99-after-slice-11c" "run_slice_11c_zone_availability_sets" "run_slice_11c_zone_availability_sets_setup" "01-ready-slice-11c"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2464,6 +2538,9 @@ case "$ACTION" in
         ;;
     slice-11b)
         slice_11b
+        ;;
+    slice-11c)
+        slice_11c
         ;;
     *)
         usage >&2

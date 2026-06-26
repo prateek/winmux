@@ -686,6 +686,22 @@ require_slice_11b_sample_manifest() {
     done
 }
 
+require_slice_11c_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-availability \
+        urgent-command-start \
+        before-hide-urgent \
+        focus-only-command-start \
+        after-focus-only \
+        communications-command-start \
+        during-communications-restore \
+        after-communications-restore; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 transport_summary_value() {
     local path="$1"
     local phase="$2"
@@ -1946,6 +1962,209 @@ require_slice_11b_zone_style_controls_proof() {
         || die "Slice 11B calm command caption must cover the command/action interval"
 }
 
+require_slice_11c_zone_availability_sets_proof() {
+    local proof="${RUN_DIR}/slice-11c-zone-availability-sets-proof.txt"
+    local done="${LOGS_DIR}/slice-11c-zone-availability-sets.done"
+    local setup_log="${LOGS_DIR}/slice-11c-availability-sets-setup.log"
+    local windows_before="${LOGS_DIR}/slice-11c-windows-before.log"
+    local windows_focus="${LOGS_DIR}/slice-11c-windows-focus-only.log"
+    local windows_restoring="${LOGS_DIR}/slice-11c-windows-restoring.log"
+    local windows_restored="${LOGS_DIR}/slice-11c-windows-restored.log"
+    local zones_before="${LOGS_DIR}/slice-11c-zones-before.log"
+    local zones_urgent="${LOGS_DIR}/slice-11c-zones-urgent.log"
+    local zones_focus="${LOGS_DIR}/slice-11c-zones-focus-only.log"
+    local zones_restoring="${LOGS_DIR}/slice-11c-zones-restoring.log"
+    local zones_restored="${LOGS_DIR}/slice-11c-zones-restored.log"
+    local urgent_log="${LOGS_DIR}/slice-11c-set-zone-style-urgent.log"
+    local focus_log="${LOGS_DIR}/slice-11c-use-focus-only.log"
+    local communications_log="${LOGS_DIR}/slice-11c-use-communications.log"
+    local timing_log="${LOGS_DIR}/slice-11c-command-timing.log"
+    local sample_manifest="${LOGS_DIR}/slice-11c-zone-availability-sets.sample-manifest.tsv"
+    local color_sentinel="${LOGS_DIR}/slice-11c-zone-availability-sets.color-sentinel.tsv"
+    local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-11c.png"
+    local before_availability_screenshot="${SCREENSHOTS_DIR}/02-before-availability-slice-11c.png"
+    local before_hide_screenshot="${SCREENSHOTS_DIR}/03-before-hide-urgent-slice-11c.png"
+    local focus_only_screenshot="${SCREENSHOTS_DIR}/04-after-focus-only-slice-11c.png"
+    local during_restore_screenshot="${SCREENSHOTS_DIR}/05-during-communications-restore-slice-11c.png"
+    local after_restore_screenshot="${SCREENSHOTS_DIR}/06-after-communications-restore-slice-11c.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 11C"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_focus"
+    require_file "$windows_restoring"
+    require_file "$windows_restored"
+    require_file "$zones_before"
+    require_file "$zones_urgent"
+    require_file "$zones_focus"
+    require_file "$zones_restoring"
+    require_file "$zones_restored"
+    require_file "$urgent_log"
+    require_file "$focus_log"
+    require_file "$communications_log"
+    require_file "$timing_log"
+    require_slice_11c_sample_manifest "$sample_manifest"
+    require_file "$color_sentinel"
+    require_color_sentinel_manifest "$color_sentinel" "$RUN_DIR" "Slice 11C color sentinel"
+    require_guest_transport_summary "$transport_summary"
+    require_file "$ready_screenshot"
+    require_file "$before_availability_screenshot"
+    require_file "$before_hide_screenshot"
+    require_file "$focus_only_screenshot"
+    require_file "$during_restore_screenshot"
+    require_file "$after_restore_screenshot"
+
+    grep -F 'PASS: named availability sets hide side zones with focus-only, expand Work, then restore Comms/right with its workspace and urgent style intact under communications.' "$proof" >/dev/null \
+        || die "Slice 11C proof does not contain the expected PASS claim"
+    grep -F '[[zone-availability-sets]]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing zone-availability-sets table"
+    grep -F "id = 'focus-only'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing focus-only set"
+    grep -F "enabled-zones = ['main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing focus-only enabled zones"
+    grep -F "id = 'communications'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing communications set"
+    grep -F "enabled-zones = ['main', 'right']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing communications enabled zones"
+    grep -F "alt-f = 'use-zone-availability focus-only'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing focus-only binding"
+    grep -F "alt-m = 'use-zone-availability communications'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing communications binding"
+    grep -F "alt-a = 'cycle-zone-availability focus-only communications full-dashboard'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11C config missing cycle-zone-availability binding"
+    grep -F 'Config: [[zone-availability-sets]] focus-only + communications + full-dashboard' "$setup_log" >/dev/null \
+        || die "Slice 11C setup log missing availability-set config summary"
+    grep -F 'Commands: set-zone-style Comms urgent; use-zone-availability focus-only; use-zone-availability communications' "$setup_log" >/dev/null \
+        || die "Slice 11C setup log missing command summary"
+
+    grep -F '$ winmux set-zone-style Comms urgent' "$urgent_log" >/dev/null \
+        || die "Slice 11C urgent log missing exact command"
+    grep -F "Styled zone 'Comms' on monitor 1 as 'urgent'" "$urgent_log" >/dev/null \
+        || die "Slice 11C urgent log missing success output"
+    grep -F '$ winmux use-zone-availability focus-only' "$focus_log" >/dev/null \
+        || die "Slice 11C focus-only log missing exact command"
+    grep -F "Using zone availability 'focus-only' on monitor 1" "$focus_log" >/dev/null \
+        || die "Slice 11C focus-only log missing success output"
+    grep -F '$ winmux use-zone-availability communications' "$communications_log" >/dev/null \
+        || die "Slice 11C communications log missing exact command"
+    grep -F "Using zone availability 'communications' on monitor 1" "$communications_log" >/dev/null \
+        || die "Slice 11C communications log missing success output"
+
+    [ "$(field_for_title "$windows_before" 'reference-availability-set.rtf' zone)" = left ] \
+        || die "Slice 11C before log missing Reference document in left zone"
+    [ "$(field_for_title "$windows_before" 'work-availability-set.rtf' zone)" = main ] \
+        || die "Slice 11C before log missing Work document in main zone"
+    [ "$(field_for_title "$windows_before" 'comms-availability-set.rtf' zone)" = right ] \
+        || die "Slice 11C before log missing Comms document in right zone"
+    [ "$(field_for_title "$windows_focus" 'work-availability-set.rtf' zone)" = main ] \
+        || die "Slice 11C focus-only log missing Work document in main zone"
+    [ -z "$(field_for_title "$windows_focus" 'reference-availability-set.rtf' id)" ] \
+        || die "Slice 11C focus-only log still contains Reference document"
+    [ -z "$(field_for_title "$windows_focus" 'comms-availability-set.rtf' id)" ] \
+        || die "Slice 11C focus-only log still contains Comms document"
+    [ "$(field_for_title "$windows_restoring" 'comms-availability-set.rtf' zone)" = right ] \
+        || die "Slice 11C restoring log missing Comms document in right zone"
+    [ "$(field_for_title "$windows_restored" 'comms-availability-set.rtf' zone)" = right ] \
+        || die "Slice 11C restored log missing Comms document in right zone"
+    [ -z "$(field_for_title "$windows_restored" 'reference-availability-set.rtf' id)" ] \
+        || die "Slice 11C restored log should keep Reference hidden under communications"
+
+    [ "$(zone_log_value "$zones_before" right availability)" = "" ] \
+        || die "Slice 11C before zones log should not have an active availability set"
+    [ "$(zone_log_value "$zones_urgent" right style)" = "urgent" ] \
+        || die "Slice 11C urgent zones log missing urgent style"
+    [ "$(zone_log_value "$zones_urgent" right color)" = "#D3455B" ] \
+        || die "Slice 11C urgent zones log missing urgent color"
+    [ "$(zone_log_value "$zones_focus" left enabled)" = "false" ] \
+        || die "Slice 11C focus-only zones log should disable left"
+    [ "$(zone_log_value "$zones_focus" main enabled)" = "true" ] \
+        || die "Slice 11C focus-only zones log should keep main enabled"
+    [ "$(zone_log_value "$zones_focus" right enabled)" = "false" ] \
+        || die "Slice 11C focus-only zones log should disable right"
+    [ "$(zone_log_value "$zones_focus" main availability)" = "focus-only" ] \
+        || die "Slice 11C focus-only zones log missing focus-only availability label"
+    [ "$(zone_log_value "$zones_focus" right style)" = "urgent" ] \
+        || die "Slice 11C focus-only zones log did not preserve hidden Comms style"
+    [ "$(zone_log_value "$zones_restored" left enabled)" = "false" ] \
+        || die "Slice 11C communications zones log should keep left hidden"
+    [ "$(zone_log_value "$zones_restored" main enabled)" = "true" ] \
+        || die "Slice 11C communications zones log should keep main enabled"
+    [ "$(zone_log_value "$zones_restored" right enabled)" = "true" ] \
+        || die "Slice 11C communications zones log should restore right"
+    [ "$(zone_log_value "$zones_restored" main availability)" = "communications" ] \
+        || die "Slice 11C restored zones log missing communications label on main"
+    [ "$(zone_log_value "$zones_restored" right availability)" = "communications" ] \
+        || die "Slice 11C restored zones log missing communications label on right"
+    [ "$(zone_log_value "$zones_restored" right style)" = "urgent" ] \
+        || die "Slice 11C restored zones log did not preserve Comms style"
+    [ "$(zone_log_value "$zones_restored" right color)" = "#D3455B" ] \
+        || die "Slice 11C restored zones log did not preserve Comms color"
+
+    local before_main_width focus_main_width before_comms_id restored_comms_id before_comms_workspace restored_comms_workspace
+    before_main_width="$(zone_log_value "$zones_urgent" main width)"
+    focus_main_width="$(zone_log_value "$zones_focus" main width)"
+    awk -v before="$before_main_width" -v focus="$focus_main_width" 'BEGIN { exit(focus > before ? 0 : 1) }' \
+        || die "Slice 11C Work/main width did not expand after focus-only"
+    before_comms_id="$(field_for_title "$windows_before" 'comms-availability-set.rtf' id)"
+    restored_comms_id="$(field_for_title "$windows_restored" 'comms-availability-set.rtf' id)"
+    [ -n "$before_comms_id" ] && [ "$before_comms_id" = "$restored_comms_id" ] \
+        || die "Slice 11C Comms window id changed across availability sets: $before_comms_id -> $restored_comms_id"
+    before_comms_workspace="$(field_for_title "$windows_before" 'comms-availability-set.rtf' workspace)"
+    restored_comms_workspace="$(field_for_title "$windows_restored" 'comms-availability-set.rtf' workspace)"
+    [ -n "$before_comms_workspace" ] && [ "$before_comms_workspace" = "$restored_comms_workspace" ] \
+        || die "Slice 11C Comms workspace changed across availability sets: $before_comms_workspace -> $restored_comms_workspace"
+
+    local urgent_offset focus_offset communications_offset
+    urgent_offset="$(value_from_log urgent-command-offset-seconds "$timing_log")"
+    focus_offset="$(value_from_log focus-only-command-offset-seconds "$timing_log")"
+    communications_offset="$(value_from_log communications-command-offset-seconds "$timing_log")"
+    [ -n "$urgent_offset" ] || die "Slice 11C timing log missing urgent command offset"
+    [ -n "$focus_offset" ] || die "Slice 11C timing log missing focus-only command offset"
+    [ -n "$communications_offset" ] || die "Slice 11C timing log missing communications command offset"
+    assert_numeric_between_inclusive "$urgent_offset" 7 16 \
+        "Slice 11C urgent command must happen while the urgent command caption is on screen"
+    assert_numeric_between_inclusive "$focus_offset" 23 34 \
+        "Slice 11C focus-only command must happen while the focus-only command caption is on screen"
+    assert_numeric_between_inclusive "$communications_offset" 40 51 \
+        "Slice 11C communications command must happen while the communications command caption is on screen"
+    grep -F "urgent-command-offset-seconds=${urgent_offset}" "$proof" >/dev/null \
+        || die "Slice 11C proof does not copy urgent command timing"
+    grep -F "focus-only-command-offset-seconds=${focus_offset}" "$proof" >/dev/null \
+        || die "Slice 11C proof does not copy focus-only command timing"
+    grep -F "communications-command-offset-seconds=${communications_offset}" "$proof" >/dev/null \
+        || die "Slice 11C proof does not copy communications command timing"
+
+    for label in before-hide-urgent during-restore-urgent after-restore-urgent; do
+        /usr/bin/awk -F'\t' -v label="$label" '$1 == "swatch" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$color_sentinel" \
+            || die "Slice 11C color sentinel missing label: $label"
+    done
+
+    grep -F "Config: [[zone-availability-sets]]" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing availability-set config chip"
+    grep -F "Run: winmux set-zone-style Comms urgent" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing urgent style command chip"
+    grep -F "Action: Comms urgent before availability" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing before-hide urgent action chip"
+    grep -F "Run: winmux use-zone-availability focus-only" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing focus-only command chip"
+    grep -F "Action: focus-only enables main only" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing focus-only action chip"
+    grep -F "Run: winmux use-zone-availability communications" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing communications command chip"
+    grep -F "Action: communications restores Comms #D3455B" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing communications restore action chip"
+    grep -F "Run: winmux list-zones && winmux list-windows" "$annotation_plan" >/dev/null \
+        || die "Slice 11C annotations missing inspection command chip"
+    awk -F '\t' '$5 == "Run: winmux set-zone-style Comms urgent" { found = 1; ok = (($1 + 0) <= 7 && ($2 + 0) >= 15) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11C urgent command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux use-zone-availability focus-only" { found = 1; ok = (($1 + 0) <= 23 && ($2 + 0) >= 33) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11C focus-only command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux use-zone-availability communications" { found = 1; ok = (($1 + 0) <= 40 && ($2 + 0) >= 50) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11C communications command caption must cover the command/action interval"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -2084,6 +2303,9 @@ case "$recording_name" in
         ;;
     slice-11b-zone-style-controls)
         require_slice_11b_zone_style_controls_proof
+        ;;
+    slice-11c-zone-availability-sets)
+        require_slice_11c_zone_availability_sets_proof
         ;;
 esac
 

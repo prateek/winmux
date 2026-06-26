@@ -194,6 +194,25 @@ Slice-specific checks:
   samples, command captions that omit the target zone or style id, color changes
   that happen before the command caption, and any proof where the reviewer cannot
   tell whether the feature changed style, layout, or workspace binding.
+- Slice 11C must show named zone availability sets with
+  `use-zone-availability focus-only` and
+  `use-zone-availability communications`. The proof must show Reference, Work,
+  and Comms visible before the availability command sequence; a styled urgent
+  Comms row before side zones are hidden; the focus-only command caption before
+  Reference and Comms disappear; an after-focus-only state where Work/main is
+  visibly expanded and both side zones are hidden; the communications command
+  caption before Comms reappears; and a restored state where Comms/right returns
+  beside Work/main while Reference/left remains hidden. Confirm the Comms
+  document/window id and workspace return to the right zone, the active
+  availability-set labels are visible in logs, and the urgent `#D3455B` swatch is
+  visible before hide, during restore, and after restore. Use the color-sentinel
+  rows as supporting evidence, but still inspect the media. Distinguish the
+  top sidebar `Zones` section from lower parked workspace rows: parked workspace
+  rows may remain listed while their zones are unavailable. Reject logs-only
+  proof, final-state-only proof, command captions that omit the set id, unclear
+  active-set semantics, a restore where Comms returns unstyled or in the wrong
+  zone, and any video where the reviewer cannot tell whether the action is a
+  named set versus a manual zone toggle.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

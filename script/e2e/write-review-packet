@@ -174,6 +174,20 @@ EOF
 - Reject logs-only style proof, final-state-only proof, a style swatch/tint too subtle to see, missing before/command/after samples, command captions that omit the target zone or style id, and any proof where the reviewer cannot distinguish a style change from a layout/workspace change.
 EOF
             ;;
+        slice-11c-zone-availability-sets)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and `[[zone-availability-sets]]` exposed by a caption/config chip.
+- Sample frames around `Run: winmux set-zone-style Comms urgent`, `Run: winmux use-zone-availability focus-only`, and `Run: winmux use-zone-availability communications`. Fail if Comms becomes urgent, disappears, or reappears before the matching command caption appears.
+- Confirm the recording shows before-availability, urgent-command-start, before-hide-urgent, focus-only-command-start, after-focus-only, communications-command-start, during-communications-restore, and after-communications-restore states.
+- Confirm `focus-only` hides both side zones and visibly expands Work/main; this must not be only a log line.
+- Confirm `communications` restores Comms/right beside Work/main while Reference/left remains hidden.
+- Confirm the Comms document/window and workspace return to the right zone, not a new workspace or a different zone.
+- Distinguish the top sidebar `Zones` section from lower parked workspace rows: parked Reference/Comms workspace rows may remain listed while their zones are unavailable.
+- Confirm the urgent red `#D3455B` style is visible before hide, during restore, and after restore. Use the color-sentinel rows and screenshots, but still inspect the media.
+- Confirm captions expose exact user commands: `winmux use-zone-availability focus-only`, `winmux use-zone-availability communications`, and inspection via `winmux list-zones`.
+- Reject logs-only proof, final-state-only proof, unclear availability-set labels, command captions that omit the set id, a restore where Comms returns unstyled, or any video where the viewer cannot tell whether the action is a named set versus a manual zone toggle.
+EOF
+            ;;
         *)
             cat <<'EOF'
 - Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.

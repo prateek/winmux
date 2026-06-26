@@ -60,6 +60,11 @@ private let zoneStyleParser: [String: any ParserProtocol<ZoneStyleConfig>] = [
     "color": Parser(\.color, parseZoneStyleColor),
 ]
 
+private let zoneAvailabilitySetParser: [String: any ParserProtocol<ZoneAvailabilitySetConfig>] = [
+    "id": Parser(\.id, parseZoneId),
+    "enabled-zones": Parser(\.enabledZones, parseZoneIdArray),
+]
+
 private let zoneColumnParser: [String: any ParserProtocol<ZoneColumnConfig>] = [
     "id": Parser(\.id, parseZoneId),
     "name": Parser(\.name) { raw, backtrace in
@@ -148,6 +153,26 @@ func parseZoneStyles(
     return styles
 }
 
+func parseZoneAvailabilitySets(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [ZoneAvailabilitySetConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    let sets = array.enumerated().map { index, rawSet in
+        let setBacktrace = backtrace + .index(index)
+        var set = parseTable(rawSet, ZoneAvailabilitySetConfig(), zoneAvailabilitySetParser, setBacktrace, &errors)
+        validateZoneAvailabilitySet(&set, setBacktrace, &errors)
+        return set
+    }
+    validateZoneAvailabilitySets(sets, backtrace, &errors)
+    return sets
+}
+
 private func parseZoneColumns(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
@@ -162,6 +187,26 @@ private func parseZoneColumns(
         var column = parseTable(rawColumn, ZoneColumnConfig(), zoneColumnParser, backtrace + .index(index), &errors)
         validateZoneColumn(&column, backtrace + .index(index), &errors)
         return column
+    }
+}
+
+private func parseZoneIdArray(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [String] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+    return array.enumerated().compactMap { index, rawValue -> String? in
+        switch parseZoneId(rawValue, backtrace + .index(index)) {
+            case .success(let zoneId):
+                return zoneId
+            case .failure(let error):
+                errors.append(error)
+                return nil
+        }
     }
 }
 
@@ -319,6 +364,27 @@ private func validateZoneStyle(
     }
 }
 
+private func validateZoneAvailabilitySet(
+    _ set: inout ZoneAvailabilitySetConfig,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    if set.id.isEmpty {
+        errors.append(.semantic(backtrace + .key("id"), "Missing required key"))
+    }
+    if set.enabledZones.isEmpty {
+        errors.append(.semantic(backtrace + .key("enabled-zones"), "Must contain at least one zone id"))
+    }
+    let duplicatedZones = set.enabledZones
+        .grouped { $0 }
+        .filter { zone, zones in !zone.isEmpty && zones.count > 1 }
+        .keys
+        .sorted()
+    if !duplicatedZones.isEmpty {
+        errors.append(.semantic(backtrace + .key("enabled-zones"), "Contains duplicated zone ids: \(duplicatedZones.joined(separator: ", "))"))
+    }
+}
+
 private func validateZones(
     _ zones: [ZoneConfig],
     _ backtrace: TomlBacktrace,
@@ -385,6 +451,21 @@ private func validateZoneScenes(
     }
 }
 
+private func validateZoneAvailabilitySets(
+    _ sets: [ZoneAvailabilitySetConfig],
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    let duplicatedIds = sets.map(\.id)
+        .grouped { $0 }
+        .filter { id, sets in !id.isEmpty && sets.count > 1 }
+        .keys
+        .sorted()
+    if !duplicatedIds.isEmpty {
+        errors.append(.semantic(backtrace, "Contains duplicated availability set ids: \(duplicatedIds.joined(separator: ", "))"))
+    }
+}
+
 func validateZoneLayoutReferences(_ config: Config, _ errors: inout [TomlParseError]) {
     let layoutIds = Set(config.zoneLayouts.map(\.id))
     for (index, zone) in config.zones.enumerated() {
@@ -410,6 +491,21 @@ func validateZoneSceneReferences(_ config: Config, _ errors: inout [TomlParseErr
             errors.append(.semantic(
                 .rootKey("zone-scenes") + .index(sceneIndex) + .key("workspaces") + .index(bindingIndex) + .key("zone"),
                 "Must name one of the zones in layout preset '\(layoutPreset)'",
+            ))
+        }
+    }
+}
+
+func validateZoneAvailabilitySetReferences(_ config: Config, _ errors: inout [TomlParseError]) {
+    let knownZoneIds = Set(
+        config.zones.flatMap(\.columns).map(\.id) +
+            config.zoneLayouts.flatMap(\.columns).map(\.id),
+    )
+    for (setIndex, set) in config.zoneAvailabilitySets.enumerated() {
+        for (zoneIndex, zoneId) in set.enabledZones.enumerated() where !zoneId.isEmpty && !knownZoneIds.contains(zoneId) {
+            errors.append(.semantic(
+                .rootKey("zone-availability-sets") + .index(setIndex) + .key("enabled-zones") + .index(zoneIndex),
+                "Unknown zone id '\(zoneId)'",
             ))
         }
     }

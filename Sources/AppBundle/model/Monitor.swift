@@ -28,6 +28,7 @@ protocol Monitor: WinMuxAny {
     var zoneId: String? { get }
     var zoneName: String? { get }
     var zoneLayoutId: String? { get }
+    var zoneAvailabilitySetId: String? { get }
     var zoneStyleId: String? { get }
     var zoneStyleColorHex: String? { get }
     var isDefaultZone: Bool { get }
@@ -38,6 +39,7 @@ extension Monitor {
     var zoneId: String? { nil }
     var zoneName: String? { nil }
     var zoneLayoutId: String? { nil }
+    var zoneAvailabilitySetId: String? { nil }
     var zoneStyleId: String? { nil }
     var zoneStyleColorHex: String? { nil }
     var isDefaultZone: Bool { false }

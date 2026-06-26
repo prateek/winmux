@@ -19,6 +19,9 @@ let config_help_generated = """
        OR: config [-h|--help] --all-keys
        OR: config [-h|--help] --config-path
     """
+let cycle_zone_availability_help_generated = """
+    USAGE: cycle-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>...
+    """
 let cycle_zone_layout_help_generated = """
     USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
@@ -187,6 +190,9 @@ let toggle_zone_help_generated = """
     """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>
+    """
+let use_zone_availability_help_generated = """
+    USAGE: use-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>
     """
 let use_zone_layout_help_generated = """
     USAGE: use-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>

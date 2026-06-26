@@ -7,6 +7,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case close
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
     case config
+    case cycleZoneAvailability = "cycle-zone-availability"
     case cycleZoneLayout = "cycle-zone-layout"
     case debugWindows = "debug-windows"
     case disableZone = "disable-zone"
@@ -53,6 +54,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case swap
     case toggleZone = "toggle-zone"
     case triggerBinding = "trigger-binding"
+    case useZoneAvailability = "use-zone-availability"
     case useZoneLayout = "use-zone-layout"
     case useZoneScene = "use-zone-scene"
     case volume
@@ -76,6 +78,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(CloseAllWindowsButCurrentCmdArgs.init)
             case .config:
                 result[kind.rawValue] = SubCommandParser(parseConfigCmdArgs)
+            case .cycleZoneAvailability:
+                result[kind.rawValue] = SubCommandParser(parseCycleZoneAvailabilityCmdArgs)
             case .cycleZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneLayoutCmdArgs)
             case .debugWindows:
@@ -172,6 +176,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseToggleZoneCmdArgs)
             case .triggerBinding:
                 result[kind.rawValue] = SubCommandParser(parseTriggerBindingCmdArgs)
+            case .useZoneAvailability:
+                result[kind.rawValue] = SubCommandParser(parseUseZoneAvailabilityCmdArgs)
             case .useZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseUseZoneLayoutCmdArgs)
             case .useZoneScene:

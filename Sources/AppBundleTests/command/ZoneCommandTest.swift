@@ -39,6 +39,14 @@ final class ZoneCommandTest: XCTestCase {
             CycleZoneLayoutCmdArgs(layoutIds: ["balanced", "focus"]),
         )
         testParseCommandSucc(
+            "use-zone-availability --monitor 1 focus-only",
+            UseZoneAvailabilityCmdArgs(availabilitySetId: "focus-only", monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
+            "cycle-zone-availability focus-only communications",
+            CycleZoneAvailabilityCmdArgs(availabilitySetIds: ["focus-only", "communications"]),
+        )
+        testParseCommandSucc(
             "set-zone-style --monitor 1 Comms urgent",
             SetZoneStyleCmdArgs(zone: ZoneSelector("Comms"), styleId: "urgent", monitor: .sequenceNumber(1)),
         )
@@ -563,6 +571,210 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }
 
+    func testUseZoneAvailabilitySetPreservesLayoutWidthsStylesAndRestoresWorkspaces() async throws {
+        configureZoneLayoutPresets()
+        config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let zones = zoneMonitorsById()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let commsWindow = TestWindow.new(id: 77, parent: comms.rootTilingContainer)
+        XCTAssertTrue(work.focusWorkspace())
+
+        let style = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(style.exitCode, 0)
+        let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+
+        let focusOnly = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(focusOnly.exitCode, 0)
+        var state = zoneStateByZoneId()
+        XCTAssertEqual(Set(state.keys), ["main"])
+        XCTAssertEqual(state["main"]?.availabilitySetId, "focus-only")
+        XCTAssertEqual(state["main"]?.width, 1200)
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+
+        let communications = try await parseCommand("use-zone-availability communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(communications.exitCode, 0)
+        state = zoneStateByZoneId()
+        XCTAssertEqual(Set(state.keys), ["main", "right"])
+        XCTAssertEqual(state["main"]?.availabilitySetId, "communications")
+        XCTAssertEqual(state["right"]?.availabilitySetId, "communications")
+        XCTAssertEqual(state["right"]?.styleId, "urgent")
+        XCTAssertEqual(state["right"]?.styleColorHex, "#D3455B")
+        XCTAssertEqual(state["right"]?.workspaceName, "comms")
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+        XCTAssertEqual(state["main"]?.width ?? 0, 900, accuracy: 0.01)
+        XCTAssertEqual(state["right"]?.width ?? 0, 300, accuracy: 0.01)
+
+        let rows = try await parseCommand(
+            "list-zones --format '%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-availability-set-id}|%{monitor-zone-style-id}|%{monitor-active-workspace}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(rows.stdout, [
+            "left|false|communications||",
+            "main|true|communications||work",
+            "right|true|communications|urgent|comms",
+        ])
+    }
+
+    func testCycleZoneAvailabilityUsesActiveSetThenCurrentEnabledSet() async throws {
+        _ = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let fromCurrentFull = try await parseCommand("cycle-zone-availability focus-only communications full-dashboard").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(fromCurrentFull.exitCode, 0)
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["main"])
+        XCTAssertEqual(zoneStateByZoneId()["main"]?.availabilitySetId, "focus-only")
+
+        let fromActiveFocus = try await parseCommand("cycle-zone-availability focus-only communications full-dashboard").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(fromActiveFocus.exitCode, 0)
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["main", "right"])
+        XCTAssertEqual(zoneStateByZoneId()["main"]?.availabilitySetId, "communications")
+
+        let manualOverride = try await parseCommand("enable-zone Reference").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(manualOverride.exitCode, 0)
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["left", "main", "right"])
+        XCTAssertNil(zoneStateByZoneId()["main"]?.availabilitySetId)
+
+        let fromCurrentFullAgain = try await parseCommand("cycle-zone-availability focus-only communications full-dashboard").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(fromCurrentFullAgain.exitCode, 0)
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["main"])
+        XCTAssertEqual(zoneStateByZoneId()["main"]?.availabilitySetId, "focus-only")
+    }
+
+    func testZoneAvailabilitySetMonitorFlagOnlyAffectsSelectedPhysicalMonitor() async throws {
+        _ = configureDuplicateZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "full", enabledZones: ["left", "main"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let useSecondaryFocus = try await parseCommand("use-zone-availability --monitor 2 focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(useSecondaryFocus.exitCode, 0)
+        var rows = try await parseCommand(
+            "list-zones --format '%{monitor-physical-id}:%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-availability-set-id}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(Set(rows.stdout), [
+            "1:left|true|",
+            "1:main|true|",
+            "2:left|false|focus-only",
+            "2:main|true|focus-only",
+        ])
+
+        let cycleSecondary = try await parseCommand("cycle-zone-availability --monitor 2 focus-only full").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(cycleSecondary.exitCode, 0)
+        rows = try await parseCommand(
+            "list-zones --format '%{monitor-physical-id}:%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-availability-set-id}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(Set(rows.stdout), [
+            "1:left|true|",
+            "1:main|true|",
+            "2:left|true|full",
+            "2:main|true|full",
+        ])
+    }
+
+    func testUseZoneAvailabilitySetRejectsUnknownAndLayoutMissingZones() async throws {
+        configureZoneLayoutPresets()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "needs-comms", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let unknown = try await parseCommand("use-zone-availability missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(unknown.exitCode, 1)
+        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown zone availability set 'missing'"))
+
+        config.zoneLayouts.append(ZoneLayoutConfig(
+            id: "single-pane",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "main", name: "Work", width: 1.0),
+            ],
+        ))
+        refreshZoneTopologySnapshot()
+
+        let useSinglePaneLayout = try await parseCommand("use-zone-layout single-pane").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(useSinglePaneLayout.exitCode, 0)
+        let missingZone = try await parseCommand("use-zone-availability needs-comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(missingZone.exitCode, 1)
+        XCTAssertTrue(missingZone.stderr.joined(separator: "\n").contains("references zones not present"))
+    }
+
+    func testZoneAvailabilitySetClearsDeletedParkedWorkspaceOnRestore() async throws {
+        let zones = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let focusOnly = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focusOnly.exitCode, 0)
+        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.contains { $0.parkedWorkspaceByZoneId["right"] == comms.id })
+
+        removeWorkspaceFromRegistry(comms)
+        let communications = try await parseCommand("use-zone-availability communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(communications.exitCode, 0)
+        XCTAssertNil(Workspace.existing(byName: "comms"))
+        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.allSatisfy { $0.parkedWorkspaceByZoneId.isEmpty })
+        XCTAssertFalse(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+    }
+
+    func testZoneAvailabilitySetClearsParkedWorkspaceThatIsActiveElsewhereOnRestore() async throws {
+        let zones = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        _ = TestWindow.new(id: 79, parent: comms.rootTilingContainer)
+        XCTAssertTrue(work.focusWorkspace())
+
+        let focusOnly = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focusOnly.exitCode, 0)
+        let visibleMain = sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie()
+        XCTAssertTrue(visibleMain.setActiveWorkspace(comms))
+
+        let communications = try await parseCommand("use-zone-availability communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(communications.exitCode, 0)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === comms)
+        XCTAssertFalse(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.allSatisfy { $0.parkedWorkspaceByZoneId.isEmpty })
+    }
+
     func testCycleZoneLayoutKeepsRuntimeWidthOverridesPerLayout() async throws {
         configureZoneLayoutPresets()
 
@@ -1060,6 +1272,7 @@ private struct StructuralZoneState: Equatable {
 
 private struct ZoneState: Equatable {
     let layoutId: String?
+    let availabilitySetId: String?
     let workspaceName: String
     let left: CGFloat
     let width: CGFloat
@@ -1084,6 +1297,7 @@ private func zoneStateByZoneId() -> [String: ZoneState] {
         guard let zoneId = monitor.zoneId else { return nil }
         return (zoneId, ZoneState(
             layoutId: monitor.zoneLayoutId,
+            availabilitySetId: monitor.zoneAvailabilitySetId,
             workspaceName: monitor.activeWorkspace.name,
             left: monitor.rect.topLeftX,
             width: monitor.rect.width,
