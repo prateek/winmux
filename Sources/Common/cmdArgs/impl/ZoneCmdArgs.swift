@@ -141,6 +141,116 @@ func parseToggleZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ToggleZoneCmdArgs>
     parseSpecificCmdArgs(ToggleZoneCmdArgs(rawArgs: args), args)
 }
 
+public enum ZoneWidthAmount: Equatable, Sendable {
+    case set(Double)
+    case add(Double)
+    case subtract(Double)
+
+    public var displayPercent: String {
+        let value = switch self {
+            case .set(let percent), .add(let percent), .subtract(let percent):
+                percent * 100.0
+        }
+        let number = value.rounded() == value ? Int(value).description : value.description
+        return switch self {
+            case .set: "\(number)%"
+            case .add: "+\(number)%"
+            case .subtract: "-\(number)%"
+        }
+    }
+}
+
+public struct ResizeZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .resizeZone,
+        allowInConfig: true,
+        help: resize_zone_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [
+            newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>"),
+            newMandatoryPosArgParser(\.dimension, parseZoneResizeDimension, placeholder: "width"),
+            newMandatoryPosArgParser(\.amount, parseZoneWidthAmount, placeholder: "[+|-]<percent>%"),
+        ],
+    )
+
+    public init(zone: ZoneSelector, dimension: Dimension = .width, amount: ZoneWidthAmount, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.dimension = .initialized(dimension)
+        self.amount = .initialized(amount)
+        self.monitor = monitor
+    }
+
+    public enum Dimension: String, Equatable, CaseIterable, Sendable {
+        case width
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+    public var dimension: Lateinit<Dimension> = .uninitialized
+    public var amount: Lateinit<ZoneWidthAmount> = .uninitialized
+}
+
+func parseResizeZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ResizeZoneCmdArgs> {
+    parseSpecificCmdArgs(ResizeZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct BalanceZonesCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .balanceZones,
+        allowInConfig: true,
+        help: balance_zones_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [],
+    )
+
+    public init(monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+}
+
+func parseBalanceZonesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<BalanceZonesCmdArgs> {
+    parseSpecificCmdArgs(BalanceZonesCmdArgs(rawArgs: args), args)
+}
+
+public struct CycleZoneLayoutCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneLayout,
+        allowInConfig: true,
+        help: cycle_zone_layout_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.layoutIds, parseZoneLayoutIds, placeholder: "<layout-id>...")],
+    )
+
+    public init(layoutIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.layoutIds = .initialized(layoutIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var layoutIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneLayoutCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneLayoutCmdArgs(rawArgs: args), args)
+}
+
 public struct UseZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -225,6 +335,8 @@ extension ListZonesCmdArgs {
             ? [
                 .interVar("monitor-zone-id"), .interVar("right-padding"), .literal(" | "),
                 .interVar("monitor-zone-name"), .interVar("right-padding"), .literal(" | "),
+                .literal("enabled "), .interVar("monitor-zone-enabled"), .interVar("right-padding"), .literal(" | "),
+                .literal("width "), .interVar("monitor-zone-effective-width"), .interVar("right-padding"), .literal(" | "),
                 .literal("monitor "), .interVar("monitor-physical-id"), .interVar("right-padding"), .literal(" | "),
                 .interVar("monitor-active-workspace"),
             ]
@@ -243,11 +355,53 @@ private func parseZoneSelector(i: PosArgParserInput) -> ParsedCliArgs<ZoneSelect
         : .succ(ZoneSelector(i.arg), advanceBy: 1)
 }
 
+private func parseZoneResizeDimension(i: PosArgParserInput) -> ParsedCliArgs<ResizeZoneCmdArgs.Dimension> {
+    .init(parseEnum(i.arg, ResizeZoneCmdArgs.Dimension.self), advanceBy: 1)
+}
+
+private func parseZoneWidthAmount(i: PosArgParserInput) -> ParsedCliArgs<ZoneWidthAmount> {
+    guard i.arg.hasSuffix("%") else {
+        return .fail("<percent> must include a % suffix, for example +10%", advanceBy: 1)
+    }
+    let rawNumber = String(i.arg.dropLast())
+    guard !rawNumber.isEmpty else {
+        return .fail("<percent> must include a number", advanceBy: 1)
+    }
+    let sign: Character? = rawNumber.first.flatMap { $0 == "+" || $0 == "-" ? $0 : nil }
+    let numberText = sign == nil ? rawNumber : String(rawNumber.dropFirst())
+    guard let number = Double(numberText), number > 0 else {
+        return .fail("<percent> must be a positive number", advanceBy: 1)
+    }
+    let percent = number / 100.0
+    return switch sign {
+        case "+": .succ(.add(percent), advanceBy: 1)
+        case "-": .succ(.subtract(percent), advanceBy: 1)
+        default: .succ(.set(percent), advanceBy: 1)
+    }
+}
+
 private func parseZoneLayoutId(i: PosArgParserInput) -> ParsedCliArgs<String> {
     switch parseZoneLayoutIdentifier(i.arg) {
         case .success(let layoutId): .succ(layoutId, advanceBy: 1)
         case .failure(let msg): .fail(msg, advanceBy: 1)
     }
+}
+
+private func parseZoneLayoutIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {
+    let args = i.nonFlagArgs()
+    guard !args.isEmpty else {
+        return .fail("<layout-id> is mandatory", advanceBy: 0)
+    }
+    var layoutIds: [String] = []
+    for (offset, arg) in args.enumerated() {
+        switch parseZoneLayoutIdentifier(arg) {
+            case .success(let layoutId):
+                layoutIds.append(layoutId)
+            case .failure(let msg):
+                return .fail(msg, advanceBy: offset + 1)
+        }
+    }
+    return .succ(layoutIds, advanceBy: args.count)
 }
 
 private func parseZoneSceneId(i: PosArgParserInput) -> ParsedCliArgs<String> {

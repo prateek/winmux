@@ -37,6 +37,9 @@ fi
 if [ "$ACTION" = "slice-10" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-availability.toml"
 fi
+if [ "$ACTION" = "slice-11a" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-width-controls.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -86,7 +89,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10>
+Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1072,6 +1075,17 @@ CAPTIONS
 50	54	Inspect visible windows	Visible windows prove the parked workspace returned.	Run: winmux list-windows --workspace visible
 CAPTIONS
             ;;
+        slice-11a-zone-width-controls)
+            cat >"$captions_path" <<'CAPTIONS'
+0	7	Width-ready zones	Reference, Work, and Comms start from configured balanced widths.	Config: [[zones]] + width controls
+7	13	Before geometry	The visible geometry board records each zone's width before resizing.	Run: winmux list-zones
+13	24	Resize Work	Grow the Work zone by ten percentage points with one binding-friendly command.	Run: winmux resize-zone Work width +10%
+24	32	After resize	Work expands while Reference and Comms shrink and keep their workspaces.	Action: Work 1688->2026px; sides 844->675px
+32	40	Balance zones	Return the enabled zones to equal runtime widths.	Run: winmux balance-zones
+40	48	After balance	All three zones are equal again and the same windows remain visible.	Action: zones return to 1125px each
+48	54	Inspect geometry	The final geometry board shows enabled state, widths, and workspaces.	Run: winmux list-zones
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -1134,7 +1148,8 @@ annotation_preflight() {
         slice-6-zone-layout-presets \
         slice-6b-zone-scenes \
         slice-8-window-routing \
-        slice-10-zone-availability
+        slice-10-zone-availability \
+        slice-11a-zone-width-controls
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1197,6 +1212,126 @@ sample_recording_frame() {
     [ -s "$output" ] || die "Sample frame did not produce a non-empty file: $output"
 }
 
+append_sample_manifest_row() {
+    local manifest_path="$1"
+    local kind="$2"
+    local label="$3"
+    local caption="$4"
+    local timestamp="$5"
+    local relative_path="$6"
+    local expected="$7"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" "$label" "$caption" "$timestamp" "$relative_path" "$expected" >>"$manifest_path"
+}
+
+write_semantic_sample_manifest() {
+    local name="$1"
+    local manifest_path="$2"
+
+    case "$name" in
+        slice-11a-zone-width-controls)
+            append_sample_manifest_row "$manifest_path" semantic before-resize screenshot screenshot \
+                "screenshots/02-before-resize-slice-11a.png" \
+                "balanced Reference, Work, and Comms geometry before resize"
+            append_sample_manifest_row "$manifest_path" semantic resize-command-start caption-03 13.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "resize command caption while old geometry is still visible"
+            append_sample_manifest_row "$manifest_path" semantic after-resize screenshot screenshot \
+                "screenshots/03-after-resize-slice-11a.png" \
+                "Work wider and side zones narrower after resize-zone"
+            append_sample_manifest_row "$manifest_path" semantic list-zones-after-resize caption-04 24.100 \
+                "screenshots/${name}.samples/caption-04-boundary-start.png" \
+                "visible board includes resized runtime width fields"
+            append_sample_manifest_row "$manifest_path" semantic before-balance screenshot screenshot \
+                "screenshots/04-before-balance-slice-11a.png" \
+                "resized geometry held before balance-zones"
+            append_sample_manifest_row "$manifest_path" semantic balance-command-start caption-05 32.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "balance command caption while resized geometry is still visible"
+            append_sample_manifest_row "$manifest_path" semantic after-balance screenshot screenshot \
+                "screenshots/05-after-balance-slice-11a.png" \
+                "zones returned to equal widths after balance-zones"
+            append_sample_manifest_row "$manifest_path" semantic list-zones-after-balance caption-06 40.100 \
+                "screenshots/${name}.samples/caption-06-boundary-start.png" \
+                "visible board includes balanced runtime width fields"
+            ;;
+    esac
+}
+
+last_log_value() {
+    local path="$1"
+    local key="$2"
+    [ -s "$path" ] || {
+        printf 'missing\n'
+        return
+    }
+    /usr/bin/awk -F= -v key="$key" '$1 == key { value = substr($0, length(key) + 2) } END { if (value != "") print value; else print "unknown" }' "$path"
+}
+
+count_log_key_value() {
+    local path="$1"
+    local key="$2"
+    local value="$3"
+    [ -s "$path" ] || {
+        printf '0\n'
+        return
+    }
+    /usr/bin/awk -F= -v key="$key" -v value="$value" '$1 == key && substr($0, length(key) + 2) == value { count += 1 } END { print count + 0 }' "$path"
+}
+
+count_log_attempts() {
+    local path="$1"
+    [ -s "$path" ] || {
+        printf '0\n'
+        return
+    }
+    /usr/bin/awk -F= '$1 == "attempt" { count += 1 } END { print count + 0 }' "$path"
+}
+
+write_transport_summary_row() {
+    local summary_path="$1"
+    local phase="$2"
+    local log_path="$3"
+    local before_recording="$4"
+    local relative_log_path
+    relative_log_path="logs/$(basename "$log_path")"
+    local attempts=0
+    local failures=0
+    local final_result="missing"
+
+    if [ -s "$log_path" ]; then
+        attempts="$(count_log_attempts "$log_path")"
+        failures="$(count_log_key_value "$log_path" probe_result failure)"
+        if [ "$failures" = "0" ]; then
+            failures="$(count_log_key_value "$log_path" result failure)"
+        fi
+        final_result="$(last_log_value "$log_path" final_result)"
+        if [ "$final_result" = "unknown" ]; then
+            final_result="$(last_log_value "$log_path" result)"
+        fi
+        if [ "$final_result" = "unknown" ] && /usr/bin/grep -F 'capture_probe_done' "$log_path" >/dev/null 2>&1; then
+            final_result=success
+        fi
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+}
+
+write_guest_transport_summary() {
+    local name="$1"
+    local summary_path="${LOGS_DIR}/guest-transport-summary.tsv"
+    : >"$summary_path"
+    printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\n' >>"$summary_path"
+    write_transport_summary_row "$summary_path" guest-control "${LOGS_DIR}/guest-control-check.log" yes
+    write_transport_summary_row "$summary_path" warmup-before-privacy "${LOGS_DIR}/guest-control-warmup-before-privacy.log" yes
+    write_transport_summary_row "$summary_path" privacy-setup "${LOGS_DIR}/guest-privacy-setup.log" yes
+    write_transport_summary_row "$summary_path" clean-slate "${LOGS_DIR}/guest-clean-slate.log" yes
+    write_transport_summary_row "$summary_path" capture-ready "${LOGS_DIR}/guest-capture-ready.log" yes
+    write_transport_summary_row "$summary_path" warmup-before-recording "${LOGS_DIR}/guest-control-warmup-before-recording.log" yes
+    write_transport_summary_row "$summary_path" guest-recording "${LOGS_DIR}/${name}.guest-screencapture.log" no
+    [ -s "$summary_path" ] || die "Guest transport summary did not produce a non-empty file: $summary_path"
+}
+
 generate_recording_samples() {
     local name="$1"
     local path="${RECORDINGS_DIR}/${name}.mov"
@@ -1204,16 +1339,36 @@ generate_recording_samples() {
     local samples_dir="${SCREENSHOTS_DIR}/${name}.samples"
     local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
     local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
+    local sample_manifest="${LOGS_DIR}/${name}.sample-manifest.tsv"
 
     rm -rf "$samples_dir"
     mkdir -p "$samples_dir"
+    : >"$sample_manifest"
 
     sample_recording_frame "$path" "$duration" 0.500 "${samples_dir}/standard-00-start.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-start standard 0.500 \
+        "screenshots/${name}.samples/standard-00-start.png" \
+        "standard start frame"
     sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.10 }')" "${samples_dir}/standard-01-10pct.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-10pct standard 10pct \
+        "screenshots/${name}.samples/standard-01-10pct.png" \
+        "standard 10 percent frame"
     sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.25 }')" "${samples_dir}/standard-02-25pct.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-25pct standard 25pct \
+        "screenshots/${name}.samples/standard-02-25pct.png" \
+        "standard 25 percent frame"
     sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.50 }')" "${samples_dir}/standard-03-50pct.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-50pct standard 50pct \
+        "screenshots/${name}.samples/standard-03-50pct.png" \
+        "standard 50 percent frame"
     sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d * 0.75 }')" "${samples_dir}/standard-04-75pct.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-75pct standard 75pct \
+        "screenshots/${name}.samples/standard-04-75pct.png" \
+        "standard 75 percent frame"
     sample_recording_frame "$path" "$duration" "$(awk -v d="$duration" 'BEGIN { printf "%.3f", d - 1.0 }')" "${samples_dir}/standard-05-near-end.png"
+    append_sample_manifest_row "$sample_manifest" standard standard-near-end standard near-end \
+        "screenshots/${name}.samples/standard-05-near-end.png" \
+        "standard near-end frame"
 
     if [ -s "$captions_path" ]; then
         local caption_index=0
@@ -1238,23 +1393,37 @@ generate_recording_samples() {
                 "$duration" \
                 "$sample_seconds" \
                 "${samples_dir}/caption-${caption_label}.png"
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}" "caption-${caption_label}" "$sample_seconds" \
+                "screenshots/${name}.samples/caption-${caption_label}.png" \
+                "caption midpoint sample"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
                 "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start - 0.500 }')" \
                 "${samples_dir}/caption-${caption_label}-boundary-before.png"
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-before" "caption-${caption_label}" "$start_seconds-0.500" \
+                "screenshots/${name}.samples/caption-${caption_label}-boundary-before.png" \
+                "frame before caption start"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
                 "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')" \
                 "${samples_dir}/caption-${caption_label}-boundary-start.png"
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-start" "caption-${caption_label}" "$start_seconds+0.100" \
+                "screenshots/${name}.samples/caption-${caption_label}-boundary-start.png" \
+                "frame immediately after caption start"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
                 "$(awk -v end="$end_seconds" 'BEGIN { printf "%.3f", end - 0.100 }')" \
                 "${samples_dir}/caption-${caption_label}-boundary-end.png"
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-end" "caption-${caption_label}" "$end_seconds-0.100" \
+                "screenshots/${name}.samples/caption-${caption_label}-boundary-end.png" \
+                "frame immediately before caption end"
         done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
     fi
+    write_semantic_sample_manifest "$name" "$sample_manifest"
+    [ -s "$sample_manifest" ] || die "Sample manifest did not produce a non-empty file: $sample_manifest"
 
     ffmpeg \
         -hide_banner \
@@ -1302,6 +1471,7 @@ wait_for_recording() {
         } >>"${LOGS_DIR}/${name}.guest-screencapture.log"
     fi
     generate_recording_samples "$name" "$duration"
+    write_guest_transport_summary "$name"
     write_review_packet "$name"
 }
 
@@ -2048,6 +2218,34 @@ run_slice_10_zone_availability() {
         "${LOGS_DIR}/slice-10-run.log"
 }
 
+run_slice_11a_zone_width_controls_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-11a-zone-width-controls.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE11A_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-11a-setup.log"
+}
+
+run_slice_11a_zone_width_controls() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-11a-zone-width-controls.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE11A_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-11a-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -2151,6 +2349,10 @@ slice_10() {
     run_recorded_scenario "slice-10-zone-availability" "00-before-slice-10" "99-after-slice-10" "run_slice_10_zone_availability" "run_slice_10_zone_availability_setup" "01-ready-slice-10"
 }
 
+slice_11a() {
+    run_recorded_scenario "slice-11a-zone-width-controls" "00-before-slice-11a" "99-after-slice-11a" "run_slice_11a_zone_width_controls" "run_slice_11a_zone_width_controls_setup" "01-ready-slice-11a"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2193,6 +2395,9 @@ case "$ACTION" in
         ;;
     slice-10)
         slice_10
+        ;;
+    slice-11a)
+        slice_11a
         ;;
     *)
         usage >&2

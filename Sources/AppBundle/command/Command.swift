@@ -33,7 +33,9 @@ extension Command {
     var canSkipPostCommandRefresh: Bool {
         switch self {
             case is BalanceSizesCommand,
+                 is BalanceZonesCommand,
                  is ConfigCommand,
+                 is CycleZoneLayoutCommand,
                  is DebugWindowsCommand,
                  is DisableZoneCommand,
                  is EnableZoneCommand,
@@ -63,6 +65,7 @@ extension Command {
                  is OpenSidebarCommand,
                  is ProjectCommand,
                  is ResizeCommand,
+                 is ResizeZoneCommand,
                  is SplitCommand,
                  is StackWithCommand,
                  is SummonWorkspaceCommand,

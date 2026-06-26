@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Check that command parser, help, and CLI description metadata stay in sync."""
+
+from pathlib import Path
+import re
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text()
+
+
+def cmd_kinds() -> set[str]:
+    source = read("Sources/Common/cmdArgs/cmdArgsManifest.swift")
+    match = re.search(r"public enum CmdKind:.*?\{(?P<body>.*?)\n\}", source, re.S)
+    if not match:
+        raise RuntimeError("Could not find CmdKind enum")
+
+    result: set[str] = set()
+    for line in match.group("body").splitlines():
+        case_match = re.search(r'^\s*case\s+(\w+)(?:\s*=\s*"([^"]+)")?', line)
+        if case_match:
+            result.add(case_match.group(2) or case_match.group(1))
+    return result
+
+
+def generated_help_commands() -> set[str]:
+    source = read("Sources/Common/cmdHelpGenerated.swift")
+    return {
+        name.replace("_", "-")
+        for name in re.findall(r"let\s+([a-z0-9_]+)_help_generated\s*=", source)
+    }
+
+
+def described_commands() -> set[str]:
+    source = read("Sources/Cli/subcommandDescriptionsGenerated.swift")
+    return set(re.findall(r'\["\s+([^"]+)",', source))
+
+
+def check_subset(
+    expected: set[str],
+    actual: set[str],
+    label: str,
+    allowed_missing: set[str],
+) -> list[str]:
+    missing = sorted(expected - actual - allowed_missing)
+    extra = sorted(actual - expected)
+    messages: list[str] = []
+    if missing:
+        messages.append(f"{label} missing commands: {', '.join(missing)}")
+    if extra:
+        messages.append(f"{label} has commands not present in CmdKind: {', '.join(extra)}")
+    return messages
+
+
+def main() -> int:
+    kinds = cmd_kinds()
+    help_commands = generated_help_commands()
+    descriptions = described_commands()
+
+    errors: list[str] = []
+    errors.extend(check_subset(
+        kinds,
+        help_commands,
+        "cmdHelpGenerated.swift",
+        allowed_missing={"agent", "doctor", "open-sidebar", "palette"},
+    ))
+    errors.extend(check_subset(
+        kinds,
+        descriptions,
+        "subcommandDescriptionsGenerated.swift",
+        allowed_missing={"exec-and-forget", "open-sidebar"},
+    ))
+
+    if errors:
+        for error in errors:
+            print(error, file=sys.stderr)
+        return 1
+
+    print("command metadata is consistent")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

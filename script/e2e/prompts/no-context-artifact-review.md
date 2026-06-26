@@ -12,14 +12,18 @@ Slice:
 - name: <slice-name>
 - intended behavior: <one-paragraph behavior>
 - artifact directory: <artifact-dir>
-- reviewer packet, when present:
+- reviewer packet, required for product-slice acceptance:
   <artifact-dir>/reviews/reviewer-packet.md
 - recording: <artifact-dir>/recordings/<recording>.mov
 - raw recording, when annotation is enabled:
   <artifact-dir>/recordings/raw/<recording>.raw.mov
 - before screenshot: <artifact-dir>/screenshots/<before>.png
 - after screenshot: <artifact-dir>/screenshots/<after>.png
+- sample manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.sample-manifest.tsv
 - copied config: <artifact-dir>/config/winmux.toml
+- guest transport summary, required for product-slice acceptance:
+  <artifact-dir>/logs/guest-transport-summary.tsv
 - relevant logs: <list exact log paths>
 - baseline media: demo.mp4, demo2.mp4, demo3.mp4,
   resources/screenshots/winmux-overview.png, resources/screenshots/tab-groups.png
@@ -29,10 +33,11 @@ Slice:
 Write the review to <artifact-dir>/reviews/no-ctx-artifact-review.md.
 
 Required checks:
-0. If `reviews/reviewer-packet.md` exists, read it first. Treat it as the
-   filled path/index packet for this artifact, but still apply every rule in
-   this prompt. Treat the packet's slice-specific checks and product-quality
-   floor as required criteria for the current slice.
+0. For a product-slice acceptance review, `reviews/reviewer-packet.md` must
+   exist. Read it first. Treat it as the filled path/index packet for this
+   artifact, but still apply every rule in this prompt. Treat the packet's
+   listed media, logs, slice-specific checks, and product-quality floor as
+   required criteria for the current slice.
 1. Inspect the recording metadata with ffprobe. It must be playable, non-empty,
    guest-captured for product slices, and at least 80% of the requested duration.
 2. Inspect the before screenshot. It must show a clean desktop: no Terminal,
@@ -42,8 +47,11 @@ Required checks:
 3. Inspect the after screenshot and representative frames from the recording.
    Use existing `screenshots/<recording>.samples/*.png` and
    `screenshots/*.contact-sheet.jpg` if present; otherwise generate equivalent
-   samples. Sample the start, about 10%, 25%, 50%, 75%, and near-end of the
-   recording, plus frames for each caption/action beat when captions are present.
+   samples. When `logs/<recording>.sample-manifest.tsv` exists, use it as the
+   index of exact proof beats and verify that each referenced frame exists and
+   matches the named expected state. Sample the start, about 10%, 25%, 50%,
+   75%, and near-end of the recording, plus frames for each caption/action beat
+   when captions are present.
    Do not rely only on logs.
    The primary recording should include legible, restrained demo captions when
    `preflight.log` says `annotate_recording=1`; confirm the captions explain the
@@ -58,6 +66,10 @@ Required checks:
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
+   If `logs/guest-transport-summary.tsv` exists, read it first and use it to
+   identify retry counts, failed transport attempts, final results, and whether
+   failures happened before recording. Retry noise before recording is not a
+   hard failure by itself, but missing final success or semantic proof failure is.
    If annotation is enabled, also verify the annotation log reports success, the
    caption plan exists, and the raw guest capture is preserved under
    `recordings/raw/`.
@@ -152,6 +164,20 @@ Slice-specific checks:
   final-restored-state-only proof, a hidden state where Comms still appears as an
   active zone/sidebar target, or a restore where the Comms document comes back in
   the wrong zone.
+- Slice 11A must show runtime zone width controls with
+  `resize-zone Work width +10%` and `balance-zones`. The proof must show readable
+  before geometry, the resize command caption while the old geometry is still
+  visible, an after-resize state where Work is visibly wider and sibling zones
+  are narrower, the balance command caption while the resized geometry is still
+  visible, and an after-balance state where the zones return to equal widths.
+  Inspect named before/command/after samples or caption-boundary frames for both
+  resize and balance. Numeric geometry must be visible in media or screenshots,
+  not only in logs: zone id, enabled state, configured/effective/runtime width,
+  left edge, pixel width, active workspace, and runtime override marker. Reject
+  logs-only sizing proof, final-state-only proof, subtle/unreadable geometry,
+  stale labels, missing before/command/after samples, command captions that omit
+  target zone or amount, geometry changes that happen before the command caption,
+  and captions that obscure measured zone edges.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

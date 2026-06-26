@@ -54,10 +54,13 @@ ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-
 after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
+sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
+transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
 proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
 if [ -s "$proof_manifest" ] || [[ "$recording_name" == *drag* ]]; then
     proof_manifest_label="$proof_manifest"
@@ -138,6 +141,18 @@ EOF
 - Reject final-state-only proof, a hidden state where Comms is still an active zone/sidebar target, or a restore where the parked Comms workspace comes back in the wrong zone.
 EOF
             ;;
+        slice-11a-zone-width-controls)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible, with a readable before-geometry surface on screen.
+- Sample frames around `Run: winmux resize-zone Work width +10%` and `Run: winmux balance-zones`. Fail if geometry changes before either command caption appears.
+- Confirm the recording shows before-resize, resize-command-start, after-resize, before-balance, balance-command-start, after-balance, and final inspection states.
+- Confirm numeric geometry is visible in the media or named screenshots, not only in logs. Required values: zone id, enabled state, configured/effective/runtime width, left edge, pixel width, active workspace, and runtime override marker.
+- Confirm `Work` visibly expands after resize, Reference and Comms visibly shrink, then all three zones return to equal widths after balance.
+- Confirm the same windows and active workspaces stay in the same zone ids across resize and balance.
+- Confirm the copied config hash is unchanged; this is runtime state, not a TOML rewrite.
+- Reject logs-only sizing proof, final-state-only proof, unreadable/subtle geometry, stale labels, missing before/command/after samples, command captions that omit the target zone or amount, and captions that obscure measured zone edges.
+EOF
+            ;;
         *)
             cat <<'EOF'
 - Confirm the recording visually demonstrates the stated WinMux behavior without relying only on logs.
@@ -172,6 +187,7 @@ packet fills the artifact paths and slice-specific checks.
 - after screenshot: ${after_screenshot}
 - contact sheet: ${contact_sheet}
 - sample frames: ${samples_dir}
+- sample manifest: ${sample_manifest}
 - caption boundary frames: ${boundary_samples_glob}
 $(drag_screenshot_lines)
 
@@ -179,6 +195,8 @@ $(drag_screenshot_lines)
 
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
+- visible geometry board / measurement proof: ${visible_geometry_board}
+- guest transport summary: ${transport_summary}
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
 - drag proof manifest: ${proof_manifest_label}

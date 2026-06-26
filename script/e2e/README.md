@@ -42,6 +42,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-10` records runtime zone availability with `script/e2e/configs/zone-availability.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled, then captures `01-ready-slice-10.png`. The proof runs `winmux disable-zone Comms`, captures the hidden state where Comms is absent and Work expands, then runs `winmux enable-zone Comms` and captures the restored state where the same Comms workspace returns. The verifier checks before/hidden/restored zone logs, visible window logs, sidebar-state logs, hidden/restored screenshots, command logs, success marker, and caption chips for the config, disable command, enable command, `list-zones`, and `list-windows --workspace visible`.
 
+`make e2e-slice-11a` records runtime zone width controls with `script/e2e/configs/zone-width-controls.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with numeric geometry labels and captures `01-ready-slice-11a.png`. The proof runs `winmux resize-zone Work width +10%`, captures Work expanding while side zones shrink, then runs `winmux balance-zones` and captures all enabled zones returning to equal widths. The verifier checks before/resized/balanced zone geometry, preserved window ids and workspaces, command logs, ready and action screenshots, success marker, key bindings, and caption chips with the exact commands and numeric width changes.
+
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
 Slice 6B recording, fails unless that source artifact has strict guest-capture
@@ -65,7 +67,7 @@ make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timesta
 
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
-Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests the guest transport warm-up policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
+Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests the guest transport warm-up policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
 
 After a run, use the mechanical verifier before spawning the no-context reviewer:
 
@@ -73,7 +75,7 @@ After a run, use the mechanical verifier before spawning the no-context reviewer
 make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp>
 ```
 
-After the review file exists, rerun the non-mutating checker with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, generated sample frames, and the contact sheet. Reload scenarios also verify immutable config hashes when preflight recorded them. It is a tripwire; the no-context reviewer still inspects the media and product fit.
+After the review file exists, rerun the non-mutating checker with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, generated sample frames, the sample manifest, and the contact sheet. Reload scenarios also verify immutable config hashes when preflight recorded them. It is a tripwire; the no-context reviewer still inspects the media and product fit.
 
 For report-only checks, use the non-mutating verifier:
 
@@ -86,6 +88,8 @@ This fails if generated samples or reviewer packets are missing, instead of crea
 When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
 
 Caption-boundary frames use the names `caption-NN-boundary-before.png`, `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`. Transition-style recordings should point reviewers at those frames so command-caption ordering is checked before the next slice proceeds.
+
+Each annotated run also writes `logs/<recording>.sample-manifest.tsv`. It maps standard samples, caption-boundary samples, and slice-specific semantic proof beats to exact artifact-relative image paths. Ordered transition slices must add semantic rows such as `resize-command-start` or `after-balance`, and the verifier should require those labels for the slice.
 
 Caption plans use tab-separated fields:
 
@@ -104,7 +108,7 @@ Before guest capture, the harness prepares the disposable guest:
 
 Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` inside the guest. Debug bare-executable launches also pass `WINMUX_DEFAULT_CONFIG_PATH` so SwiftUI settings initialization can parse the staged config before the app reloads `--config-path`. `WINMUX_E2E_STARTUP_TRACE` writes startup milestones to `logs/winmux-startup-trace.log`.
 
-Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. The harness also warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts.
+Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. The harness also warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts. Each run writes `logs/guest-transport-summary.tsv` with phase, log path, attempt count, failure count, final result, and whether the phase happened before recording.
 
 Scenario command proofs must distinguish setup from proof. Setup commands may create or place windows, but proof commands must use the exact behavior being tested, assert before and after state, and fail on no-op when movement is the claim. Prepared product slices should capture a clean before screenshot, stage the visible ready state, capture `01-ready-slice-N.png`, then start the proof recording. Do not use fallback commands that would hide a broken zone selector or command path.
 

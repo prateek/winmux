@@ -76,7 +76,7 @@ capture_guest_screenshot() {
 write_zones_log() {
     local path="$1"
     "${CLI}" list-zones \
-        --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}' \
+        --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}' \
         >"${path}" 2>>"${WAIT_ERR}"
     cat "${path}"
 }
@@ -120,8 +120,12 @@ zone_width() {
     local path="$1"
     local zone_id="$2"
     /usr/bin/awk -F'|' -v zone="zone=${zone_id}" '$1 == zone {
-        sub(/^width=/, "", $5)
-        print $5
+        for (i = 1; i <= NF; i++) {
+            if (index($i, "width=") == 1) {
+                print substr($i, 7)
+                exit
+            }
+        }
         exit
     }' "${path}"
 }
@@ -368,8 +372,8 @@ proof_slice() {
     assert_window_zone "${WINDOW_HIDDEN_LOG}" 'reference-availability.rtf' left
     assert_window_zone "${WINDOW_HIDDEN_LOG}" 'work-availability.rtf' main
     assert_title_absent "${WINDOW_HIDDEN_LOG}" 'comms-availability.rtf'
-    grep -F 'zone=right|name=Comms|' "${ZONES_HIDDEN_LOG}" >/dev/null \
-        && semantic_fail 'Comms/right still appeared in zones log after disable-zone'
+    grep -F 'zone=right|name=Comms|enabled=true|' "${ZONES_HIDDEN_LOG}" >/dev/null \
+        && semantic_fail 'Comms/right still appeared as an enabled zone after disable-zone'
     grep -F 'zone=main|name=Work|' "${ZONES_HIDDEN_LOG}" >/dev/null \
         || semantic_fail 'Work/main missing after disable-zone'
     main_before_width="$(zone_width "${ZONES_BEFORE_LOG}" main)"

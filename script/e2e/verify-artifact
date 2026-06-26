@@ -4,16 +4,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REQUIRE_REVIEW=0
 CHECK_ONLY=0
+SELF_TEST=0
 RUN_DIR=""
 
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [--check-only] [--require-review] <artifact-run-dir>
+       $(basename "$0") --self-test
 
 Checks media, guest-control logs, clean-slate logs, and optional review verdict
 for a WinMux Tart e2e artifact directory.
 
 --check-only validates existing files without generating samples or reviewer packets.
+--self-test runs verifier helper tests without requiring a Tart artifact.
 EOF
 }
 
@@ -26,6 +29,227 @@ log() {
     printf '[winmux-verify] %s\n' "$*"
 }
 
+SELF_TEST_TMP_DIR=""
+
+cleanup_self_test_tmp_dir() {
+    [ -z "${SELF_TEST_TMP_DIR:-}" ] || rm -rf "$SELF_TEST_TMP_DIR"
+}
+
+zone_log_value() {
+    local path="$1"
+    local zone="$2"
+    local key="$3"
+    /usr/bin/awk -F'|' -v zone="$zone" -v key="$key" '
+        $1 == "zone=" zone {
+            for (i = 1; i <= NF; i++) {
+                if (index($i, key "=") == 1) {
+                    print substr($i, length(key) + 2)
+                    exit
+                }
+            }
+        }
+    ' "$path"
+}
+
+visible_board_value() {
+    local path="$1"
+    local zone="$2"
+    local phase="$3"
+    local key="$4"
+    /usr/bin/awk -F'|' -v zone="$zone" -v phase="$phase" -v key="$key" '
+        function value_from_tokens(text,    n, parts, i, pair) {
+            n = split(text, parts, " ")
+            for (i = 1; i <= n; i++) {
+                split(parts[i], pair, "=")
+                if (pair[1] == key) {
+                    print pair[2]
+                    exit
+                }
+            }
+        }
+        $1 == "zone-id=" zone {
+            if (phase == "base") {
+                for (i = 1; i <= NF; i++) {
+                    if (index($i, key "=") == 1) {
+                        print substr($i, length(key) + 2)
+                        exit
+                    }
+                }
+                exit
+            }
+            for (i = 1; i <= NF; i++) {
+                if (index($i, phase " ") == 1) {
+                    value_from_tokens(substr($i, length(phase) + 2))
+                }
+            }
+        }
+    ' "$path"
+}
+
+normalize_visible_board_runtime_width() {
+    local value="$1"
+    case "$value" in
+        "") printf 'none\n' ;;
+        *) printf '%s\n' "$value" ;;
+    esac
+}
+
+strip_px_suffix() {
+    local value="$1"
+    printf '%s\n' "${value%px}"
+}
+
+assert_string_eq() {
+    local actual="$1"
+    local expected="$2"
+    local message="$3"
+    [ "$actual" = "$expected" ] || die "$message: expected ${expected}, got ${actual:-missing}"
+}
+
+require_visible_board_matches_zone_log() {
+    local board_path="$1"
+    local zone="$2"
+    local phase="$3"
+    local zones_log="$4"
+    local phase_label="$5"
+    local tolerance="${6:-0.001}"
+
+    local enabled workspace board_workspace
+    enabled="$(zone_log_value "$zones_log" "$zone" enabled)"
+    workspace="$(zone_log_value "$zones_log" "$zone" workspace)"
+    board_workspace="$(visible_board_value "$board_path" "$zone" base active-workspace)"
+
+    assert_string_eq "$(visible_board_value "$board_path" "$zone" base enabled)" "$enabled" \
+        "Slice 11A visible board enabled state mismatch for ${zone}/${phase_label}"
+    assert_string_eq "$board_workspace" "$workspace" \
+        "Slice 11A visible board workspace mismatch for ${zone}/${phase_label}"
+
+    local board_configured board_effective board_runtime board_override_state board_left board_width
+    local log_configured log_effective log_runtime log_override_state log_left log_width
+    board_configured="$(visible_board_value "$board_path" "$zone" "$phase" configured-width)"
+    board_effective="$(visible_board_value "$board_path" "$zone" "$phase" effective-width)"
+    board_runtime="$(visible_board_value "$board_path" "$zone" "$phase" runtime-width)"
+    board_override_state="$(visible_board_value "$board_path" "$zone" "$phase" override-state)"
+    board_left="$(strip_px_suffix "$(visible_board_value "$board_path" "$zone" "$phase" left-edge)")"
+    board_width="$(strip_px_suffix "$(visible_board_value "$board_path" "$zone" "$phase" pixel-width)")"
+
+    log_configured="$(zone_log_value "$zones_log" "$zone" configured)"
+    log_effective="$(zone_log_value "$zones_log" "$zone" effective)"
+    log_runtime="$(normalize_visible_board_runtime_width "$(zone_log_value "$zones_log" "$zone" override)")"
+    log_override_state="$(zone_log_value "$zones_log" "$zone" override-state)"
+    log_left="$(zone_log_value "$zones_log" "$zone" left)"
+    log_width="$(zone_log_value "$zones_log" "$zone" width)"
+
+    [ -n "$board_configured" ] || die "Slice 11A visible board missing configured width for ${zone}/${phase_label}"
+    [ -n "$board_effective" ] || die "Slice 11A visible board missing effective width for ${zone}/${phase_label}"
+    [ -n "$board_runtime" ] || die "Slice 11A visible board missing runtime width for ${zone}/${phase_label}"
+    [ -n "$board_override_state" ] || die "Slice 11A visible board missing override state for ${zone}/${phase_label}"
+    [ -n "$board_left" ] || die "Slice 11A visible board missing left edge for ${zone}/${phase_label}"
+    [ -n "$board_width" ] || die "Slice 11A visible board missing pixel width for ${zone}/${phase_label}"
+
+    assert_numeric_approximately_equal "$board_configured" "$log_configured" "$tolerance" \
+        "Slice 11A visible board configured width mismatch for ${zone}/${phase_label}"
+    assert_numeric_approximately_equal "$board_effective" "$log_effective" "$tolerance" \
+        "Slice 11A visible board effective width mismatch for ${zone}/${phase_label}"
+    if [ "$log_runtime" = "none" ]; then
+        assert_string_eq "$board_runtime" "none" \
+            "Slice 11A visible board runtime width mismatch for ${zone}/${phase_label}"
+    else
+        assert_numeric_approximately_equal "$board_runtime" "$log_runtime" "$tolerance" \
+            "Slice 11A visible board runtime width mismatch for ${zone}/${phase_label}"
+    fi
+    assert_string_eq "$board_override_state" "$log_override_state" \
+        "Slice 11A visible board override state mismatch for ${zone}/${phase_label}"
+    assert_numeric_approximately_equal "$board_left" "$log_left" 0.2 \
+        "Slice 11A visible board left edge mismatch for ${zone}/${phase_label}"
+    assert_numeric_approximately_equal "$board_width" "$log_width" 0.2 \
+        "Slice 11A visible board pixel width mismatch for ${zone}/${phase_label}"
+}
+
+require_zone_geometry_contiguous() {
+    local path="$1"
+    local label="$2"
+    local min_width="${3:-1}"
+    local expected_total="${4:-}"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+    /usr/bin/awk -F'|' -v label="$label" -v min_width="$min_width" -v expected_total="$expected_total" '
+        function field(key,    i) {
+            for (i = 1; i <= NF; i++) {
+                if (index($i, key "=") == 1) {
+                    return substr($i, length(key) + 2)
+                }
+            }
+            return ""
+        }
+        function fail(msg) {
+            printf("%s: %s\n", label, msg) > "/dev/stderr"
+            exit 1
+        }
+        /^zone=/ {
+            enabled = field("enabled")
+            if (enabled == "false") {
+                next
+            }
+            left_raw = field("left")
+            width_raw = field("width")
+            if (left_raw == "" || width_raw == "") {
+                fail("enabled zone is missing left or width: " $0)
+            }
+            left = left_raw + 0
+            width = width_raw + 0
+            if (width < min_width) {
+                fail("zone width is below minimum: " $0)
+            }
+            if (count > 0 && left + 0.001 < right || count > 0 && left - 0.001 > right) {
+                fail("zone left edge is not contiguous: expected " right " got " left " row=" $0)
+            }
+            if (count == 0) {
+                start = left
+            }
+            right = left + width
+            count += 1
+        }
+        END {
+            if (count == 0) {
+                fail("no enabled geometry rows found")
+            }
+            if (expected_total != "") {
+                total = right - start
+                if (total + 0.001 < expected_total || total - 0.001 > expected_total) {
+                    fail("total width mismatch: expected " expected_total " got " total)
+                }
+            }
+        }
+    ' "$path"
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    SELF_TEST_TMP_DIR="$tmp_dir"
+    trap cleanup_self_test_tmp_dir EXIT
+
+    local good_log="${tmp_dir}/zones-good.log"
+    cat >"$good_log" <<'EOF'
+zone=left|enabled=true|left=0|width=240|workspace=reference
+zone=main|enabled=true|left=240|width=720|workspace=work
+zone=right|enabled=false|left=|width=|workspace=
+EOF
+    require_zone_geometry_contiguous "$good_log" "self-test good geometry" 100 960
+    [ "$(zone_log_value "$good_log" main width)" = "720" ] \
+        || die "zone_log_value self-test failed"
+
+    local bad_log="${tmp_dir}/zones-bad.log"
+    cat >"$bad_log" <<'EOF'
+zone=left|enabled=true|left=0|width=240
+zone=main|enabled=true|left=300|width=720
+EOF
+    if require_zone_geometry_contiguous "$bad_log" "self-test bad geometry" 100 960 >/dev/null 2>&1; then
+        die "Geometry self-test expected a gap failure"
+    fi
+    log "self-test PASS"
+}
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --require-review)
@@ -34,6 +258,10 @@ while [ "$#" -gt 0 ]; do
             ;;
         --check-only)
             CHECK_ONLY=1
+            shift
+            ;;
+        --self-test)
+            SELF_TEST=1
             shift
             ;;
         -h|--help)
@@ -51,6 +279,11 @@ while [ "$#" -gt 0 ]; do
             ;;
     esac
 done
+
+if [ "$SELF_TEST" = "1" ]; then
+    run_self_test
+    exit 0
+fi
 
 [ -n "$RUN_DIR" ] || {
     usage >&2
@@ -186,6 +419,23 @@ ensure_review_packet() {
         "${absolute_run_dir}/screenshots/${recording_name}.contact-sheet.jpg" \
         "${relative_run_dir}/screenshots/${recording_name}.contact-sheet.jpg" \
         || die "Review packet missing contact sheet path"
+    local manifest_path
+    manifest_path="$(sample_manifest_path)"
+    if [ -s "$manifest_path" ]; then
+        review_packet_contains_any "$packet_path" \
+            "$manifest_path" \
+            "${absolute_run_dir}/logs/${recording_name}.sample-manifest.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.sample-manifest.tsv" \
+            || die "Review packet missing sample manifest path"
+    fi
+    local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+    if [ -s "$transport_summary" ]; then
+        review_packet_contains_any "$packet_path" \
+            "$transport_summary" \
+            "${absolute_run_dir}/logs/guest-transport-summary.tsv" \
+            "${relative_run_dir}/logs/guest-transport-summary.tsv" \
+            || die "Review packet missing guest transport summary path"
+    fi
     review_packet_contains_any "$packet_path" \
         "${RUN_DIR}/reviews/no-ctx-artifact-review.md" \
         "${absolute_run_dir}/reviews/no-ctx-artifact-review.md" \
@@ -222,6 +472,100 @@ review_packet_contains_any() {
         fi
     done
     return 1
+}
+
+sample_manifest_path() {
+    printf '%s/%s.sample-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+require_sample_manifest_paths() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+
+    /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ { print $5 }' "$manifest_path" | while IFS= read -r relative_path; do
+        [ -n "$relative_path" ] || die "Sample manifest has a row with an empty path: $manifest_path"
+        case "$relative_path" in
+            /*|*../*) die "Sample manifest path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_file "${RUN_DIR}/${relative_path}"
+    done
+}
+
+require_sample_manifest_label() {
+    local manifest_path="$1"
+    local label="$2"
+    /usr/bin/awk -F'\t' -v label="$label" '$1 == "semantic" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$manifest_path" \
+        || die "Sample manifest missing semantic proof label: $label"
+}
+
+require_slice_11a_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-resize \
+        resize-command-start \
+        after-resize \
+        list-zones-after-resize \
+        before-balance \
+        balance-command-start \
+        after-balance \
+        list-zones-after-balance; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+transport_summary_value() {
+    local path="$1"
+    local phase="$2"
+    local key="$3"
+    /usr/bin/awk -F'\t' -v phase="$phase" -v key="$key" '
+        BEGIN {
+            column["log"] = 2
+            column["attempts"] = 3
+            column["failures"] = 4
+            column["final_result"] = 5
+            column["before_recording"] = 6
+        }
+        $1 == phase {
+            print $column[key]
+            exit
+        }
+    ' "$path"
+}
+
+require_transport_summary_phase() {
+    local path="$1"
+    local phase="$2"
+    local expected_result="$3"
+    local expected_before_recording="$4"
+
+    local attempts failures final_result before_recording log_path
+    log_path="$(transport_summary_value "$path" "$phase" log)"
+    attempts="$(transport_summary_value "$path" "$phase" attempts)"
+    failures="$(transport_summary_value "$path" "$phase" failures)"
+    final_result="$(transport_summary_value "$path" "$phase" final_result)"
+    before_recording="$(transport_summary_value "$path" "$phase" before_recording)"
+
+    [ -n "$log_path" ] || die "Guest transport summary missing phase: $phase"
+    [ -n "$attempts" ] || die "Guest transport summary missing attempts for phase: $phase"
+    [ -n "$failures" ] || die "Guest transport summary missing failures for phase: $phase"
+    assert_string_eq "$final_result" "$expected_result" \
+        "Guest transport summary final result mismatch for ${phase}"
+    assert_string_eq "$before_recording" "$expected_before_recording" \
+        "Guest transport summary before-recording flag mismatch for ${phase}"
+    require_file "${RUN_DIR}/${log_path}"
+}
+
+require_guest_transport_summary() {
+    local summary_path="$1"
+    require_file "$summary_path"
+    require_transport_summary_phase "$summary_path" guest-control success yes
+    require_transport_summary_phase "$summary_path" warmup-before-privacy success yes
+    require_transport_summary_phase "$summary_path" privacy-setup success yes
+    require_transport_summary_phase "$summary_path" clean-slate success yes
+    require_transport_summary_phase "$summary_path" capture-ready success yes
+    require_transport_summary_phase "$summary_path" warmup-before-recording success yes
+    require_transport_summary_phase "$summary_path" guest-recording success no
 }
 
 require_drag_proof_manifest() {
@@ -733,6 +1077,27 @@ assert_numeric_lt() {
         || die "$message: expected $left < $right"
 }
 
+assert_numeric_approximately_equal() {
+    local left="$1"
+    local right="$2"
+    local tolerance="$3"
+    local message="$4"
+    /usr/bin/awk -v left="$left" -v right="$right" -v tolerance="$tolerance" '
+        function abs(x) { return x < 0 ? -x : x }
+        BEGIN { exit(abs(left - right) <= tolerance ? 0 : 1) }
+    ' || die "$message: expected $left ~= $right within $tolerance"
+}
+
+assert_numeric_between_inclusive() {
+    local value="$1"
+    local min="$2"
+    local max="$3"
+    local message="$4"
+    /usr/bin/awk -v value="$value" -v min="$min" -v max="$max" 'BEGIN {
+        exit(value >= min && value <= max ? 0 : 1)
+    }' || die "$message: expected $value between $min and $max"
+}
+
 require_slice_6_zone_layout_presets_proof() {
     local proof="${RUN_DIR}/slice-6-zone-layout-presets-proof.txt"
     local done="${LOGS_DIR}/slice-6-zone-layout-presets.done"
@@ -1035,14 +1400,16 @@ require_slice_10_zone_availability_proof() {
 
     grep -F 'zone=right|name=Comms|' "$before_zones" >/dev/null \
         || die "Slice 10 before zones log missing Comms/right"
-    grep -F 'zone=right|name=Comms|' "$hidden_zones" >/dev/null \
-        && die "Slice 10 hidden zones log still contains Comms/right"
+    if grep -F 'zone=right|name=Comms|' "$hidden_zones" >/dev/null; then
+        [ "$(zone_log_value "$hidden_zones" right enabled)" = "false" ] \
+            || die "Slice 10 hidden zones log still contains enabled Comms/right"
+    fi
     grep -F 'zone=right|name=Comms|' "$restored_zones" >/dev/null \
         || die "Slice 10 restored zones log missing Comms/right"
 
     local before_main_width hidden_main_width
-    before_main_width="$(awk -F'|' '$1 == "zone=main" { sub(/^width=/, "", $5); print $5; exit }' "$before_zones")"
-    hidden_main_width="$(awk -F'|' '$1 == "zone=main" { sub(/^width=/, "", $5); print $5; exit }' "$hidden_zones")"
+    before_main_width="$(zone_log_value "$before_zones" main width)"
+    hidden_main_width="$(zone_log_value "$hidden_zones" main width)"
     awk -v before="$before_main_width" -v hidden="$hidden_main_width" 'BEGIN { exit(hidden > before ? 0 : 1) }' \
         || die "Slice 10 Work/main width did not expand after Comms was hidden"
 
@@ -1058,8 +1425,199 @@ require_slice_10_zone_availability_proof() {
         || die "Slice 10 annotations missing restored-state action chip"
     grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null \
         || die "Slice 10 annotations missing list-zones chip"
-    grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
-        || die "Slice 10 annotations missing list-windows chip"
+	    grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
+	        || die "Slice 10 annotations missing list-windows chip"
+	}
+
+require_slice_11a_zone_width_controls_proof() {
+    local proof="${RUN_DIR}/slice-11a-zone-width-controls-proof.txt"
+    local done="${LOGS_DIR}/slice-11a-zone-width-controls.done"
+    local setup_log="${LOGS_DIR}/slice-11a-width-setup.log"
+    local windows_before="${LOGS_DIR}/slice-11a-windows-before.log"
+    local windows_resized="${LOGS_DIR}/slice-11a-windows-resized.log"
+    local windows_balanced="${LOGS_DIR}/slice-11a-windows-balanced.log"
+    local zones_before="${LOGS_DIR}/slice-11a-zones-before.log"
+    local zones_resized="${LOGS_DIR}/slice-11a-zones-resized.log"
+    local zones_balanced="${LOGS_DIR}/slice-11a-zones-balanced.log"
+    local resize_log="${LOGS_DIR}/slice-11a-resize-zone.log"
+    local balance_log="${LOGS_DIR}/slice-11a-balance-zones.log"
+    local timing_log="${LOGS_DIR}/slice-11a-command-timing.log"
+    local geometry_board_log="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
+    local sample_manifest="${LOGS_DIR}/slice-11a-zone-width-controls.sample-manifest.tsv"
+    local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-11a.png"
+    local before_resize_screenshot="${SCREENSHOTS_DIR}/02-before-resize-slice-11a.png"
+    local after_resize_screenshot="${SCREENSHOTS_DIR}/03-after-resize-slice-11a.png"
+    local before_balance_screenshot="${SCREENSHOTS_DIR}/04-before-balance-slice-11a.png"
+    local after_balance_screenshot="${SCREENSHOTS_DIR}/05-after-balance-slice-11a.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 11A"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_resized"
+    require_file "$windows_balanced"
+    require_file "$zones_before"
+    require_file "$zones_resized"
+    require_file "$zones_balanced"
+    require_file "$resize_log"
+    require_file "$balance_log"
+    require_file "$timing_log"
+    require_file "$geometry_board_log"
+    require_slice_11a_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "$transport_summary"
+    require_file "$ready_screenshot"
+    require_file "$before_resize_screenshot"
+    require_file "$after_resize_screenshot"
+    require_file "$before_balance_screenshot"
+    require_file "$after_balance_screenshot"
+
+    grep -F 'PASS: resize-zone Work width +10% changes runtime zone widths; balance-zones returns enabled zones to equal widths while preserving windows and workspaces.' "$proof" >/dev/null \
+        || die "Slice 11A proof does not contain the expected PASS claim"
+    grep -F "alt-equal = 'resize-zone Work width +10%'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11A config missing resize grow binding"
+    grep -F "alt-minus = 'resize-zone Work width -10%'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11A config missing resize shrink binding"
+    grep -F "alt-0 = 'balance-zones'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11A config missing balance binding"
+    grep -F "alt-tab = 'cycle-zone-layout balanced focus'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 11A config missing cycle-zone-layout binding"
+    grep -F 'Config: resize-zone Work width +10%, balance-zones, cycle-zone-layout balanced focus' "$setup_log" >/dev/null \
+        || die "Slice 11A setup log missing command/config summary"
+    grep -F 'visible-geometry-board=TextEdit zone documents' "$geometry_board_log" >/dev/null \
+        || die "Slice 11A geometry board log missing visible TextEdit board marker"
+    for field in zone-id enabled configured-width effective-width runtime-width override-state left-edge pixel-width active-workspace; do
+        grep -F "$field" "$geometry_board_log" >/dev/null \
+            || die "Slice 11A visible geometry board missing field label: $field"
+    done
+    for zone_id in left main right; do
+        grep -F "zone-id=${zone_id}|enabled=true" "$geometry_board_log" >/dev/null \
+            || die "Slice 11A visible geometry board missing enabled row for zone: $zone_id"
+    done
+    grep -F 'resize configured-width=0.50 effective-width=0.60 runtime-width=0.60 override-state=runtime' "$geometry_board_log" >/dev/null \
+        || die "Slice 11A visible geometry board missing Work runtime resize values"
+    grep -F 'balance configured-width=0.50 effective-width=0.333 runtime-width=0.333 override-state=runtime' "$geometry_board_log" >/dev/null \
+        || die "Slice 11A visible geometry board missing Work runtime balance values"
+
+    grep -F '$ winmux resize-zone Work width +10%' "$resize_log" >/dev/null \
+        || die "Slice 11A resize log missing exact command"
+    grep -F "Resized zone 'Work' on monitor 1 by +10%" "$resize_log" >/dev/null \
+        || die "Slice 11A resize log missing success output"
+    grep -F '$ winmux balance-zones' "$balance_log" >/dev/null \
+        || die "Slice 11A balance log missing exact command"
+    grep -F 'Balanced zones on monitor 1' "$balance_log" >/dev/null \
+        || die "Slice 11A balance log missing success output"
+    local resize_offset balance_offset
+    resize_offset="$(value_from_log resize-command-offset-seconds "$timing_log")"
+    balance_offset="$(value_from_log balance-command-offset-seconds "$timing_log")"
+    [ -n "$resize_offset" ] || die "Slice 11A timing log missing resize command offset"
+    [ -n "$balance_offset" ] || die "Slice 11A timing log missing balance command offset"
+    assert_numeric_between_inclusive "$resize_offset" 13 24 \
+        "Slice 11A resize command must happen while the resize command caption is on screen"
+    assert_numeric_between_inclusive "$balance_offset" 32 40 \
+        "Slice 11A balance command must happen while the balance command caption is on screen"
+
+    require_zone_geometry_contiguous "$zones_before" "Slice 11A before geometry" 1
+    require_zone_geometry_contiguous "$zones_resized" "Slice 11A resized geometry" 1
+    require_zone_geometry_contiguous "$zones_balanced" "Slice 11A balanced geometry" 1
+    for zone_id in left main right; do
+        require_visible_board_matches_zone_log "$geometry_board_log" "$zone_id" before "$zones_before" before
+        require_visible_board_matches_zone_log "$geometry_board_log" "$zone_id" resize "$zones_resized" resized
+        require_visible_board_matches_zone_log "$geometry_board_log" "$zone_id" balance "$zones_balanced" balanced
+    done
+
+    local before_left before_main before_right
+    local resized_left resized_main resized_right
+    local balanced_left balanced_main balanced_right
+    before_left="$(zone_log_value "$zones_before" left width)"
+    before_main="$(zone_log_value "$zones_before" main width)"
+    before_right="$(zone_log_value "$zones_before" right width)"
+    resized_left="$(zone_log_value "$zones_resized" left width)"
+    resized_main="$(zone_log_value "$zones_resized" main width)"
+    resized_right="$(zone_log_value "$zones_resized" right width)"
+    balanced_left="$(zone_log_value "$zones_balanced" left width)"
+    balanced_main="$(zone_log_value "$zones_balanced" main width)"
+    balanced_right="$(zone_log_value "$zones_balanced" right width)"
+    [ -n "$before_left" ] && [ -n "$before_main" ] && [ -n "$before_right" ] \
+        || die "Slice 11A before zones log missing widths"
+    [ -n "$resized_left" ] && [ -n "$resized_main" ] && [ -n "$resized_right" ] \
+        || die "Slice 11A resized zones log missing widths"
+    [ -n "$balanced_left" ] && [ -n "$balanced_main" ] && [ -n "$balanced_right" ] \
+        || die "Slice 11A balanced zones log missing widths"
+
+    assert_numeric_gt "$resized_main" "$before_main" "Slice 11A Work/main width did not grow after resize-zone"
+    assert_numeric_lt "$resized_left" "$before_left" "Slice 11A Reference/left width did not shrink after resize-zone"
+    assert_numeric_lt "$resized_right" "$before_right" "Slice 11A Comms/right width did not shrink after resize-zone"
+    assert_numeric_approximately_equal "$balanced_left" "$balanced_main" 2 "Slice 11A balanced left/main widths differ"
+    assert_numeric_approximately_equal "$balanced_main" "$balanced_right" 2 "Slice 11A balanced main/right widths differ"
+
+    grep -F 'zone=left|name=Reference|layout=balanced|enabled=true|configured=0.25|' "$zones_before" >/dev/null \
+        || die "Slice 11A before zones log missing configured Reference/left row"
+    grep -F 'zone=main|name=Work|layout=balanced|enabled=true|configured=0.5|' "$zones_before" >/dev/null \
+        || die "Slice 11A before zones log missing configured Work/main row"
+    grep -F 'zone=right|name=Comms|layout=balanced|enabled=true|configured=0.25|' "$zones_before" >/dev/null \
+        || die "Slice 11A before zones log missing configured Comms/right row"
+    grep -F 'zone=main|name=Work|layout=balanced|enabled=true|configured=0.5|effective=0.6|override=0.6|override-state=runtime|' "$zones_resized" >/dev/null \
+        || die "Slice 11A resized zones log missing runtime Work/main width override"
+    grep -F 'override-state=runtime' "$zones_balanced" >/dev/null \
+        || die "Slice 11A balanced zones log missing runtime override state"
+
+    local title expected_zone before_id resized_id balanced_id before_zone resized_zone balanced_zone
+    local before_workspace resized_workspace balanced_workspace
+    for title in reference-width.rtf work-width.rtf comms-width.rtf; do
+        case "$title" in
+            reference-width.rtf) expected_zone=left ;;
+            work-width.rtf) expected_zone=main ;;
+            comms-width.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        resized_id="$(field_for_title "$windows_resized" "$title" id)"
+        balanced_id="$(field_for_title "$windows_balanced" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        resized_zone="$(field_for_title "$windows_resized" "$title" zone)"
+        balanced_zone="$(field_for_title "$windows_balanced" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        resized_workspace="$(field_for_title "$windows_resized" "$title" workspace)"
+        balanced_workspace="$(field_for_title "$windows_balanced" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$resized_id" ] && [ -n "$balanced_id" ] \
+            || die "Slice 11A missing window title across logs: $title"
+        [ "$before_id" = "$resized_id" ] && [ "$resized_id" = "$balanced_id" ] \
+            || die "Slice 11A window id changed for $title: $before_id -> $resized_id -> $balanced_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$resized_zone" = "$expected_zone" ] && [ "$balanced_zone" = "$expected_zone" ] \
+            || die "Slice 11A zone changed for $title: $before_zone -> $resized_zone -> $balanced_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$resized_workspace" ] && [ "$resized_workspace" = "$balanced_workspace" ] \
+            || die "Slice 11A workspace changed for $title: $before_workspace -> $resized_workspace -> $balanced_workspace"
+    done
+
+    grep -F "widths-before=left:${before_left},main:${before_main},right:${before_right}" "$proof" >/dev/null \
+        || die "Slice 11A proof does not copy before widths from zones log"
+    grep -F "widths-resized=left:${resized_left},main:${resized_main},right:${resized_right}" "$proof" >/dev/null \
+        || die "Slice 11A proof does not copy resized widths from zones log"
+    grep -F "widths-balanced=left:${balanced_left},main:${balanced_main},right:${balanced_right}" "$proof" >/dev/null \
+        || die "Slice 11A proof does not copy balanced widths from zones log"
+    grep -F "resize-command-offset-seconds=${resize_offset}" "$proof" >/dev/null \
+        || die "Slice 11A proof does not copy resize command timing"
+    grep -F "balance-command-offset-seconds=${balance_offset}" "$proof" >/dev/null \
+        || die "Slice 11A proof does not copy balance command timing"
+    grep -F 'Visible geometry board:' "$proof" >/dev/null \
+        || die "Slice 11A proof does not include the visible geometry board manifest"
+
+    grep -F "Config: [[zones]] + width controls" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing width-controls config chip"
+    grep -F "Run: winmux resize-zone Work width +10%" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing resize-zone command chip"
+    grep -F "Action: Work 1688->2026px; sides 844->675px" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing numeric after-resize chip"
+    grep -F "Run: winmux balance-zones" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing balance-zones command chip"
+    grep -F "Action: zones return to 1125px each" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing numeric after-balance chip"
+    grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null \
+        || die "Slice 11A annotations missing list-zones chip"
+    awk -F '\t' '$5 == "Run: winmux resize-zone Work width +10%" { found = 1; ok = (($1 + 0) <= 13 && ($2 + 0) >= 23) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11A resize command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux balance-zones" { found = 1; ok = (($1 + 0) <= 32 && ($2 + 0) >= 39) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 11A balance command caption must cover the command/action interval"
 }
 
 require_no_ds_store
@@ -1189,6 +1747,9 @@ case "$recording_name" in
         ;;
     slice-10-zone-availability)
         require_slice_10_zone_availability_proof
+        ;;
+    slice-11a-zone-width-controls)
+        require_slice_11a_zone_width_controls_proof
         ;;
 esac
 

@@ -3,9 +3,11 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
 
     case agent
     case balanceSizes = "balance-sizes"
+    case balanceZones = "balance-zones"
     case close
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
     case config
+    case cycleZoneLayout = "cycle-zone-layout"
     case debugWindows = "debug-windows"
     case disableZone = "disable-zone"
     case doctor
@@ -42,6 +44,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case project
     case reloadConfig = "reload-config"
     case resize
+    case resizeZone = "resize-zone"
     case split
     case stackWith = "stack-with"
     case subscribe
@@ -64,12 +67,16 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseAgentCmdArgs)
             case .balanceSizes:
                 result[kind.rawValue] = SubCommandParser(BalanceSizesCmdArgs.init)
+            case .balanceZones:
+                result[kind.rawValue] = SubCommandParser(parseBalanceZonesCmdArgs)
             case .close:
                 result[kind.rawValue] = SubCommandParser(CloseCmdArgs.init)
             case .closeAllWindowsButCurrent:
                 result[kind.rawValue] = SubCommandParser(CloseAllWindowsButCurrentCmdArgs.init)
             case .config:
                 result[kind.rawValue] = SubCommandParser(parseConfigCmdArgs)
+            case .cycleZoneLayout:
+                result[kind.rawValue] = SubCommandParser(parseCycleZoneLayoutCmdArgs)
             case .debugWindows:
                 result[kind.rawValue] = SubCommandParser(DebugWindowsCmdArgs.init)
             case .disableZone:
@@ -146,6 +153,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(ReloadConfigCmdArgs.init)
             case .resize:
                 result[kind.rawValue] = SubCommandParser(parseResizeCmdArgs)
+            case .resizeZone:
+                result[kind.rawValue] = SubCommandParser(parseResizeZoneCmdArgs)
             case .split:
                 result[kind.rawValue] = SubCommandParser(parseSplitCmdArgs)
             case .stackWith:

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-10 accepted; Slice 11A blocked on pre-slice control-proof cleanup
+Status: slices 0-11A accepted; pre-Slice-11B cleanup pending
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -18,6 +18,47 @@ This fits the current architecture because WinMux already treats monitors as ind
 - retained empty workspace slots already exist for monitor viewports.
 
 The implementation should make zones feel like a first-class monitor surface to workspace code, while keeping physical-display code explicit.
+
+## Domain Model
+
+Keep these concepts separate in code, config, tests, and demos:
+
+- `PhysicalMonitor`: the real macOS display. Physical monitor numbering,
+  `.secondary`, screen-change handling, and global display capture remain
+  physical.
+- `ZoneLayout`: a named shape for one physical monitor. The first layout kind
+  is `columns`; later shape kinds can add grids or explicit rectangles without
+  changing workspace ownership.
+- `Zone`: a named region inside a physical monitor. A zone has a stable id,
+  optional display name, enabled state, layout membership, configured width,
+  runtime effective width, and a derived rect.
+- `VirtualMonitor`: the runtime monitor-like viewport produced from an enabled
+  zone. Existing focus, layout, and workspace code should see this as a
+  `Monitor`; code that needs display hardware must ask for the physical monitor.
+- `WorkspaceViewport`: the stable assignment slot for a physical monitor or a
+  zone. This is where active and previous workspace state lives.
+- `Workspace`: the content surface visible in a viewport. A zone never owns
+  windows directly; it shows the workspace currently active in that zone
+  viewport.
+- `WindowOrTabGroup`: the movable content unit. Binding a tab group to a zone
+  means moving the group into the target zone's active workspace.
+- `ZoneScene`: a named macro that applies a zone layout and activates named
+  workspaces in named zones.
+- `ZoneRuntimeOverlay`: per-physical-monitor runtime state layered over config:
+  active layout id, disabled zone ids, parked workspaces, width overrides, style
+  overrides, optional active scene id, and later active snap policy.
+- `ZoneAvailabilitySet`: a named runtime/config concept for groups such as
+  `focus-only`, `comms-open`, or `full-dashboard`. This is separate from a
+  scene because users need to toggle visibility without necessarily changing
+  workspace bindings.
+- `ZoneStyle`: a config-defined style token applied to zone chrome. This is not
+  a layout.
+- `ZoneSnapPolicy`: the mouse behavior contract for dragging around zones:
+  freeform, snap only with a modifier, snap to a zone, and later snap to a
+  window or slot within a zone.
+- `InputBinding`: the user-facing invocation surface. Keyboard bindings,
+  mouse gestures, launch rules, and automatic window routing should all call
+  the same commands or command handlers rather than duplicating zone logic.
 
 ## End-User Shape
 
@@ -54,7 +95,33 @@ The simple mental model is:
 - moving a window or tab group to a zone sends it to that zone's workspace;
 - launching a new window uses the currently focused zone because it uses the focused workspace.
 
-Do not start with scenes, visual editing, overlapping rectangles, or automatic app rules. Add those after zones are stable.
+The ergonomic control surface should stay small and composable:
+
+- `focus-zone <zone>` focuses a zone.
+- `move-node-to-zone <zone>` moves the focused window or focused tab group
+  across zones.
+- `toggle-zone <zone>`, `enable-zone <zone>`, and `disable-zone <zone>` change
+  availability for one zone.
+- `use-zone-layout <layout-id>` and `cycle-zone-layout <a> <b>...` switch or
+  cycle sizing presets.
+- `resize-zone <zone> width [+|-]<percent>%` and `balance-zones` tune zone
+  sizing without editing config.
+- `use-zone-scene <scene-id>` switches layout and workspace bindings together.
+- Later, `use-zone-availability <set-id>` should toggle groups such as
+  `focus-only`, `comms-open`, and `mail-open` at the layout level.
+- Later, `set-zone-style <zone> <style-id>` should change visible zone chrome
+  without changing layout or workspace bindings.
+
+Mouse behavior should be explicit, configurable, and demoable:
+
+- dragging a floating window inside a zone stays freeform by default;
+- snap overlays appear only when policy says they should, such as while holding
+  a configured modifier;
+- the overlay must state whether the drop target is a whole zone or a position
+  inside a window/tab group within that zone;
+- one-handed mouse workflows should be possible through configurable gestures,
+  but gesture recognition must call the same zone commands as keyboard
+  bindings.
 
 ## Product Semantics
 
@@ -73,12 +140,11 @@ Required MVP behavior:
 
 Deferred behavior:
 
-- scene switching beyond named layout presets;
 - grid or rectangle layouts;
 - draggable zone dividers;
-- app/window rules that route to zones;
 - per-zone sidebar panels;
-- visual editor.
+- visual editor;
+- direct tab-group-to-zone persistence beyond the workspace binding model.
 
 Validation is not deferred. Build the Tart VM recording harness first, then require a short Tart video at the end of every slice. Fast behavior tests still come first inside each slice, but a slice is not done until it has a video artifact showing the current behavior in a real macOS desktop.
 
@@ -1333,7 +1399,7 @@ claim control ergonomics beyond availability until all Slice 10 gates pass:
 If Slice 10 remains dirty after acceptance, either commit it or explicitly carry
 its files forward before beginning Slice 11.
 
-### Future Slice 11A: Zone Size and Layout Controls
+### Slice 11A: Zone Size and Layout Controls
 
 Goal: expose the next keyboard controls after availability: runtime zone width
 changes, balancing, and layout cycling. Keep mouse snap policy and visual style
@@ -1447,6 +1513,133 @@ Slice 11A Tart storyboard:
   before/command/after samples, and artifacts where zone boundaries are obscured
   by captions.
 
+Slice 11A accepted result:
+
+- artifact: `artifacts/e2e/slice-11a-20260626T102409Z`;
+- primary recording:
+  `recordings/slice-11a-zone-width-controls.mov`, H.264, 3440x1440,
+  53.983333s, 2335 frames;
+- raw guest recording:
+  `recordings/raw/slice-11a-zone-width-controls.raw.mov`, preserved for
+  debugging;
+- screenshots: `00-before-slice-11a.png`, `01-ready-slice-11a.png`,
+  `02-before-resize-slice-11a.png`, `03-after-resize-slice-11a.png`,
+  `04-before-balance-slice-11a.png`, `05-after-balance-slice-11a.png`,
+  `99-after-slice-11a.png`, and
+  `slice-11a-zone-width-controls.contact-sheet.jpg`;
+- proof file: `slice-11a-zone-width-controls-proof.txt`;
+- visible geometry board:
+  `logs/slice-11a-visible-geometry-board.txt`, mirrored in the live TextEdit
+  zone windows and showing `zone-id`, enabled state, configured width,
+  effective width, runtime width, override state, left edge, pixel width, and
+  active workspace;
+- sample manifest:
+  `logs/slice-11a-zone-width-controls.sample-manifest.tsv`, mapping the
+  required semantic proof beats to exact screenshot/sample-frame paths;
+- transport summary:
+  `logs/guest-transport-summary.tsv`, showing guest-control, warmup, privacy,
+  clean-slate, capture-ready, and recording phases with attempts, failures,
+  final results, and whether they happened before recording;
+- reviewer packet:
+  `artifacts/e2e/slice-11a-20260626T102409Z/reviews/reviewer-packet.md`;
+- no-context artifact review:
+  `artifacts/e2e/slice-11a-20260626T102409Z/reviews/no-ctx-artifact-review.md`,
+  verdict `PASS`, next slice allowed `yes`;
+- verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-11a-20260626T102409Z ARGS=--require-review`
+  passed;
+- config provenance: copied config hash matched
+  `script/e2e/configs/zone-width-controls.toml` with
+  `c6639412d06e5f03cc51ed550decfe7165fec5465bb490bac4f1c8d6b3f23ba7`;
+- command timing proof:
+  `resize-command-offset-seconds=15` and
+  `balance-command-offset-seconds=33`, so each command ran while its command
+  caption was visible and before the corresponding state transition completed;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`, all ending
+  `RETROSPECTION_COMPLETE`.
+
+Superseded Slice 11A attempts:
+
+- `artifacts/e2e/slice-11a-20260626T095539Z`: rejected after verifier
+  hardening because the command timing proof was missing and manual inspection
+  showed the resize command caption after the geometry had already changed;
+- `artifacts/e2e/slice-11a-20260626T100241Z`: rejected by the hardened
+  verifier because `balance-command-offset-seconds=30`, before the
+  `balance-zones` command caption window;
+- `artifacts/e2e/slice-11a-20260626T100906Z`: mechanically valid after timing
+  fixes, but failed no-context review because the full numeric geometry fields
+  were present only in logs/proof text and not visible in the media.
+
+Slice 11A accepted claims:
+
+- `resize-zone Work width +10%` changes runtime width overrides on the target
+  physical monitor without mutating the copied TOML;
+- the `Work` zone grows from `1688.0` px to `2025.6` px, while `Reference` and
+  `Comms` shrink from `844.0` px to about `675.2` px;
+- `balance-zones` returns all three enabled zones to about `1125.3` px while
+  preserving stable zone ids, window ids, and active workspaces;
+- runtime width overrides are scoped by physical monitor identity, active
+  layout identity, and zone id in code tests;
+- `list-zones` exposes enabled state, configured width, effective width,
+  runtime override state, layout id, left edge, pixel width, and active
+  workspace for proof and user inspection;
+- the recording starts from a clean desktop with no Terminal, sshd prompt,
+  permission dialog, setup window, or unrelated app window visible.
+
+Slice 11A accepted non-claims:
+
+- layout cycling is covered by parser/command tests and the fixture config, but
+  the accepted Tart media proves only resize and balance;
+- no persistent width editing in TOML;
+- no visual zone editor or draggable divider;
+- no per-zone style command;
+- no mouse snap policy, gesture configuration, or whole-zone drag overlay;
+- no availability-set command beyond the Slice 10 one-off zone toggles.
+
+Pre-slice cleanup before Slice 11B starts:
+
+- [x] Commit the Slice 11A dirty set before implementing or recording the next
+  slice. This changeset is the intended Slice 11A implementation and artifact
+  gate boundary.
+- [x] Add a stale-proof guard for visible proof boards: either generate the
+  visible board from runtime `list-zones` logs, or verify every visible board
+  value against the runtime logs. Do not reuse static all-state boards as the
+  only visible proof for future measurement/control slices.
+- [x] Add a semantic sample manifest that maps planned proof beats such as
+  `before-resize`, `resize-command-start`, `after-resize`,
+  `balance-command-start`, and `after-balance` to exact sample frame paths, and
+  require it in the non-mutating verifier for future ordered visual proofs.
+- [x] Add a guest transport/warmup summary to the artifact directory and
+  reviewer packet, with attempt counts, failed attempts, final result, and
+  whether failures happened before recording.
+- [x] Add focused fast tests for width-command safety not yet covered:
+  duplicate zone selector qualification across physical monitors,
+  monitor-qualified resize/balance/cycle behavior, minimum-width rejection, and
+  absolute width values that would force siblings below the minimum share.
+- [x] Resolve the command-help/generated metadata consistency trail before the
+  next command family lands, either with a deterministic generator/check or an
+  explicit documented source-of-truth workflow.
+- [x] Tighten reviewer packet language so evidence that is required for a slice
+  is not described as optional or "when present".
+
+Pre-Slice-11B cleanup evidence:
+
+- `swift test --filter ZoneCommandTest` passed with 31 command tests, including
+  the duplicate-scope, monitor-qualified resize/balance/cycle, and minimum-share
+  width-command cases added after Slice 11A acceptance.
+- `script/check-command-metadata` is now wired into `make e2e-pre-tart-checks`.
+  It compares `CmdKind`, generated help vars, and CLI descriptions, with only
+  the current documented legacy exceptions allowed.
+- `script/e2e/prompts/no-context-artifact-review.md` and
+  `script/e2e/write-review-packet` now state that product-slice reviewer
+  packets, transport summaries, listed media/log evidence, and slice-specific
+  checks are acceptance requirements.
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-11a-20260626T102409Z ARGS=--require-review`
+  passed after regenerating the Slice 11A reviewer packet with the stricter
+  wording.
+
 ### Future Slice 11B: Zone Style Controls
 
 Goal: add style controls only after Slice 11A proves the runtime overlay model.
@@ -1465,6 +1658,62 @@ Style requirements:
 - The Tart verifier must reject subtle style changes that cannot be seen in the
   recording.
 
+### Future Slice 11C: Availability Sets and Cross-Zone Commands
+
+Goal: make zone-level and layout-level availability ergonomic enough for real
+ultrawide workflows such as "open Comms", "hide Email", and "focus-only".
+
+Config shape:
+
+```toml
+[[zone-availability-sets]]
+id = 'focus-only'
+enabled-zones = ['main']
+
+[[zone-availability-sets]]
+id = 'communications'
+enabled-zones = ['main', 'right']
+```
+
+Command surface:
+
+- `use-zone-availability [--monitor <monitor-pattern>] <set-id>`
+- `cycle-zone-availability [--monitor <monitor-pattern>] <set-id>...`
+- keep `toggle-zone`, `enable-zone`, and `disable-zone` for one-off zone-level
+  changes.
+
+Required behavior:
+
+- Availability sets apply only to configured zones on the target physical
+  monitor.
+- At least one zone must remain enabled.
+- Hidden zones park their active workspace and restore it when the zone returns.
+- Applying an availability set must not change active layout, width overrides,
+  style overrides, or workspace bindings except where a hidden zone must be
+  parked.
+- `list-zones` must show enough state to prove which availability set is active
+  and which zones are enabled.
+
+Fast validation before Tart:
+
+- parser and config validation tests for duplicate ids, unknown zone ids, empty
+  enabled zone lists, and valid sets;
+- command tests for `use-zone-availability`, cycling, unknown ids, duplicate
+  selectors, and preservation of parked workspaces;
+- topology tests proving width overrides survive availability set changes.
+
+Tart proof:
+
+- show a three-zone layout with Reference, Work, and Comms visible;
+- run `winmux use-zone-availability focus-only` while the command caption is
+  visible before the state change;
+- show Comms/Reference disappear and Work expand;
+- run `winmux use-zone-availability communications`;
+- show Comms return with the same workspace/window identity;
+- reviewer and verifier must reject final-state-only proof, missing command
+  captions, logs-only proof, or any recording where the user cannot tell which
+  zones are toggled.
+
 ### Future Slice 12: Mouse Snap Policy and Gestures
 
 Goal: make mouse interaction deliberate enough for one-handed use on an
@@ -1478,6 +1727,8 @@ Model the drag policy explicitly:
 - `snap-to-zone`: modifier-held drag previews the target zone and snaps on
   release;
 - `snap-to-window`: later, preview a slot/window target inside a zone.
+- `float-unless-snap`: moving a managed window with the mouse leaves it floating
+  unless the snap modifier is held for the drop.
 
 Config should describe gestures and snap policy separately from zones:
 
@@ -1486,11 +1737,35 @@ Config should describe gestures and snap policy separately from zones:
 policy = 'snap-on-modifier'
 modifier = 'alt'
 gesture = 'drag'
+target = 'zone'
 ```
 
-The Tart proof must show pickup, in-drag overlay, snap target, release, and
-final placement. It must state whether the target is a zone, a window within a
-zone, or a freeform placement.
+The first mouse implementation should target whole zones, not windows inside a
+zone. Window/slot snap can come after the zone-level affordance is proven.
+
+Required behavior:
+
+- Freeform drag without the modifier does not snap and does not show a zone snap
+  overlay.
+- Drag with the modifier shows configured zone boundaries, highlights the target
+  zone under the pointer, and snaps the window or tab group to that zone's active
+  workspace on release.
+- Dragging across zones must preserve the same source window id or tab-group
+  membership and must make the target zone obvious in the overlay.
+- Gesture configuration must be a thin input layer over the same command/model
+  logic used by keyboard actions.
+
+Tart proof:
+
+- show pickup, in-drag overlay, target zone highlight, release, and final
+  placement;
+- include one freeform drag where no snap occurs;
+- include one modifier-held drag where the item snaps to a whole zone;
+- expose the configured gesture/policy on screen;
+- state on screen whether the current target is a zone, a window inside a zone,
+  or freeform placement;
+- reject any proof where the reviewer cannot see the pointer path, target
+  overlay, snap boundary, or final destination without relying on logs.
 
 ## Call-Site Audit
 

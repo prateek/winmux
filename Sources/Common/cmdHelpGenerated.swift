@@ -4,6 +4,9 @@
 let balance_sizes_help_generated = """
     USAGE: balance-sizes [-h|--help] [--workspace <workspace>]
     """
+let balance_zones_help_generated = """
+    USAGE: balance-zones [-h|--help] [--monitor <monitor-pattern>]
+    """
 let close_all_windows_but_current_help_generated = """
     USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]
     """
@@ -15,6 +18,9 @@ let config_help_generated = """
        OR: config [-h|--help] --major-keys
        OR: config [-h|--help] --all-keys
        OR: config [-h|--help] --config-path
+    """
+let cycle_zone_layout_help_generated = """
+    USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id>]
@@ -152,6 +158,9 @@ let reload_config_help_generated = """
     """
 let resize_help_generated = """
     USAGE: resize [-h|--help] [--window-id <window-id>] (smart|smart-opposite|width|height) [+|-]<number>
+    """
+let resize_zone_help_generated = """
+    USAGE: resize-zone [-h|--help] [--monitor <monitor-pattern>] <zone> width [+|-]<percent>%
     """
 let split_help_generated = """
     USAGE: split [-h|--help] [--window-id <window-id>] (horizontal|vertical|opposite)

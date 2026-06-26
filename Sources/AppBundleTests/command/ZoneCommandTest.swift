@@ -19,6 +19,27 @@ final class ZoneCommandTest: XCTestCase {
         testParseCommandSucc("disable-zone --monitor 1 Comms", DisableZoneCmdArgs(zone: ZoneSelector("Comms"), monitor: .sequenceNumber(1)))
         testParseCommandSucc("toggle-zone 2:Comms", ToggleZoneCmdArgs(zone: ZoneSelector("2:Comms")))
         testParseCommandSucc(
+            "resize-zone Work width +10%",
+            ResizeZoneCmdArgs(zone: ZoneSelector("Work"), amount: .add(0.10)),
+        )
+        testParseCommandSucc(
+            "resize-zone Work width -10%",
+            ResizeZoneCmdArgs(zone: ZoneSelector("Work"), amount: .subtract(0.10)),
+        )
+        testParseCommandSucc(
+            "resize-zone Work width 60%",
+            ResizeZoneCmdArgs(zone: ZoneSelector("Work"), amount: .set(0.60)),
+        )
+        testParseCommandSucc(
+            "balance-zones --monitor 1",
+            BalanceZonesCmdArgs(monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
+            "cycle-zone-layout balanced focus",
+            CycleZoneLayoutCmdArgs(layoutIds: ["balanced", "focus"]),
+        )
+        testParseCommandFail("resize-zone Work width 10", msg: "ERROR: <percent> must include a % suffix, for example +10%")
+        testParseCommandSucc(
             "use-zone-layout --monitor 1 focus",
             UseZoneLayoutCmdArgs(layoutId: "focus", monitor: .sequenceNumber(1)),
         )
@@ -263,6 +284,197 @@ final class ZoneCommandTest: XCTestCase {
             "focus|main|840.0",
             "focus|right|180.0",
         ])
+    }
+
+    func testResizeZoneWidthAndBalancePreserveWorkspaces() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(resize.exitCode, 0)
+        XCTAssertEqual(resize.stdout, ["Resized zone 'Work' on monitor 1 by +10%"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 720, 240])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+
+        let list = try await parseCommand(
+            "list-zones --format '%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-configured-width}|%{monitor-zone-effective-width}|%{monitor-zone-runtime-width-override-state}|%{monitor-left}|%{monitor-width}|%{monitor-active-workspace}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(list.exitCode, 0)
+        XCTAssertTrue(list.stdout.contains("main|true|0.5|0.6|runtime|240.0|720.0|work"))
+        XCTAssertTrue(list.stdout.contains("left|true|0.25|0.2|runtime|0.0|240.0|reference"))
+        XCTAssertTrue(list.stdout.contains("right|true|0.25|0.2|runtime|960.0|240.0|comms"))
+
+        let balance = try await parseCommand("balance-zones").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(balance.exitCode, 0)
+        XCTAssertEqual(balance.stdout, ["Balanced zones on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [400, 400, 400])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+    }
+
+    func testResizeZoneRejectsDisabledZoneAndBalanceUsesEnabledZonesOnly() async throws {
+        _ = configureThreeZones()
+
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let resize = try await parseCommand("resize-zone Comms width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 1)
+        XCTAssertTrue(resize.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+
+        let balance = try await parseCommand("balance-zones").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(balance.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [600, 600])
+
+        let list = try await parseCommand(
+            "list-zones --format '%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-effective-width}|%{monitor-width}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.exitCode, 0)
+        XCTAssertTrue(list.stdout.contains("left|true|0.375|600.0"))
+        XCTAssertTrue(list.stdout.contains("main|true|0.375|600.0"))
+        XCTAssertTrue(list.stdout.contains("right|false|0.25|"))
+    }
+
+    func testResizeZoneRequiresUnambiguousPhysicalScope() async throws {
+        _ = configureDuplicateZones()
+
+        let ambiguous = try await parseCommand("resize-zone left width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(ambiguous.exitCode, 1)
+        XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 500,
+            "2:main": 500,
+        ])
+
+        let overspecified = try await parseCommand("resize-zone --monitor 2 1:left width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(overspecified.exitCode, 1)
+        XCTAssertTrue(overspecified.stderr.joined(separator: "\n").contains("Use either --monitor or a physical monitor qualifier"))
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 500,
+            "2:main": 500,
+        ])
+    }
+
+    func testZoneWidthCommandsOnlyAffectSelectedPhysicalMonitor() async throws {
+        _ = configureDuplicateZones()
+
+        let resize = try await parseCommand("resize-zone --monitor 2 left width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+        XCTAssertEqual(resize.stdout, ["Resized zone 'Reference' on monitor 2 by +10%"])
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 600,
+            "2:main": 400,
+        ])
+
+        let set = try await parseCommand("resize-zone 2:main width 70%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(set.exitCode, 0)
+        XCTAssertEqual(set.stdout, ["Resized zone 'Work' on monitor 2 by 70%"])
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 300,
+            "2:main": 700,
+        ])
+
+        let balance = try await parseCommand("balance-zones --monitor 2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(balance.exitCode, 0)
+        XCTAssertEqual(balance.stdout, ["Balanced zones on monitor 2"])
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 500,
+            "2:main": 500,
+        ])
+    }
+
+    func testCycleZoneLayoutOnlyAffectsSelectedPhysicalMonitor() async throws {
+        configureDuplicateZoneLayoutPresets()
+        XCTAssertEqual(zoneLayoutIdsByPhysicalZone(), [
+            "1:left": "balanced",
+            "1:main": "balanced",
+            "2:left": "balanced",
+            "2:main": "balanced",
+        ])
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 500,
+            "2:main": 500,
+        ])
+
+        let result = try await parseCommand("cycle-zone-layout --monitor 2 balanced focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone layout 'focus' on monitor 2"])
+        XCTAssertEqual(zoneLayoutIdsByPhysicalZone(), [
+            "1:left": "balanced",
+            "1:main": "balanced",
+            "2:left": "focus",
+            "2:main": "focus",
+        ])
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 300,
+            "2:main": 700,
+        ])
+    }
+
+    func testResizeZoneRejectsWidthsBelowMinimumShare() async throws {
+        _ = configureThreeZones()
+
+        let targetTooSmall = try await parseCommand("resize-zone Work width -46%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(targetTooSmall.exitCode, 1)
+        XCTAssertTrue(targetTooSmall.stderr.joined(separator: "\n").contains("below 5%"))
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
+
+        let siblingsTooSmall = try await parseCommand("resize-zone Work width 95%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(siblingsTooSmall.exitCode, 1)
+        XCTAssertTrue(siblingsTooSmall.stderr.joined(separator: "\n").contains("sibling zones would fall below 5%"))
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
+    }
+
+    func testCycleZoneLayoutKeepsRuntimeWidthOverridesPerLayout() async throws {
+        configureZoneLayoutPresets()
+
+        let focus = try await parseCommand("cycle-zone-layout balanced focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focus.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [180, 840, 180])
+
+        let resizeFocus = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resizeFocus.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map { Int($0.rect.width.rounded()) }, [120, 960, 120])
+
+        let balanced = try await parseCommand("cycle-zone-layout balanced focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(balanced.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["balanced", "balanced", "balanced"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
+
+        let focusAgain = try await parseCommand("cycle-zone-layout balanced focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(focusAgain.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(sortedMonitors.map { Int($0.rect.width.rounded()) }, [120, 960, 120])
     }
 
     func testUseZoneLayoutCanOverrideInlineZoneConfig() async throws {
@@ -631,4 +843,71 @@ private func duplicateZoneConfig(monitor: MonitorDescription) -> ZoneConfig {
             ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
         ],
     )
+}
+
+@MainActor
+private func configureDuplicateZoneLayoutPresets() {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800),
+        isMain: true,
+    )
+    let secondary = TestMonitor(
+        monitorAppKitNsScreenScreensId: 2,
+        name: "Secondary",
+        rect: Rect(topLeftX: 1000, topLeftY: 0, width: 1000, height: 800),
+        visibleRect: Rect(topLeftX: 1000, topLeftY: 0, width: 1000, height: 800),
+        isMain: false,
+    )
+    setMonitorsForTests([main, secondary])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zoneLayouts = [
+        ZoneLayoutConfig(
+            id: "balanced",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.50),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+            ],
+        ),
+        ZoneLayoutConfig(
+            id: "focus",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.30),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
+            ],
+        ),
+    ]
+    config.zones = [
+        ZoneConfig(monitor: .sequenceNumber(1), layoutPreset: "balanced"),
+        ZoneConfig(monitor: .sequenceNumber(2), layoutPreset: "balanced"),
+    ]
+}
+
+@MainActor
+private func zoneWidthsByPhysicalZone() -> [String: CGFloat] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+              let zoneId = monitor.zoneId
+        else { return nil }
+        let width = (monitor.rect.width * 1000).rounded() / 1000
+        return ("\(physicalId):\(zoneId)", width)
+    })
+}
+
+@MainActor
+private func zoneLayoutIdsByPhysicalZone() -> [String: String] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+              let zoneId = monitor.zoneId,
+              let zoneLayoutId = monitor.zoneLayoutId
+        else { return nil }
+        return ("\(physicalId):\(zoneId)", zoneLayoutId)
+    })
 }
