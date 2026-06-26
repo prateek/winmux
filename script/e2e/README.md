@@ -93,6 +93,14 @@ Caption-boundary frames use the names `caption-NN-boundary-before.png`, `caption
 
 Each annotated run also writes `logs/<recording>.sample-manifest.tsv`. It maps standard samples, caption-boundary samples, and slice-specific semantic proof beats to exact artifact-relative image paths. Ordered transition slices must add semantic rows such as `resize-command-start` or `after-balance`, and the verifier should require those labels for the slice.
 
+Slices that prove visible color or style preservation should also write `logs/<recording>.color-sentinel.tsv`. Each non-comment row is tab-separated:
+
+```text
+swatch<TAB>label<TAB>screenshot-path<TAB>x<TAB>y<TAB>w<TAB>h<TAB>#RRGGBB<TAB>min-percent<TAB>max-channel-distance<TAB>note
+```
+
+The screenshot path is run-relative. The verifier crops the region and requires at least `min-percent` of sampled pixels to match the expected color within the channel-distance threshold.
+
 Caption plans use tab-separated fields:
 
 ```text

@@ -248,6 +248,118 @@ require_zone_geometry_contiguous() {
     ' "$path"
 }
 
+require_existing_file_for_color_sentinel() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+hex_rgb_triplet() {
+    local hex="${1#\#}"
+    [[ "$hex" =~ ^[0-9A-Fa-f]{6}$ ]] || die "Color sentinel expected a #RRGGBB color, got: $1"
+    printf '%d %d %d\n' "$((16#${hex:0:2}))" "$((16#${hex:2:2}))" "$((16#${hex:4:2}))"
+}
+
+require_color_region_matches() {
+    local image_path="$1"
+    local x="$2"
+    local y="$3"
+    local width="$4"
+    local height="$5"
+    local expected_hex="$6"
+    local min_percent="$7"
+    local max_channel_distance="$8"
+    local label="$9"
+
+    require_existing_file_for_color_sentinel "$image_path"
+    command -v magick >/dev/null 2>&1 || die "Color sentinel requires ImageMagick: magick"
+    [[ "$x" =~ ^[0-9]+$ ]] || die "Color sentinel ${label} has invalid x coordinate: $x"
+    [[ "$y" =~ ^[0-9]+$ ]] || die "Color sentinel ${label} has invalid y coordinate: $y"
+    [[ "$width" =~ ^[1-9][0-9]*$ ]] || die "Color sentinel ${label} has invalid width: $width"
+    [[ "$height" =~ ^[1-9][0-9]*$ ]] || die "Color sentinel ${label} has invalid height: $height"
+    [[ "$min_percent" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Color sentinel ${label} has invalid min percent: $min_percent"
+    [[ "$max_channel_distance" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Color sentinel ${label} has invalid max distance: $max_channel_distance"
+
+    local expected_r expected_g expected_b
+    read -r expected_r expected_g expected_b < <(hex_rgb_triplet "$expected_hex")
+
+    magick "$image_path" -crop "${width}x${height}+${x}+${y}" -depth 8 txt:- | \
+        /usr/bin/awk \
+            -v label="$label" \
+            -v image="$image_path" \
+            -v expected_hex="$expected_hex" \
+            -v expected_r="$expected_r" \
+            -v expected_g="$expected_g" \
+            -v expected_b="$expected_b" \
+            -v min_percent="$min_percent" \
+            -v max_distance="$max_channel_distance" '
+                /^[0-9]+,[0-9]+:/ {
+                    pixel = $0
+                    sub(/^.*\(/, "", pixel)
+                    sub(/\).*$/, "", pixel)
+                    n = split(pixel, channels, ",")
+                    if (n < 3) {
+                        next
+                    }
+                    r = channels[1] + 0
+                    g = channels[2] + 0
+                    b = channels[3] + 0
+                    dr = r - expected_r
+                    dg = g - expected_g
+                    db = b - expected_b
+                    if (dr < 0) { dr = -dr }
+                    if (dg < 0) { dg = -dg }
+                    if (db < 0) { db = -db }
+                    distance = dr + dg + db
+                    total += 1
+                    if (distance <= max_distance) {
+                        matching += 1
+                    }
+                }
+                END {
+                    if (total == 0) {
+                        printf("%s: no pixels sampled from %s\n", label, image) > "/dev/stderr"
+                        exit 1
+                    }
+                    percent = (matching * 100.0) / total
+                    if (percent + 0.0001 < min_percent) {
+                        printf("%s: expected %s in %s; only %.2f%% of %d sampled pixels matched within distance %.2f\n", label, expected_hex, image, percent, total, max_distance) > "/dev/stderr"
+                        exit 1
+                    }
+                }
+            ' || die "Color sentinel failed for ${label}"
+}
+
+require_color_sentinel_manifest() {
+    local manifest_path="$1"
+    local run_root="${2:-${RUN_DIR:-}}"
+    local manifest_label="${3:-color sentinel}"
+    local row_count=0
+
+    require_existing_file_for_color_sentinel "$manifest_path"
+    [ -n "$run_root" ] || die "Color sentinel manifest requires a run root: $manifest_path"
+
+    local kind label relative_path x y crop_width crop_height expected_hex min_percent max_distance _note
+    while IFS=$'\t' read -r kind label relative_path x y crop_width crop_height expected_hex min_percent max_distance _note || [ -n "${kind:-}" ]; do
+        case "${kind:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ "$kind" = "swatch" ] || die "${manifest_label} manifest row kind must be swatch, got: $kind"
+        [ -n "${label:-}" ] || die "${manifest_label} manifest row is missing a label"
+        [ -n "${relative_path:-}" ] || die "${manifest_label} ${label} row is missing a screenshot path"
+        case "$relative_path" in
+            /*|*../*) die "${manifest_label} screenshot path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_color_region_matches \
+            "${run_root}/${relative_path}" \
+            "$x" "$y" "$crop_width" "$crop_height" \
+            "$expected_hex" "$min_percent" "$max_distance" \
+            "${manifest_label} ${label}"
+        row_count=$((row_count + 1))
+    done <"$manifest_path"
+
+    [ "$row_count" -gt 0 ] || die "${manifest_label} manifest has no swatch rows: $manifest_path"
+}
+
 run_self_test() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -271,6 +383,21 @@ zone=main|enabled=true|left=300|width=720
 EOF
     if require_zone_geometry_contiguous "$bad_log" "self-test bad geometry" 100 960 >/dev/null 2>&1; then
         die "Geometry self-test expected a gap failure"
+    fi
+
+    local sentinel_image="${tmp_dir}/sentinel.png"
+    local sentinel_manifest="${tmp_dir}/sentinel.color-sentinel.tsv"
+    local bad_sentinel_manifest="${tmp_dir}/sentinel-bad.color-sentinel.tsv"
+    magick -size 20x20 xc:'#101820' -fill '#D3455B' -draw 'rectangle 4,5 13,14' "$sentinel_image"
+    cat >"$sentinel_manifest" <<'EOF'
+swatch	urgent	sentinel.png	4	5	10	10	#D3455B	90	8	Self-test red swatch
+EOF
+    require_color_sentinel_manifest "$sentinel_manifest" "$tmp_dir" "self-test color sentinel"
+    cat >"$bad_sentinel_manifest" <<'EOF'
+swatch	not-blue	sentinel.png	4	5	10	10	#3EA2FF	90	8	Self-test wrong color
+EOF
+    if ( require_color_sentinel_manifest "$bad_sentinel_manifest" "$tmp_dir" "self-test bad color sentinel" ) >/dev/null 2>&1; then
+        die "Color sentinel self-test expected a wrong-color failure"
     fi
     log "self-test PASS"
 }
@@ -476,6 +603,13 @@ ensure_review_packet() {
                 "${relative_run_dir}/screenshots/${drag_screenshot}" \
                 || die "Review packet missing manifest drag screenshot path: $drag_screenshot"
         done < <(/usr/bin/awk -F'\t' '$1 == "drag-screenshots" { print $3 }' "${LOGS_DIR}/${recording_name}.proof-manifest.tsv")
+    fi
+    if [ -s "${LOGS_DIR}/${recording_name}.color-sentinel.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.color-sentinel.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.color-sentinel.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.color-sentinel.tsv" \
+            || die "Review packet missing color sentinel manifest path"
     fi
     review_packet_contains_any "$packet_path" \
         "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" \
@@ -1883,6 +2017,7 @@ annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 raw_recording="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+color_sentinel_manifest="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
 if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotation_plan" ]; then
     require_file "$annotation_log"
     require_file "$annotation_plan"
@@ -1904,6 +2039,10 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
             exit 1
         }
     ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
+fi
+
+if [ -s "$color_sentinel_manifest" ]; then
+    require_color_sentinel_manifest "$color_sentinel_manifest" "$RUN_DIR" "$recording_name"
 fi
 
 if [[ "$recording_name" == *drag* ]]; then

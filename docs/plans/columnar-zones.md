@@ -1787,7 +1787,7 @@ Pre-slice cleanup before Slice 11C starts:
 - [x] Define the Slice 11C availability-set contract before code changes.
 - [x] Save pre-Tart gate output into future run directories, starting with the
   next product Tart proof.
-- [ ] Add a Slice 11C mechanical swatch/color sentinel. Slice 11C media will
+- [x] Add a Slice 11C mechanical swatch/color sentinel. Slice 11C media will
   carry a styled Comms zone as the preservation proof, so the verifier must
   mechanically sample the visible swatch before hide, while restored, and after
   restore.
@@ -1900,9 +1900,12 @@ Tart proof:
 - run `winmux use-zone-availability communications`;
 - show Comms return with the same workspace/window identity and the urgent
   swatch still visible;
-- include a mechanical swatch/color sentinel for the Comms row before hide,
-  during restore, and after restore. This tripwire supplements no-context human
-  review; it does not replace it;
+- write `logs/<slice-11c-recording>.color-sentinel.tsv` with Comms-row swatch
+  samples before hide, during restore, and after restore. The verifier samples
+  screenshot pixels from those regions, using the run-relative screenshot path,
+  crop rectangle, expected `#D3455B`, minimum match percentage, and channel
+  distance threshold. This tripwire supplements no-context human review; it
+  does not replace it;
 - reviewer and verifier must reject final-state-only proof, missing command
   captions, logs-only proof, or any recording where the user cannot tell which
   zones are toggled.

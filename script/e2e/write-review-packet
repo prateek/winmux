@@ -60,6 +60,7 @@ boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+color_sentinel="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
 proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
 if [ ! -s "$visible_geometry_board" ]; then
@@ -69,6 +70,11 @@ if [ -s "$proof_manifest" ] || [[ "$recording_name" == *drag* ]]; then
     proof_manifest_label="$proof_manifest"
 else
     proof_manifest_label="not applicable"
+fi
+if [ -s "$color_sentinel" ]; then
+    color_sentinel_label="$color_sentinel"
+else
+    color_sentinel_label="not applicable"
 fi
 
 mkdir -p "$REVIEWS_DIR"
@@ -215,6 +221,7 @@ $(drag_screenshot_lines)
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
 - drag proof manifest: ${proof_manifest_label}
+- color sentinel manifest: ${color_sentinel_label}
 - preflight log: ${LOGS_DIR}/preflight.log
 - guest control log: ${LOGS_DIR}/guest-control-check.log
 - privacy setup log: ${LOGS_DIR}/guest-privacy-setup.log
