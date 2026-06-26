@@ -16,6 +16,7 @@ final class ConfigBootstrapTest: XCTestCase {
 
         XCTAssertEqual(bindingMap["alt-space"], "layout horizontal vertical")
         XCTAssertEqual(bindingMap["ctrl-f"], "open-sidebar")
+        XCTAssertEqual(bindingMap["alt-z"], "mode zone")
         XCTAssertEqual(bindingMap["alt-h"], "focus left")
         XCTAssertEqual(bindingMap["alt-1"], "focus --tab-index 1")
         XCTAssertEqual(bindingMap["alt-0"], "focus --tab-index 10")
@@ -61,6 +62,21 @@ final class ConfigBootstrapTest: XCTestCase {
             XCTFail("Expected constant outer left gap")
         }
         XCTAssertEqual(parsedConfig.configVersion, 2)
+
+        let zoneBindings: [(String, String)] = parsedConfig.modes["zone"]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? []
+        let zoneBindingMap: [String: String] = Dictionary(uniqueKeysWithValues: zoneBindings)
+        XCTAssertEqual(zoneBindingMap["esc"], "mode main")
+        XCTAssertEqual(zoneBindingMap["h"], "focus-zone prev; mode main")
+        XCTAssertEqual(zoneBindingMap["l"], "focus-zone next; mode main")
+        XCTAssertEqual(zoneBindingMap["shift-h"], "move-node-to-zone --focus-follows-window prev; mode main")
+        XCTAssertEqual(zoneBindingMap["shift-l"], "move-node-to-zone --focus-follows-window next; mode main")
+        XCTAssertEqual(zoneBindingMap["minus"], "resize-zone current width -10%; mode main")
+        XCTAssertEqual(zoneBindingMap["equal"], "resize-zone current width +10%; mode main")
+        XCTAssertEqual(zoneBindingMap["0"], "balance-zones; mode main")
+        XCTAssertEqual(zoneBindingMap["t"], "toggle-zone current; mode main")
+        XCTAssertEqual(zoneBindingMap["space"], "layout floating tiling; mode main")
     }
 
     func testEnsureBootstrapConfigCopiesLegacyConfig() throws {

@@ -119,6 +119,20 @@ EOF
 - Reject final-placement-only proof, missing negative proof, missing modifier-held positive proof, an unclear snap target, or a review that assumes the overlay appeared without inspecting action frames.
 EOF
             ;;
+        slice-13-zone-mode-bindings)
+            cat <<'EOF'
+- Confirm the recording shows a keyboard-led `Alt-Z` zone mode sequence, not direct CLI-only actions: `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two `Alt-Z, T` toggles.
+- Confirm captions expose the user-facing config and commands: `alt-z = 'mode zone'`, `focus-zone next`, `move-node-to-zone --focus-follows-window next`, `resize-zone current width +10%`, `balance-zones`, and `toggle-zone current`.
+- Confirm the restore beat also names the real command `toggle-zone current`; reject captions that describe only "restore current zone" without the command.
+- Inspect the live state board in the video and semantic screenshots. It must show Step, Action, Target, Current, Workspace, Window id, Title, Zone, Widths, and Checkpoint.
+- Confirm `Target` resolves the relative selectors: `main/Work` for focus-next, `right/Comms` for move/resize/toggle, and `all-enabled-zones` for balance.
+- Confirm the Work Alpha and Work Beta windows move together as one tab group from Work/main to Comms/right after `Alt-Z, Shift-L`.
+- Confirm `resize-zone current` widens Comms/right after the move, `balance-zones` returns the enabled zones to equal widths, the first `toggle-zone current` hides Comms/right, and the second restores the same Comms/right zone.
+- Confirm TextEdit document copy does not contain stale labels such as `zone: Work`, `zone: Comms`, or future-state text like "right zone restored after toggle".
+- Confirm semantic screenshots are fresh. Reject a screenshot whose board text is one checkpoint behind the named file.
+- Reject logs-only proof, stale board screenshots, stale window-copy labels, ambiguous `current` targets, command captions that omit the user action, or a review that accepts the sequence without naming the exact media checked for each beat.
+EOF
+            ;;
         slice-5-sidebar-drag|*drag*)
             cat <<'EOF'
 - Confirm the source sidebar item, dragged proxy, pointer/path, highlighted target zone row/section, hover hold, release, and final placement are visible in full-frame action samples or in-drag screenshots.

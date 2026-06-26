@@ -39,6 +39,28 @@ final class ConfigTest: XCTestCase {
         assertEquals(errors, [])
     }
 
+    func testParseZoneModeBindingsE2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-mode-bindings.toml"),
+            encoding: .utf8,
+        )
+        let (parsedConfig, errors) = parseConfig(toml)
+        assertEquals(errors, [])
+
+        let mainBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes[mainModeId]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? [])
+        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? [])
+        XCTAssertEqual(mainBindings["alt-z"], "mode zone")
+        XCTAssertEqual(zoneBindings["l"], "focus-zone next; mode main")
+        XCTAssertEqual(zoneBindings["shift-l"], "move-node-to-zone --focus-follows-window next; mode main")
+        XCTAssertEqual(zoneBindings["equal"], "resize-zone current width +10%; mode main")
+        XCTAssertEqual(zoneBindings["0"], "balance-zones; mode main")
+        XCTAssertEqual(zoneBindings["t"], "toggle-zone current; mode main")
+    }
+
     func testConfigVersionOutOfBounds() {
         let (_, errors) = parseConfig(
             """

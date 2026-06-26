@@ -201,6 +201,7 @@ func workspaceShouldSurviveReconciliation(
     return workspace.isVisible ||
         workspaceHasLifecycleWindows(workspace) ||
         workspace.isConfiguredPersistent ||
+        zoneParkedWorkspaceIdsSnapshot().contains(workspace.id) ||
         projectWorkspaces(projectId: workspace.projectId).filter { !$0.isArchived }.count == 1 ||
         retainedEmptyWorkspaceIds[WorkspaceScope(projectId: workspace.projectId)] == workspace.id
 }

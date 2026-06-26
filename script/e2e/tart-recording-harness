@@ -49,6 +49,9 @@ fi
 if [ "$ACTION" = "slice-12" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mouse-snap.toml"
 fi
+if [ "$ACTION" = "slice-13" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mode-bindings.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -98,7 +101,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12>
+Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -109,6 +112,8 @@ Environment:
   WINMUX_E2E_VM_DISPLAY=3440x1440px Guest display resolution. Empty string skips tart set.
   WINMUX_E2E_CONFIG=...             Config copied into the artifact run.
   WINMUX_E2E_RELOAD_CONFIG=...      Second config staged for slice-3 reload validation.
+  WINMUX_E2E_RUN_DIR=...            Existing artifact run for refresh-annotation-artifact.
+  WINMUX_E2E_RECORDING_NAME=...     Recording name for refresh-annotation-artifact.
   WINMUX_E2E_RECORD_SECONDS=12      Video length for smoke recordings.
   WINMUX_E2E_ANNOTATE_RECORDING=1   Add polished caption overlays to final videos.
   WINMUX_E2E_FFMPEG_SCREEN_DEVICE=  ffmpeg avfoundation screen device.
@@ -1129,6 +1134,18 @@ CAPTIONS
 64	72	Inspect placement	The window log proves the same id moved from Work/main to Comms/right.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
+        slice-13-zone-mode-bindings)
+            cat >"$captions_path" <<'CAPTIONS'
+0	5	Zone mode ready	Alt-Z opens a compact zone command mode for relative zone actions.	Config: alt-z = 'mode zone'
+5	12	Focus next zone	The state board shows Reference before focusing the next zone.	Action: Alt-Z, L -> focus-zone next
+12	21	Move group next	The focused Work tab group moves as one unit into Comms.	Action: Alt-Z, Shift-L -> move-node-to-zone --focus-follows-window next
+21	30	Widen current zone	Current means the focused Comms zone after the group move.	Action: Alt-Z, Equal -> resize-zone current width +10%
+30	38	Balance zones	All enabled columns return to equal runtime widths.	Action: Alt-Z, 0 -> balance-zones
+38	47	Hide current zone	The current Comms zone is hidden without losing its workspace.	Action: Alt-Z, T -> toggle-zone current
+47	58	Restore current zone	The next toggle restores the same hidden Comms zone.	Action: Alt-Z, T -> toggle-zone current
+58	90	Inspect state	The live board and logs show ids, zones, workspaces, and widths.	Run: winmux list-zones && winmux list-windows
+CAPTIONS
+            ;;
         *)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	WinMux E2E proof	Watch the desktop state change under WinMux control.	Run: winmux <command>
@@ -1195,7 +1212,8 @@ annotation_preflight() {
         slice-11a-zone-width-controls \
         slice-11b-zone-style-controls \
         slice-11c-zone-availability-sets \
-        slice-12-mouse-zone-snap-drag
+        slice-12-mouse-zone-snap-drag \
+        slice-13-zone-mode-bindings
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1371,6 +1389,35 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
                 "screenshots/99-after-slice-12.png" \
                 "same source window is placed in Comms/right after release"
+            ;;
+        slice-13-zone-mode-bindings)
+            append_sample_manifest_row "$manifest_path" semantic before-focus-next screenshot screenshot \
+                "screenshots/02-before-focus-next-slice-13.png" \
+                "state board shows Reference and target main/Work before Alt-Z L focuses Work"
+            append_sample_manifest_row "$manifest_path" semantic focus-next-command-start caption-02 5.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "Alt-Z L caption while the board names focus-zone next and target main/Work"
+            append_sample_manifest_row "$manifest_path" semantic after-focus-next screenshot screenshot \
+                "screenshots/03-after-focus-next-slice-13.png" \
+                "state board shows Work/main after focus-zone next"
+            append_sample_manifest_row "$manifest_path" semantic move-next-command-start caption-03 12.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "Alt-Z Shift-L caption shows move-node-to-zone --focus-follows-window next before the focused Work tab group moves"
+            append_sample_manifest_row "$manifest_path" semantic after-move-next screenshot screenshot \
+                "screenshots/04-after-move-next-slice-13.png" \
+                "Work tab group is in Comms/right and target right/Comms after move-node-to-zone --focus-follows-window next"
+            append_sample_manifest_row "$manifest_path" semantic after-resize-current screenshot screenshot \
+                "screenshots/05-after-resize-slice-13.png" \
+                "Comms/right is wider and target right/Comms after resize-zone current width +10%"
+            append_sample_manifest_row "$manifest_path" semantic after-balance-zones screenshot screenshot \
+                "screenshots/06-after-balance-slice-13.png" \
+                "enabled zones have balanced runtime widths"
+            append_sample_manifest_row "$manifest_path" semantic after-toggle-hidden screenshot screenshot \
+                "screenshots/07-after-toggle-hidden-slice-13.png" \
+                "Comms/right is hidden and target right/Comms after toggle-zone current"
+            append_sample_manifest_row "$manifest_path" semantic after-toggle-restored screenshot screenshot \
+                "screenshots/08-after-toggle-restored-slice-13.png" \
+                "Comms/right is restored and target right/Comms by a second toggle-zone current"
             ;;
     esac
 }
@@ -1554,6 +1601,49 @@ generate_recording_samples() {
         -frames:v 1 \
         "$contact_sheet"
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
+}
+
+refresh_annotation_artifact() {
+    [ -n "${WINMUX_E2E_RUN_DIR:-}" ] || die "WINMUX_E2E_RUN_DIR is required for refresh-annotation-artifact"
+    require_cmd ffmpeg
+    require_cmd ffprobe
+    require_cmd magick
+    [ -x "${SCRIPT_DIR}/annotate-recording" ] || die "Missing executable annotator: ${SCRIPT_DIR}/annotate-recording"
+    [ -x "${SCRIPT_DIR}/write-review-packet" ] || die "Missing executable review packet writer: ${SCRIPT_DIR}/write-review-packet"
+    ensure_artifact_dirs
+
+    local raw_dir="${RECORDINGS_DIR}/raw"
+    [ -d "$raw_dir" ] || die "Raw recording directory is missing: $raw_dir"
+
+    local name="${WINMUX_E2E_RECORDING_NAME:-}"
+    local raw_path
+    if [ -n "$name" ]; then
+        raw_path="${raw_dir}/${name}.raw.mov"
+    else
+        local raw_count
+        raw_count="$(find "$raw_dir" -maxdepth 1 -type f -name '*.raw.mov' | wc -l | tr -d ' ')"
+        [ "$raw_count" = 1 ] || die "Expected one raw recording in $raw_dir, found $raw_count. Set WINMUX_E2E_RECORDING_NAME."
+        raw_path="$(find "$raw_dir" -maxdepth 1 -type f -name '*.raw.mov' | head -1)"
+        name="$(basename "$raw_path" .raw.mov)"
+    fi
+    [ -s "$raw_path" ] || die "Raw recording is missing or empty: $raw_path"
+
+    local output_path="${RECORDINGS_DIR}/${name}.mov"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    local annotation_log="${LOGS_DIR}/${name}.annotation.log"
+    write_annotation_plan "$name" "$captions_path"
+    if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$output_path" >"$annotation_log" 2>&1; then
+        cat "$annotation_log" >&2 || true
+        die "Recording annotation refresh failed for $name"
+    fi
+    grep -F 'result=success' "$annotation_log" >/dev/null || die "Annotation refresh did not report success for $name"
+
+    local duration
+    duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_path")"
+    printf '%s\n' "$duration" >"${LOGS_DIR}/${name}.duration.txt"
+    generate_recording_samples "$name" "$duration"
+    write_review_packet "$name"
+    log "Refreshed annotated artifact for $name in $RUN_DIR"
 }
 
 write_review_packet() {
@@ -2452,6 +2542,38 @@ run_slice_12_mouse_zone_snap() {
         "${LOGS_DIR}/slice-12-run.log"
 }
 
+run_slice_13_zone_mode_bindings_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-13-zone-mode-bindings.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE13_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-13-setup.log"
+}
+
+run_slice_13_zone_mode_bindings() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-13-zone-mode-bindings.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE13_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-13-run.log"
+}
+
 run_recorded_scenario() {
     local recording_name="$1"
     local before_name="$2"
@@ -2571,6 +2693,10 @@ slice_12() {
     run_recorded_scenario "slice-12-mouse-zone-snap-drag" "00-before-slice-12" "99-after-slice-12" "run_slice_12_mouse_zone_snap" "run_slice_12_mouse_zone_snap_setup" "01-ready-slice-12"
 }
 
+slice_13() {
+    run_recorded_scenario "slice-13-zone-mode-bindings" "00-before-slice-13" "99-after-slice-13" "run_slice_13_zone_mode_bindings" "run_slice_13_zone_mode_bindings_setup" "01-ready-slice-13"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2580,6 +2706,9 @@ case "$ACTION" in
         ;;
     annotation-preflight)
         annotation_preflight
+        ;;
+    refresh-annotation-artifact)
+        refresh_annotation_artifact
         ;;
     warmup-policy-self-test)
         warmup_policy_self_test
@@ -2625,6 +2754,9 @@ case "$ACTION" in
         ;;
     slice-12)
         slice_12
+        ;;
+    slice-13)
+        slice_13
         ;;
     *)
         usage >&2

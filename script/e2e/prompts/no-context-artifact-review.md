@@ -229,6 +229,24 @@ Slice-specific checks:
   where the reviewer cannot see whether the snap target is a whole zone versus a
   window/slot, missing freeform negative proof, missing modifier-held positive
   proof, or any review that does not name per-beat media files for the drag.
+- Slice 13 must show a keyboard-led `Alt-Z` zone mode workflow. The proof must
+  show `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two
+  `Alt-Z, T` toggle actions with captions that expose the user-facing config or
+  exact command: `focus-zone next`,
+  `move-node-to-zone --focus-follows-window next`,
+  `resize-zone current width +10%`, `balance-zones`, and
+  `toggle-zone current`. Inspect the media and semantic screenshots for a live state board
+  that shows Step, Action, Target, Current, Workspace, Window id, Title, Zone,
+  Widths, and Checkpoint. `Target` must resolve the relative selectors:
+  `main/Work` for focus-next, `right/Comms` for move/resize/toggle, and
+  `all-enabled-zones` for balance. Confirm Work Alpha and Work Beta move
+  together as one tab group from Work/main to Comms/right, `resize-zone current`
+  widens Comms/right, `balance-zones` restores equal widths, and the two
+  `toggle-zone current` actions hide then restore Comms/right. Reject stale
+  board screenshots, stale TextEdit labels such as `zone: Work` or future-state
+  copy, captions that describe restore without naming `toggle-zone current`,
+  ambiguous `current` targets, logs-only proof, or any review that does not name
+  the exact media inspected for each beat.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

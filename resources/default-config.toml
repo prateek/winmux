@@ -45,6 +45,7 @@ on-mode-changed = []
 
 [mode.main.binding]
     ctrl-f = 'open-sidebar'
+    alt-z = 'mode zone'
     alt-space = 'layout horizontal vertical'
     alt-h = 'focus left'
     alt-j = 'focus down'
@@ -134,3 +135,15 @@ on-mode-changed = []
     alt-cmd-shift-7 = 'move-node-to-project 7'
     alt-cmd-shift-8 = 'move-node-to-project 8'
     alt-cmd-shift-9 = 'move-node-to-project 9'
+
+[mode.zone.binding]
+    esc = 'mode main'
+    h = ['focus-zone prev', 'mode main']
+    l = ['focus-zone next', 'mode main']
+    shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
+    shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
+    minus = ['resize-zone current width -10%', 'mode main']
+    equal = ['resize-zone current width +10%', 'mode main']
+    "0" = ['balance-zones', 'mode main']
+    t = ['toggle-zone current', 'mode main']
+    space = ['layout floating tiling', 'mode main']

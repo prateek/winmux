@@ -717,6 +717,23 @@ require_slice_12_sample_manifest() {
     done
 }
 
+require_slice_13_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-focus-next \
+        focus-next-command-start \
+        after-focus-next \
+        move-next-command-start \
+        after-move-next \
+        after-resize-current \
+        after-balance-zones \
+        after-toggle-hidden \
+        after-toggle-restored; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 transport_summary_value() {
     local path="$1"
     local phase="$2"
@@ -1033,6 +1050,21 @@ monitor_field_for_zone() {
     local zone="$2"
     local field="$3"
     /usr/bin/awk -F'|' -v zone="zone=${zone}" -v field="$field" '$1 == zone {
+        prefix = field "="
+        for (i = 1; i <= NF; i++) {
+            if (index($i, prefix) == 1) {
+                print substr($i, length(prefix) + 1)
+                exit
+            }
+        }
+    }' "$path"
+}
+
+state_board_field() {
+    local path="$1"
+    local checkpoint="$2"
+    local field="$3"
+    /usr/bin/awk -F'|' -v checkpoint="checkpoint=${checkpoint}" -v field="$field" '$1 == checkpoint {
         prefix = field "="
         for (i = 1; i <= NF; i++) {
             if (index($i, prefix) == 1) {
@@ -2318,6 +2350,308 @@ require_slice_12_mouse_zone_snap_proof() {
         || die "Slice 12 Alt-held drag caption must cover the positive drag interval"
 }
 
+require_slice_13_zone_mode_bindings_proof() {
+    local proof="${RUN_DIR}/slice-13-zone-mode-bindings-proof.txt"
+    local done="${LOGS_DIR}/slice-13-zone-mode-bindings.done"
+    local setup_log="${LOGS_DIR}/slice-13-zone-mode-bindings-setup.log"
+    local action_log="${LOGS_DIR}/slice-13-zone-mode-bindings-action.log"
+    local state_board_log="${LOGS_DIR}/slice-13-live-state-board.log"
+    local timing_log="${LOGS_DIR}/slice-13-command-timing.log"
+    local doc_content_log="${LOGS_DIR}/slice-13-demo-doc-content.rtf"
+    local windows_before="${LOGS_DIR}/slice-13-windows-before-focus-next.log"
+    local windows_after_focus="${LOGS_DIR}/slice-13-windows-after-focus-next.log"
+    local windows_after_move="${LOGS_DIR}/slice-13-windows-after-move-next.log"
+    local windows_after_resize="${LOGS_DIR}/slice-13-windows-after-resize.log"
+    local windows_after_balance="${LOGS_DIR}/slice-13-windows-after-balance.log"
+    local windows_after_hidden="${LOGS_DIR}/slice-13-windows-after-toggle-hidden.log"
+    local windows_after_restored="${LOGS_DIR}/slice-13-windows-after-toggle-restored.log"
+    local zones_before="${LOGS_DIR}/slice-13-zones-before-focus-next.log"
+    local zones_after_focus="${LOGS_DIR}/slice-13-zones-after-focus-next.log"
+    local zones_after_move="${LOGS_DIR}/slice-13-zones-after-move-next.log"
+    local zones_after_resize="${LOGS_DIR}/slice-13-zones-after-resize.log"
+    local zones_after_balance="${LOGS_DIR}/slice-13-zones-after-balance.log"
+    local zones_after_hidden="${LOGS_DIR}/slice-13-zones-after-toggle-hidden.log"
+    local zones_after_restored="${LOGS_DIR}/slice-13-zones-after-toggle-restored.log"
+    local sample_manifest="${LOGS_DIR}/slice-13-zone-mode-bindings.sample-manifest.tsv"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 13"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$state_board_log"
+    require_file "$timing_log"
+    require_file "$doc_content_log"
+    require_file "$windows_before"
+    require_file "$windows_after_focus"
+    require_file "$windows_after_move"
+    require_file "$windows_after_resize"
+    require_file "$windows_after_balance"
+    require_file "$windows_after_hidden"
+    require_file "$windows_after_restored"
+    require_file "$zones_before"
+    require_file "$zones_after_focus"
+    require_file "$zones_after_move"
+    require_file "$zones_after_resize"
+    require_file "$zones_after_balance"
+    require_file "$zones_after_hidden"
+    require_file "$zones_after_restored"
+    require_slice_13_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/02-before-focus-next-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/03-after-focus-next-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/04-after-move-next-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/05-after-resize-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/06-after-balance-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/07-after-toggle-hidden-slice-13.png"
+    require_file "${SCREENSHOTS_DIR}/08-after-toggle-restored-slice-13.png"
+
+    grep -F 'PASS: Alt-Z zone mode bindings focus next zone, move a focused Work tab group to the next zone, resize current zone, balance zones, and toggle current zone hidden/restored with live state board proof.' "$proof" >/dev/null \
+        || die "Slice 13 proof does not contain the expected PASS claim"
+    grep -F "alt-z = 'mode zone'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing alt-z zone mode binding"
+    grep -F "[mode.zone.binding]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing zone mode table"
+    grep -F "l = ['focus-zone next', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing L focus-next binding"
+    grep -F "shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing Shift-L move-next binding"
+    grep -F "equal = ['resize-zone current width +10%', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing Equal resize-current binding"
+    grep -F "\"0\" = ['balance-zones', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing 0 balance binding"
+    grep -F "t = ['toggle-zone current', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 13 config missing T toggle-current binding"
+    grep -F 'role: tab group member A' "$doc_content_log" >/dev/null \
+        || die "Slice 13 demo docs missing neutral Work Alpha role label"
+    grep -F 'role: tab group member B' "$doc_content_log" >/dev/null \
+        || die "Slice 13 demo docs missing neutral Work Beta role label"
+    grep -F 'role: right-side anchor' "$doc_content_log" >/dev/null \
+        || die "Slice 13 demo docs missing neutral Comms role label"
+    if grep -F 'zone: Work' "$doc_content_log" >/dev/null || \
+        grep -F 'zone: Comms' "$doc_content_log" >/dev/null || \
+        grep -F 'right zone restored after toggle' "$doc_content_log" >/dev/null; then
+        die "Slice 13 demo docs contain stale zone/future-state labels"
+    fi
+
+    for binding in \
+        'binding=Alt-Z, L' \
+        'binding=Alt-Z, Shift-L' \
+        'binding=Alt-Z, Equal' \
+        'binding=Alt-Z, 0' \
+        'binding=Alt-Z, T'; do
+        grep -F "$binding" "$action_log" >/dev/null || die "Slice 13 action log missing ${binding}"
+    done
+    for command in \
+        'winmux-command=focus-zone next' \
+        'winmux-command=move-node-to-zone --focus-follows-window next' \
+        'winmux-command=resize-zone current width +10%' \
+        'winmux-command=balance-zones' \
+        'winmux-command=toggle-zone current'; do
+        grep -F "$command" "$action_log" >/dev/null || die "Slice 13 action log missing ${command}"
+    done
+    grep -F '$ winmux trigger-binding --mode main alt-z' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing trigger-binding prefix command"
+    grep -F '$ winmux trigger-binding --mode zone l' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing zone l trigger"
+    grep -F '$ winmux trigger-binding --mode zone shift-l' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing zone shift-l trigger"
+    grep -F '$ winmux trigger-binding --mode zone equal' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing zone equal trigger"
+    grep -F '$ winmux trigger-binding --mode zone 0' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing zone 0 trigger"
+    grep -F '$ winmux trigger-binding --mode zone t' "$action_log" >/dev/null \
+        || die "Slice 13 action log missing zone t trigger"
+    grep -F 'mode-after-alt-z=zone' "$action_log" >/dev/null \
+        || die "Slice 13 action log does not prove Alt-Z enters zone mode"
+    grep -F 'mode-after-binding=main' "$action_log" >/dev/null \
+        || die "Slice 13 action log does not prove zone binding exits to main mode"
+
+    local expected_action_log expected_action_diff
+    expected_action_log="$(mktemp "${TMPDIR:-/tmp}/winmux-slice13-action-expected.XXXXXX")"
+    expected_action_diff="$(mktemp "${TMPDIR:-/tmp}/winmux-slice13-action-diff.XXXXXX")"
+    cat >"$expected_action_log" <<'EXPECTED_ACTION_LOG'
+binding=Alt-Z, L
+winmux-command=focus-zone next
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone l
+mode-after-binding=main
+binding=Alt-Z, Shift-L
+winmux-command=move-node-to-zone --focus-follows-window next
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone shift-l
+mode-after-binding=main
+binding=Alt-Z, Equal
+winmux-command=resize-zone current width +10%
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone equal
+Resized zone 'Comms' on monitor 1 by +10%
+mode-after-binding=main
+binding=Alt-Z, 0
+winmux-command=balance-zones
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone 0
+Balanced zones on monitor 1
+mode-after-binding=main
+binding=Alt-Z, T
+winmux-command=toggle-zone current
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone t
+Disabled zone 'Comms' on monitor 1
+mode-after-binding=main
+binding=Alt-Z, T
+winmux-command=toggle-zone current
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone t
+Enabled zone 'Comms' on monitor 1
+mode-after-binding=main
+EXPECTED_ACTION_LOG
+    if ! /usr/bin/diff -u "$expected_action_log" "$action_log" >"$expected_action_diff"; then
+        cat "$expected_action_diff" >&2 || true
+        rm -f "$expected_action_log" "$expected_action_diff"
+        die "Slice 13 action log does not match the required ordered Alt-Z sequence"
+    fi
+    rm -f "$expected_action_log" "$expected_action_diff"
+
+    for checkpoint in \
+        before-focus-next \
+        after-focus-next \
+        after-move-next \
+        after-resize-current \
+        after-balance-zones \
+        after-toggle-hidden \
+        after-toggle-restored; do
+        grep -F "checkpoint=${checkpoint}|" "$state_board_log" >/dev/null \
+            || die "Slice 13 state board log missing checkpoint: ${checkpoint}"
+        [ -n "$(state_board_field "$state_board_log" "$checkpoint" current-zone)" ] \
+            || die "Slice 13 state board checkpoint ${checkpoint} missing current-zone"
+        [ -n "$(state_board_field "$state_board_log" "$checkpoint" active-workspace)" ] \
+            || die "Slice 13 state board checkpoint ${checkpoint} missing active-workspace"
+        [ -n "$(state_board_field "$state_board_log" "$checkpoint" selected-window-id)" ] \
+            || die "Slice 13 state board checkpoint ${checkpoint} missing selected-window-id"
+        [ -n "$(state_board_field "$state_board_log" "$checkpoint" widths)" ] \
+            || die "Slice 13 state board checkpoint ${checkpoint} missing widths"
+        [ -n "$(state_board_field "$state_board_log" "$checkpoint" resolved-target)" ] \
+            || die "Slice 13 state board checkpoint ${checkpoint} missing resolved-target"
+    done
+    [ "$(state_board_field "$state_board_log" before-focus-next current-zone)" = left ] \
+        || die "Slice 13 before-focus-next state board should start in Reference/left"
+    [ "$(state_board_field "$state_board_log" after-focus-next current-zone)" = main ] \
+        || die "Slice 13 after-focus-next state board should show Work/main"
+    [ "$(state_board_field "$state_board_log" after-move-next current-zone)" = right ] \
+        || die "Slice 13 after-move-next state board should show Comms/right"
+    [ "$(state_board_field "$state_board_log" before-focus-next resolved-target)" = main/Work ] \
+        || die "Slice 13 before-focus-next should expose resolved target main/Work"
+    [ "$(state_board_field "$state_board_log" after-focus-next resolved-target)" = main/Work ] \
+        || die "Slice 13 after-focus-next should expose resolved target main/Work"
+    [ "$(state_board_field "$state_board_log" after-move-next resolved-target)" = right/Comms ] \
+        || die "Slice 13 after-move-next should expose resolved target right/Comms"
+    [ "$(state_board_field "$state_board_log" after-resize-current resolved-target)" = right/Comms ] \
+        || die "Slice 13 resize-current should expose resolved target right/Comms"
+    [ "$(state_board_field "$state_board_log" after-balance-zones resolved-target)" = all-enabled-zones ] \
+        || die "Slice 13 balance-zones should expose all-enabled-zones target"
+    [ "$(state_board_field "$state_board_log" after-toggle-hidden resolved-target)" = right/Comms ] \
+        || die "Slice 13 toggle-hidden should expose resolved target right/Comms"
+    [ "$(state_board_field "$state_board_log" after-toggle-restored resolved-target)" = right/Comms ] \
+        || die "Slice 13 toggle-restored should expose resolved target right/Comms"
+
+    local work_alpha_id work_beta_id before_alpha_zone before_beta_zone after_move_alpha_zone after_move_beta_zone
+    local restored_alpha_zone restored_beta_zone after_focus_zone
+    work_alpha_id="$(value_from_log work-alpha-window-id "$setup_log")"
+    work_beta_id="$(value_from_log work-beta-window-id "$setup_log")"
+    [ -n "$work_alpha_id" ] && [ -n "$work_beta_id" ] || die "Slice 13 setup log missing Work window ids"
+
+    before_alpha_zone="$(field_for_id "$windows_before" "$work_alpha_id" zone)"
+    before_beta_zone="$(field_for_id "$windows_before" "$work_beta_id" zone)"
+    after_focus_zone="$(field_for_id "$windows_after_focus" "$work_alpha_id" zone)"
+    after_move_alpha_zone="$(field_for_id "$windows_after_move" "$work_alpha_id" zone)"
+    after_move_beta_zone="$(field_for_id "$windows_after_move" "$work_beta_id" zone)"
+    restored_alpha_zone="$(field_for_id "$windows_after_restored" "$work_alpha_id" zone)"
+    restored_beta_zone="$(field_for_id "$windows_after_restored" "$work_beta_id" zone)"
+    [ "$before_alpha_zone" = main ] || die "Slice 13 work alpha did not start in Work/main: ${before_alpha_zone:-missing}"
+    [ "$before_beta_zone" = main ] || die "Slice 13 work beta did not start in Work/main: ${before_beta_zone:-missing}"
+    [ "$after_focus_zone" = main ] || die "Slice 13 focus-next should focus Work/main before move"
+    [ "$after_move_alpha_zone" = right ] || die "Slice 13 work alpha did not move to Comms/right: ${after_move_alpha_zone:-missing}"
+    [ "$after_move_beta_zone" = right ] || die "Slice 13 work beta did not move to Comms/right: ${after_move_beta_zone:-missing}"
+    [ "$restored_alpha_zone" = right ] || die "Slice 13 work alpha was not restored in Comms/right: ${restored_alpha_zone:-missing}"
+    [ "$restored_beta_zone" = right ] || die "Slice 13 work beta was not restored in Comms/right: ${restored_beta_zone:-missing}"
+    [[ "$(field_for_id "$windows_after_move" "$work_alpha_id" parent)" == *tab_group* ]] \
+        || die "Slice 13 work alpha parent is not a tab group after move"
+    [[ "$(field_for_id "$windows_after_move" "$work_beta_id" parent)" == *tab_group* ]] \
+        || die "Slice 13 work beta parent is not a tab group after move"
+
+    [ -z "$(field_for_id "$windows_after_hidden" "$work_alpha_id" title)" ] \
+        || die "Slice 13 hidden window log should not show parked work alpha"
+    [ -z "$(field_for_id "$windows_after_hidden" "$work_beta_id" title)" ] \
+        || die "Slice 13 hidden window log should not show parked work beta"
+
+    local right_width_before right_width_after_resize balanced_left balanced_main balanced_right hidden_right_enabled restored_right_enabled
+    right_width_before="$(zone_log_value "$zones_after_move" right width)"
+    right_width_after_resize="$(zone_log_value "$zones_after_resize" right width)"
+    balanced_left="$(zone_log_value "$zones_after_balance" left width)"
+    balanced_main="$(zone_log_value "$zones_after_balance" main width)"
+    balanced_right="$(zone_log_value "$zones_after_balance" right width)"
+    hidden_right_enabled="$(zone_log_value "$zones_after_hidden" right enabled)"
+    restored_right_enabled="$(zone_log_value "$zones_after_restored" right enabled)"
+    assert_numeric_gt "$right_width_after_resize" "$right_width_before" \
+        "Slice 13 right zone did not grow after resize-zone current"
+    assert_numeric_approximately_equal "$balanced_left" "$balanced_main" 3 \
+        "Slice 13 balance-zones did not balance left/main widths"
+    assert_numeric_approximately_equal "$balanced_main" "$balanced_right" 3 \
+        "Slice 13 balance-zones did not balance main/right widths"
+    if [ -n "$hidden_right_enabled" ]; then
+        [ "$hidden_right_enabled" = false ] || die "Slice 13 hidden right zone should be disabled, got ${hidden_right_enabled}"
+    fi
+    [ "$restored_right_enabled" = true ] || die "Slice 13 restored right zone should be enabled"
+
+    local focus_offset move_offset resize_offset balance_offset hide_offset restore_offset
+    focus_offset="$(value_from_log focus-next-offset-seconds "$timing_log")"
+    move_offset="$(value_from_log move-next-offset-seconds "$timing_log")"
+    resize_offset="$(value_from_log resize-current-offset-seconds "$timing_log")"
+    balance_offset="$(value_from_log balance-zones-offset-seconds "$timing_log")"
+    hide_offset="$(value_from_log toggle-hidden-offset-seconds "$timing_log")"
+    restore_offset="$(value_from_log toggle-restored-offset-seconds "$timing_log")"
+    assert_numeric_between_inclusive "$focus_offset" 5 12 \
+        "Slice 13 focus command must happen during the focus caption"
+    assert_numeric_between_inclusive "$move_offset" 12 21 \
+        "Slice 13 move command must happen during the move caption"
+    assert_numeric_between_inclusive "$resize_offset" 21 30 \
+        "Slice 13 resize command must happen during the resize caption"
+    assert_numeric_between_inclusive "$balance_offset" 30 38 \
+        "Slice 13 balance command must happen during the balance caption"
+    assert_numeric_between_inclusive "$hide_offset" 38 47 \
+        "Slice 13 hide command must happen during the hide caption"
+    assert_numeric_between_inclusive "$restore_offset" 47 58 \
+        "Slice 13 restore command must happen during the restore caption"
+
+    grep -F "Config: alt-z = 'mode zone'" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing alt-z config chip"
+    grep -F "Action: Alt-Z, L -> focus-zone next" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing focus-next chip"
+    grep -F "Action: Alt-Z, Shift-L -> move-node-to-zone --focus-follows-window next" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing exact move-next chip"
+    grep -F "Action: Alt-Z, Equal -> resize-zone current width +10%" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing exact resize-current chip"
+    grep -F "Action: Alt-Z, 0 -> balance-zones" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing balance chip"
+    grep -F "Action: Alt-Z, T -> toggle-zone current" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing toggle chip"
+    local toggle_chip_count
+    toggle_chip_count="$(grep -F -c "Action: Alt-Z, T -> toggle-zone current" "$annotation_plan" | tr -d ' ')"
+    [ "$toggle_chip_count" -ge 2 ] \
+        || die "Slice 13 annotations must show the actual toggle-zone current command for both hide and restore"
+    grep -F "Run: winmux list-zones && winmux list-windows" "$annotation_plan" >/dev/null \
+        || die "Slice 13 annotations missing final inspection chip"
+    grep -F 'target right/Comms' "$sample_manifest" >/dev/null \
+        || die "Slice 13 sample manifest must require visible resolved target right/Comms checks"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -2462,6 +2796,9 @@ case "$recording_name" in
         ;;
     slice-12-mouse-zone-snap-drag)
         require_slice_12_mouse_zone_snap_proof
+        ;;
+    slice-13-zone-mode-bindings)
+        require_slice_13_zone_mode_bindings_proof
         ;;
 esac
 

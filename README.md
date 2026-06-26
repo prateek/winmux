@@ -54,13 +54,22 @@ columns = [
 ]
 
 [mode.main.binding]
-alt-h = 'focus-zone Reference'
-alt-l = 'focus-zone Comms'
-alt-shift-h = 'move-node-to-zone Reference'
-alt-shift-l = 'move-node-to-zone Comms'
+alt-z = 'mode zone'
+
+[mode.zone.binding]
+esc = 'mode main'
+h = ['focus-zone prev', 'mode main']
+l = ['focus-zone next', 'mode main']
+shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
+shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
+minus = ['resize-zone current width -10%', 'mode main']
+equal = ['resize-zone current width +10%', 'mode main']
+"0" = ['balance-zones', 'mode main']
+t = ['toggle-zone current', 'mode main']
+space = ['layout floating tiling', 'mode main']
 ```
 
-Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
+Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. They also accept `current`, `next`, and `prev`, scoped to the focused physical monitor. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
 
 For repeatable setups, define layout presets and scenes:
 

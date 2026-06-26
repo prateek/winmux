@@ -10,17 +10,26 @@ final class ZoneCommandTest: XCTestCase {
     func testParse() {
         testParseCommandSucc("focus-zone left", FocusZoneCmdArgs(zone: ZoneSelector("left")))
         testParseCommandSucc("focus-zone zone:left", FocusZoneCmdArgs(zone: ZoneSelector("zone:left")))
+        testParseCommandSucc("focus-zone next", FocusZoneCmdArgs(zone: ZoneSelector("next")))
         testParseCommandSucc("move-node-to-zone --window-id 7 --focus-follows-window --fail-if-noop Comms",
                              MoveNodeToZoneCmdArgs(zone: ZoneSelector("Comms"))
                                  .copy(\.windowId, 7)
                                  .copy(\.focusFollowsWindow, true)
                                  .copy(\.failIfNoop, true))
+        testParseCommandSucc(
+            "move-node-to-zone --focus-follows-window prev",
+            MoveNodeToZoneCmdArgs(zone: ZoneSelector("prev")).copy(\.focusFollowsWindow, true),
+        )
         testParseCommandSucc("enable-zone Comms", EnableZoneCmdArgs(zone: ZoneSelector("Comms")))
         testParseCommandSucc("disable-zone --monitor 1 Comms", DisableZoneCmdArgs(zone: ZoneSelector("Comms"), monitor: .sequenceNumber(1)))
         testParseCommandSucc("toggle-zone 2:Comms", ToggleZoneCmdArgs(zone: ZoneSelector("2:Comms")))
         testParseCommandSucc(
             "resize-zone Work width +10%",
             ResizeZoneCmdArgs(zone: ZoneSelector("Work"), amount: .add(0.10)),
+        )
+        testParseCommandSucc(
+            "resize-zone current width +10%",
+            ResizeZoneCmdArgs(zone: ZoneSelector("current"), amount: .add(0.10)),
         )
         testParseCommandSucc(
             "resize-zone Work width -10%",
@@ -89,6 +98,79 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focus.workspace === reference)
     }
 
+    func testRelativeZoneSelectorsFocusWithinFocusedPhysicalMonitor() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let next = try await parseCommand("focus-zone next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(next.exitCode, 0)
+        XCTAssertTrue(focus.workspace === comms)
+
+        let previous = try await parseCommand("focus-zone prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(previous.exitCode, 0)
+        XCTAssertTrue(focus.workspace === work)
+
+        let current = try await parseCommand("focus-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(current.exitCode, 0)
+        XCTAssertTrue(focus.workspace === work)
+    }
+
+    func testRelativeZoneSelectorsStayWithinFocusedPhysicalMonitorWhenZoneIdsRepeat() async throws {
+        let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryMain.focusWorkspace())
+
+        let previous = try await parseCommand("focus-zone prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(previous.exitCode, 0)
+        XCTAssertTrue(focus.workspace === secondaryLeft)
+
+        let next = try await parseCommand("focus-zone next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(next.exitCode, 0)
+        XCTAssertTrue(focus.workspace === secondaryMain)
+    }
+
+    func testQualifiedRelativeZoneSelectorsResolveWithinQualifiedPhysicalMonitor() async throws {
+        let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryMain.focusWorkspace())
+
+        let primaryNext = try await parseCommand("focus-zone 1:next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(primaryNext.exitCode, 0)
+        XCTAssertTrue(focus.workspace === primaryLeft)
+
+        let primaryCurrent = try await parseCommand("focus-zone 1:current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(primaryCurrent.exitCode, 0)
+        XCTAssertTrue(focus.workspace === primaryLeft)
+
+        let secondaryPrevious = try await parseCommand("focus-zone 2:prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(secondaryPrevious.exitCode, 0)
+        XCTAssertTrue(focus.workspace === secondaryLeft)
+
+        let missingCurrent = try await parseCommand("focus-zone 1:current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(missingCurrent.exitCode, 1)
+        XCTAssertTrue(missingCurrent.stderr.joined(separator: "\n").contains("No focused zone matches"))
+    }
+
     func testDuplicateBareZoneIdsRequirePhysicalQualifier() async throws {
         let zones = configureDuplicateZones()
         let secondaryLeft = Workspace.get(byName: "secondary-left")
@@ -134,6 +216,26 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertTrue(window.nodeWorkspace === comms)
+    }
+
+    func testMoveNodeToRelativeZoneMovesFocusedTabGroup() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let tabGroup = TilingContainer(parent: work.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 53, parent: tabGroup)
+        let second = TestWindow.new(id: 54, parent: tabGroup)
+        XCTAssertTrue(first.focusWindow())
+
+        let result = try await parseCommand("move-node-to-zone --focus-follows-window next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(tabGroup.nodeWorkspace === comms)
+        XCTAssertTrue(first.nodeWorkspace === comms)
+        XCTAssertTrue(second.nodeWorkspace === comms)
+        XCTAssertTrue(focus.workspace === comms)
     }
 
     func testMoveNodeToZoneFailsWhenNoopIsStrict() async throws {
@@ -337,6 +439,47 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
     }
 
+    func testConfiguredRelativeZoneSelectorTargetsFocusedZone() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let result = try await parseCommand("resize-zone current width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Resized zone 'Work' on monitor 1 by +10%"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 720, 240])
+    }
+
+    func testToggleCurrentZoneRestoresLastCurrentToggle() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let commsWindow = TestWindow.new(id: 85, parent: comms.rootTilingContainer)
+        XCTAssertTrue(comms.focusWorkspace())
+
+        let hide = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(hide.exitCode, 0)
+        XCTAssertEqual(hide.stdout, ["Disabled zone 'Comms' on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertTrue(focus.workspace === work)
+
+        let restore = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(restore.exitCode, 0)
+        XCTAssertEqual(restore.stdout, ["Enabled zone 'Comms' on monitor 1"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+    }
+
     func testResizeZoneRejectsDisabledZoneAndBalanceUsesEnabledZonesOnly() async throws {
         _ = configureThreeZones()
 
@@ -386,16 +529,25 @@ final class ZoneCommandTest: XCTestCase {
     }
 
     func testZoneWidthCommandsOnlyAffectSelectedPhysicalMonitor() async throws {
-        _ = configureDuplicateZones()
+        let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryLeft.focusWorkspace())
 
-        let resize = try await parseCommand("resize-zone --monitor 2 left width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let resize = try await parseCommand("resize-zone --monitor 2 next width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(resize.exitCode, 0)
-        XCTAssertEqual(resize.stdout, ["Resized zone 'Reference' on monitor 2 by +10%"])
+        XCTAssertEqual(resize.stdout, ["Resized zone 'Work' on monitor 2 by +10%"])
         XCTAssertEqual(zoneWidthsByPhysicalZone(), [
             "1:left": 500,
             "1:main": 500,
-            "2:left": 600,
-            "2:main": 400,
+            "2:left": 400,
+            "2:main": 600,
         ])
 
         let set = try await parseCommand("resize-zone 2:main width 70%").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -514,16 +666,25 @@ final class ZoneCommandTest: XCTestCase {
     }
 
     func testSetZoneStyleRequiresUnambiguousPhysicalScope() async throws {
-        _ = configureDuplicateZones()
+        let zones = configureDuplicateZones()
         config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryLeft.focusWorkspace())
 
         let ambiguous = try await parseCommand("set-zone-style left urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(ambiguous.exitCode, 1)
         XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
         XCTAssertEqual(zoneStyleIdsByPhysicalZone(), [:])
 
-        let scoped = try await parseCommand("set-zone-style --monitor 2 left urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(scoped.exitCode, 0)
+        let scoped = try await parseCommand("set-zone-style --monitor 2 current urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(scoped.exitCode, 0, scoped.stderr.joined(separator: "\n"))
         XCTAssertEqual(scoped.stdout, ["Styled zone 'Reference' on monitor 2 as 'urgent'"])
         XCTAssertEqual(zoneStyleIdsByPhysicalZone(), ["2:left": "urgent"])
 
@@ -627,6 +788,40 @@ final class ZoneCommandTest: XCTestCase {
             "main|true|communications||work",
             "right|true|communications|urgent|comms",
         ])
+    }
+
+    func testAvailabilitySetsClearCurrentToggleRestoreMemory() async throws {
+        let zones = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(comms.focusWorkspace())
+
+        let hideCurrent = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(hideCurrent.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertTrue(focus.workspace === work)
+
+        let restoreWithSet = try await parseCommand("use-zone-availability communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(restoreWithSet.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main", "right"])
+
+        let hideWithSet = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(hideWithSet.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main"])
+        XCTAssertTrue(focus.workspace === work)
+
+        let currentToggle = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(currentToggle.exitCode, 1)
+        XCTAssertTrue(currentToggle.stderr.joined(separator: "\n").contains("at least one zone must stay enabled"))
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main"])
     }
 
     func testCycleZoneAvailabilityUsesActiveSetThenCurrentEnabledSet() async throws {
@@ -921,15 +1116,22 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneAvailabilityCommandsUseConfiguredZoneSelectorForDisabledZones() async throws {
         let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
         let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
         XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryLeft.focusWorkspace())
 
         let ambiguous = try await parseCommand("disable-zone left").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(ambiguous.exitCode, 1)
         XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
 
-        let disable = try await parseCommand("disable-zone --monitor 2 left").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(disable.exitCode, 0)
+        let disable = try await parseCommand("disable-zone --monitor 2 current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0, disable.stderr.joined(separator: "\n"))
         XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
                   let zoneId = monitor.zoneId
@@ -937,7 +1139,8 @@ final class ZoneCommandTest: XCTestCase {
             return "\(physicalId):\(zoneId)"
         }, ["1:left", "1:main", "2:main"])
 
-        let enable = try await parseCommand("toggle-zone 2:left").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertTrue(secondaryMain.focusWorkspace())
+        let enable = try await parseCommand("enable-zone --monitor 2 prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(enable.exitCode, 0)
         XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
@@ -945,6 +1148,22 @@ final class ZoneCommandTest: XCTestCase {
             else { return nil }
             return "\(physicalId):\(zoneId)"
         }, ["1:left", "1:main", "2:left", "2:main"])
+        XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
+            "1:left": "primary-left",
+            "1:main": "primary-main",
+            "2:left": "secondary-left",
+            "2:main": "secondary-main",
+        ])
+
+        XCTAssertTrue(focus.workspace === secondaryMain)
+        let toggle = try await parseCommand("toggle-zone --monitor 2 prev").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(toggle.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
+            guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+                  let zoneId = monitor.zoneId
+            else { return nil }
+            return "\(physicalId):\(zoneId)"
+        }, ["1:left", "1:main", "2:main"])
     }
 
     func testZoneCommandsFailWhenNoZonesAreConfigured() async throws {
@@ -1252,6 +1471,16 @@ private func zoneStyleIdsByPhysicalZone() -> [String: String] {
               let zoneStyleId = monitor.zoneStyleId
         else { return nil }
         return ("\(physicalId):\(zoneId)", zoneStyleId)
+    })
+}
+
+@MainActor
+private func zoneActiveWorkspacesByPhysicalZone() -> [String: String] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+              let zoneId = monitor.zoneId
+        else { return nil }
+        return ("\(physicalId):\(zoneId)", monitor.activeWorkspace.name)
     })
 }
 

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-12 accepted; pre-Slice-13 cleanup in progress
+Status: slices 0-13 accepted; next slice starts only after the Pre-Slice-14 cleanup checklist is complete
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -42,11 +42,17 @@ Keep these concepts separate in code, config, tests, and demos:
   viewport.
 - `WindowOrTabGroup`: the movable content unit. Binding a tab group to a zone
   means moving the group into the target zone's active workspace.
+- `ZoneBinding`: a durable user intent that a window, tab group, app rule,
+  workspace, or scene member should prefer a zone. The current slices implement
+  this through workspace activation and move commands. A later slice must decide
+  whether tab-group/app bindings need their own persisted records beyond that
+  model.
 - `ZoneScene`: a named macro that applies a zone layout and activates named
   workspaces in named zones.
 - `ZoneRuntimeOverlay`: per-physical-monitor runtime state layered over config:
   active layout id, disabled zone ids, parked workspaces, width overrides, style
-  overrides, optional active scene id, and later active snap policy.
+  overrides, current-toggle restore memory, optional active scene id, and later
+  active snap policy.
 - `ZoneAvailabilitySet`: a named runtime/config concept for groups such as
   `focus-only`, `comms-open`, or `full-dashboard`. This is separate from a
   scene because users need to toggle visibility without necessarily changing
@@ -72,9 +78,12 @@ Current implementation comparison:
   durable object; it is a configured column plus a runtime `ConfiguredZoneSummary`
   or `ZoneMonitor`.
 - `ZoneRuntimeOverlay` currently carries active layout, active availability set,
-  disabled zones, parked workspaces, width overrides, and style overrides. The
-  first snap-policy implementation lives in config and the mouse drag resolver;
-  it is not yet runtime overlay state.
+  disabled zones, parked workspaces, width overrides, style overrides, and
+  current-toggle restore memory. Parked workspaces survive lifecycle pruning while
+  their zone is hidden, so a hidden zone can restore its previous workspace
+  instead of losing an empty placeholder before re-enable. The first snap-policy
+  implementation lives in config and the mouse drag resolver; it is not yet
+  runtime overlay state.
 - `InputBinding` exists through command parsing and normal key bindings. Mouse
   sidebar drag to a zone row calls the same move logic. Normal desktop window
   dragging now has initial configured whole-zone snap policy in code and has
@@ -82,6 +91,10 @@ Current implementation comparison:
 - `ZoneAvailabilitySet` is implemented. `ZoneSnapPolicy` now has an initial
   config/model seam and fast-tested whole-zone drag resolver for desktop window
   drags into whole-zone targets.
+- `ZoneBinding` is not first-class yet. The implementation can move a window or
+  focused tab group into a zone and can route new windows with
+  `on-window-detected`, but it does not persist "this tab group belongs to this
+  zone" as its own entity.
 
 ## Interaction Model
 
@@ -97,9 +110,28 @@ Keyboard and command workflows should stay thin over the same zone model:
 - `set-zone-style` changes zone chrome without changing layout or workspace
   binding.
 - Example key bindings should compose these commands directly. The default idiom
-  is physical-monitor scoped when needed, for example
-  `alt-f = 'use-zone-availability focus-only'` or
-  `alt-shift-m = 'move-node-to-zone Comms --focus-follows-window'`.
+  should use portable relative selectors when possible, for example a modal
+  `alt-z` zone mode that maps `h`/`l` to `focus-zone prev`/`focus-zone next`
+  and `shift-h`/`shift-l` to
+  `move-node-to-zone --focus-follows-window prev`/`next`.
+- Zone selectors should include `current`, `focused`, `next`, and `prev`.
+  Bare relative selectors resolve within the focused physical monitor so
+  default bindings do not depend on user zone names.
+- Qualified relative selectors such as `2:next` resolve within the named
+  physical monitor. `--monitor` and a qualified selector are mutually exclusive,
+  because they would otherwise provide two physical scopes for one command.
+- `toggle-zone current` keeps a short restore target so pressing the same binding
+  again can restore the hidden current zone. Explicit availability operations and
+  named availability sets clear that restore memory.
+- Cross-zone keyboard functions are part of the product surface, not just a CLI
+  convenience. Default bindings should cover focusing adjacent zones, moving the
+  focused window or tab group between zones, resizing the current zone,
+  balancing enabled zones, toggling one zone, applying a named availability set,
+  and switching layouts/scenes for the focused physical monitor.
+- Commands that use `current` must make the resolved target auditable in demos
+  and logs. A viewer should be able to tell whether the operation targeted the
+  focused zone, a hidden zone being restored, all enabled zones, or a layout/set
+  on the physical monitor.
 
 Mouse workflows should use a separate snap-policy layer:
 
@@ -110,6 +142,9 @@ Mouse workflows should use a separate snap-policy layer:
   zone;
 - gesture configuration is an input layer over the same move/focus/layout
   handlers used by keyboard commands.
+- Future gesture work should make one-handed mouse flows explicit: freeform
+  drag by default, snap only while a configured modifier or gesture is active,
+  and no snap when the source or target policy is float/freeform.
 
 ## End-User Shape
 
@@ -330,6 +365,22 @@ Gate order for every product slice:
 7. Run the three no-context retrospection agents.
 8. Update this plan with slice result, accepted findings, and the next pre-slice cleanup checklist.
 9. Start the next slice only after the checklist is complete.
+
+Reusable pre-slice cleanup floor:
+
+- Read the prior slice's no-context artifact review and all three retrospection
+  reports before writing new scenario code.
+- Carry accepted blockers into this plan as checked or unchecked cleanup items.
+- Make the mechanical verifier fail for every accepted blocker that can be
+  checked from artifacts or source logs.
+- Add slice-specific review-packet checks before recording, not after a weak
+  review passes.
+- Re-run annotation preflight after changing captions or semantic samples.
+- Keep demo copy state-neutral. Do not put initial zone names or future-state
+  claims inside windows that later move across zones unless the live state board
+  makes the current state unambiguous.
+- If a command uses a relative selector such as `current`, `next`, or `prev`,
+  expose the resolved target in visible demo state and logs.
 
 Packaging-slice artifacts must still include enough stored evidence to verify
 the root output and source provenance without chat history: source review
@@ -2142,8 +2193,158 @@ Pre-Slice-13 cleanup:
   is the Slice 12 boundary.
 - [ ] Before another drag-heavy Tart run, add a mechanical overlay/no-overlay
   sentinel or write an explicit plan waiver for why that run does not need one.
-- [ ] Before another movement-proof artifact, avoid static initial-zone labels
+  Conditional: Slice 13 is keyboard-led, so this is only required if the Slice 13
+  recording adds drag proof.
+- [x] Before another movement-proof artifact, avoid static initial-zone labels
   inside movable proof documents or pair them with a visible live state board.
+  Slice 13 requires a visible live state board with current zone, active
+  workspace, selected window id, and zone widths.
+
+## Slice 13 - Portable Zone Mode and Relative Selectors
+
+Goal: make the keyboard path ergonomic without forcing users to hardcode
+`Reference`, `Work`, or `Comms` into starter bindings.
+
+Implementation scope:
+
+- Add `current`, `focused`, `next`, and `prev` zone selectors to the common zone
+  selector resolver.
+- Bare relative selectors resolve only within the focused physical monitor.
+  Qualified selectors such as `2:next` resolve within the qualified physical
+  monitor.
+- Reuse the same selector resolver for `focus-zone`, `move-node-to-zone`,
+  `resize-zone`, `toggle-zone`, `enable-zone`, `disable-zone`, and
+  `set-zone-style`.
+- Add a default `alt-z` zone mode with portable bindings:
+  - `h` / `l`: focus previous or next zone;
+  - `shift-h` / `shift-l`: move the focused window or tab group to the previous
+    or next zone and follow focus;
+  - `minus` / `equal`: resize the current zone width by 10%;
+  - `0`: balance zone widths;
+  - `t`: toggle the current zone;
+  - `space`: toggle the focused workspace between floating and tiling layout;
+  - `esc`: return to `main`.
+
+Fast validation:
+
+- Parser tests for relative selectors in focus, move, and resize commands.
+- Command tests proving relative focus stays within the focused physical monitor
+  even when zone ids repeat across monitors.
+- Command tests proving `move-node-to-zone next` moves a focused tab group as a
+  group and can follow focus.
+- Command tests proving `resize-zone current` targets the focused zone.
+- Starter-config tests proving `alt-z` and `[mode.zone.binding]` parse into the
+  expected command sequences.
+
+Tart video gate:
+
+- Record a real desktop proof with clean state and caption chips for the user
+  commands/actions:
+  - `Alt-Z, L`: focus next zone;
+  - `Alt-Z, Shift-L`: move the focused tab group to the next zone;
+  - `Alt-Z, Equal`: widen the current zone;
+  - `Alt-Z, 0`: balance zones;
+  - `Alt-Z, T`: toggle a zone and restore it.
+- The video must include a visible live state board or non-static labels showing
+  current zone, resolved target zone, active workspace, selected window id, and
+  zone widths before and after each command.
+- Because this is a movement-proof artifact, do not rely on fixed document text
+  inside the moved window as proof of current placement.
+- Semantic screenshots must be fresh at their named checkpoint. A screenshot
+  whose live state board is one checkpoint behind fails the slice.
+- Movable TextEdit document copy must avoid stale labels such as `zone: Work`,
+  `zone: Comms`, or future-state text like "right zone restored after toggle".
+- Both hide and restore captions must name the actual user command:
+  `toggle-zone current`.
+- Run the no-context artifact verifier against the artifact directory before
+  accepting the slice. The verifier must reject missing command captions,
+  missing movement frames, missing before/after state, or any ambiguous claim
+  about whether the action changed focus, workspace membership, or zone width.
+
+Slice 13 accepted result:
+
+- artifact: `artifacts/e2e/slice-13-20260626T153608Z`;
+- recording: `recordings/slice-13-zone-mode-bindings.mov`, H.264, 3440x1440,
+  annotated with exact `Alt-Z` binding captions and a live state board;
+- raw recording: `recordings/raw/slice-13-zone-mode-bindings.raw.mov`;
+- proof: `slice-13-zone-mode-bindings-proof.txt`;
+- key screenshots: `02-before-focus-next-slice-13.png`,
+  `03-after-focus-next-slice-13.png`, `04-after-move-next-slice-13.png`,
+  `05-after-resize-slice-13.png`, `06-after-balance-slice-13.png`,
+  `07-after-toggle-hidden-slice-13.png`, and
+  `08-after-toggle-restored-slice-13.png`;
+- no-context artifact review:
+  `artifacts/e2e/slice-13-20260626T153608Z/reviews/no-ctx-artifact-review.md`,
+  verdict `PASS_WITH_NOTES`, `next slice allowed: yes`;
+- preserved failed review:
+  `artifacts/e2e/slice-13-20260626T153608Z/reviews/no-ctx-artifact-review.failed-caption-exactness.md`;
+- mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-13-20260626T153608Z ARGS=--require-review`;
+- closeout gates: `swift test --filter ZoneCommandTest`,
+  `swift test --filter 'ConfigTest|ConfigBootstrapTest|WindowZoneSnapPolicyTest'`,
+  `make e2e-pre-tart-checks`,
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-13-20260626T153608Z`,
+  and `git diff --check`;
+- retrospective reports:
+  `artifacts/e2e/slice-13-20260626T153608Z/retrospectives/process-plan.md`,
+  `code-harness.md`, and `artifact-product.md`;
+- accepted claims: the starter config exposes `alt-z = 'mode zone'`; `Alt-Z, L`
+  runs `focus-zone next` and resolves to Work/main; `Alt-Z, Shift-L` runs
+  `move-node-to-zone --focus-follows-window next` and moves Work Alpha and Work
+  Beta together as one tab group into Comms/right; `Alt-Z, Equal` runs
+  `resize-zone current width +10%` and widens Comms/right; `Alt-Z, 0` runs
+  `balance-zones`; two `Alt-Z, T` actions run `toggle-zone current` and hide then
+  restore Comms/right with the same tab group;
+- accepted implementation follow-up: command/config tests now cover bare,
+  qualified, and monitor-scoped relative selectors, configured-zone command reuse,
+  current-toggle restore memory, and parked workspace survival during hidden-zone
+  reconciliation;
+- accepted notes: the hide-current proof has a small related Work Beta window
+  edge visible at the bottom-right. Logs, board state, and after media still prove
+  Comms/right is disabled and restored, but future hide/availability demos should
+  stage windows so the hidden-state frame is visually clean;
+- non-claims: Slice 13 does not prove mouse gestures, drag snap affordances,
+  snap-to-window, runtime snap-policy overlays, a visual config editor, persisted
+  first-class `ZoneBinding` records, or a perfect hidden-window polish frame.
+
+Superseded Slice 13 attempts:
+
+- `artifacts/e2e/slice-13-20260626T145851Z` failed during setup when TextEdit
+  Apple Events authorization remained unavailable after retries. It has no
+  accepted product proof.
+- `artifacts/e2e/slice-13-20260626T150348Z` was rejected for stale semantic
+  screenshots, stale movable document labels, and restore captions that did not
+  name `toggle-zone current`.
+- The first review of `slice-13-20260626T153608Z` failed caption exactness because
+  the visible chips omitted `--focus-follows-window` and `width +10%`. The
+  artifact was repaired through annotation refresh, the failed review was
+  preserved under a different filename, and the final review accepted the
+  refreshed artifact.
+
+Pre-Slice-14 cleanup:
+
+- [x] Run the Slice 13 no-context artifact review and require `PASS` or
+  `PASS_WITH_NOTES` plus `next slice allowed: yes`.
+- [x] Run all three Slice 13 no-context retrospectives and fold accepted findings
+  into this plan.
+- [x] Correct prior accepted-artifact references: `slice-12-20260626T134813Z` is
+  the accepted Slice 12 artifact; `slice-12-20260626T134736Z` is pre-Tart-only
+  and superseded.
+- [x] Add or verify tests for qualified relative selectors, monitor-scoped
+  relative selectors, configured-zone command reuse, and `toggle-zone current`
+  restore-memory lifetime.
+- [x] Re-run closeout gates for the source boundary and stage the accepted Slice
+  13 dirty set for the closeout commit before feature work for Slice 14 starts.
+- [x] Handle `Sources/Common/gitHashGenerated.swift` deliberately before commit;
+  do not let generated hash churn hide among source changes.
+- [ ] Before the next live-board or semantic-screenshot proof, add a mechanical
+  visible-board freshness sentinel or write an explicit plan waiver explaining why
+  the slice does not need one.
+- [ ] Before the next mutating guest setup script, add semantic-failure retry
+  protection or a reliable cleanup/reset stage so authorization failures do not
+  replay against partially mutated desktop state.
+- [ ] Add a standard failed-attempt abort marker, such as
+  `logs/run-abort-status.txt`, before relying on another stateful Tart attempt.
 
 ## Call-Site Audit
 

@@ -14,6 +14,20 @@ Artifacts are written under `artifacts/e2e/slice-N-<timestamp>/` with screenshot
 
 Product recordings are post-produced by default. The final `recordings/<name>.mov` is the reviewed video and includes a restrained lower-third caption overlay that explains the visible action and shows the WinMux config, CLI command, or action a user would use to perform it. The untouched guest capture is kept under `recordings/raw/<name>.raw.mov`, with caption timing in `logs/<name>.annotations.tsv` and render proof in `logs/<name>.annotation.log`. The harness also writes standard timeline samples, caption samples, and caption-boundary frames under `screenshots/<name>.samples/`, plus a six-up contact sheet at `screenshots/<name>.contact-sheet.jpg`. Set `WINMUX_E2E_ANNOTATE_RECORDING=0` only for local capture debugging.
 
+If a no-context review rejects caption wording but the raw guest capture is
+otherwise valid, refresh the annotated artifact without booting Tart again:
+
+```bash
+WINMUX_E2E_RUN_DIR=artifacts/e2e/slice-N-<timestamp> \
+  ./script/e2e/tart-recording-harness refresh-annotation-artifact
+```
+
+Set `WINMUX_E2E_RECORDING_NAME=<name>` when the artifact has more than one raw
+recording. The refresh rewrites the caption plan from source, re-renders the
+primary recording from `recordings/raw/<name>.raw.mov`, regenerates samples,
+rewrites the sample manifest, and refreshes the reviewer packet. Preserve the
+failed review under a different filename before rerunning no-context review.
+
 Every finished recording also gets a filled no-context reviewer packet at `reviews/reviewer-packet.md`, with exact media paths, logs, baselines, product surfaces, and the verifier command. Drag proof packets also list the manifest-declared pickup/path/hover screenshots directly. Give the packet to the reviewer instead of hand-copying paths from the run directory.
 
 `make e2e-smoke` validates the capture pipeline and will still produce a host-visible recording if guest control is unavailable. Product slices must use strict guest control and guest display capture:
@@ -49,6 +63,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
 `make e2e-slice-12` records desktop mouse zone snapping with `script/e2e/configs/zone-mouse-snap.toml`. The setup phase stages visible Reference, Work, and Comms documents, focuses `snap-demo.rtf` in Work, and captures `01-ready-slice-12.png`. The proof first drags the desktop window without Alt to demonstrate no whole-zone snap and no zone move, then resets the same window and drags with Alt held to show a whole Comms-zone overlay and final movement into Comms/right. The pre-Tart gate includes the mouse config parser tests and `WindowZoneSnapPolicyTest`. The verifier checks the `[mouse.zone-snap]` config, negative and positive drag logs, unchanged source window id, whole-zone target semantics, per-beat drag screenshots, semantic sample labels, and exact action/config caption chips.
+
+`make e2e-slice-13` records portable keyboard zone mode with `script/e2e/configs/zone-mode-bindings.toml` and `script/e2e/guest/slice-13-zone-mode-bindings.sh`. The setup phase stages Reference, Work Alpha, Work Beta, and Comms documents plus a live state board, then captures `01-ready-slice-13.png`. The proof records `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two `Alt-Z, T` actions. The verifier checks exact caption chips and config bindings for `focus-zone next`, `move-node-to-zone --focus-follows-window next`, `resize-zone current width +10%`, `balance-zones`, and `toggle-zone current`; resolved target fields; live board freshness in semantic samples; tab-group movement into Comms/right; width resize/balance; and current-zone hide/restore.
 
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted

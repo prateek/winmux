@@ -28,6 +28,12 @@ Inputs to inspect:
   If exact session history is not accessible, say so and use repo artifacts/logs
   as evidence.
 
+Before relying on a prior accepted artifact path, verify that it contains product
+media and `reviews/no-ctx-artifact-review.md` ending in `PASS` or
+`PASS_WITH_NOTES`. If a listed path lacks media or an accepted review, label it
+as superseded/pre-Tart-only, inspect `docs/plans/columnar-zones.md` for the
+accepted-result block, and make the corrected path or ambiguity a finding.
+
 Perspective: <process-plan | code-harness | artifact-product>
 
 Write your report to <retrospection-dir>/<agent-name>.md.
@@ -44,6 +50,8 @@ Constraints:
 - Prefer changes that prevent repeated failures over broad refactors.
 - Mark any recommendation as BLOCKING if the next slice should not start until it
   is done.
+- Mark stale accepted-artifact inputs as BLOCKING when they could cause the next
+  slice or reviewer to compare against the wrong evidence.
 - Do not edit files except your report.
 - Do not run repair-capable artifact commands such as `verify-artifact` unless
   the coordinator explicitly asks for it. Those commands may generate reviewer

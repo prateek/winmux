@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -108,7 +108,7 @@ e2e-pre-tart-checks:
 	./script/e2e/verify-artifact --self-test && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
-	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
+	swift test --filter '"'"'ConfigBootstrapTest.testStarterConfigParses|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
 e2e-run-product-slice:
 	/bin/bash -lc 'set -euo pipefail; cd "$(CURDIR)"; \
@@ -141,9 +141,9 @@ e2e-slice-closeout-check:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	test -n "$(RUN_DIR)" && \
 	./script/e2e/verify-artifact --check-only --require-review "$(RUN_DIR)" && \
-	test -s "$(RUN_DIR)/reviews/retrospection-process-plan.md" && \
-	test -s "$(RUN_DIR)/reviews/retrospection-code-harness.md" && \
-	test -s "$(RUN_DIR)/reviews/retrospection-artifact-product.md"'
+	(test -s "$(RUN_DIR)/retrospectives/process-plan.md" || test -s "$(RUN_DIR)/reviews/retrospection-process-plan.md") && \
+	(test -s "$(RUN_DIR)/retrospectives/code-harness.md" || test -s "$(RUN_DIR)/reviews/retrospection-code-harness.md") && \
+	(test -s "$(RUN_DIR)/retrospectives/artifact-product.md" || test -s "$(RUN_DIR)/reviews/retrospection-artifact-product.md")'
 
 e2e-verify-root-demo-check:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-root-demo $(ARGS) "$(RUN_DIR)"'
@@ -189,6 +189,9 @@ e2e-slice-11c:
 
 e2e-slice-12:
 	$(MAKE) e2e-run-product-slice SLICE=slice-12 ACTION=slice-12 RECORD_SECONDS=72
+
+e2e-slice-13:
+	$(MAKE) e2e-run-product-slice SLICE=slice-13 ACTION=slice-13 RECORD_SECONDS=90
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"
