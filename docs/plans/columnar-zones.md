@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-16 accepted; Pre-Slice-17 cleanup is next
+Status: slices 0-16 accepted; Slice 17 definition is next
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -2836,7 +2836,8 @@ Accepted result:
   packet, but had no accepted no-context review and failed
   `e2e-verify-slice-check` because its proof manifest still expected an
   `Action: hold Alt while dragging snap-demo.rtf` caption while the Slice 16
-  annotation contract used the macOS-facing Option wording.
+  annotation contract used the macOS-facing Option wording. It is now marked
+  with `reviews/superseded.md` and `logs/run-abort-status.txt`.
 
 Pre-Slice-17 cleanup from Slice 16 retrospectives:
 
@@ -2851,15 +2852,20 @@ Pre-Slice-17 cleanup from Slice 16 retrospectives:
   split generated-file diffs from source/harness/docs, then commit the accepted
   state as this slice-boundary commit.
 
+Additional hardening:
+
+- [x] Before the next mouse-proof slice, remove remaining hard-coded
+  reviewer-facing `Alt` wording from generated proof text and
+  overlay-sentinel notes where the user-facing key should be `Option`; keep
+  `modifier = 'alt'` when quoting config. Historical accepted artifacts remain
+  verifier-compatible.
+- [x] Add a durable failed-attempt marker convention:
+  `./script/e2e/tart-recording-harness mark-superseded` writes
+  `reviews/superseded.md` and `logs/run-abort-status.txt` for runs that produce
+  media but are replaced before review.
+
 Deferred non-blocking hardening:
 
-- Before the next mouse-proof slice, remove remaining hard-coded
-  reviewer-facing `Alt` wording from proof text and overlay-sentinel notes where
-  the user-facing key should be `Option`; keep `modifier = 'alt'` when quoting
-  config.
-- Add a durable failed-attempt marker convention, such as
-  `logs/attempt-status.txt` or `reviews/superseded.md`, for future runs that
-  produce media but are replaced before review.
 - Consider a verifier-owned expected-caption contract for future slices so
   `expected-chips.txt` is not only regenerated from the annotation TSV it is
   meant to help review.

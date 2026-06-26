@@ -2462,8 +2462,10 @@ require_mouse_zone_snap_proof() {
     require_file "${SCREENSHOTS_DIR}/06-snap-path-${slice_prefix}.png"
     require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
 
-    grep -F "PASS: desktop drag without Alt stays freeform/no-zone-move; holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
-        || die "Slice 12 proof does not contain the expected PASS claim"
+    if ! grep -F "PASS: desktop drag without Alt stays freeform/no-zone-move; holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null; then
+        grep -F "PASS: desktop drag without Option stays freeform/no-zone-move; holding Option previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
+            || die "${slice_label} proof does not contain the expected PASS claim"
+    fi
     grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
         || die "Slice 12 config missing mouse zone snap table"
     grep -F "policy = 'snap-on-modifier'" "$CONFIG_PATH" >/dev/null \

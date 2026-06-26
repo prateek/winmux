@@ -583,10 +583,10 @@ proof_slice() {
     after_id="$(window_id_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
     after_zone="$(zone_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
     after_workspace="$(workspace_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
-    [ "${after_id}" = "${before_id}" ] || semantic_fail "Alt snap changed window id: ${before_id} -> ${after_id:-missing}"
-    [ "${after_zone}" = right ] || semantic_fail "Alt snap did not move to Comms/right: ${after_zone:-missing}"
+    [ "${after_id}" = "${before_id}" ] || semantic_fail "${USER_MODIFIER_LABEL} snap changed window id: ${before_id} -> ${after_id:-missing}"
+    [ "${after_zone}" = right ] || semantic_fail "${USER_MODIFIER_LABEL} snap did not move to Comms/right: ${after_zone:-missing}"
     [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" != "${after_workspace}" ] \
-        || semantic_fail 'Alt snap did not move to the target zone active workspace'
+        || semantic_fail "${USER_MODIFIER_LABEL} snap did not move to the target zone active workspace"
 
     {
         echo "window-id-after=${after_id}"
@@ -633,10 +633,10 @@ proof_slice() {
         echo 'Proof manifest:'
         cat "${ACTION_MANIFEST}"
         echo
-        echo 'After Alt snap:'
+        echo "After ${USER_MODIFIER_LABEL} snap:"
         cat "${WINDOW_AFTER_LOG}"
         echo
-        echo 'PASS: desktop drag without Alt stays freeform/no-zone-move; holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release.'
+        echo "PASS: desktop drag without ${USER_MODIFIER_LABEL} stays freeform/no-zone-move; holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
     } >"${PROOF}"
 
     echo

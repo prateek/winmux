@@ -153,6 +153,19 @@ Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` insi
 
 Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. On final guest action failure, the harness writes `logs/run-abort-status.txt` with phase, exit code, primary log, whether recording had started, and whether setup had completed. The harness also warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts. Each run writes `logs/guest-transport-summary.tsv` with phase, log path, attempt count, failure count, final result, and whether the phase happened before recording.
 
+If a run produces media but is later replaced before acceptance, mark it
+superseded instead of leaving it as an ambiguous unreviewed artifact:
+
+```bash
+WINMUX_E2E_RUN_DIR=/path/to/artifact \
+WINMUX_E2E_SUPERSEDED_REASON="stale proof-manifest caption chip" \
+WINMUX_E2E_SUPERSEDED_BY=/path/to/replacement \
+./script/e2e/tart-recording-harness mark-superseded
+```
+
+This writes `reviews/superseded.md` and `logs/run-abort-status.txt` with
+`final_result=superseded`.
+
 Scenario command proofs must distinguish setup from proof. Setup commands may create or place windows, but proof commands must use the exact behavior being tested, assert before and after state, and fail on no-op when movement is the claim. Prepared product slices should capture a clean before screenshot, stage the visible ready state, capture `01-ready-slice-N.png`, then start the proof recording. Do not use fallback commands that would hide a broken zone selector or command path.
 
 Stateful scenario assertions should exit with `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` (default `86`) so `guest_script_retry` stops immediately instead of replaying a half-mutated window-management state. Transport failures can retry; semantic proof failures should fail the run.
