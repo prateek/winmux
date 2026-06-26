@@ -1784,12 +1784,13 @@ Pre-slice cleanup before Slice 11C starts:
   retries instead of replaying a half-mutated proof state.
 - [x] Commit the accepted Slice 11B dirty set before implementing Slice 11C:
   `0d240ab3` (`Add runtime zone style controls`).
-- [ ] Define the Slice 11C availability-set contract before code changes.
+- [x] Define the Slice 11C availability-set contract before code changes.
 - [ ] Save pre-Tart gate output into future run directories, starting with the
   next product Tart proof.
-- [ ] Decide before recording Slice 11C whether the media will carry a styled
-  zone as a preservation proof. If yes, add a mechanical swatch/color sentinel;
-  if no, record that deferral here.
+- [ ] Add a Slice 11C mechanical swatch/color sentinel. Slice 11C media will
+  carry a styled Comms zone as the preservation proof, so the verifier must
+  mechanically sample the visible swatch before hide, while restored, and after
+  restore.
 
 ### Future Slice 11C: Availability Sets and Cross-Zone Commands
 
@@ -1806,6 +1807,10 @@ enabled-zones = ['main']
 [[zone-availability-sets]]
 id = 'communications'
 enabled-zones = ['main', 'right']
+
+[[zone-availability-sets]]
+id = 'full-dashboard'
+enabled-zones = ['left', 'main', 'right']
 ```
 
 Command surface:
@@ -1814,6 +1819,53 @@ Command surface:
 - `cycle-zone-availability [--monitor <monitor-pattern>] <set-id>...`
 - keep `toggle-zone`, `enable-zone`, and `disable-zone` for one-off zone-level
   changes.
+
+Runtime contract:
+
+- Add `zoneAvailabilitySets` to config and `activeAvailabilitySetId` to
+  `ZoneRuntimeOverlay`.
+- `disabledZoneIds` remains the source of truth for effective enabled and
+  disabled zones. A named availability set mutates `disabledZoneIds` to the
+  complement of its `enabled-zones` for the target physical monitor's current
+  resolved layout.
+- `activeAvailabilitySetId` is a label for the state last produced by
+  `use-zone-availability` or `cycle-zone-availability`, not a second source of
+  enabled-zone truth.
+- `enable-zone`, `disable-zone`, and `toggle-zone` are manual overrides. They
+  continue to operate on configured zones, including currently hidden zones, and
+  clear `activeAvailabilitySetId` on the target physical monitor when they
+  change the effective enabled set.
+- `cycle-zone-availability` resolves the current set by
+  `activeAvailabilitySetId` when present. If no active id is present, it may
+  match the current enabled-zone set against the provided ids; otherwise it
+  starts from the first provided id.
+- Width overrides remain keyed by physical monitor identity plus active layout
+  identity. Applying an availability set must not rewrite
+  `widthOverridesByLayoutIdentity`.
+- Style overrides remain keyed by physical monitor identity plus zone id.
+  Applying an availability set must not rewrite `styleOverridesByZoneId`, even
+  for hidden zones. A restored styled zone must show the same style token.
+- Applying an availability set must preserve `activeLayoutId`; it does not
+  switch layouts and is not a scene.
+- Workspace parking uses the Slice 10 semantics: newly hidden zones park their
+  current active workspace under zone id; restored zones reactivate that
+  workspace only when it still exists and is not active elsewhere.
+- If a parked workspace cannot be restored because it was deleted or is already
+  active elsewhere, the restored zone uses normal workspace reconciliation and
+  the stale parked entry is cleared.
+
+Validation contract:
+
+- Config validation rejects duplicate availability-set ids and empty
+  `enabled-zones`.
+- Config validation rejects a zone id that does not exist in any configured
+  inline zone or named zone layout.
+- Command-time validation rejects a set whose `enabled-zones` are not all
+  present in the target physical monitor's current resolved layout.
+- Command-time validation rejects a set that would leave zero enabled zones.
+- Duplicate physical monitor scopes follow the existing zone-command selector
+  rules: use `--monitor` when a target physical display cannot be inferred from
+  focus or command context.
 
 Required behavior:
 
@@ -1825,7 +1877,8 @@ Required behavior:
   style overrides, or workspace bindings except where a hidden zone must be
   parked.
 - `list-zones` must show enough state to prove which availability set is active
-  and which zones are enabled.
+  and which zones are enabled. Add a formatted field for active availability set
+  id and include it in the Slice 11C proof logs.
 
 Fast validation before Tart:
 
@@ -1839,11 +1892,17 @@ Fast validation before Tart:
 Tart proof:
 
 - show a three-zone layout with Reference, Work, and Comms visible;
+- apply `set-zone-style Comms urgent` before the availability-set sequence so
+  the proof carries a styled Comms zone across hide and restore;
 - run `winmux use-zone-availability focus-only` while the command caption is
   visible before the state change;
 - show Comms/Reference disappear and Work expand;
 - run `winmux use-zone-availability communications`;
-- show Comms return with the same workspace/window identity;
+- show Comms return with the same workspace/window identity and the urgent
+  swatch still visible;
+- include a mechanical swatch/color sentinel for the Comms row before hide,
+  during restore, and after restore. This tripwire supplements no-context human
+  review; it does not replace it;
 - reviewer and verifier must reject final-state-only proof, missing command
   captions, logs-only proof, or any recording where the user cannot tell which
   zones are toggled.
