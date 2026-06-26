@@ -32,8 +32,10 @@ extension Command {
 extension Command {
     var canSkipPostCommandRefresh: Bool {
         switch self {
-            case is BalanceSizesCommand,
+            case is ApplyZoneBindingsCommand,
+                 is BalanceSizesCommand,
                  is BalanceZonesCommand,
+                 is BindNodeToZoneCommand,
                  is ConfigCommand,
                  is CycleZoneAvailabilityCommand,
                  is CycleZoneLayoutCommand,
@@ -54,6 +56,7 @@ extension Command {
                  is ListMonitorsCommand,
                  is ListWindowsCommand,
                  is ListWorkspacesCommand,
+                 is ListZoneBindingsCommand,
                  is ListZonesCommand,
                  is ModeCommand,
                  is MoveCommand,
@@ -73,6 +76,7 @@ extension Command {
                  is SummonWorkspaceCommand,
                  is SwapCommand,
                  is ToggleZoneCommand,
+                 is UnbindNodeZoneBindingCommand,
                  is UseZoneAvailabilityCommand,
                  is UseZoneLayoutCommand,
                  is UseZoneSceneCommand,

@@ -51,6 +51,21 @@ zone_log_value() {
     ' "$path"
 }
 
+binding_log_value() {
+    local path="$1"
+    local key="$2"
+    /usr/bin/awk -F'|' -v key="$key" '
+        /^node-id=/ {
+            for (i = 1; i <= NF; i++) {
+                if (index($i, key "=") == 1) {
+                    print substr($i, length(key) + 2)
+                    exit
+                }
+            }
+        }
+    ' "$path"
+}
+
 require_zone_fields_unchanged_across_style_phases() {
     local before_log="$1"
     local urgent_log="$2"
@@ -494,6 +509,13 @@ is_historical_slice_8_artifact() {
     [ "$(basename "$RUN_DIR")" = "slice-8-20260624T045815Z" ]
 }
 
+requires_current_artifact_contract() {
+    case "$recording_name" in
+        slice-15-*|slice-16-*|slice-17-*|slice-18-*|slice-19-*|slice-[2-9][0-9]-*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 manifest_value() {
     local path="$1"
     local kind="$2"
@@ -580,6 +602,20 @@ ensure_review_packet() {
             "${relative_run_dir}/logs/${recording_name}.sample-manifest.tsv" \
             || die "Review packet missing sample manifest path"
     fi
+    if [ -s "${LOGS_DIR}/${recording_name}.expected-chips.txt" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+            "${absolute_run_dir}/logs/${recording_name}.expected-chips.txt" \
+            "${relative_run_dir}/logs/${recording_name}.expected-chips.txt" \
+            || die "Review packet missing expected caption chips path"
+    fi
+    if [ -s "${LOGS_DIR}/${recording_name}.edge-crops.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.edge-crops.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.edge-crops.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.edge-crops.tsv" \
+            || die "Review packet missing edge crop manifest path"
+    fi
     local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
     if [ -s "$transport_summary" ]; then
         review_packet_contains_any "$packet_path" \
@@ -611,11 +647,37 @@ ensure_review_packet() {
             "${relative_run_dir}/logs/${recording_name}.color-sentinel.tsv" \
             || die "Review packet missing color sentinel manifest path"
     fi
-    review_packet_contains_any "$packet_path" \
-        "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" \
-        "make e2e-verify-slice RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
-        "make e2e-verify-slice RUN_DIR=${relative_run_dir} ARGS=--require-review" \
-        || die "Review packet missing verifier command"
+    if [ -s "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.overlay-sentinel.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.overlay-sentinel.tsv" \
+            || die "Review packet missing overlay sentinel manifest path"
+    fi
+    case "$recording_name" in
+        slice-15-*|slice-16-*)
+            review_packet_contains_any "$packet_path" \
+                "make e2e-verify-slice-check RUN_DIR=${RUN_DIR} ARGS=--require-review" \
+                "make e2e-verify-slice-check RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
+                "make e2e-verify-slice-check RUN_DIR=${relative_run_dir} ARGS=--require-review" \
+                || die "Review packet missing non-mutating verifier command"
+            review_packet_contains_any "$packet_path" \
+                "make e2e-slice-closeout-check RUN_DIR=${RUN_DIR}" \
+                "make e2e-slice-closeout-check RUN_DIR=${absolute_run_dir}" \
+                "make e2e-slice-closeout-check RUN_DIR=${relative_run_dir}" \
+                || die "Review packet missing slice closeout command"
+            ;;
+        *)
+            review_packet_contains_any "$packet_path" \
+                "make e2e-verify-slice-check RUN_DIR=${RUN_DIR} ARGS=--require-review" \
+                "make e2e-verify-slice-check RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
+                "make e2e-verify-slice-check RUN_DIR=${relative_run_dir} ARGS=--require-review" \
+                "make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review" \
+                "make e2e-verify-slice RUN_DIR=${absolute_run_dir} ARGS=--require-review" \
+                "make e2e-verify-slice RUN_DIR=${relative_run_dir} ARGS=--require-review" \
+                || die "Review packet missing verifier command"
+            ;;
+    esac
     grep -F 'resources/screenshots/winmux-overview.png' "$packet_path" >/dev/null || die "Review packet missing baseline screenshots"
     grep -F 'Product-Quality Floor' "$packet_path" >/dev/null || die "Review packet missing product-quality floor"
 }
@@ -637,9 +699,41 @@ sample_manifest_path() {
     printf '%s/%s.sample-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
 }
 
+file_mtime_epoch() {
+    local path="$1"
+    local mtime
+    if mtime="$(stat -f '%m' "$path" 2>/dev/null)"; then
+        printf '%s\n' "$mtime"
+    elif mtime="$(stat -c '%Y' "$path" 2>/dev/null)"; then
+        printf '%s\n' "$mtime"
+    else
+        die "Could not read mtime for $path"
+    fi
+}
+
+is_fresh_derived_file() {
+    local path="$1"
+    local source="$2"
+    [ -s "$path" ] || return 1
+    [ -s "$source" ] || return 0
+    local path_mtime source_mtime
+    path_mtime="$(file_mtime_epoch "$path")"
+    source_mtime="$(file_mtime_epoch "$source")"
+    [ "$path_mtime" -ge $((source_mtime - 1)) ]
+}
+
+require_fresh_derived_file() {
+    local path="$1"
+    local source="$2"
+    local label="$3"
+    is_fresh_derived_file "$path" "$source" \
+        || die "${label} is stale relative to ${source}: ${path}"
+}
+
 require_sample_manifest_paths() {
     local manifest_path="$1"
     require_file "$manifest_path"
+    require_fresh_derived_file "$manifest_path" "${recording_path:-}" "Sample manifest"
 
     /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ { print $5 }' "$manifest_path" | while IFS= read -r relative_path; do
         [ -n "$relative_path" ] || die "Sample manifest has a row with an empty path: $manifest_path"
@@ -647,7 +741,68 @@ require_sample_manifest_paths() {
             /*|*../*) die "Sample manifest path must be run-relative and stay inside the artifact: $relative_path" ;;
         esac
         require_file "${RUN_DIR}/${relative_path}"
+        case "$relative_path" in
+            screenshots/*.samples/*)
+                require_fresh_derived_file "${RUN_DIR}/${relative_path}" "${recording_path:-}" "Sample manifest frame"
+                ;;
+        esac
     done
+}
+
+require_edge_crop_manifest() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+    require_fresh_derived_file "$manifest_path" "${recording_path:-}" "Edge crop manifest"
+
+    local row_count=0
+    local label relative_path _description dimensions
+    while IFS=$'\t' read -r label relative_path _description; do
+        case "${label:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_path:-}" ] || die "Edge crop manifest row is missing a path: $manifest_path"
+        case "$relative_path" in
+            /*|*../*) die "Edge crop path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_file "${RUN_DIR}/${relative_path}"
+        require_fresh_derived_file "${RUN_DIR}/${relative_path}" "${recording_path:-}" "Edge crop"
+        dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${relative_path}")" \
+            || die "Edge crop is not readable image media: ${RUN_DIR}/${relative_path}"
+        [ -n "$dimensions" ] || die "Edge crop has no readable dimensions: ${RUN_DIR}/${relative_path}"
+        row_count=$((row_count + 1))
+    done <"$manifest_path"
+
+    [ "$row_count" -gt 0 ] || die "Edge crop manifest has no crop rows: $manifest_path"
+}
+
+require_review_freshness() {
+    local review_path="$1"
+    local dependency
+    for dependency in \
+        "$recording_path" \
+        "${RUN_DIR}/reviews/reviewer-packet.md" \
+        "$contact_sheet" \
+        "$(sample_manifest_path)" \
+        "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
+        [ -s "$dependency" ] || continue
+        [ "$review_path" -nt "$dependency" ] \
+            || die "Review is stale relative to artifact dependency: $dependency"
+    done
+}
+
+require_review_mentions_semantic_samples() {
+    local review_path="$1"
+    local manifest_path="$2"
+    [ -s "$manifest_path" ] || return 0
+
+    local label relative_path
+    while IFS=$'\t' read -r label relative_path; do
+        [ -n "$label" ] || continue
+        [ -n "$relative_path" ] || die "Semantic sample row has no path for label: $label"
+        if ! grep -F "$relative_path" "$review_path" >/dev/null && ! grep -F "$label" "$review_path" >/dev/null; then
+            die "Review does not cite semantic sample ${label}: ${relative_path}"
+        fi
+    done < <(/usr/bin/awk -F'\t' '$1 == "semantic" { print $2 "\t" $5 }' "$manifest_path")
 }
 
 require_sample_manifest_label() {
@@ -730,6 +885,19 @@ require_slice_13_sample_manifest() {
         after-balance-zones \
         after-toggle-hidden \
         after-toggle-restored; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_15_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        ready-tab-group \
+        before-bindings-empty \
+        bind-command-start \
+        after-node-binding \
+        inspect-node-binding; do
         require_sample_manifest_label "$manifest_path" "$label"
     done
 }
@@ -980,17 +1148,29 @@ ensure_recording_samples() {
     local caption_count=0
     local boundary_count=0
     local caption_rows=0
+    local stale_count=0
 
     if [ -d "$samples_dir" ]; then
         standard_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'standard-*.png' | wc -l | tr -d ' ')"
         caption_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9].png' | wc -l | tr -d ' ')"
         boundary_count="$(find "$samples_dir" -maxdepth 1 -type f -name 'caption-[0-9][0-9]-boundary-*.png' | wc -l | tr -d ' ')"
+        local sample_file
+        while IFS= read -r sample_file; do
+            [ -n "$sample_file" ] || continue
+            if ! is_fresh_derived_file "$sample_file" "$recording"; then
+                stale_count=$((stale_count + 1))
+            fi
+        done < <(find "$samples_dir" -maxdepth 1 -type f -name '*.png')
     fi
     if [ -s "$captions_path" ]; then
         caption_rows="$(awk -F '\t' '$0 != "" && $1 !~ /^#/ { count++ } END { print count + 0 }' "$captions_path")"
     fi
 
-    if [ "$standard_count" -lt 6 ] || [ "$caption_count" -lt "$caption_rows" ] || [ "$boundary_count" -lt $((caption_rows * 3)) ] || [ ! -s "$contact_sheet" ]; then
+    if [ -s "$contact_sheet" ] && ! is_fresh_derived_file "$contact_sheet" "$recording"; then
+        stale_count=$((stale_count + 1))
+    fi
+
+    if [ "$standard_count" -lt 6 ] || [ "$caption_count" -lt "$caption_rows" ] || [ "$boundary_count" -lt $((caption_rows * 3)) ] || [ ! -s "$contact_sheet" ] || [ "$stale_count" -gt 0 ]; then
         [ "$CHECK_ONLY" != "1" ] || die "Recording samples/contact sheet are missing or stale in --check-only mode: $samples_dir"
         generate_recording_samples "$recording" "$name" "$duration"
     fi
@@ -1005,6 +1185,7 @@ ensure_recording_samples() {
         [ "$boundary_count" -ge $((caption_rows * 3)) ] || die "Recording samples missing caption boundary frames"
     fi
     require_file "$contact_sheet"
+    require_fresh_derived_file "$contact_sheet" "$recording" "Contact sheet"
 }
 
 field_for_title() {
@@ -2215,22 +2396,53 @@ require_slice_11c_zone_availability_sets_proof() {
         || die "Slice 11C communications command caption must cover the command/action interval"
 }
 
-require_slice_12_mouse_zone_snap_proof() {
-    local proof="${RUN_DIR}/slice-12-mouse-zone-snap-proof.txt"
-    local done="${LOGS_DIR}/slice-12-mouse-zone-snap.done"
-    local setup_log="${LOGS_DIR}/slice-12-mouse-zone-snap-setup.log"
-    local action_log="${LOGS_DIR}/slice-12-mouse-zone-snap-action.log"
-    local windows_before="${LOGS_DIR}/slice-12-windows-before.log"
-    local windows_freeform="${LOGS_DIR}/slice-12-windows-after-freeform.log"
-    local windows_reset="${LOGS_DIR}/slice-12-windows-after-reset.log"
-    local windows_after="${LOGS_DIR}/slice-12-windows-after-snap.log"
-    local zones="${LOGS_DIR}/slice-12-zones.log"
-    local timing_log="${LOGS_DIR}/slice-12-command-timing.log"
-    local sample_manifest="${LOGS_DIR}/slice-12-mouse-zone-snap-drag.sample-manifest.tsv"
-    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-12.png"
+require_mouse_snap_overlay_sentinel() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+
+    sentinel_value() {
+        local label="$1"
+        local column="$2"
+        /usr/bin/awk -F'\t' -v label="$label" -v column="$column" '$1 == label { print $column; exit }' "$manifest_path"
+    }
+
+    local rmse minimum target_semantics freeform_crop snap_crop
+    rmse="$(sentinel_value overlay-rmse-normalized 2)"
+    minimum="$(sentinel_value overlay-rmse-normalized 3)"
+    target_semantics="$(sentinel_value target-semantics 2)"
+    freeform_crop="$(sentinel_value freeform-target-zone-crop 4)"
+    snap_crop="$(sentinel_value snap-target-zone-crop 4)"
+
+    [ -n "$rmse" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized value"
+    [ -n "$minimum" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized minimum"
+    [ "$target_semantics" = whole-zone ] \
+        || die "Mouse snap overlay sentinel must declare target-semantics=whole-zone"
+    require_file "${RUN_DIR}/${freeform_crop}"
+    require_file "${RUN_DIR}/${snap_crop}"
+    awk -v rmse="$rmse" -v minimum="$minimum" 'BEGIN { exit(rmse + 0 >= minimum + 0 ? 0 : 1) }' \
+        || die "Mouse snap overlay RMSE ${rmse} is below required ${minimum}"
+}
+
+require_mouse_zone_snap_proof() {
+    local slice_prefix="$1"
+    local slice_label="$2"
+    local require_overlay_sentinel="$3"
+    local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
+    local done="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap.done"
+    local setup_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-setup.log"
+    local action_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-action.log"
+    local windows_before="${LOGS_DIR}/${slice_prefix}-windows-before.log"
+    local windows_freeform="${LOGS_DIR}/${slice_prefix}-windows-after-freeform.log"
+    local windows_reset="${LOGS_DIR}/${slice_prefix}-windows-after-reset.log"
+    local windows_after="${LOGS_DIR}/${slice_prefix}-windows-after-snap.log"
+    local zones="${LOGS_DIR}/${slice_prefix}-zones.log"
+    local timing_log="${LOGS_DIR}/${slice_prefix}-command-timing.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-${slice_prefix}.png"
 
     require_file "$proof"
-    require_success_marker "$done" "Slice 12"
+    require_success_marker "$done" "$slice_label"
     require_file "$setup_log"
     require_file "$action_log"
     require_file "$windows_before"
@@ -2243,12 +2455,12 @@ require_slice_12_mouse_zone_snap_proof() {
     require_slice_12_sample_manifest "$sample_manifest"
     require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
     require_file "$ready_screenshot"
-    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-slice-12.png"
-    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-12.png"
-    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-slice-12.png"
-    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-slice-12.png"
-    require_file "${SCREENSHOTS_DIR}/06-snap-path-slice-12.png"
-    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-12.png"
+    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/06-snap-path-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
 
     grep -F "PASS: desktop drag without Alt stays freeform/no-zone-move; holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
         || die "Slice 12 proof does not contain the expected PASS claim"
@@ -2334,20 +2546,40 @@ require_slice_12_mouse_zone_snap_proof() {
         grep -F "Config: [mouse.zone-snap] policy='snap-on-modifier'" "$annotation_plan" >/dev/null \
             || die "Slice 12 annotations missing mouse snap config chip"
     fi
-    grep -F "Action: drag snap-demo.rtf without Alt" "$annotation_plan" >/dev/null \
-        || die "Slice 12 annotations missing no-modifier drag chip"
-    grep -F "Action: hold Alt while dragging snap-demo.rtf" "$annotation_plan" >/dev/null \
-        || die "Slice 12 annotations missing Alt-held drag chip"
-    grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null \
-        || die "Slice 12 annotations missing whole-zone target chip"
+    if ! grep -F "Action: drag snap-demo.rtf without Alt" "$annotation_plan" >/dev/null; then
+        grep -F "Action: drag snap-demo.rtf without Option" "$annotation_plan" >/dev/null \
+            || die "${slice_label} annotations missing no-modifier drag chip"
+    fi
+    if ! grep -F "Action: hold Alt while dragging snap-demo.rtf" "$annotation_plan" >/dev/null; then
+        grep -F "Action: hold Option while dragging: snap to Comms zone" "$annotation_plan" >/dev/null \
+            || die "${slice_label} annotations missing modifier-held drag chip"
+    fi
+    if ! grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null; then
+        grep -F "Action: Snap to whole Comms zone, not a window" "$annotation_plan" >/dev/null \
+            || die "${slice_label} annotations missing whole-zone target chip"
+    fi
     grep -F "Action: release on Comms zone" "$annotation_plan" >/dev/null \
         || die "Slice 12 annotations missing release chip"
     grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
         || die "Slice 12 annotations missing list-windows inspection chip"
     awk -F '\t' '$5 == "Action: drag snap-demo.rtf without Alt" { found = 1; ok = (($1 + 0) <= 8 && ($2 + 0) >= 18) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
-        || die "Slice 12 no-modifier drag caption must cover the negative drag interval"
+        || awk -F '\t' '$5 == "Action: drag snap-demo.rtf without Option" { found = 1; ok = (($1 + 0) <= 8 && ($2 + 0) >= 18) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "${slice_label} no-modifier drag caption must cover the negative drag interval"
     awk -F '\t' '$5 == "Action: hold Alt while dragging snap-demo.rtf" { found = 1; ok = (($1 + 0) <= 35 && ($2 + 0) >= 44) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
-        || die "Slice 12 Alt-held drag caption must cover the positive drag interval"
+        || awk -F '\t' '$5 == "Action: hold Option while dragging: snap to Comms zone" { found = 1; ok = (($1 + 0) <= 35 && ($2 + 0) >= 44) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "${slice_label} modifier-held drag caption must cover the positive drag interval"
+
+    if [ "$require_overlay_sentinel" = "1" ]; then
+        require_mouse_snap_overlay_sentinel "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
+    fi
+}
+
+require_slice_12_mouse_zone_snap_proof() {
+    require_mouse_zone_snap_proof slice-12 "Slice 12" 0
+}
+
+require_slice_16_mouse_snap_affordance_proof() {
+    require_mouse_zone_snap_proof slice-16 "Slice 16" 1
 }
 
 require_slice_13_zone_mode_bindings_proof() {
@@ -2667,6 +2899,331 @@ EXPECTED_ACTION_LOG
     fi
 }
 
+require_slice_14_zone_bindings_proof() {
+    local proof="${RUN_DIR}/slice-14-zone-bindings-proof.txt"
+    local done="${LOGS_DIR}/slice-14-zone-bindings.done"
+    local setup_log="${LOGS_DIR}/slice-14-zone-bindings-setup.log"
+    local before_bindings="${LOGS_DIR}/slice-14-bindings-before.log"
+    local after_bindings="${LOGS_DIR}/slice-14-bindings-after.log"
+    local before_windows="${LOGS_DIR}/slice-14-windows-before.log"
+    local after_windows="${LOGS_DIR}/slice-14-windows-after.log"
+    local apply_log="${LOGS_DIR}/slice-14-apply-zone-bindings.log"
+    local timing_log="${LOGS_DIR}/slice-14-command-timing.log"
+    local sample_dir="${SCREENSHOTS_DIR}/slice-14-zone-bindings.samples"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 14"
+    require_file "$setup_log"
+    require_file "$before_bindings"
+    require_file "$after_bindings"
+    require_file "$before_windows"
+    require_file "$after_windows"
+    require_file "$apply_log"
+    require_file "$timing_log"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-14.png"
+
+    grep -F 'PASS: apply-zone-bindings activated ReferenceDesk, WorkDesk, and CommsDesk in the left, main, and right zones without changing zone geometry.' "$proof" >/dev/null \
+        || die "Slice 14 proof does not contain the expected PASS claim"
+    grep -F '[[zone-bindings]]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 14 config missing zone-bindings table"
+    grep -F "workspace = 'ReferenceDesk'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 14 config missing ReferenceDesk binding"
+    grep -F "workspace = 'WorkDesk'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 14 config missing WorkDesk binding"
+    grep -F "workspace = 'CommsDesk'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 14 config missing CommsDesk binding"
+    grep -F "alt-b = 'apply-zone-bindings'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 14 config missing apply-zone-bindings key binding"
+
+    grep -F 'Config: [[zone-bindings]] ReferenceDesk + WorkDesk + CommsDesk' "$setup_log" >/dev/null \
+        || die "Slice 14 setup log missing zone-bindings config summary"
+    grep -F 'Command: apply-zone-bindings' "$setup_log" >/dev/null \
+        || die "Slice 14 setup log missing apply-zone-bindings command summary"
+    grep -F 'ready-state=unbound-before-documents-visible' "$setup_log" >/dev/null \
+        || die "Slice 14 setup log does not prove the BEFORE documents were staged"
+    grep -F '$ winmux apply-zone-bindings' "$apply_log" >/dev/null \
+        || die "Slice 14 apply log missing exact command"
+    grep -F 'Applied zone bindings on monitor 1: left=ReferenceDesk, main=WorkDesk, right=CommsDesk' "$apply_log" >/dev/null \
+        || die "Slice 14 apply log missing expected success output"
+    local apply_offset
+    apply_offset="$(value_from_log apply-command-offset-seconds "$timing_log")"
+    [ -n "$apply_offset" ] || die "Slice 14 timing log missing apply command offset"
+    assert_numeric_between_inclusive "$apply_offset" 16 28 \
+        "Slice 14 apply command must happen while the apply-zone-bindings command caption is on screen"
+    grep -F "apply-command-offset-seconds=${apply_offset}" "$proof" >/dev/null \
+        || die "Slice 14 proof does not copy apply command timing"
+
+    local zone field before_value after_value
+    for zone in left main right; do
+        for field in name left width physical; do
+            before_value="$(zone_log_value "$before_bindings" "$zone" "$field")"
+            after_value="$(zone_log_value "$after_bindings" "$zone" "$field")"
+            [ -n "$before_value" ] && [ -n "$after_value" ] \
+                || die "Slice 14 missing ${field} for zone ${zone}"
+            [ "$before_value" = "$after_value" ] \
+                || die "Slice 14 changed ${field} for zone ${zone}: ${before_value} -> ${after_value}"
+        done
+    done
+
+    [ "$(zone_log_value "$after_bindings" left workspace)" = ReferenceDesk ] \
+        || die "Slice 14 after log should activate ReferenceDesk in left"
+    [ "$(zone_log_value "$after_bindings" main workspace)" = WorkDesk ] \
+        || die "Slice 14 after log should activate WorkDesk in main"
+    [ "$(zone_log_value "$after_bindings" right workspace)" = CommsDesk ] \
+        || die "Slice 14 after log should activate CommsDesk in right"
+    [ "$(zone_log_value "$before_bindings" left workspace)" != ReferenceDesk ] \
+        || die "Slice 14 before log already had ReferenceDesk active in left"
+    [ "$(zone_log_value "$before_bindings" main workspace)" != WorkDesk ] \
+        || die "Slice 14 before log already had WorkDesk active in main"
+    [ "$(zone_log_value "$before_bindings" right workspace)" != CommsDesk ] \
+        || die "Slice 14 before log already had CommsDesk active in right"
+
+    local before_count after_count
+    before_count="$(grep -c '^' "$before_windows" || true)"
+    after_count="$(grep -c '^' "$after_windows" || true)"
+    [ "$before_count" = 3 ] \
+        || die "Slice 14 before visible TextEdit window count must be exactly 3, got ${before_count}"
+    [ "$after_count" = 3 ] \
+        || die "Slice 14 after visible TextEdit window count must be exactly 3, got ${after_count}"
+
+    [ "$(field_for_title "$before_windows" 'before-reference-zone-binding.rtf' zone)" = left ] \
+        || die "Slice 14 BEFORE REFERENCE document is not visible in left"
+    [ "$(field_for_title "$before_windows" 'before-work-zone-binding.rtf' zone)" = main ] \
+        || die "Slice 14 BEFORE WORK document is not visible in main"
+    [ "$(field_for_title "$before_windows" 'before-comms-zone-binding.rtf' zone)" = right ] \
+        || die "Slice 14 BEFORE COMMS document is not visible in right"
+    [ -z "$(field_for_title "$before_windows" 'bound-reference-desk.rtf' id)" ] \
+        || die "Slice 14 before log already shows bound-reference-desk.rtf"
+    [ -z "$(field_for_title "$before_windows" 'bound-work-desk.rtf' id)" ] \
+        || die "Slice 14 before log already shows bound-work-desk.rtf"
+    [ -z "$(field_for_title "$before_windows" 'bound-comms-desk.rtf' id)" ] \
+        || die "Slice 14 before log already shows bound-comms-desk.rtf"
+
+    [ "$(field_for_title "$after_windows" 'bound-reference-desk.rtf' zone)" = left ] \
+        || die "Slice 14 BOUND REFERENCE document is not visible in left"
+    [ "$(field_for_title "$after_windows" 'bound-work-desk.rtf' zone)" = main ] \
+        || die "Slice 14 BOUND WORK document is not visible in main"
+    [ "$(field_for_title "$after_windows" 'bound-comms-desk.rtf' zone)" = right ] \
+        || die "Slice 14 BOUND COMMS document is not visible in right"
+    [ "$(field_for_title "$after_windows" 'bound-reference-desk.rtf' workspace)" = ReferenceDesk ] \
+        || die "Slice 14 bound-reference-desk.rtf is not in ReferenceDesk"
+    [ "$(field_for_title "$after_windows" 'bound-work-desk.rtf' workspace)" = WorkDesk ] \
+        || die "Slice 14 bound-work-desk.rtf is not in WorkDesk"
+    [ "$(field_for_title "$after_windows" 'bound-comms-desk.rtf' workspace)" = CommsDesk ] \
+        || die "Slice 14 bound-comms-desk.rtf is not in CommsDesk"
+    [ -z "$(field_for_title "$after_windows" 'before-reference-zone-binding.rtf' id)" ] \
+        || die "Slice 14 after log still shows before-reference-zone-binding.rtf"
+    [ -z "$(field_for_title "$after_windows" 'before-work-zone-binding.rtf' id)" ] \
+        || die "Slice 14 after log still shows before-work-zone-binding.rtf"
+    [ -z "$(field_for_title "$after_windows" 'before-comms-zone-binding.rtf' id)" ] \
+        || die "Slice 14 after log still shows before-comms-zone-binding.rtf"
+
+    grep -F "Config: [[zone-bindings]] ReferenceDesk + WorkDesk + CommsDesk" "$annotation_plan" >/dev/null \
+        || die "Slice 14 annotations missing zone-bindings config chip"
+    grep -F "Action: before apply-zone-bindings" "$annotation_plan" >/dev/null \
+        || die "Slice 14 annotations missing before-state action chip"
+    grep -F "Run: winmux apply-zone-bindings" "$annotation_plan" >/dev/null \
+        || die "Slice 14 annotations missing apply-zone-bindings command chip"
+    grep -F "Action: ReferenceDesk, WorkDesk, CommsDesk are active" "$annotation_plan" >/dev/null \
+        || die "Slice 14 annotations missing after-state action chip"
+    grep -F "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'" "$annotation_plan" >/dev/null \
+        || die "Slice 14 annotations missing list-zones workspace proof chip"
+    awk -F '\t' '$5 == "Run: winmux apply-zone-bindings" { found = 1; ok = (($1 + 0) <= 16 && ($2 + 0) >= 28) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 14 apply command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Action: ReferenceDesk, WorkDesk, CommsDesk are active" { found = 1; ok = (($1 + 0) <= 28 && ($2 + 0) >= 38) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 14 after-state caption must be long enough to inspect the bound documents"
+
+    local sample
+    for sample in caption-01.png caption-02.png caption-03.png caption-04.png caption-05.png; do
+        require_file "${sample_dir}/${sample}"
+        [ "${sample_dir}/${sample}" -nt "$recording_path" ] \
+            || die "Slice 14 semantic sample is stale relative to recording: ${sample}"
+    done
+}
+
+require_slice_15_node_zone_binding_proof() {
+    local proof="${RUN_DIR}/slice-15-node-zone-binding-proof.txt"
+    local done="${LOGS_DIR}/slice-15-node-zone-binding.done"
+    local setup_log="${LOGS_DIR}/slice-15-node-binding-setup.log"
+    local before_bindings="${LOGS_DIR}/slice-15-zone-bindings-before.log"
+    local after_bindings="${LOGS_DIR}/slice-15-zone-bindings-after.log"
+    local before_zones="${LOGS_DIR}/slice-15-zones-before.log"
+    local after_zones="${LOGS_DIR}/slice-15-zones-after.log"
+    local window_setup="${LOGS_DIR}/slice-15-windows-setup.log"
+    local before_windows="${LOGS_DIR}/slice-15-windows-before.log"
+    local after_windows="${LOGS_DIR}/slice-15-windows-after.log"
+    local stack_log="${LOGS_DIR}/slice-15-stack-tab-group.log"
+    local bind_log="${LOGS_DIR}/slice-15-bind-node-to-zone.log"
+    local timing_log="${LOGS_DIR}/slice-15-command-timing.log"
+    local state_file="${LOGS_DIR}/slice-15-window-ids.env"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 15"
+    require_file "$setup_log"
+    require_file "$before_bindings"
+    require_file "$after_bindings"
+    require_file "$before_zones"
+    require_file "$after_zones"
+    require_file "$window_setup"
+    require_file "$before_windows"
+    require_file "$after_windows"
+    require_file "$stack_log"
+    require_file "$bind_log"
+    require_file "$timing_log"
+    require_file "$state_file"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-15.png"
+    require_slice_15_sample_manifest "$(sample_manifest_path)"
+
+    grep -F 'PASS: bind-node-to-zone moved the focused Work tab group into Comms/right and list-zone-bindings recorded the same tab-group node id.' "$proof" >/dev/null \
+        || die "Slice 15 proof does not contain the expected PASS claim"
+    grep -F '[window-tabs]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 15 config missing window-tabs table"
+    grep -F "alt-b = 'bind-node-to-zone Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 15 config missing bind-node-to-zone key binding"
+    if grep -F '[[zone-bindings]]' "$CONFIG_PATH" >/dev/null; then
+        die "Slice 15 config must not use workspace [[zone-bindings]]; this slice proves runtime node bindings"
+    fi
+
+    grep -F "Config: [mode.main.binding] alt-b = 'bind-node-to-zone Comms'" "$setup_log" >/dev/null \
+        || die "Slice 15 setup log missing node binding config summary"
+    grep -F 'Command: bind-node-to-zone Comms' "$setup_log" >/dev/null \
+        || die "Slice 15 setup log missing bind command summary"
+    grep -F 'ready-state=work-tab-group-visible-with-zero-bindings' "$setup_log" >/dev/null \
+        || die "Slice 15 setup log does not prove the tab group was staged with zero bindings"
+    grep -F 'stack-with' "$stack_log" >/dev/null \
+        || die "Slice 15 stack log missing stack-with command"
+    grep -F 'node-bindings=none' "$before_bindings" >/dev/null \
+        || die "Slice 15 before bindings log must explicitly show zero node bindings"
+    grep -F '$ winmux bind-node-to-zone Comms' "$bind_log" >/dev/null \
+        || die "Slice 15 bind log missing exact command"
+
+    local reference_id alpha_id beta_id tab_group_key tab_group_window_ids
+    reference_id="$(value_from_log REFERENCE_ID "$state_file")"
+    alpha_id="$(value_from_log WORK_ALPHA_ID "$state_file")"
+    beta_id="$(value_from_log WORK_BETA_ID "$state_file")"
+    tab_group_key="$(value_from_log TAB_GROUP_KEY "$state_file")"
+    [ -n "$reference_id" ] || die "Slice 15 state file missing REFERENCE_ID"
+    [ -n "$alpha_id" ] || die "Slice 15 state file missing WORK_ALPHA_ID"
+    [ -n "$beta_id" ] || die "Slice 15 state file missing WORK_BETA_ID"
+    [ -n "$tab_group_key" ] || die "Slice 15 state file missing TAB_GROUP_KEY"
+    tab_group_window_ids="${tab_group_key#tab-group:}"
+    [ "$tab_group_window_ids" != "$tab_group_key" ] \
+        || die "Slice 15 binding key must identify a tab group, got ${tab_group_key}"
+
+    grep -F "tab-group-key=${tab_group_key}" "$setup_log" >/dev/null \
+        || die "Slice 15 setup log does not name the tab-group key"
+    grep -F "node-id=${tab_group_key}|" "$after_bindings" >/dev/null \
+        || die "Slice 15 list-zone-bindings missing ${tab_group_key}"
+
+    local bind_offset
+    bind_offset="$(value_from_log bind-command-offset-seconds "$timing_log")"
+    [ -n "$bind_offset" ] || die "Slice 15 timing log missing bind command offset"
+    assert_numeric_between_inclusive "$bind_offset" 18 30 \
+        "Slice 15 bind command must happen while the bind-node-to-zone command caption is on screen"
+    grep -F "bind-command-offset-seconds=${bind_offset}" "$proof" >/dev/null \
+        || die "Slice 15 proof does not copy bind command timing"
+
+    [ "$(binding_log_value "$after_bindings" node-id)" = "$tab_group_key" ] \
+        || die "Slice 15 binding row has the wrong node id"
+    [ "$(binding_log_value "$after_bindings" node-type)" = "tab-group" ] \
+        || die "Slice 15 binding row must be node-type=tab-group"
+    [ "$(binding_log_value "$after_bindings" window-ids)" = "$tab_group_window_ids" ] \
+        || die "Slice 15 binding row has wrong window ids"
+    [ "$(binding_log_value "$after_bindings" zone)" = "right" ] \
+        || die "Slice 15 binding row must target zone=right"
+    [ "$(binding_log_value "$after_bindings" zone-name)" = "Comms" ] \
+        || die "Slice 15 binding row must expose zone-name=Comms"
+    [ "$(binding_log_value "$after_bindings" monitor)" = "1" ] \
+        || die "Slice 15 binding row must expose physical monitor 1"
+    grep -F 'work-alpha-node-binding.rtf' "$after_bindings" >/dev/null \
+        || die "Slice 15 binding title missing Work Alpha document"
+    grep -F 'work-beta-node-binding.rtf' "$after_bindings" >/dev/null \
+        || die "Slice 15 binding title missing Work Beta document"
+
+    local right_workspace_after
+    right_workspace_after="$(zone_log_value "$after_zones" right workspace)"
+    [ -n "$right_workspace_after" ] || die "Slice 15 after zones log missing right workspace"
+    [ "$(binding_log_value "$after_bindings" workspace)" = "$right_workspace_after" ] \
+        || die "Slice 15 binding workspace does not match the active Comms/right workspace"
+
+    local zone field before_value after_value
+    for zone in left main right; do
+        for field in name left width physical; do
+            before_value="$(zone_log_value "$before_zones" "$zone" "$field")"
+            after_value="$(zone_log_value "$after_zones" "$zone" "$field")"
+            [ -n "$before_value" ] && [ -n "$after_value" ] \
+                || die "Slice 15 missing ${field} for zone ${zone}"
+            [ "$before_value" = "$after_value" ] \
+                || die "Slice 15 changed ${field} for zone ${zone}: ${before_value} -> ${after_value}"
+        done
+    done
+
+    local before_count after_count parent
+    before_count="$(grep -c '^' "$before_windows" || true)"
+    after_count="$(grep -c '^' "$after_windows" || true)"
+    [ "$before_count" = 3 ] \
+        || die "Slice 15 before visible TextEdit window count must be exactly 3, got ${before_count}"
+    [ "$after_count" = 3 ] \
+        || die "Slice 15 after visible TextEdit window count must be exactly 3, got ${after_count}"
+
+    [ "$(field_for_title "$before_windows" 'reference-node-binding.rtf' id)" = "$reference_id" ] \
+        || die "Slice 15 reference window id changed before binding"
+    [ "$(field_for_title "$before_windows" 'work-alpha-node-binding.rtf' id)" = "$alpha_id" ] \
+        || die "Slice 15 Work Alpha id missing before binding"
+    [ "$(field_for_title "$before_windows" 'work-beta-node-binding.rtf' id)" = "$beta_id" ] \
+        || die "Slice 15 Work Beta id missing before binding"
+    [ "$(field_for_title "$before_windows" 'reference-node-binding.rtf' zone)" = left ] \
+        || die "Slice 15 reference document is not visible in left before binding"
+    [ "$(field_for_title "$before_windows" 'work-alpha-node-binding.rtf' zone)" = main ] \
+        || die "Slice 15 Work Alpha is not visible in Work/main before binding"
+    [ "$(field_for_title "$before_windows" 'work-beta-node-binding.rtf' zone)" = main ] \
+        || die "Slice 15 Work Beta is not visible in Work/main before binding"
+    for title in work-alpha-node-binding.rtf work-beta-node-binding.rtf; do
+        parent="$(field_for_title "$before_windows" "$title" parent)"
+        case "$parent" in
+            *tab_group*) ;;
+            *) die "Slice 15 ${title} must be in a tab group before binding, got parent=${parent:-missing}" ;;
+        esac
+    done
+
+    [ "$(field_for_title "$after_windows" 'reference-node-binding.rtf' id)" = "$reference_id" ] \
+        || die "Slice 15 reference window id changed after binding"
+    [ "$(field_for_title "$after_windows" 'work-alpha-node-binding.rtf' id)" = "$alpha_id" ] \
+        || die "Slice 15 Work Alpha id missing after binding"
+    [ "$(field_for_title "$after_windows" 'work-beta-node-binding.rtf' id)" = "$beta_id" ] \
+        || die "Slice 15 Work Beta id missing after binding"
+    [ "$(field_for_title "$after_windows" 'reference-node-binding.rtf' zone)" = left ] \
+        || die "Slice 15 reference document should remain in left after binding"
+    [ "$(field_for_title "$after_windows" 'work-alpha-node-binding.rtf' zone)" = right ] \
+        || die "Slice 15 Work Alpha is not visible in Comms/right after binding"
+    [ "$(field_for_title "$after_windows" 'work-beta-node-binding.rtf' zone)" = right ] \
+        || die "Slice 15 Work Beta is not visible in Comms/right after binding"
+    for title in work-alpha-node-binding.rtf work-beta-node-binding.rtf; do
+        parent="$(field_for_title "$after_windows" "$title" parent)"
+        case "$parent" in
+            *tab_group*) ;;
+            *) die "Slice 15 ${title} must remain in a tab group after binding, got parent=${parent:-missing}" ;;
+        esac
+    done
+
+    grep -F "Config: alt-b = 'bind-node-to-zone Comms'" "$annotation_plan" >/dev/null \
+        || die "Slice 15 annotations missing bind-node-to-zone config chip"
+    grep -F "Run: winmux list-zone-bindings --count" "$annotation_plan" >/dev/null \
+        || die "Slice 15 annotations missing before binding count chip"
+    grep -F "Run: winmux bind-node-to-zone Comms" "$annotation_plan" >/dev/null \
+        || die "Slice 15 annotations missing bind-node-to-zone command chip"
+    grep -F "Action: tab-group node is in Comms/right" "$annotation_plan" >/dev/null \
+        || die "Slice 15 annotations missing after-state action chip"
+    grep -F "Run: winmux list-zone-bindings" "$annotation_plan" >/dev/null \
+        || die "Slice 15 annotations missing final list-zone-bindings chip"
+    awk -F '\t' '$5 == "Run: winmux bind-node-to-zone Comms" { found = 1; ok = (($1 + 0) <= 18 && ($2 + 0) >= 30) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 15 bind command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Action: tab-group node is in Comms/right" { found = 1; ok = (($1 + 0) <= 30 && ($2 + 0) >= 44) } END { exit(found && ok ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 15 after-state caption must be long enough to inspect the moved tab group"
+}
+
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
@@ -2739,6 +3296,7 @@ annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 raw_recording="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 color_sentinel_manifest="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
+expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotation_plan" ]; then
     require_file "$annotation_log"
     require_file "$annotation_plan"
@@ -2760,6 +3318,19 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
             exit 1
         }
     ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
+    if [ -s "$expected_chips" ]; then
+        while IFS= read -r expected_chip; do
+            [ -n "$expected_chip" ] || continue
+            grep -F "$expected_chip" "$annotation_plan" >/dev/null \
+                || die "Annotation plan missing expected caption chip: $expected_chip"
+        done <"$expected_chips"
+    fi
+    edge_crop_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
+    if [ -s "$edge_crop_manifest" ]; then
+        require_edge_crop_manifest "$edge_crop_manifest"
+    elif [ "$CHECK_ONLY" = "1" ] && requires_current_artifact_contract; then
+        die "Annotated artifact is missing final edge/corner crop manifest in --check-only mode: $edge_crop_manifest"
+    fi
 fi
 
 if [ -s "$color_sentinel_manifest" ]; then
@@ -2815,11 +3386,24 @@ case "$recording_name" in
     slice-13-zone-mode-bindings)
         require_slice_13_zone_mode_bindings_proof
         ;;
+    slice-14-zone-bindings)
+        require_slice_14_zone_bindings_proof
+        ;;
+    slice-15-node-zone-binding)
+        require_slice_15_node_zone_binding_proof
+        ;;
+    slice-16-mouse-snap-affordance)
+        require_slice_16_mouse_snap_affordance_proof
+        ;;
 esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
     review_path="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
     require_file "$review_path"
+    if requires_current_artifact_contract; then
+        require_review_freshness "$review_path"
+        require_review_mentions_semantic_samples "$review_path" "$(sample_manifest_path)"
+    fi
     verdict="$(tail -n 1 "$review_path")"
     case "$verdict" in
         PASS|PASS_WITH_NOTES) ;;
@@ -2827,6 +3411,12 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     esac
     grep -F 'next slice allowed: yes' "$review_path" >/dev/null \
         || die "Review must explicitly allow the next slice"
+    if requires_current_artifact_contract; then
+        grep -F 'resources/screenshots/winmux-overview.png' "$review_path" >/dev/null \
+            || die "Review must cite the baseline overview screenshot"
+        grep -F 'demo.mp4' "$review_path" >/dev/null \
+            || die "Review must cite repo-root demo baseline media"
+    fi
 fi
 
 log "recording=$recording_path"

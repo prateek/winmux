@@ -1,0 +1,32 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[window-tabs]
+enabled = true
+height = 36
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 240
+collapsed-width = 64
+show-date = false
+
+[mode.main.binding]
+alt-b = 'bind-node-to-zone Comms'
+alt-u = 'unbind-node-zone-binding'

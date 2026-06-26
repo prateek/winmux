@@ -8,6 +8,56 @@ public struct ZoneSelector: Equatable, Sendable, CustomStringConvertible {
     public var description: String { raw }
 }
 
+public struct BindNodeToZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .bindNodeToZone,
+        allowInConfig: true,
+        help: bind_node_to_zone_help_generated,
+        flags: [
+            "--window-id": optionalWindowIdFlag(),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>")],
+    )
+
+    public init(zone: ZoneSelector) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+    }
+
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+}
+
+func parseBindNodeToZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<BindNodeToZoneCmdArgs> {
+    parseSpecificCmdArgs(BindNodeToZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct ApplyZoneBindingsCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .applyZoneBindings,
+        allowInConfig: true,
+        help: apply_zone_bindings_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [],
+    )
+
+    public init(monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+}
+
+func parseApplyZoneBindingsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ApplyZoneBindingsCmdArgs> {
+    parseSpecificCmdArgs(ApplyZoneBindingsCmdArgs(rawArgs: args), args)
+}
+
 public struct FocusZoneCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -58,6 +108,29 @@ public struct MoveNodeToZoneCmdArgs: CmdArgs {
 
 func parseMoveNodeToZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToZoneCmdArgs> {
     parseSpecificCmdArgs(MoveNodeToZoneCmdArgs(rawArgs: args), args)
+}
+
+public struct UnbindNodeZoneBindingCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .unbindNodeZoneBinding,
+        allowInConfig: true,
+        help: unbind_node_zone_binding_help_generated,
+        flags: [
+            "--window-id": optionalWindowIdFlag(),
+        ],
+        posArgs: [],
+    )
+
+    public init(windowId: UInt32? = nil) {
+        self.commonState = .init([])
+        self.windowId = windowId
+    }
+}
+
+func parseUnbindNodeZoneBindingCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UnbindNodeZoneBindingCmdArgs> {
+    parseSpecificCmdArgs(UnbindNodeZoneBindingCmdArgs(rawArgs: args), args)
 }
 
 public struct EnableZoneCmdArgs: CmdArgs {
@@ -389,6 +462,26 @@ public struct UseZoneSceneCmdArgs: CmdArgs {
 
 func parseUseZoneSceneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneSceneCmdArgs> {
     parseSpecificCmdArgs(UseZoneSceneCmdArgs(rawArgs: args), args)
+}
+
+public struct ListZoneBindingsCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .listZoneBindings,
+        allowInConfig: false,
+        help: list_zone_bindings_help_generated,
+        flags: [
+            "--count": trueBoolFlag(\.outputOnlyCount),
+        ],
+        posArgs: [],
+    )
+
+    public var outputOnlyCount: Bool = false
+}
+
+func parseListZoneBindingsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListZoneBindingsCmdArgs> {
+    parseSpecificCmdArgs(ListZoneBindingsCmdArgs(rawArgs: args), args)
 }
 
 public struct ListZonesCmdArgs: CmdArgs, JsonFormattableListCmdArgs {

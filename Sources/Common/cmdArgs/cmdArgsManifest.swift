@@ -2,8 +2,10 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     // Sorted
 
     case agent
+    case applyZoneBindings = "apply-zone-bindings"
     case balanceSizes = "balance-sizes"
     case balanceZones = "balance-zones"
+    case bindNodeToZone = "bind-node-to-zone"
     case close
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
     case config
@@ -29,6 +31,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case listMonitors = "list-monitors"
     case listWindows = "list-windows"
     case listWorkspaces = "list-workspaces"
+    case listZoneBindings = "list-zone-bindings"
     case listZones = "list-zones"
     case macosNativeFullscreen = "macos-native-fullscreen"
     case macosNativeMinimize = "macos-native-minimize"
@@ -54,6 +57,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case swap
     case toggleZone = "toggle-zone"
     case triggerBinding = "trigger-binding"
+    case unbindNodeZoneBinding = "unbind-node-zone-binding"
     case useZoneAvailability = "use-zone-availability"
     case useZoneLayout = "use-zone-layout"
     case useZoneScene = "use-zone-scene"
@@ -68,10 +72,14 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
         switch kind {
             case .agent:
                 result[kind.rawValue] = SubCommandParser(parseAgentCmdArgs)
+            case .applyZoneBindings:
+                result[kind.rawValue] = SubCommandParser(parseApplyZoneBindingsCmdArgs)
             case .balanceSizes:
                 result[kind.rawValue] = SubCommandParser(BalanceSizesCmdArgs.init)
             case .balanceZones:
                 result[kind.rawValue] = SubCommandParser(parseBalanceZonesCmdArgs)
+            case .bindNodeToZone:
+                result[kind.rawValue] = SubCommandParser(parseBindNodeToZoneCmdArgs)
             case .close:
                 result[kind.rawValue] = SubCommandParser(CloseCmdArgs.init)
             case .closeAllWindowsButCurrent:
@@ -122,6 +130,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseListWindowsCmdArgs)
             case .listWorkspaces:
                 result[kind.rawValue] = SubCommandParser(parseListWorkspacesCmdArgs)
+            case .listZoneBindings:
+                result[kind.rawValue] = SubCommandParser(parseListZoneBindingsCmdArgs)
             case .listZones:
                 result[kind.rawValue] = SubCommandParser(parseListZonesCmdArgs)
             case .macosNativeFullscreen:
@@ -176,6 +186,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseToggleZoneCmdArgs)
             case .triggerBinding:
                 result[kind.rawValue] = SubCommandParser(parseTriggerBindingCmdArgs)
+            case .unbindNodeZoneBinding:
+                result[kind.rawValue] = SubCommandParser(parseUnbindNodeZoneBindingCmdArgs)
             case .useZoneAvailability:
                 result[kind.rawValue] = SubCommandParser(parseUseZoneAvailabilityCmdArgs)
             case .useZoneLayout:

@@ -50,8 +50,17 @@ fi
 if [ "$ACTION" = "slice-12" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mouse-snap.toml"
 fi
+if [ "$ACTION" = "slice-16" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mouse-snap.toml"
+fi
 if [ "$ACTION" = "slice-13" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mode-bindings.toml"
+fi
+if [ "$ACTION" = "slice-14" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-bindings.toml"
+fi
+if [ "$ACTION" = "slice-15" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-node-bindings.toml"
 fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
@@ -78,6 +87,7 @@ SSH_PASSWORD="${WINMUX_E2E_SSH_PASSWORD:-admin}"
 GUEST_ACTION_ATTEMPTS="${WINMUX_E2E_GUEST_ACTION_ATTEMPTS:-5}"
 GUEST_ACTION_RETRY_SECONDS="${WINMUX_E2E_GUEST_ACTION_RETRY_SECONDS:-3}"
 GUEST_ACTION_SEMANTIC_FAILURE_EXIT="${WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT:-86}"
+GUEST_ACTION_MUTATION_MARKER="${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
 GUEST_CAPTURE_READY_ATTEMPTS="${WINMUX_E2E_GUEST_CAPTURE_READY_ATTEMPTS:-30}"
 GUEST_CAPTURE_READY_RETRY_SECONDS="${WINMUX_E2E_GUEST_CAPTURE_READY_RETRY_SECONDS:-2}"
 CAPTURE_MODE="${WINMUX_E2E_CAPTURE_MODE:-}"
@@ -102,7 +112,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13>
+Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -126,6 +136,7 @@ Environment:
   WINMUX_E2E_SSH_PASSWORD=admin     SSH password for ssh guest control.
   WINMUX_E2E_GUEST_ACTION_ATTEMPTS=5  Retries for guest artifact actions.
   WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT=86  Guest exit code that stops retries.
+  WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER=winmux-e2e-mutation-started=1  Log marker that stops retries after product mutation.
   WINMUX_E2E_GUEST_CAPTURE_READY_ATTEMPTS=30  Screenshot probes before guest capture starts.
   WINMUX_E2E_CAPTURE_MODE=host|guest  Capture from the host display or the guest display.
   WINMUX_E2E_GUEST_ARTIFACTS_DIR=...  Guest path for the shared artifacts mount.
@@ -319,10 +330,20 @@ simulate_guest_action_retry_policy() {
     shift 2
     local attempt=1
     local failures=0
-    local status
+    local status status_token mutated
 
-    for status in "$@"; do
+    for status_token in "$@"; do
         [ "$attempt" -le "$max_attempts" ] || break
+        mutated=no
+        case "$status_token" in
+            *:mutated)
+                status="${status_token%%:*}"
+                mutated=yes
+                ;;
+            *)
+                status="$status_token"
+                ;;
+        esac
         if [ "$status" -eq 0 ]; then
             printf 'final_result=success attempts=%s failure_count=%s\n' "$attempt" "$failures"
             return 0
@@ -330,6 +351,10 @@ simulate_guest_action_retry_policy() {
         failures=$((failures + 1))
         if [ "$status" -eq "$semantic_exit" ]; then
             printf 'final_result=semantic_failure attempts=%s failure_count=%s\n' "$attempt" "$failures"
+            return 0
+        fi
+        if [ "$mutated" = yes ]; then
+            printf 'final_result=mutation_failure attempts=%s failure_count=%s\n' "$attempt" "$failures"
             return 0
         fi
         attempt=$((attempt + 1))
@@ -358,6 +383,7 @@ warmup_policy_self_test() {
     assert_warmup_policy_fail "three successes without adjacent pair" 10 success failure success failure success
     assert_warmup_policy_fail "max attempts exhausted before adjacent recovery" 3 success failure success success
     assert_guest_retry_policy_result "semantic failure stops retries" semantic_failure 1 5 86 86 0 0
+    assert_guest_retry_policy_result "post-mutation failure stops retries" mutation_failure 1 5 86 1:mutated 0 0
     assert_guest_retry_policy_result "transient failure retries until success" success 3 5 86 1 1 0
     assert_guest_retry_policy_result "ordinary failures exhaust attempts" failure 5 5 86 1 1 1 1 1
     log "Warm-up policy self-test passed"
@@ -413,6 +439,7 @@ write_preflight_log() {
         printf 'guest_action_attempts=%s\n' "$GUEST_ACTION_ATTEMPTS"
         printf 'guest_action_retry_seconds=%s\n' "$GUEST_ACTION_RETRY_SECONDS"
         printf 'guest_action_semantic_failure_exit=%s\n' "$GUEST_ACTION_SEMANTIC_FAILURE_EXIT"
+        printf 'guest_action_mutation_marker=%s\n' "$GUEST_ACTION_MUTATION_MARKER"
         printf 'guest_capture_ready_attempts=%s\n' "$GUEST_CAPTURE_READY_ATTEMPTS"
         printf 'guest_capture_ready_retry_seconds=%s\n' "$GUEST_CAPTURE_READY_RETRY_SECONDS"
         printf 'capture_mode=%s\n' "$CAPTURE_MODE"
@@ -565,6 +592,16 @@ guest_script_retry() {
                 printf 'final_result=semantic_failure\n'
             } >>"$log_path"
             write_run_abort_status "$(basename "$log_path" .log)" "$status" semantic_failure "$log_path" "guest scenario returned semantic failure"
+            return "$status"
+        fi
+        if grep -F "$GUEST_ACTION_MUTATION_MARKER" "$log_path" >/dev/null 2>&1; then
+            log "Guest action attempt ${attempt}/${GUEST_ACTION_ATTEMPTS} failed after product mutation; not retrying; see $log_path"
+            {
+                printf 'result=mutation_failure\n'
+                printf 'failure_count=%s\n' "$failure_count"
+                printf 'final_result=mutation_failure\n'
+            } >>"$log_path"
+            write_run_abort_status "$(basename "$log_path" .log)" "$status" mutation_failure "$log_path" "guest action failed after mutation marker"
             return "$status"
         fi
 
@@ -1205,6 +1242,18 @@ CAPTIONS
 64	72	Inspect placement	The window log proves the same id moved from Work/main to Comms/right.	Run: winmux list-windows --monitor all
 CAPTIONS
             ;;
+        slice-16-mouse-snap-affordance)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Snap affordance ready	Mouse snap policy is configured for a whole-zone target.	Config: [mouse.zone-snap] policy='snap-on-modifier', modifier='alt', target='zone'
+8	19	Freeform drag	Drag without Option: no snap overlay and no zone move.	Action: drag snap-demo.rtf without Option
+19	27	Freeform result	The same window remains in Work after the no-modifier drag.	Run: winmux list-windows --monitor all
+27	35	Reset source	The proof window returns to Work before the snap attempt.	Action: reset snap-demo.rtf to Work
+35	45	Hold Option and drag	The configured modifier turns the drag into a zone snap.	Action: hold Option while dragging: snap to Comms zone
+45	56	Whole-zone overlay	The target affordance is the whole Comms zone, not a window or slot.	Action: Snap to whole Comms zone, not a window
+56	64	Release on zone	Drop with Option held to move the same window to Comms.	Action: release on Comms zone
+64	72	Inspect placement	The window log proves the same id moved from Work/main to Comms/right.	Run: winmux list-windows --monitor all
+CAPTIONS
+            ;;
         slice-13-zone-mode-bindings)
             cat >"$captions_path" <<'CAPTIONS'
 0	5	Zone mode ready	Alt-Z opens a compact zone command mode for relative zone actions.	Config: alt-z = 'mode zone'
@@ -1215,6 +1264,24 @@ CAPTIONS
 38	47	Hide current zone	The current Comms zone is hidden without losing its workspace.	Action: Alt-Z, T -> toggle-zone current
 47	58	Restore current zone	The next toggle restores the same hidden Comms zone.	Action: Alt-Z, T -> toggle-zone current
 58	90	Inspect state	The live board and logs show ids, zones, workspaces, and widths.	Run: winmux list-zones && winmux list-windows
+CAPTIONS
+            ;;
+        slice-14-zone-bindings)
+            cat >"$captions_path" <<'CAPTIONS'
+0	7	Binding-ready zones	Reference, Work, and Comms start with unbound demo workspaces.	Config: [[zone-bindings]] ReferenceDesk + WorkDesk + CommsDesk
+7	16	Before bindings	Large BEFORE documents show the current active workspace in each zone.	Action: before apply-zone-bindings
+16	28	Apply workspace bindings	One command activates the configured workspace in each named zone.	Run: winmux apply-zone-bindings
+28	38	After bindings	Large BOUND documents replace the before workspaces in the same zones.	Action: ReferenceDesk, WorkDesk, CommsDesk are active
+38	46	Inspect bindings	The CLI exposes the final zone-to-workspace assignment.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
+CAPTIONS
+            ;;
+        slice-15-node-zone-binding)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Node-binding ready	Work Alpha and Work Beta start as one tab group in Work/main.	Config: alt-b = 'bind-node-to-zone Comms'
+8	18	Before binding	list-zone-bindings is empty while the tab group remains in Work.	Run: winmux list-zone-bindings --count
+18	30	Bind focused tab group	The focused Work tab group is bound and moved to Comms/right.	Run: winmux bind-node-to-zone Comms
+30	44	After binding	The same window ids stay together as a tab group in Comms/right.	Action: tab-group node is in Comms/right
+44	54	Inspect node binding	The binding row exposes node id, type, title, zone, workspace, and monitor.	Run: winmux list-zone-bindings
 CAPTIONS
             ;;
         *)
@@ -1238,6 +1305,7 @@ annotate_recording() {
 
     mkdir -p "$raw_dir"
     write_annotation_plan "$name" "$captions_path"
+    write_expected_caption_chips "$name"
     mv "$path" "$raw_path"
     if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
@@ -1245,6 +1313,17 @@ annotate_recording() {
     fi
     [ -s "$path" ] || die "Annotated recording did not produce a non-empty file: $path"
     [ -s "$raw_path" ] || die "Raw recording was not preserved: $raw_path"
+}
+
+write_expected_caption_chips() {
+    local name="$1"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    local expected_chips_path="${LOGS_DIR}/${name}.expected-chips.txt"
+    [ -s "$captions_path" ] || return 0
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        $5 != "" { print $5 }
+    ' "$captions_path" >"$expected_chips_path"
 }
 
 annotation_preflight() {
@@ -1284,7 +1363,10 @@ annotation_preflight() {
         slice-11b-zone-style-controls \
         slice-11c-zone-availability-sets \
         slice-12-mouse-zone-snap-drag \
-        slice-13-zone-mode-bindings
+        slice-13-zone-mode-bindings \
+        slice-14-zone-bindings \
+        slice-15-node-zone-binding \
+        slice-16-mouse-snap-affordance
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1461,6 +1543,35 @@ write_semantic_sample_manifest() {
                 "screenshots/99-after-slice-12.png" \
                 "same source window is placed in Comms/right after release"
             ;;
+        slice-16-mouse-snap-affordance)
+            append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
+                "screenshots/02-freeform-pickup-slice-16.png" \
+                "desktop window pickup without Option"
+            append_sample_manifest_row "$manifest_path" semantic freeform-hover-no-overlay screenshot screenshot \
+                "screenshots/03-freeform-hover-no-overlay-slice-16.png" \
+                "missing-modifier drag over Comms has no whole-zone snap overlay"
+            append_sample_manifest_row "$manifest_path" semantic reset-before-snap screenshot screenshot \
+                "screenshots/04-reset-before-snap-slice-16.png" \
+                "same source window reset to Work before positive snap"
+            append_sample_manifest_row "$manifest_path" semantic snap-command-start caption-05 35.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "hold-Option action caption while source window is still in Work"
+            append_sample_manifest_row "$manifest_path" semantic snap-pickup screenshot screenshot \
+                "screenshots/05-snap-pickup-slice-16.png" \
+                "Option-held desktop window pickup"
+            append_sample_manifest_row "$manifest_path" semantic snap-path screenshot screenshot \
+                "screenshots/06-snap-path-slice-16.png" \
+                "Option-held desktop drag path toward Comms"
+            append_sample_manifest_row "$manifest_path" semantic snap-hover-comms screenshot screenshot \
+                "screenshots/07-snap-hover-comms-slice-16.png" \
+                "whole Comms zone overlay is visible before release"
+            append_sample_manifest_row "$manifest_path" semantic snap-release caption-07 56.100 \
+                "screenshots/${name}.samples/caption-07-boundary-start.png" \
+                "release caption starts while the whole-zone target is still visible"
+            append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
+                "screenshots/99-after-slice-16.png" \
+                "same source window is placed in Comms/right after release"
+            ;;
         slice-13-zone-mode-bindings)
             append_sample_manifest_row "$manifest_path" semantic before-focus-next screenshot screenshot \
                 "screenshots/02-before-focus-next-slice-13.png" \
@@ -1489,6 +1600,23 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic after-toggle-restored screenshot screenshot \
                 "screenshots/08-after-toggle-restored-slice-13.png" \
                 "Comms/right is restored and target right/Comms by a second toggle-zone current"
+            ;;
+        slice-15-node-zone-binding)
+            append_sample_manifest_row "$manifest_path" semantic ready-tab-group screenshot screenshot \
+                "screenshots/01-ready-slice-15.png" \
+                "Work Alpha and Work Beta are staged as one tab group in Work/main"
+            append_sample_manifest_row "$manifest_path" semantic before-bindings-empty caption-02 8.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "before-binding caption starts while list-zone-bindings is still empty"
+            append_sample_manifest_row "$manifest_path" semantic bind-command-start caption-03 18.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "bind-node-to-zone command caption starts before the tab group moves to Comms"
+            append_sample_manifest_row "$manifest_path" semantic after-node-binding screenshot screenshot \
+                "screenshots/99-after-slice-15.png" \
+                "same tab group window ids are visible in Comms/right after binding"
+            append_sample_manifest_row "$manifest_path" semantic inspect-node-binding caption-05 44.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "list-zone-bindings inspection caption shows the runtime node binding row"
             ;;
     esac
 }
@@ -1566,6 +1694,68 @@ write_guest_transport_summary() {
     write_transport_summary_row "$summary_path" warmup-before-recording "${LOGS_DIR}/guest-control-warmup-before-recording.log" yes
     write_transport_summary_row "$summary_path" guest-recording "${LOGS_DIR}/${name}.guest-screencapture.log" no
     [ -s "$summary_path" ] || die "Guest transport summary did not produce a non-empty file: $summary_path"
+}
+
+zone_log_field() {
+    local log_path="$1"
+    local zone_id="$2"
+    local key="$3"
+    /usr/bin/awk -F'|' -v zone="zone=${zone_id}" -v key="$key" '$1 == zone {
+        for (i = 1; i <= NF; i++) {
+            if (index($i, key "=") == 1) {
+                print substr($i, length(key) + 2)
+                exit
+            }
+        }
+    }' "$log_path"
+}
+
+write_mouse_snap_overlay_sentinel() {
+    local name="$1"
+    case "$name" in
+        slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance) ;;
+        *) return 0 ;;
+    esac
+    command -v magick >/dev/null 2>&1 || return 0
+    command -v compare >/dev/null 2>&1 || return 0
+
+    local slice_prefix="slice-12"
+    if [ "$name" = "slice-16-mouse-snap-affordance" ]; then
+        slice_prefix="slice-16"
+    fi
+    local zones_log="${LOGS_DIR}/${slice_prefix}-zones.log"
+    local freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
+    local snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
+    [ -s "$zones_log" ] || return 0
+    [ -s "$freeform" ] || return 0
+    [ -s "$snap" ] || return 0
+
+    local left top width height crop diff_raw diff_norm
+    left="$(zone_log_field "$zones_log" right left)"
+    top="$(zone_log_field "$zones_log" right top)"
+    width="$(zone_log_field "$zones_log" right width)"
+    height="$(zone_log_field "$zones_log" right height)"
+    [ -n "$left" ] && [ -n "$top" ] && [ -n "$width" ] && [ -n "$height" ] || return 0
+    crop="$(awk -v w="$width" -v h="$height" -v x="$left" -v y="$top" 'BEGIN { printf "%dx%d+%d+%d", w + 0, h + 0, x + 0, y + 0 }')"
+
+    local crop_dir="${SCREENSHOTS_DIR}/${name}.overlay-sentinel"
+    local manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    rm -rf "$crop_dir"
+    mkdir -p "$crop_dir"
+    magick "$freeform" -crop "$crop" +repage "${crop_dir}/freeform-target-zone.png"
+    magick "$snap" -crop "$crop" +repage "${crop_dir}/snap-target-zone.png"
+    diff_raw="$(compare -metric RMSE "${crop_dir}/freeform-target-zone.png" "${crop_dir}/snap-target-zone.png" null: 2>&1 || true)"
+    diff_norm="$(printf '%s\n' "$diff_raw" | sed -n 's/.*(\([0-9.][0-9.]*\)).*/\1/p')"
+    [ -n "$diff_norm" ] || die "Could not compute mouse snap overlay RMSE for $name: $diff_raw"
+    {
+        printf '# label\tvalue\tminimum\tpath\tnote\n'
+        printf 'target-zone-crop\t%s\t\tlogs/%s-zones.log\tright/Comms crop derived from list-zones\n' "$crop" "$slice_prefix"
+        printf 'freeform-target-zone-crop\t\t\tscreenshots/%s.overlay-sentinel/freeform-target-zone.png\tno-Alt hover target-zone crop\n' "$name"
+        printf 'snap-target-zone-crop\t\t\tscreenshots/%s.overlay-sentinel/snap-target-zone.png\tAlt-held hover target-zone crop\n' "$name"
+        printf 'overlay-rmse-normalized\t%s\t0.025\t\tAlt-held target-zone hover must visibly differ from no-Alt hover\n' "$diff_norm"
+        printf 'target-semantics\twhole-zone\t\tscreenshots/%s\tsnap target is the whole Comms zone, not a window or slot\n' "$(basename "$snap")"
+    } >"$manifest"
+    [ -s "$manifest" ] || die "Mouse snap overlay sentinel did not produce a non-empty file: $manifest"
 }
 
 generate_recording_samples() {
@@ -1674,6 +1864,79 @@ generate_recording_samples() {
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
 }
 
+generate_final_edge_crops() {
+    local name="$1"
+    local after_screenshot
+    after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
+    [ -s "$after_screenshot" ] || return 0
+    command -v magick >/dev/null 2>&1 || return 0
+
+    local crop_dir="${SCREENSHOTS_DIR}/${name}.edge-crops"
+    local manifest="${LOGS_DIR}/${name}.edge-crops.tsv"
+    local width height edge_w edge_h corner_w corner_h bottom_y right_x
+    read -r width height < <(magick identify -format '%w %h\n' "$after_screenshot")
+    [ -n "$width" ] && [ -n "$height" ] || die "Could not read final screenshot size: $after_screenshot"
+
+    edge_w=$((width < 240 ? width : 240))
+    edge_h=$((height < 180 ? height : 180))
+    corner_w=$((width < 360 ? width : 360))
+    corner_h=$((height < 240 ? height : 240))
+    bottom_y=$((height - edge_h))
+    right_x=$((width - edge_w))
+
+    rm -rf "$crop_dir"
+    mkdir -p "$crop_dir"
+    {
+        printf '# label\tpath\tdescription\n'
+        printf 'final-top\tscreenshots/%s.edge-crops/final-top.png\tfinal screenshot top edge\n' "$name"
+        printf 'final-bottom\tscreenshots/%s.edge-crops/final-bottom.png\tfinal screenshot bottom edge\n' "$name"
+        printf 'final-left\tscreenshots/%s.edge-crops/final-left.png\tfinal screenshot left edge\n' "$name"
+        printf 'final-right\tscreenshots/%s.edge-crops/final-right.png\tfinal screenshot right edge\n' "$name"
+        printf 'final-bottom-right\tscreenshots/%s.edge-crops/final-bottom-right.png\tfinal screenshot bottom-right corner\n' "$name"
+    } >"$manifest"
+
+    magick "$after_screenshot" -crop "${width}x${edge_h}+0+0" "${crop_dir}/final-top.png"
+    magick "$after_screenshot" -crop "${width}x${edge_h}+0+${bottom_y}" "${crop_dir}/final-bottom.png"
+    magick "$after_screenshot" -crop "${edge_w}x${height}+0+0" "${crop_dir}/final-left.png"
+    magick "$after_screenshot" -crop "${edge_w}x${height}+${right_x}+0" "${crop_dir}/final-right.png"
+    magick "$after_screenshot" -crop "${corner_w}x${corner_h}+$((width - corner_w))+$((height - corner_h))" "${crop_dir}/final-bottom-right.png"
+
+    local near_end_sample="${SCREENSHOTS_DIR}/${name}.samples/standard-05-near-end.png"
+    if [ -s "$near_end_sample" ]; then
+        local video_width video_height video_edge_w video_edge_h video_corner_w video_corner_h video_bottom_y video_right_x
+        read -r video_width video_height < <(magick identify -format '%w %h\n' "$near_end_sample")
+        [ -n "$video_width" ] && [ -n "$video_height" ] || die "Could not read near-end video sample size: $near_end_sample"
+        video_edge_w=$((video_width < 240 ? video_width : 240))
+        video_edge_h=$((video_height < 180 ? video_height : 180))
+        video_corner_w=$((video_width < 360 ? video_width : 360))
+        video_corner_h=$((video_height < 240 ? video_height : 240))
+        video_bottom_y=$((video_height - video_edge_h))
+        video_right_x=$((video_width - video_edge_w))
+        {
+            printf 'video-near-end-top\tscreenshots/%s.edge-crops/video-near-end-top.png\tnear-end video frame top edge\n' "$name"
+            printf 'video-near-end-bottom\tscreenshots/%s.edge-crops/video-near-end-bottom.png\tnear-end video frame bottom edge\n' "$name"
+            printf 'video-near-end-left\tscreenshots/%s.edge-crops/video-near-end-left.png\tnear-end video frame left edge\n' "$name"
+            printf 'video-near-end-right\tscreenshots/%s.edge-crops/video-near-end-right.png\tnear-end video frame right edge\n' "$name"
+            printf 'video-near-end-bottom-right\tscreenshots/%s.edge-crops/video-near-end-bottom-right.png\tnear-end video frame bottom-right corner\n' "$name"
+        } >>"$manifest"
+        magick "$near_end_sample" -crop "${video_width}x${video_edge_h}+0+0" "${crop_dir}/video-near-end-top.png"
+        magick "$near_end_sample" -crop "${video_width}x${video_edge_h}+0+${video_bottom_y}" "${crop_dir}/video-near-end-bottom.png"
+        magick "$near_end_sample" -crop "${video_edge_w}x${video_height}+0+0" "${crop_dir}/video-near-end-left.png"
+        magick "$near_end_sample" -crop "${video_edge_w}x${video_height}+${video_right_x}+0" "${crop_dir}/video-near-end-right.png"
+        magick "$near_end_sample" -crop "${video_corner_w}x${video_corner_h}+$((video_width - video_corner_w))+$((video_height - video_corner_h))" "${crop_dir}/video-near-end-bottom-right.png"
+    fi
+    [ -s "$manifest" ] || die "Edge crop manifest did not produce a non-empty file: $manifest"
+}
+
+archive_existing_no_context_review() {
+    local review_path="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    [ -s "$review_path" ] || return 0
+    local archived_path
+    archived_path="${RUN_DIR}/reviews/no-ctx-artifact-review.stale-$(date -u +%Y%m%dT%H%M%SZ).md"
+    mv "$review_path" "$archived_path"
+    log "Archived stale no-context review at $archived_path"
+}
+
 refresh_annotation_artifact() {
     [ -n "${WINMUX_E2E_RUN_DIR:-}" ] || die "WINMUX_E2E_RUN_DIR is required for refresh-annotation-artifact"
     require_cmd ffmpeg
@@ -1703,6 +1966,7 @@ refresh_annotation_artifact() {
     local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
     local annotation_log="${LOGS_DIR}/${name}.annotation.log"
     write_annotation_plan "$name" "$captions_path"
+    write_expected_caption_chips "$name"
     if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$output_path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
         die "Recording annotation refresh failed for $name"
@@ -1712,7 +1976,13 @@ refresh_annotation_artifact() {
     local duration
     duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$output_path")"
     printf '%s\n' "$duration" >"${LOGS_DIR}/${name}.duration.txt"
+    if [ -s "${LOGS_DIR}/guest-control-check.log" ] || [ -s "${LOGS_DIR}/${name}.guest-screencapture.log" ]; then
+        write_guest_transport_summary "$name"
+    fi
     generate_recording_samples "$name" "$duration"
+    generate_final_edge_crops "$name"
+    write_mouse_snap_overlay_sentinel "$name"
+    archive_existing_no_context_review
     write_review_packet "$name"
     log "Refreshed annotated artifact for $name in $RUN_DIR"
 }
@@ -1749,8 +2019,10 @@ wait_for_recording() {
             ffprobe -v error -show_entries stream=codec_name,width,height,avg_frame_rate -show_entries format=duration,size -of default=noprint_wrappers=1 "$path"
         } >>"${LOGS_DIR}/${name}.guest-screencapture.log"
     fi
-    generate_recording_samples "$name" "$duration"
     write_guest_transport_summary "$name"
+    generate_recording_samples "$name" "$duration"
+    generate_final_edge_crops "$name"
+    write_mouse_snap_overlay_sentinel "$name"
     write_review_packet "$name"
 }
 
@@ -2613,6 +2885,38 @@ run_slice_12_mouse_zone_snap() {
         "${LOGS_DIR}/slice-12-run.log"
 }
 
+run_slice_16_mouse_snap_affordance_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=setup WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-16 WINMUX_E2E_RECORDING_NAME=slice-16-mouse-snap-affordance WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 16: mouse snap affordance semantics' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-16-setup.log"
+}
+
+run_slice_16_mouse_snap_affordance() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=proof WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-16 WINMUX_E2E_RECORDING_NAME=slice-16-mouse-snap-affordance WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 16: mouse snap affordance semantics' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-16-run.log"
+}
+
 run_slice_13_zone_mode_bindings_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-13-zone-mode-bindings.sh"
     local scenario_path_quoted
@@ -2643,6 +2947,62 @@ run_slice_13_zone_mode_bindings() {
     guest_script_retry \
         "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE13_PHASE=proof /bin/bash ${scenario_path_quoted}" \
         "${LOGS_DIR}/slice-13-run.log"
+}
+
+run_slice_14_zone_bindings_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-14-zone-bindings.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE14_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-14-setup.log"
+}
+
+run_slice_14_zone_bindings() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-14-zone-bindings.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE14_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-14-run.log"
+}
+
+run_slice_15_node_zone_binding_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-15-node-zone-binding.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE15_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-15-setup.log"
+}
+
+run_slice_15_node_zone_binding() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-15-node-zone-binding.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE15_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-15-run.log"
 }
 
 run_recorded_scenario() {
@@ -2768,6 +3128,18 @@ slice_13() {
     run_recorded_scenario "slice-13-zone-mode-bindings" "00-before-slice-13" "99-after-slice-13" "run_slice_13_zone_mode_bindings" "run_slice_13_zone_mode_bindings_setup" "01-ready-slice-13"
 }
 
+slice_14() {
+    run_recorded_scenario "slice-14-zone-bindings" "00-before-slice-14" "99-after-slice-14" "run_slice_14_zone_bindings" "run_slice_14_zone_bindings_setup" "01-ready-slice-14"
+}
+
+slice_15() {
+    run_recorded_scenario "slice-15-node-zone-binding" "00-before-slice-15" "99-after-slice-15" "run_slice_15_node_zone_binding" "run_slice_15_node_zone_binding_setup" "01-ready-slice-15"
+}
+
+slice_16() {
+    run_recorded_scenario "slice-16-mouse-snap-affordance" "00-before-slice-16" "99-after-slice-16" "run_slice_16_mouse_snap_affordance" "run_slice_16_mouse_snap_affordance_setup" "01-ready-slice-16"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -2828,6 +3200,15 @@ case "$ACTION" in
         ;;
     slice-13)
         slice_13
+        ;;
+    slice-14)
+        slice_14
+        ;;
+    slice-15)
+        slice_15
+        ;;
+    slice-16)
+        slice_16
         ;;
     *)
         usage >&2

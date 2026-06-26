@@ -55,12 +55,16 @@ after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
 sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
+edge_crops_dir="${SCREENSHOTS_DIR}/${recording_name}.edge-crops"
+edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
+expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 color_sentinel="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
+overlay_sentinel="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
 proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
 if [ ! -s "$visible_geometry_board" ]; then
@@ -76,6 +80,18 @@ if [ -s "$color_sentinel" ]; then
 else
     color_sentinel_label="not applicable"
 fi
+if [ -s "$overlay_sentinel" ]; then
+    overlay_sentinel_label="$overlay_sentinel"
+else
+    overlay_sentinel_label="not applicable"
+fi
+if [ -d "$edge_crops_dir" ] && [ -s "$edge_crops_manifest" ]; then
+    edge_crops_label="$edge_crops_dir"
+    edge_crops_manifest_label="$edge_crops_manifest"
+else
+    edge_crops_label="not applicable"
+    edge_crops_manifest_label="not applicable"
+fi
 
 mkdir -p "$REVIEWS_DIR"
 
@@ -86,6 +102,15 @@ drag_screenshot_lines() {
             printf("- %s drag screenshot: %s/%s\n", $2, screenshots_dir, $3)
         }
     ' "$proof_manifest"
+}
+
+expected_chip_lines() {
+    if [ -s "$expected_chips" ]; then
+        /usr/bin/awk '{ printf("- `%s`\n", $0) }' "$expected_chips"
+        return 0
+    fi
+    [ -s "$annotation_plan" ] || return 0
+    /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ && $5 != "" { printf("- `%s`\n", $5) }' "$annotation_plan"
 }
 
 slice_specific_checks() {
@@ -119,6 +144,18 @@ EOF
 - Reject final-placement-only proof, missing negative proof, missing modifier-held positive proof, an unclear snap target, or a review that assumes the overlay appeared without inspecting action frames.
 EOF
             ;;
+        slice-16-mouse-snap-affordance)
+            cat <<'EOF'
+- Confirm the recording shows two separate desktop window drags, not a sidebar drag: first without Option, then with Option held.
+- Confirm the no-Option drag has visible source pickup and hover/path over the target area, but no whole-zone snap overlay and no zone move in the after-freeform logs.
+- Confirm the Option-held drag shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
+- Inspect `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- State whether the target is a whole zone or a window/slot inside a zone. For Slice 16, the expected answer is whole zone.
+- Confirm captions expose `[mouse.zone-snap]`, `policy='snap-on-modifier'`, `modifier='alt'`, `target='zone'`, and the user action `hold Option while dragging: snap to Comms zone`.
+- Name the exact media file used for each beat: freeform pickup, freeform no-overlay hover, reset-before-snap, Option pickup, Option path, whole-zone hover/overlay, release/final placement, and overlay sentinel crops.
+- Reject final-placement-only proof, missing negative proof, missing modifier-held positive proof, missing overlay sentinel, an unclear snap target, a snap-to-window/slot claim, or a review that assumes the overlay appeared without inspecting action frames.
+EOF
+            ;;
         slice-13-zone-mode-bindings)
             cat <<'EOF'
 - Confirm the recording shows a keyboard-led `Alt-Z` zone mode sequence, not direct CLI-only actions: `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two `Alt-Z, T` toggles.
@@ -131,6 +168,17 @@ EOF
 - Confirm TextEdit document copy does not contain stale labels such as `zone: Work`, `zone: Comms`, or future-state text like "right zone restored after toggle".
 - Confirm semantic screenshots are fresh. Reject a screenshot whose board text is one checkpoint behind the named file.
 - Reject logs-only proof, stale board screenshots, stale window-copy labels, ambiguous `current` targets, command captions that omit the user action, or a review that accepts the sequence without naming the exact media checked for each beat.
+EOF
+            ;;
+        slice-15-node-zone-binding)
+            cat <<'EOF'
+- Confirm the recording starts with Work Alpha and Work Beta as one tab group in Work/main and `winmux list-zone-bindings --count` showing zero before the command.
+- Sample frames around `Run: winmux bind-node-to-zone Comms`. Fail if the tab group is already in Comms/right before the command caption starts.
+- Confirm the after-state media shows the same visible titles still together as a tab group in Comms/right. Use logs for internal window ids unless the ids are rendered in a visible state board.
+- Confirm captions expose `alt-b = 'bind-node-to-zone Comms'`, `winmux list-zone-bindings --count`, `winmux bind-node-to-zone Comms`, and `winmux list-zone-bindings`.
+- Confirm `list-zone-bindings` exposes node-id, node-type=tab-group, title, zone/right, workspace, and monitor.
+- State that Slice 15 proves runtime node binding, not `[[zone-bindings]]` workspace binding or relaunch persistence.
+- Reject logs-only proof, final-state-only proof, single-window binding proof, command-after-move proof, missing tab group evidence, or review without naming exact media for before/command/after/list beats.
 EOF
             ;;
         slice-5-sidebar-drag|*drag*)
@@ -236,7 +284,8 @@ packet fills the artifact paths and slice-specific checks.
 - name: ${recording_name}
 - artifact directory: ${RUN_DIR}
 - review output: ${REVIEW_OUTPUT_PATH}
-- verifier command: make e2e-verify-slice RUN_DIR=${RUN_DIR} ARGS=--require-review
+- verifier command: make e2e-verify-slice-check RUN_DIR=${RUN_DIR} ARGS=--require-review
+- closeout command: make e2e-slice-closeout-check RUN_DIR=${RUN_DIR}
 
 ## Media
 
@@ -249,6 +298,8 @@ packet fills the artifact paths and slice-specific checks.
 - sample frames: ${samples_dir}
 - sample manifest: ${sample_manifest}
 - caption boundary frames: ${boundary_samples_glob}
+- final edge/corner crops: ${edge_crops_label}
+- final edge/corner crop manifest: ${edge_crops_manifest_label}
 $(drag_screenshot_lines)
 
 ## Inputs And Logs
@@ -259,8 +310,10 @@ $(drag_screenshot_lines)
 - guest transport summary: ${transport_summary}
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
+- expected caption chips: ${expected_chips:-not present}
 - drag proof manifest: ${proof_manifest_label}
 - color sentinel manifest: ${color_sentinel_label}
+- overlay sentinel manifest: ${overlay_sentinel_label}
 - preflight log: ${LOGS_DIR}/preflight.log
 - guest control log: ${LOGS_DIR}/guest-control-check.log
 - privacy setup log: ${LOGS_DIR}/guest-privacy-setup.log
@@ -284,14 +337,44 @@ EOF
     slice_specific_checks
     cat <<EOF
 
+## Expected Caption Chips
+
+These exact config, command, or action chips should appear in the annotated
+recording and annotation TSV:
+
+$(expected_chip_lines)
+
+## Predicate-To-Media Table
+
+The no-context review must name exact media/log files for each applicable
+predicate. Use \`not applicable\` only when the slice truly lacks that predicate.
+
+| Predicate | Required evidence file(s) |
+| --- | --- |
+| clean desktop before setup | before screenshot and clean-slate log |
+| setup-ready state | ready screenshot or \`not applicable\` |
+| config/user command surface | annotation TSV plus caption sample/boundary frame |
+| action before-state | caption boundary frame or semantic screenshot |
+| action in progress / command boundary | caption boundary frame, action screenshot, or drag proof frame |
+| action after-state | caption sample/boundary frame and after screenshot |
+| final contamination check | full after screenshot plus final screenshot and near-end video edge/corner crops when present |
+| logs correlate with media | proof file and slice-specific logs |
+| baseline/product comparison | repo demo/screenshot or linked product surface |
+
 ## Product-Quality Floor
 
 - The desktop must start clean: no Terminal, sshd prompt, permission prompt,
   setup assistant, System Settings, unrelated windows, notification banners, or widgets.
+- The final desktop must be inspected in the full after screenshot and in
+  final screenshot plus near-end video edge/corner crops when they are present.
+  Reject any unrelated or partial setup window visible at the screen edges.
 - The reviewed recording must be the annotated primary recording, with the raw
   recording used only to debug capture or overlay issues.
 - Captions must be restrained, legible, and concrete. They must show the WinMux
   config, command, or direct action an end user would perform.
+- Do not accept post-command app automation, AppleScript cleanup, or hidden-node
+  closure as a way to hide visual leftovers unless that cleanup behavior is the
+  feature being demonstrated.
 - The visible behavior must match the logs. Logs can support the proof but cannot
   substitute for action visible in the video or sampled frames.
 - Compare content and style against the baseline media and product surfaces.

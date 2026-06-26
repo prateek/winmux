@@ -55,6 +55,18 @@ private let zoneSceneWorkspaceParser: [String: any ParserProtocol<ZoneSceneWorks
     },
 ]
 
+private let zoneBindingParser: [String: any ParserProtocol<ZoneBindingConfig>] = [
+    "monitor": Parser(\.monitor) { raw, backtrace in
+        parseMonitorDescription(raw, backtrace).map(Optional.some)
+    },
+    "zone": Parser(\.zone, parseZoneId),
+    "workspace": Parser(\.workspace) { raw, backtrace in
+        parseString(raw, backtrace)
+            .flatMap { WorkspaceName.parse($0).toParsedToml(backtrace) }
+            .map(Optional.some)
+    },
+]
+
 private let zoneStyleParser: [String: any ParserProtocol<ZoneStyleConfig>] = [
     "id": Parser(\.id, parseZoneId),
     "color": Parser(\.color, parseZoneStyleColor),
@@ -151,6 +163,26 @@ func parseZoneStyles(
     }
     validateZoneStyles(styles, backtrace, &errors)
     return styles
+}
+
+func parseZoneBindings(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> [ZoneBindingConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    let bindings = array.enumerated().map { index, rawBinding in
+        let bindingBacktrace = backtrace + .index(index)
+        var binding = parseTable(rawBinding, ZoneBindingConfig(), zoneBindingParser, bindingBacktrace, &errors)
+        validateZoneBinding(&binding, bindingBacktrace, &errors)
+        return binding
+    }
+    validateZoneBindings(bindings, backtrace, &errors)
+    return bindings
 }
 
 func parseZoneAvailabilitySets(
@@ -351,6 +383,19 @@ private func validateZoneScene(
     }
 }
 
+private func validateZoneBinding(
+    _ binding: inout ZoneBindingConfig,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    if binding.zone.isEmpty {
+        errors.append(.semantic(backtrace + .key("zone"), "Missing required key"))
+    }
+    if binding.workspace == nil {
+        errors.append(.semantic(backtrace + .key("workspace"), "Missing required key"))
+    }
+}
+
 private func validateZoneStyle(
     _ style: inout ZoneStyleConfig,
     _ backtrace: TomlBacktrace,
@@ -451,6 +496,34 @@ private func validateZoneScenes(
     }
 }
 
+private func validateZoneBindings(
+    _ bindings: [ZoneBindingConfig],
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) {
+    let duplicatedTargets = bindings.map { binding in
+        zoneBindingScopeLabel(binding) + ":" + binding.zone
+    }
+    .grouped { $0 }
+    .filter { target, bindings in !target.hasSuffix(":") && bindings.count > 1 }
+    .keys
+    .sorted()
+    if !duplicatedTargets.isEmpty {
+        errors.append(.semantic(backtrace, "Contains duplicated zone binding targets: \(duplicatedTargets.joined(separator: ", "))"))
+    }
+
+    let duplicatedWorkspaces = bindings.compactMap { binding -> String? in
+        binding.workspace.map { zoneBindingScopeLabel(binding) + ":" + $0.raw }
+    }
+    .grouped { $0 }
+    .filter { _, bindings in bindings.count > 1 }
+    .keys
+    .sorted()
+    if !duplicatedWorkspaces.isEmpty {
+        errors.append(.semantic(backtrace, "Contains duplicated workspace bindings: \(duplicatedWorkspaces.joined(separator: ", "))"))
+    }
+}
+
 private func validateZoneAvailabilitySets(
     _ sets: [ZoneAvailabilitySetConfig],
     _ backtrace: TomlBacktrace,
@@ -496,6 +569,19 @@ func validateZoneSceneReferences(_ config: Config, _ errors: inout [TomlParseErr
     }
 }
 
+func validateZoneBindingReferences(_ config: Config, _ errors: inout [TomlParseError]) {
+    let knownZoneIds = Set(
+        config.zones.flatMap(\.columns).map(\.id) +
+            config.zoneLayouts.flatMap(\.columns).map(\.id),
+    )
+    for (bindingIndex, binding) in config.zoneBindings.enumerated() where !binding.zone.isEmpty && !knownZoneIds.contains(binding.zone) {
+        errors.append(.semantic(
+            .rootKey("zone-bindings") + .index(bindingIndex) + .key("zone"),
+            "Unknown zone id '\(binding.zone)'",
+        ))
+    }
+}
+
 func validateZoneAvailabilitySetReferences(_ config: Config, _ errors: inout [TomlParseError]) {
     let knownZoneIds = Set(
         config.zones.flatMap(\.columns).map(\.id) +
@@ -518,6 +604,10 @@ private func monitorDescriptionLabel(_ monitor: MonitorDescription) -> String {
         case .secondary: "secondary"
         case .pattern(let raw, _): raw
     }
+}
+
+private func zoneBindingScopeLabel(_ binding: ZoneBindingConfig) -> String {
+    binding.monitor.map(monitorDescriptionLabel) ?? "any"
 }
 
 private func validateZoneColumn(

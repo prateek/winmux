@@ -63,6 +63,12 @@ Required checks:
    `Action: ...`. When the slice proves a before/action/after transition, inspect
    generated boundary frames such as `caption-NN-boundary-before.png`,
    `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`.
+   If the reviewer packet lists expected caption chips, compare those exact
+   chips with the visible captions and annotation TSV. Missing or materially
+   incomplete command, config, or user-action chips are a failure.
+   If the reviewer packet lists final edge/corner crops, inspect them alongside
+   the full after screenshot and reject any unrelated or partial setup window at
+   a final screen edge.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
@@ -88,7 +94,9 @@ Required checks:
 7. Check that the artifact would make sense to an end user reviewing the feature.
 8. State whether the artifact shows a clean start state, action in progress,
    final expected state, visible WinMux/product surface relevant to the slice,
-   and logs that correlate with what is visible.
+   and logs that correlate with what is visible. Name exact media/log files for
+   each important predicate; do not rely only on "the video" or "the contact
+   sheet" for action-sensitive behavior.
 
 Hard FAIL conditions:
 - before screenshot or recording shows Terminal, sshd prompts, permission prompts,
@@ -102,6 +110,9 @@ Hard FAIL conditions:
   behavior being demonstrated;
 - captions explain what happened but omit the relevant user-facing WinMux
   command/config/action needed to perform it;
+- proof uses post-command app automation, AppleScript cleanup, or hidden-node
+  closure to hide visual leftovers, unless that cleanup behavior is itself the
+  feature being demonstrated;
 - live-window slices do not show live managed windows in the claimed zones;
 - logs contradict the media, omit strict guest-control proof, or show command
   failures that the scenario silently ignored;
@@ -229,6 +240,14 @@ Slice-specific checks:
   where the reviewer cannot see whether the snap target is a whole zone versus a
   window/slot, missing freeform negative proof, missing modifier-held positive
   proof, or any review that does not name per-beat media files for the drag.
+- Slice 16 must show the same desktop mouse snap workflow, but with mechanical
+  affordance proof. It must include `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`
+  with `target-semantics` equal to `whole-zone`, freeform and snap target-zone
+  crop paths, and `overlay-rmse-normalized` meeting its minimum. Captions must
+  expose the end-user action `hold Option while dragging: snap to Comms zone`.
+  Reject missing overlay sentinel, a review that does not inspect sentinel
+  crops, ambiguous target semantics, snap-to-window/slot claims, logs-only
+  proof, or any final-placement-only proof.
 - Slice 13 must show a keyboard-led `Alt-Z` zone mode workflow. The proof must
   show `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two
   `Alt-Z, T` toggle actions with captions that expose the user-facing config or
@@ -247,6 +266,32 @@ Slice-specific checks:
   copy, captions that describe restore without naming `toggle-zone current`,
   ambiguous `current` targets, logs-only proof, or any review that does not name
   the exact media inspected for each beat.
+- Slice 14 must show workspace zone bindings with `[[zone-bindings]]` and
+  `winmux apply-zone-bindings`. The proof must show BEFORE documents visible in
+  Reference/left, Work/main, and Comms/right before the command; the
+  `Run: winmux apply-zone-bindings` caption while the BEFORE documents are still
+  visible or before the BOUND documents appear; and BOUND documents visible in
+  the same three zones after the command. Inspect caption-boundary frames around
+  the before and command captions, especially the frame immediately before the
+  command chip starts. Reject logs-only proof, final-state-only proof, a command
+  chip that appears after the BOUND documents are already visible, missing
+  `[[zone-bindings]]` config chip, missing `apply-zone-bindings` command chip,
+  or any unrelated/partial setup window visible in the final state.
+- Slice 15 must show runtime tab-group node binding with
+  `bind-node-to-zone`, not workspace `[[zone-bindings]]`. The proof must show
+  Work Alpha and Work Beta as one tab group in Work/main before the command,
+  `winmux list-zone-bindings --count` showing zero, the
+  `Run: winmux bind-node-to-zone Comms` caption while the tab group is still in
+  Work/main, the same visible titles still grouped in Comms/right after the
+  command, and a `list-zone-bindings` row with node-id,
+  node-type=tab-group, title, zone/right, workspace, and monitor. Reject
+  logs-only proof, final-state-only proof, a single-window binding proof,
+  command-after-move proof, missing tab group evidence, relaunch-persistence
+  claims, or any review that does not name exact media for before, command,
+  after, and list-inspection beats.
+  If internal window ids are not rendered in the video, distinguish visible
+  title/tab evidence from log-supported identity evidence instead of claiming
+  the ids were visually inspected.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

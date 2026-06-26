@@ -1,11 +1,17 @@
 // FILE IS GENERATED FROM docs/winmux-*.adoc files
 // TO REGENERATE THE FILE RUN generate.sh
 
+let apply_zone_bindings_help_generated = """
+    USAGE: apply-zone-bindings [-h|--help] [--monitor <monitor-pattern>]
+    """
 let balance_sizes_help_generated = """
     USAGE: balance-sizes [-h|--help] [--workspace <workspace>]
     """
 let balance_zones_help_generated = """
     USAGE: balance-zones [-h|--help] [--monitor <monitor-pattern>]
+    """
+let bind_node_to_zone_help_generated = """
+    USAGE: bind-node-to-zone [-h|--help] [--window-id <window-id>] <zone>
     """
 let close_all_windows_but_current_help_generated = """
     USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]
@@ -107,6 +113,9 @@ let list_workspaces_help_generated = """
        OR: list-workspaces [-h|--help] --all [--format <output-format>] [--count] [--json]
        OR: list-workspaces [-h|--help] --focused [--format <output-format>] [--count] [--json]
     """
+let list_zone_bindings_help_generated = """
+    USAGE: list-zone-bindings [-h|--help] [--count]
+    """
 let list_zones_help_generated = """
     USAGE: list-zones [-h|--help] [--format <output-format>] [--count] [--json]
     """
@@ -190,6 +199,9 @@ let toggle_zone_help_generated = """
     """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>
+    """
+let unbind_node_zone_binding_help_generated = """
+    USAGE: unbind-node-zone-binding [-h|--help] [--window-id <window-id>]
     """
 let use_zone_availability_help_generated = """
     USAGE: use-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>

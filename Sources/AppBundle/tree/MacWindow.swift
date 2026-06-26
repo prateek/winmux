@@ -171,20 +171,13 @@ final class MacWindow: Window {
                     CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)
             }
         }
-        let p: CGPoint
-        switch corner {
-            case .bottomLeftCorner:
-                guard let s = try await getAxSize() else { fallthrough }
-                // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/WinMux/issues/527
-                // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
-                let onePixelOffset = macApp.appId == .zoom ? .zero : CGPoint(x: 1, y: -1)
-                p = nodeMonitor.visibleRect.bottomLeftCorner + onePixelOffset + CGPoint(x: -s.width, y: 0)
-            case .bottomRightCorner:
-                // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/WinMux/issues/527
-                // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
-                let onePixelOffset = macApp.appId == .zoom ? .zero : CGPoint(x: 1, y: 1)
-                p = nodeMonitor.visibleRect.bottomRightCorner - onePixelOffset
-        }
+        let windowSize = corner == .bottomLeftCorner ? try await getAxSize() : nil
+        let p = hiddenWindowTopLeft(
+            corner: corner,
+            monitor: nodeMonitor,
+            windowSize: windowSize,
+            isZoom: macApp.appId == .zoom,
+        )
         setAxFrame(p, nil)
         hiddenInCorner = corner
     }
@@ -242,5 +235,34 @@ final class MacWindow: Window {
             Window.get(byId: windowId)?.lastKnownActualRect = rect
         }
         return rect
+    }
+}
+
+func hiddenWindowTopLeft(
+    corner: OptimalHideCorner,
+    monitor: Monitor,
+    windowSize: CGSize?,
+    isZoom: Bool,
+) -> CGPoint {
+    let parkingRect = monitor.physicalMonitor.visibleRect
+    switch corner {
+        case .bottomLeftCorner:
+            guard let windowSize else {
+                return hiddenWindowTopLeft(
+                    corner: .bottomRightCorner,
+                    monitor: monitor,
+                    windowSize: nil,
+                    isZoom: isZoom,
+                )
+            }
+            // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/WinMux/issues/527
+            // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
+            let onePixelOffset = isZoom ? .zero : CGPoint(x: 1, y: -1)
+            return parkingRect.bottomLeftCorner + onePixelOffset + CGPoint(x: -windowSize.width, y: 0)
+        case .bottomRightCorner:
+            // Zoom will jump off if you do one pixel offset https://github.com/nikitabobko/WinMux/issues/527
+            // todo this ad hoc won't be necessary once I implement optimization suggested by Zalim
+            let onePixelOffset = isZoom ? .zero : CGPoint(x: 1, y: 1)
+            return parkingRect.bottomRightCorner - onePixelOffset
     }
 }

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-13 accepted; Pre-Slice-14 cleanup checklist complete
+Status: slices 0-16 accepted; Pre-Slice-17 cleanup is next
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -43,10 +43,10 @@ Keep these concepts separate in code, config, tests, and demos:
 - `WindowOrTabGroup`: the movable content unit. Binding a tab group to a zone
   means moving the group into the target zone's active workspace.
 - `ZoneBinding`: a durable user intent that a window, tab group, app rule,
-  workspace, or scene member should prefer a zone. The current slices implement
-  this through workspace activation and move commands. A later slice must decide
-  whether tab-group/app bindings need their own persisted records beyond that
-  model.
+  workspace, or scene member should prefer a zone. Slice 14 implements
+  workspace-to-zone bindings as config plus an explicit apply command. Slice 15
+  adds runtime window/tab-group bindings and inspection without claiming
+  relaunch persistence. App-rule bindings remain a separate future entity.
 - `ZoneScene`: a named macro that applies a zone layout and activates named
   workspaces in named zones.
 - `ZoneRuntimeOverlay`: per-physical-monitor runtime state layered over config:
@@ -91,10 +91,12 @@ Current implementation comparison:
 - `ZoneAvailabilitySet` is implemented. `ZoneSnapPolicy` now has an initial
   config/model seam and fast-tested whole-zone drag resolver for desktop window
   drags into whole-zone targets.
-- `ZoneBinding` is not first-class yet. The implementation can move a window or
-  focused tab group into a zone and can route new windows with
-  `on-window-detected`, but it does not persist "this tab group belongs to this
-  zone" as its own entity.
+- `ZoneBinding` is first-class for workspace preferences through
+  `[[zone-bindings]]` and `apply-zone-bindings`. The implementation can also
+  move a window or focused tab group into a zone and can route new windows with
+  `on-window-detected`. Slice 15 is adding the missing runtime
+  `WindowOrTabGroup` binding entity through `bind-node-to-zone`,
+  `unbind-node-zone-binding`, and `list-zone-bindings`.
 
 ## Interaction Model
 
@@ -103,6 +105,10 @@ Keyboard and command workflows should stay thin over the same zone model:
 - `focus-zone <zone>` moves focus to a zone's active workspace.
 - `move-node-to-zone <zone>` moves the focused window or nearest tab group to
   the target zone's active workspace.
+- `bind-node-to-zone <zone>`, `unbind-node-zone-binding`, and
+  `list-zone-bindings` record and inspect runtime intent that a specific window
+  or tab group belongs in a zone. The binding points at a zone id; it does not
+  make the zone own the window directly.
 - `use-zone-layout`, `cycle-zone-layout`, `resize-zone`, and `balance-zones`
   change zone geometry on the target physical monitor.
 - `enable-zone`, `disable-zone`, `toggle-zone`, `use-zone-availability`, and
@@ -195,8 +201,9 @@ The ergonomic control surface should stay small and composable:
 - `use-zone-scene <scene-id>` switches layout and workspace bindings together.
 - `set-zone-style <zone> <style-id>` changes visible zone chrome without
   changing layout, size, or workspace bindings.
-- Later, `use-zone-availability <set-id>` should toggle groups such as
-  `focus-only`, `comms-open`, and `mail-open` at the layout level.
+- `use-zone-availability <set-id>` and `cycle-zone-availability <a> <b>...`
+  toggle groups such as `focus-only`, `comms-open`, and `mail-open` at the
+  layout level.
 
 Mouse behavior should be explicit, configurable, and demoable:
 
@@ -208,6 +215,9 @@ Mouse behavior should be explicit, configurable, and demoable:
 - one-handed mouse workflows should be possible through configurable gestures,
   but gesture recognition must call the same zone commands as keyboard
   bindings.
+- The current implementation only claims whole-zone snap. Snap-to-window,
+  snap-to-slot, and richer one-handed gestures need their own slice, with video
+  proof that distinguishes "snap to zone" from "snap within a zone".
 
 ## Product Semantics
 
@@ -2348,6 +2358,513 @@ Pre-Slice-14 cleanup:
   self-test.
 - [x] Add a standard failed-attempt abort marker, such as
   `logs/run-abort-status.txt`, before relying on another stateful Tart attempt.
+
+## Slice 14: Workspace Zone Bindings
+
+Goal: make `ZoneBinding` first-class for the simplest durable user intent:
+"this workspace should be shown in this zone." This keeps the chosen model
+intact: a zone is a virtual monitor viewport, and a binding activates a
+workspace in that viewport. It does not attach geometry to windows or tab
+groups.
+
+End-user config:
+
+```toml
+[[zone-bindings]]
+zone = 'left'
+workspace = 'ReferenceDesk'
+
+[[zone-bindings]]
+zone = 'main'
+workspace = 'WorkDesk'
+
+[[zone-bindings]]
+zone = 'right'
+workspace = 'CommsDesk'
+```
+
+Optional monitor scoping:
+
+```toml
+[[zone-bindings]]
+monitor = 2
+zone = 'right'
+workspace = 'SecondaryComms'
+```
+
+Command surface:
+
+- `apply-zone-bindings [--monitor <monitor-pattern>]`
+- Without `--monitor`, the command targets the focused physical monitor.
+- Generic bindings apply to the target monitor.
+- Monitor-scoped bindings apply only when their monitor selector resolves to
+  the target physical monitor.
+- A scoped binding overrides a generic binding for the same zone on that target.
+- The command creates missing named workspaces, activates each one in its bound
+  zone viewport, and does not change layout, zone width, availability, or style.
+- If a binding references a zone that is missing from the target monitor's
+  active layout, fail with an explicit error.
+- If a binding references a hidden zone, fail with an explicit error; users must
+  enable the zone or apply an availability set first.
+
+Implementation checklist:
+
+- [x] Add `ZoneBindingConfig` to `Config`.
+- [x] Parse `[[zone-bindings]]` with required `zone` and `workspace`, plus
+  optional `monitor`.
+- [x] Validate duplicate zone targets and duplicate workspaces within one raw
+  monitor scope.
+- [x] Validate binding zone ids against inline `[[zones]]` columns and
+  `[[zone-layouts]]` columns.
+- [x] Add `apply-zone-bindings` parser, help metadata, CLI description, command
+  dispatch, and post-command refresh policy.
+- [x] Apply bindings through the same workspace viewport activation path used by
+  `use-zone-scene`.
+- [x] Preserve layout, widths, availability, and styles while changing active
+  workspaces.
+- [x] Fast tests cover parsing, invalid config, command parsing, workspace
+  activation, monitor-scoped overrides, hidden target zones, and zones missing
+  from the target monitor's active layout.
+- [x] Add `script/e2e/configs/zone-bindings.toml` for the Tart proof.
+
+Fast validation already run:
+
+- `swift test --filter 'ZoneCommandTest|ConfigTest/testParseZoneBindings|ConfigTest/testRejectInvalidZoneBindings'`
+  passed with 54 selected tests.
+- `python3 script/check-command-metadata` passed.
+
+Tart video gate:
+
+- Use a new config fixture, `script/e2e/configs/zone-bindings.toml`, with
+  `[[zones]]` columns and `[[zone-bindings]]` for `ReferenceDesk`, `WorkDesk`,
+  and `CommsDesk`.
+- The guest script must start from a clean desktop, show the config chip
+  `Config: [[zone-bindings]] ReferenceDesk + WorkDesk + CommsDesk`, and show the
+  exact command chip `Run: winmux apply-zone-bindings`.
+- Large labeled TextEdit documents must show the before-state zone workspaces
+  and the after-state bound workspaces. The viewer must be able to understand
+  the transition without reading logs: BEFORE documents are visible before the
+  command, then BOUND documents appear in the same zones after the command.
+- The on-screen command/actions panel must expose the user-facing WinMux command:
+  `winmux apply-zone-bindings`, plus the proof command
+  `winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'`.
+- Required proof logs: `slice-14-bindings-before.log`,
+  `slice-14-apply-zone-bindings.log`, `slice-14-command-timing.log`,
+  `slice-14-bindings-after.log`, `slice-14-windows-before.log`,
+  `slice-14-windows-after.log`, and `slice-14-zone-bindings.done`.
+- The command timing log must prove `apply-command-offset-seconds` is inside the
+  `Run: winmux apply-zone-bindings` caption interval. This explicitly rejects a
+  recording where BOUND documents appear before the command chip.
+- Required media: `recordings/slice-14-zone-bindings.mov`, raw recording,
+  ready/before/after screenshots, and a contact sheet.
+- The verifier must reject any artifact where the workspace change is inferred
+  only from logs, where the BEFORE/BOUND documents are not visible in the
+  expected zones, where command chips omit `apply-zone-bindings`, where the
+  config chip omits `[[zone-bindings]]`, where unrelated setup windows are
+  visible, or where stale semantic screenshots are reused from an older
+  recording.
+- A no-context artifact reviewer must compare the recording to the repo root
+  videos and product-site style: clean desktop, legible text, exact command
+  chips, no setup prompts, and visible before/action/after motion.
+- Do not mark Slice 14 accepted, start Slice 15, or commit an accepted-artifact
+  claim until the mechanical verifier passes and the no-context review says
+  `PASS` or `PASS_WITH_NOTES` with `next slice allowed: yes`.
+- After the artifact review, run three no-context retrospective subagents over
+  the Codex session history and fold accepted plan/code/harness optimizations
+  into the Pre-Slice-15 cleanup checklist.
+
+Artifact review hardening added during Slice 14:
+
+- `artifacts/e2e/slice-14-20260626T173701Z` failed no-context review because
+  BOUND documents appeared before the `Run: winmux apply-zone-bindings` command
+  chip.
+- The guest script now delays the command until the command caption interval and
+  writes `slice-14-command-timing.log`.
+- The verifier rejects artifacts without `apply-command-offset-seconds` inside
+  the command caption interval and the review prompt includes a Slice
+  14-specific boundary-frame check.
+- `artifacts/e2e/slice-14-20260626T174756Z` passed mechanical verification but
+  lost a BOUND Work document in later samples after closing hidden BEFORE
+  windows through WinMux. Hidden-node closure is not accepted for this proof.
+- `artifacts/e2e/slice-14-20260626T175215Z` passed mechanical verification but
+  failed no-context review because a clipped `before-work-zone-binding.rtf`
+  setup window remained visible at the final bottom-right edge.
+- `artifacts/e2e/slice-14-20260626T180249Z` tried TextEdit document cleanup
+  through AppleScript and failed with macOS Automation permission error `-1743`.
+  Permission-dependent AppleScript cleanup is not accepted for this proof.
+- The guest script now rechecks the final after-state after the hold period.
+- Product fix added: inactive workspace window parking uses the physical
+  monitor boundary, not the zone viewport boundary, so hidden windows from a
+  middle/right virtual monitor are not parked inside the visible ultrawide.
+
+Non-claims:
+
+- Slice 14 does not prove tab-group-specific persisted binding records,
+  app-rule-specific binding records, snap-to-window, visual zone editing, or
+  runtime snap-policy overlays.
+- Slice 14 does not replace `use-zone-scene`; scenes remain the layout plus
+  workspace macro.
+
+Accepted result:
+
+- artifact: `artifacts/e2e/slice-14-20260626T181019Z`
+- recording: `artifacts/e2e/slice-14-20260626T181019Z/recordings/slice-14-zone-bindings.mov`
+- raw recording: `artifacts/e2e/slice-14-20260626T181019Z/recordings/raw/slice-14-zone-bindings.raw.mov`
+- review: `artifacts/e2e/slice-14-20260626T181019Z/reviews/no-ctx-artifact-review.md`
+  ended with `PASS` and `next slice allowed: yes`.
+- main-thread verifier: `make e2e-verify-slice RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-14-20260626T181019Z ARGS=--require-review`
+  passed.
+- focused validation: `swift test --filter 'ZoneCommandTest|ConfigTest/testParseZoneBindings|ConfigTest/testRejectInvalidZoneBindings|MonitorTopologyTest/testZoneHiddenWindowParkingUsesPhysicalMonitorBoundary'`
+  passed with 55 selected tests.
+- pre-Tart gate: `make e2e-pre-tart-checks` passed, including shell checks,
+  command metadata, harness self-tests, annotation preflight, warmup-policy
+  self-test, and 99 selected Swift tests.
+- accepted claim: `apply-zone-bindings` reads `[[zone-bindings]]`, activates
+  ReferenceDesk, WorkDesk, and CommsDesk in left/main/right without changing
+  zone geometry, and leaves the final desktop visually clean.
+- accepted hardening: command/action timing is mechanically checked, the
+  reviewer prompt requires Slice 14 boundary-frame inspection, final-state
+  contamination is visually rejected, and inactive workspace parking uses the
+  physical monitor boundary rather than the zone viewport boundary.
+- failed-attempt ledger:
+  `slice-14-20260626T173701Z` failed command-chip ordering;
+  `slice-14-20260626T174756Z` exposed unsafe hidden-node closure;
+  `slice-14-20260626T175215Z` exposed a final edge sliver;
+  `slice-14-20260626T180249Z` exposed permission-dependent AppleScript cleanup
+  and post-mutation retry risk.
+- three no-context retrospective reports:
+  `retrospective-agent-a.md`, `retrospective-agent-b.md`, and
+  `retrospective-agent-c.md` under the accepted artifact's `reviews/`
+  directory.
+
+Pre-Slice-15 cleanup:
+
+- [x] Add a Slice 15 section with exactly one primary product claim and explicit
+  non-claims before implementation.
+- [x] Before any Slice 15 Tart run, write a visual storyboard contract: caption
+  intervals, expected state at caption starts, command/action timing, after-state
+  hold, boundary-frame names, and required logs.
+- [x] Add expected-chip exactness for Slice 15's main commands/config surfaces
+  and require the verifier to compare those strings against the annotation TSV.
+- [x] Require the no-context reviewer packet/prompt to map every important
+  predicate to exact media/log filenames, not only to the recording or contact
+  sheet.
+- [x] Add final-state edge/corner crops to reviewer packets for slices that hide,
+  restore, route, swap, or park windows, so partial setup-window contamination is
+  fast to inspect.
+- [x] Keep proof-time cleanup limited to pre-recording setup. Do not use
+  post-command AppleScript, app automation, or hidden-node closure to hide visual
+  leftovers unless that cleanup behavior is the feature under test.
+- [x] Make recorded proof actions terminal after the first product mutation;
+  setup/warmup can retry, but proof scripts must not replay a mutated scenario.
+- [x] Add one harness self-test for a post-mutation non-semantic failure and
+  assert that it is not retried.
+- [x] Expand the inactive-workspace parking regression across left/main/right
+  zone monitors and both hide corners. This keeps the source-level geometry seam
+  covered; a higher-level MacWindow layout-path test remains deferred until the
+  code has a non-AX seam for it.
+- [x] Add an all-or-nothing follow-up for multi-zone workspace mutations in
+  `apply-zone-bindings` and `use-zone-scene`, with a regression proving that a
+  later binding failure does not leave earlier bindings applied.
+- [x] Before the next commit/closeout, print generated-file diffs separately and
+  decide whether `Sources/Common/gitHashGenerated.swift` is intentionally kept
+  or reset. Decision: reset it, because the diff was build metadata generated
+  from the local checkout rather than Slice 15 feature logic.
+- [x] Close completed reviewer/subagent slots before spawning the next
+  three-agent retrospection gate.
+
+## Slice 15: Runtime Tab-Group Zone Binding
+
+Goal: add the first node-level binding so a user can say "this tab group belongs
+in this zone" without changing the zone layout or workspace-scene model.
+
+Primary product claim:
+
+- `bind-node-to-zone <zone>` binds the focused tab group, or the focused window
+  when it is not in a tab group, to the target zone on the focused physical
+  monitor and moves that node into the target zone's active workspace.
+
+Why this is the next narrow slice:
+
+- Slice 14 made workspace-to-zone binding first-class. This slice adds the next
+  entity in the domain model: `WindowOrTabGroup` as a bindable content unit.
+- The command should reuse the existing `move-node-to-zone` resolution and tab
+  group movement semantics, then add durable binding state and an inspection
+  surface.
+- This keeps tab groups out of geometry math: the binding points to a zone id,
+  and the move still targets that zone's active workspace.
+
+Expected command/config surface:
+
+- `bind-node-to-zone [--window-id <id>] <zone>`
+- `unbind-node-zone-binding [--window-id <id>]`
+- `list-zone-bindings`
+- Optional mode binding in the slice config: `alt-z, b` or an equivalent
+  discoverable key that runs `bind-node-to-zone current` or a named target.
+
+Implementation checklist:
+
+- [x] Add parser, dispatch, help metadata, and CLI descriptions for
+  `bind-node-to-zone`, `unbind-node-zone-binding`, and `list-zone-bindings`.
+- [x] Add a runtime node binding store keyed by `window:<id>` or
+  `tab-group:<sorted-window-ids>`, with list rows that expose node id, node
+  type, title, zone id, workspace, and physical monitor.
+- [x] Reuse the existing zone selector and tab-group move semantics so binding a
+  tab group still means moving that group into the target zone's active
+  workspace.
+- [x] Add fast command tests for parse coverage, focused tab-group binding,
+  `--window-id` binding, list output, and unbind.
+- [x] Add Slice 15 Tart scenario, annotated recording plan, semantic sample
+  manifest, verifier rules, reviewer-packet checks, and no-context artifact
+  prompt hardening.
+- [x] Record Slice 15 Tart artifact, run mechanical verification, run
+  no-context artifact review, rerun verification with `--require-review`, and
+  complete the three retrospective subagents before claiming the slice
+  accepted.
+
+Slice 15 storyboard contract:
+
+- 0-8s: show a Work tab group with two documents visible as tabs or a tab-group
+  proof surface; caption chip exposes the command/config surface.
+- 8-18s: before-state proof; the tab group is in Work/main and no node binding
+  exists in `list-zone-bindings`.
+- 18-30s: command/action boundary; caption chip shows
+  `Run: winmux bind-node-to-zone Comms` while the tab group is still in Work.
+  The guest proof must emit `winmux-e2e-mutation-started=1` immediately before
+  the command.
+- 30-44s: after-state proof; the same tab group/window ids are in Comms/right
+  and `list-zone-bindings` shows the bound node id/type/title and zone id.
+- 44-54s: persistence/inspection hold; the same binding remains visible after a
+  refresh or another harmless inspection command.
+- Required timing log: `slice-15-command-timing.log`, with the bind command
+  offset inside the command caption interval.
+- Required media: annotated recording, raw recording, ready/before/after
+  screenshots, caption boundary samples, final edge/corner crops, and contact
+  sheet.
+
+Expected verifier/reviewer checks:
+
+- Before media shows the same tab group/window ids in Work/main and no binding.
+- Command caption starts before the tab group appears in Comms/right.
+- After media shows the same tab group/window ids in Comms/right.
+- `list-zone-bindings` proves the binding record by node id, node type, title,
+  zone id, workspace, and physical monitor.
+- No post-command cleanup hides stale windows; if the final state is dirty, fix
+  product behavior or scenario setup and rerecord.
+
+Non-claims:
+
+- No app-rule matchers, launch-time routing by binding, snap-to-window, visual
+  zone editor, or gesture configuration.
+- No claim that a binding follows a tab group across app relaunch until the
+  backing persistence seam is designed and tested.
+- No change to `[[zone-bindings]]`; workspace bindings and node bindings remain
+  separate entity types.
+
+Accepted result:
+
+- artifact: `artifacts/e2e/slice-15-20260626T191732Z`
+- recording:
+  `artifacts/e2e/slice-15-20260626T191732Z/recordings/slice-15-node-zone-binding.mov`
+- raw recording:
+  `artifacts/e2e/slice-15-20260626T191732Z/recordings/raw/slice-15-node-zone-binding.raw.mov`
+- review:
+  `artifacts/e2e/slice-15-20260626T191732Z/reviews/no-ctx-artifact-review.md`
+  ended with `PASS` and `next slice allowed: yes`.
+- main-thread closeout:
+  `make e2e-slice-closeout-check RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-15-20260626T191732Z`
+  passed.
+- fresh no-context reviewer reran:
+  `make e2e-verify-slice-check RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-15-20260626T191732Z ARGS=--require-review`
+  and reported `PASS`.
+- focused validation:
+  `swift test --filter 'ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneBindings|ConfigTest.testRejectInvalidZoneBindings|ZoneCommandTest'`
+  passed with 59 selected tests.
+- pre-Tart gate: `make e2e-pre-tart-checks` passed, including shell checks,
+  command metadata, package/verifier self-tests, annotation preflight,
+  warmup-policy self-test, and 106 selected Swift tests.
+- accepted claim: `bind-node-to-zone Comms` binds the focused Work Alpha/Beta
+  tab group, moves the group into Comms/right, and
+  `list-zone-bindings` exposes node id, node type, title, zone, workspace, and
+  monitor.
+- accepted notes: visible media proves tab titles/grouping and placement; logs
+  support internal window ids and the `list-zone-bindings` fields. The artifact
+  does not prove workspace `[[zone-bindings]]` or relaunch persistence.
+- accepted hardening: reviewer packets now require the non-mutating
+  `e2e-verify-slice-check`, refresh archives stale reviews, `--check-only`
+  validates derived media/review freshness, Slice 15 TOML fixture parsing is in
+  the pre-Tart gate, and reviewer prompts distinguish visible evidence from
+  log-supported identity evidence.
+- three no-context retrospective reports:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md` under the accepted artifact directory.
+- failed-review ledger: the first post-hardening fresh review failed because the
+  verifier used a strict `-nt` check that rejected a sample generated in the same
+  filesystem timestamp second as the recording. The verifier now uses epoch
+  timestamps with a one-second tolerance; the artifact then passed a fresh review
+  and closeout.
+
+Pre-Slice-16 cleanup from Slice 15 retrospectives:
+
+- [x] Run three no-context retrospectives after the Slice 15 artifact review and
+  compare findings before proceeding.
+- [x] Add a durable `make e2e-slice-15` target and document the exact command in
+  `script/e2e/README.md`.
+- [x] Switch reviewer packets to the non-mutating
+  `make e2e-verify-slice-check RUN_DIR=... ARGS=--require-review` command and
+  include `make e2e-slice-closeout-check RUN_DIR=...`.
+- [x] Harden artifact refresh so regenerated annotated media archives any stale
+  no-context review.
+- [x] Harden `--check-only` verification for stale samples, contact sheets,
+  sample manifests, edge/corner crops, and reviews.
+- [x] Add parser coverage for the actual Slice 15 E2E TOML fixture and include
+  zone-binding parser tests in the pre-Tart gate.
+- [x] Clarify reviewer prompts so visible media proves titles/tab grouping and
+  placement, while logs may support internal window id identity unless ids are
+  visibly rendered.
+- [x] Regenerate the Slice 15 reviewer packet after cleanup, rerun a fresh
+  no-context artifact review against that packet, and pass
+  `make e2e-slice-closeout-check`.
+
+Deferred node-binding follow-ups before expanding binding semantics:
+
+- Add negative command coverage for disabled zones, no zones, rebind overwrite,
+  unbind-missing, and stale-prune behavior.
+- Decide whether tab-group bindings should survive tab membership changes, since
+  the current runtime key is `tab-group:<sorted-window-ids>`.
+- Make `list-zone-bindings` output machine-safe for titles containing separator
+  characters before treating it as a stable automation format.
+- Consider factoring the duplicated `moveWindowOrTabGroupToWorkspace` overloads
+  after the command semantics settle.
+
+## Slice 16: Mouse Snap Affordance Semantics
+
+Goal: make the mouse UX impossible to misread in proof artifacts. A reviewer
+should be able to tell whether a drag is freeform, snapping to a whole zone, or
+targeting a position inside a zone.
+
+Primary product claim:
+
+- With the current mouse snap policy, the only snap target is a whole zone. The
+  overlay, command chips, logs, and final media must say "Snap to zone" and must
+  not imply snapping to a window or tab slot.
+
+Implementation and proof requirements:
+
+- Keep `mouse.zone-snap.target = "zone"` as the only implemented target for this
+  slice; add explicit negative docs/tests for `window` or `slot` targets if those
+  names enter config later.
+- Record both freeform and modifier-activated snap paths in one clean Tart video.
+  The freeform path must leave the window floating where dragged. The snap path
+  must move the same window or tab group to the target zone's active workspace.
+- The overlay and on-screen caption must expose the expected user action, for
+  example `Hold Option while dragging: snap to Comms zone`.
+- The verifier packet must include exact media samples for freeform-before,
+  snap-overlay, post-drop zone membership, and final edge/corner crops.
+- The no-context reviewer must reject any artifact that claims snap-to-window or
+  snap-to-slot unless the media shows that target explicitly.
+
+Pre-slice cleanup:
+
+- [x] Reuse the accepted Slice 12 mouse-drag scenario with Slice 16-specific
+  artifact names, captions, and sample manifest rows instead of creating a
+  second mouse automation path.
+- [x] Add a mechanical overlay sentinel: crop the target zone during the
+  no-Option hover and the Option-held hover, compute their RMSE, and require a
+  visible difference before the artifact can pass.
+- [x] Harden `write-review-packet`, `verify-artifact`, and the no-context review
+  prompt so Slice 16 fails if the artifact only proves final placement, omits the
+  drag affordance, or leaves the snap target ambiguous.
+- [x] Add `make e2e-slice-16`, annotation preflight rows, README usage, and a
+  `configs/zone-mouse-snap.toml` Tart scenario entry for Slice 16.
+- [x] Run the pre-Tart gate after the cleanup:
+  `make e2e-pre-tart-checks`.
+- [x] Record the Tart video and screenshots with
+  `TART_HOME=/Volumes/RiftTartVMs make e2e-slice-16`.
+- [x] Run no-context artifact review and `make e2e-slice-closeout-check` before
+  any next slice starts.
+
+Non-claims:
+
+- No configurable gesture vocabulary beyond the existing modifier-gated drag
+  policy.
+- No snap target inside a window, tab group, or layout slot.
+- No persistence of mouse policy in runtime overlay state.
+
+Accepted result:
+
+- artifact: `artifacts/e2e/slice-16-20260626T205458Z`
+- recording:
+  `artifacts/e2e/slice-16-20260626T205458Z/recordings/slice-16-mouse-snap-affordance.mov`
+- raw recording:
+  `artifacts/e2e/slice-16-20260626T205458Z/recordings/raw/slice-16-mouse-snap-affordance.raw.mov`
+- review:
+  `artifacts/e2e/slice-16-20260626T205458Z/reviews/no-ctx-artifact-review.md`
+  starts with `PASS`, says `next slice allowed: yes`, and ends with `PASS`.
+- mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-16-20260626T205458Z`
+  passed with duration `71.983333s`, 3440x1440 H.264 video, 3429 frames, and
+  a generated contact sheet.
+- no-context reviewer reran:
+  `make e2e-verify-slice-check RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-16-20260626T205458Z ARGS=--require-review`
+  and reported `PASS`.
+- main-thread closeout:
+  `make e2e-slice-closeout-check RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-16-20260626T205458Z`
+  passed.
+- pre-Tart gate:
+  `make e2e-pre-tart-checks` passed after the Slice 16 modifier-label cleanup,
+  including shell checks, command metadata, package/verifier self-tests,
+  annotation preflight, warmup-policy self-test, and 106 selected Swift tests.
+- accepted claim: the recording shows two desktop TextEdit drags of the same
+  `snap-demo.rtf` window. Dragging without Option leaves the window in Work/main
+  and shows no whole-zone overlay. Holding Option while dragging shows the whole
+  Comms/right zone overlay and moves the same window id into Comms/right on
+  release.
+- accepted target semantics: whole zone. The artifact does not claim
+  snap-to-window or snap-to-slot.
+- overlay sentinel: `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`
+  reports `target-semantics=whole-zone` and
+  `overlay-rmse-normalized=0.0578709`, above the `0.025` minimum, with target
+  crops in `screenshots/slice-16-mouse-snap-affordance.overlay-sentinel/`.
+- accepted notation split: config and internal event flags use `alt`; visible
+  macOS-facing captions and user actions use `Option`.
+- three no-context retrospective reports:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md` under the accepted artifact directory.
+- superseded attempt:
+  `artifacts/e2e/slice-16-20260626T204655Z` produced media and a reviewer
+  packet, but had no accepted no-context review and failed
+  `e2e-verify-slice-check` because its proof manifest still expected an
+  `Action: hold Alt while dragging snap-demo.rtf` caption while the Slice 16
+  annotation contract used the macOS-facing Option wording.
+
+Pre-Slice-17 cleanup from Slice 16 retrospectives:
+
+- [x] Read all three Slice 16 retrospectives and fold accepted blockers into
+  this checklist.
+- [x] Run the post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-16-20260626T205458Z`.
+- [x] Close Slice 16 in this plan with accepted artifact paths, verifier/review
+  evidence, claims, non-claims, the superseded-attempt ledger, and
+  retrospective paths.
+- [x] Isolate the accepted Slice 14-16 dirty work before starting Slice 17:
+  split generated-file diffs from source/harness/docs, then commit the accepted
+  state as this slice-boundary commit.
+
+Deferred non-blocking hardening:
+
+- Before the next mouse-proof slice, remove remaining hard-coded
+  reviewer-facing `Alt` wording from proof text and overlay-sentinel notes where
+  the user-facing key should be `Option`; keep `modifier = 'alt'` when quoting
+  config.
+- Add a durable failed-attempt marker convention, such as
+  `logs/attempt-status.txt` or `reviews/superseded.md`, for future runs that
+  produce media but are replaced before review.
+- Consider a verifier-owned expected-caption contract for future slices so
+  `expected-chips.txt` is not only regenerated from the annotation TSV it is
+  meant to help review.
+- Consider labeling command timing logs as proof-script-relative versus
+  recording-relative before a future reviewer needs to use those offsets.
 
 ## Call-Site Audit
 

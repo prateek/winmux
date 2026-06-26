@@ -514,4 +514,49 @@ final class MonitorTopologyTest: XCTestCase {
         ])
         assertRectsEqual(viewports.map(\.visibleRectPaddedByOuterGaps), viewports.map(\.rect))
     }
+
+    func testZoneHiddenWindowParkingUsesPhysicalMonitorBoundary() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [
+            ZoneConfig(
+                monitor: .main,
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", width: 1),
+                    ZoneColumnConfig(id: "main", width: 1),
+                    ZoneColumnConfig(id: "right", width: 1),
+                ],
+            ),
+        ]
+
+        for zone in monitors {
+            let rightPoint = hiddenWindowTopLeft(
+                corner: .bottomRightCorner,
+                monitor: zone,
+                windowSize: nil,
+                isZoom: false,
+            )
+            let leftPoint = hiddenWindowTopLeft(
+                corner: .bottomLeftCorner,
+                monitor: zone,
+                windowSize: CGSize(width: 250, height: 300),
+                isZoom: false,
+            )
+
+            XCTAssertEqual(rightPoint.x, 1199, "right parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
+            XCTAssertEqual(rightPoint.y, 799, "right parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
+            XCTAssertEqual(leftPoint.x, -249, "left parking should use the physical monitor edge and window width for \(zone.zoneId ?? "unknown")")
+            XCTAssertEqual(leftPoint.y, 799, "left parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
+        }
+    }
 }

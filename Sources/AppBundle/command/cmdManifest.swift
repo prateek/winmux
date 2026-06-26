@@ -4,8 +4,10 @@ extension CmdArgs {
     func toCommand() -> any Command {
         let command: any Command = switch self {
             case let args as AgentCmdArgs: AgentCommand(args: args)
+            case let args as ApplyZoneBindingsCmdArgs: ApplyZoneBindingsCommand(args: args)
             case let args as BalanceSizesCmdArgs: BalanceSizesCommand(args: args)
             case let args as BalanceZonesCmdArgs: BalanceZonesCommand(args: args)
+            case let args as BindNodeToZoneCmdArgs: BindNodeToZoneCommand(args: args)
             case let args as CloseCmdArgs: CloseCommand(args: args)
             case let args as CloseAllWindowsButCurrentCmdArgs: CloseAllWindowsButCurrentCommand(args: args)
             case let args as ConfigCmdArgs: ConfigCommand(args: args)
@@ -31,6 +33,7 @@ extension CmdArgs {
             case let args as ListMonitorsCmdArgs: ListMonitorsCommand(args: args)
             case let args as ListWindowsCmdArgs: ListWindowsCommand(args: args)
             case let args as ListWorkspacesCmdArgs: ListWorkspacesCommand(args: args)
+            case let args as ListZoneBindingsCmdArgs: ListZoneBindingsCommand(args: args)
             case let args as ListZonesCmdArgs: ListZonesCommand(args: args)
             case let args as MacosNativeFullscreenCmdArgs: MacosNativeFullscreenCommand(args: args)
             case let args as MacosNativeMinimizeCmdArgs: MacosNativeMinimizeCommand(args: args)
@@ -56,6 +59,7 @@ extension CmdArgs {
             case let args as SwapCmdArgs: SwapCommand(args: args)
             case let args as ToggleZoneCmdArgs: ToggleZoneCommand(args: args)
             case let args as TriggerBindingCmdArgs: TriggerBindingCommand(args: args)
+            case let args as UnbindNodeZoneBindingCmdArgs: UnbindNodeZoneBindingCommand(args: args)
             case let args as UseZoneAvailabilityCmdArgs: UseZoneAvailabilityCommand(args: args)
             case let args as UseZoneLayoutCmdArgs: UseZoneLayoutCommand(args: args)
             case let args as UseZoneSceneCmdArgs: UseZoneSceneCommand(args: args)

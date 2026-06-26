@@ -109,6 +109,66 @@ extension ConfigTest {
         assertEquals(parsed.zoneScenes[0].workspaces.compactMap { $0.workspace?.raw }, ["FocusQueue", "FocusBuild", "FocusNotes"])
     }
 
+    func testParseZoneBindings() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                columns = [
+                    { id = 'left', width = 0.25 },
+                    { id = 'main', width = 0.50 },
+                    { id = 'right', width = 0.25 },
+                ]
+
+            [[zone-bindings]]
+                zone = 'left'
+                workspace = 'ReferenceDesk'
+
+            [[zone-bindings]]
+                monitor = 2
+                zone = 'right'
+                workspace = 'CommsDesk'
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneBindings, [
+            ZoneBindingConfig(
+                zone: "left",
+                workspace: WorkspaceName.parse("ReferenceDesk").getOrDie(),
+            ),
+            ZoneBindingConfig(
+                monitor: .sequenceNumber(2),
+                zone: "right",
+                workspace: WorkspaceName.parse("CommsDesk").getOrDie(),
+            ),
+        ])
+    }
+
+    func testParseZoneNodeBindingsE2EConfig() throws {
+        var fixtureUrl = getDefaultConfigUrlFromProject()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.append(path: "script/e2e/configs/zone-node-bindings.toml")
+
+        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
+
+        assertEquals(errors, [])
+        XCTAssertTrue(parsed.windowTabs.enabled)
+        assertEquals(parsed.zoneLayouts.map(\.id), ["balanced"])
+        assertEquals(parsed.zones.map(\.layoutPreset), ["balanced"])
+        assertEquals(
+            parsed.modes["main"]?.bindings.values
+                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" }
+                .sorted(),
+            [
+                "alt-b=bind-node-to-zone Comms",
+                "alt-u=unbind-node-zone-binding",
+            ],
+        )
+    }
+
     func testParseZoneStyles() {
         let (parsed, errors) = parseConfig(
             """
@@ -216,6 +276,36 @@ extension ConfigTest {
             "zone-scenes[0].layout-preset: Unknown zone layout preset 'missing'",
             "zone-scenes[1].workspaces[0].zone: Must name one of the zones in layout preset 'focus'",
             "zone-scenes[1].workspaces[1].zone: Must name one of the zones in layout preset 'focus'",
+        ])
+    }
+
+    func testRejectInvalidZoneBindings() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 1.0 },
+                ]
+
+            [[zone-bindings]]
+                zone = 'main'
+
+            [[zone-bindings]]
+                zone = 'main'
+                workspace = 'WorkDesk'
+
+            [[zone-bindings]]
+                zone = 'missing'
+                workspace = 'OtherDesk'
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-bindings[0].workspace: Missing required key",
+            "zone-bindings: Contains duplicated zone binding targets: any:main",
+            "zone-bindings[2].zone: Unknown zone id 'missing'",
         ])
     }
 

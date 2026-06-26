@@ -48,3 +48,24 @@ func moveWindowOrTabGroupToWorkspace(
     }
     return focusFollowsWindow ? window.focusWindow() : true
 }
+
+@MainActor
+@discardableResult
+func moveWindowOrTabGroupToWorkspace(
+    _ window: Window,
+    _ targetWorkspace: Workspace,
+    focusFollowsWindow: Bool,
+    index: Int = INDEX_BIND_LAST,
+) -> Bool {
+    let node = window.moveNode
+    if node.nodeWorkspace == targetWorkspace {
+        return true
+    }
+    if node === window, window.isFloating {
+        window.bind(to: targetWorkspace, adaptiveWeight: WEIGHT_AUTO, index: index)
+    } else {
+        let binding = workspaceAppendBindingData(targetWorkspace: targetWorkspace, index: index)
+        node.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
+    }
+    return focusFollowsWindow ? window.focusWindow() : true
+}

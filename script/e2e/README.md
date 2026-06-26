@@ -66,6 +66,12 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-13` records portable keyboard zone mode with `script/e2e/configs/zone-mode-bindings.toml` and `script/e2e/guest/slice-13-zone-mode-bindings.sh`. The setup phase stages Reference, Work Alpha, Work Beta, and Comms documents plus a live state board, then captures `01-ready-slice-13.png`. The proof records `Alt-Z, L`, `Alt-Z, Shift-L`, `Alt-Z, Equal`, `Alt-Z, 0`, and two `Alt-Z, T` actions. The verifier checks exact caption chips and config bindings for `focus-zone next`, `move-node-to-zone --focus-follows-window next`, `resize-zone current width +10%`, `balance-zones`, and `toggle-zone current`; resolved target fields; live board freshness in semantic samples; tab-group movement into Comms/right; width resize/balance; and current-zone hide/restore.
 
+`make e2e-slice-14` records workspace zone bindings with `script/e2e/configs/zone-bindings.toml` and `script/e2e/guest/slice-14-zone-bindings.sh`. The setup phase stages BEFORE documents in Reference/left, Work/main, and Comms/right, then records `winmux apply-zone-bindings`. The verifier checks that the command caption appears before the bound documents replace the BEFORE documents, that `[[zone-bindings]]` and `apply-zone-bindings` are exposed on screen, and that list commands prove the three bound workspaces are active in their zones.
+
+`make e2e-slice-15` records runtime tab-group node binding with `script/e2e/configs/zone-node-bindings.toml` and `script/e2e/guest/slice-15-node-zone-binding.sh`. The setup phase stages Work Alpha and Work Beta as one TextEdit tab group in Work/main, captures `01-ready-slice-15.png`, and proves `list-zone-bindings --count` is zero. The proof records `winmux bind-node-to-zone Comms`, then shows the same tab-group titles in Comms/right and `winmux list-zone-bindings` exposing node-id, node-type, title, zone, workspace, and monitor. This slice proves runtime node binding, not workspace `[[zone-bindings]]` or relaunch persistence.
+
+`make e2e-slice-16` records mouse snap affordance semantics with the same `script/e2e/configs/zone-mouse-snap.toml` policy as Slice 12, but with stricter proof artifacts. The recording shows a no-Option freeform drag with no zone move, then an Option-held drag whose caption says `snap to Comms zone` and whose overlay targets the whole Comms zone, not a window or slot. The harness writes `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`, which compares the target-zone crop in the no-Option hover frame with the Option-held hover frame so the verifier has a mechanical overlay/no-overlay affordance check in addition to the human review.
+
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
 Slice 6B recording, fails unless that source artifact has strict guest-capture
@@ -112,6 +118,13 @@ When annotation is enabled, the verifier also checks that the annotation log, ca
 Caption-boundary frames use the names `caption-NN-boundary-before.png`, `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`. Transition-style recordings should point reviewers at those frames so command-caption ordering is checked before the next slice proceeds.
 
 Each annotated run also writes `logs/<recording>.sample-manifest.tsv`. It maps standard samples, caption-boundary samples, and slice-specific semantic proof beats to exact artifact-relative image paths. Ordered transition slices must add semantic rows such as `resize-command-start` or `after-balance`, and the verifier should require those labels for the slice.
+
+Annotated product runs also write `logs/<recording>.edge-crops.tsv` and
+`screenshots/<recording>.edge-crops/`. The manifest must include final
+screenshot edge/corner crops and, when recording samples exist, near-end video
+frame edge/corner crops. `make e2e-verify-slice-check` treats missing or stale
+derived samples, contact sheets, review packets, and edge crops as failures
+instead of regenerating them.
 
 Slices that prove visible color or style preservation should also write `logs/<recording>.color-sentinel.tsv`. Each non-comment row is tab-separated:
 

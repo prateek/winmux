@@ -4,7 +4,19 @@ set -euo pipefail
 : "${REPO_DIR:?}"
 : "${ARTIFACTS_DIR:?}"
 
-PHASE="${WINMUX_E2E_SLICE12_PHASE:-proof}"
+PHASE="${WINMUX_E2E_MOUSE_SNAP_PHASE:-${WINMUX_E2E_SLICE12_PHASE:-proof}}"
+SLICE_PREFIX="${WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX:-slice-12}"
+SLICE_NUMBER="${SLICE_PREFIX#slice-}"
+SLICE_TITLE="${WINMUX_E2E_MOUSE_SNAP_TITLE:-WinMux Slice ${SLICE_NUMBER}: desktop mouse zone snap policy}"
+RECORDING_NAME="${WINMUX_E2E_RECORDING_NAME:-${SLICE_PREFIX}-mouse-zone-snap-drag}"
+CONFIG_MODIFIER="${WINMUX_E2E_MOUSE_SNAP_CONFIG_MODIFIER:-alt}"
+if [ "${SLICE_PREFIX}" = "slice-16" ]; then
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Option}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Option while dragging: snap to Comms zone}"
+else
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
+fi
 SEMANTIC_FAILURE_EXIT="${WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT:-86}"
 SOURCE_APP="${REPO_DIR}/.debug/WinMuxApp"
 SOURCE_CLI="${REPO_DIR}/.debug/winmux"
@@ -15,39 +27,45 @@ CONFIG="${ARTIFACTS_DIR}/config/winmux.toml"
 GUEST_DISPLAY_ID="${GUEST_DISPLAY_ID:-1}"
 
 APP_LOG="${ARTIFACTS_DIR}/logs/winmux-app.log"
-APP_LOG_LOCAL="/tmp/winmux-e2e-slice12-app.log"
+APP_LOG_LOCAL="/tmp/winmux-e2e-${SLICE_PREFIX}-app.log"
 STARTUP_TRACE="${ARTIFACTS_DIR}/logs/winmux-startup-trace.log"
-STARTUP_TRACE_LOCAL="/tmp/winmux-e2e-slice12-startup.log"
+STARTUP_TRACE_LOCAL="/tmp/winmux-e2e-${SLICE_PREFIX}-startup.log"
 LAUNCH_STATUS="${ARTIFACTS_DIR}/logs/winmux-launchagent-status.log"
-LAUNCH_LABEL="local.winmux.e2e.slice12"
-LAUNCH_PLIST="/tmp/winmux-e2e-slice12.plist"
-LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-slice12.plist"
+LAUNCH_LABEL="local.winmux.e2e.${SLICE_PREFIX}"
+LAUNCH_PLIST="/tmp/winmux-e2e-${SLICE_PREFIX}.plist"
+LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-${SLICE_PREFIX}.plist"
 
-SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-12-mouse-zone-snap-setup.log"
-ACTION_LOG="${ARTIFACTS_DIR}/logs/slice-12-mouse-zone-snap-action.log"
-WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-12-windows-setup.log"
-WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-12-windows-before.log"
-WINDOW_FREEFORM_LOG="${ARTIFACTS_DIR}/logs/slice-12-windows-after-freeform.log"
-WINDOW_RESET_LOG="${ARTIFACTS_DIR}/logs/slice-12-windows-after-reset.log"
-WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-12-windows-after-snap.log"
-ZONES_LOG="${ARTIFACTS_DIR}/logs/slice-12-zones.log"
-TIMING_LOG="${ARTIFACTS_DIR}/logs/slice-12-command-timing.log"
-CLI_LOG="${ARTIFACTS_DIR}/logs/slice-12-cli.log"
-WAIT_ERR="${ARTIFACTS_DIR}/logs/slice-12-cli-wait.err"
-STATE_FILE="${ARTIFACTS_DIR}/logs/slice-12-window-ids.env"
-ACTION_MANIFEST="${ARTIFACTS_DIR}/logs/slice-12-mouse-zone-snap-drag.proof-manifest.tsv"
-DONE="${ARTIFACTS_DIR}/logs/slice-12-mouse-zone-snap.done"
-PROOF="${ARTIFACTS_DIR}/slice-12-mouse-zone-snap-proof.txt"
+SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-mouse-zone-snap-setup.log"
+ACTION_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-mouse-zone-snap-action.log"
+WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-setup.log"
+WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-before.log"
+WINDOW_FREEFORM_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-freeform.log"
+WINDOW_RESET_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-reset.log"
+WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-snap.log"
+ZONES_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zones.log"
+TIMING_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-command-timing.log"
+CLI_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli.log"
+WAIT_ERR="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli-wait.err"
+STATE_FILE="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-window-ids.env"
+ACTION_MANIFEST="${ARTIFACTS_DIR}/logs/${RECORDING_NAME}.proof-manifest.tsv"
+DONE="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-mouse-zone-snap.done"
+PROOF="${ARTIFACTS_DIR}/${SLICE_PREFIX}-mouse-zone-snap-proof.txt"
 SCREENSHOTS_DIR="${ARTIFACTS_DIR}/screenshots"
 
-FREEFORM_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/02-freeform-pickup-slice-12.png"
-FREEFORM_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-12.png"
-RESET_SCREENSHOT="${SCREENSHOTS_DIR}/04-reset-before-snap-slice-12.png"
-SNAP_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/05-snap-pickup-slice-12.png"
-SNAP_PATH_SCREENSHOT="${SCREENSHOTS_DIR}/06-snap-path-slice-12.png"
-SNAP_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-12.png"
+FREEFORM_PICKUP_NAME="02-freeform-pickup-${SLICE_PREFIX}.png"
+FREEFORM_HOVER_NAME="03-freeform-hover-no-overlay-${SLICE_PREFIX}.png"
+RESET_NAME="04-reset-before-snap-${SLICE_PREFIX}.png"
+SNAP_PICKUP_NAME="05-snap-pickup-${SLICE_PREFIX}.png"
+SNAP_PATH_NAME="06-snap-path-${SLICE_PREFIX}.png"
+SNAP_HOVER_NAME="07-snap-hover-comms-${SLICE_PREFIX}.png"
+FREEFORM_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/${FREEFORM_PICKUP_NAME}"
+FREEFORM_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/${FREEFORM_HOVER_NAME}"
+RESET_SCREENSHOT="${SCREENSHOTS_DIR}/${RESET_NAME}"
+SNAP_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_PICKUP_NAME}"
+SNAP_PATH_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_PATH_NAME}"
+SNAP_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_HOVER_NAME}"
 
-DOC_DIR="${HOME}/winmux-e2e/mouse-zone-snap-docs"
+DOC_DIR="${HOME}/winmux-e2e/${SLICE_PREFIX}-mouse-zone-snap-docs"
 REFERENCE_DOC="${DOC_DIR}/reference-mouse-snap.rtf"
 SNAP_DOC="${DOC_DIR}/snap-demo.rtf"
 COMMS_DOC="${DOC_DIR}/comms-mouse-snap.rtf"
@@ -221,7 +239,7 @@ PLIST
         /bin/launchctl print "gui/${uid}/${LAUNCH_LABEL}" >"${LAUNCH_STATUS}" 2>&1 || true
         /usr/bin/awk '/pid =/ { print $3; exit }' "${LAUNCH_STATUS}" >"${ARTIFACTS_DIR}/logs/winmux-app.pid" || true
         copy_runtime_logs
-        if "${CLI}" list-zones --count >"${ARTIFACTS_DIR}/logs/slice-12-zone-count.txt" 2>"${WAIT_ERR}"; then
+        if "${CLI}" list-zones --count >"${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zone-count.txt" 2>"${WAIT_ERR}"; then
             return
         fi
         sleep 1
@@ -248,11 +266,11 @@ setup_slice() {
     rm -rf "${DOC_DIR}"
 
     {
-        echo 'WinMux Slice 12: desktop mouse zone snap policy'
+        echo "${SLICE_TITLE}"
         echo "Source App: ${SOURCE_APP}"
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
-        echo "Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = 'alt', target = 'zone'"
+        echo "Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
     } | tee "${SETUP_LOG}"
 
     test -x "${SOURCE_APP}"
@@ -265,7 +283,7 @@ setup_slice() {
     chmod +x "${APP}" "${CLI}"
 
     write_doc "${REFERENCE_DOC}" 'REFERENCE' 'Reference' 'Desktop drag snap proof baseline'
-    write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' 'Drag this window without Alt, then with Alt'
+    write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag this window without ${USER_MODIFIER_LABEL}, then with ${USER_MODIFIER_LABEL}"
     write_doc "${COMMS_DOC}" 'COMMS' 'Comms' 'Whole-zone snap target'
 
     launch_winmux
@@ -462,7 +480,7 @@ proof_slice() {
         echo 'interaction-model=desktop-window-drag'
         echo 'config=[mouse.zone-snap]'
         echo "policy=snap-on-modifier"
-        echo "modifier=alt"
+        echo "modifier=${CONFIG_MODIFIER}"
         echo "gesture=drag"
         echo "target=zone"
         echo "source-title=snap-demo.rtf"
@@ -475,8 +493,8 @@ proof_slice() {
         echo 'not-snap-target=window-within-zone'
         echo "source-point=${source_x},${source_y}"
         echo "target-point=${target_x},${target_y}"
-        echo 'negative-proof=drag without Alt does not show snap overlay or change zone binding'
-        echo 'positive-proof=hold Alt while dragging previews the whole Comms zone and snaps on release'
+        echo "negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
+        echo "positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
         echo "freeform-pickup-screenshot=${FREEFORM_PICKUP_SCREENSHOT}"
         echo "freeform-hover-screenshot=${FREEFORM_HOVER_SCREENSHOT}"
         echo "snap-pickup-screenshot=${SNAP_PICKUP_SCREENSHOT}"
@@ -494,21 +512,21 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-target snap-target whole-zone
         printf '%s\t%s\t%s\n' drag-target not-snap-target window-within-zone
         printf '%s\t%s\t%s\n' drag-policy policy snap-on-modifier
-        printf '%s\t%s\t%s\n' drag-policy modifier alt
+        printf '%s\t%s\t%s\n' drag-policy modifier "${CONFIG_MODIFIER}"
         printf '%s\t%s\t%s\n' drag-policy negative-proof no-alt-no-zone-move
         printf '%s\t%s\t%s\n' drag-policy positive-proof alt-held-whole-zone-snap
         printf '%s\t%s\t%s\n' drag-points source "${source_x},${source_y}"
         printf '%s\t%s\t%s\n' drag-points target "${target_x},${target_y}"
         printf '%s\t%s\t%s\n' drag-points target-hover-hold-seconds '3.3'
         printf '%s\t%s\t%s\n' drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
-        printf '%s\t%s\t%s\n' drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; Alt-held drag moves the same id to Comms/right'
-        printf '%s\t%s\t%s\n' drag-screenshots pickup '05-snap-pickup-slice-12.png'
-        printf '%s\t%s\t%s\n' drag-screenshots path '06-snap-path-slice-12.png'
-        printf '%s\t%s\t%s\n' drag-screenshots hover '07-snap-hover-comms-slice-12.png'
-        printf '%s\t%s\t%s\n' drag-screenshots freeform-pickup '02-freeform-pickup-slice-12.png'
-        printf '%s\t%s\t%s\n' drag-screenshots freeform-hover '03-freeform-hover-no-overlay-slice-12.png'
+        printf '%s\t%s\t%s\n' drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
+        printf '%s\t%s\t%s\n' drag-screenshots pickup "${SNAP_PICKUP_NAME}"
+        printf '%s\t%s\t%s\n' drag-screenshots path "${SNAP_PATH_NAME}"
+        printf '%s\t%s\t%s\n' drag-screenshots hover "${SNAP_HOVER_NAME}"
+        printf '%s\t%s\t%s\n' drag-screenshots freeform-pickup "${FREEFORM_PICKUP_NAME}"
+        printf '%s\t%s\t%s\n' drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}"
         printf '%s\t%s\t%s\n' visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
-        printf '%s\t%s\t%s\n' caption chip 'Action: hold Alt while dragging snap-demo.rtf'
+        printf '%s\t%s\t%s\n' caption chip "${MODIFIER_CAPTION_CHIP}"
         printf '%s\t%s\t%s\n' verification before-window-log "${WINDOW_BEFORE_LOG}"
         printf '%s\t%s\t%s\n' verification after-freeform-window-log "${WINDOW_FREEFORM_LOG}"
         printf '%s\t%s\t%s\n' verification after-window-log "${WINDOW_AFTER_LOG}"
@@ -540,7 +558,7 @@ proof_slice() {
 
     reset_snap_window_to_work
     sleep 1
-    capture_guest_screenshot '04-reset-before-snap-slice-12'
+    capture_guest_screenshot "${RESET_NAME%.png}"
 
     snap_start_epoch="$(date +%s)"
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 1 \
@@ -594,7 +612,7 @@ proof_slice() {
         "${WINDOW_RESET_LOG}" "${WINDOW_AFTER_LOG}" >"${CLI_LOG}"
 
     {
-        echo 'WinMux Slice 12: desktop mouse zone snap policy'
+        echo "${SLICE_TITLE}"
         echo
         echo 'Config under proof:'
         echo "[mouse.zone-snap]"
@@ -636,7 +654,7 @@ case "${PHASE}" in
         proof_slice
         ;;
     *)
-        echo "Unknown WINMUX_E2E_SLICE12_PHASE: ${PHASE}" >&2
+        echo "Unknown WINMUX_E2E_MOUSE_SNAP_PHASE/WINMUX_E2E_SLICE12_PHASE: ${PHASE}" >&2
         exit 64
         ;;
 esac

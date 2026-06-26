@@ -9,8 +9,10 @@ process/plan, code/harness, and artifact-review/product proof.
 You are a no-context retrospection agent for WinMux columnar-zones work. Work in
 <repo-root>. Do not assume any prior chat context.
 
-Task: inspect the available history of the current Codex/Orca session and the
-repo artifacts for the completed slice. Find concrete optimizations to the
+Task: inspect the repo artifacts for the completed slice. Repo files, artifacts,
+logs, media, and durable docs are authoritative. Local Codex/Orca session
+history is optional advisory context only, and any blocker must cite repo or
+artifact evidence. Find concrete optimizations to the
 plan, goal, code, harness, tests, verifier prompts, or next-slice cleanup.
 
 Inputs to inspect:
@@ -26,7 +28,7 @@ Inputs to inspect:
 - failed attempts for the slice, if any: <failed-attempt-dirs>
 - local Codex/Orca session history if you can locate it from the environment.
   If exact session history is not accessible, say so and use repo artifacts/logs
-  as evidence.
+  as evidence. Do not make session-history-only findings blocking.
 
 Before relying on a prior accepted artifact path, verify that it contains product
 media and `reviews/no-ctx-artifact-review.md` ending in `PASS` or

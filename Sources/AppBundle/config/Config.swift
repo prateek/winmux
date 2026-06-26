@@ -70,6 +70,7 @@ struct Config: ConvenienceCopyable {
     var zoneStyles: [ZoneStyleConfig] = []
     var zoneLayouts: [ZoneLayoutConfig] = []
     var zoneScenes: [ZoneSceneConfig] = []
+    var zoneBindings: [ZoneBindingConfig] = []
     var zoneAvailabilitySets: [ZoneAvailabilitySetConfig] = []
     var zones: [ZoneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
@@ -126,6 +127,12 @@ struct ZoneSceneConfig: ConvenienceCopyable, Equatable, Sendable {
 }
 
 struct ZoneSceneWorkspaceConfig: ConvenienceCopyable, Equatable, Sendable {
+    var zone: String = ""
+    var workspace: WorkspaceName?
+}
+
+struct ZoneBindingConfig: ConvenienceCopyable, Equatable, Sendable {
+    var monitor: MonitorDescription?
     var zone: String = ""
     var workspace: WorkspaceName?
 }

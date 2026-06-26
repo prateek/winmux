@@ -984,6 +984,11 @@ struct ZoneSceneActivationResult {
     let bindings: [(zone: String, workspace: String)]
 }
 
+struct ZoneBindingActivationResult {
+    let physicalMonitor: Monitor
+    let bindings: [(zone: String, workspace: String)]
+}
+
 @MainActor
 func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<ZoneSceneActivationResult, String> {
     guard let scene = config.zoneScenes.first(where: { $0.id == sceneId }) else {
@@ -992,7 +997,19 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
     guard let layoutId = scene.layoutPreset else {
         return .failure("Zone scene '\(sceneId)' is missing layout-preset")
     }
+    for binding in scene.workspaces where binding.workspace?.raw == nil {
+        return .failure("Zone scene '\(sceneId)' has a workspace binding without a workspace name")
+    }
 
+    let workspaceStateBefore = winMuxWorkspaceState
+    let zoneRuntimeOverlaysBefore = zoneRuntimeOverlaysByPhysicalIdentity
+    func rollback(_ message: String) -> Result<ZoneSceneActivationResult, String> {
+        winMuxWorkspaceState = workspaceStateBefore
+        zoneRuntimeOverlaysByPhysicalIdentity = zoneRuntimeOverlaysBefore
+        refreshZoneTopologySnapshot()
+        checkWorkspaceHierarchyInvariants()
+        return .failure(message)
+    }
     switch setActiveZoneLayout(layoutId, for: physicalMonitor) {
         case .success:
             break
@@ -1008,22 +1025,141 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
 
     var appliedBindings: [(zone: String, workspace: String)] = []
     for binding in scene.workspaces {
-        guard let workspaceName = binding.workspace?.raw else {
-            return .failure("Zone scene '\(sceneId)' has a workspace binding without a workspace name")
-        }
+        let workspaceName = binding.workspace.orDie().raw
         guard let zoneMonitor = zoneMonitors.first(where: { $0.zoneId == binding.zone }) else {
-            return .failure("Zone scene '\(sceneId)' references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+            return rollback("Zone scene '\(sceneId)' references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
         }
 
         let workspace = Workspace.get(byName: workspaceName)
         guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: zoneMonitor) else {
-            return .failure("Can't activate workspace '\(workspaceName)' in zone '\(binding.zone)'")
+            return rollback("Can't activate workspace '\(workspaceName)' in zone '\(binding.zone)'")
         }
         appliedBindings.append((zone: binding.zone, workspace: workspaceName))
     }
 
     Workspace.reconcileWorkspaceState()
     return .success(ZoneSceneActivationResult(sceneId: sceneId, layoutId: layoutId, bindings: appliedBindings))
+}
+
+@MainActor
+func applyZoneBindings(for physicalMonitor: Monitor) -> Result<ZoneBindingActivationResult, String> {
+    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
+    let targetTopLeft = targetPhysicalMonitor.rect.topLeftCorner
+    let zoneMonitors = sortMonitorsBySpatialOrder(monitors.filter {
+        $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
+    })
+    guard !zoneMonitors.isEmpty else {
+        return .failure("No active zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+    }
+
+    switch resolvedZoneBindings(for: targetPhysicalMonitor) {
+        case .success(let bindings):
+            guard !bindings.isEmpty else {
+                return .failure("No zone bindings configured for monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+            }
+            return applyResolvedZoneBindings(
+                bindings,
+                to: zoneMonitors,
+                on: targetPhysicalMonitor,
+            )
+        case .failure(let message):
+            return .failure(message)
+    }
+}
+
+@MainActor
+private func applyResolvedZoneBindings(
+    _ bindings: [ZoneBindingConfig],
+    to zoneMonitors: [Monitor],
+    on targetPhysicalMonitor: Monitor,
+) -> Result<ZoneBindingActivationResult, String> {
+    var preparedBindings: [(zone: String, workspaceName: String, zoneMonitor: Monitor)] = []
+    for binding in bindings {
+        guard let workspaceName = binding.workspace?.raw else {
+            return .failure("Zone binding for zone '\(binding.zone)' is missing a workspace name")
+        }
+        guard let zoneMonitor = zoneMonitors.first(where: { $0.zoneId == binding.zone }) else {
+            return .failure("Zone binding references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+        }
+        preparedBindings.append((zone: binding.zone, workspaceName: workspaceName, zoneMonitor: zoneMonitor))
+    }
+
+    let workspaceStateBefore = winMuxWorkspaceState
+    var appliedBindings: [(zone: String, workspace: String)] = []
+    for binding in preparedBindings {
+        let workspace = Workspace.get(byName: binding.workspaceName)
+        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: binding.zoneMonitor) else {
+            winMuxWorkspaceState = workspaceStateBefore
+            checkWorkspaceHierarchyInvariants()
+            return .failure("Can't activate workspace '\(binding.workspaceName)' in zone '\(binding.zone)'")
+        }
+        appliedBindings.append((zone: binding.zone, workspace: binding.workspaceName))
+    }
+
+    Workspace.reconcileWorkspaceState()
+    return .success(ZoneBindingActivationResult(
+        physicalMonitor: targetPhysicalMonitor,
+        bindings: appliedBindings,
+    ))
+}
+
+@MainActor
+private func resolvedZoneBindings(for targetPhysicalMonitor: Monitor) -> Result<[ZoneBindingConfig], String> {
+    let targetTopLeft = targetPhysicalMonitor.rect.topLeftCorner
+    let scopedBindings = config.zoneBindings.filter { binding in
+        guard let monitor = binding.monitor?.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) else {
+            return false
+        }
+        return monitor.rect.topLeftCorner == targetTopLeft
+    }
+    let duplicateScopedZones = scopedBindings.map(\.zone)
+        .grouped { $0 }
+        .filter { zone, bindings in !zone.isEmpty && bindings.count > 1 }
+        .keys
+        .sorted()
+    guard duplicateScopedZones.isEmpty else {
+        return .failure("Multiple scoped zone bindings target monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0): \(duplicateScopedZones.joined(separator: ", "))")
+    }
+
+    let genericBindings = config.zoneBindings.filter { $0.monitor == nil }
+    let duplicateGenericZones = genericBindings.map(\.zone)
+        .grouped { $0 }
+        .filter { zone, bindings in !zone.isEmpty && bindings.count > 1 }
+        .keys
+        .sorted()
+    guard duplicateGenericZones.isEmpty else {
+        return .failure("Multiple generic zone bindings are configured: \(duplicateGenericZones.joined(separator: ", "))")
+    }
+
+    var byZone: [String: ZoneBindingConfig] = [:]
+    for binding in genericBindings {
+        byZone[binding.zone] = binding
+    }
+    for binding in scopedBindings {
+        byZone[binding.zone] = binding
+    }
+
+    let configuredZones = configuredZones(on: targetPhysicalMonitor)
+    let configuredZoneIds = Set(configuredZones.map(\.zoneId))
+    let missingZones = byZone.keys
+        .filter { !configuredZoneIds.contains($0) }
+        .sorted()
+    guard missingZones.isEmpty else {
+        return .failure("Zone bindings reference zones not configured on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0): \(missingZones.joined(separator: ", "))")
+    }
+
+    let ordered = configuredZones
+        .compactMap { byZone[$0.zoneId] }
+    let duplicateWorkspaces = ordered.compactMap { $0.workspace?.raw }
+        .grouped { $0 }
+        .filter { _, bindings in bindings.count > 1 }
+        .keys
+        .sorted()
+    guard duplicateWorkspaces.isEmpty else {
+        return .failure("Zone bindings assign the same workspace to multiple zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0): \(duplicateWorkspaces.joined(separator: ", "))")
+    }
+
+    return .success(ordered)
 }
 
 func zoneLayoutPhysicalIdentity(for monitor: Monitor) -> String {

@@ -3,8 +3,10 @@
 
 let subcommandDescriptions = [
     ["  agent", "Query, validate, and apply agent-oriented window layout JSON"],
+    ["  apply-zone-bindings", "Apply configured workspace bindings to zones on a physical monitor"],
     ["  balance-sizes", "Balance sizes of all windows in the current workspace"],
     ["  balance-zones", "Balance runtime widths of enabled zones on a physical monitor"],
+    ["  bind-node-to-zone", "Bind the focused window or tab group to a configured zone"],
     ["  close-all-windows-but-current", "On the focused workspace, close all windows but current"],
     ["  close", "Close the focused window"],
     ["  config", "Query WinMux config options"],
@@ -30,6 +32,7 @@ let subcommandDescriptions = [
     ["  list-monitors", "Print monitors that satisfy conditions"],
     ["  list-windows", "Print windows that satisfy conditions"],
     ["  list-workspaces", "Print workspaces that satisfy conditions"],
+    ["  list-zone-bindings", "Print runtime window and tab-group zone bindings"],
     ["  list-zones", "Print configured zone viewports"],
     ["  macos-native-fullscreen", "Toggle macOS fullscreen for the focused window"],
     ["  macos-native-minimize", "Minimize focused window"],
@@ -53,6 +56,7 @@ let subcommandDescriptions = [
     ["  swap", "Swaps the focused window with another window."],
     ["  toggle-zone", "Temporarily hide or restore a configured zone"],
     ["  trigger-binding", "Trigger WinMux binding as if it was pressed by user"],
+    ["  unbind-node-zone-binding", "Remove the runtime zone binding for a window or tab group"],
     ["  use-zone-availability", "Apply a named zone availability set"],
     ["  use-zone-layout", "Switch a monitor to a named zone layout preset"],
     ["  use-zone-scene", "Switch a monitor to a named zone scene"],

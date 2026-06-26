@@ -13,6 +13,7 @@ func resetWinMuxWorkspaceStateForTests() {
     for workspace in Workspace.all {
         workspace.lifecycle = .durable
     }
+    resetNodeZoneBindingsForTests()
     winMuxWorkspaceState.resetWorkspaceRegistryForTests(
         defaultProjectName: workspaceProjectDisplayName(workspaceProjectDefaultId, fallbackName: "Default"),
     )

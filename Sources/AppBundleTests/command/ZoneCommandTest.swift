@@ -68,6 +68,22 @@ final class ZoneCommandTest: XCTestCase {
             "use-zone-scene --monitor 1 deep-work",
             UseZoneSceneCmdArgs(sceneId: "deep-work", monitor: .sequenceNumber(1)),
         )
+        testParseCommandSucc(
+            "apply-zone-bindings --monitor 1",
+            ApplyZoneBindingsCmdArgs(monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
+            "bind-node-to-zone --window-id 7 Comms",
+            BindNodeToZoneCmdArgs(zone: ZoneSelector("Comms")).copy(\.windowId, 7),
+        )
+        testParseCommandSucc(
+            "unbind-node-zone-binding --window-id 7",
+            UnbindNodeZoneBindingCmdArgs(windowId: 7),
+        )
+        testParseCommandSucc(
+            "list-zone-bindings --count",
+            ListZoneBindingsCmdArgs(rawArgs: []).copy(\.outputOnlyCount, true),
+        )
         testParseCommandSucc("list-zones --json", ListZonesCmdArgs(rawArgs: []).copy(\.json, true))
     }
 
@@ -1047,6 +1063,225 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone scene 'missing'"))
     }
 
+    func testApplyZoneBindingsActivatesConfiguredWorkspaces() async throws {
+        let zones = configureThreeZones()
+        let referenceScratch = Workspace.get(byName: "reference-scratch")
+        let workScratch = Workspace.get(byName: "work-scratch")
+        let commsScratch = Workspace.get(byName: "comms-scratch")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(referenceScratch))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(workScratch))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(commsScratch))
+        XCTAssertTrue(workScratch.focusWorkspace())
+        config.zoneBindings = [
+            ZoneBindingConfig(zone: "left", workspace: WorkspaceName.parse("ReferenceDesk").getOrDie()),
+            ZoneBindingConfig(zone: "main", workspace: WorkspaceName.parse("WorkDesk").getOrDie()),
+            ZoneBindingConfig(zone: "right", workspace: WorkspaceName.parse("CommsDesk").getOrDie()),
+        ]
+
+        let result = try await parseCommand("apply-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Applied zone bindings on monitor 1: left=ReferenceDesk, main=WorkDesk, right=CommsDesk"])
+        XCTAssertEqual(sortedMonitors.map(\.rect.width), [300, 600, 300])
+        XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
+            "1:left": "ReferenceDesk",
+            "1:main": "WorkDesk",
+            "1:right": "CommsDesk",
+        ])
+    }
+
+    func testApplyZoneBindingsUsesMonitorScopedOverrides() async throws {
+        let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryMain.focusWorkspace())
+        config.zoneBindings = [
+            ZoneBindingConfig(zone: "left", workspace: WorkspaceName.parse("DefaultLeft").getOrDie()),
+            ZoneBindingConfig(zone: "main", workspace: WorkspaceName.parse("DefaultMain").getOrDie()),
+            ZoneBindingConfig(monitor: .sequenceNumber(2), zone: "left", workspace: WorkspaceName.parse("SecondaryLeftDesk").getOrDie()),
+            ZoneBindingConfig(monitor: .sequenceNumber(2), zone: "main", workspace: WorkspaceName.parse("SecondaryMainDesk").getOrDie()),
+        ]
+
+        let result = try await parseCommand("apply-zone-bindings --monitor 2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Applied zone bindings on monitor 2: left=SecondaryLeftDesk, main=SecondaryMainDesk"])
+        XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
+            "1:left": "primary-left",
+            "1:main": "primary-main",
+            "2:left": "SecondaryLeftDesk",
+            "2:main": "SecondaryMainDesk",
+        ])
+    }
+
+    func testApplyZoneBindingsRejectsHiddenTargetZone() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+        config.zoneBindings = [
+            ZoneBindingConfig(zone: "right", workspace: WorkspaceName.parse("CommsDesk").getOrDie()),
+        ]
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let result = try await parseCommand("apply-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Zone binding references zone 'right' that is not active on monitor 1"))
+    }
+
+    func testApplyZoneBindingsRejectsZoneMissingFromTargetMonitor() async throws {
+        let zones = configureDuplicateZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+        config.zoneBindings = [
+            ZoneBindingConfig(zone: "right", workspace: WorkspaceName.parse("CommsDesk").getOrDie()),
+        ]
+
+        let result = try await parseCommand("apply-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Zone bindings reference zones not configured on monitor 1: right"))
+    }
+
+    func testApplyZoneBindingsRollsBackWhenLaterBindingFails() async throws {
+        let zones = configureDuplicateZones()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(primaryMain.focusWorkspace())
+        config.workspaceToMonitorForceAssignment["ForcedSecondary"] = [.sequenceNumber(2)]
+        config.zoneBindings = [
+            ZoneBindingConfig(zone: "left", workspace: WorkspaceName.parse("ReferenceDesk").getOrDie()),
+            ZoneBindingConfig(zone: "main", workspace: WorkspaceName.parse("ForcedSecondary").getOrDie()),
+        ]
+
+        let result = try await parseCommand("apply-zone-bindings --monitor 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Can't activate workspace 'ForcedSecondary' in zone 'main'"))
+        XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
+            "1:left": "primary-left",
+            "1:main": "primary-main",
+            "2:left": "setUpWorkspacesForTests",
+            "2:main": "secondary-main",
+        ])
+        XCTAssertNil(Workspace.existing(byName: "ReferenceDesk"))
+        XCTAssertNil(Workspace.existing(byName: "ForcedSecondary"))
+    }
+
+    func testBindNodeToZoneRecordsAndMovesFocusedTabGroup() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let tabGroup = TilingContainer(parent: work.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 80, parent: tabGroup, title: "Work Alpha")
+        let second = TestWindow.new(id: 81, parent: tabGroup, title: "Work Beta")
+        XCTAssertTrue(first.focusWindow())
+
+        let beforeCount = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(beforeCount.stdout, ["0"])
+
+        let result = try await parseCommand("bind-node-to-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Bound tab-group:80,81 to zone right on monitor 1"])
+        XCTAssertTrue(tabGroup.nodeWorkspace === comms)
+        XCTAssertTrue(first.nodeWorkspace === comms)
+        XCTAssertTrue(second.nodeWorkspace === comms)
+
+        let list = try await parseCommand("list-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.stdout, [
+            "node-id=tab-group:80,81|node-type=tab-group|window-ids=80,81|title=Work Alpha + Work Beta|zone=right|zone-name=Comms|workspace=comms|monitor=1|physical=physical:0.0,0.0",
+        ])
+
+        let unbind = try await parseCommand("unbind-node-zone-binding --window-id 80").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(unbind.exitCode, 0)
+        XCTAssertEqual(unbind.stdout, ["Removed node zone binding tab-group:80,81"])
+        let afterCount = try await parseCommand("list-zone-bindings --count").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(afterCount.stdout, ["0"])
+    }
+
+    func testBindNodeToZoneUsesWindowIdWithoutMovingFocusedWindow() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 82, parent: work.rootTilingContainer, title: "Move Me")
+        let focusedWindow = TestWindow.new(id: 83, parent: work.rootTilingContainer, title: "Stay Focused")
+        XCTAssertTrue(focusedWindow.focusWindow())
+
+        let result = try await parseCommand("bind-node-to-zone --window-id 82 Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Bound window:82 to zone right on monitor 1"])
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+        XCTAssertTrue(focus.windowOrNil === focusedWindow)
+
+        let list = try await parseCommand("list-zone-bindings").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(list.stdout, [
+            "node-id=window:82|node-type=window|window-ids=82|title=Move Me|zone=right|zone-name=Comms|workspace=comms|monitor=1|physical=physical:0.0,0.0",
+        ])
+    }
+
+    func testUseZoneSceneRollsBackLayoutAndWorkspacesWhenLaterBindingFails() async throws {
+        let zones = configureDuplicateZoneLayoutPresets()
+        let primaryLeft = Workspace.get(byName: "primary-left")
+        let primaryMain = Workspace.get(byName: "primary-main")
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["1:left"].orDie().setActiveWorkspace(primaryLeft))
+        XCTAssertTrue(zones["1:main"].orDie().setActiveWorkspace(primaryMain))
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(primaryMain.focusWorkspace())
+        config.workspaceToMonitorForceAssignment["ForcedSecondary"] = [.sequenceNumber(2)]
+        config.zoneScenes = [
+            ZoneSceneConfig(
+                id: "bad-scene",
+                layoutPreset: "focus",
+                workspaces: [
+                    ZoneSceneWorkspaceConfig(zone: "left", workspace: WorkspaceName.parse("ReferenceDesk").getOrDie()),
+                    ZoneSceneWorkspaceConfig(zone: "main", workspace: WorkspaceName.parse("ForcedSecondary").getOrDie()),
+                ],
+            ),
+        ]
+
+        let result = try await parseCommand("use-zone-scene --monitor 1 bad-scene").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Can't activate workspace 'ForcedSecondary' in zone 'main'"))
+        XCTAssertEqual(zoneLayoutIdsByPhysicalZone(), [
+            "1:left": "balanced",
+            "1:main": "balanced",
+            "2:left": "balanced",
+            "2:main": "balanced",
+        ])
+        XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
+            "1:left": "primary-left",
+            "1:main": "primary-main",
+            "2:left": "setUpWorkspacesForTests",
+            "2:main": "secondary-main",
+        ])
+        XCTAssertNil(Workspace.existing(byName: "ReferenceDesk"))
+        XCTAssertNil(Workspace.existing(byName: "ForcedSecondary"))
+    }
+
     func testDisableZoneParksWorkspaceAndEnableZoneRestoresIt() async throws {
         let zones = configureThreeZones()
         let reference = Workspace.get(byName: "reference")
@@ -1397,7 +1632,8 @@ private func duplicateZoneConfig(monitor: MonitorDescription) -> ZoneConfig {
 }
 
 @MainActor
-private func configureDuplicateZoneLayoutPresets() {
+@discardableResult
+private func configureDuplicateZoneLayoutPresets() -> [String: Monitor] {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
         name: "Main",
@@ -1439,6 +1675,12 @@ private func configureDuplicateZoneLayoutPresets() {
         ZoneConfig(monitor: .sequenceNumber(1), layoutPreset: "balanced"),
         ZoneConfig(monitor: .sequenceNumber(2), layoutPreset: "balanced"),
     ]
+    return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
+              let zoneId = monitor.zoneId
+        else { return nil }
+        return ("\(physicalId):\(zoneId)", monitor)
+    })
 }
 
 @MainActor
