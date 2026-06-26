@@ -166,6 +166,16 @@ Slice-specific checks:
   then `route-comms.rtf` in the Comms/right zone. Reject any artifact where the
   recorded proof uses a manual `move-node-to-zone` command to move the routed
   window, or where the routed window is visible before the open-action caption.
+- Slice 18 must show `[[zone-affinities]]` plus a target zone and matcher, not
+  generic `[[on-window-detected]]`. The proof must show focused Work/main with
+  no `affinity-comms.rtf`, then the user action
+  `open -a TextEdit affinity-comms.rtf`, then `affinity-comms.rtf` in the
+  Comms/right zone while `focused-work.rtf` remains in Work/main. Reject any
+  artifact where the routed window is visible before the open-action caption,
+  the proof uses a manual `move-node-to-zone` command during the recording, the
+  focused Work window moves instead of the detected window, or the artifact
+  claims relaunch persistence, automatic rebinding of already-open windows, or
+  durable tab-group identity.
 - Slice 10 must show runtime zone availability with
   `disable-zone Comms` and `enable-zone Comms`. The proof must show Reference,
   Work, and Comms visible before the disable command; Comms absent and Work/main

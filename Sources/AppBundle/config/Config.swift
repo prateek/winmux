@@ -71,6 +71,7 @@ struct Config: ConvenienceCopyable {
     var zoneLayouts: [ZoneLayoutConfig] = []
     var zoneScenes: [ZoneSceneConfig] = []
     var zoneBindings: [ZoneBindingConfig] = []
+    var zoneAffinities: [ZoneAffinityConfig] = []
     var zoneAvailabilitySets: [ZoneAvailabilitySetConfig] = []
     var zones: [ZoneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
@@ -135,6 +136,14 @@ struct ZoneBindingConfig: ConvenienceCopyable, Equatable, Sendable {
     var monitor: MonitorDescription?
     var zone: String = ""
     var workspace: WorkspaceName?
+}
+
+struct ZoneAffinityConfig: ConvenienceCopyable, Equatable {
+    var matcher: WindowDetectedCallbackMatcher = WindowDetectedCallbackMatcher()
+    var zone: ZoneSelector?
+    var checkFurtherCallbacks: Bool = false
+    var focusFollowsWindow: Bool = false
+    var failIfNoop: Bool = false
 }
 
 struct ZoneStyleConfig: ConvenienceCopyable, Equatable, Sendable {

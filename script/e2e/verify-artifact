@@ -971,6 +971,19 @@ require_slice_17_sample_manifest() {
     done
 }
 
+require_slice_18_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        ready-affinity-routing \
+        before-affinity-absent \
+        open-affinity-command \
+        after-affinity-routing \
+        inspect-affinity-windows; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 transport_summary_value() {
     local path="$1"
     local phase="$2"
@@ -1823,6 +1836,103 @@ require_slice_8_window_routing_proof() {
         || die "Slice 8 annotations missing list-windows chip"
     grep -F "Run: winmux list-zones" "$annotation_plan" >/dev/null \
         || die "Slice 8 annotations missing list-zones chip"
+}
+
+require_slice_18_zone_affinity_routing_proof() {
+    local proof="${RUN_DIR}/slice-18-zone-affinity-routing-proof.txt"
+    local done="${LOGS_DIR}/slice-18-zone-affinity-routing.done"
+    local setup_log="${LOGS_DIR}/slice-18-zone-affinity-routing-setup.log"
+    local before_windows="${LOGS_DIR}/slice-18-affinity-before.log"
+    local open_log="${LOGS_DIR}/slice-18-open-affinity-window.log"
+    local run_log="${LOGS_DIR}/slice-18-run.log"
+    local cli_log="${LOGS_DIR}/slice-18-cli.log"
+    local after_windows="${LOGS_DIR}/slice-18-affinity-after.log"
+    local zones="${LOGS_DIR}/slice-18-zones.log"
+    local state_file="${LOGS_DIR}/slice-18-zone-affinity-state.env"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-18.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 18"
+    require_file "$setup_log"
+    require_file "$before_windows"
+    require_file "$open_log"
+    require_file "$run_log"
+    require_file "$cli_log"
+    require_file "$after_windows"
+    require_file "$zones"
+    require_file "$state_file"
+    require_file "$ready_screenshot"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_slice_18_sample_manifest "$(sample_manifest_path)"
+
+    grep -F 'PASS: zone-affinities routed affinity-comms.rtf to the Comms zone using the detected window id while focused-work.rtf stayed in Work.' "$proof" >/dev/null \
+        || die "Slice 18 proof does not contain the expected PASS claim"
+    grep -F '[[zone-affinities]]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 18 config missing [[zone-affinities]]"
+    grep -F "zone = 'Comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 18 config missing Comms affinity target"
+    grep -F "if.window-title-regex-substring = 'affinity-comms'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 18 config missing affinity-comms matcher"
+    grep -F '[[on-window-detected]]' "$CONFIG_PATH" >/dev/null \
+        && die "Slice 18 must prove zone-affinities, not generic on-window-detected callbacks"
+    grep -F "Config: [[zone-affinities]] zone = 'Comms', if.window-title-regex-substring = 'affinity-comms'" "$setup_log" >/dev/null \
+        || die "Slice 18 setup log missing affinity config summary"
+    grep -F 'Non-claim: no relaunch persistence or durable tab-group identity' "$setup_log" >/dev/null \
+        || die "Slice 18 setup log missing persistence non-claim"
+    grep -F 'ready-screenshot-label=setup checkpoint' "$setup_log" >/dev/null \
+        || die "Slice 18 setup log must label the ready screenshot as setup-only"
+
+    grep -F '|affinity-comms.rtf|' "$before_windows" >/dev/null \
+        && die "Slice 18 before log already contains affinity-comms.rtf"
+    grep -F '$ open -a TextEdit affinity-comms.rtf' "$open_log" >/dev/null \
+        || die "Slice 18 action log missing exact open command"
+    local proof_phase_log
+    for proof_phase_log in "$open_log" "$run_log" "$cli_log"; do
+        grep -F '$ winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 18 automatic affinity proof log must not include a manual move-node-to-zone command: $proof_phase_log"
+        grep -F 'Run: winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 18 automatic affinity proof log must not annotate a manual move-node-to-zone command: $proof_phase_log"
+    done
+
+    local work_id route_id route_zone route_workspace work_zone work_workspace
+    work_id="$(value_from_log WORK_ID "$state_file")"
+    route_id="$(field_for_title "$after_windows" 'affinity-comms.rtf' id)"
+    route_zone="$(field_for_title "$after_windows" 'affinity-comms.rtf' zone)"
+    route_workspace="$(field_for_title "$after_windows" 'affinity-comms.rtf' workspace)"
+    work_zone="$(field_for_title "$after_windows" 'focused-work.rtf' zone)"
+    work_workspace="$(field_for_title "$after_windows" 'focused-work.rtf' workspace)"
+    [ -n "$work_id" ] || die "Slice 18 state file missing WORK_ID"
+    [ -n "$route_id" ] || die "Slice 18 after log missing affinity-comms.rtf"
+    [ "$route_zone" = right ] || die "Slice 18 affinity-comms.rtf was not in right zone: ${route_zone:-missing}"
+    [ -n "$route_workspace" ] || die "Slice 18 affinity-comms.rtf missing workspace"
+    [ "$work_zone" = main ] || die "Slice 18 focused-work.rtf moved unexpectedly: ${work_zone:-missing}"
+    [ -n "$work_workspace" ] || die "Slice 18 focused-work.rtf missing workspace"
+    grep -F "focused-work-window-id=${work_id}" "$proof" >/dev/null \
+        || die "Slice 18 proof does not name focused work window id"
+    grep -F "focused-work-zone-after=main" "$proof" >/dev/null \
+        || die "Slice 18 proof does not show focused work stayed in main"
+    grep -F "routed-window-id=${route_id}" "$proof" >/dev/null \
+        || die "Slice 18 proof does not name routed window id from after log"
+    grep -F "routed-zone=right" "$proof" >/dev/null \
+        || die "Slice 18 proof does not name routed zone"
+    grep -F 'non-claim=no relaunch persistence or durable tab-group identity' "$proof" >/dev/null \
+        || die "Slice 18 proof missing non-persistence/non-tab-group-identity non-claim"
+    grep -F 'zone=left|name=Reference|' "$zones" >/dev/null || die "Slice 18 zones log missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$zones" >/dev/null || die "Slice 18 zones log missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$zones" >/dev/null || die "Slice 18 zones log missing Comms/right"
+
+    for chip in \
+        "Config: [[zone-affinities]] zone = 'Comms', if.window-title-regex-substring = 'affinity-comms'" \
+        "Action: before affinity, focused-work.rtf is in Work" \
+        "Run: open -a TextEdit affinity-comms.rtf" \
+        "Action: zone-affinities moved detected affinity-comms.rtf to Comms" \
+        "Run: winmux list-windows --workspace visible" \
+        "Run: winmux list-zones"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 18 annotations missing chip: $chip"
+    done
+    grep -F 'not relaunch persistence or durable tab-group identity' "$annotation_plan" >/dev/null \
+        || die "Slice 18 annotations must explicitly avoid persistence/tab-group identity claims"
 }
 
 require_slice_10_zone_availability_proof() {
@@ -3662,6 +3772,9 @@ case "$recording_name" in
         ;;
     slice-17-node-binding-guardrails)
         require_slice_17_node_binding_guardrails_proof
+        ;;
+    slice-18-zone-affinity-routing)
+        require_slice_18_zone_affinity_routing_proof
         ;;
 esac
 

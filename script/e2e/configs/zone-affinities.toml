@@ -1,0 +1,21 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zones]]
+monitor = 1
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zone-affinities]]
+zone = 'Comms'
+if.window-title-regex-substring = 'affinity-comms'
+fail-if-noop = true
+
+[workspace-sidebar]
+enabled = false

@@ -227,6 +227,18 @@ EOF
 - Confirm the proof shows `route-comms.rtf` moving to the Comms/right zone automatically, without a manual `move-node-to-zone` proof command during the recording.
 EOF
             ;;
+        slice-18-zone-affinity-routing)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, focused Work, and Comms visible, and no `affinity-comms.rtf` window.
+- Sample frames around the `Run: open -a TextEdit affinity-comms.rtf` caption boundary. Fail if the routed window is already visible before the open action.
+- Confirm captions expose the `[[zone-affinities]] zone = 'Comms'` config surface, the `if.window-title-regex-substring = 'affinity-comms'` matcher, the exact `open -a TextEdit affinity-comms.rtf` action, and the inspection commands `winmux list-windows --workspace visible` and `winmux list-zones`.
+- Confirm the proof shows `affinity-comms.rtf` moving to Comms/right automatically, without a manual `move-node-to-zone` proof command during the recording.
+- Confirm `focused-work.rtf` remains in Work/main after the route, proving the affinity used the detected window id rather than the focused window.
+- Inspect the semantic sample manifest and named frames for `ready-affinity-routing`, `before-affinity-absent`, `open-affinity-command`, `after-affinity-routing`, and `inspect-affinity-windows`.
+- State that Slice 18 proves durable new-window affinity routing only. It does not prove relaunch persistence, automatic rebinding of already-open windows, or durable tab-group identity.
+- Reject logs-only proof, final-state-only proof, generic `[[on-window-detected]]` proof, hidden config/action captions, routed-window-before-open ordering, focused-window movement, or any persistence/tab-group-identity claim.
+EOF
+            ;;
         slice-10-zone-availability)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible and the sidebar enabled.

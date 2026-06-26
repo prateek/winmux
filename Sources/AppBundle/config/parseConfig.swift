@@ -80,6 +80,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "zone-layouts": Parser(\.zoneLayouts, parseZoneLayouts),
     "zone-scenes": Parser(\.zoneScenes, parseZoneScenes),
     "zone-bindings": Parser(\.zoneBindings, parseZoneBindings),
+    "zone-affinities": Parser(\.zoneAffinities, parseZoneAffinities),
     "zone-availability-sets": Parser(\.zoneAvailabilitySets, parseZoneAvailabilitySets),
     "zones": Parser(\.zones, parseZones),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
@@ -178,6 +179,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     validateZoneLayoutReferences(config, &errors)
     validateZoneSceneReferences(config, &errors)
     validateZoneBindingReferences(config, &errors)
+    validateZoneAffinityReferences(config, &errors)
     validateZoneAvailabilitySetReferences(config, &errors)
 
     if config.enableNormalizationFlattenContainers {

@@ -78,6 +78,16 @@ private let matcherParsers: [String: any ParserProtocol<WindowDetectedCallbackMa
     "during-winmux-startup": Parser(\.duringWinMuxStartup, upcast(parseBool)),
 ]
 
+private let zoneAffinityParser: [String: any ParserProtocol<ZoneAffinityConfig>] = [
+    "if": Parser(\.matcher, parseWindowDetectedMatcher),
+    "zone": Parser(\.zone) { raw, backtrace in
+        parseString(raw, backtrace).map { ZoneSelector($0) }.map(Optional.some)
+    },
+    "check-further-callbacks": Parser(\.checkFurtherCallbacks, parseBool),
+    "focus-follows-window": Parser(\.focusFollowsWindow, parseBool),
+    "fail-if-noop": Parser(\.failIfNoop, parseBool),
+]
+
 private func upcast<T>(_ fun: @escaping @Sendable (TOMLValueConvertible, TomlBacktrace) -> ParsedToml<T>) -> @Sendable (TOMLValueConvertible, TomlBacktrace) -> ParsedToml<T?> {
     { fun($0, $1).map { $0 } }
 }
@@ -95,8 +105,59 @@ private func parseCasInsensitiveRegex(_ raw: TOMLValueConvertible, _ backtrace: 
     parseString(raw, backtrace).flatMap { parseCaseInsensitiveRegex($0).toParsedToml(backtrace) }
 }
 
-private func parseMatcher(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> WindowDetectedCallbackMatcher {
+func parseWindowDetectedMatcher(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> WindowDetectedCallbackMatcher {
     parseTable(raw, WindowDetectedCallbackMatcher(), matcherParsers, backtrace, &errors)
+}
+
+private func parseMatcher(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> WindowDetectedCallbackMatcher {
+    parseWindowDetectedMatcher(raw, backtrace, &errors)
+}
+
+func parseZoneAffinities(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> [ZoneAffinityConfig] {
+    guard let array = raw.array else {
+        errors.append(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
+        return []
+    }
+
+    return array.enumerated().compactMap { index, rawAffinity in
+        let affinityBacktrace = backtrace + .index(index)
+        var myErrors: [TomlParseError] = []
+        let affinity = parseTable(rawAffinity, ZoneAffinityConfig(), zoneAffinityParser, affinityBacktrace, &myErrors)
+        if affinity.zone == nil {
+            myErrors.append(.semantic(affinityBacktrace + .key("zone"), "Missing required key"))
+        }
+        if !myErrors.isEmpty {
+            errors += myErrors
+            return nil
+        }
+        return affinity
+    }
+}
+
+func validateZoneAffinityReferences(_ config: Config, _ errors: inout [TomlParseError]) {
+    let knownZoneSelectors = config.zones.flatMap(\.columns).flatMap(zoneSelectorNames) +
+        config.zoneLayouts.flatMap(\.columns).flatMap(zoneSelectorNames)
+    let relativeSelectors = Set(["current", "focused", "next", "prev", "previous"])
+
+    for (affinityIndex, affinity) in config.zoneAffinities.enumerated() {
+        guard let selector = affinity.zone else { continue }
+        let parsed = selector.parseForResolution()
+        let zoneSelector = parsed.zoneSelector
+        if relativeSelectors.contains(zoneSelector.lowercased()) {
+            continue
+        }
+        guard knownZoneSelectors.contains(where: { $0.matchesZoneSelector(zoneSelector) }) else {
+            errors.append(.semantic(
+                .rootKey("zone-affinities") + .index(affinityIndex) + .key("zone"),
+                "Unknown zone selector '\(selector.raw)'",
+            ))
+            continue
+        }
+    }
+}
+
+private func zoneSelectorNames(_ column: ZoneColumnConfig) -> [String] {
+    [column.id] + (column.name.map { [$0] } ?? [])
 }
 
 private func parseWindowDetectedCallback(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> WindowDetectedCallback? {

@@ -62,6 +62,9 @@ fi
 if [ "$ACTION" = "slice-15" ] || [ "$ACTION" = "slice-17" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-node-bindings.toml"
 fi
+if [ "$ACTION" = "slice-18" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-affinities.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -112,7 +115,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17>
+Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1228,6 +1231,16 @@ CAPTIONS
 40	44	Inspect zones	Zone state remains Reference, Work, and Comms on the ultrawide display.	Run: winmux list-zones
 CAPTIONS
             ;;
+        slice-18-zone-affinity-routing)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Affinity-ready zones	Reference, Work, and Comms are visible before the matching window exists.	Config: [[zone-affinities]] zone = 'Comms', if.window-title-regex-substring = 'affinity-comms'
+8	16	Before affinity	Focused Work is in the main zone and affinity-comms.rtf is absent.	Action: before affinity, focused-work.rtf is in Work
+16	28	Open matching document	TextEdit opens the document whose title matches the affinity rule.	Run: open -a TextEdit affinity-comms.rtf
+28	38	Affinity routed the window	The detected window lands in Comms; focused-work.rtf stays in Work.	Action: zone-affinities moved detected affinity-comms.rtf to Comms
+38	44	Inspect visible windows	The window log shows affinity-comms.rtf in right and focused-work.rtf in main.	Run: winmux list-windows --workspace visible
+44	50	Inspect zones	This proves new-window affinity, not relaunch persistence or durable tab-group identity.	Run: winmux list-zones
+CAPTIONS
+            ;;
         slice-10-zone-availability)
             cat >"$captions_path" <<'CAPTIONS'
 0	8	Availability-ready zones	Reference, Work, and Comms are visible before the toggle.	Config: [[zones]] Reference + Work + Comms
@@ -1420,7 +1433,8 @@ annotation_preflight() {
         slice-14-zone-bindings \
         slice-15-node-zone-binding \
         slice-16-mouse-snap-affordance \
-        slice-17-node-binding-guardrails
+        slice-17-node-binding-guardrails \
+        slice-18-zone-affinity-routing
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1694,6 +1708,23 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic final-empty-count caption-07 62.100 \
                 "screenshots/${name}.samples/caption-07-boundary-start.png" \
                 "final count inspection shows no runtime node bindings remain"
+            ;;
+        slice-18-zone-affinity-routing)
+            append_sample_manifest_row "$manifest_path" semantic ready-affinity-routing screenshot screenshot \
+                "screenshots/01-ready-slice-18.png" \
+                "setup checkpoint: Reference, focused Work, and Comms anchors are staged before recording-time affinity proof"
+            append_sample_manifest_row "$manifest_path" semantic before-affinity-absent caption-02 8.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "before-affinity caption starts with focused-work.rtf in Work/main and affinity-comms.rtf absent"
+            append_sample_manifest_row "$manifest_path" semantic open-affinity-command caption-03 16.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "open command caption starts before the matching affinity document appears"
+            append_sample_manifest_row "$manifest_path" semantic after-affinity-routing screenshot screenshot \
+                "screenshots/${name}.samples/caption-04-boundary-start.png" \
+                "recording-time after-routing frame shows affinity-comms.rtf in Comms/right while focused-work.rtf remains in Work/main"
+            append_sample_manifest_row "$manifest_path" semantic inspect-affinity-windows caption-05 38.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "list-windows inspection caption names the right/main zone proof"
             ;;
     esac
 }
@@ -2820,6 +2851,34 @@ run_slice_8_window_routing() {
         "${LOGS_DIR}/slice-8-run.log"
 }
 
+run_slice_18_zone_affinity_routing_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-18-zone-affinity-routing.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE18_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-18-setup.log"
+}
+
+run_slice_18_zone_affinity_routing() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-18-zone-affinity-routing.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE18_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-18-run.log"
+}
+
 run_slice_10_zone_availability_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-10-zone-availability.sh"
     local scenario_path_quoted
@@ -3251,6 +3310,10 @@ slice_17() {
     run_recorded_scenario "slice-17-node-binding-guardrails" "00-before-slice-17" "99-after-slice-17" "run_slice_17_node_binding_guardrails" "run_slice_17_node_binding_guardrails_setup" "01-ready-slice-17"
 }
 
+slice_18() {
+    run_recorded_scenario "slice-18-zone-affinity-routing" "00-before-slice-18" "99-after-slice-18" "run_slice_18_zone_affinity_routing" "run_slice_18_zone_affinity_routing_setup" "01-ready-slice-18"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -3326,6 +3389,9 @@ case "$ACTION" in
         ;;
     slice-17)
         slice_17
+        ;;
+    slice-18)
+        slice_18
         ;;
     *)
         usage >&2

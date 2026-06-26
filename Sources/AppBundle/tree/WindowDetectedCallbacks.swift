@@ -1,3 +1,5 @@
+import Common
+
 @MainActor
 func tryOnWindowDetected(_ window: Window) async throws {
     guard let parent = window.parent else { return }
@@ -18,6 +20,12 @@ private func onWindowDetected(_ window: Window) async throws {
         appBundleId: window.app.rawAppBundleId,
         appName: window.app.name,
     ))
+    for affinity in config.zoneAffinities where try await affinity.matches(window) {
+        let commandResult = try await MoveNodeToZoneCommand(args: affinity.commandArgs).run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
+        if commandResult.exitCode == 0 && !affinity.checkFurtherCallbacks {
+            return
+        }
+    }
     for callback in config.onWindowDetected where try await callback.matches(window) {
         _ = try await callback.run.runCmdSeq(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
         if !callback.checkFurtherCallbacks {
@@ -29,19 +37,39 @@ private func onWindowDetected(_ window: Window) async throws {
 extension WindowDetectedCallback {
     @MainActor
     func matches(_ window: Window) async throws -> Bool {
-        if let startupMatcher = matcher.duringWinMuxStartup, startupMatcher != isStartup {
+        try await matcher.matches(window)
+    }
+}
+
+extension ZoneAffinityConfig {
+    var commandArgs: MoveNodeToZoneCmdArgs {
+        MoveNodeToZoneCmdArgs(zone: zone.orDie("Zone affinity should have a parsed zone target"))
+            .copy(\.focusFollowsWindow, focusFollowsWindow)
+            .copy(\.failIfNoop, failIfNoop)
+    }
+
+    @MainActor
+    func matches(_ window: Window) async throws -> Bool {
+        try await matcher.matches(window)
+    }
+}
+
+extension WindowDetectedCallbackMatcher {
+    @MainActor
+    func matches(_ window: Window) async throws -> Bool {
+        if let startupMatcher = duringWinMuxStartup, startupMatcher != isStartup {
             return false
         }
-        if let regex = matcher.windowTitleRegexSubstring, !(try await window.title).contains(regex) {
+        if let regex = windowTitleRegexSubstring, !(try await window.title).contains(regex) {
             return false
         }
-        if let appId = matcher.appId, appId != window.app.rawAppBundleId {
+        if let appId, appId != window.app.rawAppBundleId {
             return false
         }
-        if let regex = matcher.appNameRegexSubstring, !(window.app.name ?? "").contains(regex) {
+        if let regex = appNameRegexSubstring, !(window.app.name ?? "").contains(regex) {
             return false
         }
-        if let workspace = matcher.workspace, workspace != window.nodeWorkspace?.name {
+        if let workspace, workspace != window.nodeWorkspace?.name {
             return false
         }
         return true

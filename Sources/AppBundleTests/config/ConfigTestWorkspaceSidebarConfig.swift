@@ -230,6 +230,82 @@ extension ConfigTest {
         XCTAssertTrue(args.failIfNoop)
     }
 
+    func testParseZoneAffinities() {
+        let (config, errors) = parseConfig(
+            """
+            [[zones]]
+            monitor = 1
+            layout = 'columns'
+            default-zone = 'main'
+            columns = [
+              { id = 'left', name = 'Reference', width = 0.25 },
+              { id = 'main', name = 'Work', width = 0.50 },
+              { id = 'right', name = 'Comms', width = 0.25 },
+            ]
+
+            [[zone-affinities]]
+                zone = 'Comms'
+                if.app-id = 'com.apple.mail'
+                focus-follows-window = true
+                check-further-callbacks = true
+
+            [[zone-affinities]]
+                zone = 'Reference'
+                if.window-title-regex-substring = 'Reference'
+                fail-if-noop = true
+            """,
+        )
+
+        assertEquals(errors, [])
+        assertEquals(config.zoneAffinities.count, 2)
+        assertEquals(config.zoneAffinities[0], ZoneAffinityConfig(
+            matcher: WindowDetectedCallbackMatcher(appId: "com.apple.mail"),
+            zone: ZoneSelector("Comms"),
+            checkFurtherCallbacks: true,
+            focusFollowsWindow: true,
+        ))
+        XCTAssertNotNil(config.zoneAffinities[1].matcher.windowTitleRegexSubstring)
+        XCTAssertEqual(config.zoneAffinities[1].zone, ZoneSelector("Reference"))
+        XCTAssertTrue(config.zoneAffinities[1].failIfNoop)
+    }
+
+    func testParseZoneAffinitiesRequiresZone() {
+        let (_, errors) = parseConfig(
+            """
+            [[zone-affinities]]
+                if.app-id = 'com.apple.mail'
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-affinities[0].zone: Missing required key",
+        ])
+    }
+
+    func testParseZoneAffinitiesRejectsUnknownNamedZone() {
+        let (_, errors) = parseConfig(
+            """
+            [[zones]]
+            monitor = 1
+            layout = 'columns'
+            default-zone = 'main'
+            columns = [
+              { id = 'left', name = 'Reference', width = 0.25 },
+              { id = 'main', name = 'Work', width = 0.50 },
+              { id = 'right', name = 'Comms', width = 0.25 },
+            ]
+
+            [[zone-affinities]]
+                zone = 'Mail'
+                if.app-id = 'com.apple.mail'
+            """,
+        )
+
+        assertEquals(errors.descriptions, [
+            "zone-affinities[0].zone: Unknown zone selector 'Mail'",
+        ])
+    }
+
     func testRegex() {
         var devNull: [String] = []
         XCTAssertTrue("System Settings".contains(parseCaseInsensitiveRegex("settings").getOrNil(appendErrorTo: &devNull)!))

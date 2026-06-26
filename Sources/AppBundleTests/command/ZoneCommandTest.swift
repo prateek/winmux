@@ -338,6 +338,80 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focusedWindow.nodeWorkspace === work)
     }
 
+    func testZoneAffinityRoutesDetectedWindowToZone() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 51, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
+        let focusedWindow = TestWindow.new(id: 52, parent: work.rootTilingContainer, title: "focused-work.rtf")
+        XCTAssertTrue(focusedWindow.focusWindow())
+        configureRouteCommsAffinity()
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+        XCTAssertTrue(focusedWindow.nodeWorkspace === work)
+    }
+
+    func testZoneAffinityStopsFurtherCallbacksByDefault() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 53, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
+        configureRouteCommsAffinity()
+        config.onWindowDetected = [
+            WindowDetectedCallback(
+                rawRun: [
+                    MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Reference"))),
+                ],
+            ),
+        ]
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
+    }
+
+    func testZoneAffinityCheckFurtherCallbacksAllowsGenericCallback() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 54, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
+        configureRouteCommsAffinity(checkFurtherCallbacks: true)
+        configureRouteReferenceCallback()
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
+    }
+
+    func testZoneAffinityFailedCommandFallsThroughToGenericCallback() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 58, parent: comms.rootTilingContainer, title: "mail-inbox.rtf")
+        configureRouteCommsAffinity(failIfNoop: true)
+        configureRouteReferenceCallback()
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
+    }
+
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")
@@ -1564,6 +1638,32 @@ private func configureRouteCommsCallback() {
             matcher: WindowDetectedCallbackMatcher(windowTitleRegexSubstring: regex),
             rawRun: [
                 MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Comms")).copy(\.failIfNoop, true)),
+            ],
+        ),
+    ]
+}
+
+@MainActor
+private func configureRouteCommsAffinity(checkFurtherCallbacks: Bool = false, failIfNoop: Bool = false) {
+    var errors: [String] = []
+    let regex = parseCaseInsensitiveRegex("mail-inbox").getOrNil(appendErrorTo: &errors).orDie()
+    XCTAssertEqual(errors, [])
+    config.zoneAffinities = [
+        ZoneAffinityConfig(
+            matcher: WindowDetectedCallbackMatcher(windowTitleRegexSubstring: regex),
+            zone: ZoneSelector("Comms"),
+            checkFurtherCallbacks: checkFurtherCallbacks,
+            failIfNoop: failIfNoop,
+        ),
+    ]
+}
+
+@MainActor
+private func configureRouteReferenceCallback() {
+    config.onWindowDetected = [
+        WindowDetectedCallback(
+            rawRun: [
+                MoveNodeToZoneCommand(args: MoveNodeToZoneCmdArgs(zone: ZoneSelector("Reference")).copy(\.failIfNoop, true)),
             ],
         ),
     ]

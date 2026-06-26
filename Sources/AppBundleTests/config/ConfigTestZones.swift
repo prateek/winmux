@@ -169,6 +169,22 @@ extension ConfigTest {
         )
     }
 
+    func testParseZoneAffinitiesE2EConfig() throws {
+        var fixtureUrl = getDefaultConfigUrlFromProject()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.append(path: "script/e2e/configs/zone-affinities.toml")
+
+        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneAffinities.count, 1)
+        XCTAssertEqual(parsed.zoneAffinities[0].zone, ZoneSelector("Comms"))
+        XCTAssertNotNil(parsed.zoneAffinities[0].matcher.windowTitleRegexSubstring)
+        XCTAssertTrue(parsed.zoneAffinities[0].failIfNoop)
+        XCTAssertFalse(parsed.workspaceSidebar.enabled)
+    }
+
     func testParseZoneStyles() {
         let (parsed, errors) = parseConfig(
             """

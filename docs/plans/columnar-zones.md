@@ -1,6 +1,7 @@
 # Columnar Zones Plan
 
-Status: slices 0-17 accepted; next work must start from the Pre-Slice-18 cleanup notes below
+Status: slices 0-18 accepted; Slice 19 must start with the Pre-Slice-19 cleanup
+items below
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -3014,6 +3015,154 @@ Pre-Slice-18 cleanup from Slice 17 retrospectives:
 - [ ] Conditional for future proof-board slices: make semantic ready labels
   point at recording-time evidence, or name setup-only screenshots as setup
   checkpoints, before the Tart proof run.
+
+## Slice 18: Durable Zone Affinity Routing
+
+Goal: give users a concise config surface for app/window routing to zones,
+without making them write `on-window-detected` command hooks for common cases.
+
+Primary product claim:
+
+- `[[zone-affinities]]` routes newly detected matching windows to the target
+  zone's active workspace, using the detected window id rather than the focused
+  window.
+
+Why this is the next narrow slice:
+
+- The original product goal includes binding tab groups or application groups
+  to specific zones. Workspace bindings and runtime node bindings already exist;
+  this slice adds the durable rule form for new windows.
+- The implementation should reuse the existing window-detected matcher and
+  `move-node-to-zone` behavior, but expose a purpose-built config shape:
+
+```toml
+[[zone-affinities]]
+zone = "Comms"
+if.app-id = "com.apple.mail"
+
+[[zone-affinities]]
+zone = "Reference"
+if.window-title-regex-substring = "reference"
+```
+
+Implementation requirements:
+
+- Add `ZoneAffinityConfig` under `Config` with matcher, target zone,
+  `check-further-callbacks`, `focus-follows-window`, and `fail-if-noop`.
+- Parse `[[zone-affinities]]` as a root config array and reject entries without
+  `zone`.
+- Run affinities before generic `[[on-window-detected]]` callbacks. By default,
+  a matching affinity stops further callbacks, matching the callback idiom.
+- Execute routing through `MoveNodeToZoneCommand` with the detected window id in
+  the command environment, so the focused window cannot be moved by accident.
+- Add fast behavior tests for parsing, missing `zone`, detected-window routing,
+  and default callback stopping.
+- Do not add relaunch persistence, durable tab-group identity, app lifecycle
+  reconciliation, or automatic rebinding of already-open windows in this slice.
+
+Tart proof requirement:
+
+- Record a clean Slice 18 video that shows the user-facing config, the action,
+  and the visible result:
+  - the config chip includes `[[zone-affinities]]`, target zone `Comms`, and the
+    matcher for `affinity-comms`;
+  - a visible Work/main window stays put as focus/source context;
+  - opening or detecting `affinity-comms.rtf` moves that matching window into
+    Comms/right;
+  - the proof board or caption states that routing used the detected window id,
+    not the focused window.
+- The recording must not rely on final state alone. It must include a visible
+  before state, a recorded action boundary, and an after state with the matched
+  window in the target zone.
+- The no-context reviewer must reject the artifact if it only proves generic
+  `on-window-detected`, hides the config/action, moves the focused window
+  instead of the detected window, or claims persistent tab-group/app-session
+  binding.
+
+Pre-slice cleanup:
+
+- [x] Satisfy the remaining proof-board cleanup item from Slice 17: any ready
+  screenshot label must be setup-only, or it must point at recording-time
+  evidence. Slice 18 labels `01-ready-slice-18.png` as a setup checkpoint and
+  uses recording-time semantic samples for the proof beats.
+- [x] Add Slice 18 verifier/reviewer hard failures before recording so a weak
+  affinity video cannot pass by showing only final placement.
+
+Current status:
+
+- [x] Source config/runtime implementation completed for the Slice 18 scope.
+- [x] Focused parse and in-process routing tests added, including regression
+  coverage for `check-further-callbacks = true` and `fail-if-noop` command
+  failure fallthrough.
+- [x] Slice 18 plan section added before e2e implementation.
+- [x] Tart config, scenario, annotation plan, semantic samples, verifier,
+  review packet, no-context prompt, and README entries added.
+- [x] Focused Swift tests and pre-Tart checks passed.
+- [x] Slice 18 Tart artifact recorded.
+- [x] Mechanical verifier, no-context artifact review, `--require-review`
+  verifier, closeout, and three retrospectives completed before Slice 19.
+
+Accepted Slice 18 result:
+
+- artifact directory:
+  `artifacts/e2e/slice-18-20260626T231352Z`;
+- annotated recording:
+  `artifacts/e2e/slice-18-20260626T231352Z/recordings/slice-18-zone-affinity-routing.mov`;
+- raw guest recording:
+  `artifacts/e2e/slice-18-20260626T231352Z/recordings/raw/slice-18-zone-affinity-routing.raw.mov`;
+- mechanical verifier:
+  `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-18-20260626T231352Z`
+  passed, proving a 3440x1440 H.264 recording, duration `49.983333s`,
+  2244 frames, required logs, semantic samples, and contact sheet;
+- no-context artifact review:
+  `artifacts/e2e/slice-18-20260626T231352Z/reviews/no-ctx-artifact-review.md`
+  ends in `PASS` and includes `next slice allowed: yes`;
+- require-review gate:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-18-20260626T231352Z ARGS=--require-review`
+  passed;
+- closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-18-20260626T231352Z`
+  passed after all three retrospectives existed;
+- fast regression gate:
+  `swift test --filter 'ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseZoneAffinitiesE2EConfig|ZoneCommandTest/testZoneAffinityRoutesDetectedWindowToZone|ZoneCommandTest/testZoneAffinityStopsFurtherCallbacksByDefault|ZoneCommandTest/testZoneAffinityCheckFurtherCallbacksAllowsGenericCallback|ZoneCommandTest/testZoneAffinityFailedCommandFallsThroughToGenericCallback'`
+  passed;
+- retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- failed or superseded Slice 18 attempts: none found.
+
+Accepted claim:
+
+- `[[zone-affinities]]` routes a newly detected matching window to Comms/right
+  using the detected window id, while the visible focused Work/main window stays
+  in Work/main.
+
+Non-claims:
+
+- no relaunch persistence;
+- no automatic rebinding of already-open windows;
+- no durable tab-group identity.
+
+Pre-Slice-19 cleanup from Slice 18 retrospectives:
+
+- [x] Read all three Slice 18 retrospectives together and fold accepted
+  findings into this plan.
+- [x] Fix zone-affinity command-result handling so a failed affinity command
+  does not silently suppress generic `[[on-window-detected]]` fallbacks.
+- [x] Add focused regression tests for `check-further-callbacks = true` and
+  `fail-if-noop` fallthrough.
+- [x] Widen the Slice 18 verifier's proof-phase manual-move scan to include
+  the open-action, run, and CLI logs while continuing to allow setup staging
+  moves.
+- [x] Update future Slice 18 semantic manifests so `after-affinity-routing`
+  points at a recording-time frame instead of only the final post-run
+  screenshot.
+- [x] Improve `e2e-slice-closeout-check` diagnostics so missing retrospective
+  reports name the missing accepted paths instead of failing as an anonymous
+  `test -s`.
+- [x] Isolate the accepted Slice 18 dirty set in the Slice 18 closeout commit
+  before starting Slice 19.
 
 ## Call-Site Audit
 
