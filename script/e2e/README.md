@@ -69,7 +69,7 @@ make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timesta
 
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
-Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests the guest transport warm-up policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear.
+Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests the guest transport warm-up policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear. Product slice targets allocate the run directory before the gate and save this output to `logs/pre-tart-checks.log`, so the accepted artifact includes the exact host-side validation transcript.
 
 After a run, use the mechanical verifier before spawning the no-context reviewer:
 

@@ -1785,7 +1785,7 @@ Pre-slice cleanup before Slice 11C starts:
 - [x] Commit the accepted Slice 11B dirty set before implementing Slice 11C:
   `0d240ab3` (`Add runtime zone style controls`).
 - [x] Define the Slice 11C availability-set contract before code changes.
-- [ ] Save pre-Tart gate output into future run directories, starting with the
+- [x] Save pre-Tart gate output into future run directories, starting with the
   next product Tart proof.
 - [ ] Add a Slice 11C mechanical swatch/color sentinel. Slice 11C media will
   carry a styled Comms zone as the preservation proof, so the verifier must

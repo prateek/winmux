@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-verify-slice e2e-verify-slice-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-verify-slice-check e2e-verify-root-demo-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -89,7 +89,11 @@ e2e-guest-smoke:
 	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest ./script/e2e/tart-recording-harness smoke'
 
 e2e-pre-tart-checks:
-	/bin/bash -lc 'cd "$(CURDIR)" && \
+	/bin/bash -lc 'set -euo pipefail; cd "$(CURDIR)"; \
+	if [ -n "$${WINMUX_E2E_PRE_TART_LOG_PATH:-}" ]; then \
+		mkdir -p "$$(dirname "$${WINMUX_E2E_PRE_TART_LOG_PATH}")"; \
+		exec > >(/usr/bin/tee "$${WINMUX_E2E_PRE_TART_LOG_PATH}") 2>&1; \
+	fi; \
 	guest_scripts=(script/e2e/guest/*.sh) && \
 	bash -n script/e2e/tart-recording-harness && \
 	bash -n script/e2e/annotate-recording && \
@@ -106,6 +110,27 @@ e2e-pre-tart-checks:
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
 	swift test --filter '"'"'ConfigTest.testParseColumnZones|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListMonitorsTest|MonitorTopologyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
 
+e2e-run-product-slice:
+	/bin/bash -lc 'set -euo pipefail; cd "$(CURDIR)"; \
+	test -n "$(SLICE)"; \
+	test -n "$(ACTION)"; \
+	test -n "$(RECORD_SECONDS)"; \
+	artifact_root="$${WINMUX_E2E_ARTIFACT_ROOT:-$(CURDIR)/artifacts/e2e}"; \
+	run_id="$${WINMUX_E2E_RUN_ID:-$(SLICE)-$$(date -u +%Y%m%dT%H%M%SZ)}"; \
+	run_dir="$${WINMUX_E2E_RUN_DIR:-$${artifact_root}/$${run_id}}"; \
+	mkdir -p "$${run_dir}/logs"; \
+	WINMUX_E2E_RUN_ID="$${run_id}" \
+	WINMUX_E2E_RUN_DIR="$${run_dir}" \
+	WINMUX_E2E_PRE_TART_LOG_PATH="$${run_dir}/logs/pre-tart-checks.log" \
+		make e2e-pre-tart-checks; \
+	WINMUX_E2E_RUN_ID="$${run_id}" \
+	WINMUX_E2E_RUN_DIR="$${run_dir}" \
+	WINMUX_E2E_SLICE="$(SLICE)" \
+	WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 \
+	WINMUX_E2E_CAPTURE_MODE=guest \
+	WINMUX_E2E_RECORD_SECONDS="$(RECORD_SECONDS)" \
+		./script/e2e/tart-recording-harness "$(ACTION)"'
+
 e2e-verify-slice:
 	/bin/bash -lc 'cd "$(CURDIR)" && test -n "$(RUN_DIR)" && ./script/e2e/verify-artifact $(ARGS) "$(RUN_DIR)"'
 
@@ -119,48 +144,37 @@ e2e-package-root-demo:
 	/bin/bash -lc 'cd "$(CURDIR)" && ./script/e2e/package-root-demo $(ARGS)'
 
 e2e-slice-1:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-1 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=18 ./script/e2e/tart-recording-harness slice-1'
+	$(MAKE) e2e-run-product-slice SLICE=slice-1 ACTION=slice-1 RECORD_SECONDS=18
 
 e2e-slice-2:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-2 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=28 ./script/e2e/tart-recording-harness slice-2'
+	$(MAKE) e2e-run-product-slice SLICE=slice-2 ACTION=slice-2 RECORD_SECONDS=28
 
 e2e-slice-3:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-3 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=36 ./script/e2e/tart-recording-harness slice-3'
+	$(MAKE) e2e-run-product-slice SLICE=slice-3 ACTION=slice-3 RECORD_SECONDS=36
 
 e2e-slice-4:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-4 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=44 ./script/e2e/tart-recording-harness slice-4'
+	$(MAKE) e2e-run-product-slice SLICE=slice-4 ACTION=slice-4 RECORD_SECONDS=44
 
 e2e-slice-5:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-5 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=60 ./script/e2e/tart-recording-harness slice-5'
+	$(MAKE) e2e-run-product-slice SLICE=slice-5 ACTION=slice-5 RECORD_SECONDS=60
 
 e2e-slice-6:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-6 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=36 ./script/e2e/tart-recording-harness slice-6'
+	$(MAKE) e2e-run-product-slice SLICE=slice-6 ACTION=slice-6 RECORD_SECONDS=36
 
 e2e-slice-6b:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-6b WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=42 ./script/e2e/tart-recording-harness slice-6b'
+	$(MAKE) e2e-run-product-slice SLICE=slice-6b ACTION=slice-6b RECORD_SECONDS=42
 
 e2e-slice-8:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-8 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=44 ./script/e2e/tart-recording-harness slice-8'
+	$(MAKE) e2e-run-product-slice SLICE=slice-8 ACTION=slice-8 RECORD_SECONDS=44
 
 e2e-slice-10:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-10 WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=54 ./script/e2e/tart-recording-harness slice-10'
+	$(MAKE) e2e-run-product-slice SLICE=slice-10 ACTION=slice-10 RECORD_SECONDS=54
 
 e2e-slice-11a:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-11a WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=54 ./script/e2e/tart-recording-harness slice-11a'
+	$(MAKE) e2e-run-product-slice SLICE=slice-11a ACTION=slice-11a RECORD_SECONDS=54
 
 e2e-slice-11b:
-	$(MAKE) e2e-pre-tart-checks
-	/bin/bash -lc 'cd "$(CURDIR)" && WINMUX_E2E_SLICE=slice-11b WINMUX_E2E_REQUIRE_GUEST_CONTROL=1 WINMUX_E2E_CAPTURE_MODE=guest WINMUX_E2E_RECORD_SECONDS=44 ./script/e2e/tart-recording-harness slice-11b'
+	$(MAKE) e2e-run-product-slice SLICE=slice-11b ACTION=slice-11b RECORD_SECONDS=44
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"
