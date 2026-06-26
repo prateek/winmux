@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-13 accepted; next slice starts only after the Pre-Slice-14 cleanup checklist is complete
+Status: slices 0-13 accepted; Pre-Slice-14 cleanup checklist complete
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -2337,13 +2337,16 @@ Pre-Slice-14 cleanup:
   13 dirty set for the closeout commit before feature work for Slice 14 starts.
 - [x] Handle `Sources/Common/gitHashGenerated.swift` deliberately before commit;
   do not let generated hash churn hide among source changes.
-- [ ] Before the next live-board or semantic-screenshot proof, add a mechanical
-  visible-board freshness sentinel or write an explicit plan waiver explaining why
-  the slice does not need one.
-- [ ] Before the next mutating guest setup script, add semantic-failure retry
+- [x] Before the next live-board or semantic-screenshot proof, add a mechanical
+  board freshness sentinel or write an explicit plan waiver explaining why the
+  slice does not need one. Slice 13 now logs checkpoint freshness before each
+  semantic screenshot when re-run.
+- [x] Before the next mutating guest setup script, add semantic-failure retry
   protection or a reliable cleanup/reset stage so authorization failures do not
-  replay against partially mutated desktop state.
-- [ ] Add a standard failed-attempt abort marker, such as
+  replay against partially mutated desktop state. `guest_script_retry` stops on
+  the semantic exit code and the retry contract is covered by the warmup-policy
+  self-test.
+- [x] Add a standard failed-attempt abort marker, such as
   `logs/run-abort-status.txt`, before relying on another stateful Tart attempt.
 
 ## Call-Site Audit

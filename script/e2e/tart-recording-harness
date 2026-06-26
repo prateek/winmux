@@ -14,6 +14,7 @@ SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
 RECORDINGS_DIR="${RUN_DIR}/recordings"
 LOGS_DIR="${RUN_DIR}/logs"
 CONFIG_OUT_DIR="${RUN_DIR}/config"
+RUN_ABORT_STATUS="${LOGS_DIR}/run-abort-status.txt"
 
 BASE_VM="${WINMUX_E2E_BASE_VM:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 VM_NAME="${WINMUX_E2E_VM_NAME:-winmux-e2e-${RUN_ID}}"
@@ -142,6 +143,33 @@ EOF
 
 log() {
     printf '[winmux-e2e] %s\n' "$*"
+}
+
+write_run_abort_status() {
+    local phase="$1"
+    local exit_code="$2"
+    local final_result="$3"
+    local primary_log="$4"
+    local reason="$5"
+    local recording_started="no"
+    local setup_completed="no"
+
+    mkdir -p "$LOGS_DIR"
+    if [ -d "$LOGS_DIR" ] && [ -n "$(find "$LOGS_DIR" -maxdepth 1 -type f -name '*.recording.pid' -print -quit)" ]; then
+        recording_started="yes"
+    fi
+    if [ -d "$SCREENSHOTS_DIR" ] && [ -n "$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' -print -quit)" ]; then
+        setup_completed="yes"
+    fi
+    {
+        printf 'phase=%s\n' "$phase"
+        printf 'exit_code=%s\n' "$exit_code"
+        printf 'final_result=%s\n' "$final_result"
+        printf 'primary_log=%s\n' "$primary_log"
+        printf 'recording_started=%s\n' "$recording_started"
+        printf 'setup_completed=%s\n' "$setup_completed"
+        printf 'reason=%s\n' "$reason"
+    } >"$RUN_ABORT_STATUS"
 }
 
 die() {
@@ -285,12 +313,53 @@ assert_warmup_policy_fail() {
     fi
 }
 
+simulate_guest_action_retry_policy() {
+    local max_attempts="$1"
+    local semantic_exit="$2"
+    shift 2
+    local attempt=1
+    local failures=0
+    local status
+
+    for status in "$@"; do
+        [ "$attempt" -le "$max_attempts" ] || break
+        if [ "$status" -eq 0 ]; then
+            printf 'final_result=success attempts=%s failure_count=%s\n' "$attempt" "$failures"
+            return 0
+        fi
+        failures=$((failures + 1))
+        if [ "$status" -eq "$semantic_exit" ]; then
+            printf 'final_result=semantic_failure attempts=%s failure_count=%s\n' "$attempt" "$failures"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    printf 'final_result=failure attempts=%s failure_count=%s\n' $((attempt - 1)) "$failures"
+}
+
+assert_guest_retry_policy_result() {
+    local label="$1"
+    local expected_result="$2"
+    local expected_attempts="$3"
+    shift 3
+    local output
+    output="$(simulate_guest_action_retry_policy "$@")"
+    grep -F "final_result=${expected_result}" <<<"$output" >/dev/null \
+        || die "Guest retry policy self-test expected ${expected_result} for ${label}, got: ${output}"
+    grep -F "attempts=${expected_attempts}" <<<"$output" >/dev/null \
+        || die "Guest retry policy self-test expected ${expected_attempts} attempts for ${label}, got: ${output}"
+}
+
 warmup_policy_self_test() {
     assert_warmup_policy_pass "observed transient auth miss" 10 success failure success success
     assert_warmup_policy_pass "late adjacent recovery" 10 success success failure success success
     assert_warmup_policy_fail "only two total successes" 10 success failure success failure failure
     assert_warmup_policy_fail "three successes without adjacent pair" 10 success failure success failure success
     assert_warmup_policy_fail "max attempts exhausted before adjacent recovery" 3 success failure success success
+    assert_guest_retry_policy_result "semantic failure stops retries" semantic_failure 1 5 86 86 0 0
+    assert_guest_retry_policy_result "transient failure retries until success" success 3 5 86 1 1 0
+    assert_guest_retry_policy_result "ordinary failures exhaust attempts" failure 5 5 86 1 1 1 1 1
     log "Warm-up policy self-test passed"
 }
 
@@ -495,6 +564,7 @@ guest_script_retry() {
                 printf 'failure_count=%s\n' "$failure_count"
                 printf 'final_result=semantic_failure\n'
             } >>"$log_path"
+            write_run_abort_status "$(basename "$log_path" .log)" "$status" semantic_failure "$log_path" "guest scenario returned semantic failure"
             return "$status"
         fi
 
@@ -510,6 +580,7 @@ guest_script_retry() {
         printf 'failure_count=%s\n' "$failure_count"
         printf 'final_result=failure\n'
     } >>"$log_path"
+    write_run_abort_status "$(basename "$log_path" .log)" 1 failure "$log_path" "guest action retries exhausted"
     return 1
 }
 

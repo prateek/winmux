@@ -2356,6 +2356,7 @@ require_slice_13_zone_mode_bindings_proof() {
     local setup_log="${LOGS_DIR}/slice-13-zone-mode-bindings-setup.log"
     local action_log="${LOGS_DIR}/slice-13-zone-mode-bindings-action.log"
     local state_board_log="${LOGS_DIR}/slice-13-live-state-board.log"
+    local board_freshness_log="${LOGS_DIR}/slice-13-board-freshness.log"
     local timing_log="${LOGS_DIR}/slice-13-command-timing.log"
     local doc_content_log="${LOGS_DIR}/slice-13-demo-doc-content.rtf"
     local windows_before="${LOGS_DIR}/slice-13-windows-before-focus-next.log"
@@ -2650,6 +2651,20 @@ EXPECTED_ACTION_LOG
         || die "Slice 13 annotations missing final inspection chip"
     grep -F 'target right/Comms' "$sample_manifest" >/dev/null \
         || die "Slice 13 sample manifest must require visible resolved target right/Comms checks"
+
+    if [ -f "$board_freshness_log" ]; then
+        for checkpoint in \
+            before-focus-next \
+            after-focus-next \
+            after-move-next \
+            after-resize-current \
+            after-balance-zones \
+            after-toggle-hidden \
+            after-toggle-restored; do
+            grep -F "checkpoint=${checkpoint}|" "$board_freshness_log" | grep -F 'result=success' >/dev/null \
+                || die "Slice 13 board freshness log missing success for checkpoint: ${checkpoint}"
+        done
+    fi
 }
 
 require_no_ds_store

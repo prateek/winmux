@@ -26,6 +26,7 @@ LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-slice13.plist"
 SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-13-zone-mode-bindings-setup.log"
 ACTION_LOG="${ARTIFACTS_DIR}/logs/slice-13-zone-mode-bindings-action.log"
 STATE_BOARD_LOG="${ARTIFACTS_DIR}/logs/slice-13-live-state-board.log"
+BOARD_FRESHNESS_LOG="${ARTIFACTS_DIR}/logs/slice-13-board-freshness.log"
 TIMING_LOG="${ARTIFACTS_DIR}/logs/slice-13-command-timing.log"
 CLI_LOG="${ARTIFACTS_DIR}/logs/slice-13-cli.log"
 WAIT_ERR="${ARTIFACTS_DIR}/logs/slice-13-cli-wait.err"
@@ -451,6 +452,30 @@ set_board_text() {
     printf '%s\n' "${text}" >"${BOARD_STATE}"
 }
 
+wait_for_board_checkpoint() {
+    local checkpoint="$1"
+    local response="/tmp/winmux-slice13-board-state.txt"
+    local attempt
+
+    for attempt in $(seq 1 30); do
+        if /usr/bin/curl -fsS "http://127.0.0.1:${BOARD_PORT}/state.txt?ts=$(/bin/date +%s)" >"${response}" 2>/dev/null &&
+            /usr/bin/grep -F "Checkpoint" "${response}" >/dev/null &&
+            /usr/bin/grep -F "${checkpoint}" "${response}" >/dev/null; then
+            printf 'checkpoint=%s|attempt=%s|result=success|source=http-state\n' "${checkpoint}" "${attempt}" >>"${BOARD_FRESHNESS_LOG}"
+            rm -f "${response}"
+            return 0
+        fi
+        sleep 0.25
+    done
+
+    {
+        printf 'checkpoint=%s|result=failure|source=http-state\n' "${checkpoint}"
+        cat "${response}" 2>/dev/null || true
+    } >>"${BOARD_FRESHNESS_LOG}"
+    rm -f "${response}"
+    semantic_fail "Board did not serve checkpoint ${checkpoint} before screenshot"
+}
+
 mode_now() {
     "${CLI}" list-modes --current | /usr/bin/tail -n 1 | /usr/bin/tr -d '\r'
 }
@@ -551,6 +576,7 @@ ${checkpoint}
 BOARD
 )"
     set_board_text "${board_text}"
+    wait_for_board_checkpoint "${checkpoint}"
     if [ "${selected_id}" != "none" ]; then
         "${CLI}" focus --window-id "${selected_id}" >/dev/null 2>>"${WAIT_ERR}" || true
     fi
@@ -583,7 +609,7 @@ run_zone_binding() {
 
 setup_slice() {
     rm -f \
-        "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${STATE_BOARD_LOG}" "${TIMING_LOG}" "${CLI_LOG}" "${WAIT_ERR}" "${DOC_CONTENT_LOG}" "${STATE_FILE}" "${PROOF}" \
+        "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${STATE_BOARD_LOG}" "${BOARD_FRESHNESS_LOG}" "${TIMING_LOG}" "${CLI_LOG}" "${WAIT_ERR}" "${DOC_CONTENT_LOG}" "${STATE_FILE}" "${PROOF}" \
         "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_FOCUS_LOG}" "${WINDOW_AFTER_FOCUS_LOG}" "${WINDOW_AFTER_MOVE_LOG}" \
         "${WINDOW_AFTER_RESIZE_LOG}" "${WINDOW_AFTER_BALANCE_LOG}" "${WINDOW_AFTER_HIDDEN_LOG}" "${WINDOW_AFTER_RESTORED_LOG}" \
         "${ZONES_BEFORE_FOCUS_LOG}" "${ZONES_AFTER_FOCUS_LOG}" "${ZONES_AFTER_MOVE_LOG}" "${ZONES_AFTER_RESIZE_LOG}" \
