@@ -1782,7 +1782,8 @@ Pre-slice cleanup before Slice 11C starts:
 - [x] Make Slice 11B guest state assertions use
   `WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT` so semantic failures stop
   retries instead of replaying a half-mutated proof state.
-- [ ] Commit the accepted Slice 11B dirty set before implementing Slice 11C.
+- [x] Commit the accepted Slice 11B dirty set before implementing Slice 11C:
+  `0d240ab3` (`Add runtime zone style controls`).
 - [ ] Define the Slice 11C availability-set contract before code changes.
 - [ ] Save pre-Tart gate output into future run directories, starting with the
   next product Tart proof.
