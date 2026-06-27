@@ -68,18 +68,6 @@ if [ "$card_height" -lt 190 ]; then card_height=190; fi
 if [ "$card_height" -gt 260 ]; then card_height=260; fi
 card_x="$margin"
 card_y=$((video_height - margin - card_height))
-card_x2=$((card_x + card_width))
-card_y2=$((card_y + card_height))
-accent_x2=$((card_x + 12))
-text_x=$((card_x + 42))
-badge_y=$((card_y + 46))
-title_y=$((card_y + 105))
-subtitle_y=$((card_y + 158))
-command_box_y1=$((card_y + card_height - 65))
-command_box_y2=$((card_y + card_height - 20))
-command_text_y=$((command_box_y1 + 31))
-command_box_x1="$text_x"
-command_box_x2=$((card_x2 - 32))
 badge_size=$((video_width / 118))
 title_size=$((video_width / 55))
 subtitle_size=$((video_width / 92))
@@ -95,36 +83,50 @@ render_card() {
     local command="$3"
     local output="$4"
     local escaped_title escaped_subtitle escaped_command
+    local local_card_x=0
+    local local_card_y=0
+    local local_card_x2="$card_width"
+    local local_card_y2="$card_height"
+    local local_accent_x2=12
+    local local_text_x=42
+    local local_badge_y=46
+    local local_title_y=105
+    local local_subtitle_y=158
+    local local_command_box_y1=$((card_height - 65))
+    local local_command_box_y2=$((card_height - 20))
+    local local_command_text_y=$((local_command_box_y1 + 31))
+    local local_command_box_x1="$local_text_x"
+    local local_command_box_x2=$((card_width - 32))
     escaped_title="$(magick_escape_text "$title")"
     escaped_subtitle="$(magick_escape_text "$subtitle")"
     escaped_command="$(magick_escape_text "$command")"
 
     magick \
-        -size "${video_width}x${video_height}" xc:none \
+        -size "${card_width}x${card_height}" xc:none \
         -fill 'rgba(10,12,18,0.80)' \
-        -draw "roundrectangle ${card_x},${card_y} ${card_x2},${card_y2} 24,24" \
+        -draw "roundrectangle ${local_card_x},${local_card_y} ${local_card_x2},${local_card_y2} 24,24" \
         -fill 'rgba(80,220,170,0.95)' \
-        -draw "roundrectangle ${card_x},${card_y} ${accent_x2},${card_y2} 24,24" \
+        -draw "roundrectangle ${local_card_x},${local_card_y} ${local_accent_x2},${local_card_y2} 24,24" \
         -font "$font" \
         -fill '#93F2C7' \
         -pointsize "$badge_size" \
-        -annotate +"${text_x}+${badge_y}" 'WINMUX COLUMN ZONES' \
+        -annotate +"${local_text_x}+${local_badge_y}" 'WINMUX COLUMN ZONES' \
         -fill '#FFFFFF' \
         -pointsize "$title_size" \
-        -annotate +"${text_x}+${title_y}" "$escaped_title" \
+        -annotate +"${local_text_x}+${local_title_y}" "$escaped_title" \
         -fill '#D9DEE8' \
         -pointsize "$subtitle_size" \
-        -annotate +"${text_x}+${subtitle_y}" "$escaped_subtitle" \
+        -annotate +"${local_text_x}+${local_subtitle_y}" "$escaped_subtitle" \
         "$output"
 
     if [ -n "$command" ]; then
         magick "$output" \
             -fill 'rgba(255,255,255,0.10)' \
-            -draw "roundrectangle ${command_box_x1},${command_box_y1} ${command_box_x2},${command_box_y2} 14,14" \
+            -draw "roundrectangle ${local_command_box_x1},${local_command_box_y1} ${local_command_box_x2},${local_command_box_y2} 14,14" \
             -font "$mono_font" \
             -fill '#F4F7FA' \
             -pointsize "$command_size" \
-            -annotate +"$((command_box_x1 + 18))+${command_text_y}" "$escaped_command" \
+            -annotate +"$((local_command_box_x1 + 18))+${local_command_text_y}" "$escaped_command" \
             "$output"
     fi
 }
@@ -156,7 +158,7 @@ while IFS=$'\t' read -r start_time end_time title subtitle command || [ -n "${st
     input_args+=(-loop 1 -t "$duration" -i "$overlay_path")
 
     next="[v${caption_count}]"
-    filter_parts+=("${previous}[${caption_count}:v]overlay=0:0:enable=between(t\\,${start_time}\\,${end_time})${next}")
+    filter_parts+=("${previous}[${caption_count}:v]overlay=${card_x}:${card_y}:enable=between(t\\,${start_time}\\,${end_time})${next}")
     previous="$next"
 done <"$CAPTIONS_PATH"
 
@@ -182,4 +184,6 @@ printf 'captions=%s\n' "$CAPTIONS_PATH"
 printf 'caption_count=%s\n' "$caption_count"
 printf 'width=%s\n' "$video_width"
 printf 'height=%s\n' "$video_height"
+printf 'card_width=%s\n' "$card_width"
+printf 'card_height=%s\n' "$card_height"
 printf 'result=success\n'

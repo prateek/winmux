@@ -63,6 +63,14 @@ final class ZoneCommandTest: XCTestCase {
             "cycle-zone-style --monitor 1 Comms urgent calm",
             CycleZoneStyleCmdArgs(zone: ZoneSelector("Comms"), styleIds: ["urgent", "calm"], monitor: .sequenceNumber(1)),
         )
+        testParseCommandSucc(
+            "set-zone-snap-policy --monitor 1 snap-to-zone",
+            SetZoneSnapPolicyCmdArgs(policyId: "snap-to-zone", monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
+            "cycle-zone-snap-policy freeform snap-to-zone",
+            CycleZoneSnapPolicyCmdArgs(policyIds: ["freeform", "snap-to-zone"]),
+        )
         testParseCommandFail("resize-zone Work width 10", msg: "ERROR: <percent> must include a % suffix, for example +10%")
         testParseCommandSucc(
             "use-zone-layout --monitor 1 focus",
@@ -969,6 +977,135 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(after["main"]?.styleId, nil)
         XCTAssertEqual(after["right"]?.styleId, "urgent")
         XCTAssertEqual(after["right"]?.styleColorHex, "#D3455B")
+        XCTAssertTrue(focus.workspace === focusedWorkspace)
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+    }
+
+    func testSetZoneSnapPolicyOverridesConfigForFocusedMonitor() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.zoneSnap.modifier = [.option, .shift]
+        config.mouse.zoneSnap.gesture = .drag
+        config.mouse.zoneSnap.target = .zone
+
+        let result = try await parseCommand("set-zone-snap-policy snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone snap policy 'snap-to-zone' on monitor 1"])
+        XCTAssertEqual(config.mouse.zoneSnap.policy, .freeform)
+        let effective = effectiveZoneSnapConfig(for: zones["right"].orDie())
+        XCTAssertEqual(effective.policy, .snapToZone)
+        XCTAssertEqual(effective.modifier, [.option, .shift])
+        XCTAssertEqual(effective.gesture, .drag)
+        XCTAssertEqual(effective.target, .zone)
+    }
+
+    func testCycleZoneSnapPolicyCyclesAndWraps() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+        config.mouse.zoneSnap.policy = .freeform
+
+        let snap = try await parseCommand("cycle-zone-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(snap.exitCode, 0)
+        XCTAssertEqual(snap.stdout, ["Using zone snap policy 'snap-to-zone' on monitor 1"])
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .snapToZone)
+
+        let freeform = try await parseCommand("cycle-zone-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(freeform.exitCode, 0)
+        XCTAssertEqual(freeform.stdout, ["Using zone snap policy 'freeform' on monitor 1"])
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .freeform)
+    }
+
+    func testCycleZoneSnapPolicyStartsAtFirstPolicyWhenCurrentPolicyIsOutsideCycle() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+
+        let result = try await parseCommand("cycle-zone-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone snap policy 'freeform' on monitor 1"])
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .freeform)
+    }
+
+    func testZoneSnapPolicyRejectsUnknownDuplicateAndUnzonedMonitor() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(work.focusWorkspace())
+
+        let unknown = try await parseCommand("set-zone-snap-policy snap-to-window").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(unknown.exitCode, 1)
+        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown zone snap policy 'snap-to-window'"))
+
+        let duplicate = try await parseCommand("cycle-zone-snap-policy freeform freeform").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(duplicate.exitCode, 1)
+        XCTAssertTrue(duplicate.stderr.joined(separator: "\n").contains("cycle-zone-snap-policy requires unique policies: freeform"))
+
+        configureNoZones()
+        let noZones = try await parseCommand("set-zone-snap-policy snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(noZones.exitCode, 1)
+        XCTAssertTrue(noZones.stderr.joined(separator: "\n").contains("No zone config targets monitor 1"))
+    }
+
+    func testZoneSnapPolicyIsScopedByPhysicalMonitor() async throws {
+        let zones = configureDuplicateZones()
+        let secondaryMain = Workspace.get(byName: "secondary-main")
+        XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
+        XCTAssertTrue(secondaryMain.focusWorkspace())
+        config.mouse.zoneSnap.policy = .freeform
+
+        let secondary = try await parseCommand("set-zone-snap-policy --monitor 2 snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(secondary.exitCode, 0, secondary.stderr.joined(separator: "\n"))
+        XCTAssertEqual(secondary.stdout, ["Using zone snap policy 'snap-to-zone' on monitor 2"])
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["1:left"].orDie()).policy, .freeform)
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["2:left"].orDie()).policy, .snapToZone)
+
+        let primary = try await parseCommand("set-zone-snap-policy --monitor 1 float-unless-snap").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(primary.exitCode, 0, primary.stderr.joined(separator: "\n"))
+        XCTAssertEqual(primary.stdout, ["Using zone snap policy 'float-unless-snap' on monitor 1"])
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["1:left"].orDie()).policy, .floatUnlessSnap)
+        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["2:left"].orDie()).policy, .snapToZone)
+    }
+
+    func testSetZoneSnapPolicyPreservesLayoutWidthsWorkspacesFocusAndWindowMembership() async throws {
+        configureZoneLayoutPresets()
+        refreshZoneTopologySnapshot()
+
+        let zones = zoneMonitorsById()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let commsWindow = TestWindow.new(id: 176, parent: comms.rootTilingContainer)
+        XCTAssertTrue(work.focusWorkspace())
+
+        let useFocus = try await parseCommand("use-zone-layout focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(useFocus.exitCode, 0)
+        let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+        let before = zoneStateByZoneId()
+        let focusedWorkspace = focus.workspace
+
+        let result = try await parseCommand("set-zone-snap-policy snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        let after = zoneStateByZoneId()
+        XCTAssertEqual(Set(after.keys), Set(before.keys))
+        for zoneId in ["left", "main", "right"] {
+            XCTAssertEqual(after[zoneId]?.structural, before[zoneId]?.structural, "snap policy should not change structural zone state for \(zoneId)")
+            XCTAssertEqual(after[zoneId]?.availabilitySetId, before[zoneId]?.availabilitySetId, "snap policy should not change availability state for \(zoneId)")
+            XCTAssertEqual(after[zoneId]?.styleId, before[zoneId]?.styleId, "snap policy should not change style state for \(zoneId)")
+        }
         XCTAssertTrue(focus.workspace === focusedWorkspace)
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-19 accepted; Slice 20 pre-slice cleanup ready
+Status: slices 0-20 accepted; Slice 21 pre-slice cleanup ready
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -3300,6 +3300,162 @@ Non-claims:
 - no visual zone editor or draggable divider;
 - no snap-to-window, snap-to-slot, or new mouse gesture vocabulary;
 - no new app or tab-group binding semantics.
+
+## Slice 20: Runtime Mouse Snap Policy Switching
+
+Goal: make the mouse snap mode ergonomic enough to bind to a key or invoke from
+the command line during a drag-focused workflow. Users should be able to switch
+between freeform mouse movement and whole-zone snapping without editing config or
+restarting WinMux.
+
+Primary product claim:
+
+- `set-zone-snap-policy` changes the effective `mouse.zone-snap.policy` for the
+  current or selected physical monitor at runtime.
+- `cycle-zone-snap-policy` advances that same runtime policy through a
+  user-provided policy list, so a compact binding can toggle between
+  `freeform`, `snap-on-modifier`, `snap-to-zone`, and `float-unless-snap`.
+- The desktop drag resolver uses the runtime policy override before falling back
+  to config, while preserving the existing configured modifier, gesture, and
+  target.
+
+User-facing command shape:
+
+- `set-zone-snap-policy [--monitor <monitor-pattern>] <policy>`
+- `cycle-zone-snap-policy [--monitor <monitor-pattern>] <policy>...`
+
+Implementation requirements:
+
+- Store the policy override on `ZoneRuntimeOverlay`, scoped by physical monitor
+  identity, alongside layout, availability, width, and style runtime state.
+- Resolve the target physical monitor using the same monitor scoping idioms as
+  `use-zone-layout`, `cycle-zone-layout`, `balance-zones`, and runtime style
+  controls. When `--monitor` is omitted, use the focused monitor's physical
+  monitor.
+- Validate policy ids against the existing `ZoneSnapPolicy` cases and reject
+  duplicate policy ids in `cycle-zone-snap-policy`.
+- Preserve all non-policy config fields. Slice 20 must not silently change
+  `modifier`, `gesture`, or `target`.
+- Update command metadata/help and keep `script/check-command-metadata` green.
+- Add fast tests for parsing, command output, invalid policy ids, duplicate
+  cycle ids, physical-monitor scoping, cycle wraparound, config fallback, and
+  drag resolver behavior under runtime override.
+
+Tart proof:
+
+- record one clean Slice 20 video using Tart from the external SSD-backed
+  `TART_HOME`;
+- start with visible config showing `policy = 'freeform'`,
+  `modifier = 'alt'`, `gesture = 'drag'`, and `target = 'zone'`;
+- show a first drag that remains freeform with no snap overlay and no zone move;
+- show the exact command or binding that changes runtime policy, for example
+  `winmux set-zone-snap-policy snap-to-zone`;
+- show a second drag of the same window where the whole-zone snap overlay is
+  visible and release moves the window to the target zone;
+- show the exact command or binding for cycling, for example
+  `winmux cycle-zone-snap-policy freeform snap-to-zone`;
+- include legible showcase-style captions that state the current mode, expected
+  user action, and target semantics: freeform placement vs whole-zone snap.
+
+Artifact gate:
+
+- The mechanical verifier must reject missing command captions, missing
+  `mouse.zone-snap` config, missing policy-transition logs, a hidden pointer
+  path, missing overlay/no-overlay screenshots, or final-state-only proof.
+- The no-context reviewer must reject any Slice 20 artifact that does not
+  visually prove both runtime policy states, does not expose the exact WinMux
+  commands/bindings, implies snap-to-window/slot behavior, or relies on logs
+  instead of visible drag media.
+- Do not proceed beyond Slice 20 until the no-context artifact review returns
+  `PASS` or `PASS_WITH_NOTES` with `next slice allowed: yes`, the closeout gate
+  passes, all three no-context retrospectives are complete, accepted findings
+  are folded into the next pre-slice checklist, and the dirty set is committed.
+
+Pre-Slice-20 cleanup:
+
+- [x] Confirm Slice 19 accepted artifact, post-review verifier, closeout check,
+  three retrospectives, and commit are complete before changing Slice 20 code.
+- [x] Re-read Slice 12 and Slice 16 mouse proof rules so Slice 20 does not
+  regress into logs-only proof.
+- [x] Add Slice 20 command/model tests before recording Tart media.
+- [x] Harden Slice 20 verifier and no-context review prompts before recording.
+- [x] Run the full pre-Tart gate before recording:
+  `make e2e-pre-tart-checks` passed with 133 selected Swift tests.
+
+Non-claims:
+
+- no new gesture vocabulary beyond the existing desktop drag seam;
+- no snap-to-window, snap-to-slot, or in-zone slot placement;
+- no visual settings/editor UI;
+- no relaunch persistence for runtime snap-policy overrides;
+- no change to tab-strip dragging or non-zone monitor drag behavior.
+
+Slice 20 accepted result:
+
+- Accepted artifact: `artifacts/e2e/slice-20-20260627T195858Z`.
+- Published recording:
+  `artifacts/e2e/slice-20-20260627T195858Z/recordings/slice-20-zone-snap-policy-switch.mov`.
+- Raw recording:
+  `artifacts/e2e/slice-20-20260627T195858Z/recordings/raw/slice-20-zone-snap-policy-switch.raw.mov`.
+- Mechanical verifier passed:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-20-20260627T195858Z`.
+- Post-review verifier passed:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-20-20260627T195858Z ARGS=--require-review`.
+- Closeout verifier passed:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-20-20260627T195858Z`.
+- No-context artifact review:
+  `artifacts/e2e/slice-20-20260627T195858Z/reviews/no-ctx-artifact-review.md`
+  returned `PASS_WITH_NOTES` and `next slice allowed: yes`.
+- No-context retrospectives completed:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- Accepted claim: the video visibly shows a clean desktop, freeform drag with
+  no overlay, the exact `winmux set-zone-snap-policy snap-to-zone` command
+  before the snap affordance, a whole-zone target overlay and release, and the
+  exact `winmux cycle-zone-snap-policy freeform snap-to-zone` command.
+- Accepted note: the timing log's `snap-drag-start-offset-seconds` label is
+  coarse and points at the command-caption section. Future transition or mouse
+  slices must split command-caption, visible drag start, first affordance,
+  release, and final placement into separate event names.
+
+Superseded Slice 20 attempt:
+
+- `artifacts/e2e/slice-20-20260627T192813Z` is superseded. It failed the
+  stricter review because the snap overlay appeared before the
+  `Run: winmux set-zone-snap-policy snap-to-zone` caption. It is marked
+  superseded and the verifier now rejects it instead of treating it as accepted
+  proof.
+
+Pre-Slice-21 cleanup from Slice 20 retrospectives:
+
+- [x] Read all three Slice 20 retrospectives and fold accepted findings into
+  this checklist.
+- [x] Record accepted Slice 20 artifact paths, review verdict, verifier
+  commands, closeout, retrospectives, superseded artifact, claims, notes, and
+  non-claims in this plan.
+- [x] Replace full-frame transparent caption overlays with small caption-card
+  assets so annotation refreshes complete in about one minute instead of
+  several minutes.
+- [x] Add a focused fast test for `cycle-zone-snap-policy` when the current
+  effective policy is outside the supplied cycle list.
+- [ ] Before the next transition or mouse artifact, add an explicit event
+  manifest under the run logs with labeled subsecond events for command
+  start/end, drag pickup/path/hover/release, post-state inspection, and any
+  first-affordance frame. Drive annotation and sample rows from that manifest.
+- [ ] Update the verifier to validate command-caption, drag-sample,
+  overlay-sample, and post-command-inspection ordering from the event manifest
+  rather than relying only on caption start times.
+- [ ] Add overlay sentinel freshness and crop-dimension validation relative to
+  the source screenshots.
+- [ ] Normalize guest proof/action manifest paths to artifact-relative paths.
+- [ ] Update the next reviewer packet to require concrete baseline-media
+  evidence from actual local media/screenshots, including
+  `demo-columnar-zones.mp4` for columnar-zone demos.
+- [ ] Write the next slice storyboard, caption budget, accepted claims, and
+  explicit non-claims before recording.
+- [ ] If the next slice has transitions, keep command-caption start, visible
+  drag start, first affordance, release, and final placement as separate log
+  fields and verifier assertions.
 
 ## Call-Site Audit
 

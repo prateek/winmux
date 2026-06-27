@@ -391,6 +391,7 @@ struct ResolvedConfiguredZoneSelector {
 struct ZoneRuntimeOverlay: Sendable, Equatable {
     var activeLayoutId: String?
     var activeAvailabilitySetId: String?
+    var zoneSnapPolicyOverride: ZoneSnapPolicy?
     var disabledZoneIds: Set<String> = []
     var parkedWorkspaceByZoneId: [String: WorkspaceId] = [:]
     var widthOverridesByLayoutIdentity: [String: [String: Double]] = [:]
@@ -419,8 +420,22 @@ func activeZoneAvailabilitySelectionsSnapshot() -> [String: String] {
     zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.activeAvailabilitySetId)
 }
 
+func activeZoneSnapPolicyOverridesSnapshot() -> [String: ZoneSnapPolicy] {
+    zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.zoneSnapPolicyOverride)
+}
+
 func zoneParkedWorkspaceIdsSnapshot() -> Set<WorkspaceId> {
     Set(zoneRuntimeOverlaysByPhysicalIdentity.values.flatMap(\.parkedWorkspaceByZoneId.values))
+}
+
+@MainActor
+func effectiveZoneSnapConfig(for monitor: Monitor) -> ZoneSnapConfig {
+    var snapConfig = config.mouse.zoneSnap
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: monitor.physicalMonitor)
+    if let runtimePolicy = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity]?.zoneSnapPolicyOverride {
+        snapConfig.policy = runtimePolicy
+    }
+    return snapConfig
 }
 
 func zoneRuntimeLayoutIdentity(_ layoutId: String?) -> String {
@@ -495,6 +510,11 @@ struct ZoneStyleChangeResult {
     let zoneName: String?
     let styleId: String
     let styleColorHex: String
+}
+
+struct ZoneSnapPolicyChangeResult {
+    let physicalMonitor: Monitor
+    let policy: ZoneSnapPolicy
 }
 
 @MainActor
@@ -865,6 +885,65 @@ func cycleZoneLayout(_ layoutIds: [String], for physicalMonitor: Monitor) -> Res
     }
 
     return setActiveZoneLayout(selectedLayoutId, for: physicalMonitor).map { selectedLayoutId }
+}
+
+@MainActor
+func setZoneSnapPolicy(_ policyId: String, for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
+    guard let policy = ZoneSnapPolicy(rawValue: policyId) else {
+        return .failure("Unknown zone snap policy '\(policyId)'. Expected one of: \(ZoneSnapPolicy.unionLiteral)")
+    }
+    return setZoneSnapPolicy(policy, for: physicalMonitor)
+}
+
+@MainActor
+func setZoneSnapPolicy(_ policy: ZoneSnapPolicy, for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
+    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
+    guard !configuredZones(on: targetPhysicalMonitor).isEmpty else {
+        return .failure("No zone config targets monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+    }
+
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysicalMonitor)
+    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
+    runtimeOverlay.zoneSnapPolicyOverride = policy
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+    refreshZoneTopologySnapshot()
+
+    return .success(ZoneSnapPolicyChangeResult(
+        physicalMonitor: targetPhysicalMonitor,
+        policy: policy,
+    ))
+}
+
+@MainActor
+func cycleZoneSnapPolicy(_ policyIds: [String], for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
+    guard !policyIds.isEmpty else {
+        return .failure("cycle-zone-snap-policy requires at least one policy")
+    }
+    let duplicatedIds = policyIds.grouped { $0 }
+        .filter { id, ids in !id.isEmpty && ids.count > 1 }
+        .keys
+        .sorted()
+    guard duplicatedIds.isEmpty else {
+        return .failure("cycle-zone-snap-policy requires unique policies: \(duplicatedIds.joined(separator: ", "))")
+    }
+
+    var policies: [ZoneSnapPolicy] = []
+    for policyId in policyIds {
+        guard let policy = ZoneSnapPolicy(rawValue: policyId) else {
+            return .failure("Unknown zone snap policy '\(policyId)'. Expected one of: \(ZoneSnapPolicy.unionLiteral)")
+        }
+        policies.append(policy)
+    }
+
+    let currentPolicy = effectiveZoneSnapConfig(for: physicalMonitor).policy
+    let selectedPolicy: ZoneSnapPolicy
+    if let currentIndex = policies.firstIndex(of: currentPolicy) {
+        selectedPolicy = policies[(currentIndex + 1) % policies.count]
+    } else {
+        selectedPolicy = policies[0]
+    }
+
+    return setZoneSnapPolicy(selectedPolicy, for: physicalMonitor)
 }
 
 private enum ZoneWidthOperation {

@@ -17,7 +17,7 @@ func zoneSnapDestinationResolution(
     detachOrigin: TabDetachOrigin,
     modifierFlags: CGEventFlags,
 ) -> ZoneSnapDestinationResolution {
-    let snapConfig = config.mouse.zoneSnap
+    let snapConfig = effectiveZoneSnapConfig(for: targetMonitor)
     guard detachOrigin == .window,
           snapConfig.gesture == .drag,
           snapConfig.target == .zone,

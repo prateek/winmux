@@ -361,6 +361,60 @@ func parseCycleZoneStyleCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneStyle
     parseSpecificCmdArgs(CycleZoneStyleCmdArgs(rawArgs: args), args)
 }
 
+public struct SetZoneSnapPolicyCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .setZoneSnapPolicy,
+        allowInConfig: true,
+        help: set_zone_snap_policy_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.policyId, parseZoneSnapPolicyId, placeholder: "<policy>")],
+    )
+
+    public init(policyId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.policyId = .initialized(policyId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var policyId: Lateinit<String> = .uninitialized
+}
+
+func parseSetZoneSnapPolicyCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SetZoneSnapPolicyCmdArgs> {
+    parseSpecificCmdArgs(SetZoneSnapPolicyCmdArgs(rawArgs: args), args)
+}
+
+public struct CycleZoneSnapPolicyCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneSnapPolicy,
+        allowInConfig: true,
+        help: cycle_zone_snap_policy_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.policyIds, parseZoneSnapPolicyIds, placeholder: "<policy>...")],
+    )
+
+    public init(policyIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.policyIds = .initialized(policyIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var policyIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneSnapPolicyCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneSnapPolicyCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneSnapPolicyCmdArgs(rawArgs: args), args)
+}
+
 public struct CycleZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -672,6 +726,30 @@ private func parseZoneStyleIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> 
     return .succ(styleIds, advanceBy: args.count)
 }
 
+private func parseZoneSnapPolicyId(i: PosArgParserInput) -> ParsedCliArgs<String> {
+    switch parseZoneSnapPolicyIdentifier(i.arg) {
+        case .success(let policyId): .succ(policyId, advanceBy: 1)
+        case .failure(let msg): .fail(msg, advanceBy: 1)
+    }
+}
+
+private func parseZoneSnapPolicyIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {
+    let args = i.nonFlagArgs()
+    guard !args.isEmpty else {
+        return .fail("<policy> is mandatory", advanceBy: 0)
+    }
+    var policyIds: [String] = []
+    for (offset, arg) in args.enumerated() {
+        switch parseZoneSnapPolicyIdentifier(arg) {
+            case .success(let policyId):
+                policyIds.append(policyId)
+            case .failure(let msg):
+                return .fail(msg, advanceBy: offset + 1)
+        }
+    }
+    return .succ(policyIds, advanceBy: args.count)
+}
+
 private func parseZoneAvailabilitySetIdentifier(_ raw: String) -> Parsed<String> {
     if raw.isEmpty {
         return .failure("<set-id> must not be empty")
@@ -704,6 +782,18 @@ private func parseZoneStyleIdentifier(_ raw: String) -> Parsed<String> {
         char.isLetter || char.isNumber || char == "-" || char == "_"
     }) else {
         return .failure("<style-id> must use only letters, numbers, hyphens, and underscores")
+    }
+    return .success(raw)
+}
+
+private func parseZoneSnapPolicyIdentifier(_ raw: String) -> Parsed<String> {
+    if raw.isEmpty {
+        return .failure("<policy> must not be empty")
+    }
+    guard raw.allSatisfy({ char in
+        char.isLetter || char.isNumber || char == "-"
+    }) else {
+        return .failure("<policy> must use only letters, numbers, and hyphens")
     }
     return .success(raw)
 }

@@ -68,6 +68,9 @@ fi
 if [ "$ACTION" = "slice-19" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-style-cycle.toml"
 fi
+if [ "$ACTION" = "slice-20" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-snap-policy-switching.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -118,7 +121,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19>
+Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1153,6 +1156,143 @@ echo result=success"
     fi
 }
 
+timing_value_from_log() {
+    local key="$1"
+    local path="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
+}
+
+write_static_slice_20_annotation_plan() {
+    local captions_path="$1"
+    cat >"$captions_path" <<'CAPTIONS'
+0	8	Policy-switch ready	The configured mouse policy starts freeform on the zone monitor.	Config: policy='freeform'; alt-z='set-zone-snap-policy snap-to-zone'
+8	19	Freeform drag	The first desktop drag has no modifier and should not show a snap overlay.	Action: drag snap-demo.rtf with no modifier
+19	27	Freeform result	The same window remains bound to Work after the freeform drag.	Run: winmux list-windows --monitor all
+27	37	Enable snapping	Runtime policy changes without editing config or restarting WinMux.	Run: winmux set-zone-snap-policy snap-to-zone
+37	45	Reset source	The proof window is back in Work before the snap attempt.	Action: reset snap-demo.rtf to Work
+45	56	Drag again	The second no-modifier drag now uses the runtime snap policy.	Action: drag snap-demo.rtf with snap-to-zone active
+56	67	Whole-zone target	The overlay targets the Comms zone itself, not a window or slot.	Action: target = whole Comms zone
+67	75	Release into Comms	Drop to move the same window to Comms' active workspace.	Action: release on Comms zone
+75	82	Inspect placement	The window log proves the same id moved from Work/main to Comms/right.	Run: winmux list-windows --monitor all
+82	90	Cycle back	One binding-friendly command toggles runtime policy back to freeform.	Run: winmux cycle-zone-snap-policy freeform snap-to-zone
+CAPTIONS
+}
+
+write_timed_slice_20_annotation_plan() {
+    local captions_path="$1"
+    local timing_log="${LOGS_DIR}/slice-20-command-timing.log"
+    if [ ! -s "$timing_log" ]; then
+        write_static_slice_20_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    local freeform_start_offset freeform_end_offset snap_start_offset snap_end_offset cycle_start_offset
+    freeform_start_offset="$(timing_value_from_log freeform-drag-start-offset-seconds "$timing_log")"
+    freeform_end_offset="$(timing_value_from_log freeform-drag-end-offset-seconds "$timing_log")"
+    snap_start_offset="$(timing_value_from_log snap-drag-start-offset-seconds "$timing_log")"
+    snap_end_offset="$(timing_value_from_log snap-drag-end-offset-seconds "$timing_log")"
+    cycle_start_offset="$(timing_value_from_log cycle-command-start-offset-seconds "$timing_log")"
+    if [ -z "$freeform_start_offset" ] || [ -z "$freeform_end_offset" ] || [ -z "$snap_start_offset" ] || [ -z "$snap_end_offset" ] || [ -z "$cycle_start_offset" ]; then
+        write_static_slice_20_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    /usr/bin/awk \
+        -v base=8 \
+        -v freeform_start_offset="$freeform_start_offset" \
+        -v freeform_end_offset="$freeform_end_offset" \
+        -v snap_start_offset="$snap_start_offset" \
+        -v snap_end_offset="$snap_end_offset" \
+        -v cycle_start_offset="$cycle_start_offset" '
+        function max(a, b) { return a > b ? a : b }
+        function min(a, b) { return a < b ? a : b }
+        function emit(start, end, title, body, chip) {
+            if (end <= start) {
+                end = start + 1
+            }
+            printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+        }
+        BEGIN {
+            freeform_start = base + freeform_start_offset
+            freeform_end = base + freeform_end_offset
+            snap_start = base + snap_start_offset
+            snap_end = base + snap_end_offset
+            cycle_start = base + cycle_start_offset
+
+            first_freeform_end = min(freeform_start + 6, max(freeform_start + 1, freeform_end - 5))
+            freeform_hover_end = min(freeform_end - 1, snap_start - 6)
+            if (freeform_hover_end <= first_freeform_end) {
+                freeform_hover_end = first_freeform_end + 1
+            }
+            result_end = max(freeform_end, freeform_hover_end + 1)
+            enable_end = max(snap_start, result_end + 3)
+            drag_again_end = min(snap_start + 8, snap_end - 8)
+            if (drag_again_end <= snap_start) {
+                drag_again_end = snap_start + 4
+            }
+            drag_again_end = min(drag_again_end, snap_start + 4)
+            target_end = min(snap_start + 8, cycle_start - 8)
+            if (target_end <= drag_again_end) {
+                target_end = drag_again_end + 4
+            }
+            final_end = max(cycle_start, snap_end + 2)
+            release_start = target_end
+
+            emit(0, base, "Policy-switch ready", "The configured mouse policy starts freeform on the zone monitor.", "Config: policy='\''freeform'\''; alt-z='\''set-zone-snap-policy snap-to-zone'\''")
+            emit(freeform_start, first_freeform_end, "Freeform pickup", "Pick up snap-demo.rtf with no modifier under the configured freeform policy.", "Action: drag snap-demo.rtf with no modifier")
+            emit(first_freeform_end, freeform_hover_end, "No snap overlay", "The pointer crosses the Comms area without a zone affordance or zone move.", "Action: freeform hover has no whole-zone overlay")
+            emit(freeform_hover_end, result_end, "Freeform result", "The same window remains bound to Work after the freeform drag.", "Run: winmux list-windows --monitor all")
+            emit(result_end, enable_end, "Enable snapping", "Runtime policy changes before the next drag starts.", "Run: winmux set-zone-snap-policy snap-to-zone")
+            emit(snap_start, drag_again_end, "Drag again", "The second no-modifier drag now uses the runtime snap policy.", "Action: drag snap-demo.rtf with snap-to-zone active")
+            emit(drag_again_end, target_end, "Whole-zone target", "The overlay targets the Comms zone itself, not a window or slot.", "Action: target = whole Comms zone")
+            emit(release_start, final_end, "Release into Comms", "Drop to move the same window to Comms active workspace and leave it visible.", "Action: release on Comms zone")
+            emit(cycle_start, cycle_start + 8, "Cycle back", "One binding-friendly command toggles runtime policy back to freeform.", "Run: winmux cycle-zone-snap-policy freeform snap-to-zone")
+            emit(cycle_start + 8, cycle_start + 14, "Inspect placement", "The window log proves the same id moved from Work/main to Comms/right.", "Run: winmux list-windows --monitor all")
+        }
+    ' >"$captions_path"
+}
+
+caption_label_for_chip() {
+    local name="$1"
+    local chip="$2"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    [ -s "$captions_path" ] || return 1
+    /usr/bin/awk -F'\t' -v chip="$chip" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            caption_index += 1
+            if ($5 == chip) {
+                printf "caption-%02d\n", caption_index
+                found = 1
+                exit
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$captions_path"
+}
+
+caption_start_for_label() {
+    local name="$1"
+    local label="$2"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    local index
+    index="$(printf '%s\n' "$label" | /usr/bin/sed -n 's/^caption-0*\([0-9][0-9]*\)$/\1/p')"
+    [ -n "$index" ] || return 1
+    [ -s "$captions_path" ] || return 1
+    /usr/bin/awk -F'\t' -v wanted="$index" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            caption_index += 1
+            if (caption_index == wanted) {
+                printf "%.3f\n", $1 + 0.100
+                found = 1
+                exit
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$captions_path"
+}
+
 write_annotation_plan() {
     local name="$1"
     local captions_path="$2"
@@ -1255,6 +1395,9 @@ CAPTIONS
 49	57	Third cycle	The same command wraps from calm back to urgent.	Run: winmux cycle-zone-style Comms urgent calm
 57	60	Wrapped urgent	Comms returns to urgent; this is style chrome only.	Action: calm -> urgent wraparound
 CAPTIONS
+            ;;
+        slice-20-zone-snap-policy-switch)
+            write_timed_slice_20_annotation_plan "$captions_path"
             ;;
         slice-10-zone-availability)
             cat >"$captions_path" <<'CAPTIONS'
@@ -1450,7 +1593,8 @@ annotation_preflight() {
         slice-16-mouse-snap-affordance \
         slice-17-node-binding-guardrails \
         slice-18-zone-affinity-routing \
-        slice-19-zone-style-cycle
+        slice-19-zone-style-cycle \
+        slice-20-zone-snap-policy-switch
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
@@ -1656,6 +1800,45 @@ write_semantic_sample_manifest() {
                 "screenshots/99-after-slice-16.png" \
                 "same source window is placed in Comms/right after release"
             ;;
+        slice-20-zone-snap-policy-switch)
+            local set_caption_label set_caption_start release_caption_label release_caption_start cycle_caption_label cycle_caption_start
+            set_caption_label="$(caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone" || printf 'caption-04\n')"
+            set_caption_start="$(caption_start_for_label "$name" "$set_caption_label" || printf 'caption-boundary-start\n')"
+            release_caption_label="$(caption_label_for_chip "$name" "Action: release on Comms zone" || printf 'caption-08\n')"
+            release_caption_start="$(caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
+            cycle_caption_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" || printf 'caption-10\n')"
+            cycle_caption_start="$(caption_start_for_label "$name" "$cycle_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
+                "screenshots/02-freeform-pickup-slice-20.png" \
+                "desktop window pickup while config policy is freeform"
+            append_sample_manifest_row "$manifest_path" semantic freeform-hover-no-overlay screenshot screenshot \
+                "screenshots/03-freeform-hover-no-overlay-slice-20.png" \
+                "freeform drag over Comms has no whole-zone snap overlay"
+            append_sample_manifest_row "$manifest_path" semantic set-policy-command-start "$set_caption_label" "$set_caption_start" \
+                "screenshots/${name}.samples/${set_caption_label}-boundary-start.png" \
+                "set-zone-snap-policy command caption appears before the snap drag and before the whole-zone overlay"
+            append_sample_manifest_row "$manifest_path" semantic reset-before-snap screenshot screenshot \
+                "screenshots/04-reset-before-snap-slice-20.png" \
+                "same source window reset to Work after runtime policy command"
+            append_sample_manifest_row "$manifest_path" semantic snap-pickup screenshot screenshot \
+                "screenshots/05-snap-pickup-slice-20.png" \
+                "no-modifier desktop pickup after runtime snap-to-zone"
+            append_sample_manifest_row "$manifest_path" semantic snap-path screenshot screenshot \
+                "screenshots/06-snap-path-slice-20.png" \
+                "runtime snap-to-zone drag path toward Comms"
+            append_sample_manifest_row "$manifest_path" semantic snap-hover-comms screenshot screenshot \
+                "screenshots/07-snap-hover-comms-slice-20.png" \
+                "whole Comms zone overlay is visible before release"
+            append_sample_manifest_row "$manifest_path" semantic snap-release "$release_caption_label" "$release_caption_start" \
+                "screenshots/${name}.samples/${release_caption_label}-boundary-start.png" \
+                "release caption starts while the whole-zone target is still visible"
+            append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
+                "screenshots/99-after-slice-20.png" \
+                "same source window is placed in Comms/right after runtime policy switch"
+            append_sample_manifest_row "$manifest_path" semantic cycle-policy-command-start "$cycle_caption_label" "$cycle_caption_start" \
+                "screenshots/${name}.samples/${cycle_caption_label}-boundary-start.png" \
+                "cycle-zone-snap-policy command appears after final placement"
+            ;;
         slice-13-zone-mode-bindings)
             append_sample_manifest_row "$manifest_path" semantic before-focus-next screenshot screenshot \
                 "screenshots/02-before-focus-next-slice-13.png" \
@@ -1860,7 +2043,7 @@ zone_log_field() {
 write_mouse_snap_overlay_sentinel() {
     local name="$1"
     case "$name" in
-        slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance) ;;
+        slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance|slice-20-zone-snap-policy-switch) ;;
         *) return 0 ;;
     esac
     command -v magick >/dev/null 2>&1 || return 0
@@ -1871,6 +2054,9 @@ write_mouse_snap_overlay_sentinel() {
     if [ "$name" = "slice-16-mouse-snap-affordance" ]; then
         slice_prefix="slice-16"
         modifier_label="Option"
+    elif [ "$name" = "slice-20-zone-snap-policy-switch" ]; then
+        slice_prefix="slice-20"
+        modifier_label="runtime-policy"
     fi
     local zones_log="${LOGS_DIR}/${slice_prefix}-zones.log"
     local freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
@@ -3122,6 +3308,38 @@ run_slice_16_mouse_snap_affordance() {
         "${LOGS_DIR}/slice-16-run.log"
 }
 
+run_slice_20_zone_snap_policy_switch_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=setup WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-20 WINMUX_E2E_RECORDING_NAME=slice-20-zone-snap-policy-switch WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 20: runtime mouse snap policy switching' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=freeform WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=runtime-policy /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-20-setup.log"
+}
+
+run_slice_20_zone_snap_policy_switch() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=proof WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-20 WINMUX_E2E_RECORDING_NAME=slice-20-zone-snap-policy-switch WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 20: runtime mouse snap policy switching' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=freeform WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=runtime-policy /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-20-run.log"
+}
+
 run_slice_13_zone_mode_bindings_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-13-zone-mode-bindings.sh"
     local scenario_path_quoted
@@ -3385,6 +3603,10 @@ slice_19() {
     run_recorded_scenario "slice-19-zone-style-cycle" "00-before-slice-19" "99-after-slice-19" "run_slice_19_zone_style_cycle" "run_slice_19_zone_style_cycle_setup" "01-ready-slice-19"
 }
 
+slice_20() {
+    run_recorded_scenario "slice-20-zone-snap-policy-switch" "00-before-slice-20" "99-after-slice-20" "run_slice_20_zone_snap_policy_switch" "run_slice_20_zone_snap_policy_switch_setup" "01-ready-slice-20"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -3466,6 +3688,9 @@ case "$ACTION" in
         ;;
     slice-19)
         slice_19
+        ;;
+    slice-20)
+        slice_20
         ;;
     *)
         usage >&2

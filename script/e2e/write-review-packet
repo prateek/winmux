@@ -261,6 +261,21 @@ EOF
 - Reject logs-only sizing proof, final-state-only proof, unreadable/subtle geometry, stale labels, missing before/command/after samples, command captions that omit the target zone or amount, and captions that obscure measured zone edges.
 EOF
             ;;
+        slice-20-zone-snap-policy-switch)
+            cat <<'EOF'
+- Confirm the recording shows two separate desktop window drags of `snap-demo.rtf`, not a sidebar drag and not a replay of Slice 12/16: first with config `policy = 'freeform'`, then after `winmux set-zone-snap-policy snap-to-zone`.
+- Confirm the first no-modifier drag has visible source pickup and hover/path over the Comms area, but no whole-zone snap overlay and no zone move in the after-freeform logs.
+- Sample the frame around `Run: winmux set-zone-snap-policy snap-to-zone` and compare it to `logs/slice-20-command-timing.log`. Fail if the snap overlay or zone move appears before this exact command caption is already visible on a clean pre-snap frame.
+- Confirm the second no-modifier drag, after the runtime command, shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
+- Inspect `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- Confirm the exact command logs exist: `logs/slice-20-set-zone-snap-policy.log` with `winmux set-zone-snap-policy snap-to-zone`, and `logs/slice-20-cycle-zone-snap-policy.log` with `winmux cycle-zone-snap-policy freeform snap-to-zone`.
+- Confirm captions expose the binding-friendly commands `alt-z = 'set-zone-snap-policy snap-to-zone'` and `alt-x = 'cycle-zone-snap-policy freeform snap-to-zone'` through config/caption surfaces.
+- State whether the target is a whole zone or a window/slot inside a zone. For Slice 20, the expected answer is whole zone.
+- Confirm `winmux cycle-zone-snap-policy freeform snap-to-zone` runs after final placement and returns runtime policy to freeform; this is command proof, not relaunch persistence.
+- Name the exact media file used for each beat: freeform pickup, freeform no-overlay hover, set-command boundary, reset-before-snap, runtime snap pickup, runtime snap path, whole-zone hover/overlay, release/final placement, cycle-command boundary, and overlay sentinel crops.
+- Reject logs-only proof, final-state-only proof, a modifier-held positive drag, missing runtime set/cycle commands, unclear snap target, missing overlay/no-overlay proof, or any proof that implies snap-to-window/slot behavior.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.

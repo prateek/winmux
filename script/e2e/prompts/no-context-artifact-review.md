@@ -233,6 +233,28 @@ Slice-specific checks:
   target zone or style ids, color changes that happen before the command
   caption, and claims about visual editing, draggable dividers, snap gestures,
   relaunch persistence, or new app/tab-group binding semantics.
+- Slice 20 must show runtime mouse snap policy switching with visible
+  executions of `set-zone-snap-policy snap-to-zone` and
+  `cycle-zone-snap-policy freeform snap-to-zone`. The proof must show config
+  `policy = 'freeform'` before the first drag; a first no-modifier desktop drag
+  of `snap-demo.rtf` with no whole-zone overlay and no zone move; the
+  `set-zone-snap-policy snap-to-zone` command caption before any snap overlay or
+  zone move; a second no-modifier desktop drag that shows the pointer/path, a
+  whole Comms zone overlay/highlight, release, and final placement in
+  Comms/right; and the cycle command returning runtime policy to freeform after
+  final placement. Inspect `logs/slice-20-set-zone-snap-policy.log`,
+  `logs/slice-20-cycle-zone-snap-policy.log`,
+  `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`, semantic
+  samples, `logs/slice-20-command-timing.log`, and the video frames. Inspect the
+  `set-policy-command-start` semantic sample and its nearby caption boundary
+  frames; reject the artifact if the Comms whole-zone tint, dashed snap
+  affordance, or zone move is visible before the exact
+  `Run: winmux set-zone-snap-policy snap-to-zone` caption is already visible on
+  a clean pre-snap frame. Reject logs-only proof, final-state-only proof, a
+  positive drag that relies on a held modifier, missing set/cycle command
+  captions, command captions that appear after the visual change, an unclear
+  overlay/no-overlay contrast, any target that looks like a window or slot
+  inside a zone, or any claim about relaunch persistence or visual settings UI.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

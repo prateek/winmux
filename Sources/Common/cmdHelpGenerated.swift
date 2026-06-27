@@ -31,6 +31,9 @@ let cycle_zone_availability_help_generated = """
 let cycle_zone_layout_help_generated = """
     USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
+let cycle_zone_snap_policy_help_generated = """
+    USAGE: cycle-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>...
+    """
 let cycle_zone_style_help_generated = """
     USAGE: cycle-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>...
     """
@@ -176,6 +179,9 @@ let resize_help_generated = """
     """
 let resize_zone_help_generated = """
     USAGE: resize-zone [-h|--help] [--monitor <monitor-pattern>] <zone> width [+|-]<percent>%
+    """
+let set_zone_snap_policy_help_generated = """
+    USAGE: set-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>
     """
 let set_zone_style_help_generated = """
     USAGE: set-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>

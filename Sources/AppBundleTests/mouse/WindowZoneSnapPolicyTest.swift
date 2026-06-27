@@ -163,6 +163,70 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
     }
+
+    func testRuntimePolicyOverrideChangesDragResolutionWithoutChangingConfig() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .freeform
+
+        assertZoneSnapPolicyOverride(.snapToZone, for: fixture.commsMonitor.physicalMonitor)
+
+        XCTAssertEqual(config.mouse.zoneSnap.policy, .freeform)
+        let resolution = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+        )
+
+        guard case .use(let destination) = resolution else {
+            XCTFail("Expected runtime snap-to-zone override to create a zone snap destination")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+    }
+
+    func testRuntimePolicyOverridePreservesConfiguredModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.zoneSnap.modifier = .shift
+
+        assertZoneSnapPolicyOverride(.snapOnModifier, for: fixture.commsMonitor.physicalMonitor)
+
+        let withoutShift = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+        )
+        guard case .suppressDefaultDestinations = withoutShift else {
+            XCTFail("Expected runtime snap-on-modifier override to preserve configured Shift modifier")
+            return
+        }
+
+        let withShift = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskShift,
+        )
+        guard case .use(let destination) = withShift else {
+            XCTFail("Expected configured Shift modifier to activate runtime snap-on-modifier override")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+    }
 }
 
 private struct ZoneSnapFixture {
@@ -211,4 +275,19 @@ private func configureZoneSnapFixture() -> ZoneSnapFixture {
         commsMonitor: zonesById["right"].orDie(),
         window: window,
     )
+}
+
+@MainActor
+private func assertZoneSnapPolicyOverride(
+    _ policy: ZoneSnapPolicy,
+    for monitor: Monitor,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+) {
+    switch setZoneSnapPolicy(policy, for: monitor) {
+        case .success:
+            break
+        case .failure(let message):
+            XCTFail(message, file: file, line: line)
+    }
 }

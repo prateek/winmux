@@ -11,6 +11,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case config
     case cycleZoneAvailability = "cycle-zone-availability"
     case cycleZoneLayout = "cycle-zone-layout"
+    case cycleZoneSnapPolicy = "cycle-zone-snap-policy"
     case cycleZoneStyle = "cycle-zone-style"
     case debugWindows = "debug-windows"
     case disableZone = "disable-zone"
@@ -50,6 +51,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case reloadConfig = "reload-config"
     case resize
     case resizeZone = "resize-zone"
+    case setZoneSnapPolicy = "set-zone-snap-policy"
     case setZoneStyle = "set-zone-style"
     case split
     case stackWith = "stack-with"
@@ -91,6 +93,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneAvailabilityCmdArgs)
             case .cycleZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneLayoutCmdArgs)
+            case .cycleZoneSnapPolicy:
+                result[kind.rawValue] = SubCommandParser(parseCycleZoneSnapPolicyCmdArgs)
             case .cycleZoneStyle:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneStyleCmdArgs)
             case .debugWindows:
@@ -173,6 +177,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseResizeCmdArgs)
             case .resizeZone:
                 result[kind.rawValue] = SubCommandParser(parseResizeZoneCmdArgs)
+            case .setZoneSnapPolicy:
+                result[kind.rawValue] = SubCommandParser(parseSetZoneSnapPolicyCmdArgs)
             case .setZoneStyle:
                 result[kind.rawValue] = SubCommandParser(parseSetZoneStyleCmdArgs)
             case .split:

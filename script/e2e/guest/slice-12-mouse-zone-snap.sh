@@ -10,9 +10,16 @@ SLICE_NUMBER="${SLICE_PREFIX#slice-}"
 SLICE_TITLE="${WINMUX_E2E_MOUSE_SNAP_TITLE:-WinMux Slice ${SLICE_NUMBER}: desktop mouse zone snap policy}"
 RECORDING_NAME="${WINMUX_E2E_RECORDING_NAME:-${SLICE_PREFIX}-mouse-zone-snap-drag}"
 CONFIG_MODIFIER="${WINMUX_E2E_MOUSE_SNAP_CONFIG_MODIFIER:-alt}"
+CONFIG_POLICY="${WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY:-snap-on-modifier}"
+PROOF_MODE="${WINMUX_E2E_MOUSE_SNAP_PROOF_MODE:-modifier}"
+RUNTIME_SET_POLICY="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_SET_POLICY:-snap-to-zone}"
+RUNTIME_CYCLE_POLICIES="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_CYCLE_POLICIES:-freeform snap-to-zone}"
 if [ "${SLICE_PREFIX}" = "slice-16" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Option}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Option while dragging: snap to Comms zone}"
+elif [ "${PROOF_MODE}" = "runtime-policy" ]; then
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Run: winmux set-zone-snap-policy snap-to-zone}"
 else
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
@@ -37,6 +44,8 @@ LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-${SLICE_PREFIX}.plist"
 
 SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-mouse-zone-snap-setup.log"
 ACTION_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-mouse-zone-snap-action.log"
+SET_POLICY_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-set-zone-snap-policy.log"
+CYCLE_POLICY_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cycle-zone-snap-policy.log"
 WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-setup.log"
 WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-before.log"
 WINDOW_FREEFORM_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-freeform.log"
@@ -257,6 +266,7 @@ PLIST
 setup_slice() {
     rm -f \
         "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" \
+        "${SET_POLICY_LOG}" "${CYCLE_POLICY_LOG}" \
         "${WINDOW_FREEFORM_LOG}" "${WINDOW_RESET_LOG}" "${WINDOW_AFTER_LOG}" "${ZONES_LOG}" \
         "${TIMING_LOG}" "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${ACTION_MANIFEST}" "${PROOF}" \
         "${APP_LOG}" "${APP_LOG_LOCAL}" "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" \
@@ -270,7 +280,11 @@ setup_slice() {
         echo "Source App: ${SOURCE_APP}"
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
-        echo "Config: [mouse.zone-snap] policy = 'snap-on-modifier', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
+        echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
+        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+            echo "Runtime command: set-zone-snap-policy ${RUNTIME_SET_POLICY}"
+            echo "Runtime toggle: cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
+        fi
     } | tee "${SETUP_LOG}"
 
     test -x "${SOURCE_APP}"
@@ -283,7 +297,11 @@ setup_slice() {
     chmod +x "${APP}" "${CLI}"
 
     write_doc "${REFERENCE_DOC}" 'REFERENCE' 'Reference' 'Desktop drag snap proof baseline'
-    write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag this window without ${USER_MODIFIER_LABEL}, then with ${USER_MODIFIER_LABEL}"
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag once in freeform, run set-zone-snap-policy, then drag again with no modifier"
+    else
+        write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag this window without ${USER_MODIFIER_LABEL}, then with ${USER_MODIFIER_LABEL}"
+    fi
     write_doc "${COMMS_DOC}" 'COMMS' 'Comms' 'Whole-zone snap target'
 
     launch_winmux
@@ -475,14 +493,24 @@ proof_slice() {
     target_x="$(awk_int "${right_left} + (${right_width} * 0.50)")"
     target_y="$(awk_int "${right_top} + (${right_height} * 0.38)")"
 
+    positive_drag_with_alt=1
+    positive_proof_key='alt-held-whole-zone-snap'
+    positive_action_text="positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        positive_drag_with_alt=0
+        positive_proof_key='runtime-set-snap-to-zone'
+        positive_action_text='positive-proof=runtime set-zone-snap-policy enables whole-zone snap without a held modifier'
+    fi
+
     {
         echo 'action=desktop-mouse-zone-snap'
         echo 'interaction-model=desktop-window-drag'
         echo 'config=[mouse.zone-snap]'
-        echo "policy=snap-on-modifier"
+        echo "policy=${CONFIG_POLICY}"
         echo "modifier=${CONFIG_MODIFIER}"
         echo "gesture=drag"
         echo "target=zone"
+        echo "proof-mode=${PROOF_MODE}"
         echo "source-title=snap-demo.rtf"
         echo "source-window-id=${before_id}"
         echo "before-zone=main"
@@ -494,7 +522,7 @@ proof_slice() {
         echo "source-point=${source_x},${source_y}"
         echo "target-point=${target_x},${target_y}"
         echo "negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
-        echo "positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
+        echo "${positive_action_text}"
         echo "freeform-pickup-screenshot=${FREEFORM_PICKUP_SCREENSHOT}"
         echo "freeform-hover-screenshot=${FREEFORM_HOVER_SCREENSHOT}"
         echo "snap-pickup-screenshot=${SNAP_PICKUP_SCREENSHOT}"
@@ -511,15 +539,20 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-target zone-name Comms
         printf '%s\t%s\t%s\n' drag-target snap-target whole-zone
         printf '%s\t%s\t%s\n' drag-target not-snap-target window-within-zone
-        printf '%s\t%s\t%s\n' drag-policy policy snap-on-modifier
+        printf '%s\t%s\t%s\n' drag-policy policy "${CONFIG_POLICY}"
         printf '%s\t%s\t%s\n' drag-policy modifier "${CONFIG_MODIFIER}"
         printf '%s\t%s\t%s\n' drag-policy negative-proof no-alt-no-zone-move
-        printf '%s\t%s\t%s\n' drag-policy positive-proof alt-held-whole-zone-snap
+        printf '%s\t%s\t%s\n' drag-policy positive-proof "${positive_proof_key}"
+        printf '%s\t%s\t%s\n' drag-policy proof-mode "${PROOF_MODE}"
         printf '%s\t%s\t%s\n' drag-points source "${source_x},${source_y}"
         printf '%s\t%s\t%s\n' drag-points target "${target_x},${target_y}"
         printf '%s\t%s\t%s\n' drag-points target-hover-hold-seconds '3.3'
         printf '%s\t%s\t%s\n' drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
-        printf '%s\t%s\t%s\n' drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
+        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+            printf '%s\t%s\t%s\n' drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
+        else
+            printf '%s\t%s\t%s\n' drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
+        fi
         printf '%s\t%s\t%s\n' drag-screenshots pickup "${SNAP_PICKUP_NAME}"
         printf '%s\t%s\t%s\n' drag-screenshots path "${SNAP_PATH_NAME}"
         printf '%s\t%s\t%s\n' drag-screenshots hover "${SNAP_HOVER_NAME}"
@@ -556,12 +589,34 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-result freeform-result no-zone-move
     } >>"${ACTION_MANIFEST}"
 
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        sleep 4
+        {
+            echo "$ winmux set-zone-snap-policy ${RUNTIME_SET_POLICY}"
+            "${CLI}" set-zone-snap-policy "${RUNTIME_SET_POLICY}"
+        } | tee "${SET_POLICY_LOG}" | tee -a "${ACTION_LOG}" | tee -a "${CLI_LOG}" >/dev/null
+        grep -F "Using zone snap policy '${RUNTIME_SET_POLICY}'" "${SET_POLICY_LOG}" >/dev/null \
+            || semantic_fail "set-zone-snap-policy did not report ${RUNTIME_SET_POLICY}"
+        {
+            echo "runtime-policy-command=set-zone-snap-policy ${RUNTIME_SET_POLICY}"
+            echo "runtime-policy-after-set=${RUNTIME_SET_POLICY}"
+        } | tee -a "${ACTION_LOG}"
+        {
+            printf '%s\t%s\t%s\n' runtime-policy command "set-zone-snap-policy ${RUNTIME_SET_POLICY}"
+            printf '%s\t%s\t%s\n' runtime-policy after-set "${RUNTIME_SET_POLICY}"
+        } >>"${ACTION_MANIFEST}"
+        sleep 3
+    fi
+
     reset_snap_window_to_work
     sleep 1
     capture_guest_screenshot "${RESET_NAME%.png}"
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        sleep 4
+    fi
 
     snap_start_epoch="$(date +%s)"
-    drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 1 \
+    drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" "${positive_drag_with_alt}" \
         "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}"
     sleep 4
     snap_end_epoch="$(date +%s)"
@@ -583,10 +638,15 @@ proof_slice() {
     after_id="$(window_id_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
     after_zone="$(zone_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
     after_workspace="$(workspace_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
-    [ "${after_id}" = "${before_id}" ] || semantic_fail "${USER_MODIFIER_LABEL} snap changed window id: ${before_id} -> ${after_id:-missing}"
-    [ "${after_zone}" = right ] || semantic_fail "${USER_MODIFIER_LABEL} snap did not move to Comms/right: ${after_zone:-missing}"
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        snap_error_label='runtime snap-to-zone'
+    else
+        snap_error_label="${USER_MODIFIER_LABEL} snap"
+    fi
+    [ "${after_id}" = "${before_id}" ] || semantic_fail "${snap_error_label} changed window id: ${before_id} -> ${after_id:-missing}"
+    [ "${after_zone}" = right ] || semantic_fail "${snap_error_label} did not move to Comms/right: ${after_zone:-missing}"
     [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" != "${after_workspace}" ] \
-        || semantic_fail "${USER_MODIFIER_LABEL} snap did not move to the target zone active workspace"
+        || semantic_fail "${snap_error_label} did not move to the target zone active workspace"
 
     {
         echo "window-id-after=${after_id}"
@@ -601,11 +661,39 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-result result success
     } >>"${ACTION_MANIFEST}"
 
+    cycle_start_epoch=""
+    cycle_end_epoch=""
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        sleep 4
+        cycle_start_epoch="$(date +%s)"
+        # shellcheck disable=SC2086
+        {
+            echo "$ winmux cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
+            "${CLI}" cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}
+        } | tee "${CYCLE_POLICY_LOG}" | tee -a "${ACTION_LOG}" | tee -a "${CLI_LOG}" >/dev/null
+        cycle_end_epoch="$(date +%s)"
+        grep -F "Using zone snap policy 'freeform'" "${CYCLE_POLICY_LOG}" >/dev/null \
+            || semantic_fail 'cycle-zone-snap-policy did not return to freeform'
+        {
+            echo "runtime-cycle-command=cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
+            echo 'runtime-policy-after-cycle=freeform'
+        } | tee -a "${ACTION_LOG}"
+        {
+            printf '%s\t%s\t%s\n' runtime-policy cycle-command "cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
+            printf '%s\t%s\t%s\n' runtime-policy after-cycle freeform
+        } >>"${ACTION_MANIFEST}"
+        sleep 3
+    fi
+
     {
         printf 'freeform-drag-start-offset-seconds=%s\n' "$((start_epoch - start_epoch))"
         printf 'freeform-drag-end-offset-seconds=%s\n' "$((freeform_epoch - start_epoch))"
         printf 'snap-drag-start-offset-seconds=%s\n' "$((snap_start_epoch - start_epoch))"
         printf 'snap-drag-end-offset-seconds=%s\n' "$((snap_end_epoch - start_epoch))"
+        if [ -n "${cycle_start_epoch}" ] && [ -n "${cycle_end_epoch}" ]; then
+            printf 'cycle-command-start-offset-seconds=%s\n' "$((cycle_start_epoch - start_epoch))"
+            printf 'cycle-command-end-offset-seconds=%s\n' "$((cycle_end_epoch - start_epoch))"
+        fi
     } >"${TIMING_LOG}"
 
     cat "${ZONES_LOG}" "${WINDOW_BEFORE_LOG}" "${ACTION_LOG}" "${WINDOW_FREEFORM_LOG}" \
@@ -616,10 +704,16 @@ proof_slice() {
         echo
         echo 'Config under proof:'
         echo "[mouse.zone-snap]"
-        echo "policy = 'snap-on-modifier'"
+        echo "policy = '${CONFIG_POLICY}'"
         echo "modifier = 'alt'"
         echo "gesture = 'drag'"
         echo "target = 'zone'"
+        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+            echo
+            echo 'Runtime commands under proof:'
+            echo "winmux set-zone-snap-policy ${RUNTIME_SET_POLICY}"
+            echo "winmux cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
+        fi
         echo
         echo 'Zones:'
         cat "${ZONES_LOG}"
@@ -633,10 +727,18 @@ proof_slice() {
         echo 'Proof manifest:'
         cat "${ACTION_MANIFEST}"
         echo
-        echo "After ${USER_MODIFIER_LABEL} snap:"
+        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+            echo 'After runtime snap-to-zone drag:'
+        else
+            echo "After ${USER_MODIFIER_LABEL} snap:"
+        fi
         cat "${WINDOW_AFTER_LOG}"
         echo
-        echo "PASS: desktop drag without ${USER_MODIFIER_LABEL} stays freeform/no-zone-move; holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
+        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+            echo "PASS: desktop drag starts from config freeform/no-zone-move; winmux set-zone-snap-policy snap-to-zone makes the next no-modifier drag preview a whole Comms zone target and move the same window into Comms/right on release; winmux cycle-zone-snap-policy freeform snap-to-zone returns the runtime policy to freeform."
+        else
+            echo "PASS: desktop drag without ${USER_MODIFIER_LABEL} stays freeform/no-zone-move; holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
+        fi
     } >"${PROOF}"
 
     echo
