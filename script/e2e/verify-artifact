@@ -416,6 +416,31 @@ EOF
     if ( require_color_sentinel_manifest "$bad_sentinel_manifest" "$tmp_dir" "self-test bad color sentinel" ) >/dev/null 2>&1; then
         die "Color sentinel self-test expected a wrong-color failure"
     fi
+
+    local old_run_dir="${RUN_DIR:-}"
+    local old_annotation_plan="${annotation_plan:-}"
+    local old_recording_path="${recording_path:-}"
+    RUN_DIR="$tmp_dir"
+    annotation_plan="${tmp_dir}/annotations.tsv"
+    recording_path="${tmp_dir}/recording.mov"
+    printf 'annotations\n' >"$annotation_plan"
+    printf 'recording\n' >"$recording_path"
+    printf 'event media\n' >"${tmp_dir}/event.png"
+    local event_manifest="${tmp_dir}/events.tsv"
+    cat >"$event_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+set-command-start	command	10.100	caption-02	set-policy-command-start	event.png	command caption visible
+snap-first-affordance	overlay	12.200	caption-04	snap-hover-comms	event.png	overlay visible
+EOF
+    require_event_manifest_paths "$event_manifest"
+    require_event_manifest_event "$event_manifest" set-command-start command
+    require_event_manifest_event "$event_manifest" snap-first-affordance overlay
+    require_event_sample_label "$event_manifest" set-command-start set-policy-command-start
+    require_event_before "$event_manifest" set-command-start snap-first-affordance \
+        "Event manifest self-test expected command before overlay"
+    RUN_DIR="$old_run_dir"
+    annotation_plan="$old_annotation_plan"
+    recording_path="$old_recording_path"
     log "self-test PASS"
 }
 
@@ -454,21 +479,24 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$SELF_TEST" = "1" ]; then
-    run_self_test
-    exit 0
+    RUN_DIR=""
+    LOGS_DIR=""
+    SCREENSHOTS_DIR=""
+    RECORDINGS_DIR=""
+    CONFIG_PATH=""
+    PREFLIGHT_LOG=""
+else
+    [ -n "$RUN_DIR" ] || {
+        usage >&2
+        die "Missing artifact run directory"
+    }
+    [ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
+    LOGS_DIR="${RUN_DIR}/logs"
+    SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
+    RECORDINGS_DIR="${RUN_DIR}/recordings"
+    CONFIG_PATH="${RUN_DIR}/config/winmux.toml"
+    PREFLIGHT_LOG="${LOGS_DIR}/preflight.log"
 fi
-
-[ -n "$RUN_DIR" ] || {
-    usage >&2
-    die "Missing artifact run directory"
-}
-[ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
-
-LOGS_DIR="${RUN_DIR}/logs"
-SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
-RECORDINGS_DIR="${RUN_DIR}/recordings"
-CONFIG_PATH="${RUN_DIR}/config/winmux.toml"
-PREFLIGHT_LOG="${LOGS_DIR}/preflight.log"
 
 require_file() {
     local path="$1"
@@ -637,6 +665,13 @@ ensure_review_packet() {
             "${relative_run_dir}/logs/${recording_name}.edge-crops.tsv" \
             || die "Review packet missing edge crop manifest path"
     fi
+    if [ -s "${LOGS_DIR}/${recording_name}.event-manifest.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.event-manifest.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.event-manifest.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.event-manifest.tsv" \
+            || die "Review packet missing event manifest path"
+    fi
     local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
     if [ -s "$transport_summary" ]; then
         review_packet_contains_any "$packet_path" \
@@ -718,6 +753,102 @@ review_packet_contains_any() {
 
 sample_manifest_path() {
     printf '%s/%s.sample-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+event_manifest_path() {
+    printf '%s/%s.event-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+event_manifest_value() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local field="$3"
+    /usr/bin/awk -F'\t' -v event_id="$event_id" -v field="$field" '
+        BEGIN {
+            column["kind"] = 2
+            column["seconds"] = 3
+            column["caption-label"] = 4
+            column["sample-label"] = 5
+            column["path"] = 6
+            column["expected"] = 7
+        }
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == event_id && column[field] {
+            print $column[field]
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest_path"
+}
+
+require_event_manifest_value() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local field="$3"
+    local value
+    value="$(event_manifest_value "$manifest_path" "$event_id" "$field")" \
+        || die "Event manifest missing ${field} for ${event_id}: $manifest_path"
+    [ -n "$value" ] || die "Event manifest has empty ${field} for ${event_id}: $manifest_path"
+    printf '%s\n' "$value"
+}
+
+require_event_manifest_event() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local kind="$3"
+    local actual_kind seconds
+    actual_kind="$(require_event_manifest_value "$manifest_path" "$event_id" kind)"
+    seconds="$(require_event_manifest_value "$manifest_path" "$event_id" seconds)"
+    [ "$actual_kind" = "$kind" ] \
+        || die "Event manifest ${event_id} kind mismatch: expected ${kind}, got ${actual_kind}"
+    [[ "$seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || die "Event manifest ${event_id} seconds must be numeric, got: ${seconds}"
+}
+
+require_event_manifest_paths() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+    require_fresh_derived_file "$manifest_path" "${annotation_plan:-}" "Event manifest"
+
+    local event_id relative_path
+    while IFS=$'\t' read -r event_id _kind _seconds _caption _sample relative_path _expected; do
+        case "${event_id:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_path:-}" ] || continue
+        [ "$relative_path" != "-" ] || continue
+        case "$relative_path" in
+            /*|*../*) die "Event manifest path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_file "${RUN_DIR}/${relative_path}"
+        case "$relative_path" in
+            screenshots/*.samples/*)
+                require_fresh_derived_file "${RUN_DIR}/${relative_path}" "${recording_path:-}" "Event manifest frame"
+                ;;
+        esac
+    done <"$manifest_path"
+}
+
+require_event_before() {
+    local manifest_path="$1"
+    local before_event="$2"
+    local after_event="$3"
+    local message="$4"
+    local before_seconds after_seconds
+    before_seconds="$(require_event_manifest_value "$manifest_path" "$before_event" seconds)"
+    after_seconds="$(require_event_manifest_value "$manifest_path" "$after_event" seconds)"
+    assert_numeric_lt "$before_seconds" "$after_seconds" "$message"
+}
+
+require_event_sample_label() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local expected_label="$3"
+    local actual_label
+    actual_label="$(require_event_manifest_value "$manifest_path" "$event_id" sample-label)"
+    [ "$actual_label" = "$expected_label" ] \
+        || die "Event manifest ${event_id} sample label mismatch: expected ${expected_label}, got ${actual_label}"
 }
 
 file_mtime_epoch() {
@@ -804,6 +935,7 @@ require_review_freshness() {
         "${RUN_DIR}/reviews/reviewer-packet.md" \
         "$contact_sheet" \
         "$(sample_manifest_path)" \
+        "$(event_manifest_path)" \
         "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
         [ -s "$dependency" ] || continue
         [ "$review_path" -nt "$dependency" ] \
@@ -2839,19 +2971,60 @@ require_mouse_snap_overlay_sentinel() {
         /usr/bin/awk -F'\t' -v label="$label" -v column="$column" '$1 == label { print $column; exit }' "$manifest_path"
     }
 
-    local rmse minimum target_semantics freeform_crop snap_crop
+    local rmse minimum target_semantics freeform_crop snap_crop crop_geometry
     rmse="$(sentinel_value overlay-rmse-normalized 2)"
     minimum="$(sentinel_value overlay-rmse-normalized 3)"
     target_semantics="$(sentinel_value target-semantics 2)"
     freeform_crop="$(sentinel_value freeform-target-zone-crop 4)"
     snap_crop="$(sentinel_value snap-target-zone-crop 4)"
+    crop_geometry="$(sentinel_value target-zone-crop 2)"
 
     [ -n "$rmse" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized value"
     [ -n "$minimum" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized minimum"
     [ "$target_semantics" = whole-zone ] \
         || die "Mouse snap overlay sentinel must declare target-semantics=whole-zone"
+    [ -n "$crop_geometry" ] || die "Mouse snap overlay sentinel missing target-zone crop geometry"
+    case "$freeform_crop" in
+        /*|*../*) die "Mouse snap freeform crop path must be run-relative: $freeform_crop" ;;
+    esac
+    case "$snap_crop" in
+        /*|*../*) die "Mouse snap snap crop path must be run-relative: $snap_crop" ;;
+    esac
     require_file "${RUN_DIR}/${freeform_crop}"
     require_file "${RUN_DIR}/${snap_crop}"
+
+    local crop_size expected_dimensions freeform_dimensions snap_dimensions
+    crop_size="$(printf '%s\n' "$crop_geometry" | /usr/bin/sed -n 's/^\([0-9][0-9]*\)x\([0-9][0-9]*\)+[0-9][0-9]*+[0-9][0-9]*$/\1 \2/p')"
+    [ -n "$crop_size" ] || die "Mouse snap overlay sentinel has invalid crop geometry: $crop_geometry"
+    # shellcheck disable=SC2086
+    set -- $crop_size
+    expected_dimensions="${1}x${2}"
+    freeform_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${freeform_crop}")" \
+        || die "Mouse snap freeform crop is not readable image media: ${RUN_DIR}/${freeform_crop}"
+    snap_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${snap_crop}")" \
+        || die "Mouse snap snap crop is not readable image media: ${RUN_DIR}/${snap_crop}"
+    [ "$freeform_dimensions" = "$expected_dimensions" ] \
+        || die "Mouse snap freeform crop dimensions ${freeform_dimensions} do not match ${expected_dimensions}"
+    [ "$snap_dimensions" = "$expected_dimensions" ] \
+        || die "Mouse snap snap crop dimensions ${snap_dimensions} do not match ${expected_dimensions}"
+
+    local slice_prefix source_freeform source_snap
+    case "$recording_name" in
+        slice-12-*) slice_prefix="slice-12" ;;
+        slice-16-*) slice_prefix="slice-16" ;;
+        slice-20-*) slice_prefix="slice-20" ;;
+        *) slice_prefix="" ;;
+    esac
+    if [ -n "$slice_prefix" ]; then
+        source_freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
+        source_snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
+        require_file "$source_freeform"
+        require_file "$source_snap"
+        require_fresh_derived_file "${RUN_DIR}/${freeform_crop}" "$source_freeform" "Mouse snap freeform overlay crop"
+        require_fresh_derived_file "${RUN_DIR}/${snap_crop}" "$source_snap" "Mouse snap snap overlay crop"
+        require_fresh_derived_file "$manifest_path" "$source_snap" "Mouse snap overlay sentinel"
+    fi
+
     awk -v rmse="$rmse" -v minimum="$minimum" 'BEGIN { exit(rmse + 0 >= minimum + 0 ? 0 : 1) }' \
         || die "Mouse snap overlay RMSE ${rmse} is below required ${minimum}"
 }
@@ -3017,6 +3190,68 @@ require_slice_16_mouse_snap_affordance_proof() {
     require_mouse_zone_snap_proof slice-16 "Slice 16" 1
 }
 
+require_slice_20_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" freeform-drag-start drag
+    require_event_manifest_event "$manifest_path" freeform-drag-hover drag
+    require_event_manifest_event "$manifest_path" freeform-drag-release drag
+    require_event_manifest_event "$manifest_path" freeform-post-state inspection
+    require_event_manifest_event "$manifest_path" set-command-start command
+    require_event_manifest_event "$manifest_path" set-command-end command
+    require_event_manifest_event "$manifest_path" reset-before-snap preparation
+    require_event_manifest_event "$manifest_path" snap-drag-start drag
+    require_event_manifest_event "$manifest_path" snap-drag-path drag
+    require_event_manifest_event "$manifest_path" snap-first-affordance overlay
+    require_event_manifest_event "$manifest_path" snap-drag-hover overlay
+    require_event_manifest_event "$manifest_path" snap-release drag
+    require_event_manifest_event "$manifest_path" snap-post-state inspection
+    require_event_manifest_event "$manifest_path" cycle-command-start command
+    require_event_manifest_event "$manifest_path" cycle-command-end command
+    require_event_manifest_event "$manifest_path" final-inspection inspection
+
+    require_event_sample_label "$manifest_path" freeform-drag-start freeform-pickup
+    require_event_sample_label "$manifest_path" freeform-drag-hover freeform-hover-no-overlay
+    require_event_sample_label "$manifest_path" set-command-start set-policy-command-start
+    require_event_sample_label "$manifest_path" snap-drag-start snap-pickup
+    require_event_sample_label "$manifest_path" snap-drag-path snap-path
+    require_event_sample_label "$manifest_path" snap-first-affordance snap-hover-comms
+    require_event_sample_label "$manifest_path" snap-release snap-release
+    require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
+    require_event_sample_label "$manifest_path" cycle-command-start cycle-policy-command-start
+
+    require_event_before "$manifest_path" config-ready freeform-drag-start \
+        "Slice 20 event manifest must show config before the first drag"
+    require_event_before "$manifest_path" freeform-drag-start freeform-drag-hover \
+        "Slice 20 event manifest must show freeform pickup before hover"
+    require_event_before "$manifest_path" freeform-drag-hover freeform-drag-release \
+        "Slice 20 event manifest must show freeform hover before release"
+    require_event_before "$manifest_path" freeform-drag-release set-command-start \
+        "Slice 20 event manifest must show freeform release before set-policy command"
+    require_event_before "$manifest_path" set-command-start set-command-end \
+        "Slice 20 event manifest must show set-policy command start before end"
+    require_event_before "$manifest_path" set-command-start snap-drag-start \
+        "Slice 20 event manifest must show set-policy command before runtime snap pickup"
+    require_event_before "$manifest_path" set-command-end snap-first-affordance \
+        "Slice 20 event manifest must show set-policy command before first snap affordance"
+    require_event_before "$manifest_path" snap-drag-start snap-drag-path \
+        "Slice 20 event manifest must show runtime snap pickup before path"
+    require_event_before "$manifest_path" snap-drag-path snap-first-affordance \
+        "Slice 20 event manifest must show drag path before first snap affordance"
+    require_event_before "$manifest_path" snap-first-affordance snap-release \
+        "Slice 20 event manifest must show snap affordance before release"
+    require_event_before "$manifest_path" snap-release snap-post-state \
+        "Slice 20 event manifest must show release before post-state placement"
+    require_event_before "$manifest_path" snap-post-state cycle-command-start \
+        "Slice 20 event manifest must show final placement before cycle command"
+    require_event_before "$manifest_path" cycle-command-start cycle-command-end \
+        "Slice 20 event manifest must show cycle command start before end"
+    require_event_before "$manifest_path" cycle-command-start final-inspection \
+        "Slice 20 event manifest must show final inspection after cycle command starts"
+}
+
 require_slice_20_zone_snap_policy_switch_proof() {
     local slice_prefix="slice-20"
     local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
@@ -3058,6 +3293,9 @@ require_slice_20_zone_snap_policy_switch_proof() {
     require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-20.png"
     require_file "${SCREENSHOTS_DIR}/99-after-slice-20.png"
     require_mouse_snap_overlay_sentinel "${LOGS_DIR}/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv"
+    if [ -s "$(event_manifest_path)" ]; then
+        require_slice_20_event_manifest "$(event_manifest_path)"
+    fi
 
     grep -F "PASS: desktop drag starts from config freeform/no-zone-move; winmux set-zone-snap-policy snap-to-zone makes the next no-modifier drag preview a whole Comms zone target and move the same window into Comms/right on release; winmux cycle-zone-snap-policy freeform snap-to-zone returns the runtime policy to freeform." "$proof" >/dev/null \
         || die "Slice 20 proof does not contain the expected runtime policy PASS claim"
@@ -4043,6 +4281,11 @@ require_slice_17_node_binding_guardrails_proof() {
     grep -F 'no relaunch persistence is claimed' "$annotation_plan" >/dev/null \
         || die "Slice 17 annotations must explicitly avoid a relaunch-persistence claim"
 }
+
+if [ "$SELF_TEST" = "1" ]; then
+    run_self_test
+    exit 0
+fi
 
 require_no_ds_store
 require_file "$PREFLIGHT_LOG"

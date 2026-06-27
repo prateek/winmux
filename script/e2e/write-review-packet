@@ -63,6 +63,7 @@ annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
 color_sentinel="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
 overlay_sentinel="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
@@ -79,6 +80,11 @@ if [ -s "$color_sentinel" ]; then
     color_sentinel_label="$color_sentinel"
 else
     color_sentinel_label="not applicable"
+fi
+if [ -s "$event_manifest" ]; then
+    event_manifest_label="$event_manifest"
+else
+    event_manifest_label="not applicable"
 fi
 if [ -s "$overlay_sentinel" ]; then
     overlay_sentinel_label="$overlay_sentinel"
@@ -269,6 +275,7 @@ EOF
 - Confirm the second no-modifier drag, after the runtime command, shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
 - Inspect `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
 - Confirm the exact command logs exist: `logs/slice-20-set-zone-snap-policy.log` with `winmux set-zone-snap-policy snap-to-zone`, and `logs/slice-20-cycle-zone-snap-policy.log` with `winmux cycle-zone-snap-policy freeform snap-to-zone`.
+- If `logs/slice-20-zone-snap-policy-switch.event-manifest.tsv` exists, inspect it and confirm event ordering names separate command starts/ends, drag pickup/path/hover/release, first affordance, post-state inspection, and final inspection. Reject if it collapses those into one vague timing value.
 - Confirm captions expose the binding-friendly commands `alt-z = 'set-zone-snap-policy snap-to-zone'` and `alt-x = 'cycle-zone-snap-policy freeform snap-to-zone'` through config/caption surfaces.
 - State whether the target is a whole zone or a window/slot inside a zone. For Slice 20, the expected answer is whole zone.
 - Confirm `winmux cycle-zone-snap-policy freeform snap-to-zone` runs after final placement and returns runtime policy to freeform; this is command proof, not relaunch persistence.
@@ -367,6 +374,7 @@ $(drag_screenshot_lines)
 - annotation log: ${annotation_log}
 - expected caption chips: ${expected_chips:-not present}
 - drag proof manifest: ${proof_manifest_label}
+- event manifest: ${event_manifest_label}
 - color sentinel manifest: ${color_sentinel_label}
 - overlay sentinel manifest: ${overlay_sentinel_label}
 - preflight log: ${LOGS_DIR}/preflight.log
@@ -412,6 +420,7 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
 | config/user command surface | annotation TSV plus caption sample/boundary frame |
 | action before-state | caption boundary frame or semantic screenshot |
 | action in progress / command boundary | caption boundary frame, action screenshot, or drag proof frame |
+| event ordering | event manifest when present, plus matching caption boundary/action frames |
 | action after-state | caption sample/boundary frame and after screenshot |
 | final contamination check | full after screenshot plus final screenshot and near-end video edge/corner crops when present |
 | logs correlate with media | proof file and slice-specific logs |
@@ -434,6 +443,9 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
 - The visible behavior must match the logs. Logs can support the proof but cannot
   substitute for action visible in the video or sampled frames.
 - Compare content and style against the baseline media and product surfaces.
+  Name the concrete baseline file or product page you checked. For columnar-zone
+  demos, include \`${REPO_ROOT}/demo-columnar-zones.mp4\` unless the slice is
+  explicitly unrelated to zones.
 EOF
 } >"$PACKET_PATH"
 

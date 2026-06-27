@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-20 accepted; Slice 21 pre-slice cleanup ready
+Status: slices 0-20 accepted; Slice 21 storyboard pending
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -81,16 +81,16 @@ Current implementation comparison:
   disabled zones, parked workspaces, width overrides, style overrides, and
   current-toggle restore memory. Parked workspaces survive lifecycle pruning while
   their zone is hidden, so a hidden zone can restore its previous workspace
-  instead of losing an empty placeholder before re-enable. The first snap-policy
-  implementation lives in config and the mouse drag resolver; it is not yet
-  runtime overlay state.
+  instead of losing an empty placeholder before re-enable. Runtime snap-policy
+  overrides are also stored in the overlay and layered over the configured
+  mouse snap policy.
 - `InputBinding` exists through command parsing and normal key bindings. Mouse
   sidebar drag to a zone row calls the same move logic. Normal desktop window
-  dragging now has initial configured whole-zone snap policy in code and has
-  Slice 12 Tart proof.
+  dragging now has configured and runtime whole-zone snap policy in code, with
+  Slice 12 and Slice 20 Tart proof.
 - `ZoneAvailabilitySet` is implemented. `ZoneSnapPolicy` now has an initial
-  config/model seam and fast-tested whole-zone drag resolver for desktop window
-  drags into whole-zone targets.
+  config/model seam, runtime policy switching commands, and a fast-tested
+  whole-zone drag resolver for desktop window drags into whole-zone targets.
 - `ZoneBinding` is first-class for workspace preferences through
   `[[zone-bindings]]` and `apply-zone-bindings`. The implementation can also
   move a window or focused tab group into a zone and can route new windows with
@@ -115,6 +115,9 @@ Keyboard and command workflows should stay thin over the same zone model:
   `cycle-zone-availability` change visibility at one-zone or named-set scope.
 - `set-zone-style` and `cycle-zone-style` change zone chrome without changing
   layout or workspace binding.
+- `set-zone-snap-policy` and `cycle-zone-snap-policy` change the effective
+  desktop-drag snap policy at runtime without changing the configured modifier,
+  gesture, or target.
 - Example key bindings should compose these commands directly. The default idiom
   should use portable relative selectors when possible, for example a modal
   `alt-z` zone mode that maps `h`/`l` to `focus-zone prev`/`focus-zone next`
@@ -3438,24 +3441,28 @@ Pre-Slice-21 cleanup from Slice 20 retrospectives:
   several minutes.
 - [x] Add a focused fast test for `cycle-zone-snap-policy` when the current
   effective policy is outside the supplied cycle list.
-- [ ] Before the next transition or mouse artifact, add an explicit event
+- [x] Before the next transition or mouse artifact, add an explicit event
   manifest under the run logs with labeled subsecond events for command
   start/end, drag pickup/path/hover/release, post-state inspection, and any
-  first-affordance frame. Drive annotation and sample rows from that manifest.
-- [ ] Update the verifier to validate command-caption, drag-sample,
+  first-affordance frame. Slice 20-style artifacts now write
+  `<recording>.event-manifest.tsv` and drive semantic command/release/cycle
+  sample rows from it.
+- [x] Update the verifier to validate command-caption, drag-sample,
   overlay-sample, and post-command-inspection ordering from the event manifest
-  rather than relying only on caption start times.
-- [ ] Add overlay sentinel freshness and crop-dimension validation relative to
+  when the manifest exists, rather than relying only on caption start times.
+- [x] Add overlay sentinel freshness and crop-dimension validation relative to
   the source screenshots.
-- [ ] Normalize guest proof/action manifest paths to artifact-relative paths.
-- [ ] Update the next reviewer packet to require concrete baseline-media
+- [x] Normalize guest proof/action manifest paths to artifact-relative paths for
+  future mouse snap proof manifests.
+- [x] Update the next reviewer packet to require concrete baseline-media
   evidence from actual local media/screenshots, including
   `demo-columnar-zones.mp4` for columnar-zone demos.
 - [ ] Write the next slice storyboard, caption budget, accepted claims, and
   explicit non-claims before recording.
-- [ ] If the next slice has transitions, keep command-caption start, visible
+- [x] If the next slice has transitions, keep command-caption start, visible
   drag start, first affordance, release, and final placement as separate log
-  fields and verifier assertions.
+  fields and verifier assertions; the event-manifest contract is the required
+  mechanism for this.
 
 ## Call-Site Audit
 

@@ -1293,6 +1293,186 @@ caption_start_for_label() {
     ' "$captions_path"
 }
 
+caption_end_for_label() {
+    local name="$1"
+    local label="$2"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    local index
+    index="$(printf '%s\n' "$label" | /usr/bin/sed -n 's/^caption-0*\([0-9][0-9]*\)$/\1/p')"
+    [ -n "$index" ] || return 1
+    [ -s "$captions_path" ] || return 1
+    /usr/bin/awk -F'\t' -v wanted="$index" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            caption_index += 1
+            if (caption_index == wanted) {
+                printf "%.3f\n", $2 - 0.100
+                found = 1
+                exit
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$captions_path"
+}
+
+last_caption_label_for_chip() {
+    local name="$1"
+    local chip="$2"
+    local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
+    [ -s "$captions_path" ] || return 1
+    /usr/bin/awk -F'\t' -v chip="$chip" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            caption_index += 1
+            if ($5 == chip) {
+                found = caption_index
+            }
+        }
+        END {
+            if (found) {
+                printf "caption-%02d\n", found
+                exit 0
+            }
+            exit 1
+        }
+    ' "$captions_path"
+}
+
+append_event_manifest_row() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local kind="$3"
+    local seconds="$4"
+    local caption_label="$5"
+    local sample_label="$6"
+    local relative_path="$7"
+    local expected="$8"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$event_id" "$kind" "$seconds" "$caption_label" "$sample_label" "$relative_path" "$expected" >>"$manifest_path"
+}
+
+event_manifest_field() {
+    local manifest_path="$1"
+    local event_id="$2"
+    local field="$3"
+    [ -s "$manifest_path" ] || return 1
+    /usr/bin/awk -F'\t' -v event_id="$event_id" -v field="$field" '
+        BEGIN {
+            column["kind"] = 2
+            column["seconds"] = 3
+            column["caption-label"] = 4
+            column["sample-label"] = 5
+            column["path"] = 6
+            column["expected"] = 7
+        }
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == event_id && column[field] {
+            print $column[field]
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest_path"
+}
+
+write_slice_20_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label freeform_label no_overlay_label list_first_label set_label snap_label target_label release_label cycle_label list_last_label
+    config_label="$(caption_label_for_chip "$name" "Config: policy='freeform'; alt-z='set-zone-snap-policy snap-to-zone'")"
+    freeform_label="$(caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier")"
+    no_overlay_label="$(caption_label_for_chip "$name" "Action: freeform hover has no whole-zone overlay" || printf '%s\n' "$freeform_label")"
+    list_first_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
+    set_label="$(caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone")"
+    snap_label="$(caption_label_for_chip "$name" "Action: drag snap-demo.rtf with snap-to-zone active")"
+    target_label="$(caption_label_for_chip "$name" "Action: target = whole Comms zone")"
+    release_label="$(caption_label_for_chip "$name" "Action: release on Comms zone")"
+    cycle_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone")"
+    list_last_label="$(last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" || printf '%s\n' "$list_first_label")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" caption-01 \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "config and binding chips are visible before any drag"
+    append_event_manifest_row "$manifest_path" freeform-drag-start drag \
+        "$(caption_start_for_label "$name" "$freeform_label")" "$freeform_label" freeform-pickup \
+        "screenshots/02-freeform-pickup-slice-20.png" \
+        "source pickup under configured freeform policy"
+    append_event_manifest_row "$manifest_path" freeform-drag-hover drag \
+        "$(caption_start_for_label "$name" "$no_overlay_label")" "$no_overlay_label" freeform-hover-no-overlay \
+        "screenshots/03-freeform-hover-no-overlay-slice-20.png" \
+        "Comms hover has no whole-zone overlay before runtime policy change"
+    append_event_manifest_row "$manifest_path" freeform-drag-release drag \
+        "$(caption_end_for_label "$name" "$no_overlay_label")" "$no_overlay_label" - "" \
+        "freeform drag completes without a zone move"
+    append_event_manifest_row "$manifest_path" freeform-post-state inspection \
+        "$(caption_start_for_label "$name" "$list_first_label")" "$list_first_label" - \
+        "screenshots/${name}.samples/${list_first_label}-boundary-start.png" \
+        "post-freeform window inspection still shows Work/main"
+    append_event_manifest_row "$manifest_path" set-command-start command \
+        "$(caption_start_for_label "$name" "$set_label")" "$set_label" set-policy-command-start \
+        "screenshots/${name}.samples/${set_label}-boundary-start.png" \
+        "set-zone-snap-policy command caption appears before snap affordance"
+    append_event_manifest_row "$manifest_path" set-command-end command \
+        "$(caption_end_for_label "$name" "$set_label")" "$set_label" - \
+        "screenshots/${name}.samples/${set_label}-boundary-end.png" \
+        "set-zone-snap-policy command caption ends before first snap affordance"
+    append_event_manifest_row "$manifest_path" reset-before-snap preparation \
+        "$(caption_start_for_label "$name" "$snap_label")" "$snap_label" reset-before-snap \
+        "screenshots/04-reset-before-snap-slice-20.png" \
+        "source is reset to Work/main before runtime snap drag"
+    append_event_manifest_row "$manifest_path" snap-drag-start drag \
+        "$(caption_start_for_label "$name" "$snap_label")" "$snap_label" snap-pickup \
+        "screenshots/05-snap-pickup-slice-20.png" \
+        "no-modifier source pickup after runtime snap-to-zone"
+    append_event_manifest_row "$manifest_path" snap-drag-path drag \
+        "$(awk -v seconds="$(caption_start_for_label "$name" "$snap_label")" 'BEGIN { printf "%.3f", seconds + 1.000 }')" \
+        "$snap_label" snap-path "screenshots/06-snap-path-slice-20.png" \
+        "runtime snap drag path toward Comms"
+    append_event_manifest_row "$manifest_path" snap-first-affordance overlay \
+        "$(caption_start_for_label "$name" "$target_label")" "$target_label" snap-hover-comms \
+        "screenshots/07-snap-hover-comms-slice-20.png" \
+        "first visible whole-zone Comms target affordance"
+    append_event_manifest_row "$manifest_path" snap-drag-hover overlay \
+        "$(awk -v seconds="$(caption_start_for_label "$name" "$target_label")" 'BEGIN { printf "%.3f", seconds + 0.500 }')" \
+        "$target_label" snap-hover-comms "screenshots/07-snap-hover-comms-slice-20.png" \
+        "whole Comms zone overlay remains visible before release"
+    append_event_manifest_row "$manifest_path" snap-release drag \
+        "$(caption_start_for_label "$name" "$release_label")" "$release_label" snap-release \
+        "screenshots/${name}.samples/${release_label}-boundary-start.png" \
+        "release caption while whole-zone target is still visible"
+    append_event_manifest_row "$manifest_path" snap-post-state inspection \
+        "$(caption_end_for_label "$name" "$release_label")" "$release_label" snap-final-placement \
+        "screenshots/99-after-slice-20.png" \
+        "same source window is placed in Comms/right"
+    append_event_manifest_row "$manifest_path" cycle-command-start command \
+        "$(caption_start_for_label "$name" "$cycle_label")" "$cycle_label" cycle-policy-command-start \
+        "screenshots/${name}.samples/${cycle_label}-boundary-start.png" \
+        "cycle-zone-snap-policy command starts after final placement"
+    append_event_manifest_row "$manifest_path" cycle-command-end command \
+        "$(caption_end_for_label "$name" "$cycle_label")" "$cycle_label" - \
+        "screenshots/${name}.samples/${cycle_label}-boundary-end.png" \
+        "cycle command returns runtime policy to freeform"
+    append_event_manifest_row "$manifest_path" final-inspection inspection \
+        "$(caption_start_for_label "$name" "$list_last_label")" "$list_last_label" - \
+        "screenshots/${name}.samples/${list_last_label}-boundary-start.png" \
+        "final list-windows inspection after policy cycle"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
+write_event_manifest() {
+    local name="$1"
+    case "$name" in
+        slice-20-zone-snap-policy-switch)
+            write_slice_20_event_manifest "$name"
+            ;;
+        *)
+            ;;
+    esac
+}
+
 write_annotation_plan() {
     local name="$1"
     local captions_path="$2"
@@ -1530,6 +1710,7 @@ annotate_recording() {
     mkdir -p "$raw_dir"
     write_annotation_plan "$name" "$captions_path"
     write_expected_caption_chips "$name"
+    write_event_manifest "$name"
     mv "$path" "$raw_path"
     if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
@@ -1560,6 +1741,7 @@ annotation_preflight() {
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "$tmp_dir"' RETURN
     mkdir -p "${tmp_dir}/recordings" "${tmp_dir}/logs"
+    local LOGS_DIR="${tmp_dir}/logs"
     local input="${tmp_dir}/recordings/raw.mov"
     ffmpeg \
         -hide_banner \
@@ -1600,6 +1782,11 @@ annotation_preflight() {
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
+        if [ "$name" = "slice-20-zone-snap-policy-switch" ]; then
+            write_event_manifest "$name"
+            [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
+                || die "Annotation preflight did not produce the Slice 20 event manifest"
+        fi
         awk -F '\t' '
             $0 == "" || $1 ~ /^#/ { next }
             length($5) > 100 {
@@ -1802,12 +1989,13 @@ write_semantic_sample_manifest() {
             ;;
         slice-20-zone-snap-policy-switch)
             local set_caption_label set_caption_start release_caption_label release_caption_start cycle_caption_label cycle_caption_start
-            set_caption_label="$(caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone" || printf 'caption-04\n')"
-            set_caption_start="$(caption_start_for_label "$name" "$set_caption_label" || printf 'caption-boundary-start\n')"
-            release_caption_label="$(caption_label_for_chip "$name" "Action: release on Comms zone" || printf 'caption-08\n')"
-            release_caption_start="$(caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
-            cycle_caption_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" || printf 'caption-10\n')"
-            cycle_caption_start="$(caption_start_for_label "$name" "$cycle_caption_label" || printf 'caption-boundary-start\n')"
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            set_caption_label="$(event_manifest_field "$event_manifest" set-command-start caption-label || caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone" || printf 'caption-04\n')"
+            set_caption_start="$(event_manifest_field "$event_manifest" set-command-start seconds || caption_start_for_label "$name" "$set_caption_label" || printf 'caption-boundary-start\n')"
+            release_caption_label="$(event_manifest_field "$event_manifest" snap-release caption-label || caption_label_for_chip "$name" "Action: release on Comms zone" || printf 'caption-08\n')"
+            release_caption_start="$(event_manifest_field "$event_manifest" snap-release seconds || caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
+            cycle_caption_label="$(event_manifest_field "$event_manifest" cycle-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" || printf 'caption-10\n')"
+            cycle_caption_start="$(event_manifest_field "$event_manifest" cycle-command-start seconds || caption_start_for_label "$name" "$cycle_caption_label" || printf 'caption-boundary-start\n')"
             append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
                 "screenshots/02-freeform-pickup-slice-20.png" \
                 "desktop window pickup while config policy is freeform"
@@ -2302,6 +2490,7 @@ refresh_annotation_artifact() {
     local annotation_log="${LOGS_DIR}/${name}.annotation.log"
     write_annotation_plan "$name" "$captions_path"
     write_expected_caption_chips "$name"
+    write_event_manifest "$name"
     if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$output_path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
         die "Recording annotation refresh failed for $name"

@@ -91,6 +91,14 @@ semantic_fail() {
     exit "${SEMANTIC_FAILURE_EXIT}"
 }
 
+artifact_relative_path() {
+    local path="$1"
+    case "$path" in
+        "${ARTIFACTS_DIR}/"*) printf '%s\n' "${path#"${ARTIFACTS_DIR}/"}" ;;
+        *) printf '%s\n' "$path" ;;
+    esac
+}
+
 write_doc() {
     local path="$1"
     local title="$2"
@@ -560,9 +568,9 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}"
         printf '%s\t%s\t%s\n' visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
         printf '%s\t%s\t%s\n' caption chip "${MODIFIER_CAPTION_CHIP}"
-        printf '%s\t%s\t%s\n' verification before-window-log "${WINDOW_BEFORE_LOG}"
-        printf '%s\t%s\t%s\n' verification after-freeform-window-log "${WINDOW_FREEFORM_LOG}"
-        printf '%s\t%s\t%s\n' verification after-window-log "${WINDOW_AFTER_LOG}"
+        printf '%s\t%s\t%s\n' verification before-window-log "$(artifact_relative_path "${WINDOW_BEFORE_LOG}")"
+        printf '%s\t%s\t%s\n' verification after-freeform-window-log "$(artifact_relative_path "${WINDOW_FREEFORM_LOG}")"
+        printf '%s\t%s\t%s\n' verification after-window-log "$(artifact_relative_path "${WINDOW_AFTER_LOG}")"
     } >"${ACTION_MANIFEST}"
 
     start_epoch="$(date +%s)"

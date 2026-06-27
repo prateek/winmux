@@ -21,6 +21,8 @@ Slice:
 - after screenshot: <artifact-dir>/screenshots/<after>.png
 - sample manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.sample-manifest.tsv
+- event manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.event-manifest.tsv
 - copied config: <artifact-dir>/config/winmux.toml
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
@@ -69,6 +71,12 @@ Required checks:
    If the reviewer packet lists final edge/corner crops, inspect them alongside
    the full after screenshot and reject any unrelated or partial setup window at
    a final screen edge.
+   If the reviewer packet lists an event manifest, inspect it. It must split
+   action-sensitive proof into named events such as command start/end, drag
+   pickup/path/hover/release, first affordance, post-state inspection, and final
+   inspection. Match those rows to caption boundary frames, action screenshots,
+   or semantic samples. Reject a transition proof that hides all timing behind
+   one vague offset.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
@@ -83,10 +91,12 @@ Required checks:
    implementation notes. CLI logs can support the proof, but they cannot be the
    only proof.
 6. Compare the artifact's content and style against the baseline media and
-   product surfaces. Look for WinMux's existing product language: macOS desktop,
-   visible workspace/window-management behavior, tab group/sidebar/intent-zone
-   affordances when the slice claims them, restrained presentation, and no
-   generic demo clutter.
+   product surfaces. Name the exact baseline file or product page inspected.
+   For columnar-zone demos, include `demo-columnar-zones.mp4` unless the slice
+   is explicitly unrelated to zones. Look for WinMux's existing product
+   language: macOS desktop, visible workspace/window-management behavior, tab
+   group/sidebar/intent-zone affordances when the slice claims them, restrained
+   presentation, and no generic demo clutter.
    For config reload or command-selector slices, compare copied configs against
    preflight source paths and checksums when available. A copied input config
    mutated in place is a hard failure unless the slice notes explicitly call out
@@ -110,6 +120,9 @@ Hard FAIL conditions:
   behavior being demonstrated;
 - captions explain what happened but omit the relevant user-facing WinMux
   command/config/action needed to perform it;
+- a transition, drag, or command-boundary artifact lists an event manifest but
+  the review ignores it, or the manifest collapses command timing, drag timing,
+  affordance timing, release, and inspection into one ambiguous event;
 - proof uses post-command app automation, AppleScript cleanup, or hidden-node
   closure to hide visual leftovers, unless that cleanup behavior is itself the
   feature being demonstrated;
@@ -245,7 +258,9 @@ Slice-specific checks:
   final placement. Inspect `logs/slice-20-set-zone-snap-policy.log`,
   `logs/slice-20-cycle-zone-snap-policy.log`,
   `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`, semantic
-  samples, `logs/slice-20-command-timing.log`, and the video frames. Inspect the
+  samples, `logs/slice-20-command-timing.log`, the optional
+  `logs/slice-20-zone-snap-policy-switch.event-manifest.tsv`, and the video
+  frames. Inspect the
   `set-policy-command-start` semantic sample and its nearby caption boundary
   frames; reject the artifact if the Comms whole-zone tint, dashed snap
   affordance, or zone move is visible before the exact
