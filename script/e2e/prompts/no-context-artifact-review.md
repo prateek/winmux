@@ -276,8 +276,10 @@ Slice-specific checks:
   `cycle-zone-layout balanced focus`, two `Alt-Z, A` beats for
   `cycle-zone-availability focus-only communications full-dashboard`, and
   `Alt-Z, Y` for `cycle-zone-style current urgent calm`. The proof must show a
-  readable Work/main proof board before the sequence, each command caption
-  before the matching state change, each binding returning to main mode in
+  readable Work/main proof board before the sequence that names the exact
+  key-to-command mappings, each command caption before the matching state
+  change, the ordered action-log sequence `Alt-Z, S`, `Alt-Z, Tab`, two
+  `Alt-Z, A` beats, then `Alt-Z, Y`, each binding returning to main mode in
   logs, Work/main widening after layout focus, focus-only hiding Reference and
   Comms, communications restoring Comms/right while Reference remains hidden,
   and Work/current taking urgent `#D3455B`. Inspect
@@ -287,6 +289,31 @@ Slice-specific checks:
   missing user-facing command captions, missing event/sample manifest rows,
   command captions that appear after visual/logged state changes, or any claim
   that Slice 21 proves drag snapping, persistence, or relaunch behavior.
+- Slice 22 must show float-unless-snap mouse behavior with two separate
+  desktop drags of `snap-demo.rtf`: first no modifier under config
+  `policy = 'float-unless-snap'`, then after reset with Alt held. The no-Alt
+  drag must visibly pick up and move the source over Comms with no whole-zone
+  snap overlay, and `logs/slice-22-windows-after-freeform.log` plus the action
+  log must show the same source id as `zone=right`, `layout=floating`, and
+  `freeform-result=floating-no-snap`. The reset beat must return the same
+  window to Work/main before the Alt-held branch. The Alt-held drag must show
+  source pickup, pointer/path, a whole Comms zone overlay/highlight, release,
+  and final placement in Comms/right. Inspect
+  `logs/slice-22-float-unless-snap.overlay-sentinel.tsv`,
+  `logs/slice-22-float-unless-snap.event-manifest.tsv`,
+  `logs/slice-22-mouse-zone-snap-action.log`, semantic samples, and the video
+  frames. Confirm captions expose the exact user-visible actions and WinMux
+  surfaces: `Config: policy='float-unless-snap'; modifier='alt'; target='zone'`,
+  `Action: drag snap-demo.rtf with no modifier`,
+  `Run: winmux list-windows --monitor all`,
+  `Action: reset snap-demo.rtf to Work/main tiling`,
+  `Action: hold Alt while dragging snap-demo.rtf`,
+  `Action: target = whole Comms zone`, and `Action: release on Comms zone`.
+  Reject logs-only proof, final-state-only proof, missing drag affordances, a
+  second drag that starts from an already-floating source, runtime
+  `set-zone-snap-policy` proof, unclear overlay/no-overlay contrast, any target
+  that looks like a window or slot inside a zone, or claims about persistence,
+  configurable gestures beyond this drag policy, or visual settings UI.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

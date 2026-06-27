@@ -52,12 +52,38 @@ func moveFloatingWindowWithMouse(_ window: Window) {
 @MainActor
 private func moveTilingWindow(_ window: Window) {
     let subject = resolvedMouseDragSubject(for: window)
+    let anchorRect = resolvedDraggedWindowAnchorRect(for: window, subject: subject)
+    let mouseLocation = MousePointerTracker.shared.currentSample.point
+    let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
+    if floatTilingWindowForMouseDragIfNeeded(
+        window: window,
+        targetWorkspace: targetWorkspace,
+        subject: subject,
+        modifierFlags: currentSessionModifierFlags(),
+    ) {
+        window.lastAppliedLayoutPhysicalRect = nil
+        beginWindowMoveWithMouseSessionIfNeeded(
+            windowId: window.windowId,
+            subject: subject,
+            detachOrigin: .window,
+            startedInSidebar: false,
+            anchorRect: anchorRect,
+            refreshActualRects: false,
+        )
+        WindowMouseInteractionDriver.shared.startMove(
+            windowId: window.windowId,
+            subject: subject,
+            detachOrigin: .window,
+            startedInSidebar: false,
+        )
+        return
+    }
     let didStartSession = beginWindowMoveWithMouseSessionIfNeeded(
         windowId: window.windowId,
         subject: subject,
         detachOrigin: .window,
         startedInSidebar: false,
-        anchorRect: resolvedDraggedWindowAnchorRect(for: window, subject: subject),
+        anchorRect: anchorRect,
         refreshActualRects: subject == .window,
     )
     if didStartSession, subject == .window {
@@ -69,6 +95,30 @@ private func moveTilingWindow(_ window: Window) {
         detachOrigin: .window,
         startedInSidebar: false,
     )
+}
+
+@MainActor
+@discardableResult
+func floatTilingWindowForMouseDragIfNeeded(
+    window: Window,
+    targetWorkspace: Workspace,
+    subject: WindowDragSubject,
+    modifierFlags: CGEventFlags,
+) -> Bool {
+    guard subject == .window,
+          window.parent is TilingContainer
+    else { return false }
+
+    let snapConfig = effectiveZoneSnapConfig(for: targetWorkspace.workspaceMonitor)
+    guard snapConfig.policy == .floatUnlessSnap,
+          snapConfig.gesture == .drag,
+          snapConfig.target == .zone,
+          targetWorkspace.workspaceMonitor.zoneId != nil,
+          !zoneSnapModifierIsPressed(snapConfig.modifier, in: modifierFlags)
+    else { return false }
+
+    window.bindAsFloatingWindow(to: targetWorkspace)
+    return true
 }
 
 @MainActor

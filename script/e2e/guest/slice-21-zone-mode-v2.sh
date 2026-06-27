@@ -35,6 +35,10 @@ STATE_FILE="${ARTIFACTS_DIR}/logs/slice-21-window-ids.env"
 DONE="${ARTIFACTS_DIR}/logs/slice-21-zone-mode-v2.done"
 PROOF="${ARTIFACTS_DIR}/slice-21-zone-mode-v2-proof.txt"
 SCREENSHOTS_DIR="${ARTIFACTS_DIR}/screenshots"
+SETUP_WINDOW_LOG="${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log"
+SETUP_WINDOW_WAIT_LOG="${ARTIFACTS_DIR}/logs/slice-21-windows-setup-wait.log"
+SETUP_WINDOW_PLACEMENT_LOG="${ARTIFACTS_DIR}/logs/slice-21-windows-setup-placement.log"
+PROOF_WINDOW_PLACEMENT_LOG="${ARTIFACTS_DIR}/logs/slice-21-windows-proof-placement.log"
 
 ZONES_READY_LOG="${ARTIFACTS_DIR}/logs/slice-21-zones-ready.log"
 ZONES_AFTER_SNAP_LOG="${ARTIFACTS_DIR}/logs/slice-21-zones-after-snap-policy.log"
@@ -51,12 +55,6 @@ FOCUS_AFTER_COMMUNICATIONS_LOG="${ARTIFACTS_DIR}/logs/slice-21-focused-after-ava
 FOCUS_AFTER_STYLE_LOG="${ARTIFACTS_DIR}/logs/slice-21-focused-after-style-urgent.log"
 
 DOC_DIR="${HOME}/winmux-e2e/zone-mode-v2-docs"
-BOARD_DIR="${DOC_DIR}/board"
-BOARD_HTML="${BOARD_DIR}/index.html"
-BOARD_STATE="${BOARD_DIR}/state.txt"
-BOARD_SERVER_LOG="${ARTIFACTS_DIR}/logs/slice-21-board-http.log"
-BOARD_SERVER_PID="${ARTIFACTS_DIR}/logs/slice-21-board-http.pid"
-BOARD_PORT=51321
 CURRENT_BOARD_TITLE=""
 REFERENCE_DOC="${DOC_DIR}/reference-zone-mode-v2.rtf"
 COMMS_DOC="${DOC_DIR}/comms-zone-mode-v2.rtf"
@@ -81,94 +79,6 @@ write_doc() {
     cat >"${path}" <<RTF
 {\rtf1\ansi\deff0{\fonttbl{\f0 Helvetica;}{\f1 Menlo;}}\viewkind4\uc1\margl540\margr540\pard\ql\f0\fs78\b ${title}\b0\par\f1\fs34 role: ${role}\par ${detail}\par}
 RTF
-}
-
-write_initial_board_doc() {
-    mkdir -p "${BOARD_DIR}"
-    cat >"${BOARD_STATE}" <<'STATE'
-WINMUX ZONE MODE V2
-
-Waiting for live binding state.
-STATE
-    cat >"${BOARD_HTML}" <<'HTML'
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WinMux Zone Mode V2</title>
-<style>
-html, body {
-    margin: 0;
-    min-height: 100%;
-    background: #101419;
-    color: #f7fafc;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-}
-main {
-    box-sizing: border-box;
-    min-height: 100vh;
-    padding: 38px 34px;
-    background: linear-gradient(180deg, #18222c 0%, #101419 100%);
-}
-h1 {
-    margin: 0 0 22px 0;
-    font-size: 40px;
-    font-weight: 780;
-    letter-spacing: 0;
-}
-pre {
-    white-space: pre-wrap;
-    margin: 0;
-    font: 620 25px/1.34 "SF Mono", Menlo, monospace;
-}
-.rule {
-    width: 92px;
-    height: 6px;
-    margin-bottom: 24px;
-    background: #3ea2ff;
-}
-</style>
-</head>
-<body>
-<main>
-    <h1>WinMux Zone Mode V2</h1>
-    <div class="rule"></div>
-    <pre id="board">Loading...</pre>
-</main>
-<script>
-async function refreshBoard() {
-    try {
-        const response = await fetch("/state.txt?ts=" + Date.now(), { cache: "no-store" });
-        document.getElementById("board").textContent = await response.text();
-    } catch (error) {
-        document.getElementById("board").textContent = "Waiting for state...";
-    }
-}
-refreshBoard();
-setInterval(refreshBoard, 500);
-</script>
-</body>
-</html>
-HTML
-}
-
-start_board_server() {
-    if /usr/sbin/lsof -ti "tcp:${BOARD_PORT}" >/tmp/winmux-slice21-lsof 2>/dev/null; then
-        /bin/kill "$(/usr/bin/head -n 1 /tmp/winmux-slice21-lsof)" >/dev/null 2>&1 || true
-        sleep 1
-    fi
-    cd "${BOARD_DIR}"
-    /usr/bin/nohup /usr/bin/python3 -m http.server "${BOARD_PORT}" --bind 127.0.0.1 >"${BOARD_SERVER_LOG}" 2>&1 &
-    echo "$!" >"${BOARD_SERVER_PID}"
-    cd - >/dev/null
-    for _ in $(seq 1 20); do
-        if /usr/bin/curl -fsS "http://127.0.0.1:${BOARD_PORT}/state.txt" >/dev/null 2>&1; then
-            return 0
-        fi
-        sleep 0.5
-    done
-    semantic_fail "Slice 21 board HTTP server did not become ready"
 }
 
 capture_guest_screenshot() {
@@ -280,15 +190,36 @@ assert_width_grew() {
 }
 
 wait_for_demo_windows() {
-    local window_log="${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log"
-    for _ in $(seq 1 90); do
-        if refresh_window_log "${window_log}" &&
-            [ -n "$(window_id_for_title "${window_log}" 'reference-zone-mode-v2.rtf')" ] &&
-            [ -n "$(window_id_for_title "${window_log}" 'comms-zone-mode-v2.rtf')" ]; then
-            return 0
+    local window_log="${SETUP_WINDOW_LOG}"
+    local diagnostics="${SETUP_WINDOW_WAIT_LOG}"
+    local attempt
+    : >"${diagnostics}"
+
+    for attempt in $(seq 1 90); do
+        if refresh_window_log "${window_log}"; then
+            local reference_id comms_id seen_titles missing
+            reference_id="$(window_id_for_title "${window_log}" 'reference-zone-mode-v2.rtf')"
+            comms_id="$(window_id_for_title "${window_log}" 'comms-zone-mode-v2.rtf')"
+            seen_titles="$(/usr/bin/awk -F'|' '{ print $2 }' "${window_log}" | /usr/bin/tr '\n' ';')"
+            missing=""
+            [ -n "${reference_id}" ] || missing="${missing}reference-zone-mode-v2.rtf,"
+            [ -n "${comms_id}" ] || missing="${missing}comms-zone-mode-v2.rtf,"
+            printf 'attempt=%s|refresh=success|reference-id=%s|comms-id=%s|missing=%s|seen-titles=%s\n' \
+                "${attempt}" "${reference_id:-}" "${comms_id:-}" "${missing:-none}" "${seen_titles}" >>"${diagnostics}"
+            if [ -n "${reference_id}" ] && [ -n "${comms_id}" ]; then
+                printf 'result=success|attempt=%s\n' "${attempt}" >>"${diagnostics}"
+                return 0
+            fi
+        else
+            printf 'attempt=%s|refresh=failure\n' "${attempt}" >>"${diagnostics}"
         fi
         sleep 1
     done
+
+    {
+        printf 'result=timeout|attempts=90|expected=reference-zone-mode-v2.rtf,comms-zone-mode-v2.rtf\n'
+        printf 'last-window-log=%s\n' "${window_log}"
+    } >>"${diagnostics}"
     return 1
 }
 
@@ -297,14 +228,17 @@ move_window_to_zone() {
     local title="$2"
     local zone_name="$3"
     local expected_zone="$4"
-    local window_log="${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log"
+    local window_log="${5:-${SETUP_WINDOW_PLACEMENT_LOG}}"
+    local phase="${6:-setup}"
     {
-        echo "setup: ${title} -> ${zone_name}"
+        echo "${phase}: ${title} -> ${zone_name}"
         echo "$ winmux move-node-to-zone --window-id ${id} ${zone_name}"
         "${CLI}" move-node-to-zone --window-id "${id}" "${zone_name}"
     } | tee -a "${CLI_LOG}"
     refresh_window_log "${window_log}"
     assert_window_zone "${window_log}" "${title}" "${expected_zone}"
+    printf 'phase=%s|title=%s|target-zone-name=%s|expected-zone=%s|window-log=%s\n' \
+        "${phase}" "${title}" "${zone_name}" "${expected_zone}" "${window_log}" >>"${BOARD_FRESHNESS_LOG}"
 }
 
 launch_winmux() {
@@ -369,11 +303,6 @@ PLIST
     exit 1
 }
 
-set_board_text() {
-    local text="$1"
-    printf '%s\n' "${text}" >"${BOARD_STATE}"
-}
-
 wait_for_board_checkpoint() {
     local checkpoint="$1"
     local board_title="$2"
@@ -382,14 +311,18 @@ wait_for_board_checkpoint() {
     for attempt in $(seq 1 30); do
         if refresh_window_log "${ARTIFACTS_DIR}/logs/slice-21-windows-board-${checkpoint}.log" &&
             [ -n "$(window_id_for_title "${ARTIFACTS_DIR}/logs/slice-21-windows-board-${checkpoint}.log" "${board_title}")" ]; then
-            printf 'checkpoint=%s|attempt=%s|result=success|source=textedit-board|title=%s\n' "${checkpoint}" "${attempt}" "${board_title}" >>"${BOARD_FRESHNESS_LOG}"
+            printf 'phase=%s|checkpoint=%s|attempt=%s|result=success|source=textedit-board|title=%s|window-log=%s\n' \
+                "${PHASE}" "${checkpoint}" "${attempt}" "${board_title}" \
+                "${ARTIFACTS_DIR}/logs/slice-21-windows-board-${checkpoint}.log" >>"${BOARD_FRESHNESS_LOG}"
             return 0
         fi
         sleep 0.5
     done
 
     {
-        printf 'checkpoint=%s|result=failure|source=textedit-board|title=%s\n' "${checkpoint}" "${board_title}"
+        printf 'phase=%s|checkpoint=%s|result=failure|source=textedit-board|title=%s|window-log=%s\n' \
+            "${PHASE}" "${checkpoint}" "${board_title}" \
+            "${ARTIFACTS_DIR}/logs/slice-21-windows-board-${checkpoint}.log"
         cat "${ARTIFACTS_DIR}/logs/slice-21-windows-board-${checkpoint}.log" 2>/dev/null || true
     } >>"${BOARD_FRESHNESS_LOG}"
     semantic_fail "Board did not serve checkpoint ${checkpoint} before screenshot"
@@ -452,7 +385,7 @@ open_board_checkpoint() {
     BOARD_ID="${new_board_id}"
     CURRENT_BOARD_TITLE="${board_title}"
 
-    move_window_to_zone "${BOARD_ID}" "${CURRENT_BOARD_TITLE}" Work main
+    move_window_to_zone "${BOARD_ID}" "${CURRENT_BOARD_TITLE}" Work main "${PROOF_WINDOW_PLACEMENT_LOG}" "${PHASE}"
     "${CLI}" focus-zone Work
     "${CLI}" focus --window-id "${BOARD_ID}" >/dev/null 2>>"${WAIT_ERR}" || true
     if [ -n "${old_board_id}" ] && [ "${old_board_id}" != "${BOARD_ID}" ]; then
@@ -539,7 +472,8 @@ setup_slice() {
         "${ZONES_READY_LOG}" "${ZONES_AFTER_SNAP_LOG}" "${ZONES_AFTER_LAYOUT_LOG}" "${ZONES_AFTER_FOCUS_ONLY_LOG}" "${ZONES_AFTER_COMMUNICATIONS_LOG}" "${ZONES_AFTER_STYLE_LOG}" \
         "${FOCUS_READY_LOG}" "${FOCUS_AFTER_SNAP_LOG}" "${FOCUS_AFTER_LAYOUT_LOG}" "${FOCUS_AFTER_FOCUS_ONLY_LOG}" "${FOCUS_AFTER_COMMUNICATIONS_LOG}" "${FOCUS_AFTER_STYLE_LOG}" \
         "${APP_LOG}" "${APP_LOG_LOCAL}" "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" \
-        "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}" "${BOARD_SERVER_LOG}" "${BOARD_SERVER_PID}"
+        "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}" \
+        "${SETUP_WINDOW_LOG}" "${SETUP_WINDOW_WAIT_LOG}" "${SETUP_WINDOW_PLACEMENT_LOG}" "${PROOF_WINDOW_PLACEMENT_LOG}"
     rm -rf "${DOC_DIR}"
 
     {
@@ -570,25 +504,26 @@ setup_slice() {
     launch_winmux
     /usr/bin/open -a TextEdit "${REFERENCE_DOC}" "${COMMS_DOC}"
     if ! wait_for_demo_windows; then
-        cat "${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log" >&2 || true
+        cat "${SETUP_WINDOW_WAIT_LOG}" >&2 || true
+        cat "${SETUP_WINDOW_LOG}" >&2 || true
         semantic_fail 'Demo windows did not appear'
     fi
 
     local reference_id comms_id
-    reference_id="$(window_id_for_title "${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log" 'reference-zone-mode-v2.rtf')"
-    comms_id="$(window_id_for_title "${ARTIFACTS_DIR}/logs/slice-21-windows-setup.log" 'comms-zone-mode-v2.rtf')"
+    reference_id="$(window_id_for_title "${SETUP_WINDOW_LOG}" 'reference-zone-mode-v2.rtf')"
+    comms_id="$(window_id_for_title "${SETUP_WINDOW_LOG}" 'comms-zone-mode-v2.rtf')"
     test -n "${reference_id}"
     test -n "${comms_id}"
 
-    move_window_to_zone "${reference_id}" 'reference-zone-mode-v2.rtf' Reference left
-    move_window_to_zone "${comms_id}" 'comms-zone-mode-v2.rtf' Comms right
+    move_window_to_zone "${reference_id}" 'reference-zone-mode-v2.rtf' Reference left "${SETUP_WINDOW_PLACEMENT_LOG}" setup
+    move_window_to_zone "${comms_id}" 'comms-zone-mode-v2.rtf' Comms right "${SETUP_WINDOW_PLACEMENT_LOG}" setup
 
     "${CLI}" focus-zone Work
     sleep 1
     state_board_entry \
         'ready-zone-mode-v2' \
-        'Alt-Z opens zone mode; S/Tab/A/Y perform the compact controls' \
-        'cycle snap policy, layout, availability, and style' \
+        'Alt-Z -> mode zone; S -> cycle-zone-snap-policy freeform snap-to-zone; Tab -> cycle-zone-layout balanced focus; A -> cycle-zone-availability focus-only communications full-dashboard; Y -> cycle-zone-style current urgent calm' \
+        'cycle-zone-snap-policy freeform snap-to-zone; cycle-zone-layout balanced focus; cycle-zone-availability focus-only communications full-dashboard; cycle-zone-style current urgent calm' \
         'Reference, Work, and Comms visible; Work/main is focused' \
         "${ZONES_READY_LOG}" \
         "${FOCUS_READY_LOG}"
@@ -622,8 +557,8 @@ proof_slice() {
     "${CLI}" focus --window-id "${BOARD_ID}"
     state_board_entry \
         'ready-zone-mode-v2' \
-        'Alt-Z opens zone mode; S/Tab/A/Y perform the compact controls' \
-        'cycle snap policy, layout, availability, and style' \
+        'Alt-Z -> mode zone; S -> cycle-zone-snap-policy freeform snap-to-zone; Tab -> cycle-zone-layout balanced focus; A -> cycle-zone-availability focus-only communications full-dashboard; Y -> cycle-zone-style current urgent calm' \
+        'cycle-zone-snap-policy freeform snap-to-zone; cycle-zone-layout balanced focus; cycle-zone-availability focus-only communications full-dashboard; cycle-zone-style current urgent calm' \
         'Reference, Work, and Comms visible; Work/main is focused' \
         "${ZONES_READY_LOG}" \
         "${FOCUS_READY_LOG}"

@@ -20,6 +20,9 @@ if [ "${SLICE_PREFIX}" = "slice-16" ]; then
 elif [ "${PROOF_MODE}" = "runtime-policy" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Run: winmux set-zone-snap-policy snap-to-zone}"
+elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
 else
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
@@ -162,6 +165,10 @@ zone_for_title() {
 
 workspace_for_title() {
     field_for_title "$1" "$2" workspace
+}
+
+layout_for_title() {
+    field_for_title "$1" "$2" layout
 }
 
 window_id_for_title() {
@@ -307,6 +314,8 @@ setup_slice() {
     write_doc "${REFERENCE_DOC}" 'REFERENCE' 'Reference' 'Desktop drag snap proof baseline'
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag once in freeform, run set-zone-snap-policy, then drag again with no modifier"
+    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+        write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without ${USER_MODIFIER_LABEL} to float, reset, then hold ${USER_MODIFIER_LABEL} to snap"
     else
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag this window without ${USER_MODIFIER_LABEL}, then with ${USER_MODIFIER_LABEL}"
     fi
@@ -504,10 +513,21 @@ proof_slice() {
     positive_drag_with_alt=1
     positive_proof_key='alt-held-whole-zone-snap'
     positive_action_text="positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
+    negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
+    negative_policy_key='no-alt-no-zone-move'
+    freeform_expected_zone=main
+    freeform_expected_layout=''
+    freeform_result='no-zone-move'
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         positive_drag_with_alt=0
         positive_proof_key='runtime-set-snap-to-zone'
         positive_action_text='positive-proof=runtime set-zone-snap-policy enables whole-zone snap without a held modifier'
+    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+        negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} detaches the tiled window into floating/freeform placement without a snap overlay"
+        negative_policy_key='no-alt-floats-no-snap'
+        freeform_expected_zone=right
+        freeform_expected_layout='floating'
+        freeform_result='floating-no-snap'
     fi
 
     {
@@ -529,7 +549,7 @@ proof_slice() {
         echo 'not-snap-target=window-within-zone'
         echo "source-point=${source_x},${source_y}"
         echo "target-point=${target_x},${target_y}"
-        echo "negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
+        echo "${negative_action_text}"
         echo "${positive_action_text}"
         echo "freeform-pickup-screenshot=${FREEFORM_PICKUP_SCREENSHOT}"
         echo "freeform-hover-screenshot=${FREEFORM_HOVER_SCREENSHOT}"
@@ -549,7 +569,7 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-target not-snap-target window-within-zone
         printf '%s\t%s\t%s\n' drag-policy policy "${CONFIG_POLICY}"
         printf '%s\t%s\t%s\n' drag-policy modifier "${CONFIG_MODIFIER}"
-        printf '%s\t%s\t%s\n' drag-policy negative-proof no-alt-no-zone-move
+        printf '%s\t%s\t%s\n' drag-policy negative-proof "${negative_policy_key}"
         printf '%s\t%s\t%s\n' drag-policy positive-proof "${positive_proof_key}"
         printf '%s\t%s\t%s\n' drag-policy proof-mode "${PROOF_MODE}"
         printf '%s\t%s\t%s\n' drag-points source "${source_x},${source_y}"
@@ -558,6 +578,8 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             printf '%s\t%s\t%s\n' drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
+        elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+            printf '%s\t%s\t%s\n' drag-points mapping-assertion "no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
         else
             printf '%s\t%s\t%s\n' drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
         fi
@@ -582,19 +604,25 @@ proof_slice() {
     freeform_id="$(window_id_for_title "${WINDOW_FREEFORM_LOG}" 'snap-demo.rtf')"
     freeform_zone="$(zone_for_title "${WINDOW_FREEFORM_LOG}" 'snap-demo.rtf')"
     freeform_workspace="$(workspace_for_title "${WINDOW_FREEFORM_LOG}" 'snap-demo.rtf')"
+    freeform_layout="$(layout_for_title "${WINDOW_FREEFORM_LOG}" 'snap-demo.rtf')"
     [ "${freeform_id}" = "${before_id}" ] || semantic_fail "Freeform drag changed window id: ${before_id} -> ${freeform_id:-missing}"
-    [ "${freeform_zone}" = main ] || semantic_fail "Freeform drag changed zone binding: ${freeform_zone:-missing}"
+    [ "${freeform_zone}" = "${freeform_expected_zone}" ] || semantic_fail "Freeform drag expected zone ${freeform_expected_zone}, got ${freeform_zone:-missing}"
+    if [ -n "${freeform_expected_layout}" ]; then
+        [ "${freeform_layout}" = "${freeform_expected_layout}" ] || semantic_fail "Freeform drag expected layout ${freeform_expected_layout}, got ${freeform_layout:-missing}"
+    fi
     {
         echo "freeform-window-id-after=${freeform_id}"
         echo "freeform-after-zone=${freeform_zone}"
         echo "freeform-after-workspace=${freeform_workspace}"
-        echo 'freeform-result=no-zone-move'
+        echo "freeform-after-layout=${freeform_layout}"
+        echo "freeform-result=${freeform_result}"
     } | tee -a "${ACTION_LOG}"
     {
         printf '%s\t%s\t%s\n' drag-result freeform-window-id-after "${freeform_id}"
         printf '%s\t%s\t%s\n' drag-result freeform-after-zone "${freeform_zone}"
         printf '%s\t%s\t%s\n' drag-result freeform-after-workspace "${freeform_workspace}"
-        printf '%s\t%s\t%s\n' drag-result freeform-result no-zone-move
+        printf '%s\t%s\t%s\n' drag-result freeform-after-layout "${freeform_layout}"
+        printf '%s\t%s\t%s\n' drag-result freeform-result "${freeform_result}"
     } >>"${ACTION_MANIFEST}"
 
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
@@ -744,6 +772,8 @@ proof_slice() {
         echo
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo "PASS: desktop drag starts from config freeform/no-zone-move; winmux set-zone-snap-policy snap-to-zone makes the next no-modifier drag preview a whole Comms zone target and move the same window into Comms/right on release; winmux cycle-zone-snap-policy freeform snap-to-zone returns the runtime policy to freeform."
+        elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+            echo "PASS: desktop drag starts from config float-unless-snap; no-${USER_MODIFIER_LABEL} drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
         else
             echo "PASS: desktop drag without ${USER_MODIFIER_LABEL} stays freeform/no-zone-move; holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
         fi

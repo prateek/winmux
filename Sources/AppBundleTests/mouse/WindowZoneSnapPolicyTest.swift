@@ -128,6 +128,91 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
     }
 
+    func testFloatUnlessSnapNoModifierFloatsTilingWindowInTargetZoneWorkspace() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+
+        XCTAssertFalse(fixture.window.isFloating)
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            modifierFlags: [],
+        )
+
+        XCTAssertTrue(didFloat)
+        XCTAssertTrue(fixture.window.isFloating)
+        XCTAssertTrue((fixture.window.parent as? Workspace) === fixture.comms)
+        XCTAssertTrue(fixture.comms.floatingWindows.contains { $0 === fixture.window })
+        XCTAssertFalse(fixture.work.floatingWindows.contains { $0 === fixture.window })
+    }
+
+    func testFloatUnlessSnapHeldModifierKeepsTilingWindowEligibleForSnap() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            modifierFlags: .maskAlternate,
+        )
+
+        XCTAssertFalse(didFloat)
+        XCTAssertFalse(fixture.window.isFloating)
+        XCTAssertTrue(fixture.window.nodeWorkspace === fixture.work)
+    }
+
+    func testFloatUnlessSnapDoesNotFloatGroupDrags() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .group,
+            modifierFlags: [],
+        )
+        XCTAssertFalse(didFloat)
+        XCTAssertFalse(fixture.window.isFloating)
+    }
+
+    func testFloatUnlessSnapDoesNotFloatOnNonZoneMonitor() {
+        setUpWorkspacesForTests()
+        let monitor = TestMonitor(
+            monitorAppKitNsScreenScreensId: 11,
+            name: "Plain",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([monitor])
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+
+        let sourceWorkspace = Workspace.get(byName: "source")
+        XCTAssertTrue(monitor.setActiveWorkspace(sourceWorkspace))
+        let window = TestWindow.new(id: 20, parent: sourceWorkspace.rootTilingContainer)
+        let targetWorkspace = Workspace.get(byName: "target")
+        XCTAssertTrue(monitor.setActiveWorkspace(targetWorkspace))
+        XCTAssertNil(targetWorkspace.workspaceMonitor.zoneId)
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: window,
+            targetWorkspace: targetWorkspace,
+            subject: .window,
+            modifierFlags: [],
+        )
+
+        XCTAssertFalse(didFloat)
+        XCTAssertFalse(window.isFloating)
+        XCTAssertTrue(window.nodeWorkspace === sourceWorkspace)
+    }
+
     func testZoneSnapDoesNotInterceptTabStripOrNonZoneDrags() {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .snapToZone

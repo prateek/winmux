@@ -961,8 +961,17 @@ require_review_mentions_semantic_samples() {
 review_is_accepted() {
     local review_path="$1"
     [ -s "$review_path" ] || return 1
-    case "$(tail -n 1 "$review_path")" in
+    local first_line last_line
+    first_line="$(/usr/bin/awk 'NF { print; exit }' "$review_path")"
+    last_line="$(tail -n 1 "$review_path")"
+    case "$last_line" in
         PASS|PASS_WITH_NOTES) return 0 ;;
+        'next slice allowed: yes')
+            case "$first_line" in
+                PASS|PASS_WITH_NOTES|PASS:*|PASS_WITH_NOTES:*) return 0 ;;
+                *) return 1 ;;
+            esac
+            ;;
         *) return 1 ;;
     esac
 }
@@ -1102,6 +1111,23 @@ require_slice_20_sample_manifest() {
         snap-release \
         snap-final-placement \
         cycle-policy-command-start; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_22_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        freeform-pickup \
+        freeform-hover-no-overlay \
+        float-final-placement \
+        reset-before-snap \
+        snap-pickup \
+        snap-path \
+        snap-hover-comms \
+        snap-release \
+        snap-final-placement; do
         require_sample_manifest_label "$manifest_path" "$label"
     done
 }
@@ -3271,6 +3297,55 @@ require_slice_20_event_manifest() {
         "Slice 20 event manifest must show final inspection after cycle command starts"
 }
 
+require_slice_22_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" float-drag-start drag
+    require_event_manifest_event "$manifest_path" float-drag-hover drag
+    require_event_manifest_event "$manifest_path" float-drag-release drag
+    require_event_manifest_event "$manifest_path" float-post-state inspection
+    require_event_manifest_event "$manifest_path" reset-before-snap preparation
+    require_event_manifest_event "$manifest_path" snap-drag-start drag
+    require_event_manifest_event "$manifest_path" snap-drag-path drag
+    require_event_manifest_event "$manifest_path" snap-first-affordance overlay
+    require_event_manifest_event "$manifest_path" snap-drag-hover overlay
+    require_event_manifest_event "$manifest_path" snap-release drag
+    require_event_manifest_event "$manifest_path" snap-post-state inspection
+
+    require_event_sample_label "$manifest_path" float-drag-start freeform-pickup
+    require_event_sample_label "$manifest_path" float-drag-hover freeform-hover-no-overlay
+    require_event_sample_label "$manifest_path" float-post-state float-final-placement
+    require_event_sample_label "$manifest_path" reset-before-snap reset-before-snap
+    require_event_sample_label "$manifest_path" snap-drag-start snap-pickup
+    require_event_sample_label "$manifest_path" snap-drag-path snap-path
+    require_event_sample_label "$manifest_path" snap-first-affordance snap-hover-comms
+    require_event_sample_label "$manifest_path" snap-release snap-release
+    require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
+
+    require_event_before "$manifest_path" config-ready float-drag-start \
+        "Slice 22 event manifest must show float-unless-snap config before the first drag"
+    require_event_before "$manifest_path" float-drag-start float-drag-hover \
+        "Slice 22 event manifest must show no-Alt pickup before no-overlay hover"
+    require_event_before "$manifest_path" float-drag-hover float-drag-release \
+        "Slice 22 event manifest must show no-overlay hover before release"
+    require_event_before "$manifest_path" float-drag-release float-post-state \
+        "Slice 22 event manifest must inspect floating state after no-Alt release"
+    require_event_before "$manifest_path" float-post-state reset-before-snap \
+        "Slice 22 event manifest must inspect floating state before reset"
+    require_event_before "$manifest_path" reset-before-snap snap-drag-start \
+        "Slice 22 event manifest must reset to Work/main before Alt-held snap pickup"
+    require_event_before "$manifest_path" snap-drag-start snap-drag-path \
+        "Slice 22 event manifest must show Alt-held snap pickup before path"
+    require_event_before "$manifest_path" snap-drag-path snap-first-affordance \
+        "Slice 22 event manifest must show snap path before first affordance"
+    require_event_before "$manifest_path" snap-first-affordance snap-release \
+        "Slice 22 event manifest must show whole-zone affordance before release"
+    require_event_before "$manifest_path" snap-release snap-post-state \
+        "Slice 22 event manifest must show release before final snapped placement"
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -3515,6 +3590,174 @@ require_slice_20_zone_snap_policy_switch_proof() {
         "Slice 20 cycle command caption must align with the cycle command"
 }
 
+require_slice_22_float_unless_snap_proof() {
+    local slice_prefix="slice-22"
+    local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
+    local done="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap.done"
+    local setup_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-setup.log"
+    local action_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-action.log"
+    local windows_before="${LOGS_DIR}/${slice_prefix}-windows-before.log"
+    local windows_freeform="${LOGS_DIR}/${slice_prefix}-windows-after-freeform.log"
+    local windows_reset="${LOGS_DIR}/${slice_prefix}-windows-after-reset.log"
+    local windows_after="${LOGS_DIR}/${slice_prefix}-windows-after-snap.log"
+    local zones="${LOGS_DIR}/${slice_prefix}-zones.log"
+    local timing_log="${LOGS_DIR}/${slice_prefix}-command-timing.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 22"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$windows_before"
+    require_file "$windows_freeform"
+    require_file "$windows_reset"
+    require_file "$windows_after"
+    require_file "$zones"
+    require_file "$timing_log"
+    require_drag_proof_manifest "$proof_manifest"
+    require_slice_22_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/06-snap-path-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-22.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-22.png"
+    require_mouse_snap_overlay_sentinel "${LOGS_DIR}/slice-22-float-unless-snap.overlay-sentinel.tsv"
+    require_file "$(event_manifest_path)"
+    require_slice_22_event_manifest "$(event_manifest_path)"
+
+    grep -F "PASS: desktop drag starts from config float-unless-snap; no-Alt drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
+        || die "Slice 22 proof does not contain the expected float-unless-snap PASS claim"
+    grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 22 config missing mouse zone snap table"
+    grep -F "policy = 'float-unless-snap'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 22 config must start with float-unless-snap policy"
+    grep -F "modifier = 'alt'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 22 config missing alt modifier"
+    grep -F "target = 'zone'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 22 config missing whole-zone target"
+    grep -F "Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', target = 'zone'" "$setup_log" >/dev/null \
+        || die "Slice 22 setup log missing float-unless-snap mouse snap summary"
+
+    grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing desktop snap action"
+    grep -F 'policy=float-unless-snap' "$action_log" >/dev/null \
+        || die "Slice 22 action log must start from float-unless-snap config"
+    grep -F 'proof-mode=float-unless-snap' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing float-unless-snap mode"
+    grep -F 'snap-target=whole-zone' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing whole-zone snap target"
+    grep -F 'not-snap-target=window-within-zone' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing window-within-zone exclusion"
+    grep -F 'freeform-result=floating-no-snap' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing floating no-snap result"
+    grep -F 'freeform-after-layout=floating' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing floating layout after no-Alt drag"
+    grep -F 'snap-result=success' "$action_log" >/dev/null \
+        || die "Slice 22 action log missing snap success result"
+    if grep -F 'runtime-policy-command=' "$action_log" >/dev/null; then
+        die "Slice 22 must not rely on runtime set-zone-snap-policy"
+    fi
+
+    local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace freeform_workspace after_workspace freeform_layout reset_layout
+    source_id="$(value_from_log source-window-id "$action_log")"
+    freeform_id="$(value_from_log freeform-window-id-after "$action_log")"
+    after_id="$(value_from_log window-id-after "$action_log")"
+    before_zone="$(value_from_log before-zone "$action_log")"
+    freeform_zone="$(value_from_log freeform-after-zone "$action_log")"
+    after_zone="$(value_from_log after-zone "$action_log")"
+    before_workspace="$(value_from_log before-workspace "$action_log")"
+    freeform_workspace="$(value_from_log freeform-after-workspace "$action_log")"
+    after_workspace="$(value_from_log after-workspace "$action_log")"
+    freeform_layout="$(value_from_log freeform-after-layout "$action_log")"
+    reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
+    reset_layout="$(field_for_title "$windows_reset" 'snap-demo.rtf' layout)"
+
+    [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
+        || die "Slice 22 window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
+    [ "$before_zone" = main ] || die "Slice 22 source did not start in Work/main: ${before_zone:-missing}"
+    [ "$freeform_zone" = right ] || die "Slice 22 no-Alt float did not land in Comms/right: ${freeform_zone:-missing}"
+    [ "$freeform_layout" = floating ] || die "Slice 22 no-Alt drag did not leave the source floating: ${freeform_layout:-missing}"
+    [ "$reset_zone" = main ] || die "Slice 22 reset did not return source to Work/main: ${reset_zone:-missing}"
+    [ "$reset_layout" != floating ] || die "Slice 22 reset left source floating before Alt-held snap"
+    [ "$after_zone" = right ] || die "Slice 22 Alt snap did not end in Comms/right: ${after_zone:-missing}"
+    [ -n "$before_workspace" ] && [ -n "$freeform_workspace" ] && [ "$before_workspace" != "$freeform_workspace" ] \
+        || die "Slice 22 no-Alt float did not move to a different active workspace"
+    [ -n "$before_workspace" ] && [ -n "$after_workspace" ] && [ "$before_workspace" != "$after_workspace" ] \
+        || die "Slice 22 Alt snap did not move to a different active workspace"
+
+    [ "$(field_for_title "$windows_before" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 22 before log missing snap-demo source id"
+    [ "$(field_for_title "$windows_before" 'snap-demo.rtf' zone)" = main ] \
+        || die "Slice 22 before log missing snap-demo in main"
+    [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 22 freeform log missing same snap-demo id"
+    [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' zone)" = right ] \
+        || die "Slice 22 freeform log should show snap-demo in right"
+    [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' layout)" = floating ] \
+        || die "Slice 22 freeform log should show snap-demo as floating"
+    [ "$(field_for_title "$windows_after" 'snap-demo.rtf' id)" = "$source_id" ] \
+        || die "Slice 22 after log missing same snap-demo id"
+    [ "$(field_for_title "$windows_after" 'snap-demo.rtf' zone)" = right ] \
+        || die "Slice 22 after log should move snap-demo to right"
+
+    [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = whole-zone ] \
+        || die "Slice 22 proof manifest must show whole-zone snap target"
+    [ "$(manifest_value "$proof_manifest" drag-policy policy)" = float-unless-snap ] \
+        || die "Slice 22 proof manifest must show float-unless-snap config policy"
+    [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = float-unless-snap ] \
+        || die "Slice 22 proof manifest missing float-unless-snap mode"
+    [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = no-alt-floats-no-snap ] \
+        || die "Slice 22 proof manifest missing no-Alt floating negative proof"
+    [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = alt-held-whole-zone-snap ] \
+        || die "Slice 22 proof manifest missing Alt-held snap positive proof"
+    [ "$(manifest_value "$proof_manifest" drag-result freeform-result)" = floating-no-snap ] \
+        || die "Slice 22 proof manifest missing floating no-snap result"
+    [ "$(manifest_value "$proof_manifest" drag-result freeform-after-layout)" = floating ] \
+        || die "Slice 22 proof manifest missing floating layout result"
+    [ "$(manifest_value "$proof_manifest" drag-result result)" = success ] \
+        || die "Slice 22 proof manifest missing snap success result"
+
+    grep -F "Config: policy='float-unless-snap'; modifier='alt'; target='zone'" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing float-unless-snap config chip"
+    grep -F "Action: drag snap-demo.rtf with no modifier" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing no-Alt drag chip"
+    grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing list-windows inspection chip"
+    grep -F "Action: reset snap-demo.rtf to Work/main tiling" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing reset chip"
+    grep -F "Action: hold Alt while dragging snap-demo.rtf" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing Alt-held drag chip"
+    grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing whole-zone target chip"
+    grep -F "Action: release on Comms zone" "$annotation_plan" >/dev/null \
+        || die "Slice 22 annotations missing release chip"
+
+    local freeform_drag_offset snap_drag_offset snap_end_offset
+    local freeform_caption_start snap_caption_start release_caption_start
+    local recording_timing_base snap_recording_start snap_recording_end
+    freeform_drag_offset="$(value_from_log freeform-drag-start-offset-seconds "$timing_log")"
+    snap_drag_offset="$(value_from_log snap-drag-start-offset-seconds "$timing_log")"
+    snap_end_offset="$(value_from_log snap-drag-end-offset-seconds "$timing_log")"
+    [ -n "$freeform_drag_offset" ] || die "Slice 22 timing log missing no-Alt drag start offset"
+    [ -n "$snap_drag_offset" ] || die "Slice 22 timing log missing Alt snap drag start offset"
+    [ -n "$snap_end_offset" ] || die "Slice 22 timing log missing Alt snap drag end offset"
+    freeform_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: drag snap-demo.rtf with no modifier")"
+    snap_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: hold Alt while dragging snap-demo.rtf")"
+    release_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: release on Comms zone")"
+    recording_timing_base="$(/usr/bin/awk -v caption="$freeform_caption_start" -v offset="$freeform_drag_offset" 'BEGIN { printf "%.3f", caption - offset }')"
+    snap_recording_start="$(/usr/bin/awk -v base="$recording_timing_base" -v offset="$snap_drag_offset" 'BEGIN { printf "%.3f", base + offset }')"
+    snap_recording_end="$(/usr/bin/awk -v base="$recording_timing_base" -v offset="$snap_end_offset" 'BEGIN { printf "%.3f", base + offset }')"
+    assert_numeric_le "$snap_caption_start" "$snap_recording_start" \
+        "Slice 22 Alt-held drag caption must be visible when the snap drag starts"
+    assert_numeric_le "$release_caption_start" "$snap_recording_end" \
+        "Slice 22 release caption must be visible before the positive drag has fully completed"
+}
+
 require_slice_21_zone_mode_v2_proof() {
     local slice_prefix="slice-21"
     local proof="${RUN_DIR}/${slice_prefix}-zone-mode-v2-proof.txt"
@@ -3610,6 +3853,53 @@ require_slice_21_zone_mode_v2_proof() {
     [ "$(grep -F -c 'mode-after-binding=main' "$action_log" | tr -d ' ')" -ge 5 ] \
         || die "Slice 21 action log must show every binding returning to main mode"
 
+    local expected_action_log expected_action_diff
+    expected_action_log="$(mktemp "${TMPDIR:-/tmp}/winmux-slice21-action-expected.XXXXXX")"
+    expected_action_diff="$(mktemp "${TMPDIR:-/tmp}/winmux-slice21-action-diff.XXXXXX")"
+    cat >"$expected_action_log" <<'EXPECTED_ACTION_LOG'
+keys=Alt-Z, S
+winmux-command=cycle-zone-snap-policy freeform snap-to-zone
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone s
+Using zone snap policy 'snap-to-zone' on monitor 1
+mode-after-binding=main
+keys=Alt-Z, Tab
+winmux-command=cycle-zone-layout balanced focus
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone tab
+Using zone layout 'focus' on monitor 1
+mode-after-binding=main
+keys=Alt-Z, A
+winmux-command=cycle-zone-availability focus-only communications full-dashboard
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone a
+Using zone availability 'focus-only' on monitor 1
+mode-after-binding=main
+keys=Alt-Z, A
+winmux-command=cycle-zone-availability focus-only communications full-dashboard
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone a
+Using zone availability 'communications' on monitor 1
+mode-after-binding=main
+keys=Alt-Z, Y
+winmux-command=cycle-zone-style current urgent calm
+$ winmux trigger-binding --mode main alt-z
+mode-after-alt-z=zone
+$ winmux trigger-binding --mode zone y
+Styled zone 'Work' on monitor 1 as 'urgent'
+mode-after-binding=main
+EXPECTED_ACTION_LOG
+    if ! /usr/bin/diff -u "$expected_action_log" "$action_log" >"$expected_action_diff"; then
+        cat "$expected_action_diff" >&2 || true
+        rm -f "$expected_action_log" "$expected_action_diff"
+        die "Slice 21 action log does not match the required ordered Alt-Z sequence"
+    fi
+    rm -f "$expected_action_log" "$expected_action_diff"
+
     [ "$(zone_log_value "$zones_ready" main layout)" = balanced ] \
         || die "Slice 21 ready zone state should start in balanced layout"
     [ "$(zone_log_value "$zones_layout" main layout)" = focus ] \
@@ -3656,6 +3946,10 @@ require_slice_21_zone_mode_v2_proof() {
             || die "Slice 21 state board missing checkpoint $checkpoint"
         grep -F "checkpoint=${checkpoint}|" "$board_freshness_log" >/dev/null \
             || die "Slice 21 board freshness missing checkpoint $checkpoint"
+        if grep -F 'phase=' "$board_freshness_log" >/dev/null; then
+            grep -F "phase=proof|checkpoint=${checkpoint}|" "$board_freshness_log" >/dev/null \
+                || die "Slice 21 board freshness missing proof-phase checkpoint $checkpoint"
+        fi
     done
 }
 
@@ -4686,6 +4980,9 @@ case "$recording_name" in
     slice-21-zone-mode-v2)
         require_slice_21_zone_mode_v2_proof
         ;;
+    slice-22-float-unless-snap)
+        require_slice_22_float_unless_snap_proof
+        ;;
 esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
@@ -4695,11 +4992,8 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
         require_review_freshness "$review_path"
         require_review_mentions_semantic_samples "$review_path" "$(sample_manifest_path)"
     fi
-    verdict="$(tail -n 1 "$review_path")"
-    case "$verdict" in
-        PASS|PASS_WITH_NOTES) ;;
-        *) die "Review verdict must be PASS or PASS_WITH_NOTES, got: $verdict" ;;
-    esac
+    review_is_accepted "$review_path" \
+        || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
         || die "Review must explicitly allow the next slice"
     if requires_current_artifact_contract; then

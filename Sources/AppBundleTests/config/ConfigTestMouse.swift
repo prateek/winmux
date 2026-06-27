@@ -59,6 +59,21 @@ extension ConfigTest {
         )
     }
 
+    func testParseFloatUnlessSnapE2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/float-unless-snap.toml"),
+            encoding: .utf8,
+        )
+
+        let (parsed, errors) = parseConfig(toml)
+
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .drag)
+        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+    }
+
     func testRejectInvalidMouseZoneSnapConfig() {
         let (_, errors) = parseConfig(
             """

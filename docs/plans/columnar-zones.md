@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-21 accepted; Slice 22 pending pre-slice cleanup
+Status: slices 0-22 accepted; Slice 23 pending pre-slice cleanup
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -3638,17 +3638,162 @@ Pre-Slice-22 cleanup from Slice 21 retrospectives:
 - [x] Decide generated `Sources/Common/gitHashGenerated.swift` churn before the
   Slice 21 closeout commit. The generated hash update was excluded as local
   build noise.
-- [ ] Before the next live-board proof, stop reusing setup window logs for
+- [x] Before the next live-board proof, stop reusing setup window logs for
   proof-board placement or add phase-specific board/window freshness rows so
   setup evidence cannot satisfy proof evidence.
-- [ ] Before the next keyboard-surface artifact, make the ready board list exact
+- [x] Before the next keyboard-surface artifact, make the ready board list exact
   key-to-command mappings instead of only the compact summary.
-- [ ] Before the next Slice 21-style keyboard verifier, add an ordered action-log
+- [x] Before the next Slice 21-style keyboard verifier, add an ordered action-log
   assertion that checks the exact five binding blocks instead of only required
   substrings and counts.
-- [ ] Improve future TextEdit setup diagnostics so timeout logs show which
+- [x] Improve future TextEdit setup diagnostics so timeout logs show which
   titles were missing, which titles were seen, and whether placement or window
   existence failed.
+
+## Slice 22: Float-Unless-Snap Mouse Policy
+
+Goal: make the mouse path match the user's preferred one-handed default:
+dragging a managed window with the mouse leaves it floating/freeform, while
+holding the configured snap modifier turns the same drag into a deliberate
+whole-zone snap.
+
+Product claim:
+
+- `[mouse.zone-snap] policy = 'float-unless-snap'` no longer means only
+  "modifier-gated zone snap." It also makes an ordinary no-modifier mouse move
+  detach a tiled window into the active zone workspace as a floating window.
+- Holding the configured modifier preserves the existing whole-zone snap path:
+  a zone overlay appears, the target is the whole zone, and release moves the
+  same window into that zone's active workspace.
+- The behavior is scoped to ordinary window drags over configured zones. It does
+  not alter keyboard `layout floating`, sidebar drags, tab-strip drags, group
+  drags, non-zone monitors, or snap-to-window/slot behavior.
+
+Implementation scope:
+
+- Add a fast behavior seam for `float-unless-snap` no-modifier drags:
+  `Window` + target `Workspace` + subject + modifier flags in, bool result out.
+- Use that seam from `moveWithMouse` before creating a pending tiling/zone-snap
+  drag intent.
+- Preserve the existing snap behavior when the configured modifier is held.
+- Add focused `WindowZoneSnapPolicyTest` cases proving:
+  - no-modifier `float-unless-snap` turns a tiled window into a floating window
+    in the target zone workspace;
+  - held modifier does not float the window, leaving it eligible for the
+    existing snap-to-zone path;
+  - group drags and non-zone monitor drags do not use this float conversion.
+
+Storyboard and caption budget:
+
+- Start on a clean ultrawide desktop with `policy = 'float-unless-snap'`,
+  `modifier = 'alt'`, `gesture = 'drag'`, and `target = 'zone'` visible.
+- Show a no-modifier drag of a tiled Work/main window. The board/caption must
+  state `mode: freeform float`, `snap target: none`, and the final state must
+  show the same window as floating in the visible zone workspace.
+- Reset to a tiled Work/main source.
+- Show an Option-held drag of the same kind of window toward Comms/right. The
+  board/caption must state `mode: zone snap`, `target: whole Comms zone`, show
+  the overlay/target path, and show the same window id placed in Comms/right on
+  release.
+- End with visible `list-windows`/state-board proof of source id, layout/floating
+  state, before/after zones, and the effective policy.
+
+Tart proof:
+
+- Record `slice-22-float-unless-snap.mov` from the external-SSD-backed Tart
+  harness.
+- Use the stricter mouse/transition event-manifest contract: command/config
+  context, no-modifier pickup/path/release/post-state inspection,
+  modifier-held pickup/path/first-affordance/release/post-state inspection, and
+  final inspection.
+- The verifier must reject missing visible no-modifier freeform action frames,
+  missing modifier-held overlay frames, missing source-window id continuity,
+  missing floating-state proof after the no-modifier drag, hidden command/config
+  surfaces, or any target that looks like a window/slot inside a zone.
+- The no-context reviewer must compare the artifact against root product demos,
+  `demo-columnar-zones.mp4`, and prior mouse-policy artifacts. It must reject
+  logs-only proof or any video where the viewer cannot tell whether the first
+  drag floated or snapped.
+- Do not proceed beyond Slice 22 until the video, mechanical verifier,
+  no-context artifact review, closeout gate, three retrospectives, accepted
+  findings, and commit are complete.
+
+Accepted claims:
+
+- no-modifier `float-unless-snap` detaches an ordinary tiled window into a
+  floating window in the active zone workspace;
+- held configured modifier keeps the existing whole-zone snap path available;
+- the behavior is scoped to configured zones and ordinary window drags.
+
+Non-claims:
+
+- no snap-to-window or snap-to-slot behavior;
+- no new mouse gesture recognizer beyond `gesture = 'drag'`;
+- no visual settings editor;
+- no relaunch persistence claim;
+- no group-drag or tab-strip drag float conversion.
+
+Accepted result:
+
+- Artifact: `artifacts/e2e/slice-22-20260627T221503Z`.
+- Recording: `recordings/slice-22-float-unless-snap.mov`.
+- Contact sheet: `screenshots/slice-22-float-unless-snap.contact-sheet.jpg`.
+- Mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z ARGS=--require-review`
+  passed after the no-context review was written and amended.
+- Closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z`
+  passed with all three retrospectives present.
+- No-context artifact review:
+  `reviews/no-ctx-artifact-review.md` verdict `PASS`; final gate line
+  `next slice allowed: yes`.
+- Retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- Setup note: the first guest scenario setup attempt failed before recording
+  with an SSH authentication retry; attempt 2 succeeded. The final artifact
+  started from a clean guest desktop and passed the verifier/review gates.
+
+Pre-Slice-23 cleanup from Slice 22 retrospectives:
+
+- [ ] Surface scenario setup/proof retries in `guest-transport-summary.tsv` or
+  a review-packet-linked retry summary so reviewers see attempts, failures,
+  final result, and whether each failure occurred before recording.
+- [ ] For the next mouse/transition proof, generate event-manifest rows from
+  actual guest action timestamps for pickup, path, hover, first affordance,
+  release, and post-state; use that table as the single timing source for
+  captions, samples, and verifier checks.
+- [ ] Bound local session-history retrospection prompts: search by artifact id
+  or recording name, inspect at most three exact-hit rollout files, ignore the
+  current session, and fall back to plan/diff/artifacts when no exact session is
+  found.
+- [ ] Add review verdict fixtures to `script/e2e/verify-artifact --self-test`
+  for legacy final-line `PASS`, first-line `PASS:` plus final
+  `next slice allowed: yes`, missing allow line, and `FAIL`; update
+  `script/e2e/prompts/no-context-artifact-review.md` and
+  `script/e2e/write-review-packet` to one footer contract.
+- [ ] Introduce a table-driven mouse-drag event spec used by Slice 20 and Slice
+  22 for event manifest generation, sample-label requirements, and ordering
+  assertions.
+- [ ] Replace duplicate action-log/proof-manifest emission in
+  `script/e2e/guest/slice-12-mouse-zone-snap.sh` with one schema helper, and
+  make `verify-artifact` read that schema before consulting human-oriented
+  logs.
+- [ ] Add one behavior-level Swift test for `float-unless-snap` through the
+  tiling mouse-drag caller or an extracted policy-plus-caller seam, covering
+  no-modifier float and held-modifier snap eligibility.
+- [ ] Add an artifact-generation or verifier check that rejects annotated
+  recordings when the last caption ends more than a short hold before video end,
+  unless the run declares an intentional uncaptained tail.
+- [ ] Generate a labeled event-manifest contact sheet for mouse/transition
+  slices, including overlay sentinel crops and separate no-modifier versus
+  modifier branches.
+- [ ] Require captioned target/release sample frames to show the visual
+  affordance named by the caption, not only the after-state.
+- [ ] Strengthen proof-only zone snap affordances with a clearer whole-zone
+  outline or target label, then capture an artifact crop that makes the target
+  readable without opening logs.
 
 ## Call-Site Audit
 

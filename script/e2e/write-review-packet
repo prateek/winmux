@@ -285,16 +285,31 @@ EOF
             ;;
         slice-21-zone-mode-v2)
             cat <<'EOF'
-- Confirm the recording starts with a clean Work/main proof board and visible Reference, Work, and Comms zones before any zone-mode V2 binding runs.
+- Confirm the recording starts with a clean Work/main proof board that names the exact `Alt-Z`, `S`, `Tab`, `A`, and `Y` key-to-command mappings, with visible Reference, Work, and Comms zones before any zone-mode V2 binding runs.
 - Confirm the caption/config surface exposes `[mode.main.binding] alt-z = 'mode zone'` plus the exact zone-mode keys `s`, `tab`, `a`, and `y`.
 - Sample the named semantic frames and caption boundaries for `ready-zone-mode-v2`, `snap-policy-command-start`, `after-snap-policy`, `layout-cycle-command-start`, `after-layout-focus`, `availability-focus-only-command-start`, `after-availability-focus-only`, `availability-communications-command-start`, `after-availability-communications`, `style-cycle-command-start`, and `after-style-urgent`.
-- Confirm the action log proves real binding dispatch via `winmux trigger-binding --mode main alt-z` followed by `winmux trigger-binding --mode zone <key>`, and that each binding returns to main mode.
+- Confirm the action log proves the exact ordered binding sequence: `Alt-Z, S`, `Alt-Z, Tab`, two `Alt-Z, A` beats, then `Alt-Z, Y`, each with `winmux trigger-binding --mode main alt-z`, the matching `winmux trigger-binding --mode zone <key>`, expected command output, and return to main mode.
 - Confirm `Alt-Z, S` exposes and runs `winmux cycle-zone-snap-policy freeform snap-to-zone`; reject if the proof implies a config rewrite or a mouse drag proof.
 - Confirm `Alt-Z, Tab` exposes and runs `winmux cycle-zone-layout balanced focus`, and that the Work/main zone visibly/logically widens with layout id `focus`.
 - Confirm the two `Alt-Z, A` beats expose and run `winmux cycle-zone-availability focus-only communications full-dashboard`: first focus-only hides Reference and Comms, then communications restores Comms/right while Reference remains hidden.
 - Confirm `Alt-Z, Y` exposes and runs `winmux cycle-zone-style current urgent calm`, and that the current Work/main zone reports urgent `#D3455B`.
 - Inspect `logs/slice-21-zone-mode-v2.event-manifest.tsv`; reject if it omits separate command-start and result events for snap policy, layout, both availability beats, and style.
 - Reject logs-only proof, final-state-only proof, missing user-facing command captions, unreadable board text, missing event/sample manifest rows, or any claim that Slice 21 proves drag snapping, persistence, or relaunch behavior.
+EOF
+            ;;
+        slice-22-float-unless-snap)
+            cat <<'EOF'
+- Confirm the recording shows two separate desktop window drags of `snap-demo.rtf`, not a sidebar drag and not a replay of Slice 12/16/20: first no modifier under config `policy = 'float-unless-snap'`, then after reset with Alt held.
+- Confirm the first no-Alt drag has visible source pickup and hover/path over the Comms area, but no whole-zone snap overlay. Inspect `logs/slice-22-windows-after-freeform.log` and require the same source id to have `zone=right` and `layout=floating`.
+- Confirm captions expose the user actions and relevant WinMux surface: `Config: policy='float-unless-snap'; modifier='alt'; target='zone'`, `Action: drag snap-demo.rtf with no modifier`, `Run: winmux list-windows --monitor all`, `Action: reset snap-demo.rtf to Work/main tiling`, `Action: hold Alt while dragging snap-demo.rtf`, `Action: target = whole Comms zone`, and `Action: release on Comms zone`.
+- Confirm the reset beat returns the same window to Work/main and non-floating layout before the Alt-held snap. Reject proof where the second drag starts from an already-floating source.
+- Confirm the Alt-held drag shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement of the same window id into Comms/right.
+- Inspect `logs/slice-22-float-unless-snap.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes no-Alt and Alt-held target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-22-float-unless-snap.event-manifest.tsv`; reject if it omits separate float-drag start/hover/release/post-state, reset, snap pickup/path/first-affordance/hover/release/post-state events.
+- Confirm the proof is config-driven and modifier-driven: there must be no `winmux set-zone-snap-policy` command in the Slice 22 action log.
+- State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 22, the no-Alt branch is floating/freeform placement, and the Alt-held branch targets the whole Comms zone.
+- Name the exact media file used for each beat: no-Alt pickup, no-Alt no-overlay hover, floating post-state, reset-before-snap, Alt pickup, Alt path, whole-zone hover/overlay, release/final placement, and overlay sentinel crops.
+- Reject logs-only proof, final-state-only proof, missing drag affordances, command captions that appear after visual changes, unclear overlay/no-overlay contrast, any target that looks like a window or slot inside a zone, or any claim about persistence, configurable gestures beyond this drag policy, or visual settings UI.
 EOF
             ;;
         slice-11b-zone-style-controls)
