@@ -676,6 +676,58 @@ func setZoneStyle(
 }
 
 @MainActor
+func cycleZoneStyle(
+    selector: ZoneSelector,
+    styleIds: [String],
+    monitorDescription: MonitorDescription? = nil,
+) -> Result<ZoneStyleChangeResult, String> {
+    guard !styleIds.isEmpty else {
+        return .failure("cycle-zone-style requires at least one style id")
+    }
+    let duplicatedIds = styleIds.grouped { $0 }
+        .filter { id, ids in !id.isEmpty && ids.count > 1 }
+        .keys
+        .sorted()
+    guard duplicatedIds.isEmpty else {
+        return .failure("cycle-zone-style requires unique style ids: \(duplicatedIds.joined(separator: ", "))")
+    }
+    for styleId in styleIds {
+        guard config.zoneStyles.contains(where: { $0.id == styleId }) else {
+            return .failure("Unknown zone style '\(styleId)'")
+        }
+    }
+
+    let resolved: ResolvedConfiguredZoneSelector
+    switch resolveConfiguredZoneSelector(selector, monitorDescription: monitorDescription) {
+        case .success(let zone):
+            resolved = zone
+        case .failure(let message):
+            return .failure(message)
+    }
+    guard resolved.isEnabled else {
+        return .failure("Zone '\(resolved.displayName)' is disabled. Use enable-zone \(selector.raw) before styling it.")
+    }
+
+    let currentStyleId = configuredZones(on: resolved.physicalMonitor)
+        .first { $0.zoneId == resolved.zoneId }?
+        .zoneStyleId
+    let selectedStyleId: String
+    if let currentStyleId,
+       let currentIndex = styleIds.firstIndex(of: currentStyleId)
+    {
+        selectedStyleId = styleIds[(currentIndex + 1) % styleIds.count]
+    } else {
+        selectedStyleId = styleIds[0]
+    }
+
+    return setZoneStyle(
+        selector: selector,
+        styleId: selectedStyleId,
+        monitorDescription: monitorDescription,
+    )
+}
+
+@MainActor
 private func applyZoneAvailabilitySet(
     _ availabilitySet: ZoneAvailabilitySetConfig,
     for physicalMonitor: Monitor,

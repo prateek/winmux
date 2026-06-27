@@ -895,6 +895,21 @@ require_slice_11b_sample_manifest() {
     done
 }
 
+require_slice_19_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-style \
+        cycle-urgent-command-start \
+        after-urgent \
+        cycle-calm-command-start \
+        after-calm \
+        cycle-wrap-command-start \
+        after-wrap; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 require_slice_11c_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -2372,6 +2387,204 @@ require_slice_11b_zone_style_controls_proof() {
         || die "Slice 11B calm command caption must cover the command/action interval"
 }
 
+require_slice_19_zone_style_cycle_proof() {
+    local proof="${RUN_DIR}/slice-19-zone-style-cycle-proof.txt"
+    local done="${LOGS_DIR}/slice-19-zone-style-cycle.done"
+    local setup_log="${LOGS_DIR}/slice-19-zone-style-cycle-setup.log"
+    local windows_before="${LOGS_DIR}/slice-19-windows-before.log"
+    local windows_urgent="${LOGS_DIR}/slice-19-windows-urgent.log"
+    local windows_calm="${LOGS_DIR}/slice-19-windows-calm.log"
+    local windows_wrap="${LOGS_DIR}/slice-19-windows-wrap.log"
+    local zones_before="${LOGS_DIR}/slice-19-zones-before.log"
+    local zones_urgent="${LOGS_DIR}/slice-19-zones-urgent.log"
+    local zones_calm="${LOGS_DIR}/slice-19-zones-calm.log"
+    local zones_wrap="${LOGS_DIR}/slice-19-zones-wrap.log"
+    local urgent_log="${LOGS_DIR}/slice-19-cycle-zone-style-urgent.log"
+    local calm_log="${LOGS_DIR}/slice-19-cycle-zone-style-calm.log"
+    local wrap_log="${LOGS_DIR}/slice-19-cycle-zone-style-wrap.log"
+    local timing_log="${LOGS_DIR}/slice-19-command-timing.log"
+    local cli_log="${LOGS_DIR}/slice-19-cli.log"
+    local sample_manifest="${LOGS_DIR}/slice-19-zone-style-cycle.sample-manifest.tsv"
+    local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-19.png"
+    local before_style_screenshot="${SCREENSHOTS_DIR}/02-before-style-slice-19.png"
+    local after_urgent_screenshot="${SCREENSHOTS_DIR}/03-after-urgent-cycle-slice-19.png"
+    local after_calm_screenshot="${SCREENSHOTS_DIR}/04-after-calm-cycle-slice-19.png"
+    local after_wrap_screenshot="${SCREENSHOTS_DIR}/05-after-wrap-cycle-slice-19.png"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 19"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_urgent"
+    require_file "$windows_calm"
+    require_file "$windows_wrap"
+    require_file "$zones_before"
+    require_file "$zones_urgent"
+    require_file "$zones_calm"
+    require_file "$zones_wrap"
+    require_file "$urgent_log"
+    require_file "$calm_log"
+    require_file "$wrap_log"
+    require_file "$timing_log"
+    require_file "$cli_log"
+    require_slice_19_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "$transport_summary"
+    require_file "$ready_screenshot"
+    require_file "$before_style_screenshot"
+    require_file "$after_urgent_screenshot"
+    require_file "$after_calm_screenshot"
+    require_file "$after_wrap_screenshot"
+
+    grep -F 'PASS: cycle-zone-style advances Comms from no style to urgent, then calm, then wraps back to urgent while windows and workspaces stay in the same zone ids.' "$proof" >/dev/null \
+        || die "Slice 19 proof does not contain the expected PASS claim"
+    grep -F '[[zone-styles]]' "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing zone-styles table"
+    grep -F "id = 'urgent'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing urgent style id"
+    grep -F "color = '#D3455B'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing urgent color"
+    grep -F "id = 'calm'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing calm style id"
+    grep -F "color = '#3EA2FF'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing calm color"
+    grep -F "alt-y = 'cycle-zone-style Comms urgent calm'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 19 config missing ergonomic cycle binding"
+    grep -F 'set-zone-style' "$CONFIG_PATH" >/dev/null \
+        && die "Slice 19 config must prove cycle-zone-style, not set-zone-style"
+    grep -F 'Config: [[zone-styles]] urgent=#D3455B calm=#3EA2FF' "$setup_log" >/dev/null \
+        || die "Slice 19 setup log missing zone-styles summary"
+    grep -F 'Command: cycle-zone-style Comms urgent calm' "$setup_log" >/dev/null \
+        || die "Slice 19 setup log missing cycle command summary"
+    grep -F 'Non-claim: no visual editor, draggable divider, snap gesture, or persistence beyond runtime style overlay' "$setup_log" >/dev/null \
+        || die "Slice 19 setup log missing non-claim summary"
+
+    for command_log in "$urgent_log" "$calm_log" "$wrap_log"; do
+        grep -F '$ winmux cycle-zone-style Comms urgent calm' "$command_log" >/dev/null \
+            || die "Slice 19 command log missing exact cycle-zone-style command: $command_log"
+        grep -F 'set-zone-style' "$command_log" >/dev/null \
+            && die "Slice 19 proof command log must not use set-zone-style: $command_log"
+    done
+    grep -F "Styled zone 'Comms' on monitor 1 as 'urgent'" "$urgent_log" >/dev/null \
+        || die "Slice 19 first cycle log missing urgent success output"
+    grep -F "Styled zone 'Comms' on monitor 1 as 'calm'" "$calm_log" >/dev/null \
+        || die "Slice 19 second cycle log missing calm success output"
+    grep -F "Styled zone 'Comms' on monitor 1 as 'urgent'" "$wrap_log" >/dev/null \
+        || die "Slice 19 wrap cycle log missing urgent success output"
+    grep -F 'set-zone-style' "$cli_log" >/dev/null \
+        && die "Slice 19 aggregate CLI log must not include set-zone-style"
+
+    [ "$(zone_log_value "$zones_before" right style)" = "" ] \
+        || die "Slice 19 before zones log should not style Comms/right"
+    [ "$(zone_log_value "$zones_before" right color)" = "" ] \
+        || die "Slice 19 before zones log should not color Comms/right"
+    [ "$(zone_log_value "$zones_urgent" right style)" = "urgent" ] \
+        || die "Slice 19 urgent zones log missing urgent style for Comms/right"
+    [ "$(zone_log_value "$zones_urgent" right color)" = "#D3455B" ] \
+        || die "Slice 19 urgent zones log missing urgent color for Comms/right"
+    [ "$(zone_log_value "$zones_calm" right style)" = "calm" ] \
+        || die "Slice 19 calm zones log missing calm style for Comms/right"
+    [ "$(zone_log_value "$zones_calm" right color)" = "#3EA2FF" ] \
+        || die "Slice 19 calm zones log missing calm color for Comms/right"
+    [ "$(zone_log_value "$zones_wrap" right style)" = "urgent" ] \
+        || die "Slice 19 wrap zones log missing urgent style for Comms/right"
+    [ "$(zone_log_value "$zones_wrap" right color)" = "#D3455B" ] \
+        || die "Slice 19 wrap zones log missing urgent color for Comms/right"
+    for zone_id in left main; do
+        [ "$(zone_log_value "$zones_urgent" "$zone_id" style)" = "" ] \
+            || die "Slice 19 urgent style leaked to ${zone_id}"
+        [ "$(zone_log_value "$zones_calm" "$zone_id" style)" = "" ] \
+            || die "Slice 19 calm style leaked to ${zone_id}"
+        [ "$(zone_log_value "$zones_wrap" "$zone_id" style)" = "" ] \
+            || die "Slice 19 wrap style leaked to ${zone_id}"
+    done
+    require_zone_fields_unchanged_across_style_phases \
+        "$zones_before" "$zones_urgent" "$zones_calm" "Slice 19 first two cycles"
+    require_zone_fields_unchanged_across_style_phases \
+        "$zones_before" "$zones_calm" "$zones_wrap" "Slice 19 wrap cycle"
+
+    local urgent_offset calm_offset wrap_offset
+    urgent_offset="$(value_from_log cycle-urgent-command-offset-seconds "$timing_log")"
+    calm_offset="$(value_from_log cycle-calm-command-offset-seconds "$timing_log")"
+    wrap_offset="$(value_from_log cycle-wrap-command-offset-seconds "$timing_log")"
+    [ -n "$urgent_offset" ] || die "Slice 19 timing log missing urgent cycle command offset"
+    [ -n "$calm_offset" ] || die "Slice 19 timing log missing calm cycle command offset"
+    [ -n "$wrap_offset" ] || die "Slice 19 timing log missing wrap cycle command offset"
+    assert_numeric_between_inclusive "$urgent_offset" 13 24 \
+        "Slice 19 urgent cycle command must happen while the first cycle caption is on screen"
+    assert_numeric_between_inclusive "$calm_offset" 31 42 \
+        "Slice 19 calm cycle command must happen while the second cycle caption is on screen"
+    assert_numeric_between_inclusive "$wrap_offset" 49 57 \
+        "Slice 19 wrap cycle command must happen while the third cycle caption is on screen"
+
+    local title expected_zone before_id urgent_id calm_id wrap_id before_zone urgent_zone calm_zone wrap_zone
+    local before_workspace urgent_workspace calm_workspace wrap_workspace
+    for title in reference-style-cycle.rtf work-style-cycle.rtf comms-style-cycle.rtf; do
+        case "$title" in
+            reference-style-cycle.rtf) expected_zone=left ;;
+            work-style-cycle.rtf) expected_zone=main ;;
+            comms-style-cycle.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        urgent_id="$(field_for_title "$windows_urgent" "$title" id)"
+        calm_id="$(field_for_title "$windows_calm" "$title" id)"
+        wrap_id="$(field_for_title "$windows_wrap" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        urgent_zone="$(field_for_title "$windows_urgent" "$title" zone)"
+        calm_zone="$(field_for_title "$windows_calm" "$title" zone)"
+        wrap_zone="$(field_for_title "$windows_wrap" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        urgent_workspace="$(field_for_title "$windows_urgent" "$title" workspace)"
+        calm_workspace="$(field_for_title "$windows_calm" "$title" workspace)"
+        wrap_workspace="$(field_for_title "$windows_wrap" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$urgent_id" ] && [ -n "$calm_id" ] && [ -n "$wrap_id" ] \
+            || die "Slice 19 missing window title across logs: $title"
+        [ "$before_id" = "$urgent_id" ] && [ "$urgent_id" = "$calm_id" ] && [ "$calm_id" = "$wrap_id" ] \
+            || die "Slice 19 window id changed for $title: $before_id -> $urgent_id -> $calm_id -> $wrap_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$urgent_zone" = "$expected_zone" ] && [ "$calm_zone" = "$expected_zone" ] && [ "$wrap_zone" = "$expected_zone" ] \
+            || die "Slice 19 zone changed for $title: $before_zone -> $urgent_zone -> $calm_zone -> $wrap_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$urgent_workspace" ] && [ "$urgent_workspace" = "$calm_workspace" ] && [ "$calm_workspace" = "$wrap_workspace" ] \
+            || die "Slice 19 workspace changed for $title: $before_workspace -> $urgent_workspace -> $calm_workspace -> $wrap_workspace"
+    done
+
+    grep -F "cycle-urgent-command-offset-seconds=${urgent_offset}" "$proof" >/dev/null \
+        || die "Slice 19 proof does not copy urgent cycle timing"
+    grep -F "cycle-calm-command-offset-seconds=${calm_offset}" "$proof" >/dev/null \
+        || die "Slice 19 proof does not copy calm cycle timing"
+    grep -F "cycle-wrap-command-offset-seconds=${wrap_offset}" "$proof" >/dev/null \
+        || die "Slice 19 proof does not copy wrap cycle timing"
+    grep -F 'Before style:' "$proof" >/dev/null \
+        || die "Slice 19 proof missing before-style section"
+    grep -F 'Cycle 1 urgent style:' "$proof" >/dev/null \
+        || die "Slice 19 proof missing cycle 1 section"
+    grep -F 'Cycle 2 calm style:' "$proof" >/dev/null \
+        || die "Slice 19 proof missing cycle 2 section"
+    grep -F 'Cycle 3 urgent wraparound:' "$proof" >/dev/null \
+        || die "Slice 19 proof missing wraparound section"
+
+    grep -F "Config: [[zone-styles]] urgent + calm; alt-y = 'cycle-zone-style Comms urgent calm'" "$annotation_plan" >/dev/null \
+        || grep -F "Config: [[zone-styles]] urgent + calm; alt-y = cycle-zone-style" "$annotation_plan" >/dev/null \
+        || die "Slice 19 annotations missing zone-styles/cycle binding config chip"
+    grep -F "Run: winmux cycle-zone-style Comms urgent calm" "$annotation_plan" >/dev/null \
+        || die "Slice 19 annotations missing cycle command chip"
+    [ "$(grep -F -c "Run: winmux cycle-zone-style Comms urgent calm" "$annotation_plan" | tr -d ' ')" -ge 3 ] \
+        || die "Slice 19 annotations must show three cycle-zone-style command beats"
+    grep -F "Action: no style -> urgent #D3455B" "$annotation_plan" >/dev/null \
+        || die "Slice 19 annotations missing urgent visible-state chip"
+    grep -F "Action: urgent -> calm #3EA2FF" "$annotation_plan" >/dev/null \
+        || die "Slice 19 annotations missing calm visible-state chip"
+    grep -F "Action: calm -> urgent wraparound" "$annotation_plan" >/dev/null \
+        || die "Slice 19 annotations missing wraparound visible-state chip"
+    grep -F 'set-zone-style' "$annotation_plan" >/dev/null \
+        && die "Slice 19 annotations must not use set-zone-style"
+    awk -F '\t' '$5 == "Run: winmux cycle-zone-style Comms urgent calm" && ($1 + 0) <= 13 && ($2 + 0) >= 23 { found = 1 } END { exit(found ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 19 first cycle command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux cycle-zone-style Comms urgent calm" && ($1 + 0) <= 31 && ($2 + 0) >= 41 { found = 1 } END { exit(found ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 19 second cycle command caption must cover the command/action interval"
+    awk -F '\t' '$5 == "Run: winmux cycle-zone-style Comms urgent calm" && ($1 + 0) <= 49 && ($2 + 0) >= 56 { found = 1 } END { exit(found ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 19 wrap cycle command caption must cover the command/action interval"
+}
+
 require_slice_11c_zone_availability_sets_proof() {
     local proof="${RUN_DIR}/slice-11c-zone-availability-sets-proof.txt"
     local done="${LOGS_DIR}/slice-11c-zone-availability-sets.done"
@@ -3775,6 +3988,9 @@ case "$recording_name" in
         ;;
     slice-18-zone-affinity-routing)
         require_slice_18_zone_affinity_routing_proof
+        ;;
+    slice-19-zone-style-cycle)
+        require_slice_19_zone_style_cycle_proof
         ;;
 esac
 

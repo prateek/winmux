@@ -329,6 +329,38 @@ func parseSetZoneStyleCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SetZoneStyleCmdA
     parseSpecificCmdArgs(SetZoneStyleCmdArgs(rawArgs: args), args)
 }
 
+public struct CycleZoneStyleCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneStyle,
+        allowInConfig: true,
+        help: cycle_zone_style_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [
+            newMandatoryPosArgParser(\.zone, parseZoneSelector, placeholder: "<zone>"),
+            newMandatoryPosArgParser(\.styleIds, parseZoneStyleIds, placeholder: "<style-id>..."),
+        ],
+    )
+
+    public init(zone: ZoneSelector, styleIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.zone = .initialized(zone)
+        self.styleIds = .initialized(styleIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var zone: Lateinit<ZoneSelector> = .uninitialized
+    public var styleIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneStyleCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneStyleCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneStyleCmdArgs(rawArgs: args), args)
+}
+
 public struct CycleZoneLayoutCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -621,6 +653,23 @@ private func parseZoneStyleId(i: PosArgParserInput) -> ParsedCliArgs<String> {
         case .success(let styleId): .succ(styleId, advanceBy: 1)
         case .failure(let msg): .fail(msg, advanceBy: 1)
     }
+}
+
+private func parseZoneStyleIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {
+    let args = i.nonFlagArgs()
+    guard !args.isEmpty else {
+        return .fail("<style-id> is mandatory", advanceBy: 0)
+    }
+    var styleIds: [String] = []
+    for (offset, arg) in args.enumerated() {
+        switch parseZoneStyleIdentifier(arg) {
+            case .success(let styleId):
+                styleIds.append(styleId)
+            case .failure(let msg):
+                return .fail(msg, advanceBy: offset + 1)
+        }
+    }
+    return .succ(styleIds, advanceBy: args.count)
 }
 
 private func parseZoneAvailabilitySetIdentifier(_ raw: String) -> Parsed<String> {

@@ -215,6 +215,24 @@ Slice-specific checks:
   samples, command captions that omit the target zone or style id, color changes
   that happen before the command caption, and any proof where the reviewer cannot
   tell whether the feature changed style, layout, or workspace binding.
+- Slice 19 must show ergonomic runtime zone style cycling with three visible
+  executions of `cycle-zone-style Comms urgent calm`. The proof must show a
+  readable unstyled Comms zone row before the first command, the first cycle
+  command caption before Comms becomes urgent red, the second cycle command
+  caption before Comms becomes calm blue, and the third cycle command caption
+  before Comms wraps back to urgent red. Inspect named before/command/after
+  samples or caption-boundary frames for all three cycle commands. The visual
+  change must be on zone chrome or the sidebar zone row, including the styled
+  swatch/tint, not TextEdit document text, not a layout resize, and not a
+  workspace switch. Confirm Reference and Work stay unstyled, and the same
+  windows and active workspaces remain in the same zone ids. Confirm the
+  caption/config surface exposes `[[zone-styles]]` and
+  `alt-y = 'cycle-zone-style Comms urgent calm'`. Reject logs-only style proof,
+  final-state-only proof, any proof that uses `set-zone-style`, missing
+  wraparound, subtle/unreadable swatch or tint, command captions that omit the
+  target zone or style ids, color changes that happen before the command
+  caption, and claims about visual editing, draggable dividers, snap gestures,
+  relaunch persistence, or new app/tab-group binding semantics.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

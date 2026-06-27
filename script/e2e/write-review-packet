@@ -273,6 +273,20 @@ EOF
 - Reject logs-only style proof, final-state-only proof, a style swatch/tint too subtle to see, missing before/command/after samples, command captions that omit the target zone or style id, and any proof where the reviewer cannot distinguish a style change from a layout/workspace change.
 EOF
             ;;
+        slice-19-zone-style-cycle)
+            cat <<'EOF'
+- Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.
+- Sample frames around all three `Run: winmux cycle-zone-style Comms urgent calm` captions. Fail if the row color changes before the matching command caption appears.
+- Confirm the recording shows before-style, cycle-urgent-command-start, after-urgent, cycle-calm-command-start, after-calm, cycle-wrap-command-start, after-wrap, and final inspection states.
+- Confirm `[[zone-styles]]` and the ergonomic binding `alt-y = 'cycle-zone-style Comms urgent calm'` are visible through the caption/config surface.
+- Confirm the exact user command is `winmux cycle-zone-style Comms urgent calm` for all three command beats. Reject any proof or caption that uses `set-zone-style` for this slice.
+- Confirm the visual change is on the Comms zone chrome/sidebar row, including the styled row swatch/tint, not the TextEdit document content, not a layout resize, and not a workspace switch.
+- Confirm the state sequence is no style -> urgent red `#D3455B`, urgent -> calm blue `#3EA2FF`, then calm -> urgent wraparound.
+- Confirm Reference and Work stay unstyled, and the same windows and active workspaces stay in the same zone ids across all three cycle commands.
+- State that Slice 19 proves ergonomic runtime style cycling only. It does not prove visual zone editing, draggable dividers, snap/gesture behavior, style persistence across relaunch, or new app/tab-group binding semantics.
+- Reject logs-only style proof, final-state-only proof, a missing wraparound beat, a style swatch/tint too subtle to see, command captions that omit the target zone or style ids, and any proof where the reviewer cannot distinguish cycling style chrome from layout/workspace changes.
+EOF
+            ;;
         slice-11c-zone-availability-sets)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and `[[zone-availability-sets]]` exposed by a caption/config chip.

@@ -60,6 +60,8 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-11b` records runtime zone style controls with `script/e2e/configs/zone-style-controls.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11b.png`. The proof records `winmux set-zone-style Comms urgent`, captures the Comms zone row tinted urgent red, then records `winmux set-zone-style Comms calm` and captures the same row tinted calm blue. The verifier checks before/urgent/calm style fields, preserved window ids and workspaces, command logs, ready and action screenshots, success marker, key bindings, semantic sample labels, and caption chips with the exact commands and style ids.
 
+`make e2e-slice-19` records ergonomic runtime zone style cycling with `script/e2e/configs/zone-style-cycle.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-19.png`. The proof records three executions of `winmux cycle-zone-style Comms urgent calm`: no style to urgent red, urgent to calm blue, and calm back to urgent wraparound. The verifier rejects `set-zone-style` proof, missing wraparound, hidden command surface, style changes outside zone chrome/sidebar rows, and any layout, snap, gesture, or persistence claim.
+
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
 `make e2e-slice-12` records desktop mouse zone snapping with `script/e2e/configs/zone-mouse-snap.toml`. The setup phase stages visible Reference, Work, and Comms documents, focuses `snap-demo.rtf` in Work, and captures `01-ready-slice-12.png`. The proof first drags the desktop window without Alt to demonstrate no whole-zone snap and no zone move, then resets the same window and drags with Alt held to show a whole Comms-zone overlay and final movement into Comms/right. The pre-Tart gate includes the mouse config parser tests and `WindowZoneSnapPolicyTest`. The verifier checks the `[mouse.zone-snap]` config, negative and positive drag logs, unchanged source window id, whole-zone target semantics, per-beat drag screenshots, semantic sample labels, and exact action/config caption chips.
@@ -116,6 +118,9 @@ make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-N-<timestamp> ARGS=--req
 ```
 
 This fails if generated samples or reviewer packets are missing, instead of creating them.
+When preserving closeout evidence would help future audits, tee that command to
+an artifact log such as `logs/post-review-verify.log`; do not replace the
+rerunnable verifier with the saved transcript.
 
 When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
 

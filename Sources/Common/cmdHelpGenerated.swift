@@ -31,6 +31,9 @@ let cycle_zone_availability_help_generated = """
 let cycle_zone_layout_help_generated = """
     USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
+let cycle_zone_style_help_generated = """
+    USAGE: cycle-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>...
+    """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id>]
     """

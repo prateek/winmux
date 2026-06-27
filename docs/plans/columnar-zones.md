@@ -1,7 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-18 accepted; Slice 19 must start with the Pre-Slice-19 cleanup
-items below
+Status: slices 0-19 accepted; Slice 20 pre-slice cleanup ready
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -114,8 +113,8 @@ Keyboard and command workflows should stay thin over the same zone model:
   change zone geometry on the target physical monitor.
 - `enable-zone`, `disable-zone`, `toggle-zone`, `use-zone-availability`, and
   `cycle-zone-availability` change visibility at one-zone or named-set scope.
-- `set-zone-style` changes zone chrome without changing layout or workspace
-  binding.
+- `set-zone-style` and `cycle-zone-style` change zone chrome without changing
+  layout or workspace binding.
 - Example key bindings should compose these commands directly. The default idiom
   should use portable relative selectors when possible, for example a modal
   `alt-z` zone mode that maps `h`/`l` to `focus-zone prev`/`focus-zone next`
@@ -200,7 +199,8 @@ The ergonomic control surface should stay small and composable:
 - `resize-zone <zone> width [+|-]<percent>%` and `balance-zones` tune zone
   sizing without editing config.
 - `use-zone-scene <scene-id>` switches layout and workspace bindings together.
-- `set-zone-style <zone> <style-id>` changes visible zone chrome without
+- `set-zone-style <zone> <style-id>` and
+  `cycle-zone-style <zone> <style-id>...` change visible zone chrome without
   changing layout, size, or workspace bindings.
 - `use-zone-availability <set-id>` and `cycle-zone-availability <a> <b>...`
   toggle groups such as `focus-only`, `comms-open`, and `mail-open` at the
@@ -3163,6 +3163,143 @@ Pre-Slice-19 cleanup from Slice 18 retrospectives:
   `test -s`.
 - [x] Isolate the accepted Slice 18 dirty set in the Slice 18 closeout commit
   before starting Slice 19.
+
+## Slice 19: Ergonomic Zone Style Cycling
+
+Goal: make per-zone styling practical from a compact keyboard or command
+workflow. Users should not need one binding per style token just to switch a
+zone between configured states such as `urgent`, `calm`, and `muted`.
+
+Primary product claim:
+
+- `cycle-zone-style <zone> <style-id>...` advances the target zone through the
+  provided configured style ids, wrapping back to the first style. It reuses the
+  same zone selector and physical-monitor scoping rules as `set-zone-style`.
+
+Why this is the next narrow slice:
+
+- The user called out style changes as part of the cross-zone control surface.
+  `set-zone-style` exists, but cycling is the missing ergonomic command for
+  modal bindings and one-handed command workflows.
+- This slice strengthens `ZoneStyle` as a real command surface without adding a
+  visual editor, draggable dividers, or new mouse gesture semantics.
+
+Implementation requirements:
+
+- Add `cycle-zone-style [--monitor <monitor-pattern>] <zone> <style-id>...`.
+- Reject an empty cycle, duplicate style ids, unknown style ids, disabled target
+  zones, ambiguous zone selectors, and over-scoped selectors in the same style
+  as the existing zone commands.
+- If the target zone has no current style, or its current style is not in the
+  provided cycle, choose the first style id.
+- If the target zone's current style is in the cycle, choose the next style id,
+  wrapping to the first id at the end.
+- Keep style changes non-structural: active layout, active availability set,
+  zone widths, active workspaces, focused workspace, and window membership must
+  not change.
+- Add parser, command dispatch, generated help/description metadata, and focused
+  command tests.
+
+Tart proof requirement:
+
+- Record a clean Slice 19 video using the existing style-control visual surface:
+  visible Reference, Work, and Comms zones, sidebar zone rows, and a configured
+  style cycle such as `urgent calm`.
+- The recording must expose the exact command/action surface:
+  `winmux cycle-zone-style Comms urgent calm`.
+- The video must show at least three command beats: no style -> urgent,
+  urgent -> calm, and calm -> urgent wraparound.
+- Captions and logs must state that this changes chrome only. The same Comms
+  workspace/window should remain in the Comms zone throughout.
+- The verifier and no-context reviewer must reject a Slice 19 artifact that only
+  replays `set-zone-style`, omits wraparound, hides the command surface, or
+  claims visual editing, draggable dividers, or snap/gesture behavior.
+
+Current status:
+
+- [x] Slice 18 closeout committed as `f4c14285` before Slice 19 edits started.
+- [x] Plan scope for Slice 19 added before e2e implementation.
+- [x] Source command implementation complete.
+- [x] Focused parser and command behavior tests passing.
+- [x] Tart config, scenario, annotation plan, semantic samples, verifier, review packet,
+  prompt hardening, and README entries added.
+- [x] Shell syntax, command metadata, and whitespace checks passed for the
+  touched harness/code surfaces.
+- [x] Slice 19 Tart artifact recorded and mechanically verified.
+- [x] No-context artifact review, closeout verifier, and three no-context
+  retrospectives completed before Slice 20.
+
+Accepted Slice 19 result:
+
+- accepted artifact: `artifacts/e2e/slice-19-20260627T001414Z`;
+- recording: `recordings/slice-19-zone-style-cycle.mov`;
+- raw recording: `recordings/raw/slice-19-zone-style-cycle.raw.mov`;
+- mechanical verifier:
+  `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-19-20260627T001414Z`
+  passed, reporting a 59.983333s 3440x1440 H.264 recording and contact sheet;
+- no-context artifact review:
+  `artifacts/e2e/slice-19-20260627T001414Z/reviews/no-ctx-artifact-review.md`,
+  verdict `PASS`, `next slice allowed: yes`;
+- post-review verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-19-20260627T001414Z ARGS=--require-review`
+  passed;
+- closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-19-20260627T001414Z`
+  passed after sibling-artifact hygiene, accepted review, and all three
+  retrospectives were present;
+- retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- accepted claim: `cycle-zone-style Comms urgent calm` advances Comms from no
+  runtime style to urgent red, calm blue, then urgent red again while Reference
+  and Work remain unstyled and the same windows/workspaces stay in the same
+  zone ids;
+- accepted non-claims: no visual style editor, no draggable dividers, no
+  snap/gesture behavior, no relaunch persistence, and no new app/tab-group
+  binding semantics.
+
+Failed/pre-Tart Slice 19 attempts:
+
+- `artifacts/e2e/slice-19-20260627T001009Z`: pre-Tart-only run. It contains
+  `logs/pre-tart-checks.log` and no product media or accepted review because
+  `TART_HOME` was not set to the external SSD-backed Tart home.
+- `artifacts/e2e/slice-19-20260627T001055Z`: failed setup before recording.
+  It has no accepted recording or review; `logs/run-abort-status.txt` reports a
+  semantic failure before recording, and the setup log showed only one TextEdit
+  document visible when three were expected.
+
+Pre-Slice-20 cleanup from Slice 19 retrospectives:
+
+- [x] Read all three Slice 19 retrospectives and fold accepted blockers into
+  this checklist.
+- [x] Label the accepted Slice 19 artifact and failed/pre-Tart attempts in this
+  plan so future reviewers do not compare against stale paths.
+- [x] Run the post-review closeout verifier:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-19-20260627T001414Z`.
+- [x] Replace Slice 19's count-only TextEdit setup wait with a title-specific
+  wait that retries missing documents and logs expected, observed, and missing
+  titles on failure. Future multi-document TextEdit slices must reuse this
+  pattern before Tart recording.
+- [x] Add focused `cycle-zone-style` fast tests for current-style-outside-cycle,
+  physical scoping/ambiguity, and non-structural preservation of layout,
+  availability state, widths, workspaces, focus, and window membership.
+- [x] Add a cheap parser test for `script/e2e/configs/zone-style-cycle.toml`.
+- [x] Align future Slice 19 caption output with the full binding
+  `alt-y = 'cycle-zone-style Comms urgent calm'` while keeping the verifier
+  compatible with the already accepted artifact's shorter config chip.
+- [x] Record the recurring style/color proof rule: any future slice whose claim
+  depends on visible color or tint must add `color-sentinel.tsv` support or an
+  explicit plan waiver before recording.
+- [x] Isolate and commit the accepted Slice 19 dirty set before starting Slice
+  20.
+
+Non-claims:
+
+- no new style persistence beyond the existing runtime overlay;
+- no visual zone editor or draggable divider;
+- no snap-to-window, snap-to-slot, or new mouse gesture vocabulary;
+- no new app or tab-group binding semantics.
 
 ## Call-Site Audit
 
