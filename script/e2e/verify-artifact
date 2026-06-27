@@ -1106,6 +1106,25 @@ require_slice_20_sample_manifest() {
     done
 }
 
+require_slice_21_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        ready-zone-mode-v2 \
+        snap-policy-command-start \
+        after-snap-policy \
+        layout-cycle-command-start \
+        after-layout-focus \
+        availability-focus-only-command-start \
+        after-availability-focus-only \
+        availability-communications-command-start \
+        after-availability-communications \
+        style-cycle-command-start \
+        after-style-urgent; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 require_slice_13_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -3252,6 +3271,56 @@ require_slice_20_event_manifest() {
         "Slice 20 event manifest must show final inspection after cycle command starts"
 }
 
+require_slice_21_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" snap-policy-command-start command
+    require_event_manifest_event "$manifest_path" snap-policy-result state
+    require_event_manifest_event "$manifest_path" layout-cycle-command-start command
+    require_event_manifest_event "$manifest_path" layout-focus-result state
+    require_event_manifest_event "$manifest_path" availability-focus-only-command-start command
+    require_event_manifest_event "$manifest_path" availability-focus-only-result state
+    require_event_manifest_event "$manifest_path" availability-communications-command-start command
+    require_event_manifest_event "$manifest_path" availability-communications-result state
+    require_event_manifest_event "$manifest_path" style-cycle-command-start command
+    require_event_manifest_event "$manifest_path" style-urgent-result state
+
+    require_event_sample_label "$manifest_path" config-ready ready-zone-mode-v2
+    require_event_sample_label "$manifest_path" snap-policy-command-start snap-policy-command-start
+    require_event_sample_label "$manifest_path" snap-policy-result after-snap-policy
+    require_event_sample_label "$manifest_path" layout-cycle-command-start layout-cycle-command-start
+    require_event_sample_label "$manifest_path" layout-focus-result after-layout-focus
+    require_event_sample_label "$manifest_path" availability-focus-only-command-start availability-focus-only-command-start
+    require_event_sample_label "$manifest_path" availability-focus-only-result after-availability-focus-only
+    require_event_sample_label "$manifest_path" availability-communications-command-start availability-communications-command-start
+    require_event_sample_label "$manifest_path" availability-communications-result after-availability-communications
+    require_event_sample_label "$manifest_path" style-cycle-command-start style-cycle-command-start
+    require_event_sample_label "$manifest_path" style-urgent-result after-style-urgent
+
+    require_event_before "$manifest_path" config-ready snap-policy-command-start \
+        "Slice 21 event manifest must show the keymap before Alt-Z S"
+    require_event_before "$manifest_path" snap-policy-command-start snap-policy-result \
+        "Slice 21 event manifest must show Alt-Z S before snap policy result"
+    require_event_before "$manifest_path" snap-policy-result layout-cycle-command-start \
+        "Slice 21 event manifest must show snap policy result before Alt-Z Tab"
+    require_event_before "$manifest_path" layout-cycle-command-start layout-focus-result \
+        "Slice 21 event manifest must show Alt-Z Tab before layout result"
+    require_event_before "$manifest_path" layout-focus-result availability-focus-only-command-start \
+        "Slice 21 event manifest must show layout result before first Alt-Z A"
+    require_event_before "$manifest_path" availability-focus-only-command-start availability-focus-only-result \
+        "Slice 21 event manifest must show first Alt-Z A before focus-only result"
+    require_event_before "$manifest_path" availability-focus-only-result availability-communications-command-start \
+        "Slice 21 event manifest must show focus-only result before second Alt-Z A"
+    require_event_before "$manifest_path" availability-communications-command-start availability-communications-result \
+        "Slice 21 event manifest must show second Alt-Z A before communications result"
+    require_event_before "$manifest_path" availability-communications-result style-cycle-command-start \
+        "Slice 21 event manifest must show communications result before Alt-Z Y"
+    require_event_before "$manifest_path" style-cycle-command-start style-urgent-result \
+        "Slice 21 event manifest must show Alt-Z Y before urgent style result"
+}
+
 require_slice_20_zone_snap_policy_switch_proof() {
     local slice_prefix="slice-20"
     local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
@@ -3444,6 +3513,150 @@ require_slice_20_zone_snap_policy_switch_proof() {
         "Slice 20 release caption must be visible before the positive drag has fully completed"
     assert_numeric_le "$cycle_caption_start" "$(/usr/bin/awk -v cycle="$cycle_recording_start" 'BEGIN { printf "%.3f", cycle + 1.000 }')" \
         "Slice 20 cycle command caption must align with the cycle command"
+}
+
+require_slice_21_zone_mode_v2_proof() {
+    local slice_prefix="slice-21"
+    local proof="${RUN_DIR}/${slice_prefix}-zone-mode-v2-proof.txt"
+    local done="${LOGS_DIR}/${slice_prefix}-zone-mode-v2.done"
+    local setup_log="${LOGS_DIR}/${slice_prefix}-zone-mode-v2-setup.log"
+    local action_log="${LOGS_DIR}/${slice_prefix}-zone-mode-v2-action.log"
+    local state_board_log="${LOGS_DIR}/${slice_prefix}-live-state-board.log"
+    local board_freshness_log="${LOGS_DIR}/${slice_prefix}-board-freshness.log"
+    local timing_log="${LOGS_DIR}/${slice_prefix}-command-timing.log"
+    local zones_ready="${LOGS_DIR}/${slice_prefix}-zones-ready.log"
+    local zones_snap="${LOGS_DIR}/${slice_prefix}-zones-after-snap-policy.log"
+    local zones_layout="${LOGS_DIR}/${slice_prefix}-zones-after-layout-focus.log"
+    local zones_focus="${LOGS_DIR}/${slice_prefix}-zones-after-availability-focus-only.log"
+    local zones_communications="${LOGS_DIR}/${slice_prefix}-zones-after-availability-communications.log"
+    local zones_style="${LOGS_DIR}/${slice_prefix}-zones-after-style-urgent.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 21"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$state_board_log"
+    require_file "$board_freshness_log"
+    require_file "$timing_log"
+    require_file "$zones_ready"
+    require_file "$zones_snap"
+    require_file "$zones_layout"
+    require_file "$zones_focus"
+    require_file "$zones_communications"
+    require_file "$zones_style"
+    require_file "$(event_manifest_path)"
+    require_slice_21_event_manifest "$(event_manifest_path)"
+    require_slice_21_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/02-ready-zone-mode-v2-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/03-after-snap-policy-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/04-after-layout-focus-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/05-after-availability-focus-only-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/06-after-availability-communications-slice-21.png"
+    require_file "${SCREENSHOTS_DIR}/07-after-style-urgent-slice-21.png"
+
+    grep -F "PASS: Alt-Z zone mode V2 bindings expose compact keyboard controls for snap policy, layout preset, availability sets, and current-zone styling; each binding returns to main mode and produces visible/logged zone state changes without editing the config." "$proof" >/dev/null \
+        || die "Slice 21 proof does not contain the expected ergonomic zone mode PASS claim"
+    grep -F "alt-z = 'mode zone'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing Alt-Z zone mode entry"
+    grep -F "s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing S snap policy binding"
+    grep -F "tab = ['cycle-zone-layout balanced focus', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing Tab layout binding"
+    grep -F "a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing A availability binding"
+    grep -F "y = ['cycle-zone-style current urgent calm', 'mode main']" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing Y style binding"
+    grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config missing mouse zone snap table"
+    grep -F "policy = 'freeform'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 21 config should start mouse snap policy in freeform"
+
+    for chip in \
+        "Config: [mode.zone.binding] s/tab/a/y ergonomic zone mode" \
+        "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" \
+        "Action: snap policy is snap-to-zone" \
+        "Run: winmux cycle-zone-layout balanced focus" \
+        "Action: layout focus widens Work/main" \
+        "Run: winmux cycle-zone-availability focus-only communications full-dashboard" \
+        "Action: focus-only hides Reference and Comms" \
+        "Action: communications restores Comms/right" \
+        "Run: winmux cycle-zone-style current urgent calm" \
+        "Action: Work/current style urgent #D3455B"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 21 annotations missing chip: $chip"
+    done
+    [ "$(grep -F -c "Run: winmux cycle-zone-availability focus-only communications full-dashboard" "$annotation_plan" | tr -d ' ')" -ge 2 ] \
+        || die "Slice 21 annotations must show two availability-cycle command beats"
+
+    for expected in \
+        'winmux-command=cycle-zone-snap-policy freeform snap-to-zone' \
+        'winmux-command=cycle-zone-layout balanced focus' \
+        'winmux-command=cycle-zone-availability focus-only communications full-dashboard' \
+        'winmux-command=cycle-zone-style current urgent calm' \
+        "Using zone snap policy 'snap-to-zone' on monitor 1" \
+        "Using zone layout 'focus' on monitor 1" \
+        "Using zone availability 'focus-only' on monitor 1" \
+        "Using zone availability 'communications' on monitor 1" \
+        "Styled zone 'Work' on monitor 1 as 'urgent'"; do
+        grep -F "$expected" "$action_log" >/dev/null \
+            || die "Slice 21 action log missing expected line: $expected"
+    done
+    [ "$(grep -F -c 'mode-after-alt-z=zone' "$action_log" | tr -d ' ')" -ge 5 ] \
+        || die "Slice 21 action log must show Alt-Z entering zone mode for every binding"
+    [ "$(grep -F -c 'mode-after-binding=main' "$action_log" | tr -d ' ')" -ge 5 ] \
+        || die "Slice 21 action log must show every binding returning to main mode"
+
+    [ "$(zone_log_value "$zones_ready" main layout)" = balanced ] \
+        || die "Slice 21 ready zone state should start in balanced layout"
+    [ "$(zone_log_value "$zones_layout" main layout)" = focus ] \
+        || die "Slice 21 layout state should switch Work/main to focus layout"
+    awk -v before="$(zone_log_value "$zones_ready" main width)" -v after="$(zone_log_value "$zones_layout" main width)" 'BEGIN { exit(after > before ? 0 : 1) }' \
+        || die "Slice 21 Work/main width did not grow after layout focus"
+    [ "$(zone_log_value "$zones_focus" main availability)" = focus-only ] \
+        || die "Slice 21 focus-only state missing main availability id"
+    [ "$(zone_log_value "$zones_focus" main enabled)" = true ] \
+        || die "Slice 21 focus-only should keep Work/main enabled"
+    [ "$(zone_log_value "$zones_focus" left enabled)" = false ] \
+        || die "Slice 21 focus-only should hide Reference/left"
+    [ "$(zone_log_value "$zones_focus" right enabled)" = false ] \
+        || die "Slice 21 focus-only should hide Comms/right"
+    [ "$(zone_log_value "$zones_communications" main availability)" = communications ] \
+        || die "Slice 21 communications state missing main availability id"
+    [ "$(zone_log_value "$zones_communications" right enabled)" = true ] \
+        || die "Slice 21 communications should restore Comms/right"
+    [ "$(zone_log_value "$zones_communications" left enabled)" = false ] \
+        || die "Slice 21 communications should leave Reference/left hidden"
+    [ "$(zone_log_value "$zones_style" main style)" = urgent ] \
+        || die "Slice 21 style state should mark Work/main urgent"
+    [ "$(zone_log_value "$zones_style" main color)" = '#D3455B' ] \
+        || die "Slice 21 style state should mark Work/main #D3455B"
+
+    for timing_key in \
+        snap-policy-command-start-offset-seconds \
+        layout-cycle-command-start-offset-seconds \
+        availability-focus-only-command-start-offset-seconds \
+        availability-communications-command-start-offset-seconds \
+        style-cycle-command-start-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 21 timing log missing $timing_key"
+    done
+
+    for checkpoint in \
+        ready-zone-mode-v2 \
+        after-snap-policy \
+        after-layout-focus \
+        after-availability-focus-only \
+        after-availability-communications \
+        after-style-urgent; do
+        grep -F "checkpoint=${checkpoint}|" "$state_board_log" >/dev/null \
+            || die "Slice 21 state board missing checkpoint $checkpoint"
+        grep -F "checkpoint=${checkpoint}|" "$board_freshness_log" >/dev/null \
+            || die "Slice 21 board freshness missing checkpoint $checkpoint"
+    done
 }
 
 require_slice_13_zone_mode_bindings_proof() {
@@ -4469,6 +4682,9 @@ case "$recording_name" in
         ;;
     slice-20-zone-snap-policy-switch)
         require_slice_20_zone_snap_policy_switch_proof
+        ;;
+    slice-21-zone-mode-v2)
+        require_slice_21_zone_mode_v2_proof
         ;;
 esac
 

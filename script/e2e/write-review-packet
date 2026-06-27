@@ -283,6 +283,20 @@ EOF
 - Reject logs-only proof, final-state-only proof, a modifier-held positive drag, missing runtime set/cycle commands, unclear snap target, missing overlay/no-overlay proof, or any proof that implies snap-to-window/slot behavior.
 EOF
             ;;
+        slice-21-zone-mode-v2)
+            cat <<'EOF'
+- Confirm the recording starts with a clean Work/main proof board and visible Reference, Work, and Comms zones before any zone-mode V2 binding runs.
+- Confirm the caption/config surface exposes `[mode.main.binding] alt-z = 'mode zone'` plus the exact zone-mode keys `s`, `tab`, `a`, and `y`.
+- Sample the named semantic frames and caption boundaries for `ready-zone-mode-v2`, `snap-policy-command-start`, `after-snap-policy`, `layout-cycle-command-start`, `after-layout-focus`, `availability-focus-only-command-start`, `after-availability-focus-only`, `availability-communications-command-start`, `after-availability-communications`, `style-cycle-command-start`, and `after-style-urgent`.
+- Confirm the action log proves real binding dispatch via `winmux trigger-binding --mode main alt-z` followed by `winmux trigger-binding --mode zone <key>`, and that each binding returns to main mode.
+- Confirm `Alt-Z, S` exposes and runs `winmux cycle-zone-snap-policy freeform snap-to-zone`; reject if the proof implies a config rewrite or a mouse drag proof.
+- Confirm `Alt-Z, Tab` exposes and runs `winmux cycle-zone-layout balanced focus`, and that the Work/main zone visibly/logically widens with layout id `focus`.
+- Confirm the two `Alt-Z, A` beats expose and run `winmux cycle-zone-availability focus-only communications full-dashboard`: first focus-only hides Reference and Comms, then communications restores Comms/right while Reference remains hidden.
+- Confirm `Alt-Z, Y` exposes and runs `winmux cycle-zone-style current urgent calm`, and that the current Work/main zone reports urgent `#D3455B`.
+- Inspect `logs/slice-21-zone-mode-v2.event-manifest.tsv`; reject if it omits separate command-start and result events for snap policy, layout, both availability beats, and style.
+- Reject logs-only proof, final-state-only proof, missing user-facing command captions, unreadable board text, missing event/sample manifest rows, or any claim that Slice 21 proves drag snapping, persistence, or relaunch behavior.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.

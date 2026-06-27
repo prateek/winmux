@@ -71,6 +71,9 @@ fi
 if [ "$ACTION" = "slice-20" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-snap-policy-switching.toml"
 fi
+if [ "$ACTION" = "slice-21" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-mode-v2.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -121,7 +124,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20>
+Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -1252,6 +1255,78 @@ write_timed_slice_20_annotation_plan() {
     ' >"$captions_path"
 }
 
+write_static_slice_21_annotation_plan() {
+    local captions_path="$1"
+    cat >"$captions_path" <<'CAPTIONS'
+0	7	Zone mode V2 ready	Alt-Z enters zone mode; S, Tab, A, and Y are bound to compact zone controls.	Config: [mode.zone.binding] s/tab/a/y ergonomic zone mode
+7	15	Snap policy key	Alt-Z, S cycles the runtime mouse snap policy without a config rewrite.	Run: winmux cycle-zone-snap-policy freeform snap-to-zone
+15	22	Snap policy result	The board shows snap-to-zone as command output while zone geometry stays stable.	Action: snap policy is snap-to-zone
+22	31	Layout key	Alt-Z, Tab cycles the physical monitor from balanced to focus layout.	Run: winmux cycle-zone-layout balanced focus
+31	39	Layout result	Work/main widens while Reference and Comms remain named zones.	Action: layout focus widens Work/main
+39	48	Focus-only key	Alt-Z, A applies the focus-only availability set.	Run: winmux cycle-zone-availability focus-only communications full-dashboard
+48	55	Focus-only result	Only Work/main remains available for deep work.	Action: focus-only hides Reference and Comms
+55	64	Communications key	Alt-Z, A again moves to the communications availability set.	Run: winmux cycle-zone-availability focus-only communications full-dashboard
+64	71	Communications result	Comms/right returns while Reference stays hidden.	Action: communications restores Comms/right
+71	80	Style key	Alt-Z, Y styles the current Work zone with the urgent token.	Run: winmux cycle-zone-style current urgent calm
+80	90	Style result	The current zone chrome reports urgent red without moving windows.	Action: Work/current style urgent #D3455B
+CAPTIONS
+}
+
+write_timed_slice_21_annotation_plan() {
+    local captions_path="$1"
+    local timing_log="${LOGS_DIR}/slice-21-command-timing.log"
+    if [ ! -s "$timing_log" ]; then
+        write_static_slice_21_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    local snap_start layout_start focus_only_start communications_start style_start
+    snap_start="$(timing_value_from_log snap-policy-command-start-offset-seconds "$timing_log")"
+    layout_start="$(timing_value_from_log layout-cycle-command-start-offset-seconds "$timing_log")"
+    focus_only_start="$(timing_value_from_log availability-focus-only-command-start-offset-seconds "$timing_log")"
+    communications_start="$(timing_value_from_log availability-communications-command-start-offset-seconds "$timing_log")"
+    style_start="$(timing_value_from_log style-cycle-command-start-offset-seconds "$timing_log")"
+    if [ -z "$snap_start" ] || [ -z "$layout_start" ] || [ -z "$focus_only_start" ] || [ -z "$communications_start" ] || [ -z "$style_start" ]; then
+        write_static_slice_21_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    /usr/bin/awk \
+        -v snap_start="$snap_start" \
+        -v layout_start="$layout_start" \
+        -v focus_only_start="$focus_only_start" \
+        -v communications_start="$communications_start" \
+        -v style_start="$style_start" '
+        function max(a, b) { return a > b ? a : b }
+        function midpoint(a, b) { return a + ((b - a) / 2) }
+        function emit(start, end, title, body, chip) {
+            if (end <= start) {
+                end = start + 1
+            }
+            printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+        }
+        BEGIN {
+            ready_end = max(4, snap_start)
+            snap_result_start = midpoint(snap_start, layout_start)
+            layout_result_start = midpoint(layout_start, focus_only_start)
+            focus_result_start = midpoint(focus_only_start, communications_start)
+            communications_result_start = midpoint(communications_start, style_start)
+
+            emit(0, ready_end, "Zone mode V2 ready", "Alt-Z enters zone mode; S, Tab, A, and Y are bound to compact zone controls.", "Config: [mode.zone.binding] s/tab/a/y ergonomic zone mode")
+            emit(snap_start, snap_result_start, "Snap policy key", "Alt-Z, S cycles the runtime mouse snap policy without a config rewrite.", "Run: winmux cycle-zone-snap-policy freeform snap-to-zone")
+            emit(snap_result_start, layout_start, "Snap policy result", "The board shows snap-to-zone as command output while zone geometry stays stable.", "Action: snap policy is snap-to-zone")
+            emit(layout_start, layout_result_start, "Layout key", "Alt-Z, Tab cycles the physical monitor from balanced to focus layout.", "Run: winmux cycle-zone-layout balanced focus")
+            emit(layout_result_start, focus_only_start, "Layout result", "Work/main widens while Reference and Comms remain named zones.", "Action: layout focus widens Work/main")
+            emit(focus_only_start, focus_result_start, "Focus-only key", "Alt-Z, A applies the focus-only availability set.", "Run: winmux cycle-zone-availability focus-only communications full-dashboard")
+            emit(focus_result_start, communications_start, "Focus-only result", "Only Work/main remains available for deep work.", "Action: focus-only hides Reference and Comms")
+            emit(communications_start, communications_result_start, "Communications key", "Alt-Z, A again moves to the communications availability set.", "Run: winmux cycle-zone-availability focus-only communications full-dashboard")
+            emit(communications_result_start, style_start, "Communications result", "Comms/right returns while Reference stays hidden.", "Action: communications restores Comms/right")
+            emit(style_start, style_start + 7, "Style key", "Alt-Z, Y styles the current Work zone with the urgent token.", "Run: winmux cycle-zone-style current urgent calm")
+            emit(style_start + 7, style_start + 16, "Style result", "The current zone chrome reports urgent red without moving windows.", "Action: Work/current style urgent #D3455B")
+        }
+    ' >"$captions_path"
+}
+
 caption_label_for_chip() {
     local name="$1"
     local chip="$2"
@@ -1462,11 +1537,79 @@ write_slice_20_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_21_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label snap_label snap_result_label layout_label layout_result_label focus_label focus_result_label communications_label communications_result_label style_label style_result_label
+    config_label="$(caption_label_for_chip "$name" "Config: [mode.zone.binding] s/tab/a/y ergonomic zone mode")"
+    snap_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone")"
+    snap_result_label="$(caption_label_for_chip "$name" "Action: snap policy is snap-to-zone")"
+    layout_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-layout balanced focus")"
+    layout_result_label="$(caption_label_for_chip "$name" "Action: layout focus widens Work/main")"
+    focus_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-availability focus-only communications full-dashboard")"
+    focus_result_label="$(caption_label_for_chip "$name" "Action: focus-only hides Reference and Comms")"
+    communications_label="$(last_caption_label_for_chip "$name" "Run: winmux cycle-zone-availability focus-only communications full-dashboard")"
+    communications_result_label="$(caption_label_for_chip "$name" "Action: communications restores Comms/right")"
+    style_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-style current urgent calm")"
+    style_result_label="$(caption_label_for_chip "$name" "Action: Work/current style urgent #D3455B")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" ready-zone-mode-v2 \
+        "screenshots/02-ready-zone-mode-v2-slice-21.png" \
+        "config and keymap chips are visible before the binding sequence"
+    append_event_manifest_row "$manifest_path" snap-policy-command-start command \
+        "$(caption_start_for_label "$name" "$snap_label")" "$snap_label" snap-policy-command-start \
+        "screenshots/${name}.samples/${snap_label}-boundary-start.png" \
+        "Alt-Z S command caption starts before snap policy result"
+    append_event_manifest_row "$manifest_path" snap-policy-result state \
+        "$(caption_start_for_label "$name" "$snap_result_label")" "$snap_result_label" after-snap-policy \
+        "screenshots/03-after-snap-policy-slice-21.png" \
+        "runtime snap policy result is visible on the board"
+    append_event_manifest_row "$manifest_path" layout-cycle-command-start command \
+        "$(caption_start_for_label "$name" "$layout_label")" "$layout_label" layout-cycle-command-start \
+        "screenshots/${name}.samples/${layout_label}-boundary-start.png" \
+        "Alt-Z Tab command caption starts before layout result"
+    append_event_manifest_row "$manifest_path" layout-focus-result state \
+        "$(caption_start_for_label "$name" "$layout_result_label")" "$layout_result_label" after-layout-focus \
+        "screenshots/04-after-layout-focus-slice-21.png" \
+        "Work/main is wider and layout id is focus"
+    append_event_manifest_row "$manifest_path" availability-focus-only-command-start command \
+        "$(caption_start_for_label "$name" "$focus_label")" "$focus_label" availability-focus-only-command-start \
+        "screenshots/${name}.samples/${focus_label}-boundary-start.png" \
+        "first Alt-Z A command caption starts before focus-only result"
+    append_event_manifest_row "$manifest_path" availability-focus-only-result state \
+        "$(caption_start_for_label "$name" "$focus_result_label")" "$focus_result_label" after-availability-focus-only \
+        "screenshots/05-after-availability-focus-only-slice-21.png" \
+        "focus-only hides Reference and Comms while keeping Work/main"
+    append_event_manifest_row "$manifest_path" availability-communications-command-start command \
+        "$(caption_start_for_label "$name" "$communications_label")" "$communications_label" availability-communications-command-start \
+        "screenshots/${name}.samples/${communications_label}-boundary-start.png" \
+        "second Alt-Z A command caption starts before communications result"
+    append_event_manifest_row "$manifest_path" availability-communications-result state \
+        "$(caption_start_for_label "$name" "$communications_result_label")" "$communications_result_label" after-availability-communications \
+        "screenshots/06-after-availability-communications-slice-21.png" \
+        "communications restores Comms/right while Reference remains hidden"
+    append_event_manifest_row "$manifest_path" style-cycle-command-start command \
+        "$(caption_start_for_label "$name" "$style_label")" "$style_label" style-cycle-command-start \
+        "screenshots/${name}.samples/${style_label}-boundary-start.png" \
+        "Alt-Z Y command caption starts before urgent style result"
+    append_event_manifest_row "$manifest_path" style-urgent-result state \
+        "$(caption_start_for_label "$name" "$style_result_label")" "$style_result_label" after-style-urgent \
+        "screenshots/07-after-style-urgent-slice-21.png" \
+        "current Work/main zone style is urgent #D3455B"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
         slice-20-zone-snap-policy-switch)
             write_slice_20_event_manifest "$name"
+            ;;
+        slice-21-zone-mode-v2)
+            write_slice_21_event_manifest "$name"
             ;;
         *)
             ;;
@@ -1578,6 +1721,9 @@ CAPTIONS
             ;;
         slice-20-zone-snap-policy-switch)
             write_timed_slice_20_annotation_plan "$captions_path"
+            ;;
+        slice-21-zone-mode-v2)
+            write_timed_slice_21_annotation_plan "$captions_path"
             ;;
         slice-10-zone-availability)
             cat >"$captions_path" <<'CAPTIONS'
@@ -1776,17 +1922,20 @@ annotation_preflight() {
         slice-17-node-binding-guardrails \
         slice-18-zone-affinity-routing \
         slice-19-zone-style-cycle \
-        slice-20-zone-snap-policy-switch
+        slice-20-zone-snap-policy-switch \
+        slice-21-zone-mode-v2
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
-        if [ "$name" = "slice-20-zone-snap-policy-switch" ]; then
-            write_event_manifest "$name"
-            [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
-                || die "Annotation preflight did not produce the Slice 20 event manifest"
-        fi
+        case "$name" in
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2)
+                write_event_manifest "$name"
+                [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
+                    || die "Annotation preflight did not produce the required event manifest for ${name}"
+                ;;
+        esac
         awk -F '\t' '
             $0 == "" || $1 ~ /^#/ { next }
             length($5) > 100 {
@@ -2026,6 +2175,54 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic cycle-policy-command-start "$cycle_caption_label" "$cycle_caption_start" \
                 "screenshots/${name}.samples/${cycle_caption_label}-boundary-start.png" \
                 "cycle-zone-snap-policy command appears after final placement"
+            ;;
+        slice-21-zone-mode-v2)
+            local snap_caption_label layout_caption_label focus_caption_label communications_caption_label style_caption_label
+            local snap_caption_start layout_caption_start focus_caption_start communications_caption_start style_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            snap_caption_label="$(event_manifest_field "$event_manifest" snap-policy-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" || printf 'caption-02\n')"
+            snap_caption_start="$(event_manifest_field "$event_manifest" snap-policy-command-start seconds || caption_start_for_label "$name" "$snap_caption_label" || printf 'caption-boundary-start\n')"
+            layout_caption_label="$(event_manifest_field "$event_manifest" layout-cycle-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-layout balanced focus" || printf 'caption-04\n')"
+            layout_caption_start="$(event_manifest_field "$event_manifest" layout-cycle-command-start seconds || caption_start_for_label "$name" "$layout_caption_label" || printf 'caption-boundary-start\n')"
+            focus_caption_label="$(event_manifest_field "$event_manifest" availability-focus-only-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-availability focus-only communications full-dashboard" || printf 'caption-06\n')"
+            focus_caption_start="$(event_manifest_field "$event_manifest" availability-focus-only-command-start seconds || caption_start_for_label "$name" "$focus_caption_label" || printf 'caption-boundary-start\n')"
+            communications_caption_label="$(event_manifest_field "$event_manifest" availability-communications-command-start caption-label || last_caption_label_for_chip "$name" "Run: winmux cycle-zone-availability focus-only communications full-dashboard" || printf 'caption-08\n')"
+            communications_caption_start="$(event_manifest_field "$event_manifest" availability-communications-command-start seconds || caption_start_for_label "$name" "$communications_caption_label" || printf 'caption-boundary-start\n')"
+            style_caption_label="$(event_manifest_field "$event_manifest" style-cycle-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-style current urgent calm" || printf 'caption-10\n')"
+            style_caption_start="$(event_manifest_field "$event_manifest" style-cycle-command-start seconds || caption_start_for_label "$name" "$style_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic ready-zone-mode-v2 screenshot screenshot \
+                "screenshots/02-ready-zone-mode-v2-slice-21.png" \
+                "state board shows Alt-Z zone mode V2 keymap before the binding sequence"
+            append_sample_manifest_row "$manifest_path" semantic snap-policy-command-start "$snap_caption_label" "$snap_caption_start" \
+                "screenshots/${name}.samples/${snap_caption_label}-boundary-start.png" \
+                "Alt-Z S command caption starts before snap policy result"
+            append_sample_manifest_row "$manifest_path" semantic after-snap-policy screenshot screenshot \
+                "screenshots/03-after-snap-policy-slice-21.png" \
+                "board reports snap-to-zone runtime policy after Alt-Z S"
+            append_sample_manifest_row "$manifest_path" semantic layout-cycle-command-start "$layout_caption_label" "$layout_caption_start" \
+                "screenshots/${name}.samples/${layout_caption_label}-boundary-start.png" \
+                "Alt-Z Tab command caption starts before layout focus result"
+            append_sample_manifest_row "$manifest_path" semantic after-layout-focus screenshot screenshot \
+                "screenshots/04-after-layout-focus-slice-21.png" \
+                "Work/main is wider and layout id is focus after Alt-Z Tab"
+            append_sample_manifest_row "$manifest_path" semantic availability-focus-only-command-start "$focus_caption_label" "$focus_caption_start" \
+                "screenshots/${name}.samples/${focus_caption_label}-boundary-start.png" \
+                "first Alt-Z A command caption starts before focus-only result"
+            append_sample_manifest_row "$manifest_path" semantic after-availability-focus-only screenshot screenshot \
+                "screenshots/05-after-availability-focus-only-slice-21.png" \
+                "focus-only keeps Work/main and hides Reference plus Comms"
+            append_sample_manifest_row "$manifest_path" semantic availability-communications-command-start "$communications_caption_label" "$communications_caption_start" \
+                "screenshots/${name}.samples/${communications_caption_label}-boundary-start.png" \
+                "second Alt-Z A command caption starts before communications result"
+            append_sample_manifest_row "$manifest_path" semantic after-availability-communications screenshot screenshot \
+                "screenshots/06-after-availability-communications-slice-21.png" \
+                "communications restores Comms/right while Reference remains hidden"
+            append_sample_manifest_row "$manifest_path" semantic style-cycle-command-start "$style_caption_label" "$style_caption_start" \
+                "screenshots/${name}.samples/${style_caption_label}-boundary-start.png" \
+                "Alt-Z Y command caption starts before urgent style result"
+            append_sample_manifest_row "$manifest_path" semantic after-style-urgent screenshot screenshot \
+                "screenshots/07-after-style-urgent-slice-21.png" \
+                "current Work/main zone is styled urgent red"
             ;;
         slice-13-zone-mode-bindings)
             append_sample_manifest_row "$manifest_path" semantic before-focus-next screenshot screenshot \
@@ -3529,6 +3726,38 @@ run_slice_20_zone_snap_policy_switch() {
         "${LOGS_DIR}/slice-20-run.log"
 }
 
+run_slice_21_zone_mode_v2_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-21-zone-mode-v2.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE21_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-21-setup.log"
+}
+
+run_slice_21_zone_mode_v2() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-21-zone-mode-v2.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE21_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-21-run.log"
+}
+
 run_slice_13_zone_mode_bindings_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-13-zone-mode-bindings.sh"
     local scenario_path_quoted
@@ -3796,6 +4025,10 @@ slice_20() {
     run_recorded_scenario "slice-20-zone-snap-policy-switch" "00-before-slice-20" "99-after-slice-20" "run_slice_20_zone_snap_policy_switch" "run_slice_20_zone_snap_policy_switch_setup" "01-ready-slice-20"
 }
 
+slice_21() {
+    run_recorded_scenario "slice-21-zone-mode-v2" "00-before-slice-21" "99-after-slice-21" "run_slice_21_zone_mode_v2" "run_slice_21_zone_mode_v2_setup" "01-ready-slice-21"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -3880,6 +4113,9 @@ case "$ACTION" in
         ;;
     slice-20)
         slice_20
+        ;;
+    slice-21)
+        slice_21
         ;;
     *)
         usage >&2

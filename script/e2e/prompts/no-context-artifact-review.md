@@ -270,6 +270,23 @@ Slice-specific checks:
   captions, command captions that appear after the visual change, an unclear
   overlay/no-overlay contrast, any target that looks like a window or slot
   inside a zone, or any claim about relaunch persistence or visual settings UI.
+- Slice 21 must show ergonomic zone mode V2 keyboard controls with visible
+  executions of the exact user-facing key/command pairs: `Alt-Z, S` for
+  `cycle-zone-snap-policy freeform snap-to-zone`, `Alt-Z, Tab` for
+  `cycle-zone-layout balanced focus`, two `Alt-Z, A` beats for
+  `cycle-zone-availability focus-only communications full-dashboard`, and
+  `Alt-Z, Y` for `cycle-zone-style current urgent calm`. The proof must show a
+  readable Work/main proof board before the sequence, each command caption
+  before the matching state change, each binding returning to main mode in
+  logs, Work/main widening after layout focus, focus-only hiding Reference and
+  Comms, communications restoring Comms/right while Reference remains hidden,
+  and Work/current taking urgent `#D3455B`. Inspect
+  `logs/slice-21-zone-mode-v2.event-manifest.tsv`,
+  `logs/slice-21-zone-mode-v2-action.log`, semantic samples, and the video
+  frames. Reject logs-only proof, final-state-only proof, unreadable board text,
+  missing user-facing command captions, missing event/sample manifest rows,
+  command captions that appear after visual/logged state changes, or any claim
+  that Slice 21 proves drag snapping, persistence, or relaunch behavior.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

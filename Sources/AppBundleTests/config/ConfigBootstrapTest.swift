@@ -77,6 +77,7 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(zoneBindingMap["0"], "balance-zones; mode main")
         XCTAssertEqual(zoneBindingMap["t"], "toggle-zone current; mode main")
         XCTAssertEqual(zoneBindingMap["space"], "layout floating tiling; mode main")
+        XCTAssertEqual(zoneBindingMap["s"], "cycle-zone-snap-policy freeform snap-to-zone; mode main")
     }
 
     func testEnsureBootstrapConfigCopiesLegacyConfig() throws {

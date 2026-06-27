@@ -61,6 +61,23 @@ final class ConfigTest: XCTestCase {
         XCTAssertEqual(zoneBindings["t"], "toggle-zone current; mode main")
     }
 
+    func testParseZoneModeV2E2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-mode-v2.toml"),
+            encoding: .utf8,
+        )
+        let (parsedConfig, errors) = parseConfig(toml)
+        assertEquals(errors, [])
+
+        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? [])
+        XCTAssertEqual(zoneBindings["s"], "cycle-zone-snap-policy freeform snap-to-zone; mode main")
+        XCTAssertEqual(zoneBindings["tab"], "cycle-zone-layout balanced focus; mode main")
+        XCTAssertEqual(zoneBindings["a"], "cycle-zone-availability focus-only communications full-dashboard; mode main")
+        XCTAssertEqual(zoneBindings["y"], "cycle-zone-style current urgent calm; mode main")
+    }
+
     func testConfigVersionOutOfBounds() {
         let (_, errors) = parseConfig(
             """

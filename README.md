@@ -67,13 +67,32 @@ equal = ['resize-zone current width +10%', 'mode main']
 "0" = ['balance-zones', 'mode main']
 t = ['toggle-zone current', 'mode main']
 space = ['layout floating tiling', 'mode main']
+s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
 ```
 
 Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. They also accept `current`, `next`, and `prev`, scoped to the focused physical monitor. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
 
-For repeatable setups, define layout presets and scenes:
+For repeatable setups, define layout presets, scenes, availability sets, and styles:
 
 ```toml
+[[zone-styles]]
+id = 'urgent'
+color = '#D3455B'
+
+[[zone-styles]]
+id = 'calm'
+color = '#3EA2FF'
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
 [[zone-layouts]]
 id = 'focus'
 layout = 'columns'
@@ -93,12 +112,29 @@ workspaces = [
   { zone = 'right', workspace = 'FocusNotes' },
 ]
 
+[[zone-availability-sets]]
+id = 'focus-only'
+enabled-zones = ['main']
+
+[[zone-availability-sets]]
+id = 'communications'
+enabled-zones = ['main', 'right']
+
+[[zone-availability-sets]]
+id = 'full-dashboard'
+enabled-zones = ['left', 'main', 'right']
+
 [mode.main.binding]
 alt-1 = 'use-zone-layout focus'
 alt-2 = 'use-zone-scene deep-work'
+
+[mode.zone.binding]
+tab = ['cycle-zone-layout balanced focus', 'mode main']
+a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+y = ['cycle-zone-style current urgent calm', 'mode main']
 ```
 
-Use `use-zone-layout` when you only want to resize the columns. Use `use-zone-scene` when you want to resize columns and switch each zone to a named workspace.
+Use `use-zone-layout` when you only want to resize the columns. Use `use-zone-scene` when you want to resize columns and switch each zone to a named workspace. The `tab`, `a`, and `y` zone-mode bindings require the matching `[[zone-layouts]]`, `[[zone-availability-sets]]`, and `[[zone-styles]]` entries.
 
 Window rules can route new windows into a zone by using the same command surface:
 

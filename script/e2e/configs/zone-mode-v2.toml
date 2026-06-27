@@ -1,0 +1,79 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zone-styles]]
+id = 'urgent'
+color = '#D3455B'
+
+[[zone-styles]]
+id = 'calm'
+color = '#3EA2FF'
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zone-layouts]]
+id = 'focus'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.18 },
+  { id = 'main', name = 'Work', width = 0.64 },
+  { id = 'right', name = 'Comms', width = 0.18 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[[zone-availability-sets]]
+id = 'focus-only'
+enabled-zones = ['main']
+
+[[zone-availability-sets]]
+id = 'communications'
+enabled-zones = ['main', 'right']
+
+[[zone-availability-sets]]
+id = 'full-dashboard'
+enabled-zones = ['left', 'main', 'right']
+
+[mouse.zone-snap]
+policy = 'freeform'
+modifier = 'alt'
+gesture = 'drag'
+target = 'zone'
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 260
+collapsed-width = 64
+show-date = false
+
+[mode.main.binding]
+alt-z = 'mode zone'
+
+[mode.zone.binding]
+esc = 'mode main'
+h = ['focus-zone prev', 'mode main']
+l = ['focus-zone next', 'mode main']
+shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
+shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
+minus = ['resize-zone current width -10%', 'mode main']
+equal = ['resize-zone current width +10%', 'mode main']
+"0" = ['balance-zones', 'mode main']
+t = ['toggle-zone current', 'mode main']
+space = ['layout floating tiling', 'mode main']
+s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
+tab = ['cycle-zone-layout balanced focus', 'mode main']
+a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+y = ['cycle-zone-style current urgent calm', 'mode main']

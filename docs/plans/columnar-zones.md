@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-20 accepted; Slice 21 storyboard pending
+Status: slices 0-21 accepted; Slice 22 pending pre-slice cleanup
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -3457,12 +3457,198 @@ Pre-Slice-21 cleanup from Slice 20 retrospectives:
 - [x] Update the next reviewer packet to require concrete baseline-media
   evidence from actual local media/screenshots, including
   `demo-columnar-zones.mp4` for columnar-zone demos.
-- [ ] Write the next slice storyboard, caption budget, accepted claims, and
+- [x] Write the next slice storyboard, caption budget, accepted claims, and
   explicit non-claims before recording.
 - [x] If the next slice has transitions, keep command-caption start, visible
   drag start, first affordance, release, and final placement as separate log
   fields and verifier assertions; the event-manifest contract is the required
   mechanism for this.
+
+## Slice 21: Ergonomic Zone Mode V2
+
+Goal: make the implemented zone controls discoverable from one compact keyboard
+surface instead of scattered one-off bindings. Users on an ultrawide should be
+able to enter zone mode and perform common cross-zone work without memorizing
+the full CLI.
+
+Product claim:
+
+- The starter config exposes a universal zone-mode snap-policy cycle binding
+  that toggles desktop dragging between freeform and whole-zone snapping without
+  requiring user-specific zone names.
+- The README and Slice 21 example config show the fuller ergonomic pattern when
+  the user's config defines layout presets, availability sets, and styles:
+  focus/move, resize/balance, toggle current zone, cycle layout, cycle
+  availability, cycle current-zone style, and cycle snap policy.
+- All bindings are thin wrappers over the existing commands. No new hidden
+  zone-mode semantics are introduced.
+
+Binding shape:
+
+```toml
+[mode.main.binding]
+alt-z = 'mode zone'
+
+[mode.zone.binding]
+esc = 'mode main'
+h = ['focus-zone prev', 'mode main']
+l = ['focus-zone next', 'mode main']
+shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
+shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
+minus = ['resize-zone current width -10%', 'mode main']
+equal = ['resize-zone current width +10%', 'mode main']
+"0" = ['balance-zones', 'mode main']
+t = ['toggle-zone current', 'mode main']
+space = ['layout floating tiling', 'mode main']
+s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
+tab = ['cycle-zone-layout balanced focus', 'mode main']
+a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+y = ['cycle-zone-style current urgent calm', 'mode main']
+```
+
+Implementation scope:
+
+- Add only the universal `s` snap-policy cycle binding to
+  `resources/default-config.toml` and `starterConfigText()`, because it does not
+  depend on user-defined layout, availability-set, style, or zone ids.
+- Add `zone-mode-v2.toml` as the e2e/demo config that defines the required
+  layout presets, availability sets, and style tokens for the richer bindings.
+- Update README columnar-zone examples so users see the full ergonomic pattern
+  and understand which bindings require named presets/sets/styles.
+- Add parser/bootstrap tests proving starter `s` and example `tab`/`a`/`y`/`s`
+  bindings parse to the expected commands.
+
+Storyboard and caption budget:
+
+- Start on a clean ultrawide desktop with a visible state board listing the
+  zone-mode keys and the exact command behind each key.
+- Show `Alt-Z, S`: cycle snap policy from freeform to snap-to-zone. The caption
+  must expose `cycle-zone-snap-policy freeform snap-to-zone`.
+- Show `Alt-Z, Tab`: cycle layout from balanced to focus. The caption must
+  expose `cycle-zone-layout balanced focus`.
+- Show `Alt-Z, A`: cycle availability to a named set. The caption must expose
+  `cycle-zone-availability focus-only communications full-dashboard`.
+- Show `Alt-Z, Y`: cycle the current zone style. The caption must expose
+  `cycle-zone-style current urgent calm`.
+- End with `winmux list-zones` / `winmux list-windows` inspection visible on the
+  state board. Keep captions short and do not obscure zone edges or style
+  swatches.
+
+Tart proof:
+
+- Record `slice-21-zone-mode-v2.mov` from the guest display using the
+  external-SSD-backed Tart harness.
+- Add `slice-21-zone-mode-v2.event-manifest.tsv` with command-start and
+  result-state rows for every keyboard binding beat. Mouse and transition
+  slices still require the stricter command start/end, drag
+  pickup/path/hover/release, first-affordance, and post-state inspection rows.
+- Mechanical verifier must reject missing config chips, missing event manifest,
+  missing semantic samples, stale state-board frames, hidden command surfaces,
+  or any claim that a binding worked when the target preset/set/style id was not
+  defined in config.
+- No-context artifact review must compare the video against
+  `demo-columnar-zones.mp4`, root product demos, and the product screenshots;
+  it must name exact media for each binding beat before allowing the next slice.
+- Do not proceed beyond Slice 21 until the video, mechanical verifier,
+  no-context artifact review, closeout gate, three retrospectives, accepted
+  findings, and commit are complete.
+
+Accepted claims:
+
+- starter config adds only a universal snap-policy cycle binding;
+- the richer example config demonstrates the complete ergonomic zone mode when
+  its referenced ids are defined;
+- the bindings call existing commands and preserve the existing zone entity
+  model.
+
+Non-claims:
+
+- no new keybinding engine behavior;
+- no default hardcoded layout/style/availability ids in starter config;
+- no mouse gesture recognizer beyond existing desktop drag and snap-policy
+  commands;
+- no snap-to-window, snap-to-slot, visual zone editor, or relaunch persistence.
+
+Slice 21 accepted result:
+
+- accepted artifact: `artifacts/e2e/slice-21-20260627T213416Z`;
+- recording: `recordings/slice-21-zone-mode-v2.mov`;
+- raw recording: `recordings/raw/slice-21-zone-mode-v2.raw.mov`;
+- contact sheet:
+  `screenshots/slice-21-zone-mode-v2.contact-sheet.jpg`;
+- reviewer packet: `reviews/reviewer-packet.md`;
+- no-context artifact review: `reviews/no-ctx-artifact-review.md`, ending
+  `next slice allowed: yes` and `PASS`;
+- mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-21-20260627T213416Z ARGS=--require-review`,
+  passed with a 3440x1440 H.264 recording, 91.950000s duration, and 4074
+  frames;
+- retrospectives: `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and `retrospectives/artifact-product.md`;
+- accepted event-manifest contract: keyboard-mode Slice 21 uses ordered
+  command-start and result-state events. The richer command-end/visual-change
+  wording is reserved for mouse and transition slices where a visible affordance
+  or release timing is the product behavior.
+
+Accepted claims:
+
+- the starter config adds the universal `Alt-Z, S` zone-mode binding for
+  `cycle-zone-snap-policy freeform snap-to-zone`;
+- the README and `zone-mode-v2.toml` example show the richer ergonomic zone
+  surface for layout, availability, style, and snap-policy cycling when the
+  referenced ids are defined;
+- the Slice 21 video visibly shows the user-facing `Alt-Z, S`, `Alt-Z, Tab`,
+  `Alt-Z, A`, and `Alt-Z, Y` actions, the corresponding WinMux commands, and
+  runtime state changes for snap policy, layout width, availability visibility,
+  and urgent zone styling;
+- each demonstrated binding enters zone mode through `Alt-Z`, runs the existing
+  command through `trigger-binding`, and returns to main mode.
+
+Accepted non-claims:
+
+- Slice 21 does not prove new keybinding-engine semantics;
+- Slice 21 does not add default hardcoded layout/style/availability ids to the
+  starter config;
+- Slice 21 does not prove mouse gesture recognition, drag snapping,
+  snap-to-window, snap-to-slot, a visual zone editor, persistence, or relaunch
+  routing.
+
+Failed Slice 21 attempts:
+
+- `artifacts/e2e/slice-21-20260627T212033Z` is pre-Tart-only. It contains
+  `logs/pre-tart-checks.log` and no product media, reviewer packet, or accepted
+  review.
+- `artifacts/e2e/slice-21-20260627T212108Z` is a superseded pre-recording
+  semantic setup failure. It failed before recording because the Safari-backed
+  board path did not become reliable on the fresh VM. It has no accepted media
+  or review.
+
+Pre-Slice-22 cleanup from Slice 21 retrospectives:
+
+- [x] Read all three Slice 21 retrospection reports and fold accepted findings
+  into this checklist.
+- [x] Close the Slice 21 durable plan status with accepted artifact, media,
+  review, verifier, retrospective, failed-attempt, claim, and non-claim
+  evidence.
+- [x] Reconcile the Slice 21 event-manifest contract: keyboard-mode proof uses
+  ordered command-start/result-state rows; mouse and transition proof keeps the
+  stricter command-end, affordance, release, and inspection event contract.
+- [x] Rerun `make e2e-slice-closeout-check
+  RUN_DIR=artifacts/e2e/slice-21-20260627T213416Z` after this plan update.
+- [x] Decide generated `Sources/Common/gitHashGenerated.swift` churn before the
+  Slice 21 closeout commit. The generated hash update was excluded as local
+  build noise.
+- [ ] Before the next live-board proof, stop reusing setup window logs for
+  proof-board placement or add phase-specific board/window freshness rows so
+  setup evidence cannot satisfy proof evidence.
+- [ ] Before the next keyboard-surface artifact, make the ready board list exact
+  key-to-command mappings instead of only the compact summary.
+- [ ] Before the next Slice 21-style keyboard verifier, add an ordered action-log
+  assertion that checks the exact five binding blocks instead of only required
+  substrings and counts.
+- [ ] Improve future TextEdit setup diagnostics so timeout logs show which
+  titles were missing, which titles were seen, and whether placement or window
+  existence failed.
 
 ## Call-Site Audit
 
