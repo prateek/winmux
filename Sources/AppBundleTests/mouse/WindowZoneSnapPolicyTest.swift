@@ -142,6 +142,116 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
     }
 
+    func testFloatUnlessSnapSecondaryButtonGestureIgnoresAltUntilButtonPressed() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+
+        let withoutButton = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+            pressedMouseButtons: 0,
+        )
+        guard case .suppressDefaultDestinations = withoutButton else {
+            XCTFail("Expected secondary-button gesture to ignore Alt alone")
+            return
+        }
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            modifierFlags: .maskAlternate,
+            pressedMouseButtons: 0,
+        )
+        XCTAssertTrue(didFloat)
+        XCTAssertTrue(fixture.window.isFloating)
+    }
+
+    func testFloatUnlessSnapSecondaryButtonGestureActivatesWholeZoneSnapWithoutModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            modifierFlags: [],
+            pressedMouseButtons: secondaryButtonMask,
+        )
+        XCTAssertFalse(didFloat)
+        XCTAssertFalse(fixture.window.isFloating)
+
+        let resolution = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+            pressedMouseButtons: secondaryButtonMask,
+        )
+        guard case .use(let destination) = resolution else {
+            XCTFail("Expected secondary-button gesture to activate a whole-zone snap destination")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+    }
+
+    func testSnapOnModifierRemainsModifierDrivenWhenGestureIsSecondaryButtonDrag() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapOnModifier
+        config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
+
+        let buttonOnly = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+            pressedMouseButtons: secondaryButtonMask,
+        )
+        guard case .suppressDefaultDestinations = buttonOnly else {
+            XCTFail("Expected snap-on-modifier to ignore secondary button alone")
+            return
+        }
+
+        let altOnly = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: .maskAlternate,
+            pressedMouseButtons: 0,
+        )
+        guard case .use(let destination) = altOnly else {
+            XCTFail("Expected snap-on-modifier to remain driven by the configured modifier")
+            return
+        }
+        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+    }
+
     func testFloatUnlessSnapNoModifierFloatsTilingWindowInTargetZoneWorkspace() {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap

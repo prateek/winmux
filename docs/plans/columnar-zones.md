@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-23 accepted; Slice 24 pending implementation
+Status: slices 0-24 accepted; Slice 25 pre-slice cleanup pending
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -3941,17 +3941,140 @@ Pre-Slice-24 cleanup from Slice 23 retrospectives:
 
 Deferred hardening before the next mouse-drag proof slice:
 
-- Add a cheap guest/JXA mouse-event writer self-test that proves newline
+- [x] Add a cheap guest/JXA mouse-event writer self-test that proves newline
   emission, shell quoting, `/usr/bin/printf`, and branch-specific event ids
   such as `snap-drag-start` before a full Tart recording starts.
-- Add local verifier fixtures for missing `snap-drag-start`, literal `n`
+- [x] Add local verifier fixtures for missing `snap-drag-start`, literal `n`
   separators, concatenated mouse-event rows, duplicate event ids, and missing
   first-affordance rows.
-- Continue reducing Slice 22/23 mouse-snap duplication by moving event
+- [x] Continue reducing Slice 22/23 mouse-snap duplication by moving event
   generation, sample labels, and ordering checks behind the table-driven
   `script/e2e/specs/mouse-drag-events.tsv` seam.
-- Make generic `require_float_unless_snap_proof` diagnostics use the caller's
+- [x] Make generic `require_float_unless_snap_proof` diagnostics use the caller's
   slice label consistently.
+
+## Slice 24: Secondary-Button Mouse Snap Gesture
+
+Goal: make the one-handed mouse path explicit and configurable. With
+`[mouse.zone-snap] policy = 'float-unless-snap'`,
+`gesture = 'secondary-button-drag'`, and `target = 'zone'`, an ordinary drag
+keeps the window in floating/freeform mode. Holding the secondary mouse button
+while dragging activates whole-zone snapping.
+
+User-facing behavior:
+
+- Config:
+  `policy = 'float-unless-snap'`, `modifier = 'alt'`,
+  `gesture = 'secondary-button-drag'`, `target = 'zone'`.
+- Ordinary left-drag of `snap-demo.rtf` moves it freely into Comms/right,
+  leaves it floating, and does not show the snap overlay.
+- Reset returns the same window to Work/main tiling.
+- Secondary-button-held drag of the same window shows the whole Comms zone
+  affordance, with the product label `Whole zone: Comms`, and drops the window
+  into Comms/right on release.
+- This slice proves whole-zone snap semantics only. It does not claim
+  snap-to-window, snap-to-slot, a gesture editor, or persistence beyond the
+  copied config used by the artifact.
+
+Implementation scope:
+
+- Add `secondary-button-drag` to the mouse zone-snap gesture vocabulary.
+- Read the current mouse-button state at drag decision points and route it
+  through the existing zone-snap policy resolver.
+- Keep `snap-on-modifier` modifier-driven even if a config also names the
+  secondary-button gesture.
+- Add the Slice 24 E2E config, recording action, annotation plan, event
+  manifest, verifier proof, review-packet entry, and strict review prompt.
+
+Pre-Tart evidence:
+
+- `bash -n` and `shellcheck` passed for the touched e2e scripts.
+- `./script/e2e/verify-artifact --self-test` passed, including malformed
+  mouse-event fixtures.
+- The guest mouse-event writer self-test passed and emitted
+  `snap-drag-start`, `snap-first-affordance`, and `snap-release`.
+- Focused Swift coverage passed:
+  `swift test --filter 'ConfigTest.testParseSecondaryButtonDragMouseZoneSnapGesture|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|WindowZoneSnapPolicyTest'`.
+- Full pre-Tart gate passed:
+  `WINMUX_E2E_ALLOW_INTERNAL_DISK=1 WINMUX_E2E_MIN_FREE_GB=0 TART_HOME=/tmp/winmux-tart make e2e-pre-tart-checks`.
+- Backward compatibility gate passed:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-23-20260628T052231Z ARGS=--require-review`.
+
+Acceptance gate:
+
+- Run `TART_HOME=/Volumes/RiftTartVMs/tart make e2e-slice-24`.
+- The artifact must include a video and event contact sheet that visibly show
+  both the ordinary drag and the secondary-button snap drag.
+- The video must expose the relevant WinMux config/actions on screen, including
+  the secondary-button gesture and whole-zone target.
+- A no-context artifact reviewer must inspect the recording, contact sheets,
+  event manifest, proof manifest, and baseline visual artifacts before the next
+  slice starts. Logs-only or final-state-only review is not accepted.
+- Closeout must pass with `--require-review`, the slice closeout gate, and all
+  three post-slice retrospectives folded into the next pre-slice cleanup.
+
+Accepted result:
+
+- Artifact: `artifacts/e2e/slice-24-20260628T061218Z`.
+- Recording: `recordings/slice-24-secondary-button-snap.mov`.
+- Raw guest recording:
+  `recordings/raw/slice-24-secondary-button-snap.raw.mov`.
+- Contact sheets:
+  `screenshots/slice-24-secondary-button-snap.contact-sheet.jpg` and
+  `screenshots/slice-24-secondary-button-snap.event-contact-sheet.jpg`.
+- Product-label proof frame:
+  `screenshots/07-snap-hover-comms-slice-24.png`; the product overlay reads
+  `Whole zone: Comms` and targets the whole Comms zone.
+- Mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-24-20260628T061218Z ARGS=--require-review`
+  passed.
+- Closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-24-20260628T061218Z`
+  passed with all three retrospectives present.
+- No-context artifact review:
+  `reviews/no-ctx-artifact-review.md` verdict `PASS`; it includes
+  `NO ACTIONABLE ISSUES` and final gate line `next slice allowed: yes`.
+- Retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- Focused implementation checks:
+  `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`,
+  guest mouse-event writer self-test, focused Swift coverage for
+  secondary-button parsing/policy behavior, the full pre-Tart gate's selected
+  147-test suite, and the Slice 23 backward-compatibility verifier passed.
+
+Pre-Slice-25 cleanup from Slice 24 retrospectives:
+
+- [ ] Start Slice 25 from an explicit checkpoint or clean worktree; do not mix
+  new slice work with the accepted Slice 24 diff.
+- [ ] Define the reviewer packet, event-manifest beats, and required
+  before/action/after media before the next Tart run.
+- [ ] Add a machine-checkable no-context declaration to future artifact reviews
+  or reviewer packets, while keeping retrospectives read-only unless the
+  coordinator explicitly asks for repair.
+- [ ] Add verifier-required input-state evidence for mouse gesture proofs, such
+  as raw right-button down/up rows or app-side `pressedMouseButtons` proof tied
+  to `snap-drag-start`, `snap-first-affordance`, and `snap-release`.
+- [ ] Refactor the shared mouse-drag proof path toward a data-driven spec for
+  activation input, expected negative result, expected positive result,
+  captions, samples, verifier checks, and review-packet bullets.
+- [ ] Replace more long exact verifier prose matches with structured
+  config/proof/event manifest assertions, and clean up stale Slice 22 wording in
+  shared diagnostics.
+- [ ] Make product-label overlay sentinel generation fail closed for slices
+  that require a product overlay label.
+- [ ] For future drag/product-demo slices, make the summary contact sheet show
+  the first visible product affordance, release, and final placement.
+- [ ] Add a viewer-visible mouse/input-state cue and, where needed, zoomed
+  proof crops or insets so a new viewer can follow the gesture without reading
+  logs.
+- [ ] Add compact command-result chips for `Run:` captions when command output
+  is not visible in the recording.
+- [ ] Keep the full acceptance recording, but produce a trimmed annotated demo
+  cut when the verification tail is long.
+- [ ] Add a reviewer-prompt check for whether the annotated video is
+  understandable without logs.
 
 ## Call-Site Audit
 

@@ -40,3 +40,15 @@ slice-23	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-com
 slice-23	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay and product label remain visible before release	snap-first-affordance
 slice-23	snap-release	drag	mouse-caption-start	release	snap-release	sample-start	-	release caption while the whole-zone product label is still visible	snap-first-affordance
 slice-23	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after Alt-held snap	snap-release
+slice-24	config-ready	context	caption-start	config	caption-01	sample-start	-	float-unless-snap secondary-button-drag config chip is visible before any drag	-
+slice-24	float-drag-start	drag	mouse-caption-start	freeform	freeform-pickup	screenshot	02-freeform-pickup-{slice}.png	source pickup under float-unless-snap with no secondary button	config-ready
+slice-24	float-drag-hover	drag	mouse-caption-start+1.000	freeform	freeform-hover-no-overlay	screenshot	03-freeform-hover-no-overlay-{slice}.png	no-secondary-button hover has no whole-zone snap overlay or product snap label	float-drag-start
+slice-24	float-drag-release	drag	mouse-caption-end	freeform	-	none	-	ordinary drag completes as floating/freeform placement	float-drag-hover
+slice-24	float-post-state	inspection	mouse-caption-start	float-result	float-final-placement	sample-start	-	post-freeform inspection shows layout=floating and Comms/right	float-drag-release
+slice-24	reset-before-snap	preparation	mouse-caption-start	reset	reset-before-snap	screenshot	04-reset-before-snap-{slice}.png	same source window reset to Work/main tiling before secondary-button drag	float-post-state
+slice-24	snap-drag-start	drag	mouse-caption-start	snap	snap-pickup	screenshot	05-snap-pickup-{slice}.png	secondary-button pickup starts the whole-zone snap branch	reset-before-snap
+slice-24	snap-drag-path	drag	mouse-caption-start+1.000	snap	snap-path	screenshot	06-snap-path-{slice}.png	secondary-button snap path toward Comms	snap-drag-start
+slice-24	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	first visible product label names the whole Comms zone target	snap-drag-path
+slice-24	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay and product label remain visible before release	snap-first-affordance
+slice-24	snap-release	drag	mouse-caption-start	release	snap-release	sample-start	-	release caption while the secondary-button whole-zone target is still visible	snap-first-affordance
+slice-24	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after secondary-button snap	snap-release

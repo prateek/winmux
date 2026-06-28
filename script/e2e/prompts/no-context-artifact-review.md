@@ -343,6 +343,26 @@ Slice-specific checks:
   harness-added label is not enough to pass Slice 23. Reject any review that
   accepts logs, proof-manifest text, captions, or harness crops without naming
   the actual product-overlay media where `Whole zone: Comms` is visible.
+- Slice 24 must show the secondary-button mouse gesture path with two separate
+  desktop drags of `snap-demo.rtf`: first an ordinary drag under config
+  `policy = 'float-unless-snap'` and `gesture = 'secondary-button-drag'`, then
+  after reset a drag with the secondary mouse button held. The ordinary drag
+  must visibly pick up and move the source over Comms with no whole-zone snap
+  overlay, and the logs must show the same source id as `zone=right`,
+  `layout=floating`, and `freeform-result=floating-no-snap`. The reset beat must
+  return the same window to Work/main before the gesture branch. The
+  secondary-button branch must show source pickup, pointer/path, the product
+  whole-zone overlay labeled `Whole zone: Comms`, release, and final placement
+  in Comms/right. Inspect `logs/slice-24-secondary-button-snap.event-manifest.tsv`,
+  `logs/slice-24-secondary-button-snap.proof-manifest.tsv`,
+  `screenshots/07-snap-hover-comms-slice-24.png`, the event contact sheet,
+  semantic samples, and the video frames. Confirm captions expose
+  `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'`,
+  `Action: drag snap-demo.rtf with no secondary button`, and
+  `Action: hold secondary button while dragging snap-demo.rtf`. Reject proof
+  that uses Alt as the positive activation, accepts logs without media, lacks
+  drag affordances, starts the second drag from an already-floating source, or
+  implies snap-to-window/slot behavior.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

@@ -60,7 +60,7 @@ private func moveTilingWindow(_ window: Window) {
         targetWorkspace: targetWorkspace,
         subject: subject,
         anchorRect: anchorRect,
-        modifierFlags: currentSessionModifierFlags(),
+        inputState: currentZoneSnapInputState(),
         beginSession: beginWindowMoveWithMouseSessionIfNeeded,
         startMove: WindowMouseInteractionDriver.shared.startMove,
     )
@@ -88,7 +88,7 @@ func moveTilingWindowForMouseDrag(
     targetWorkspace: Workspace,
     subject: WindowDragSubject,
     anchorRect: Rect?,
-    modifierFlags: CGEventFlags,
+    inputState: ZoneSnapInputState,
     beginSession: BeginWindowMoveWithMouseSessionHandler,
     startMove: StartWindowMoveWithMouseHandler,
 ) {
@@ -96,7 +96,7 @@ func moveTilingWindowForMouseDrag(
         window: window,
         targetWorkspace: targetWorkspace,
         subject: subject,
-        modifierFlags: modifierFlags,
+        inputState: inputState,
     ) {
         window.lastAppliedLayoutPhysicalRect = nil
         _ = beginSession(window.windowId, subject, .window, false, anchorRect, false)
@@ -116,7 +116,7 @@ func floatTilingWindowForMouseDragIfNeeded(
     window: Window,
     targetWorkspace: Workspace,
     subject: WindowDragSubject,
-    modifierFlags: CGEventFlags,
+    inputState: ZoneSnapInputState,
 ) -> Bool {
     guard subject == .window,
           window.parent is TilingContainer
@@ -124,14 +124,58 @@ func floatTilingWindowForMouseDragIfNeeded(
 
     let snapConfig = effectiveZoneSnapConfig(for: targetWorkspace.workspaceMonitor)
     guard snapConfig.policy == .floatUnlessSnap,
-          snapConfig.gesture == .drag,
           snapConfig.target == .zone,
           targetWorkspace.workspaceMonitor.zoneId != nil,
-          !zoneSnapModifierIsPressed(snapConfig.modifier, in: modifierFlags)
+          !zoneSnapActivationInputIsPressed(snapConfig, inputState: inputState)
     else { return false }
 
     window.bindAsFloatingWindow(to: targetWorkspace)
     return true
+}
+
+@MainActor
+@discardableResult
+func floatTilingWindowForMouseDragIfNeeded(
+    window: Window,
+    targetWorkspace: Workspace,
+    subject: WindowDragSubject,
+    modifierFlags: CGEventFlags,
+    pressedMouseButtons: Int = 0,
+) -> Bool {
+    floatTilingWindowForMouseDragIfNeeded(
+        window: window,
+        targetWorkspace: targetWorkspace,
+        subject: subject,
+        inputState: ZoneSnapInputState(
+            modifierFlags: modifierFlags,
+            pressedMouseButtons: pressedMouseButtons,
+        ),
+    )
+}
+
+@MainActor
+func moveTilingWindowForMouseDrag(
+    window: Window,
+    targetWorkspace: Workspace,
+    subject: WindowDragSubject,
+    anchorRect: Rect?,
+    modifierFlags: CGEventFlags,
+    pressedMouseButtons: Int = 0,
+    beginSession: BeginWindowMoveWithMouseSessionHandler,
+    startMove: StartWindowMoveWithMouseHandler,
+) {
+    moveTilingWindowForMouseDrag(
+        window: window,
+        targetWorkspace: targetWorkspace,
+        subject: subject,
+        anchorRect: anchorRect,
+        inputState: ZoneSnapInputState(
+            modifierFlags: modifierFlags,
+            pressedMouseButtons: pressedMouseButtons,
+        ),
+        beginSession: beginSession,
+        startMove: startMove,
+    )
 }
 
 @MainActor

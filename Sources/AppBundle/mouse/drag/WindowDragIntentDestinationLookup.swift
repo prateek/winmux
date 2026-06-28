@@ -18,6 +18,7 @@ func currentWindowDragIntentDestination(
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
     let targetMonitor = targetWorkspace.workspaceMonitor
     let sourceWorkspace = sourceNode.nodeWorkspace
+    let inputState = currentZoneSnapInputState()
     switch zoneSnapDestinationResolution(
         sourceWindow: sourceWindow,
         targetMonitor: targetMonitor,
@@ -26,7 +27,8 @@ func currentWindowDragIntentDestination(
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
-        modifierFlags: currentSessionModifierFlags(),
+        modifierFlags: inputState.modifierFlags,
+        pressedMouseButtons: inputState.pressedMouseButtons,
     ) {
         case .use(let destination):
             return destination

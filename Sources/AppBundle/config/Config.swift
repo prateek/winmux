@@ -100,6 +100,7 @@ enum ZoneSnapPolicy: String, CaseIterable, Equatable, Sendable {
 
 enum ZoneSnapGesture: String, CaseIterable, Equatable, Sendable {
     case drag
+    case secondaryButtonDrag = "secondary-button-drag"
 }
 
 enum ZoneSnapTarget: String, CaseIterable, Equatable, Sendable {

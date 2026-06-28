@@ -16,17 +16,21 @@ func zoneSnapDestinationResolution(
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
     modifierFlags: CGEventFlags,
+    pressedMouseButtons: Int = 0,
 ) -> ZoneSnapDestinationResolution {
+    let inputState = ZoneSnapInputState(
+        modifierFlags: modifierFlags,
+        pressedMouseButtons: pressedMouseButtons,
+    )
     let snapConfig = effectiveZoneSnapConfig(for: targetMonitor)
     guard detachOrigin == .window,
-          snapConfig.gesture == .drag,
           snapConfig.target == .zone,
           let zoneId = targetMonitor.zoneId
     else {
         return .allowDefaultDestinations
     }
 
-    guard shouldActivateZoneSnap(snapConfig, modifierFlags: modifierFlags) else {
+    guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
         return .suppressDefaultDestinations
     }
     guard targetWorkspace != sourceWorkspace else {
@@ -54,15 +58,24 @@ func zoneSnapDestinationResolution(
     ))
 }
 
-func shouldActivateZoneSnap(_ config: ZoneSnapConfig, modifierFlags: CGEventFlags) -> Bool {
+func shouldActivateZoneSnap(_ config: ZoneSnapConfig, inputState: ZoneSnapInputState) -> Bool {
     switch config.policy {
         case .freeform:
             return false
         case .snapToZone:
             return true
-        case .snapOnModifier, .floatUnlessSnap:
-            return zoneSnapModifierIsPressed(config.modifier, in: modifierFlags)
+        case .snapOnModifier:
+            return zoneSnapModifierIsPressed(config.modifier, in: inputState.modifierFlags)
+        case .floatUnlessSnap:
+            return zoneSnapActivationInputIsPressed(config, inputState: inputState)
     }
+}
+
+func shouldActivateZoneSnap(_ config: ZoneSnapConfig, modifierFlags: CGEventFlags) -> Bool {
+    shouldActivateZoneSnap(
+        config,
+        inputState: ZoneSnapInputState(modifierFlags: modifierFlags, pressedMouseButtons: 0),
+    )
 }
 
 func zoneSnapModifierIsPressed(_ modifier: NSEvent.ModifierFlags, in eventFlags: CGEventFlags) -> Bool {

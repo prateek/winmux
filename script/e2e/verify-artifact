@@ -440,6 +440,75 @@ EOF
     require_event_before "$event_manifest" set-command-start snap-first-affordance \
         "Event manifest self-test expected command before overlay"
 
+    local old_logs_dir="${LOGS_DIR:-}"
+    local old_recording_name="${recording_name:-}"
+    LOGS_DIR="$tmp_dir"
+    recording_name="self-test-mouse"
+    local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    local mouse_event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
+    cat >"$mouse_events" <<'EOF'
+# event-id	kind	seconds	note
+float-drag-start	drag	11.111	ordinary branch start
+snap-drag-start	drag	18.222	snap branch start
+snap-first-affordance	overlay	20.333	whole-zone affordance visible
+EOF
+    cat >"$mouse_event_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-start	drag	11.111	caption-02	freeform-pickup	-	freeform drag starts
+snap-drag-start	drag	18.222	caption-05	snap-pickup	-	snap drag starts
+snap-first-affordance	overlay	20.333	caption-07	snap-hover-comms	-	whole-zone overlay visible
+EOF
+    require_event_manifest_matches_mouse_events "$mouse_event_manifest" \
+        float-drag-start snap-drag-start snap-first-affordance
+
+    local missing_mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    cat >"$missing_mouse_events" <<'EOF'
+float-drag-start	drag	11.111	ordinary branch start
+snap-first-affordance	overlay	20.333	whole-zone affordance visible
+EOF
+    if ( require_event_manifest_matches_mouse_events "$mouse_event_manifest" snap-drag-start ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected missing snap-drag-start rejection"
+    fi
+
+    cat >"$mouse_events" <<'EOF'
+float-drag-start	drag	11.111	ordinary branch start\nsnap-drag-start	drag	18.222	snap branch start
+EOF
+    if ( require_event_manifest_matches_mouse_events "$mouse_event_manifest" float-drag-start ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected literal backslash-n rejection"
+    fi
+
+    cat >"$mouse_events" <<'EOF'
+float-drag-start	drag	11.111	ordinary branch start	snap-drag-start	drag	18.222	snap branch start
+EOF
+    if ( require_event_manifest_matches_mouse_events "$mouse_event_manifest" float-drag-start ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected concatenated row rejection"
+    fi
+
+    cat >"$mouse_events" <<'EOF'
+float-drag-start	drag	11.111	ordinary branch start
+float-drag-start	drag	11.222	duplicate ordinary branch start
+EOF
+    if ( require_event_manifest_matches_mouse_events "$mouse_event_manifest" float-drag-start ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected duplicate event id rejection"
+    fi
+
+    cat >"$mouse_events" <<'EOF'
+float-drag-start	drag	11.111	ordinary branch start
+snap-drag-start	drag	18.222	snap branch start
+snap-first-affordance	overlay	20.333	whole-zone affordance visible
+EOF
+    local missing_affordance_manifest="${LOGS_DIR}/${recording_name}.missing-affordance.event-manifest.tsv"
+    cat >"$missing_affordance_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-start	drag	11.111	caption-02	freeform-pickup	-	freeform drag starts
+snap-drag-start	drag	18.222	caption-05	snap-pickup	-	snap drag starts
+EOF
+    if ( require_event_manifest_matches_mouse_events "$missing_affordance_manifest" snap-first-affordance ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected missing snap-first-affordance manifest rejection"
+    fi
+    LOGS_DIR="$old_logs_dir"
+    recording_name="$old_recording_name"
+
     local legacy_review="${tmp_dir}/legacy-pass-review.md"
     local modern_review="${tmp_dir}/modern-pass-review.md"
     local missing_allow_review="${tmp_dir}/missing-allow-review.md"
@@ -918,11 +987,33 @@ require_event_sample_label() {
         || die "Event manifest ${event_id} sample label mismatch: expected ${expected_label}, got ${actual_label}"
 }
 
+require_mouse_event_log_shape() {
+    local mouse_events="$1"
+    if /usr/bin/grep -F "\\n" "$mouse_events" >/dev/null; then
+        die "Mouse event log contains literal backslash-n separators: $mouse_events"
+    fi
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        NF != 4 {
+            printf("Mouse event log row has %d fields, expected 4: %s\n", NF, $0) > "/dev/stderr"
+            exit 1
+        }
+        $1 in seen {
+            printf("Mouse event log duplicate event id: %s\n", $1) > "/dev/stderr"
+            exit 1
+        }
+        {
+            seen[$1] = 1
+        }
+    ' "$mouse_events" || die "Mouse event log is malformed: $mouse_events"
+}
+
 require_event_manifest_matches_mouse_events() {
     local manifest_path="$1"
     shift
     local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
     [ -s "$mouse_events" ] || return 0
+    require_mouse_event_log_shape "$mouse_events"
 
     local event_id expected_seconds actual_seconds
     for event_id in "$@"; do
@@ -1242,6 +1333,10 @@ require_slice_22_sample_manifest() {
 }
 
 require_slice_23_sample_manifest() {
+    require_slice_22_sample_manifest "$1"
+}
+
+require_slice_24_sample_manifest() {
     require_slice_22_sample_manifest "$1"
 }
 
@@ -3326,6 +3421,7 @@ require_mouse_snap_overlay_sentinel() {
         slice-20-*) slice_prefix="slice-20" ;;
         slice-22-*) slice_prefix="slice-22" ;;
         slice-23-*) slice_prefix="slice-23" ;;
+        slice-24-*) slice_prefix="slice-24" ;;
         *) slice_prefix="" ;;
     esac
     if [ -n "$slice_prefix" ]; then
@@ -3556,6 +3652,10 @@ require_slice_22_event_manifest() {
 
 require_slice_23_event_manifest() {
     require_mouse_drag_event_manifest slice-23 "$1"
+}
+
+require_slice_24_event_manifest() {
+    require_mouse_drag_event_manifest slice-24 "$1"
 }
 
 require_slice_21_event_manifest() {
@@ -3819,6 +3919,30 @@ require_float_unless_snap_proof() {
     local timing_log="${LOGS_DIR}/${slice_prefix}-command-timing.log"
     local sample_manifest
     sample_manifest="$(sample_manifest_path)"
+    local expected_pass="PASS: desktop drag starts from config float-unless-snap; no-Alt drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release."
+    local expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', target = 'zone'"
+    local expected_config_chip="Config: policy='float-unless-snap'; modifier='alt'; target='zone'"
+    local expected_gesture="drag"
+    local expected_proof_mode="float-unless-snap"
+    local expected_negative_proof="no-alt-floats-no-snap"
+    local expected_positive_proof="alt-held-whole-zone-snap"
+    local freeform_action_chip="Action: drag snap-demo.rtf with no modifier"
+    local snap_action_chip="Action: hold Alt while dragging snap-demo.rtf"
+    local float_description="no-Alt"
+    local snap_description="Alt"
+    if [ "$slice_prefix" = "slice-24" ]; then
+        expected_pass="PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
+        expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', gesture = 'secondary-button-drag', target = 'zone'"
+        expected_config_chip="Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'"
+        expected_gesture="secondary-button-drag"
+        expected_proof_mode="secondary-button"
+        expected_negative_proof="no-secondary-button-floats-no-snap"
+        expected_positive_proof="secondary-button-whole-zone-snap"
+        freeform_action_chip="Action: drag snap-demo.rtf with no secondary button"
+        snap_action_chip="Action: hold secondary button while dragging snap-demo.rtf"
+        float_description="ordinary"
+        snap_description="secondary-button"
+    fi
 
     require_file "$proof"
     require_success_marker "$done" "$slice_label"
@@ -3833,6 +3957,8 @@ require_float_unless_snap_proof() {
     require_drag_proof_manifest "$proof_manifest"
     if [ "$slice_prefix" = "slice-23" ]; then
         require_slice_23_sample_manifest "$sample_manifest"
+    elif [ "$slice_prefix" = "slice-24" ]; then
+        require_slice_24_sample_manifest "$sample_manifest"
     else
         require_slice_22_sample_manifest "$sample_manifest"
     fi
@@ -3849,25 +3975,27 @@ require_float_unless_snap_proof() {
     require_file "$(event_manifest_path)"
     require_mouse_drag_event_manifest "$slice_prefix" "$(event_manifest_path)"
 
-    grep -F "PASS: desktop drag starts from config float-unless-snap; no-Alt drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
-        || die "Slice 22 proof does not contain the expected float-unless-snap PASS claim"
+    grep -F "$expected_pass" "$proof" >/dev/null \
+        || die "${slice_label} proof does not contain the expected PASS claim"
     grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
         || die "Slice 22 config missing mouse zone snap table"
     grep -F "policy = 'float-unless-snap'" "$CONFIG_PATH" >/dev/null \
         || die "Slice 22 config must start with float-unless-snap policy"
     grep -F "modifier = 'alt'" "$CONFIG_PATH" >/dev/null \
-        || die "Slice 22 config missing alt modifier"
+        || die "${slice_label} config missing alt modifier"
+    grep -F "gesture = '${expected_gesture}'" "$CONFIG_PATH" >/dev/null \
+        || die "${slice_label} config missing expected gesture ${expected_gesture}"
     grep -F "target = 'zone'" "$CONFIG_PATH" >/dev/null \
-        || die "Slice 22 config missing whole-zone target"
-    grep -F "Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', target = 'zone'" "$setup_log" >/dev/null \
-        || die "Slice 22 setup log missing float-unless-snap mouse snap summary"
+        || die "${slice_label} config missing whole-zone target"
+    grep -F "$expected_setup_summary" "$setup_log" >/dev/null \
+        || die "${slice_label} setup log missing float-unless-snap mouse snap summary"
 
     grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
         || die "Slice 22 action log missing desktop snap action"
     grep -F 'policy=float-unless-snap' "$action_log" >/dev/null \
         || die "Slice 22 action log must start from float-unless-snap config"
-    grep -F 'proof-mode=float-unless-snap' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing float-unless-snap mode"
+    grep -F "proof-mode=${expected_proof_mode}" "$action_log" >/dev/null \
+        || die "${slice_label} action log missing ${expected_proof_mode} mode"
     grep -F 'snap-target=whole-zone' "$action_log" >/dev/null \
         || die "Slice 22 action log missing whole-zone snap target"
     grep -F 'not-snap-target=window-within-zone' "$action_log" >/dev/null \
@@ -3899,15 +4027,15 @@ require_float_unless_snap_proof() {
     [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
         || die "Slice 22 window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
     [ "$before_zone" = main ] || die "Slice 22 source did not start in Work/main: ${before_zone:-missing}"
-    [ "$freeform_zone" = right ] || die "Slice 22 no-Alt float did not land in Comms/right: ${freeform_zone:-missing}"
-    [ "$freeform_layout" = floating ] || die "Slice 22 no-Alt drag did not leave the source floating: ${freeform_layout:-missing}"
+    [ "$freeform_zone" = right ] || die "${slice_label} ${float_description} float did not land in Comms/right: ${freeform_zone:-missing}"
+    [ "$freeform_layout" = floating ] || die "${slice_label} ${float_description} drag did not leave the source floating: ${freeform_layout:-missing}"
     [ "$reset_zone" = main ] || die "Slice 22 reset did not return source to Work/main: ${reset_zone:-missing}"
-    [ "$reset_layout" != floating ] || die "Slice 22 reset left source floating before Alt-held snap"
-    [ "$after_zone" = right ] || die "Slice 22 Alt snap did not end in Comms/right: ${after_zone:-missing}"
+    [ "$reset_layout" != floating ] || die "${slice_label} reset left source floating before ${snap_description} snap"
+    [ "$after_zone" = right ] || die "${slice_label} ${snap_description} snap did not end in Comms/right: ${after_zone:-missing}"
     [ -n "$before_workspace" ] && [ -n "$freeform_workspace" ] && [ "$before_workspace" != "$freeform_workspace" ] \
-        || die "Slice 22 no-Alt float did not move to a different active workspace"
+        || die "${slice_label} ${float_description} float did not move to a different active workspace"
     [ -n "$before_workspace" ] && [ -n "$after_workspace" ] && [ "$before_workspace" != "$after_workspace" ] \
-        || die "Slice 22 Alt snap did not move to a different active workspace"
+        || die "${slice_label} ${snap_description} snap did not move to a different active workspace"
 
     [ "$(field_for_title "$windows_before" 'snap-demo.rtf' id)" = "$source_id" ] \
         || die "Slice 22 before log missing snap-demo source id"
@@ -3928,12 +4056,14 @@ require_float_unless_snap_proof() {
         || die "Slice 22 proof manifest must show whole-zone snap target"
     [ "$(manifest_value "$proof_manifest" drag-policy policy)" = float-unless-snap ] \
         || die "Slice 22 proof manifest must show float-unless-snap config policy"
-    [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = float-unless-snap ] \
-        || die "Slice 22 proof manifest missing float-unless-snap mode"
-    [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = no-alt-floats-no-snap ] \
-        || die "Slice 22 proof manifest missing no-Alt floating negative proof"
-    [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = alt-held-whole-zone-snap ] \
-        || die "Slice 22 proof manifest missing Alt-held snap positive proof"
+    [ "$(manifest_value "$proof_manifest" drag-policy gesture)" = "$expected_gesture" ] \
+        || die "${slice_label} proof manifest missing gesture ${expected_gesture}"
+    [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = "$expected_proof_mode" ] \
+        || die "${slice_label} proof manifest missing ${expected_proof_mode} mode"
+    [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = "$expected_negative_proof" ] \
+        || die "${slice_label} proof manifest missing ${expected_negative_proof} negative proof"
+    [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = "$expected_positive_proof" ] \
+        || die "${slice_label} proof manifest missing ${expected_positive_proof} positive proof"
     [ "$(manifest_value "$proof_manifest" drag-result freeform-result)" = floating-no-snap ] \
         || die "Slice 22 proof manifest missing floating no-snap result"
     [ "$(manifest_value "$proof_manifest" drag-result freeform-after-layout)" = floating ] \
@@ -3947,16 +4077,16 @@ require_float_unless_snap_proof() {
             || die "${slice_label} action log missing product overlay label"
     fi
 
-    grep -F "Config: policy='float-unless-snap'; modifier='alt'; target='zone'" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing float-unless-snap config chip"
-    grep -F "Action: drag snap-demo.rtf with no modifier" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing no-Alt drag chip"
+    grep -F "$expected_config_chip" "$annotation_plan" >/dev/null \
+        || die "${slice_label} annotations missing float-unless-snap config chip"
+    grep -F "$freeform_action_chip" "$annotation_plan" >/dev/null \
+        || die "${slice_label} annotations missing ordinary drag chip"
     grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
         || die "Slice 22 annotations missing list-windows inspection chip"
     grep -F "Action: reset snap-demo.rtf to Work/main tiling" "$annotation_plan" >/dev/null \
         || die "Slice 22 annotations missing reset chip"
-    grep -F "Action: hold Alt while dragging snap-demo.rtf" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing Alt-held drag chip"
+    grep -F "$snap_action_chip" "$annotation_plan" >/dev/null \
+        || die "${slice_label} annotations missing snap activation drag chip"
     grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null \
         || die "Slice 22 annotations missing whole-zone target chip"
     grep -F "Action: release on Comms zone" "$annotation_plan" >/dev/null \
@@ -3968,17 +4098,17 @@ require_float_unless_snap_proof() {
     freeform_drag_offset="$(value_from_log freeform-drag-start-offset-seconds "$timing_log")"
     snap_drag_offset="$(value_from_log snap-drag-start-offset-seconds "$timing_log")"
     snap_end_offset="$(value_from_log snap-drag-end-offset-seconds "$timing_log")"
-    [ -n "$freeform_drag_offset" ] || die "Slice 22 timing log missing no-Alt drag start offset"
-    [ -n "$snap_drag_offset" ] || die "Slice 22 timing log missing Alt snap drag start offset"
-    [ -n "$snap_end_offset" ] || die "Slice 22 timing log missing Alt snap drag end offset"
-    freeform_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: drag snap-demo.rtf with no modifier")"
-    snap_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: hold Alt while dragging snap-demo.rtf")"
+    [ -n "$freeform_drag_offset" ] || die "${slice_label} timing log missing ordinary drag start offset"
+    [ -n "$snap_drag_offset" ] || die "${slice_label} timing log missing ${snap_description} snap drag start offset"
+    [ -n "$snap_end_offset" ] || die "${slice_label} timing log missing ${snap_description} snap drag end offset"
+    freeform_caption_start="$(require_annotation_chip_start "$annotation_plan" "$freeform_action_chip")"
+    snap_caption_start="$(require_annotation_chip_start "$annotation_plan" "$snap_action_chip")"
     release_caption_start="$(require_annotation_chip_start "$annotation_plan" "Action: release on Comms zone")"
     recording_timing_base="$(/usr/bin/awk -v caption="$freeform_caption_start" -v offset="$freeform_drag_offset" 'BEGIN { printf "%.3f", caption - offset }')"
     snap_recording_start="$(/usr/bin/awk -v base="$recording_timing_base" -v offset="$snap_drag_offset" 'BEGIN { printf "%.3f", base + offset }')"
     snap_recording_end="$(/usr/bin/awk -v base="$recording_timing_base" -v offset="$snap_end_offset" 'BEGIN { printf "%.3f", base + offset }')"
     assert_numeric_le "$snap_caption_start" "$snap_recording_start" \
-        "Slice 22 Alt-held drag caption must be visible when the snap drag starts"
+        "${slice_label} ${snap_description} drag caption must be visible when the snap drag starts"
     assert_numeric_le "$release_caption_start" "$snap_recording_end" \
         "Slice 22 release caption must be visible before the positive drag has fully completed"
 }
@@ -3989,6 +4119,10 @@ require_slice_22_float_unless_snap_proof() {
 
 require_slice_23_product_snap_overlay_label_proof() {
     require_float_unless_snap_proof slice-23 "Slice 23" slice-23-product-snap-overlay-label 1
+}
+
+require_slice_24_secondary_button_snap_proof() {
+    require_float_unless_snap_proof slice-24 "Slice 24" slice-24-secondary-button-snap 1
 }
 
 require_slice_21_zone_mode_v2_proof() {
@@ -5219,6 +5353,9 @@ case "$recording_name" in
         ;;
     slice-23-product-snap-overlay-label)
         require_slice_23_product_snap_overlay_label_proof
+        ;;
+    slice-24-secondary-button-snap)
+        require_slice_24_secondary_button_snap_proof
         ;;
 esac
 

@@ -11,6 +11,7 @@ SLICE_TITLE="${WINMUX_E2E_MOUSE_SNAP_TITLE:-WinMux Slice ${SLICE_NUMBER}: deskto
 RECORDING_NAME="${WINMUX_E2E_RECORDING_NAME:-${SLICE_PREFIX}-mouse-zone-snap-drag}"
 CONFIG_MODIFIER="${WINMUX_E2E_MOUSE_SNAP_CONFIG_MODIFIER:-alt}"
 CONFIG_POLICY="${WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY:-snap-on-modifier}"
+CONFIG_GESTURE="${WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE:-drag}"
 PROOF_MODE="${WINMUX_E2E_MOUSE_SNAP_PROOF_MODE:-modifier}"
 PRODUCT_OVERLAY_LABEL="${WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL:-}"
 RUNTIME_SET_POLICY="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_SET_POLICY:-snap-to-zone}"
@@ -24,6 +25,9 @@ elif [ "${PROOF_MODE}" = "runtime-policy" ]; then
 elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
+elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-secondary button}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold secondary button while dragging snap-demo.rtf}"
 else
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
@@ -337,6 +341,7 @@ setup_slice() {
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
         echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
+        echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', target = 'zone'"
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo "Runtime command: set-zone-snap-policy ${RUNTIME_SET_POLICY}"
             echo "Runtime toggle: cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
@@ -355,6 +360,8 @@ setup_slice() {
     write_doc "${REFERENCE_DOC}" 'REFERENCE' 'Reference' 'Desktop drag snap proof baseline'
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag once in freeform, run set-zone-snap-policy, then drag again with no modifier"
+    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+        write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without secondary button to float, reset, then hold secondary button to snap"
     elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without ${USER_MODIFIER_LABEL} to float, reset, then hold ${USER_MODIFIER_LABEL} to snap"
     else
@@ -429,6 +436,14 @@ drag_window_jxa() {
     local hover_path="$8"
     local event_branch="$9"
     local scenario_start_ms="${10}"
+    local activation_input="${11:-}"
+    if [ -z "${activation_input}" ]; then
+        if [ "${with_alt}" = "1" ]; then
+            activation_input=alt
+        else
+            activation_input=none
+        fi
+    fi
     /usr/bin/osascript -l JavaScript <<JXA
 ObjC.import('ApplicationServices')
 
@@ -437,17 +452,26 @@ app.includeStandardAdditions = true
 const eventBranch = '${event_branch}'
 const scenarioStartMs = Number('${scenario_start_ms}')
 const mouseEventsLog = '${MOUSE_EVENTS_LOG}'
+const activationInput = '${activation_input}'
 
 function shellQuote(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'"
+  return "'" + String(value).replace(/'/g, "'\"'\"'") + "'"
 }
 
-function postMouse(type, x, y, withAlt) {
-  const event = $.CGEventCreateMouseEvent(null, type, $.CGPointMake(Number(x), Number(y)), $.kCGMouseButtonLeft)
+function postMouse(type, x, y, button, withAlt) {
+  const event = $.CGEventCreateMouseEvent(null, type, $.CGPointMake(Number(x), Number(y)), button)
   if (withAlt) {
     $.CGEventSetFlags(event, $.kCGEventFlagMaskAlternate)
   }
   $.CGEventPost($.kCGHIDEventTap, event)
+}
+
+function postLeftMouse(type, x, y, withAlt) {
+  postMouse(type, x, y, $.kCGMouseButtonLeft, withAlt)
+}
+
+function postSecondaryMouse(down, x, y) {
+  postMouse(down ? $.kCGEventRightMouseDown : $.kCGEventRightMouseUp, x, y, $.kCGMouseButtonRight, false)
 }
 
 function postOption(down) {
@@ -463,7 +487,7 @@ function dragTo(x1, y1, x2, y2, steps, stepDelay, withAlt) {
     const t = i / Number(steps)
     const x = Number(x1) + ((Number(x2) - Number(x1)) * t)
     const y = Number(y1) + ((Number(y2) - Number(y1)) * t)
-    postMouse($.kCGEventLeftMouseDragged, x, y, withAlt)
+    postLeftMouse($.kCGEventLeftMouseDragged, x, y, withAlt)
     delay(stepDelay)
   }
 }
@@ -484,9 +508,13 @@ function emit(eventId, kind, note) {
 
 function emitPickupEvent() {
   if (eventBranch === 'float') {
-    emit('float-drag-start', 'drag', 'no-modifier pickup screenshot captured')
+    emit('float-drag-start', 'drag', 'ordinary pickup screenshot captured')
   } else if (eventBranch === 'snap') {
-    emit('snap-drag-start', 'drag', 'Alt-held pickup screenshot captured')
+    if (activationInput === 'secondary-button') {
+      emit('snap-drag-start', 'drag', 'secondary-button pickup screenshot captured')
+    } else {
+      emit('snap-drag-start', 'drag', 'Alt-held pickup screenshot captured')
+    }
   } else {
     emit('freeform-drag-start', 'drag', 'no-modifier pickup screenshot captured')
   }
@@ -517,20 +545,25 @@ const sx = Number('${source_x}')
 const sy = Number('${source_y}')
 const tx = Number('${target_x}')
 const ty = Number('${target_y}')
-const useAlt = '${with_alt}' === '1'
+const useAlt = activationInput === 'alt' || '${with_alt}' === '1'
+const useSecondaryButton = activationInput === 'secondary-button'
 const pickupX = sx + ((tx - sx) * 0.10)
 const pickupY = sy + 12
 const pathX = sx + ((tx - sx) * 0.58)
 const pathY = sy + ((ty - sy) * 0.58)
 
-postMouse($.kCGEventMouseMoved, sx, sy, useAlt)
+postLeftMouse($.kCGEventMouseMoved, sx, sy, useAlt)
 delay(0.8)
 if (useAlt) {
   postOption(true)
   delay(0.35)
 }
-postMouse($.kCGEventLeftMouseDown, sx, sy, useAlt)
+postLeftMouse($.kCGEventLeftMouseDown, sx, sy, useAlt)
 delay(0.25)
+if (useSecondaryButton) {
+  postSecondaryMouse(true, sx, sy)
+  delay(0.35)
+}
 dragTo(sx, sy, pickupX, pickupY, 10, 0.06, useAlt)
 capture('${pickup_path}')
 emitPickupEvent()
@@ -546,8 +579,12 @@ delay(1.5)
 capture('${hover_path}')
 emitHoverEvent()
 delay(1.8)
-postMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
+postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
 emitReleaseEvent()
+if (useSecondaryButton) {
+  delay(0.25)
+  postSecondaryMouse(false, tx, ty)
+}
 if (useAlt) {
   delay(0.3)
   postOption(false)
@@ -603,6 +640,7 @@ proof_slice() {
     target_y="$(awk_int "${right_top} + (${right_height} * 0.38)")"
 
     positive_drag_with_alt=1
+    positive_drag_input='alt'
     positive_proof_key='alt-held-whole-zone-snap'
     positive_action_text="positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
     negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
@@ -612,8 +650,19 @@ proof_slice() {
     freeform_result='no-zone-move'
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         positive_drag_with_alt=0
+        positive_drag_input='none'
         positive_proof_key='runtime-set-snap-to-zone'
         positive_action_text='positive-proof=runtime set-zone-snap-policy enables whole-zone snap without a held modifier'
+    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+        positive_drag_with_alt=0
+        positive_drag_input='secondary-button'
+        positive_proof_key='secondary-button-whole-zone-snap'
+        positive_action_text='positive-proof=hold secondary mouse button while dragging previews the whole Comms zone and snaps on release'
+        negative_action_text='negative-proof=ordinary drag without secondary button detaches the tiled window into floating/freeform placement without a snap overlay'
+        negative_policy_key='no-secondary-button-floats-no-snap'
+        freeform_expected_zone=right
+        freeform_expected_layout='floating'
+        freeform_result='floating-no-snap'
     elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
         negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} detaches the tiled window into floating/freeform placement without a snap overlay"
         negative_policy_key='no-alt-floats-no-snap'
@@ -628,7 +677,7 @@ proof_slice() {
     append_action_log_value config '[mouse.zone-snap]'
     append_action_schema_value drag-policy policy "${CONFIG_POLICY}" policy
     append_action_schema_value drag-policy modifier "${CONFIG_MODIFIER}" modifier
-    append_action_schema_value drag-policy gesture drag gesture
+    append_action_schema_value drag-policy gesture "${CONFIG_GESTURE}" gesture
     append_action_schema_value drag-policy target zone target
     append_action_schema_value drag-policy proof-mode "${PROOF_MODE}" proof-mode
     append_action_schema_value drag-source title 'snap-demo.rtf' source-title
@@ -649,6 +698,8 @@ proof_slice() {
     append_action_schema_value drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         append_action_schema_value drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
+    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+        append_action_schema_value drag-points mapping-assertion 'ordinary drag floats snap-demo into Comms/right without a snap overlay; secondary-button drag moves the same id as a whole-zone snap'
     elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
         append_action_schema_value drag-points mapping-assertion "no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
     else
@@ -672,7 +723,7 @@ proof_slice() {
     init_mouse_events_log
     start_epoch="$(date +%s)"
     scenario_start_ms="$((start_epoch * 1000))"
-    if [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+    if [ "${PROOF_MODE}" = "float-unless-snap" ] || [ "${PROOF_MODE}" = "secondary-button" ]; then
         negative_drag_branch="float"
         negative_post_state_event="float-post-state"
     else
@@ -681,7 +732,7 @@ proof_slice() {
     fi
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 0 \
         "${FREEFORM_PICKUP_SCREENSHOT}" "" "${FREEFORM_HOVER_SCREENSHOT}" \
-        "${negative_drag_branch}" "${scenario_start_ms}" >>"${MOUSE_EVENTS_LOG}"
+        "${negative_drag_branch}" "${scenario_start_ms}" none >>"${MOUSE_EVENTS_LOG}"
     sleep 2
     freeform_epoch="$(date +%s)"
     refresh_window_log "${WINDOW_FREEFORM_LOG}"
@@ -727,7 +778,7 @@ proof_slice() {
     snap_start_epoch="$(date +%s)"
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" "${positive_drag_with_alt}" \
         "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}" \
-        snap "${scenario_start_ms}" >>"${MOUSE_EVENTS_LOG}"
+        snap "${scenario_start_ms}" "${positive_drag_input}" >>"${MOUSE_EVENTS_LOG}"
     sleep 4
     snap_end_epoch="$(date +%s)"
 
@@ -750,6 +801,8 @@ proof_slice() {
     after_workspace="$(workspace_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')"
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         snap_error_label='runtime snap-to-zone'
+    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+        snap_error_label='secondary-button snap'
     else
         snap_error_label="${USER_MODIFIER_LABEL} snap"
     fi
@@ -804,8 +857,8 @@ proof_slice() {
         echo 'Config under proof:'
         echo "[mouse.zone-snap]"
         echo "policy = '${CONFIG_POLICY}'"
-        echo "modifier = 'alt'"
-        echo "gesture = 'drag'"
+        echo "modifier = '${CONFIG_MODIFIER}'"
+        echo "gesture = '${CONFIG_GESTURE}'"
         echo "target = 'zone'"
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo
@@ -828,6 +881,8 @@ proof_slice() {
         echo
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo 'After runtime snap-to-zone drag:'
+        elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+            echo 'After secondary-button snap:'
         else
             echo "After ${USER_MODIFIER_LABEL} snap:"
         fi
@@ -835,6 +890,8 @@ proof_slice() {
         echo
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo "PASS: desktop drag starts from config freeform/no-zone-move; winmux set-zone-snap-policy snap-to-zone makes the next no-modifier drag preview a whole Comms zone target and move the same window into Comms/right on release; winmux cycle-zone-snap-policy freeform snap-to-zone returns the runtime policy to freeform."
+        elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+            echo "PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
         elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
             echo "PASS: desktop drag starts from config float-unless-snap; no-${USER_MODIFIER_LABEL} drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
         else
@@ -849,12 +906,66 @@ proof_slice() {
     copy_runtime_logs
 }
 
+mouse_event_writer_self_test() {
+    mkdir -p "${ARTIFACTS_DIR}/logs"
+    init_mouse_events_log
+    /usr/bin/osascript -l JavaScript <<JXA
+const app = Application.currentApplication()
+app.includeStandardAdditions = true
+const mouseEventsLog = '${MOUSE_EVENTS_LOG}'
+
+function shellQuote(value) {
+  return "'" + String(value).replace(/'/g, "'\"'\"'") + "'"
+}
+
+function emit(eventId, kind, note) {
+  const line = [eventId, kind, '0.125', note].join('\t')
+  app.doShellScript("/usr/bin/printf '%s\\n' " + shellQuote(line) + " >> " + shellQuote(mouseEventsLog))
+}
+
+emit('float-drag-start', 'drag', "ordinary branch with quote ' retained")
+emit('snap-drag-start', 'drag', 'secondary-button branch start')
+emit('snap-first-affordance', 'overlay', 'whole-zone affordance event')
+emit('snap-release', 'drag', 'release event')
+JXA
+
+    /usr/bin/awk -F'\t' '
+        /^#/ { next }
+        NF != 4 {
+            printf("mouse event self-test row has %d fields: %s\n", NF, $0) > "/dev/stderr"
+            exit 1
+        }
+        $1 in seen {
+            printf("mouse event self-test duplicate id: %s\n", $1) > "/dev/stderr"
+            exit 1
+        }
+        { seen[$1] = 1; count += 1 }
+        END {
+            if (count != 4 || !seen["float-drag-start"] || !seen["snap-drag-start"] || !seen["snap-first-affordance"] || !seen["snap-release"]) {
+                print "mouse event self-test missing required ids" > "/dev/stderr"
+                exit 1
+            }
+        }
+    ' "${MOUSE_EVENTS_LOG}"
+    if /usr/bin/grep -F '0.125ordinary' "${MOUSE_EVENTS_LOG}" >/dev/null; then
+        semantic_fail 'Mouse event self-test detected concatenated rows'
+    fi
+    if /usr/bin/grep -F "\\n" "${MOUSE_EVENTS_LOG}" >/dev/null; then
+        semantic_fail 'Mouse event self-test detected literal backslash-n separators'
+    fi
+    printf 'result=success\n'
+    cat "${MOUSE_EVENTS_LOG}"
+}
+
 case "${PHASE}" in
     setup)
         setup_slice
         ;;
     proof)
         proof_slice
+        ;;
+    self-test)
+        mouse_event_writer_self_test
         ;;
     *)
         echo "Unknown WINMUX_E2E_MOUSE_SNAP_PHASE/WINMUX_E2E_SLICE12_PHASE: ${PHASE}" >&2
