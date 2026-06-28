@@ -787,6 +787,25 @@ ensure_review_packet() {
             "${relative_run_dir}/logs/${recording_name}.caption-tail.tsv" \
             || die "Review packet missing caption tail manifest path"
     fi
+    if [ -s "${LOGS_DIR}/${recording_name}.demo-cut.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.demo-cut.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.demo-cut.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.demo-cut.tsv" \
+            || die "Review packet missing demo cut manifest path"
+        review_packet_contains_any "$packet_path" \
+            "${RECORDINGS_DIR}/${recording_name}.demo.mov" \
+            "${absolute_run_dir}/recordings/${recording_name}.demo.mov" \
+            "${relative_run_dir}/recordings/${recording_name}.demo.mov" \
+            || die "Review packet missing demo cut recording path"
+    fi
+    if [ -s "${LOGS_DIR}/${recording_name}.contact-sheet-manifest.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.contact-sheet-manifest.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.contact-sheet-manifest.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.contact-sheet-manifest.tsv" \
+            || die "Review packet missing contact sheet manifest path"
+    fi
     if [ -s "${LOGS_DIR}/${recording_name}.event-manifest.tsv" ]; then
         review_packet_contains_any "$packet_path" \
             "${LOGS_DIR}/${recording_name}.event-manifest.tsv" \
@@ -887,6 +906,18 @@ review_packet_contains_any() {
 
 sample_manifest_path() {
     printf '%s/%s.sample-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+contact_sheet_manifest_path() {
+    printf '%s/%s.contact-sheet-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+demo_cut_manifest_path() {
+    printf '%s/%s.demo-cut.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+demo_recording_path() {
+    printf '%s/%s.demo.mov\n' "$RECORDINGS_DIR" "$recording_name"
 }
 
 event_manifest_path() {
@@ -1182,6 +1213,51 @@ require_sample_manifest_paths() {
     done
 }
 
+contact_sheet_manifest_has_label() {
+    local manifest_path="$1"
+    local label="$2"
+    /usr/bin/awk -F'\t' -v label="$label" '$1 == "semantic" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$manifest_path"
+}
+
+require_contact_sheet_summary_manifest() {
+    local manifest_path="$1"
+    local sample_manifest="$2"
+    require_file "$manifest_path"
+    require_file "$sample_manifest"
+    require_fresh_derived_file "$manifest_path" "$sample_manifest" "Contact sheet manifest"
+
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        NF != 6 {
+            printf("Contact sheet manifest row has %d fields, expected 6: %s\n", NF, $0) > "/dev/stderr"
+            exit 1
+        }
+    ' "$manifest_path" || die "Contact sheet manifest is malformed: $manifest_path"
+
+    local label
+    for label in snap-hover-comms snap-release snap-final-placement; do
+        if sample_manifest_has_label "$sample_manifest" "$label"; then
+            contact_sheet_manifest_has_label "$manifest_path" "$label" \
+                || die "Contact sheet manifest must include semantic summary label: $label"
+        fi
+    done
+
+    local row_count=0 _kind _label _caption _timestamp relative_path _expected
+    while IFS=$'\t' read -r _kind _label _caption _timestamp relative_path _expected; do
+        case "${_kind:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_path:-}" ] || die "Contact sheet manifest has an empty path: $manifest_path"
+        case "$relative_path" in
+            /*|*../*) die "Contact sheet manifest path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_file "${RUN_DIR}/${relative_path}"
+        row_count=$((row_count + 1))
+    done <"$manifest_path"
+
+    [ "$row_count" -gt 0 ] || die "Contact sheet manifest has no image rows: $manifest_path"
+}
+
 require_edge_crop_manifest() {
     local manifest_path="$1"
     require_file "$manifest_path"
@@ -1215,6 +1291,9 @@ require_review_freshness() {
         "$recording_path" \
         "${RUN_DIR}/reviews/reviewer-packet.md" \
         "$contact_sheet" \
+        "$(contact_sheet_manifest_path)" \
+        "$(demo_recording_path)" \
+        "$(demo_cut_manifest_path)" \
         "$(event_contact_sheet_path)" \
         "$(sample_manifest_path)" \
         "$(event_manifest_path)" \
@@ -1670,6 +1749,151 @@ event_contact_sheet_image_name() {
     printf '%02d-%s.png\n' "$index" "$(printf '%s' "$safe_label" | cut -c1-96)"
 }
 
+contact_sheet_summary_label_order() {
+    cat <<'EOF'
+freeform-pickup
+freeform-hover-no-overlay
+float-final-placement
+reset-before-snap
+snap-pickup
+snap-path
+snap-hover-comms
+snap-release
+snap-final-placement
+cycle-policy-command-start
+EOF
+}
+
+sample_manifest_has_label() {
+    local manifest_path="$1"
+    local label="$2"
+    /usr/bin/awk -F'\t' -v label="$label" '$1 == "semantic" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$manifest_path"
+}
+
+append_sample_manifest_row_for_label() {
+    local source_manifest="$1"
+    local output_manifest="$2"
+    local label="$3"
+    /usr/bin/awk -F'\t' -v label="$label" '
+        $1 == "semantic" && $2 == label {
+            print
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$source_manifest" >>"$output_manifest"
+}
+
+write_contact_sheet_summary_manifest() {
+    local sample_manifest="$1"
+    local output_manifest="$2"
+    : >"$output_manifest"
+    printf '# kind\tlabel\tcaption\ttimestamp\tpath\texpected\n' >>"$output_manifest"
+
+    if ! sample_manifest_has_label "$sample_manifest" snap-hover-comms ||
+        ! sample_manifest_has_label "$sample_manifest" snap-release ||
+        ! sample_manifest_has_label "$sample_manifest" snap-final-placement; then
+        return 1
+    fi
+
+    local label row_count=0
+    while IFS= read -r label; do
+        [ -n "$label" ] || continue
+        if sample_manifest_has_label "$sample_manifest" "$label"; then
+            append_sample_manifest_row_for_label "$sample_manifest" "$output_manifest" "$label"
+            row_count=$((row_count + 1))
+        fi
+    done < <(contact_sheet_summary_label_order)
+
+    [ "$row_count" -ge 3 ] || return 1
+}
+
+append_overlay_crop_contact_sheet_rows() {
+    local name="$1"
+    local output_manifest="$2"
+    local overlay_manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    [ -s "$overlay_manifest" ] || return 0
+
+    /usr/bin/awk -F'\t' '
+        $1 == "target-label" && $4 ~ /^screenshots\// {
+            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\tzoomed labeled whole-zone target crop\n", $4
+            found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$overlay_manifest" >>"$output_manifest" || true
+}
+
+append_summary_contact_sheet_image() {
+    local tmp_dir="$1"
+    local index="$2"
+    local label="$3"
+    local relative_path="$4"
+    case "$relative_path" in
+        ""|-|/*|*../*) return 0 ;;
+    esac
+
+    local source_path="${RUN_DIR}/${relative_path}"
+    [ -s "$source_path" ] || die "Summary contact sheet source is missing: $relative_path"
+    local output_path
+    output_path="${tmp_dir}/$(event_contact_sheet_image_name "$index" "$label")"
+    magick "$source_path" -resize '720x405>' "$output_path"
+    require_file "$output_path"
+}
+
+generate_semantic_summary_contact_sheet() {
+    local name="$1"
+    local sample_manifest="$2"
+    local contact_sheet="$3"
+    local contact_sheet_manifest="${LOGS_DIR}/${name}.contact-sheet-manifest.tsv"
+
+    [ -s "$sample_manifest" ] || return 1
+    write_contact_sheet_summary_manifest "$sample_manifest" "$contact_sheet_manifest" || {
+        rm -f "$contact_sheet_manifest"
+        return 1
+    }
+    append_overlay_crop_contact_sheet_rows "$name" "$contact_sheet_manifest"
+    command -v magick >/dev/null 2>&1 || die "Semantic summary contact sheet requires ImageMagick: magick"
+
+    local tmp_dir="${SCREENSHOTS_DIR}/${name}.contact-sheet.tmp"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    local index=0 _kind label _caption _timestamp relative_path _expected
+    while IFS=$'\t' read -r _kind label _caption _timestamp relative_path _expected; do
+        case "${_kind:-}" in
+            ""|\#*) continue ;;
+        esac
+        case "${label:-}" in
+            "") continue ;;
+        esac
+        index=$((index + 1))
+        append_summary_contact_sheet_image "$tmp_dir" "$index" "$label" "$relative_path"
+    done <"$contact_sheet_manifest"
+
+    local images=()
+    local image_path
+    while IFS= read -r image_path; do
+        images+=("$image_path")
+    done < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    [ "${#images[@]}" -gt 0 ] || die "Semantic summary contact sheet has no image rows: $contact_sheet_manifest"
+    local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    magick montage \
+        -font "$label_font" \
+        -pointsize 22 \
+        -label '%t' \
+        "${images[@]}" \
+        -thumbnail '720x405>' \
+        -geometry '720x405+16+48' \
+        -tile 3x \
+        -background '#F4F2ED' \
+        -fill '#101820' \
+        "$contact_sheet"
+    require_file "$contact_sheet"
+    rm -rf "$tmp_dir"
+    return 0
+}
+
 append_event_contact_sheet_image() {
     local tmp_dir="$1"
     local index="$2"
@@ -1756,6 +1980,7 @@ generate_recording_samples() {
     local samples_dir="${SCREENSHOTS_DIR}/${name}.samples"
     local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
     local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
+    local sample_manifest="${LOGS_DIR}/${name}.sample-manifest.tsv"
 
     rm -rf "$samples_dir"
     mkdir -p "$samples_dir"
@@ -1808,16 +2033,18 @@ generate_recording_samples() {
         done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
     fi
 
-    ffmpeg \
-        -hide_banner \
-        -loglevel error \
-        -y \
-        -framerate 1 \
-        -pattern_type glob \
-        -i "${samples_dir}/standard-*.png" \
-        -vf "scale=860:-1,tile=3x2" \
-        -frames:v 1 \
-        "$contact_sheet"
+    if ! generate_semantic_summary_contact_sheet "$name" "$sample_manifest" "$contact_sheet"; then
+        ffmpeg \
+            -hide_banner \
+            -loglevel error \
+            -y \
+            -framerate 1 \
+            -pattern_type glob \
+            -i "${samples_dir}/standard-*.png" \
+            -vf "scale=860:-1,tile=3x2" \
+            -frames:v 1 \
+            "$contact_sheet"
+    fi
     require_file "$contact_sheet"
     generate_event_manifest_contact_sheet "$name"
 }
@@ -1829,6 +2056,8 @@ ensure_recording_samples() {
     local samples_dir="${SCREENSHOTS_DIR}/${name}.samples"
     local captions_path="${LOGS_DIR}/${name}.annotations.tsv"
     local contact_sheet="${SCREENSHOTS_DIR}/${name}.contact-sheet.jpg"
+    local contact_sheet_manifest="${LOGS_DIR}/${name}.contact-sheet-manifest.tsv"
+    local sample_manifest="${LOGS_DIR}/${name}.sample-manifest.tsv"
     local standard_count=0
     local caption_count=0
     local boundary_count=0
@@ -1852,6 +2081,9 @@ ensure_recording_samples() {
     fi
 
     if [ -s "$contact_sheet" ] && ! is_fresh_derived_file "$contact_sheet" "$recording"; then
+        stale_count=$((stale_count + 1))
+    fi
+    if [ -s "$contact_sheet_manifest" ] && ! is_fresh_derived_file "$contact_sheet_manifest" "$sample_manifest"; then
         stale_count=$((stale_count + 1))
     fi
     local event_manifest
@@ -1880,6 +2112,9 @@ ensure_recording_samples() {
     fi
     require_file "$contact_sheet"
     require_fresh_derived_file "$contact_sheet" "$recording" "Contact sheet"
+    if [ -s "$contact_sheet_manifest" ]; then
+        require_contact_sheet_summary_manifest "$contact_sheet_manifest" "$sample_manifest"
+    fi
     if [ -s "$event_manifest" ]; then
         require_file "$event_contact_sheet"
         require_fresh_derived_file "$event_contact_sheet" "$event_manifest" "Event contact sheet"
@@ -1922,6 +2157,57 @@ require_caption_tail_manifest() {
         [ "$intentional" = "yes" ] || die "Annotated recording has ${tail}s uncaptained tail without intentional allowance"
         [ -n "$reason" ] || die "Intentional uncaptained tail must include a reason"
     fi
+}
+
+demo_cut_manifest_value() {
+    local path="$1"
+    local key="$2"
+    /usr/bin/awk -F'\t' -v key="$key" '$1 == key { print $2; exit }' "$path"
+}
+
+require_demo_cut_manifest() {
+    local name="$1"
+    local source_duration="$2"
+    local manifest_path="${LOGS_DIR}/${name}.demo-cut.tsv"
+    [ -s "$manifest_path" ] || return 0
+
+    local demo_path="${RECORDINGS_DIR}/${name}.demo.mov"
+    local source_path="${RECORDINGS_DIR}/${name}.mov"
+    local caption_tail="${LOGS_DIR}/${name}.caption-tail.tsv"
+    require_file "$demo_path"
+    require_file "$source_path"
+    require_file "$caption_tail"
+    require_fresh_derived_file "$manifest_path" "$caption_tail" "Demo cut manifest"
+    require_fresh_derived_file "$demo_path" "$source_path" "Demo cut recording"
+
+    local recording source_recording demo_recording manifest_source_duration last_end trim_end tail_seconds demo_duration
+    recording="$(demo_cut_manifest_value "$manifest_path" recording)"
+    source_recording="$(demo_cut_manifest_value "$manifest_path" source-recording)"
+    demo_recording="$(demo_cut_manifest_value "$manifest_path" demo-recording)"
+    manifest_source_duration="$(demo_cut_manifest_value "$manifest_path" source-duration-seconds)"
+    last_end="$(demo_cut_manifest_value "$manifest_path" last-caption-end-seconds)"
+    trim_end="$(demo_cut_manifest_value "$manifest_path" trim-end-seconds)"
+    tail_seconds="$(demo_cut_manifest_value "$manifest_path" tail-seconds)"
+
+    [ "$recording" = "$name" ] || die "Demo cut manifest recording mismatch: expected $name, got $recording"
+    [ "$source_recording" = "recordings/${name}.mov" ] || die "Demo cut manifest source path mismatch: $source_recording"
+    [ "$demo_recording" = "recordings/${name}.demo.mov" ] || die "Demo cut manifest demo path mismatch: $demo_recording"
+    [[ "$manifest_source_duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Demo cut manifest source duration is not numeric"
+    [[ "$last_end" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Demo cut manifest last caption end is not numeric"
+    [[ "$trim_end" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Demo cut manifest trim end is not numeric"
+    [[ "$tail_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Demo cut manifest tail seconds is not numeric"
+
+    awk -v manifest_duration="$manifest_source_duration" -v duration="$source_duration" 'BEGIN {
+        delta = manifest_duration - duration
+        if (delta < 0) delta = -delta
+        exit(delta <= 0.500 ? 0 : 1)
+    }' || die "Demo cut manifest source duration does not match recording duration"
+    demo_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$demo_path")" \
+        || die "Could not read demo cut duration: $demo_path"
+    [[ "$demo_duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Demo cut duration is not numeric"
+    awk -v demo="$demo_duration" -v full="$source_duration" -v trim="$trim_end" 'BEGIN {
+        exit(demo + 0 < full + 0 && demo + 0 <= trim + 1.500 ? 0 : 1)
+    }' || die "Demo cut is not shorter than the acceptance recording or exceeds trim target"
 }
 
 field_for_title() {
@@ -4060,9 +4346,9 @@ require_float_unless_snap_proof() {
     grep -F "$expected_pass" "$proof" >/dev/null \
         || die "${slice_label} proof does not contain the expected PASS claim"
     grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
-        || die "Slice 22 config missing mouse zone snap table"
+        || die "${slice_label} config missing mouse zone snap table"
     grep -F "policy = 'float-unless-snap'" "$CONFIG_PATH" >/dev/null \
-        || die "Slice 22 config must start with float-unless-snap policy"
+        || die "${slice_label} config must start with float-unless-snap policy"
     grep -F "modifier = 'alt'" "$CONFIG_PATH" >/dev/null \
         || die "${slice_label} config missing alt modifier"
     grep -F "gesture = '${expected_gesture}'" "$CONFIG_PATH" >/dev/null \
@@ -4073,23 +4359,23 @@ require_float_unless_snap_proof() {
         || die "${slice_label} setup log missing float-unless-snap mouse snap summary"
 
     grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing desktop snap action"
+        || die "${slice_label} action log missing desktop snap action"
     grep -F 'policy=float-unless-snap' "$action_log" >/dev/null \
-        || die "Slice 22 action log must start from float-unless-snap config"
+        || die "${slice_label} action log must start from float-unless-snap config"
     grep -F "proof-mode=${expected_proof_mode}" "$action_log" >/dev/null \
         || die "${slice_label} action log missing ${expected_proof_mode} mode"
     grep -F 'snap-target=whole-zone' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing whole-zone snap target"
+        || die "${slice_label} action log missing whole-zone snap target"
     grep -F 'not-snap-target=window-within-zone' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing window-within-zone exclusion"
+        || die "${slice_label} action log missing window-within-zone exclusion"
     grep -F 'freeform-result=floating-no-snap' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing floating no-snap result"
+        || die "${slice_label} action log missing floating no-snap result"
     grep -F 'freeform-after-layout=floating' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing floating layout after no-Alt drag"
+        || die "${slice_label} action log missing floating layout after ${float_description} drag"
     grep -F 'snap-result=success' "$action_log" >/dev/null \
-        || die "Slice 22 action log missing snap success result"
+        || die "${slice_label} action log missing snap success result"
     if grep -F 'runtime-policy-command=' "$action_log" >/dev/null; then
-        die "Slice 22 must not rely on runtime set-zone-snap-policy"
+        die "${slice_label} must not rely on runtime set-zone-snap-policy"
     fi
 
     local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace freeform_workspace after_workspace freeform_layout reset_layout
@@ -4107,11 +4393,11 @@ require_float_unless_snap_proof() {
     reset_layout="$(field_for_title "$windows_reset" 'snap-demo.rtf' layout)"
 
     [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
-        || die "Slice 22 window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
-    [ "$before_zone" = main ] || die "Slice 22 source did not start in Work/main: ${before_zone:-missing}"
+        || die "${slice_label} window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
+    [ "$before_zone" = main ] || die "${slice_label} source did not start in Work/main: ${before_zone:-missing}"
     [ "$freeform_zone" = right ] || die "${slice_label} ${float_description} float did not land in Comms/right: ${freeform_zone:-missing}"
     [ "$freeform_layout" = floating ] || die "${slice_label} ${float_description} drag did not leave the source floating: ${freeform_layout:-missing}"
-    [ "$reset_zone" = main ] || die "Slice 22 reset did not return source to Work/main: ${reset_zone:-missing}"
+    [ "$reset_zone" = main ] || die "${slice_label} reset did not return source to Work/main: ${reset_zone:-missing}"
     [ "$reset_layout" != floating ] || die "${slice_label} reset left source floating before ${snap_description} snap"
     [ "$after_zone" = right ] || die "${slice_label} ${snap_description} snap did not end in Comms/right: ${after_zone:-missing}"
     [ -n "$before_workspace" ] && [ -n "$freeform_workspace" ] && [ "$before_workspace" != "$freeform_workspace" ] \
@@ -4120,24 +4406,24 @@ require_float_unless_snap_proof() {
         || die "${slice_label} ${snap_description} snap did not move to a different active workspace"
 
     [ "$(field_for_title "$windows_before" 'snap-demo.rtf' id)" = "$source_id" ] \
-        || die "Slice 22 before log missing snap-demo source id"
+        || die "${slice_label} before log missing snap-demo source id"
     [ "$(field_for_title "$windows_before" 'snap-demo.rtf' zone)" = main ] \
-        || die "Slice 22 before log missing snap-demo in main"
+        || die "${slice_label} before log missing snap-demo in main"
     [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' id)" = "$source_id" ] \
-        || die "Slice 22 freeform log missing same snap-demo id"
+        || die "${slice_label} ${float_description} log missing same snap-demo id"
     [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' zone)" = right ] \
-        || die "Slice 22 freeform log should show snap-demo in right"
+        || die "${slice_label} ${float_description} log should show snap-demo in right"
     [ "$(field_for_title "$windows_freeform" 'snap-demo.rtf' layout)" = floating ] \
-        || die "Slice 22 freeform log should show snap-demo as floating"
+        || die "${slice_label} ${float_description} log should show snap-demo as floating"
     [ "$(field_for_title "$windows_after" 'snap-demo.rtf' id)" = "$source_id" ] \
-        || die "Slice 22 after log missing same snap-demo id"
+        || die "${slice_label} after log missing same snap-demo id"
     [ "$(field_for_title "$windows_after" 'snap-demo.rtf' zone)" = right ] \
-        || die "Slice 22 after log should move snap-demo to right"
+        || die "${slice_label} after log should move snap-demo to right"
 
     [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = whole-zone ] \
-        || die "Slice 22 proof manifest must show whole-zone snap target"
+        || die "${slice_label} proof manifest must show whole-zone snap target"
     [ "$(manifest_value "$proof_manifest" drag-policy policy)" = float-unless-snap ] \
-        || die "Slice 22 proof manifest must show float-unless-snap config policy"
+        || die "${slice_label} proof manifest must show float-unless-snap config policy"
     [ "$(manifest_value "$proof_manifest" drag-policy gesture)" = "$expected_gesture" ] \
         || die "${slice_label} proof manifest missing gesture ${expected_gesture}"
     [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = "$expected_proof_mode" ] \
@@ -4148,11 +4434,11 @@ require_float_unless_snap_proof() {
     [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = "$expected_positive_proof" ] \
         || die "${slice_label} proof manifest missing ${expected_positive_proof} positive proof"
     [ "$(manifest_value "$proof_manifest" drag-result freeform-result)" = floating-no-snap ] \
-        || die "Slice 22 proof manifest missing floating no-snap result"
+        || die "${slice_label} proof manifest missing floating no-snap result"
     [ "$(manifest_value "$proof_manifest" drag-result freeform-after-layout)" = floating ] \
-        || die "Slice 22 proof manifest missing floating layout result"
+        || die "${slice_label} proof manifest missing floating layout result"
     [ "$(manifest_value "$proof_manifest" drag-result result)" = success ] \
-        || die "Slice 22 proof manifest missing snap success result"
+        || die "${slice_label} proof manifest missing snap success result"
     if [ "$require_product_overlay_label" = "1" ]; then
         [ "$(manifest_value "$proof_manifest" visual-floor product-overlay-label)" = "Whole zone: Comms" ] \
             || die "${slice_label} proof manifest missing product overlay label"
@@ -4165,15 +4451,15 @@ require_float_unless_snap_proof() {
     grep -F "$freeform_action_chip" "$annotation_plan" >/dev/null \
         || die "${slice_label} annotations missing ordinary drag chip"
     grep -F "Run: winmux list-windows --monitor all" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing list-windows inspection chip"
+        || die "${slice_label} annotations missing list-windows inspection chip"
     grep -F "Action: reset snap-demo.rtf to Work/main tiling" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing reset chip"
+        || die "${slice_label} annotations missing reset chip"
     grep -F "$snap_action_chip" "$annotation_plan" >/dev/null \
         || die "${slice_label} annotations missing snap activation drag chip"
     grep -F "Action: target = whole Comms zone" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing whole-zone target chip"
+        || die "${slice_label} annotations missing whole-zone target chip"
     grep -F "Action: release on Comms zone" "$annotation_plan" >/dev/null \
-        || die "Slice 22 annotations missing release chip"
+        || die "${slice_label} annotations missing release chip"
 
     local freeform_drag_offset snap_drag_offset snap_end_offset
     local freeform_caption_start snap_caption_start release_caption_start
@@ -4193,7 +4479,7 @@ require_float_unless_snap_proof() {
     assert_numeric_le "$snap_caption_start" "$snap_recording_start" \
         "${slice_label} ${snap_description} drag caption must be visible when the snap drag starts"
     assert_numeric_le "$release_caption_start" "$snap_recording_end" \
-        "Slice 22 release caption must be visible before the positive drag has fully completed"
+        "${slice_label} release caption must be visible before the positive drag has fully completed"
 }
 
 require_slice_22_float_unless_snap_proof() {
@@ -5263,9 +5549,9 @@ annotate_recording="$(value_from_log annotate_recording "$PREFLIGHT_LOG")"
 [ "$capture_mode" = "guest" ] || die "Product artifact must use guest capture, got capture_mode=$capture_mode"
 [ "$require_guest_control" = "1" ] || die "Product artifact must require guest control, got require_guest_control=$require_guest_control"
 
-recording_count="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | wc -l | tr -d ' ')"
+recording_count="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' ! -name '*.demo.mov' | wc -l | tr -d ' ')"
 [ "$recording_count" = "1" ] || die "Expected exactly one .mov recording, found $recording_count"
-recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | head -1)"
+recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' ! -name '*.demo.mov' | head -1)"
 require_file "$recording_path"
 recording_name="$(basename "$recording_path" .mov)"
 
@@ -5346,6 +5632,7 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
         done <"$expected_chips"
     fi
     require_caption_tail_manifest "$recording_name" "$duration"
+    require_demo_cut_manifest "$recording_name" "$duration"
     edge_crop_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
     if [ -s "$edge_crop_manifest" ]; then
         require_edge_crop_manifest "$edge_crop_manifest"

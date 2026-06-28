@@ -10,7 +10,7 @@ usage() {
 Usage: $(basename "$0") <input.mov> <captions.tsv> <output.mov>
 
 captions.tsv format:
-  start_seconds<TAB>end_seconds<TAB>title<TAB>subtitle<TAB>command_or_action
+  start_seconds<TAB>end_seconds<TAB>title<TAB>subtitle<TAB>command_or_action[<TAB>result]
 EOF
 }
 
@@ -81,8 +81,9 @@ render_card() {
     local title="$1"
     local subtitle="$2"
     local command="$3"
-    local output="$4"
-    local escaped_title escaped_subtitle escaped_command
+    local result="$4"
+    local output="$5"
+    local escaped_title escaped_subtitle escaped_command escaped_result
     local local_card_x=0
     local local_card_y=0
     local local_card_x2="$card_width"
@@ -95,11 +96,18 @@ render_card() {
     local local_command_box_y1=$((card_height - 65))
     local local_command_box_y2=$((card_height - 20))
     local local_command_text_y=$((local_command_box_y1 + 31))
+    local local_result_text_y=$((local_command_box_y1 + 63))
     local local_command_box_x1="$local_text_x"
     local local_command_box_x2=$((card_width - 32))
+    if [ -n "$result" ]; then
+        local_command_box_y1=$((card_height - 96))
+        local_command_text_y=$((local_command_box_y1 + 33))
+        local_result_text_y=$((local_command_box_y1 + 68))
+    fi
     escaped_title="$(magick_escape_text "$title")"
     escaped_subtitle="$(magick_escape_text "$subtitle")"
     escaped_command="$(magick_escape_text "$command")"
+    escaped_result="$(magick_escape_text "$result")"
 
     magick \
         -size "${card_width}x${card_height}" xc:none \
@@ -128,6 +136,14 @@ render_card() {
             -pointsize "$command_size" \
             -annotate +"$((local_command_box_x1 + 18))+${local_command_text_y}" "$escaped_command" \
             "$output"
+        if [ -n "$result" ]; then
+            magick "$output" \
+                -font "$mono_font" \
+                -fill '#C8FFE4' \
+                -pointsize "$command_size" \
+                -annotate +"$((local_command_box_x1 + 18))+${local_result_text_y}" "$escaped_result" \
+                "$output"
+        fi
     fi
 }
 
@@ -143,7 +159,7 @@ filter_parts=('[0:v]setpts=PTS-STARTPTS[base0]')
 previous='[base0]'
 caption_count=0
 
-while IFS=$'\t' read -r start_time end_time title subtitle command || [ -n "${start_time:-}" ]; do
+while IFS=$'\t' read -r start_time end_time title subtitle command result || [ -n "${start_time:-}" ]; do
     case "${start_time:-}" in
         ''|'#'*) continue ;;
     esac
@@ -151,10 +167,11 @@ while IFS=$'\t' read -r start_time end_time title subtitle command || [ -n "${st
     [ -n "${title:-}" ] || die "Caption ${caption_count} is missing title"
     subtitle="${subtitle:-}"
     command="${command:-}"
+    result="${result:-}"
 
     caption_count=$((caption_count + 1))
     overlay_path="${asset_dir}/caption-${caption_count}.png"
-    render_card "$title" "$subtitle" "$command" "$overlay_path"
+    render_card "$title" "$subtitle" "$command" "$result" "$overlay_path"
     input_args+=(-loop 1 -t "$duration" -i "$overlay_path")
 
     next="[v${caption_count}]"

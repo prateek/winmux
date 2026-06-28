@@ -45,14 +45,16 @@ single_match() {
     printf '%s\n' "$path"
 }
 
-recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' | sort | head -1)"
+recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' ! -name '*.demo.mov' | sort | head -1)"
 require_file "$recording_path"
 recording_name="$(basename "$recording_path" .mov)"
 raw_recording_path="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
+demo_recording_path="${RECORDINGS_DIR}/${recording_name}.demo.mov"
 before_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '00-before-*.png' | sort | head -1)"
 ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' | sort | head -1)"
 after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+contact_sheet_manifest="${LOGS_DIR}/${recording_name}.contact-sheet-manifest.tsv"
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
 sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
 event_contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jpg"
@@ -63,6 +65,7 @@ boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
 caption_tail="${LOGS_DIR}/${recording_name}.caption-tail.tsv"
+demo_cut_manifest="${LOGS_DIR}/${recording_name}.demo-cut.tsv"
 expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
@@ -89,6 +92,11 @@ if [ -s "$event_manifest" ]; then
 else
     event_manifest_label="not applicable"
 fi
+if [ -s "$contact_sheet_manifest" ]; then
+    contact_sheet_manifest_label="$contact_sheet_manifest"
+else
+    contact_sheet_manifest_label="not applicable"
+fi
 if [ -s "$mouse_events" ]; then
     mouse_events_label="$mouse_events"
 else
@@ -103,6 +111,13 @@ if [ -s "$caption_tail" ]; then
     caption_tail_label="$caption_tail"
 else
     caption_tail_label="not applicable"
+fi
+if [ -s "$demo_recording_path" ] && [ -s "$demo_cut_manifest" ]; then
+    demo_recording_label="$demo_recording_path"
+    demo_cut_manifest_label="$demo_cut_manifest"
+else
+    demo_recording_label="not applicable"
+    demo_cut_manifest_label="not applicable"
 fi
 if [ -s "$overlay_sentinel" ]; then
     overlay_sentinel_label="$overlay_sentinel"
@@ -433,10 +448,12 @@ packet fills the artifact paths and slice-specific checks.
 
 - primary recording: ${recording_path}
 - raw recording: ${raw_recording_path}
+- trimmed demo cut: ${demo_recording_label}
 - before screenshot: ${before_screenshot}
 - ready screenshot: ${ready_screenshot:-not present}
 - after screenshot: ${after_screenshot}
 - contact sheet: ${contact_sheet}
+- contact sheet manifest: ${contact_sheet_manifest_label}
 - event contact sheet: ${event_contact_sheet_label}
 - sample frames: ${samples_dir}
 - sample manifest: ${sample_manifest}
@@ -454,6 +471,7 @@ $(drag_screenshot_lines)
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
 - caption tail manifest: ${caption_tail_label}
+- demo cut manifest: ${demo_cut_manifest_label}
 - expected caption chips: ${expected_chips:-not present}
 - drag proof manifest: ${proof_manifest_label}
 - event manifest: ${event_manifest_label}

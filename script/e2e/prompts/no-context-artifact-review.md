@@ -17,10 +17,14 @@ Slice:
 - recording: <artifact-dir>/recordings/<recording>.mov
 - raw recording, when annotation is enabled:
   <artifact-dir>/recordings/raw/<recording>.raw.mov
+- trimmed demo cut, when the reviewer packet lists one:
+  <artifact-dir>/recordings/<recording>.demo.mov
 - before screenshot: <artifact-dir>/screenshots/<before>.png
 - after screenshot: <artifact-dir>/screenshots/<after>.png
 - sample manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.sample-manifest.tsv
+- contact sheet manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.contact-sheet-manifest.tsv
 - event manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.event-manifest.tsv
 - mouse event timing table, required when the reviewer packet lists one:
@@ -32,6 +36,8 @@ Slice:
   <artifact-dir>/logs/guest-transport-summary.tsv
 - caption tail manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.caption-tail.tsv
+- demo cut manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.demo-cut.tsv
 - relevant logs: <list exact log paths>
 - baseline media: demo.mp4, demo2.mp4, demo3.mp4, demo-columnar-zones.mp4,
   resources/screenshots/winmux-overview.png, resources/screenshots/tab-groups.png
@@ -64,6 +70,11 @@ Required checks:
    75%, and near-end of the recording, plus frames for each caption/action beat
    when captions are present.
    Do not rely only on logs.
+   If the reviewer packet lists `logs/<recording>.contact-sheet-manifest.tsv`,
+   treat the primary contact sheet as a semantic proof sheet. Confirm the
+   manifest rows match visible contact-sheet panels. For drag or snap demos, it
+   must include and visibly show the first target affordance, the release beat,
+   and the final placement; otherwise FAIL the review.
    The primary recording should include legible, restrained demo captions when
    `preflight.log` says `annotate_recording=1`; confirm the captions explain the
    visible action without hiding the windows or making the artifact look generic.
@@ -77,6 +88,14 @@ Required checks:
    If the reviewer packet lists expected caption chips, compare those exact
    chips with the visible captions and annotation TSV. Missing or materially
    incomplete command, config, or user-action chips are a failure.
+   When a `Run:` caption's command output is not visible in the desktop video,
+   prefer an adjacent compact `Result:` line in the annotation card. If the
+   command is central to the proof and neither output nor a result line is
+   visible, treat that as a comprehension failure.
+   For mouse gesture proofs, also look for a visible input-state cue in the
+   caption card, such as `Input: Alt held` or `Input: secondary button held`.
+   Logs may corroborate the input state, but they cannot be the only way a
+   viewer understands which gesture was active.
    If the reviewer packet lists final edge/corner crops, inspect them alongside
    the full after screenshot and reject any unrelated or partial setup window at
    a final screen edge.
@@ -87,6 +106,9 @@ Required checks:
    uncaptained tail beyond the allowed hold is explicitly declared intentional
    with a concrete reason and that near-end media/edge crops support the final
    clean-state claim.
+   If the reviewer packet lists a trimmed demo cut, inspect it as the
+   product-facing short version, then still inspect the full primary recording
+   for acceptance evidence. The demo cut must not replace the full recording.
    If the reviewer packet lists an event manifest, inspect it. It must split
    action-sensitive proof into named events such as command start/end, drag
    pickup/path/hover/release, first affordance, post-state inspection, and final
@@ -159,6 +181,8 @@ Hard FAIL conditions:
   pickup, dragged proxy/path, target hover/drop highlight, and release. Do not
   infer these from final placement, logs, or captions alone. The review must
   name the exact inspected media file for each required drag beat;
+- a drag/snap artifact lists a contact-sheet manifest but the semantic contact
+  sheet omits the target affordance, release, or final placement panels;
 - screenshots are blank, not ultrawide when an ultrawide was required, or taken at
   meaningless checkpoints;
 - the review cannot compare against the baseline media/product surfaces.

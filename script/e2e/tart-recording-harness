@@ -1308,7 +1308,7 @@ write_static_slice_22_annotation_plan() {
 8	19	Drag without Alt	Pick up snap-demo.rtf with no modifier; this should not show a snap overlay.	Action: drag snap-demo.rtf with no modifier
 19	28	Floating result	The same window is now floating/freeform rather than tiled.	Run: winmux list-windows --monitor all
 28	37	Reset source	Return the same window to Work/main before proving the snap branch.	Action: reset snap-demo.rtf to Work/main tiling
-37	48	Hold Alt and drag	The configured modifier keeps the drag on the whole-zone snap path.	Action: hold Alt while dragging snap-demo.rtf
+37	48	Hold Alt and drag	The configured modifier keeps the drag on the whole-zone snap path.	Action: hold Alt while dragging snap-demo.rtf	Input: Alt held
 48	59	Whole-zone target	The overlay targets the Comms zone itself, not a window or slot.	Action: target = whole Comms zone
 59	68	Release into Comms	Drop to move the same window to Comms active workspace.	Action: release on Comms zone
 68	78	Inspect snap	The window log proves the same id snapped from Work/main to Comms/right.	Run: winmux list-windows --monitor all
@@ -1322,7 +1322,7 @@ write_static_slice_23_annotation_plan() {
 8	19	Drag without Alt	Pick up snap-demo.rtf with no modifier; this should not show a snap overlay.	Action: drag snap-demo.rtf with no modifier
 19	28	Floating result	The same window is now floating/freeform rather than tiled.	Run: winmux list-windows --monitor all
 28	37	Reset source	Return the same window to Work/main before proving the labeled snap branch.	Action: reset snap-demo.rtf to Work/main tiling
-37	48	Hold Alt and drag	The configured modifier keeps the drag on the whole-zone snap path.	Action: hold Alt while dragging snap-demo.rtf
+37	48	Hold Alt and drag	The configured modifier keeps the drag on the whole-zone snap path.	Action: hold Alt while dragging snap-demo.rtf	Input: Alt held
 48	59	Whole-zone label	The product overlay says Whole zone: Comms, so the target is the whole zone.	Action: target = whole Comms zone
 59	68	Release into Comms	Drop to move the same window to Comms active workspace.	Action: release on Comms zone
 68	78	Inspect snap	The window log proves the same id snapped from Work/main to Comms/right.	Run: winmux list-windows --monitor all
@@ -1336,7 +1336,7 @@ write_static_slice_24_annotation_plan() {
 8	19	Drag normally	Pick up snap-demo.rtf without the secondary button; this should not show a snap overlay.	Action: drag snap-demo.rtf with no secondary button
 19	28	Floating result	The same window is now floating/freeform rather than tiled.	Run: winmux list-windows --monitor all
 28	37	Reset source	Return the same window to Work/main before proving the gesture snap branch.	Action: reset snap-demo.rtf to Work/main tiling
-37	48	Secondary-button drag	Hold the secondary mouse button while dragging to enter the snap path.	Action: hold secondary button while dragging snap-demo.rtf
+37	48	Secondary-button drag	Hold the secondary mouse button while dragging to enter the snap path.	Action: hold secondary button while dragging snap-demo.rtf	Input: secondary button held
 48	59	Whole-zone target	The product overlay targets the Comms zone itself, not a window or slot.	Action: target = whole Comms zone
 59	68	Release into Comms	Drop to move the same window to Comms active workspace.	Action: release on Comms zone
 68	78	Inspect snap	The window log proves the same id snapped from Work/main to Comms/right.	Run: winmux list-windows --monitor all
@@ -1375,11 +1375,15 @@ write_timed_slice_22_annotation_plan() {
         -v target_body="$target_body" '
         function max(a, b) { return a > b ? a : b }
         function min(a, b) { return a < b ? a : b }
-        function emit(start, end, title, body, chip) {
+        function emit(start, end, title, body, chip, result) {
             if (end <= start) {
                 end = start + 1
             }
-            printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            if (result != "") {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\t%s\n", start, end, title, body, chip, result
+            } else {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            }
         }
         BEGIN {
             freeform_start = base + freeform_start_offset
@@ -1407,7 +1411,7 @@ write_timed_slice_22_annotation_plan() {
             emit(freeform_start, freeform_pickup_end, "Drag without Alt", "Pick up snap-demo.rtf with no modifier; this should not show a snap overlay.", "Action: drag snap-demo.rtf with no modifier")
             emit(freeform_pickup_end, float_result_end, "Floating result", "The same window is now floating/freeform rather than tiled.", "Run: winmux list-windows --monitor all")
             emit(float_result_end, reset_end, "Reset source", "Return the same window to Work/main before proving the snap branch.", "Action: reset snap-demo.rtf to Work/main tiling")
-            emit(snap_start, snap_pickup_end, "Hold Alt and drag", "The configured modifier keeps the drag on the whole-zone snap path.", "Action: hold Alt while dragging snap-demo.rtf")
+            emit(snap_start, snap_pickup_end, "Hold Alt and drag", "The configured modifier keeps the drag on the whole-zone snap path.", "Action: hold Alt while dragging snap-demo.rtf", "Input: Alt held")
             emit(target_start, release_start, target_title, target_body, "Action: target = whole Comms zone")
             emit(release_start, snap_end + 3, "Release into Comms", "Drop to move the same window to Comms active workspace.", "Action: release on Comms zone")
             emit(snap_end + 3, snap_end + 10, "Inspect snap", "The window log proves the same id snapped from Work/main to Comms/right.", "Run: winmux list-windows --monitor all")
@@ -1450,11 +1454,15 @@ write_timed_slice_24_annotation_plan() {
         -v snap_end_offset="$snap_end_offset" '
         function max(a, b) { return a > b ? a : b }
         function min(a, b) { return a < b ? a : b }
-        function emit(start, end, title, body, chip) {
+        function emit(start, end, title, body, chip, result) {
             if (end <= start) {
                 end = start + 1
             }
-            printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            if (result != "") {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\t%s\n", start, end, title, body, chip, result
+            } else {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            }
         }
         BEGIN {
             freeform_start = base + freeform_start_offset
@@ -1482,7 +1490,7 @@ write_timed_slice_24_annotation_plan() {
             emit(freeform_start, freeform_pickup_end, "Drag normally", "Pick up snap-demo.rtf without the secondary button; this should not show a snap overlay.", "Action: drag snap-demo.rtf with no secondary button")
             emit(freeform_pickup_end, float_result_end, "Floating result", "The same window is now floating/freeform rather than tiled.", "Run: winmux list-windows --monitor all")
             emit(float_result_end, reset_end, "Reset source", "Return the same window to Work/main before proving the gesture snap branch.", "Action: reset snap-demo.rtf to Work/main tiling")
-            emit(snap_start, snap_pickup_end, "Secondary-button drag", "Hold the secondary mouse button while dragging to enter the snap path.", "Action: hold secondary button while dragging snap-demo.rtf")
+            emit(snap_start, snap_pickup_end, "Secondary-button drag", "Hold the secondary mouse button while dragging to enter the snap path.", "Action: hold secondary button while dragging snap-demo.rtf", "Input: secondary button held")
             emit(target_start, release_start, "Whole-zone target", "The product overlay targets the Comms zone itself, not a window or slot.", "Action: target = whole Comms zone")
             emit(release_start, snap_end + 3, "Release into Comms", "Drop to move the same window to Comms active workspace.", "Action: release on Comms zone")
             emit(snap_end + 3, snap_end + 10, "Inspect snap", "The window log proves the same id snapped from Work/main to Comms/right.", "Run: winmux list-windows --monitor all")
@@ -2957,6 +2965,150 @@ event_contact_sheet_image_name() {
     printf '%02d-%s.png\n' "$index" "$(printf '%s' "$safe_label" | cut -c1-96)"
 }
 
+contact_sheet_summary_label_order() {
+    cat <<'EOF'
+freeform-pickup
+freeform-hover-no-overlay
+float-final-placement
+reset-before-snap
+snap-pickup
+snap-path
+snap-hover-comms
+snap-release
+snap-final-placement
+cycle-policy-command-start
+EOF
+}
+
+sample_manifest_has_label() {
+    local manifest_path="$1"
+    local label="$2"
+    /usr/bin/awk -F'\t' -v label="$label" '$1 == "semantic" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$manifest_path"
+}
+
+append_sample_manifest_row_for_label() {
+    local source_manifest="$1"
+    local output_manifest="$2"
+    local label="$3"
+    /usr/bin/awk -F'\t' -v label="$label" '
+        $1 == "semantic" && $2 == label {
+            print
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$source_manifest" >>"$output_manifest"
+}
+
+write_contact_sheet_summary_manifest() {
+    local sample_manifest="$1"
+    local output_manifest="$2"
+    : >"$output_manifest"
+    printf '# kind\tlabel\tcaption\ttimestamp\tpath\texpected\n' >>"$output_manifest"
+
+    if ! sample_manifest_has_label "$sample_manifest" snap-hover-comms ||
+        ! sample_manifest_has_label "$sample_manifest" snap-release ||
+        ! sample_manifest_has_label "$sample_manifest" snap-final-placement; then
+        return 1
+    fi
+
+    local label row_count=0
+    while IFS= read -r label; do
+        [ -n "$label" ] || continue
+        if sample_manifest_has_label "$sample_manifest" "$label"; then
+            append_sample_manifest_row_for_label "$sample_manifest" "$output_manifest" "$label"
+            row_count=$((row_count + 1))
+        fi
+    done < <(contact_sheet_summary_label_order)
+
+    [ "$row_count" -ge 3 ] || return 1
+}
+
+append_overlay_crop_contact_sheet_rows() {
+    local name="$1"
+    local output_manifest="$2"
+    local overlay_manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    [ -s "$overlay_manifest" ] || return 0
+
+    /usr/bin/awk -F'\t' '
+        $1 == "target-label" && $4 ~ /^screenshots\// {
+            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\tzoomed labeled whole-zone target crop\n", $4
+            found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$overlay_manifest" >>"$output_manifest" || true
+}
+
+append_summary_contact_sheet_image() {
+    local tmp_dir="$1"
+    local index="$2"
+    local label="$3"
+    local relative_path="$4"
+    case "$relative_path" in
+        ""|-|/*|*../*) return 0 ;;
+    esac
+
+    local source_path="${RUN_DIR}/${relative_path}"
+    [ -s "$source_path" ] || die "Summary contact sheet source is missing: $relative_path"
+    local output_path
+    output_path="${tmp_dir}/$(event_contact_sheet_image_name "$index" "$label")"
+    magick "$source_path" -resize '720x405>' "$output_path"
+    [ -s "$output_path" ] || die "Summary contact sheet image did not render: $output_path"
+}
+
+generate_semantic_summary_contact_sheet() {
+    local name="$1"
+    local sample_manifest="$2"
+    local contact_sheet="$3"
+    local contact_sheet_manifest="${LOGS_DIR}/${name}.contact-sheet-manifest.tsv"
+
+    write_contact_sheet_summary_manifest "$sample_manifest" "$contact_sheet_manifest" || {
+        rm -f "$contact_sheet_manifest"
+        return 1
+    }
+    append_overlay_crop_contact_sheet_rows "$name" "$contact_sheet_manifest"
+    command -v magick >/dev/null 2>&1 || die "Semantic summary contact sheet requires ImageMagick: magick"
+
+    local tmp_dir="${SCREENSHOTS_DIR}/${name}.contact-sheet.tmp"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    local index=0 _kind label _caption _timestamp relative_path _expected
+    while IFS=$'\t' read -r _kind label _caption _timestamp relative_path _expected; do
+        case "${_kind:-}" in
+            ""|\#*) continue ;;
+        esac
+        case "${label:-}" in
+            "") continue ;;
+        esac
+        index=$((index + 1))
+        append_summary_contact_sheet_image "$tmp_dir" "$index" "$label" "$relative_path"
+    done <"$contact_sheet_manifest"
+
+    local images=()
+    local image_path
+    while IFS= read -r image_path; do
+        images+=("$image_path")
+    done < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    [ "${#images[@]}" -gt 0 ] || die "Semantic summary contact sheet has no image rows: $contact_sheet_manifest"
+    local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    magick montage \
+        -font "$label_font" \
+        -pointsize 22 \
+        -label '%t' \
+        "${images[@]}" \
+        -thumbnail '720x405>' \
+        -geometry '720x405+16+48' \
+        -tile 3x \
+        -background '#F4F2ED' \
+        -fill '#101820' \
+        "$contact_sheet"
+    [ -s "$contact_sheet" ] || die "Semantic summary contact sheet did not produce a non-empty file: $contact_sheet"
+    rm -rf "$tmp_dir"
+    return 0
+}
+
 append_event_contact_sheet_image() {
     local tmp_dir="$1"
     local index="$2"
@@ -3129,16 +3281,18 @@ generate_recording_samples() {
     write_semantic_sample_manifest "$name" "$sample_manifest"
     [ -s "$sample_manifest" ] || die "Sample manifest did not produce a non-empty file: $sample_manifest"
 
-    ffmpeg \
-        -hide_banner \
-        -loglevel error \
-        -y \
-        -framerate 1 \
-        -pattern_type glob \
-        -i "${samples_dir}/standard-*.png" \
-        -vf "scale=860:-1,tile=3x2" \
-        -frames:v 1 \
-        "$contact_sheet"
+    if ! generate_semantic_summary_contact_sheet "$name" "$sample_manifest" "$contact_sheet"; then
+        ffmpeg \
+            -hide_banner \
+            -loglevel error \
+            -y \
+            -framerate 1 \
+            -pattern_type glob \
+            -i "${samples_dir}/standard-*.png" \
+            -vf "scale=860:-1,tile=3x2" \
+            -frames:v 1 \
+            "$contact_sheet"
+    fi
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
     generate_event_manifest_contact_sheet "$name"
 }
@@ -3175,6 +3329,67 @@ write_caption_tail_manifest() {
         printf 'reason\t%s\n' "$reason"
     } >"$manifest"
     [ -s "$manifest" ] || die "Caption tail manifest did not produce a non-empty file: $manifest"
+}
+
+caption_tail_manifest_value() {
+    local path="$1"
+    local key="$2"
+    /usr/bin/awk -F'\t' -v key="$key" '$1 == key { print $2; exit }' "$path"
+}
+
+generate_demo_cut() {
+    local name="$1"
+    local source_path="${RECORDINGS_DIR}/${name}.mov"
+    local caption_tail="${LOGS_DIR}/${name}.caption-tail.tsv"
+    [ -s "$source_path" ] || return 0
+    [ -s "$caption_tail" ] || return 0
+
+    local intentional tail_seconds last_caption_end duration trim_end demo_path manifest_path reason
+    intentional="$(caption_tail_manifest_value "$caption_tail" intentional-uncaptioned-tail)"
+    [ "$intentional" = "yes" ] || return 0
+    tail_seconds="$(caption_tail_manifest_value "$caption_tail" tail-seconds)"
+    last_caption_end="$(caption_tail_manifest_value "$caption_tail" last-caption-end-seconds)"
+    duration="$(caption_tail_manifest_value "$caption_tail" duration-seconds)"
+    reason="$(caption_tail_manifest_value "$caption_tail" reason)"
+    [[ "$tail_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail seconds are not numeric for demo cut: $tail_seconds"
+    [[ "$last_caption_end" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail last-caption-end is not numeric for demo cut: $last_caption_end"
+    [[ "$duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail duration is not numeric for demo cut: $duration"
+
+    trim_end="$(/usr/bin/awk -v last="$last_caption_end" -v duration="$duration" 'BEGIN {
+        end = last + 2.000
+        if (end > duration) {
+            end = duration
+        }
+        printf "%.3f", end
+    }')"
+    if /usr/bin/awk -v trim="$trim_end" -v duration="$duration" 'BEGIN { exit(trim + 0 >= duration - 0.500 ? 0 : 1) }'; then
+        return 0
+    fi
+
+    demo_path="${RECORDINGS_DIR}/${name}.demo.mov"
+    manifest_path="${LOGS_DIR}/${name}.demo-cut.tsv"
+    ffmpeg \
+        -hide_banner \
+        -loglevel error \
+        -y \
+        -i "$source_path" \
+        -t "$trim_end" \
+        -map 0 \
+        -c copy \
+        -movflags +faststart \
+        "$demo_path"
+    [ -s "$demo_path" ] || die "Demo cut did not produce a non-empty file: $demo_path"
+    {
+        printf 'recording\t%s\n' "$name"
+        printf 'source-recording\trecordings/%s.mov\n' "$name"
+        printf 'demo-recording\trecordings/%s.demo.mov\n' "$name"
+        printf 'source-duration-seconds\t%s\n' "$duration"
+        printf 'last-caption-end-seconds\t%s\n' "$last_caption_end"
+        printf 'trim-end-seconds\t%s\n' "$trim_end"
+        printf 'tail-seconds\t%s\n' "$tail_seconds"
+        printf 'reason\t%s\n' "$reason"
+    } >"$manifest_path"
+    [ -s "$manifest_path" ] || die "Demo cut manifest did not produce a non-empty file: $manifest_path"
 }
 
 generate_final_edge_crops() {
@@ -3295,6 +3510,7 @@ refresh_annotation_artifact() {
     fi
     write_mouse_snap_overlay_sentinel "$name"
     write_caption_tail_manifest "$name" "$duration"
+    generate_demo_cut "$name"
     generate_recording_samples "$name" "$duration"
     generate_final_edge_crops "$name"
     archive_existing_no_context_review
@@ -3338,6 +3554,7 @@ wait_for_recording() {
     write_guest_transport_summary "$name"
     write_mouse_snap_overlay_sentinel "$name"
     write_caption_tail_manifest "$name" "$duration"
+    generate_demo_cut "$name"
     generate_recording_samples "$name" "$duration"
     generate_final_edge_crops "$name"
     write_review_packet "$name"

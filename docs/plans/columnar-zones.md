@@ -4046,9 +4046,9 @@ Accepted result:
 
 Pre-Slice-25 cleanup from Slice 24 retrospectives:
 
-- [ ] Start Slice 25 from an explicit checkpoint or clean worktree; do not mix
+- [x] Start Slice 25 from an explicit checkpoint or clean worktree; do not mix
   new slice work with the accepted Slice 24 diff.
-- [ ] Define the reviewer packet, event-manifest beats, and required
+- [x] Define the reviewer packet, event-manifest beats, and required
   before/action/after media before the next Tart run.
 - [x] Add a machine-checkable no-context declaration to future artifact reviews
   or reviewer packets, while keeping retrospectives read-only unless the
@@ -4056,25 +4056,108 @@ Pre-Slice-25 cleanup from Slice 24 retrospectives:
 - [x] Add verifier-required input-state evidence for mouse gesture proofs, such
   as raw right-button down/up rows or app-side `pressedMouseButtons` proof tied
   to `snap-drag-start`, `snap-first-affordance`, and `snap-release`.
-- [ ] Refactor the shared mouse-drag proof path toward a data-driven spec for
+- [x] Refactor the shared mouse-drag proof path toward a data-driven spec for
   activation input, expected negative result, expected positive result,
   captions, samples, verifier checks, and review-packet bullets.
-- [ ] Replace more long exact verifier prose matches with structured
+  This cleanup does not fully replace the shared mouse proof code with a table,
+  but it moves the next-slice artifact contract onto structured data:
+  `script/e2e/specs/mouse-drag-events.tsv` remains the ordered event source,
+  `logs/<recording>.contact-sheet-manifest.tsv` defines the summary media
+  panels, `logs/<recording>.demo-cut.tsv` defines trimmed demo sidecars, and
+  verifier diagnostics now use resolved slice/gesture fields instead of stale
+  Slice 22 literals. Keep deeper review-packet prose extraction out of Slice 25
+  unless the Slice 25 artifact review finds real drift.
+- [x] Replace more long exact verifier prose matches with structured
   config/proof/event manifest assertions, and clean up stale Slice 22 wording in
   shared diagnostics.
+  The shared Slice 22/23/24 verifier now reports failures through the resolved
+  slice label and gesture description instead of stale Slice 22/no-Alt wording;
+  current mouse-drag ordering remains asserted through the data-driven event
+  spec and proof manifests.
 - [x] Make product-label overlay sentinel generation fail closed for slices
   that require a product overlay label.
-- [ ] For future drag/product-demo slices, make the summary contact sheet show
+- [x] For future drag/product-demo slices, make the summary contact sheet show
   the first visible product affordance, release, and final placement.
-- [ ] Add a viewer-visible mouse/input-state cue and, where needed, zoomed
+  Implemented with `logs/<recording>.contact-sheet-manifest.tsv`: when
+  drag/snap semantic sample labels exist, the primary contact sheet is a
+  labeled semantic summary rather than a percentage-only timeline.
+- [x] Add a viewer-visible mouse/input-state cue and, where needed, zoomed
   proof crops or insets so a new viewer can follow the gesture without reading
   logs.
-- [ ] Add compact command-result chips for `Run:` captions when command output
+  Future mouse annotations can render result-line cues such as
+  `Input: Alt held` or `Input: secondary button held`, and semantic summary
+  contact sheets now include the existing labeled whole-zone target crop when
+  overlay-sentinel output is available.
+- [x] Add compact command-result chips for `Run:` captions when command output
   is not visible in the recording.
-- [ ] Keep the full acceptance recording, but produce a trimmed annotated demo
+  `script/e2e/annotate-recording` now accepts an optional sixth annotation TSV
+  field and renders it as a compact `Result:` line in the caption card.
+- [x] Keep the full acceptance recording, but produce a trimmed annotated demo
   cut when the verification tail is long.
+  Future long-tail annotated runs write `recordings/<recording>.demo.mov` plus
+  `logs/<recording>.demo-cut.tsv`; the verifier validates the sidecar when it
+  exists, while the full recording remains the acceptance artifact.
 - [x] Add a reviewer-prompt check for whether the annotated video is
   understandable without logs.
+
+## Slice 25: Mouse Demo Artifact Contract
+
+Goal: validate the hardened demo artifact contract on the one-handed mouse snap
+workflow before adding another product behavior. Slice 25 should re-prove the
+secondary-button whole-zone snap path with a fresh Tart recording that is easier
+to follow as product media. It does not add new WinMux runtime behavior beyond
+Slice 24.
+
+Required user-visible story:
+
+- Start from `[mouse.zone-snap] policy = 'float-unless-snap'`,
+  `gesture = 'secondary-button-drag'`, and `target = 'zone'`.
+- Show an ordinary drag of `snap-demo.rtf` into the Comms area with no snap
+  overlay and a floating/freeform result.
+- Reset the same source window to Work/main tiling.
+- Show a secondary-button drag of the same source window with a visible input
+  cue, pointer/path movement, the product `Whole zone: Comms` overlay, release,
+  and final Comms/right placement.
+- State in the review whether the positive branch targets a whole zone or a
+  window/slot inside a zone. Expected answer: whole Comms zone.
+
+Required artifact contract before no-context review:
+
+- Full acceptance recording:
+  `recordings/slice-25-mouse-demo-contract.mov`.
+- Raw guest recording preserved under `recordings/raw/`.
+- Trimmed sidecar demo:
+  `recordings/slice-25-mouse-demo-contract.demo.mov`, with
+  `logs/slice-25-mouse-demo-contract.demo-cut.tsv`.
+- Primary contact sheet:
+  `screenshots/slice-25-mouse-demo-contract.contact-sheet.jpg`, backed by
+  `logs/slice-25-mouse-demo-contract.contact-sheet-manifest.tsv`.
+  The manifest must include `snap-hover-comms`, `snap-release`,
+  `snap-final-placement`, and a `target-zone-crop` proof-crop row when the
+  overlay sentinel writes the labeled crop.
+- Annotation TSV must include the visible input cue
+  `Input: secondary button held` on the secondary-button drag caption.
+- Event manifest must keep the Slice 24 mouse-drag beats split: config, ordinary
+  drag start/hover/release/post-state, reset, snap pickup/path/first affordance,
+  snap hover, release, and post-state.
+- Mouse event timing must include `snap-secondary-button-down`,
+  `snap-secondary-button-held`, and `snap-secondary-button-up` in order around
+  snap pickup, first affordance, and release.
+- Reviewer packet must list the full recording, raw recording, demo cut,
+  contact-sheet manifest, event contact sheet, event manifest, mouse timing
+  table, proof manifest, overlay sentinel, sample manifest, caption tail, demo
+  cut manifest, and baseline media.
+
+Validation gate:
+
+- Run focused shell checks and `./script/e2e/verify-artifact --self-test`.
+- Run the full pre-Tart gate with external-SSD Tart configuration.
+- Produce the Slice 25 Tart artifact with `TART_HOME=/Volumes/RiftTartVMs/tart`.
+- Run `make e2e-verify-slice-check RUN_DIR=<slice-25-dir> ARGS=--require-review`
+  only after the no-context artifact review exists.
+- Run `make e2e-slice-closeout-check RUN_DIR=<slice-25-dir>`.
+- Run three no-context retrospectives and fold accepted findings into the next
+  pre-slice cleanup before any Slice 26 work starts.
 
 ## Call-Site Audit
 

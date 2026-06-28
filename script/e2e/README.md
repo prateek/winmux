@@ -134,9 +134,26 @@ rerunnable verifier with the saved transcript.
 
 When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
 
-Caption-boundary frames use the names `caption-NN-boundary-before.png`, `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`. Transition-style recordings should point reviewers at those frames so command-caption ordering is checked before the next slice proceeds.
+Caption-boundary frames use the names `caption-NN-boundary-before.png`,
+`caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`.
+Transition-style recordings should point reviewers at those frames so
+command-caption ordering is checked before the next slice proceeds. Annotation
+plans may add a sixth TSV field for a compact result line. Use it for `Run:`
+captions when the command output is not otherwise visible, for example
+`Result: snap policy = snap-to-zone`.
 
 Each annotated run also writes `logs/<recording>.sample-manifest.tsv`. It maps standard samples, caption-boundary samples, and slice-specific semantic proof beats to exact artifact-relative image paths. Ordered transition slices must add semantic rows such as `resize-command-start` or `after-balance`, and the verifier should require those labels for the slice.
+
+When a sample manifest contains drag/snap semantic beats, the primary
+`screenshots/<recording>.contact-sheet.jpg` is a labeled semantic summary rather
+than a percentage-only timeline. The harness also writes
+`logs/<recording>.contact-sheet-manifest.tsv`, which lists each panel. For
+drag/snap proofs, the summary sheet must include the first target affordance,
+release beat, and final placement so a reviewer can audit the user story before
+opening logs. When overlay-sentinel output includes a labeled target crop, the
+summary sheet includes that crop as a zoomed proof panel. Mouse gesture captions
+should use the optional result line for visible input-state cues such as
+`Input: Alt held` or `Input: secondary button held`.
 
 Annotated product runs also write `logs/<recording>.edge-crops.tsv` and
 `screenshots/<recording>.edge-crops/`. The manifest must include final
@@ -144,6 +161,12 @@ screenshot edge/corner crops and, when recording samples exist, near-end video
 frame edge/corner crops. `make e2e-verify-slice-check` treats missing or stale
 derived samples, contact sheets, review packets, and edge crops as failures
 instead of regenerating them.
+
+When an annotated recording keeps a long uncaptained verification tail,
+`recordings/<recording>.demo.mov` is a trimmed product-facing sidecar and
+`logs/<recording>.demo-cut.tsv` records its source and trim point. The full
+recording remains the acceptance artifact; the demo cut is only the shorter
+viewer path.
 
 Slices that prove visible color or style preservation should also write `logs/<recording>.color-sentinel.tsv`. Each non-comment row is tab-separated:
 
