@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-24 accepted; Slice 25 pre-slice cleanup pending
+Status: slices 0-24 accepted; Slice 25 pre-slice cleanup in progress
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -4050,10 +4050,10 @@ Pre-Slice-25 cleanup from Slice 24 retrospectives:
   new slice work with the accepted Slice 24 diff.
 - [ ] Define the reviewer packet, event-manifest beats, and required
   before/action/after media before the next Tart run.
-- [ ] Add a machine-checkable no-context declaration to future artifact reviews
+- [x] Add a machine-checkable no-context declaration to future artifact reviews
   or reviewer packets, while keeping retrospectives read-only unless the
   coordinator explicitly asks for repair.
-- [ ] Add verifier-required input-state evidence for mouse gesture proofs, such
+- [x] Add verifier-required input-state evidence for mouse gesture proofs, such
   as raw right-button down/up rows or app-side `pressedMouseButtons` proof tied
   to `snap-drag-start`, `snap-first-affordance`, and `snap-release`.
 - [ ] Refactor the shared mouse-drag proof path toward a data-driven spec for
@@ -4062,7 +4062,7 @@ Pre-Slice-25 cleanup from Slice 24 retrospectives:
 - [ ] Replace more long exact verifier prose matches with structured
   config/proof/event manifest assertions, and clean up stale Slice 22 wording in
   shared diagnostics.
-- [ ] Make product-label overlay sentinel generation fail closed for slices
+- [x] Make product-label overlay sentinel generation fail closed for slices
   that require a product overlay label.
 - [ ] For future drag/product-demo slices, make the summary contact sheet show
   the first visible product affordance, release, and final placement.
@@ -4073,7 +4073,7 @@ Pre-Slice-25 cleanup from Slice 24 retrospectives:
   is not visible in the recording.
 - [ ] Keep the full acceptance recording, but produce a trimmed annotated demo
   cut when the verification tail is long.
-- [ ] Add a reviewer-prompt check for whether the annotated video is
+- [x] Add a reviewer-prompt check for whether the annotated video is
   understandable without logs.
 
 ## Call-Site Audit

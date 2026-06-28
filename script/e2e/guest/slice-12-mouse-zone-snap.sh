@@ -520,6 +520,24 @@ function emitPickupEvent() {
   }
 }
 
+function emitSecondaryButtonDownEvent() {
+  if (eventBranch === 'snap' && activationInput === 'secondary-button') {
+    emit('snap-secondary-button-down', 'input-state', 'raw secondary mouse button down posted before snap drag')
+  }
+}
+
+function emitSecondaryButtonHeldEvent() {
+  if (eventBranch === 'snap' && activationInput === 'secondary-button') {
+    emit('snap-secondary-button-held', 'input-state', 'secondary mouse button still held at whole-zone hover')
+  }
+}
+
+function emitSecondaryButtonUpEvent() {
+  if (eventBranch === 'snap' && activationInput === 'secondary-button') {
+    emit('snap-secondary-button-up', 'input-state', 'raw secondary mouse button up posted after snap release')
+  }
+}
+
 function emitHoverEvent() {
   if (eventBranch === 'snap') {
     emit('snap-first-affordance', 'overlay', 'whole-zone hover screenshot captured')
@@ -562,6 +580,7 @@ postLeftMouse($.kCGEventLeftMouseDown, sx, sy, useAlt)
 delay(0.25)
 if (useSecondaryButton) {
   postSecondaryMouse(true, sx, sy)
+  emitSecondaryButtonDownEvent()
   delay(0.35)
 }
 dragTo(sx, sy, pickupX, pickupY, 10, 0.06, useAlt)
@@ -577,6 +596,7 @@ if ('${path_path}' !== '') {
 dragTo(pathX, pathY, tx, ty, 28, 0.08, useAlt)
 delay(1.5)
 capture('${hover_path}')
+emitSecondaryButtonHeldEvent()
 emitHoverEvent()
 delay(1.8)
 postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
@@ -584,6 +604,7 @@ emitReleaseEvent()
 if (useSecondaryButton) {
   delay(0.25)
   postSecondaryMouse(false, tx, ty)
+  emitSecondaryButtonUpEvent()
 }
 if (useAlt) {
   delay(0.3)
@@ -692,6 +713,9 @@ proof_slice() {
     append_action_schema_value drag-points target "${target_x},${target_y}" target-point
     append_action_schema_value drag-policy negative-proof "${negative_policy_key}"
     append_action_schema_value drag-policy positive-proof "${positive_proof_key}"
+    if [ "${PROOF_MODE}" = "secondary-button" ]; then
+        append_action_schema_value drag-policy input-state-evidence secondary-button-events
+    fi
     append_action_log_value negative-proof "${negative_action_text#negative-proof=}"
     append_action_log_value positive-proof "${positive_action_text#positive-proof=}"
     append_action_schema_value drag-points target-hover-hold-seconds '3.3'
@@ -924,9 +948,12 @@ function emit(eventId, kind, note) {
 }
 
 emit('float-drag-start', 'drag', "ordinary branch with quote ' retained")
+emit('snap-secondary-button-down', 'input-state', 'raw secondary mouse button down posted before snap drag')
 emit('snap-drag-start', 'drag', 'secondary-button branch start')
+emit('snap-secondary-button-held', 'input-state', 'secondary mouse button still held at whole-zone hover')
 emit('snap-first-affordance', 'overlay', 'whole-zone affordance event')
 emit('snap-release', 'drag', 'release event')
+emit('snap-secondary-button-up', 'input-state', 'raw secondary mouse button up posted after snap release')
 JXA
 
     /usr/bin/awk -F'\t' '
@@ -941,7 +968,7 @@ JXA
         }
         { seen[$1] = 1; count += 1 }
         END {
-            if (count != 4 || !seen["float-drag-start"] || !seen["snap-drag-start"] || !seen["snap-first-affordance"] || !seen["snap-release"]) {
+            if (count != 7 || !seen["float-drag-start"] || !seen["snap-secondary-button-down"] || !seen["snap-drag-start"] || !seen["snap-secondary-button-held"] || !seen["snap-first-affordance"] || !seen["snap-release"] || !seen["snap-secondary-button-up"]) {
                 print "mouse event self-test missing required ids" > "/dev/stderr"
                 exit 1
             }

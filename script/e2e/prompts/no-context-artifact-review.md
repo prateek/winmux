@@ -41,6 +41,9 @@ Slice:
 Write the review to <artifact-dir>/reviews/no-ctx-artifact-review.md.
 
 Required checks:
+0a. In the review body, state whether you were launched with no chat history
+    (`fork_context=false` or equivalent). If you were given prior implementation
+    conversation or cannot tell, FAIL the review.
 0. For a product-slice acceptance review, `reviews/reviewer-packet.md` must
    exist. Read it first. Treat it as the filled path/index packet for this
    artifact, but still apply every rule in this prompt. Treat the packet's
@@ -77,6 +80,9 @@ Required checks:
    If the reviewer packet lists final edge/corner crops, inspect them alongside
    the full after screenshot and reject any unrelated or partial setup window at
    a final screen edge.
+   Judge whether a new viewer could understand the user action and result from
+   the annotated recording alone, before reading logs. If the video relies on
+   logs for the core user story, FAIL or PASS_WITH_NOTES according to severity.
    If the reviewer packet lists a caption tail manifest, verify that any
    uncaptained tail beyond the allowed hold is explicitly declared intentional
    with a concrete reason and that near-end media/edge crops support the final
@@ -359,10 +365,14 @@ Slice-specific checks:
   semantic samples, and the video frames. Confirm captions expose
   `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'`,
   `Action: drag snap-demo.rtf with no secondary button`, and
-  `Action: hold secondary button while dragging snap-demo.rtf`. Reject proof
-  that uses Alt as the positive activation, accepts logs without media, lacks
-  drag affordances, starts the second drag from an already-floating source, or
-  implies snap-to-window/slot behavior.
+  `Action: hold secondary button while dragging snap-demo.rtf`. If the proof
+  manifest declares `input-state-evidence=secondary-button-events`, inspect the
+  mouse event timing table for `snap-secondary-button-down`,
+  `snap-secondary-button-held`, and `snap-secondary-button-up` in the expected
+  order around pickup, affordance, release. Reject proof that uses Alt as the
+  positive activation, accepts logs without media, lacks drag affordances,
+  starts the second drag from an already-floating source, or implies
+  snap-to-window/slot behavior.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

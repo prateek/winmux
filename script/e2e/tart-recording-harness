@@ -2875,8 +2875,8 @@ write_mouse_snap_overlay_sentinel() {
         slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance|slice-20-zone-snap-policy-switch|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap) ;;
         *) return 0 ;;
     esac
-    command -v magick >/dev/null 2>&1 || return 0
-    command -v compare >/dev/null 2>&1 || return 0
+    command -v magick >/dev/null 2>&1 || die "Mouse snap overlay sentinel requires ImageMagick: magick"
+    command -v compare >/dev/null 2>&1 || die "Mouse snap overlay sentinel requires ImageMagick: compare"
 
     local slice_prefix="slice-12"
     local modifier_label="Alt"
@@ -2899,16 +2899,17 @@ write_mouse_snap_overlay_sentinel() {
     local zones_log="${LOGS_DIR}/${slice_prefix}-zones.log"
     local freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
     local snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
-    [ -s "$zones_log" ] || return 0
-    [ -s "$freeform" ] || return 0
-    [ -s "$snap" ] || return 0
+    [ -s "$zones_log" ] || die "Mouse snap overlay sentinel missing zones log: $zones_log"
+    [ -s "$freeform" ] || die "Mouse snap overlay sentinel missing freeform hover screenshot: $freeform"
+    [ -s "$snap" ] || die "Mouse snap overlay sentinel missing snap hover screenshot: $snap"
 
     local left top width height crop crop_width crop_height diff_raw diff_norm
     left="$(zone_log_field "$zones_log" right left)"
     top="$(zone_log_field "$zones_log" right top)"
     width="$(zone_log_field "$zones_log" right width)"
     height="$(zone_log_field "$zones_log" right height)"
-    [ -n "$left" ] && [ -n "$top" ] && [ -n "$width" ] && [ -n "$height" ] || return 0
+    [ -n "$left" ] && [ -n "$top" ] && [ -n "$width" ] && [ -n "$height" ] \
+        || die "Mouse snap overlay sentinel could not derive right/Comms crop from $zones_log"
     crop="$(awk -v w="$width" -v h="$height" -v x="$left" -v y="$top" 'BEGIN { printf "%dx%d+%d+%d", w + 0, h + 0, x + 0, y + 0 }')"
     crop_width="$(awk -v w="$width" 'BEGIN { printf "%d", w + 0 }')"
     crop_height="$(awk -v h="$height" 'BEGIN { printf "%d", h + 0 }')"

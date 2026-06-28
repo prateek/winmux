@@ -356,6 +356,7 @@ EOF
 - Inspect `screenshots/07-snap-hover-comms-slice-24.png`, the full video around the secondary-button hover, and the event contact sheet. The actual product overlay must visibly read `Whole zone: Comms`.
 - Inspect `logs/slice-24-secondary-button-snap.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes ordinary and secondary-button target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` with a readable labeled crop path, and reports `overlay-rmse-normalized` at or above its minimum.
 - Inspect `logs/slice-24-secondary-button-snap.event-manifest.tsv`; reject if it omits separate float-drag start/hover/release/post-state, reset, snap pickup/path/first-affordance/hover/release/post-state events.
+- If the proof manifest declares `drag-policy	input-state-evidence	secondary-button-events`, inspect `logs/slice-24-secondary-button-snap.mouse-events.tsv` and require `snap-secondary-button-down`, `snap-secondary-button-held`, and `snap-secondary-button-up` in order around snap pickup, first affordance, and release.
 - Confirm the proof manifest includes `drag-policy	gesture	secondary-button-drag`, `drag-policy	proof-mode	secondary-button`, `drag-policy	positive-proof	secondary-button-whole-zone-snap`, and `visual-floor	product-overlay-label	Whole zone: Comms`, and that the visual media agrees with those fields.
 - State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 24, the ordinary branch is floating/freeform placement with no snap target, and the secondary-button branch targets the whole Comms zone.
 - Name the exact media file used for each beat: ordinary pickup, ordinary no-overlay hover, floating post-state, reset-before-snap, secondary-button pickup, secondary-button path, product-labeled whole-zone hover/overlay, release/final placement, and overlay sentinel crops.
@@ -502,6 +503,7 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
 | config/user command surface | annotation TSV plus caption sample/boundary frame |
 | action before-state | caption boundary frame or semantic screenshot |
 | action in progress / command boundary | caption boundary frame, action screenshot, or drag proof frame |
+| standalone viewer comprehension | annotated recording and event contact sheet, before reading logs |
 | event ordering | event manifest when present, plus matching caption boundary/action frames |
 | action after-state | caption sample/boundary frame and after screenshot |
 | final contamination check | full after screenshot plus final screenshot and near-end video edge/corner crops when present |

@@ -449,8 +449,12 @@ EOF
     cat >"$mouse_events" <<'EOF'
 # event-id	kind	seconds	note
 float-drag-start	drag	11.111	ordinary branch start
+snap-secondary-button-down	input-state	18.111	raw secondary mouse button down posted before snap drag
 snap-drag-start	drag	18.222	snap branch start
+snap-secondary-button-held	input-state	20.111	secondary mouse button still held at whole-zone hover
 snap-first-affordance	overlay	20.333	whole-zone affordance visible
+snap-release	drag	20.900	snap branch release
+snap-secondary-button-up	input-state	21.111	raw secondary mouse button up posted after snap release
 EOF
     cat >"$mouse_event_manifest" <<'EOF'
 # event-id	kind	seconds	caption-label	sample-label	path	expected
@@ -460,6 +464,11 @@ snap-first-affordance	overlay	20.333	caption-07	snap-hover-comms	-	whole-zone ov
 EOF
     require_event_manifest_matches_mouse_events "$mouse_event_manifest" \
         float-drag-start snap-drag-start snap-first-affordance
+    local secondary_input_proof="${tmp_dir}/secondary-input-proof.tsv"
+    cat >"$secondary_input_proof" <<'EOF'
+drag-policy	input-state-evidence	secondary-button-events
+EOF
+    require_secondary_button_input_evidence "$secondary_input_proof" "Self-test"
 
     local missing_mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
     cat >"$missing_mouse_events" <<'EOF'
@@ -1031,6 +1040,79 @@ require_event_manifest_matches_mouse_events() {
         [ "$actual_seconds" = "$expected_seconds" ] \
             || die "Event ${event_id} seconds must come from mouse event log: manifest=${actual_seconds} mouse-events=${expected_seconds}"
     done
+}
+
+mouse_event_log_value() {
+    local mouse_events="$1"
+    local event_id="$2"
+    local field="$3"
+    /usr/bin/awk -F'\t' -v event_id="$event_id" -v field="$field" '
+        BEGIN {
+            column["kind"] = 2
+            column["seconds"] = 3
+            column["note"] = 4
+        }
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == event_id && column[field] {
+            print $column[field]
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$mouse_events"
+}
+
+require_mouse_event_log_event() {
+    local mouse_events="$1"
+    local event_id="$2"
+    local kind="$3"
+    local actual_kind seconds
+    actual_kind="$(mouse_event_log_value "$mouse_events" "$event_id" kind)" \
+        || die "Mouse event log missing ${event_id}: $mouse_events"
+    seconds="$(mouse_event_log_value "$mouse_events" "$event_id" seconds)" \
+        || die "Mouse event log missing seconds for ${event_id}: $mouse_events"
+    [ "$actual_kind" = "$kind" ] \
+        || die "Mouse event ${event_id} kind mismatch: expected ${kind}, got ${actual_kind}"
+    [[ "$seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || die "Mouse event ${event_id} seconds must be numeric, got: ${seconds}"
+}
+
+require_mouse_event_log_order() {
+    local mouse_events="$1"
+    local before_event="$2"
+    local after_event="$3"
+    local message="$4"
+    local before_seconds after_seconds
+    before_seconds="$(mouse_event_log_value "$mouse_events" "$before_event" seconds)" \
+        || die "Mouse event log missing ${before_event}: $mouse_events"
+    after_seconds="$(mouse_event_log_value "$mouse_events" "$after_event" seconds)" \
+        || die "Mouse event log missing ${after_event}: $mouse_events"
+    assert_numeric_le "$before_seconds" "$after_seconds" "$message"
+}
+
+require_secondary_button_input_evidence() {
+    local proof_manifest_path="$1"
+    local slice_label="$2"
+    local evidence
+    evidence="$(manifest_value "$proof_manifest_path" drag-policy input-state-evidence)"
+    [ -n "$evidence" ] || return 0
+    [ "$evidence" = "secondary-button-events" ] \
+        || die "${slice_label} has unsupported input-state evidence contract: $evidence"
+
+    local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    require_file "$mouse_events"
+    require_mouse_event_log_shape "$mouse_events"
+    require_mouse_event_log_event "$mouse_events" snap-secondary-button-down input-state
+    require_mouse_event_log_event "$mouse_events" snap-secondary-button-held input-state
+    require_mouse_event_log_event "$mouse_events" snap-secondary-button-up input-state
+    require_mouse_event_log_order "$mouse_events" snap-secondary-button-down snap-drag-start \
+        "${slice_label} secondary button must be down before the snap drag starts"
+    require_mouse_event_log_order "$mouse_events" snap-drag-start snap-secondary-button-held \
+        "${slice_label} secondary button held proof must occur after snap pickup"
+    require_mouse_event_log_order "$mouse_events" snap-secondary-button-held snap-first-affordance \
+        "${slice_label} secondary button held proof must precede the first snap affordance"
+    require_mouse_event_log_order "$mouse_events" snap-release snap-secondary-button-up \
+        "${slice_label} secondary button must be released after the snap release event"
 }
 
 require_mouse_snap_affordance_event_paths() {
@@ -4060,6 +4142,7 @@ require_float_unless_snap_proof() {
         || die "${slice_label} proof manifest missing gesture ${expected_gesture}"
     [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = "$expected_proof_mode" ] \
         || die "${slice_label} proof manifest missing ${expected_proof_mode} mode"
+    require_secondary_button_input_evidence "$proof_manifest" "$slice_label"
     [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = "$expected_negative_proof" ] \
         || die "${slice_label} proof manifest missing ${expected_negative_proof} negative proof"
     [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = "$expected_positive_proof" ] \
