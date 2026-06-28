@@ -378,6 +378,19 @@ EOF
 - Reject logs-only proof, final-state-only proof, missing drag affordances, any Alt-key positive activation, command captions that appear after visual changes, unclear overlay/no-overlay contrast, any product-label claim based only on logs or harness annotations, any target that looks like a window or slot inside a zone, or any claim about persistence, snap-to-window/slot, or visual settings UI.
 EOF
             ;;
+        slice-25-mouse-demo-contract)
+            cat <<'EOF'
+- Confirm the recording re-proves the Slice 24 secondary-button workflow with Slice 25 artifact names: first ordinary drag under `policy = 'float-unless-snap'` and `gesture = 'secondary-button-drag'`, then after reset a secondary-button snap.
+- Confirm the primary recording visibly includes the input cue `Input: secondary button held` during the positive drag, plus compact result cues for the floating inspection and final inspection.
+- Inspect the trimmed `.demo.mov` sidecar as the product-facing short version, then still inspect the full primary recording as the acceptance artifact.
+- Inspect `logs/slice-25-mouse-demo-contract.contact-sheet-manifest.tsv`; require semantic rows for `snap-hover-comms`, `snap-release`, `snap-final-placement`, and a `target-zone-crop` proof-crop row when the overlay sentinel wrote one.
+- Inspect `logs/slice-25-mouse-demo-contract.demo-cut.tsv`; require it to point at the full recording, the demo recording, and a trim point near the last caption rather than replacing acceptance evidence.
+- Inspect `logs/slice-25-mouse-demo-contract.mouse-events.tsv` and require `snap-secondary-button-down`, `snap-secondary-button-held`, and `snap-secondary-button-up` in order around snap pickup, first affordance, and release.
+- Inspect `screenshots/07-snap-hover-comms-slice-25.png`, the semantic contact sheet, the event contact sheet, and the full video around the secondary-button hover. The actual product overlay must visibly read `Whole zone: Comms`.
+- State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 25, the ordinary branch is floating/freeform placement with no snap target, and the secondary-button branch targets the whole Comms zone.
+- Reject logs-only proof, final-state-only proof, a missing demo cut, stale or unlisted sidecar artifacts, missing visible input/result cues, missing semantic contact-sheet panels, any Alt-key positive activation, unclear overlay/no-overlay contrast, any target that looks like a window or slot inside a zone, or any claim about new runtime behavior beyond Slice 24.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.

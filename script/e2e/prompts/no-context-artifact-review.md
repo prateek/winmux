@@ -397,6 +397,17 @@ Slice-specific checks:
   positive activation, accepts logs without media, lacks drag affordances,
   starts the second drag from an already-floating source, or implies
   snap-to-window/slot behavior.
+- Slice 25 must re-prove the Slice 24 secondary-button workflow while also
+  proving the hardened artifact shape. Inspect the full recording as acceptance
+  evidence and the trimmed `.demo.mov` sidecar as product-facing media. Require
+  visible `Input: secondary button held`, compact `Result:` cues for the
+  hidden command-output inspections, `logs/<recording>.contact-sheet-manifest.tsv`
+  with `snap-hover-comms`, `snap-release`, `snap-final-placement`, and
+  `target-zone-crop`, plus `logs/<recording>.demo-cut.tsv` pointing at the full
+  and demo recordings. The event manifest, proof manifest, mouse timings, and
+  overlay sentinel must still prove whole-zone target semantics. Reject Slice 25
+  if any sidecar is stale, missing from the reviewer packet, or used as a
+  substitute for inspecting the full acceptance video.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,
