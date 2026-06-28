@@ -12,6 +12,7 @@ RECORDING_NAME="${WINMUX_E2E_RECORDING_NAME:-${SLICE_PREFIX}-mouse-zone-snap-dra
 CONFIG_MODIFIER="${WINMUX_E2E_MOUSE_SNAP_CONFIG_MODIFIER:-alt}"
 CONFIG_POLICY="${WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY:-snap-on-modifier}"
 PROOF_MODE="${WINMUX_E2E_MOUSE_SNAP_PROOF_MODE:-modifier}"
+PRODUCT_OVERLAY_LABEL="${WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL:-}"
 RUNTIME_SET_POLICY="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_SET_POLICY:-snap-to-zone}"
 RUNTIME_CYCLE_POLICIES="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_CYCLE_POLICIES:-freeform snap-to-zone}"
 if [ "${SLICE_PREFIX}" = "slice-16" ]; then
@@ -435,6 +436,7 @@ const app = Application.currentApplication()
 app.includeStandardAdditions = true
 const eventBranch = '${event_branch}'
 const scenarioStartMs = Number('${scenario_start_ms}')
+const mouseEventsLog = '${MOUSE_EVENTS_LOG}'
 
 function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'"
@@ -476,12 +478,15 @@ function offsetSeconds() {
 }
 
 function emit(eventId, kind, note) {
-  console.log([eventId, kind, offsetSeconds(), note].join('\t'))
+  const line = [eventId, kind, offsetSeconds(), note].join('\t')
+  app.doShellScript("/usr/bin/printf '%s\\n' " + shellQuote(line) + " >> " + shellQuote(mouseEventsLog))
 }
 
 function emitPickupEvent() {
   if (eventBranch === 'float') {
     emit('float-drag-start', 'drag', 'no-modifier pickup screenshot captured')
+  } else if (eventBranch === 'snap') {
+    emit('snap-drag-start', 'drag', 'Alt-held pickup screenshot captured')
   } else {
     emit('freeform-drag-start', 'drag', 'no-modifier pickup screenshot captured')
   }
@@ -655,6 +660,9 @@ proof_slice() {
     append_action_schema_value drag-screenshots freeform-pickup "${FREEFORM_PICKUP_NAME}" freeform-pickup-screenshot
     append_action_schema_value drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}" freeform-hover-screenshot
     append_action_schema_value visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
+    if [ -n "${PRODUCT_OVERLAY_LABEL}" ]; then
+        append_action_schema_value visual-floor product-overlay-label "${PRODUCT_OVERLAY_LABEL}" product-overlay-label
+    fi
     append_action_schema_value caption chip "${MODIFIER_CAPTION_CHIP}"
     append_action_schema_value verification before-window-log "$(artifact_relative_path "${WINDOW_BEFORE_LOG}")"
     append_action_schema_value verification after-freeform-window-log "$(artifact_relative_path "${WINDOW_FREEFORM_LOG}")"

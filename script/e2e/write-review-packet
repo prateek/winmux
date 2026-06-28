@@ -330,6 +330,22 @@ EOF
 - Reject logs-only proof, final-state-only proof, missing drag affordances, command captions that appear after visual changes, unclear overlay/no-overlay contrast, any target that looks like a window or slot inside a zone, or any claim about persistence, configurable gestures beyond this drag policy, or visual settings UI.
 EOF
             ;;
+        slice-23-product-snap-overlay-label)
+            cat <<'EOF'
+- Confirm the recording shows two separate desktop window drags of `snap-demo.rtf`, not a sidebar drag and not a replay of Slice 22: first no modifier under config `policy = 'float-unless-snap'`, then after reset with Alt held.
+- Confirm the no-Alt branch has visible source pickup and hover/path over Comms, but no whole-zone snap overlay and no product snap label. Inspect `logs/slice-23-windows-after-freeform.log` and require the same source id to have `zone=right` and `layout=floating`.
+- Confirm captions expose the user actions and relevant WinMux surface: `Config: policy='float-unless-snap'; modifier='alt'; target='zone'`, `Action: drag snap-demo.rtf with no modifier`, `Run: winmux list-windows --monitor all`, `Action: reset snap-demo.rtf to Work/main tiling`, `Action: hold Alt while dragging snap-demo.rtf`, `Action: target = whole Comms zone`, and `Action: release on Comms zone`.
+- Confirm the reset beat returns the same window to Work/main and non-floating layout before the Alt-held snap. Reject proof where the second drag starts from an already-floating source.
+- Confirm the Alt-held drag shows source pickup, pointer/path, a whole Comms zone overlay/highlight, release/drop, and final placement of the same window id into Comms/right.
+- Inspect `screenshots/07-snap-hover-comms-slice-23.png`, the full video around the Alt-held hover, and the event contact sheet. The actual product overlay must visibly read `Whole zone: Comms`. A harness-added crop label alone does not satisfy this slice.
+- Inspect `logs/slice-23-product-snap-overlay-label.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes no-Alt and Alt-held target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` with a readable labeled crop path, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-23-product-snap-overlay-label.event-manifest.tsv`; reject if it omits separate float-drag start/hover/release/post-state, reset, snap pickup/path/first-affordance/hover/release/post-state events.
+- Confirm the proof manifest includes `visual-floor	product-overlay-label	Whole zone: Comms` and that the visual media agrees with that field.
+- State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 23, the no-Alt branch is floating/freeform placement with no snap target, and the Alt-held branch targets the whole Comms zone.
+- Name the exact media file used for each beat: no-Alt pickup, no-Alt no-overlay hover, floating post-state, reset-before-snap, Alt pickup, Alt path, product-labeled whole-zone hover/overlay, release/final placement, and overlay sentinel crops.
+- Reject logs-only proof, final-state-only proof, missing drag affordances, command captions that appear after visual changes, unclear overlay/no-overlay contrast, any product-label claim based only on logs or harness annotations, any target that looks like a window or slot inside a zone, or any claim about persistence, configurable gestures beyond this drag policy, or visual settings UI.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-22 accepted; Slice 23 pending pre-slice cleanup
+Status: slices 0-23 accepted; Slice 24 pending implementation
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -365,7 +365,9 @@ The verifier must check:
   full-frame in-drag screenshots matching the recording resolution, and distinct
   hashes so stale or duplicate stills cannot satisfy pickup/path/hover proof;
 - slice-specific proof logs satisfy that slice's behavioral invariants when the verifier knows the recording name;
-- when `--require-review` is set, the review exists and ends in `PASS` or `PASS_WITH_NOTES`.
+- when `--require-review` is set, the review exists, its first nonblank line
+  starts with `PASS:` or `PASS_WITH_NOTES:`, and its final line is
+  `next slice allowed: yes`.
 
 Gate order for every product slice:
 
@@ -3827,6 +3829,129 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
   artifact, and obtained a fresh no-context review. Verified with
   `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z ARGS=--require-review`
   and `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z`.
+
+## Slice 23: Product Whole-Zone Snap Overlay Label
+
+Goal: make the actual WinMux desktop snap affordance say what it targets. Slice
+22 proved behavior and added a harness-labeled crop; Slice 23 moves that
+clarity into the product overlay so a user can tell, during the drag, that the
+drop target is the whole `Comms` zone and not a window or slot inside the zone.
+
+Implementation scope:
+
+- Extend `WindowDropIntentOverlayModel` with optional label/subtitle text.
+- Populate the model from zone-snap destinations using the existing
+  destination zone name, for example `Whole zone: Comms` and
+  `Drop to move to Comms`.
+- Render that text only for whole-zone overlays (`activeZone == nil`) so normal
+  window/tab split overlays stay icon-first and unchanged.
+- Add fast behavior/view-model tests that prove a zone snap destination carries
+  the label while ordinary window split/tab overlays do not require one.
+- Keep the overlay restrained and legible. It should improve the actual product
+  affordance without depending on harness-only labels.
+
+Tart proof:
+
+- Record `slice-23-product-snap-overlay-label.mov` from the external-SSD-backed
+  Tart harness.
+- Reuse the `float-unless-snap` desktop drag scenario with a Slice 23 recording
+  name/title. The Alt-held branch must show the product overlay text during
+  hover, not only the generated reviewer crop.
+- The harness/verifier must reject an artifact whose snap-hover media lacks a
+  product-visible whole-zone label, whose no-Alt branch shows a snap label, or
+  whose event manifest omits separate pickup/path/first-affordance/release
+  events.
+- The no-context review must inspect the full video, event contact sheet,
+  `07-snap-hover-comms-slice-23.png`, the labeled overlay sentinel crop, and
+  the baseline demos/product surfaces before allowing the next slice.
+- After acceptance, run the three no-context retrospectives and fold findings
+  into the next pre-slice cleanup before continuing.
+
+Accepted claims:
+
+- whole-zone desktop snap overlays expose a readable product label during drag;
+- the label is tied to the target zone name and existing zone-snap destination;
+- existing normal window split/tab overlays are not converted into marketing
+  cards or unrelated caption surfaces.
+
+Non-claims:
+
+- no snap-to-window or snap-to-slot behavior;
+- no new gesture recognizer;
+- no visual settings editor;
+- no persistence or launch-routing change.
+
+Accepted result:
+
+- Artifact: `artifacts/e2e/slice-23-20260628T052231Z`.
+- Recording: `recordings/slice-23-product-snap-overlay-label.mov`.
+- Raw guest recording:
+  `recordings/raw/slice-23-product-snap-overlay-label.raw.mov`.
+- Contact sheets:
+  `screenshots/slice-23-product-snap-overlay-label.contact-sheet.jpg` and
+  `screenshots/slice-23-product-snap-overlay-label.event-contact-sheet.jpg`.
+- Product-label proof frame:
+  `screenshots/07-snap-hover-comms-slice-23.png`; the actual product overlay
+  reads `Whole zone: Comms` and `Drop to move to Comms`.
+- Mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-23-20260628T052231Z ARGS=--require-review`
+  passed.
+- Closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-23-20260628T052231Z`
+  passed with all three retrospectives present.
+- No-context artifact review:
+  `reviews/no-ctx-artifact-review.md` verdict `PASS`; it includes
+  `NO ACTIONABLE ISSUES` and final gate line `next slice allowed: yes`.
+- Retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- Focused implementation checks:
+  `bash -n` and `shellcheck` for the touched e2e scripts,
+  `./script/e2e/verify-artifact --self-test`,
+  `swift test --filter WindowZoneSnapPolicyTest`, and the Slice 23 pre-Tart
+  gate's selected 143-test suite passed.
+- Superseded Slice 23 attempts:
+  `slice-23-20260628T045521Z-precheck` was pre-Tart only;
+  `slice-23-20260628T045601Z` hit macOS Bash 3 `mapfile`;
+  `slice-23-20260628T050034Z` missed guest mouse-event rows;
+  `slice-23-20260628T050608Z` used absent guest `/bin/printf`;
+  `slice-23-20260628T050900Z` concatenated event rows with literal `n`;
+  `slice-23-20260628T051443Z` had a JXA string escape error;
+  `slice-23-20260628T051729Z` missed `snap-drag-start` and failed the
+  explicit verifier. All same-slice media attempts are accepted or formally
+  superseded for the sibling-artifact closeout gate.
+
+Pre-Slice-24 cleanup from Slice 23 retrospectives:
+
+- [x] Run all three Slice 23 no-context retrospectives and read the reports.
+- [x] Close Slice 23 in this plan with accepted artifact paths, verifier and
+  review evidence, closeout evidence, retrospectives, accepted claims,
+  non-claims, and superseded-attempt notes.
+- [x] Align the durable review-verdict wording with the current
+  first-line verdict plus final `next slice allowed: yes/no` contract.
+- [x] Formally supersede stale Slice 23 media attempts so the sibling-artifact
+  closeout gate compares Slice 24 only against accepted evidence.
+- [x] Rerun
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-23-20260628T052231Z ARGS=--require-review`
+  and
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-23-20260628T052231Z`.
+- [x] Commit the accepted Slice 23 dirty set before starting Slice 24
+  implementation.
+
+Deferred hardening before the next mouse-drag proof slice:
+
+- Add a cheap guest/JXA mouse-event writer self-test that proves newline
+  emission, shell quoting, `/usr/bin/printf`, and branch-specific event ids
+  such as `snap-drag-start` before a full Tart recording starts.
+- Add local verifier fixtures for missing `snap-drag-start`, literal `n`
+  separators, concatenated mouse-event rows, duplicate event ids, and missing
+  first-affordance rows.
+- Continue reducing Slice 22/23 mouse-snap duplication by moving event
+  generation, sample labels, and ordering checks behind the table-driven
+  `script/e2e/specs/mouse-drag-events.tsv` seam.
+- Make generic `require_float_unless_snap_proof` diagnostics use the caller's
+  slice label consistently.
 
 ## Call-Site Audit
 

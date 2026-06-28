@@ -66,6 +66,8 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertEqual(destination.previewRect.topLeftX, fixture.commsMonitor.rect.topLeftX)
         XCTAssertEqual(destination.previewRect.width, fixture.commsMonitor.rect.width)
         XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+        XCTAssertEqual(destination.dropIntentOverlay?.detail, "Drop to move to Comms")
     }
 
     func testSnapToZoneDoesNotRequireModifier() {
@@ -89,6 +91,18 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         }
         XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
         XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+    }
+
+    func testActiveZoneGridOverlayDoesNotRequireProductLabel() {
+        let overlay = WindowDropIntentOverlayModel(
+            targetFrame: Rect(topLeftX: 0, topLeftY: 0, width: 800, height: 600),
+            activeZone: .right,
+            cornerRadius: nil,
+        )
+
+        XCTAssertNil(overlay.label)
+        XCTAssertNil(overlay.detail)
     }
 
     func testFloatUnlessSnapRequiresConfiguredModifier() {

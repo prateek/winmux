@@ -48,6 +48,8 @@ func zoneSnapDestinationResolution(
             targetFrame: previewRect,
             activeZone: nil,
             cornerRadius: nil,
+            label: "Whole zone: \(zoneName)",
+            detail: "Drop to move to \(zoneName)",
         ),
     ))
 }

@@ -330,6 +330,19 @@ Slice-specific checks:
   `set-zone-snap-policy` proof, unclear overlay/no-overlay contrast, any target
   that looks like a window or slot inside a zone, or claims about persistence,
   configurable gestures beyond this drag policy, or visual settings UI.
+- Slice 23 must show the same float-unless-snap two-drag workflow as Slice 22,
+  but the accepted claim is narrower: during the Alt-held branch, the actual
+  product overlay must visibly label the target as `Whole zone: Comms`. Inspect
+  the full video around the Alt-held hover, `screenshots/07-snap-hover-comms-slice-23.png`,
+  the event contact sheet, and `logs/slice-23-product-snap-overlay-label.event-manifest.tsv`.
+  Inspect `logs/slice-23-product-snap-overlay-label.proof-manifest.tsv` and
+  require `visual-floor	product-overlay-label	Whole zone: Comms`, then verify the
+  media agrees with it. The no-Alt branch must visibly have no snap overlay and
+  no product snap label. The overlay sentinel must still include `target-label`
+  equal to `WHOLE ZONE TARGET: COMMS` and a readable labeled crop path, but that
+  harness-added label is not enough to pass Slice 23. Reject any review that
+  accepts logs, proof-manifest text, captions, or harness crops without naming
+  the actual product-overlay media where `Whole zone: Comms` is visible.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

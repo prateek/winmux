@@ -1241,6 +1241,10 @@ require_slice_22_sample_manifest() {
     done
 }
 
+require_slice_23_sample_manifest() {
+    require_slice_22_sample_manifest "$1"
+}
+
 require_slice_21_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -1546,7 +1550,10 @@ generate_event_manifest_contact_sheet() {
     fi
 
     local images=()
-    mapfile -t images < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    local image_path
+    while IFS= read -r image_path; do
+        images+=("$image_path")
+    done < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
     [ "${#images[@]}" -gt 0 ] || die "Event manifest contact sheet has no image rows: $manifest_path"
     local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
     [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
@@ -3318,6 +3325,7 @@ require_mouse_snap_overlay_sentinel() {
         slice-16-*) slice_prefix="slice-16" ;;
         slice-20-*) slice_prefix="slice-20" ;;
         slice-22-*) slice_prefix="slice-22" ;;
+        slice-23-*) slice_prefix="slice-23" ;;
         *) slice_prefix="" ;;
     esac
     if [ -n "$slice_prefix" ]; then
@@ -3544,6 +3552,10 @@ require_slice_20_event_manifest() {
 
 require_slice_22_event_manifest() {
     require_mouse_drag_event_manifest slice-22 "$1"
+}
+
+require_slice_23_event_manifest() {
+    require_mouse_drag_event_manifest slice-23 "$1"
 }
 
 require_slice_21_event_manifest() {
@@ -3790,8 +3802,11 @@ require_slice_20_zone_snap_policy_switch_proof() {
         "Slice 20 cycle command caption must align with the cycle command"
 }
 
-require_slice_22_float_unless_snap_proof() {
-    local slice_prefix="slice-22"
+require_float_unless_snap_proof() {
+    local slice_prefix="$1"
+    local slice_label="$2"
+    local recording_artifact="$3"
+    local require_product_overlay_label="${4:-0}"
     local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
     local done="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap.done"
     local setup_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-setup.log"
@@ -3806,7 +3821,7 @@ require_slice_22_float_unless_snap_proof() {
     sample_manifest="$(sample_manifest_path)"
 
     require_file "$proof"
-    require_success_marker "$done" "Slice 22"
+    require_success_marker "$done" "$slice_label"
     require_file "$setup_log"
     require_file "$action_log"
     require_file "$windows_before"
@@ -3816,19 +3831,23 @@ require_slice_22_float_unless_snap_proof() {
     require_file "$zones"
     require_file "$timing_log"
     require_drag_proof_manifest "$proof_manifest"
-    require_slice_22_sample_manifest "$sample_manifest"
+    if [ "$slice_prefix" = "slice-23" ]; then
+        require_slice_23_sample_manifest "$sample_manifest"
+    else
+        require_slice_22_sample_manifest "$sample_manifest"
+    fi
     require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
-    require_file "${SCREENSHOTS_DIR}/01-ready-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/06-snap-path-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-22.png"
-    require_file "${SCREENSHOTS_DIR}/99-after-slice-22.png"
-    require_mouse_snap_overlay_sentinel "${LOGS_DIR}/slice-22-float-unless-snap.overlay-sentinel.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/02-freeform-pickup-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/04-reset-before-snap-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/05-snap-pickup-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/06-snap-path-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-${slice_prefix}.png"
+    require_mouse_snap_overlay_sentinel "${LOGS_DIR}/${recording_artifact}.overlay-sentinel.tsv"
     require_file "$(event_manifest_path)"
-    require_slice_22_event_manifest "$(event_manifest_path)"
+    require_mouse_drag_event_manifest "$slice_prefix" "$(event_manifest_path)"
 
     grep -F "PASS: desktop drag starts from config float-unless-snap; no-Alt drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding Alt previews a whole Comms zone target and moves the same window into Comms/right on release." "$proof" >/dev/null \
         || die "Slice 22 proof does not contain the expected float-unless-snap PASS claim"
@@ -3921,6 +3940,12 @@ require_slice_22_float_unless_snap_proof() {
         || die "Slice 22 proof manifest missing floating layout result"
     [ "$(manifest_value "$proof_manifest" drag-result result)" = success ] \
         || die "Slice 22 proof manifest missing snap success result"
+    if [ "$require_product_overlay_label" = "1" ]; then
+        [ "$(manifest_value "$proof_manifest" visual-floor product-overlay-label)" = "Whole zone: Comms" ] \
+            || die "${slice_label} proof manifest missing product overlay label"
+        grep -F 'product-overlay-label=Whole zone: Comms' "$action_log" >/dev/null \
+            || die "${slice_label} action log missing product overlay label"
+    fi
 
     grep -F "Config: policy='float-unless-snap'; modifier='alt'; target='zone'" "$annotation_plan" >/dev/null \
         || die "Slice 22 annotations missing float-unless-snap config chip"
@@ -3956,6 +3981,14 @@ require_slice_22_float_unless_snap_proof() {
         "Slice 22 Alt-held drag caption must be visible when the snap drag starts"
     assert_numeric_le "$release_caption_start" "$snap_recording_end" \
         "Slice 22 release caption must be visible before the positive drag has fully completed"
+}
+
+require_slice_22_float_unless_snap_proof() {
+    require_float_unless_snap_proof slice-22 "Slice 22" slice-22-float-unless-snap 0
+}
+
+require_slice_23_product_snap_overlay_label_proof() {
+    require_float_unless_snap_proof slice-23 "Slice 23" slice-23-product-snap-overlay-label 1
 }
 
 require_slice_21_zone_mode_v2_proof() {
@@ -5183,6 +5216,9 @@ case "$recording_name" in
         ;;
     slice-22-float-unless-snap)
         require_slice_22_float_unless_snap_proof
+        ;;
+    slice-23-product-snap-overlay-label)
+        require_slice_23_product_snap_overlay_label_proof
         ;;
 esac
 
