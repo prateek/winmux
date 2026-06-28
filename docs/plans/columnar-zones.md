@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-24 accepted; Slice 25 pre-slice cleanup in progress
+Status: slices 0-25 accepted; Slice 26 pending
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -4158,6 +4158,86 @@ Validation gate:
 - Run `make e2e-slice-closeout-check RUN_DIR=<slice-25-dir>`.
 - Run three no-context retrospectives and fold accepted findings into the next
   pre-slice cleanup before any Slice 26 work starts.
+
+Accepted result:
+
+- Artifact: `artifacts/e2e/slice-25-20260628T070737Z`.
+- Full acceptance recording:
+  `recordings/slice-25-mouse-demo-contract.mov`.
+- Raw guest recording:
+  `recordings/raw/slice-25-mouse-demo-contract.raw.mov`.
+- Trimmed demo sidecar:
+  `recordings/slice-25-mouse-demo-contract.demo.mov`, backed by
+  `logs/slice-25-mouse-demo-contract.demo-cut.tsv`.
+- Contact sheets:
+  `screenshots/slice-25-mouse-demo-contract.contact-sheet.jpg` and
+  `screenshots/slice-25-mouse-demo-contract.event-contact-sheet.jpg`.
+- Whole-zone proof crop:
+  `screenshots/slice-25-mouse-demo-contract.overlay-sentinel/snap-target-zone-labeled.png`,
+  labeled `WHOLE ZONE TARGET: COMMS`.
+- Mechanical verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-25-20260628T070737Z ARGS=--require-review`
+  passed.
+- Closeout gate:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-25-20260628T070737Z`
+  passed with all three retrospectives present and sibling artifact hygiene
+  clean.
+- No-context artifact review:
+  `reviews/no-ctx-artifact-review.md` verdict `PASS_WITH_NOTES`, final gate
+  line `next slice allowed: yes`.
+- Review note accepted for cleanup: the visible media and mouse timing prove
+  secondary-button activation, but the copied config and legacy proof surface
+  still mention `modifier = 'alt'`. This is treated as a compatibility config
+  field, not the positive user activation.
+- Retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- Superseded failed attempt:
+  `artifacts/e2e/slice-25-20260628T070500Z` is marked superseded by the
+  accepted artifact. It failed before product recording because the first Slice
+  25 harness revision called the missing `quote_for_remote` helper.
+- Accepted claims:
+  ordinary drag under `float-unless-snap` plus `secondary-button-drag` remains
+  freeform/floating with no snap overlay; the reset returns the same window to
+  Work/main; the secondary-button-held drag targets the whole Comms zone,
+  releases into Comms/right, and preserves the same window id.
+- Non-claims:
+  Slice 25 does not add new runtime behavior beyond Slice 24, does not prove
+  snap-to-window or snap-to-slot, and does not introduce a gesture editor.
+
+Pre-Slice-26 cleanup from Slice 25 retrospectives:
+
+- [x] Run all three Slice 25 no-context retrospectives and read the reports.
+- [x] Close Slice 25 in this plan with artifact paths, media, review verdict,
+  verifier evidence, closeout evidence, retrospectives, accepted claims,
+  non-claims, and the failed-attempt note.
+- [x] Mark `artifacts/e2e/slice-25-20260628T070500Z` as superseded and write a
+  canonical `logs/run-abort-status.txt`.
+- [x] Add future abort-status coverage: `run_recorded_scenario` now writes
+  `logs/run-abort-status.txt` on nonzero exit before VM cleanup, and
+  `abort-status-self-test` is wired into `make e2e-pre-tart-checks`.
+- [x] Resolve the secondary-button/Alt proof wording for future artifacts:
+  secondary-button proof manifests now emit
+  `drag-policy	configured-modifier	alt` and
+  `drag-policy	activation-input	secondary-button` instead of presenting Alt
+  as the positive activation input.
+- [x] Update verifier coverage for the secondary-button proof contract. The
+  self-test now rejects bad `activation-input` values, accepts existing legacy
+  Slice 24/25 artifacts, and keeps mouse-event ordering checks for
+  secondary-button down/held/up.
+- [x] Harden the no-context artifact review and retrospection prompts so
+  reviewers treat `configured-modifier = alt` as compatibility context for
+  secondary-button proofs and recognize the current review verdict contract:
+  first-line `PASS:` / `PASS_WITH_NOTES:` plus final
+  `next slice allowed: yes`.
+- [x] Rerun `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`,
+  `abort-status-self-test`, annotation preflight, Slice 25
+  `--require-review`, Slice 24 backward verifier, and the Slice 25 closeout
+  gate after the cleanup changes.
+- Deferred: collapse the Slice 24/25 mouse-snap guest-wrapper duplication into
+  a parameterized helper before the next mouse-drag product proof. This is not
+  blocking for Slice 26 unless Slice 26 is another mouse-drag proof.
 
 ## Call-Site Audit
 

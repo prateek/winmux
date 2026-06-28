@@ -35,10 +35,12 @@ Inputs to inspect:
   session-history-only findings blocking.
 
 Before relying on a prior accepted artifact path, verify that it contains product
-media and `reviews/no-ctx-artifact-review.md` ending in `PASS` or
-`PASS_WITH_NOTES`. If a listed path lacks media or an accepted review, label it
-as superseded/pre-Tart-only, inspect `docs/plans/columnar-zones.md` for the
-accepted-result block, and make the corrected path or ambiguity a finding.
+media and an accepted `reviews/no-ctx-artifact-review.md`: either legacy final
+line `PASS` / `PASS_WITH_NOTES`, or first nonblank line beginning `PASS:` /
+`PASS_WITH_NOTES:` with final line `next slice allowed: yes`. If a listed path
+lacks media or an accepted review, label it as superseded/pre-Tart-only, inspect
+`docs/plans/columnar-zones.md` for the accepted-result block, and make the
+corrected path or ambiguity a finding.
 
 Perspective: <process-plan | code-harness | artifact-product>
 

@@ -466,9 +466,21 @@ EOF
         float-drag-start snap-drag-start snap-first-affordance
     local secondary_input_proof="${tmp_dir}/secondary-input-proof.tsv"
     cat >"$secondary_input_proof" <<'EOF'
+drag-policy	configured-modifier	alt
+drag-policy	activation-input	secondary-button
 drag-policy	input-state-evidence	secondary-button-events
 EOF
     require_secondary_button_input_evidence "$secondary_input_proof" "Self-test"
+
+    local bad_secondary_input_proof="${tmp_dir}/bad-secondary-input-proof.tsv"
+    cat >"$bad_secondary_input_proof" <<'EOF'
+drag-policy	configured-modifier	alt
+drag-policy	activation-input	alt
+drag-policy	input-state-evidence	secondary-button-events
+EOF
+    if ( require_secondary_button_input_evidence "$bad_secondary_input_proof" "Self-test" ) >/dev/null 2>&1; then
+        die "Mouse event self-test expected bad activation-input rejection"
+    fi
 
     local missing_mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
     cat >"$missing_mouse_events" <<'EOF'
@@ -1124,7 +1136,19 @@ require_mouse_event_log_order() {
 require_secondary_button_input_evidence() {
     local proof_manifest_path="$1"
     local slice_label="$2"
-    local evidence
+    local activation_input configured_modifier legacy_modifier evidence
+    activation_input="$(manifest_value "$proof_manifest_path" drag-policy activation-input)"
+    if [ -n "$activation_input" ] && [ "$activation_input" != "secondary-button" ]; then
+        die "${slice_label} secondary-button proof must declare activation-input=secondary-button, got: $activation_input"
+    fi
+    configured_modifier="$(manifest_value "$proof_manifest_path" drag-policy configured-modifier)"
+    if [ -n "$configured_modifier" ] && [ "$configured_modifier" != "alt" ]; then
+        die "${slice_label} secondary-button proof has unexpected configured modifier: $configured_modifier"
+    fi
+    legacy_modifier="$(manifest_value "$proof_manifest_path" drag-policy modifier)"
+    if [ -n "$activation_input" ] && [ -n "$legacy_modifier" ]; then
+        die "${slice_label} secondary-button proof must not mix activation-input with legacy drag-policy modifier"
+    fi
     evidence="$(manifest_value "$proof_manifest_path" drag-policy input-state-evidence)"
     [ -n "$evidence" ] || return 0
     [ "$evidence" = "secondary-button-events" ] \
@@ -4308,7 +4332,7 @@ require_float_unless_snap_proof() {
     local snap_description="Alt"
     if [ "$slice_prefix" = "slice-24" ] || [ "$slice_prefix" = "slice-25" ]; then
         expected_pass="PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
-        expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', gesture = 'secondary-button-drag', target = 'zone'"
+        expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', configured-modifier = 'alt', gesture = 'secondary-button-drag', activation-input = 'secondary-button', target = 'zone'"
         expected_config_chip="Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'"
         expected_gesture="secondary-button-drag"
         expected_proof_mode="secondary-button"
@@ -4365,8 +4389,14 @@ require_float_unless_snap_proof() {
         || die "${slice_label} config missing expected gesture ${expected_gesture}"
     grep -F "target = 'zone'" "$CONFIG_PATH" >/dev/null \
         || die "${slice_label} config missing whole-zone target"
-    grep -F "$expected_setup_summary" "$setup_log" >/dev/null \
-        || die "${slice_label} setup log missing float-unless-snap mouse snap summary"
+    if ! grep -F "$expected_setup_summary" "$setup_log" >/dev/null; then
+        if [ "$expected_proof_mode" = "secondary-button" ]; then
+            grep -F "Config: [mouse.zone-snap] policy = 'float-unless-snap', modifier = 'alt', gesture = 'secondary-button-drag', target = 'zone'" "$setup_log" >/dev/null \
+                || die "${slice_label} setup log missing secondary-button mouse snap summary"
+        else
+            die "${slice_label} setup log missing float-unless-snap mouse snap summary"
+        fi
+    fi
 
     grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
         || die "${slice_label} action log missing desktop snap action"

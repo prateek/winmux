@@ -106,6 +106,7 @@ e2e-pre-tart-checks:
 	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	./script/e2e/package-root-demo --self-test && \
 	./script/e2e/verify-artifact --self-test && \
+	./script/e2e/tart-recording-harness abort-status-self-test && \
 	mouse_event_tmp="$$(mktemp -d)" && trap '"'"'rm -rf "$$mouse_event_tmp"'"'"' EXIT && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_MOUSE_SNAP_PHASE=self-test ./script/e2e/guest/slice-12-mouse-zone-snap.sh && \
 	./script/e2e/tart-recording-harness annotation-preflight && \

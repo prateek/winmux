@@ -134,7 +134,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -225,6 +225,28 @@ mark_superseded_artifact() {
     } >"$review_path"
     write_run_abort_status superseded 0 superseded "$review_path" "$reason"
     log "Marked artifact superseded: $RUN_DIR"
+}
+
+abort_status_self_test() {
+    local test_dir old_logs_dir old_screenshots_dir old_run_abort_status
+    test_dir="$(mktemp -d)"
+    old_logs_dir="$LOGS_DIR"
+    old_screenshots_dir="$SCREENSHOTS_DIR"
+    old_run_abort_status="$RUN_ABORT_STATUS"
+    LOGS_DIR="${test_dir}/logs"
+    SCREENSHOTS_DIR="${test_dir}/screenshots"
+    RUN_ABORT_STATUS="${LOGS_DIR}/run-abort-status.txt"
+    mkdir -p "$LOGS_DIR" "$SCREENSHOTS_DIR"
+    rm -f "$RUN_ABORT_STATUS"
+    write_run_abort_status self-test 42 failure "${LOGS_DIR}/self-test.log" "forced abort status self-test"
+    grep -F 'phase=self-test' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing phase"
+    grep -F 'exit_code=42' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing exit code"
+    grep -F 'final_result=failure' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing result"
+    LOGS_DIR="$old_logs_dir"
+    SCREENSHOTS_DIR="$old_screenshots_dir"
+    RUN_ABORT_STATUS="$old_run_abort_status"
+    rm -rf "$test_dir"
+    log "Abort status self-test passed"
 }
 
 die() {
@@ -1096,6 +1118,15 @@ stop_vm() {
     if [ "$KEEP_VM" != "1" ] && vm_exists "$VM_NAME"; then
         run_cmd tart delete "$VM_NAME" || true
     fi
+}
+
+recorded_scenario_exit() {
+    local rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -s "$RUN_ABORT_STATUS" ]; then
+        write_run_abort_status "${RUN_PHASE:-unknown}" "$rc" failure "" "tart-recording-harness exited before scenario completion"
+    fi
+    stop_vm
+    return "$rc"
 }
 
 capture_screenshot() {
@@ -4918,11 +4949,16 @@ run_recorded_scenario() {
     local setup_fn="${5:-}"
     local ready_name="${6:-}"
 
+    RUN_PHASE="preflight"
+    trap recorded_scenario_exit EXIT
     preflight
+    RUN_PHASE="host-build"
     ensure_host_build
+    RUN_PHASE="prepare-vm"
     prepare_vm
-    trap stop_vm EXIT
+    RUN_PHASE="start-vm"
     start_vm
+    RUN_PHASE="guest-control"
     local guest_control_ready=0
     if wait_for_guest_control; then
         guest_control_ready=1
@@ -4934,23 +4970,32 @@ run_recorded_scenario() {
         die "Guest capture requires working guest control. Set WINMUX_E2E_CAPTURE_MODE=host for host-side capture."
     fi
     if [ "$CAPTURE_MODE" = "guest" ]; then
+        RUN_PHASE="guest-artifact-mount"
         ensure_guest_artifact_mount
+        RUN_PHASE="guest-transport-before-privacy"
         warm_guest_transport "before-privacy"
+        RUN_PHASE="guest-privacy"
         prepare_guest_privacy_permissions
     fi
     if [ "$guest_control_ready" = "1" ]; then
+        RUN_PHASE="guest-desktop"
         wait_for_guest_desktop
+        RUN_PHASE="guest-clean-slate"
         prepare_guest_clean_slate
     fi
     if [ "$CAPTURE_MODE" = "guest" ]; then
+        RUN_PHASE="guest-capture-ready"
         wait_for_guest_capture_ready
     fi
 
+    RUN_PHASE="before-screenshot"
     capture_screenshot "$before_name"
     if [ -n "$setup_fn" ]; then
         if [ "$guest_control_ready" = "1" ]; then
+            RUN_PHASE="setup"
             "$setup_fn"
             if [ -n "$ready_name" ]; then
+                RUN_PHASE="ready-screenshot"
                 capture_screenshot "$ready_name"
             fi
         else
@@ -4958,18 +5003,25 @@ run_recorded_scenario() {
         fi
     fi
     if [ "$guest_control_ready" = "1" ]; then
+        RUN_PHASE="guest-transport-before-recording"
         warm_guest_transport "before-recording"
     fi
+    RUN_PHASE="recording"
     start_recording "$recording_name"
     if [ "$guest_control_ready" = "1" ]; then
+        RUN_PHASE="scenario"
         "$scenario_fn"
     else
         log "Skipping guest scenario because guest control is unavailable"
         printf 'skipped: guest control unavailable\n' >"${LOGS_DIR}/${recording_name}.scenario.log"
     fi
+    RUN_PHASE="after-screenshot"
     capture_screenshot "$after_name"
+    RUN_PHASE="wait-recording"
     wait_for_recording "$recording_name"
+    RUN_PHASE="postprocess"
     scrub_finder_metadata
+    RUN_PHASE="complete"
     log "Scenario artifacts: $RUN_DIR"
 }
 
@@ -5090,6 +5142,9 @@ case "$ACTION" in
         ;;
     annotation-preflight)
         annotation_preflight
+        ;;
+    abort-status-self-test)
+        abort_status_self_test
         ;;
     refresh-annotation-artifact)
         refresh_annotation_artifact

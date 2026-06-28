@@ -390,8 +390,11 @@ Slice-specific checks:
   `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'`,
   `Action: drag snap-demo.rtf with no secondary button`, and
   `Action: hold secondary button while dragging snap-demo.rtf`. If the proof
-  manifest declares `input-state-evidence=secondary-button-events`, inspect the
-  mouse event timing table for `snap-secondary-button-down`,
+  manifest declares `activation-input`, it must be `secondary-button`; if it
+  declares `configured-modifier = alt`, treat that as config compatibility, not
+  as the positive user action. If the proof manifest declares
+  `input-state-evidence=secondary-button-events`, inspect the mouse event timing
+  table for `snap-secondary-button-down`,
   `snap-secondary-button-held`, and `snap-secondary-button-up` in the expected
   order around pickup, affordance, release. Reject proof that uses Alt as the
   positive activation, accepts logs without media, lacks drag affordances,

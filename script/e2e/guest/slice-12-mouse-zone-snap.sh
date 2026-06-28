@@ -340,8 +340,12 @@ setup_slice() {
         echo "Source App: ${SOURCE_APP}"
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
-        echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
-        echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', target = 'zone'"
+        if [ "${PROOF_MODE}" = "secondary-button" ]; then
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', configured-modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', activation-input = 'secondary-button', target = 'zone'"
+        else
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', target = 'zone'"
+        fi
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo "Runtime command: set-zone-snap-policy ${RUNTIME_SET_POLICY}"
             echo "Runtime toggle: cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
@@ -697,7 +701,12 @@ proof_slice() {
     append_action_log_value interaction-model desktop-window-drag
     append_action_log_value config '[mouse.zone-snap]'
     append_action_schema_value drag-policy policy "${CONFIG_POLICY}" policy
-    append_action_schema_value drag-policy modifier "${CONFIG_MODIFIER}" modifier
+    if [ "${PROOF_MODE}" = "secondary-button" ]; then
+        append_action_schema_value drag-policy configured-modifier "${CONFIG_MODIFIER}" configured-modifier
+        append_action_schema_value drag-policy activation-input secondary-button activation-input
+    else
+        append_action_schema_value drag-policy modifier "${CONFIG_MODIFIER}" modifier
+    fi
     append_action_schema_value drag-policy gesture "${CONFIG_GESTURE}" gesture
     append_action_schema_value drag-policy target zone target
     append_action_schema_value drag-policy proof-mode "${PROOF_MODE}" proof-mode
