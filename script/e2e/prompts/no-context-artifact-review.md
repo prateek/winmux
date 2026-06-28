@@ -23,11 +23,15 @@ Slice:
   <artifact-dir>/logs/<recording>.sample-manifest.tsv
 - event manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.event-manifest.tsv
+- mouse event timing table, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.mouse-events.tsv
 - event contact sheet, required when the reviewer packet lists one:
   <artifact-dir>/screenshots/<recording>.event-contact-sheet.jpg
 - copied config: <artifact-dir>/config/winmux.toml
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
+- caption tail manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.caption-tail.tsv
 - relevant logs: <list exact log paths>
 - baseline media: demo.mp4, demo2.mp4, demo3.mp4, demo-columnar-zones.mp4,
   resources/screenshots/winmux-overview.png, resources/screenshots/tab-groups.png
@@ -73,12 +77,19 @@ Required checks:
    If the reviewer packet lists final edge/corner crops, inspect them alongside
    the full after screenshot and reject any unrelated or partial setup window at
    a final screen edge.
+   If the reviewer packet lists a caption tail manifest, verify that any
+   uncaptained tail beyond the allowed hold is explicitly declared intentional
+   with a concrete reason and that near-end media/edge crops support the final
+   clean-state claim.
    If the reviewer packet lists an event manifest, inspect it. It must split
    action-sensitive proof into named events such as command start/end, drag
    pickup/path/hover/release, first affordance, post-state inspection, and final
    inspection. Match those rows to caption boundary frames, action screenshots,
    semantic samples, and the event contact sheet when present. Reject a
    transition proof that hides all timing behind one vague offset.
+   If the reviewer packet lists a mouse event timing table, compare the event
+   manifest seconds for drag/hover/release/post-state events against that table;
+   do not accept caption-derived timing when guest action timing is available.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.

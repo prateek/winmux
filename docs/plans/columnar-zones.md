@@ -3763,10 +3763,13 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
   Implemented by `guest-script-retry-summary.tsv` plus appended rows in
   `guest-transport-summary.tsv`; mechanically checked with `bash -n`,
   `shellcheck`, and `verify-artifact --check-only` on the Slice 22 artifact.
-- [ ] For the next mouse/transition proof, generate event-manifest rows from
+- [x] For the next mouse/transition proof, generate event-manifest rows from
   actual guest action timestamps for pickup, path, hover, first affordance,
   release, and post-state; use that table as the single timing source for
   captions, samples, and verifier checks.
+  Implemented for the shared mouse snap scenario via
+  `<recording>.mouse-events.tsv`; Slice 20 and Slice 22 event manifests use
+  those rows when present, and `verify-artifact` rejects mismatched timestamps.
 - [x] Bound local session-history retrospection prompts: search by artifact id
   or recording name, inspect at most three exact-hit rollout files, ignore the
   current session, and fall back to plan/diff/artifacts when no exact session is
@@ -3784,19 +3787,26 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
   `script/e2e/guest/slice-12-mouse-zone-snap.sh` with one schema helper, and
   make `verify-artifact` read that schema before consulting human-oriented
   logs.
-- [ ] Add one behavior-level Swift test for `float-unless-snap` through the
+- [x] Add one behavior-level Swift test for `float-unless-snap` through the
   tiling mouse-drag caller or an extracted policy-plus-caller seam, covering
   no-modifier float and held-modifier snap eligibility.
-- [ ] Add an artifact-generation or verifier check that rejects annotated
+  Added `moveTilingWindowForMouseDrag` seam coverage for no-modifier floating
+  and held-modifier normal move behavior; verified with
+  `swift test --filter WindowZoneSnapPolicyTest`.
+- [x] Add an artifact-generation or verifier check that rejects annotated
   recordings when the last caption ends more than a short hold before video end,
   unless the run declares an intentional uncaptained tail.
+  New harness runs write `<recording>.caption-tail.tsv`; the verifier requires
+  an explicit reason for tails beyond `WINMUX_E2E_CAPTION_TAIL_MAX_SECONDS`.
 - [x] Generate a labeled event-manifest contact sheet for mouse/transition
   slices, including overlay sentinel crops and separate no-modifier versus
   modifier branches.
   Generated as `<recording>.event-contact-sheet.jpg` from the event manifest
   and overlay sentinel crops; Slice 22 derived artifact was regenerated.
-- [ ] Require captioned target/release sample frames to show the visual
+- [x] Require captioned target/release sample frames to show the visual
   affordance named by the caption, not only the after-state.
+  `verify-artifact` now rejects mouse snap target/release events without
+  concrete hover or release/target sample media.
 - [ ] Strengthen proof-only zone snap affordances with a clearer whole-zone
   outline or target label, then capture an artifact crop that makes the target
   readable without opening logs.

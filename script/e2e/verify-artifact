@@ -684,12 +684,26 @@ ensure_review_packet() {
             "${relative_run_dir}/logs/${recording_name}.edge-crops.tsv" \
             || die "Review packet missing edge crop manifest path"
     fi
+    if [ -s "${LOGS_DIR}/${recording_name}.caption-tail.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.caption-tail.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.caption-tail.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.caption-tail.tsv" \
+            || die "Review packet missing caption tail manifest path"
+    fi
     if [ -s "${LOGS_DIR}/${recording_name}.event-manifest.tsv" ]; then
         review_packet_contains_any "$packet_path" \
             "${LOGS_DIR}/${recording_name}.event-manifest.tsv" \
             "${absolute_run_dir}/logs/${recording_name}.event-manifest.tsv" \
             "${relative_run_dir}/logs/${recording_name}.event-manifest.tsv" \
             || die "Review packet missing event manifest path"
+        if [ -s "${LOGS_DIR}/${recording_name}.mouse-events.tsv" ]; then
+            review_packet_contains_any "$packet_path" \
+                "${LOGS_DIR}/${recording_name}.mouse-events.tsv" \
+                "${absolute_run_dir}/logs/${recording_name}.mouse-events.tsv" \
+                "${relative_run_dir}/logs/${recording_name}.mouse-events.tsv" \
+                || die "Review packet missing mouse event timing path"
+        fi
         review_packet_contains_any "$packet_path" \
             "${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jpg" \
             "${absolute_run_dir}/screenshots/${recording_name}.event-contact-sheet.jpg" \
@@ -838,6 +852,13 @@ require_event_manifest_paths() {
     local manifest_path="$1"
     require_file "$manifest_path"
     require_fresh_derived_file "$manifest_path" "${annotation_plan:-}" "Event manifest"
+    local mouse_events=""
+    if [ -n "${recording_name:-}" ]; then
+        mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    fi
+    if [ -n "$mouse_events" ] && [ -s "$mouse_events" ]; then
+        require_fresh_derived_file "$manifest_path" "$mouse_events" "Event manifest"
+    fi
 
     local event_id relative_path
     while IFS=$'\t' read -r event_id _kind _seconds _caption _sample relative_path _expected; do
@@ -877,6 +898,47 @@ require_event_sample_label() {
     actual_label="$(require_event_manifest_value "$manifest_path" "$event_id" sample-label)"
     [ "$actual_label" = "$expected_label" ] \
         || die "Event manifest ${event_id} sample label mismatch: expected ${expected_label}, got ${actual_label}"
+}
+
+require_event_manifest_matches_mouse_events() {
+    local manifest_path="$1"
+    shift
+    local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    [ -s "$mouse_events" ] || return 0
+
+    local event_id expected_seconds actual_seconds
+    for event_id in "$@"; do
+        expected_seconds="$(/usr/bin/awk -F'\t' -v event_id="$event_id" '
+            $0 == "" || $1 ~ /^#/ { next }
+            $1 == event_id {
+                print $3
+                found = 1
+                exit
+            }
+            END { exit(found ? 0 : 1) }
+        ' "$mouse_events")" \
+            || die "Mouse event log missing event: ${event_id}"
+        actual_seconds="$(require_event_manifest_value "$manifest_path" "$event_id" seconds)"
+        [ "$actual_seconds" = "$expected_seconds" ] \
+            || die "Event ${event_id} seconds must come from mouse event log: manifest=${actual_seconds} mouse-events=${expected_seconds}"
+    done
+}
+
+require_mouse_snap_affordance_event_paths() {
+    local manifest_path="$1"
+    local target_path release_path
+    target_path="$(require_event_manifest_value "$manifest_path" snap-first-affordance path)"
+    release_path="$(require_event_manifest_value "$manifest_path" snap-release path)"
+    [ "$target_path" != "-" ] || die "Mouse snap target affordance event must cite a concrete media path"
+    [ "$release_path" != "-" ] || die "Mouse snap release event must cite a concrete media path"
+    case "$target_path" in
+        screenshots/07-snap-hover-comms-*.png|screenshots/*.samples/*) ;;
+        *) die "Mouse snap target affordance must cite hover/affordance media, got: $target_path" ;;
+    esac
+    case "$release_path" in
+        screenshots/*.samples/*boundary-start.png|screenshots/07-snap-hover-comms-*.png) ;;
+        *) die "Mouse snap release must cite a release/target sample frame, got: $release_path" ;;
+    esac
 }
 
 file_mtime_epoch() {
@@ -1619,6 +1681,44 @@ ensure_recording_samples() {
     if [ -s "$event_manifest" ]; then
         require_file "$event_contact_sheet"
         require_fresh_derived_file "$event_contact_sheet" "$event_manifest" "Event contact sheet"
+    fi
+}
+
+caption_tail_manifest_value() {
+    local path="$1"
+    local key="$2"
+    /usr/bin/awk -F'\t' -v key="$key" '$1 == key { print $2; exit }' "$path"
+}
+
+require_caption_tail_manifest() {
+    local name="$1"
+    local duration="$2"
+    local manifest_path="${LOGS_DIR}/${name}.caption-tail.tsv"
+    local required
+    required="$(value_from_log caption_tail_policy_required "$PREFLIGHT_LOG")"
+    [ "$required" = "1" ] || [ -s "$manifest_path" ] || return 0
+
+    require_file "$manifest_path"
+    require_fresh_derived_file "$manifest_path" "$annotation_plan" "Caption tail manifest"
+    local manifest_duration last_end tail max_tail intentional reason
+    manifest_duration="$(caption_tail_manifest_value "$manifest_path" duration-seconds)"
+    last_end="$(caption_tail_manifest_value "$manifest_path" last-caption-end-seconds)"
+    tail="$(caption_tail_manifest_value "$manifest_path" tail-seconds)"
+    max_tail="$(caption_tail_manifest_value "$manifest_path" max-tail-seconds)"
+    intentional="$(caption_tail_manifest_value "$manifest_path" intentional-uncaptioned-tail)"
+    reason="$(caption_tail_manifest_value "$manifest_path" reason)"
+    [[ "$manifest_duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail manifest duration is not numeric"
+    [[ "$last_end" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail manifest last caption end is not numeric"
+    [[ "$tail" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail manifest tail is not numeric"
+    [[ "$max_tail" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "Caption tail manifest max tail is not numeric"
+    awk -v manifest_duration="$manifest_duration" -v duration="$duration" 'BEGIN {
+        delta = manifest_duration - duration
+        if (delta < 0) delta = -delta
+        exit(delta <= 0.500 ? 0 : 1)
+    }' || die "Caption tail manifest duration does not match recording duration"
+    if awk -v tail="$tail" -v max_tail="$max_tail" 'BEGIN { exit(tail + 0 > max_tail + 0 ? 0 : 1) }'; then
+        [ "$intentional" = "yes" ] || die "Annotated recording has ${tail}s uncaptained tail without intentional allowance"
+        [ -n "$reason" ] || die "Intentional uncaptained tail must include a reason"
     fi
 }
 
@@ -3393,6 +3493,23 @@ require_slice_20_event_manifest() {
     require_event_sample_label "$manifest_path" snap-release snap-release
     require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
     require_event_sample_label "$manifest_path" cycle-command-start cycle-policy-command-start
+    require_event_manifest_matches_mouse_events "$manifest_path" \
+        freeform-drag-start \
+        freeform-drag-hover \
+        freeform-drag-release \
+        freeform-post-state \
+        set-command-start \
+        set-command-end \
+        reset-before-snap \
+        snap-drag-start \
+        snap-drag-path \
+        snap-first-affordance \
+        snap-drag-hover \
+        snap-release \
+        snap-post-state \
+        cycle-command-start \
+        cycle-command-end
+    require_mouse_snap_affordance_event_paths "$manifest_path"
 
     require_event_before "$manifest_path" config-ready freeform-drag-start \
         "Slice 20 event manifest must show config before the first drag"
@@ -3450,6 +3567,19 @@ require_slice_22_event_manifest() {
     require_event_sample_label "$manifest_path" snap-first-affordance snap-hover-comms
     require_event_sample_label "$manifest_path" snap-release snap-release
     require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
+    require_event_manifest_matches_mouse_events "$manifest_path" \
+        float-drag-start \
+        float-drag-hover \
+        float-drag-release \
+        float-post-state \
+        reset-before-snap \
+        snap-drag-start \
+        snap-drag-path \
+        snap-first-affordance \
+        snap-drag-hover \
+        snap-release \
+        snap-post-state
+    require_mouse_snap_affordance_event_paths "$manifest_path"
 
     require_event_before "$manifest_path" config-ready float-drag-start \
         "Slice 22 event manifest must show float-unless-snap config before the first drag"
@@ -5022,6 +5152,7 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
                 || die "Annotation plan missing expected caption chip: $expected_chip"
         done <"$expected_chips"
     fi
+    require_caption_tail_manifest "$recording_name" "$duration"
     edge_crop_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
     if [ -s "$edge_crop_manifest" ]; then
         require_edge_crop_manifest "$edge_crop_manifest"

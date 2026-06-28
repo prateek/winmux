@@ -62,9 +62,11 @@ transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
+caption_tail="${LOGS_DIR}/${recording_name}.caption-tail.tsv"
 expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
+mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
 color_sentinel="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
 overlay_sentinel="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
@@ -87,10 +89,20 @@ if [ -s "$event_manifest" ]; then
 else
     event_manifest_label="not applicable"
 fi
+if [ -s "$mouse_events" ]; then
+    mouse_events_label="$mouse_events"
+else
+    mouse_events_label="not applicable"
+fi
 if [ -s "$event_contact_sheet" ]; then
     event_contact_sheet_label="$event_contact_sheet"
 else
     event_contact_sheet_label="not applicable"
+fi
+if [ -s "$caption_tail" ]; then
+    caption_tail_label="$caption_tail"
+else
+    caption_tail_label="not applicable"
 fi
 if [ -s "$overlay_sentinel" ]; then
     overlay_sentinel_label="$overlay_sentinel"
@@ -408,9 +420,11 @@ $(drag_screenshot_lines)
 - guest transport summary: ${transport_summary}
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
+- caption tail manifest: ${caption_tail_label}
 - expected caption chips: ${expected_chips:-not present}
 - drag proof manifest: ${proof_manifest_label}
 - event manifest: ${event_manifest_label}
+- mouse event timings: ${mouse_events_label}
 - color sentinel manifest: ${color_sentinel_label}
 - overlay sentinel manifest: ${overlay_sentinel_label}
 - preflight log: ${LOGS_DIR}/preflight.log

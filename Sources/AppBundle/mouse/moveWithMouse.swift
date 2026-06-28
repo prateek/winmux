@@ -55,46 +55,59 @@ private func moveTilingWindow(_ window: Window) {
     let anchorRect = resolvedDraggedWindowAnchorRect(for: window, subject: subject)
     let mouseLocation = MousePointerTracker.shared.currentSample.point
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
+    moveTilingWindowForMouseDrag(
+        window: window,
+        targetWorkspace: targetWorkspace,
+        subject: subject,
+        anchorRect: anchorRect,
+        modifierFlags: currentSessionModifierFlags(),
+        beginSession: beginWindowMoveWithMouseSessionIfNeeded,
+        startMove: WindowMouseInteractionDriver.shared.startMove,
+    )
+}
+
+typealias BeginWindowMoveWithMouseSessionHandler = (
+    _ windowId: UInt32,
+    _ subject: WindowDragSubject,
+    _ detachOrigin: TabDetachOrigin,
+    _ startedInSidebar: Bool,
+    _ anchorRect: Rect?,
+    _ refreshActualRects: Bool
+) -> Bool
+
+typealias StartWindowMoveWithMouseHandler = (
+    _ windowId: UInt32,
+    _ subject: WindowDragSubject,
+    _ detachOrigin: TabDetachOrigin,
+    _ startedInSidebar: Bool
+) -> Void
+
+@MainActor
+func moveTilingWindowForMouseDrag(
+    window: Window,
+    targetWorkspace: Workspace,
+    subject: WindowDragSubject,
+    anchorRect: Rect?,
+    modifierFlags: CGEventFlags,
+    beginSession: BeginWindowMoveWithMouseSessionHandler,
+    startMove: StartWindowMoveWithMouseHandler,
+) {
     if floatTilingWindowForMouseDragIfNeeded(
         window: window,
         targetWorkspace: targetWorkspace,
         subject: subject,
-        modifierFlags: currentSessionModifierFlags(),
+        modifierFlags: modifierFlags,
     ) {
         window.lastAppliedLayoutPhysicalRect = nil
-        beginWindowMoveWithMouseSessionIfNeeded(
-            windowId: window.windowId,
-            subject: subject,
-            detachOrigin: .window,
-            startedInSidebar: false,
-            anchorRect: anchorRect,
-            refreshActualRects: false,
-        )
-        WindowMouseInteractionDriver.shared.startMove(
-            windowId: window.windowId,
-            subject: subject,
-            detachOrigin: .window,
-            startedInSidebar: false,
-        )
+        _ = beginSession(window.windowId, subject, .window, false, anchorRect, false)
+        startMove(window.windowId, subject, .window, false)
         return
     }
-    let didStartSession = beginWindowMoveWithMouseSessionIfNeeded(
-        windowId: window.windowId,
-        subject: subject,
-        detachOrigin: .window,
-        startedInSidebar: false,
-        anchorRect: anchorRect,
-        refreshActualRects: subject == .window,
-    )
+    let didStartSession = beginSession(window.windowId, subject, .window, false, anchorRect, subject == .window)
     if didStartSession, subject == .window {
         window.lastAppliedLayoutPhysicalRect = nil
     }
-    WindowMouseInteractionDriver.shared.startMove(
-        windowId: window.windowId,
-        subject: subject,
-        detachOrigin: .window,
-        startedInSidebar: false,
-    )
+    startMove(window.windowId, subject, .window, false)
 }
 
 @MainActor

@@ -56,6 +56,7 @@ WINDOW_RESET_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-reset.log"
 WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after-snap.log"
 ZONES_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zones.log"
 TIMING_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-command-timing.log"
+MOUSE_EVENTS_LOG="${ARTIFACTS_DIR}/logs/${RECORDING_NAME}.mouse-events.tsv"
 CLI_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli.log"
 WAIT_ERR="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli-wait.err"
 STATE_FILE="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-window-ids.env"
@@ -100,6 +101,23 @@ artifact_relative_path() {
         "${ARTIFACTS_DIR}/"*) printf '%s\n' "${path#"${ARTIFACTS_DIR}/"}" ;;
         *) printf '%s\n' "$path" ;;
     esac
+}
+
+init_mouse_events_log() {
+    : >"${MOUSE_EVENTS_LOG}"
+    printf '# event-id\tkind\toffset-seconds\tnote\n' >>"${MOUSE_EVENTS_LOG}"
+}
+
+append_mouse_event() {
+    local event_id="$1"
+    local kind="$2"
+    local scenario_start_ms="$3"
+    local note="$4"
+    local now_ms
+    now_ms="$(/bin/date +%s)000"
+    awk -v event_id="$event_id" -v kind="$kind" -v start="$scenario_start_ms" -v now="$now_ms" -v note="$note" 'BEGIN {
+        printf "%s\t%s\t%.3f\t%s\n", event_id, kind, (now - start) / 1000, note
+    }' >>"${MOUSE_EVENTS_LOG}"
 }
 
 write_doc() {
@@ -386,11 +404,15 @@ drag_window_jxa() {
     local pickup_path="$6"
     local path_path="$7"
     local hover_path="$8"
+    local event_branch="$9"
+    local scenario_start_ms="${10}"
     /usr/bin/osascript -l JavaScript <<JXA
 ObjC.import('ApplicationServices')
 
 const app = Application.currentApplication()
 app.includeStandardAdditions = true
+const eventBranch = '${event_branch}'
+const scenarioStartMs = Number('${scenario_start_ms}')
 
 function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'"
@@ -427,6 +449,43 @@ function capture(path) {
   app.doShellScript('/usr/sbin/screencapture -x -D ${GUEST_DISPLAY_ID} ' + shellQuote(path))
 }
 
+function offsetSeconds() {
+  return ((Date.now() - scenarioStartMs) / 1000).toFixed(3)
+}
+
+function emit(eventId, kind, note) {
+  console.log([eventId, kind, offsetSeconds(), note].join('\t'))
+}
+
+function emitPickupEvent() {
+  if (eventBranch === 'float') {
+    emit('float-drag-start', 'drag', 'no-modifier pickup screenshot captured')
+  } else {
+    emit('freeform-drag-start', 'drag', 'no-modifier pickup screenshot captured')
+  }
+}
+
+function emitHoverEvent() {
+  if (eventBranch === 'snap') {
+    emit('snap-first-affordance', 'overlay', 'whole-zone hover screenshot captured')
+    emit('snap-drag-hover', 'overlay', 'whole-zone hover screenshot captured')
+  } else if (eventBranch === 'float') {
+    emit('float-drag-hover', 'drag', 'no-modifier hover screenshot captured')
+  } else {
+    emit('freeform-drag-hover', 'drag', 'no-modifier hover screenshot captured')
+  }
+}
+
+function emitReleaseEvent() {
+  if (eventBranch === 'snap') {
+    emit('snap-release', 'drag', 'mouse released on target zone')
+  } else if (eventBranch === 'float') {
+    emit('float-drag-release', 'drag', 'mouse released after float/freeform branch')
+  } else {
+    emit('freeform-drag-release', 'drag', 'mouse released after freeform branch')
+  }
+}
+
 const sx = Number('${source_x}')
 const sy = Number('${source_y}')
 const tx = Number('${target_x}')
@@ -447,15 +506,21 @@ postMouse($.kCGEventLeftMouseDown, sx, sy, useAlt)
 delay(0.25)
 dragTo(sx, sy, pickupX, pickupY, 10, 0.06, useAlt)
 capture('${pickup_path}')
+emitPickupEvent()
 dragTo(pickupX, pickupY, pathX, pathY, 34, 0.07, useAlt)
 if ('${path_path}' !== '') {
   capture('${path_path}')
+  if (eventBranch === 'snap') {
+    emit('snap-drag-path', 'drag', 'path screenshot captured')
+  }
 }
 dragTo(pathX, pathY, tx, ty, 28, 0.08, useAlt)
 delay(1.5)
 capture('${hover_path}')
+emitHoverEvent()
 delay(1.8)
 postMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
+emitReleaseEvent()
 if (useAlt) {
   delay(0.3)
   postOption(false)
@@ -595,9 +660,19 @@ proof_slice() {
         printf '%s\t%s\t%s\n' verification after-window-log "$(artifact_relative_path "${WINDOW_AFTER_LOG}")"
     } >"${ACTION_MANIFEST}"
 
+    init_mouse_events_log
     start_epoch="$(date +%s)"
+    scenario_start_ms="$((start_epoch * 1000))"
+    if [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+        negative_drag_branch="float"
+        negative_post_state_event="float-post-state"
+    else
+        negative_drag_branch="freeform"
+        negative_post_state_event="freeform-post-state"
+    fi
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 0 \
-        "${FREEFORM_PICKUP_SCREENSHOT}" "" "${FREEFORM_HOVER_SCREENSHOT}"
+        "${FREEFORM_PICKUP_SCREENSHOT}" "" "${FREEFORM_HOVER_SCREENSHOT}" \
+        "${negative_drag_branch}" "${scenario_start_ms}" >>"${MOUSE_EVENTS_LOG}"
     sleep 2
     freeform_epoch="$(date +%s)"
     refresh_window_log "${WINDOW_FREEFORM_LOG}"
@@ -624,15 +699,18 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-result freeform-after-layout "${freeform_layout}"
         printf '%s\t%s\t%s\n' drag-result freeform-result "${freeform_result}"
     } >>"${ACTION_MANIFEST}"
+    append_mouse_event "${negative_post_state_event}" inspection "${scenario_start_ms}" "post-freeform window inspection completed"
 
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         sleep 4
+        append_mouse_event set-command-start command "${scenario_start_ms}" "set-zone-snap-policy command started"
         {
             echo "$ winmux set-zone-snap-policy ${RUNTIME_SET_POLICY}"
             "${CLI}" set-zone-snap-policy "${RUNTIME_SET_POLICY}"
         } | tee "${SET_POLICY_LOG}" | tee -a "${ACTION_LOG}" | tee -a "${CLI_LOG}" >/dev/null
         grep -F "Using zone snap policy '${RUNTIME_SET_POLICY}'" "${SET_POLICY_LOG}" >/dev/null \
             || semantic_fail "set-zone-snap-policy did not report ${RUNTIME_SET_POLICY}"
+        append_mouse_event set-command-end command "${scenario_start_ms}" "set-zone-snap-policy command completed"
         {
             echo "runtime-policy-command=set-zone-snap-policy ${RUNTIME_SET_POLICY}"
             echo "runtime-policy-after-set=${RUNTIME_SET_POLICY}"
@@ -647,13 +725,15 @@ proof_slice() {
     reset_snap_window_to_work
     sleep 1
     capture_guest_screenshot "${RESET_NAME%.png}"
+    append_mouse_event reset-before-snap preparation "${scenario_start_ms}" "source reset screenshot captured before snap drag"
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         sleep 4
     fi
 
     snap_start_epoch="$(date +%s)"
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" "${positive_drag_with_alt}" \
-        "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}"
+        "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}" \
+        snap "${scenario_start_ms}" >>"${MOUSE_EVENTS_LOG}"
     sleep 4
     snap_end_epoch="$(date +%s)"
 
@@ -696,12 +776,14 @@ proof_slice() {
         printf '%s\t%s\t%s\n' drag-result after-workspace "${after_workspace}"
         printf '%s\t%s\t%s\n' drag-result result success
     } >>"${ACTION_MANIFEST}"
+    append_mouse_event snap-post-state inspection "${scenario_start_ms}" "post-snap window inspection completed"
 
     cycle_start_epoch=""
     cycle_end_epoch=""
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         sleep 4
         cycle_start_epoch="$(date +%s)"
+        append_mouse_event cycle-command-start command "${scenario_start_ms}" "cycle-zone-snap-policy command started"
         # shellcheck disable=SC2086
         {
             echo "$ winmux cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
@@ -710,6 +792,7 @@ proof_slice() {
         cycle_end_epoch="$(date +%s)"
         grep -F "Using zone snap policy 'freeform'" "${CYCLE_POLICY_LOG}" >/dev/null \
             || semantic_fail 'cycle-zone-snap-policy did not return to freeform'
+        append_mouse_event cycle-command-end command "${scenario_start_ms}" "cycle-zone-snap-policy command completed"
         {
             echo "runtime-cycle-command=cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
             echo 'runtime-policy-after-cycle=freeform'

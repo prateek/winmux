@@ -166,6 +166,111 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertTrue(fixture.window.nodeWorkspace === fixture.work)
     }
 
+    func testMoveTilingWindowForMouseDragFloatsAndStartsMoveWithoutSnapModifier() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+        let anchorRect = Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 180)
+        fixture.window.lastAppliedLayoutPhysicalRect = anchorRect
+        var beginCalls: [MouseMoveBeginCall] = []
+        var startCalls: [MouseMoveStartCall] = []
+
+        moveTilingWindowForMouseDrag(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            anchorRect: anchorRect,
+            modifierFlags: [],
+            beginSession: { windowId, subject, detachOrigin, startedInSidebar, anchorRect, refreshActualRects in
+                beginCalls.append(MouseMoveBeginCall(
+                    windowId: windowId,
+                    subject: subject,
+                    detachOrigin: detachOrigin,
+                    startedInSidebar: startedInSidebar,
+                    anchorRect: anchorRect,
+                    refreshActualRects: refreshActualRects,
+                ))
+                return true
+            },
+            startMove: { windowId, subject, detachOrigin, startedInSidebar in
+                startCalls.append(MouseMoveStartCall(
+                    windowId: windowId,
+                    subject: subject,
+                    detachOrigin: detachOrigin,
+                    startedInSidebar: startedInSidebar,
+                ))
+            },
+        )
+
+        XCTAssertTrue(fixture.window.isFloating)
+        XCTAssertTrue((fixture.window.parent as? Workspace) === fixture.comms)
+        XCTAssertNil(fixture.window.lastAppliedLayoutPhysicalRect)
+        XCTAssertEqual(beginCalls.count, 1)
+        XCTAssertEqual(beginCalls.first?.windowId, fixture.window.windowId)
+        XCTAssertEqual(beginCalls.first?.subject, .window)
+        XCTAssertEqual(beginCalls.first?.detachOrigin, .window)
+        XCTAssertEqual(beginCalls.first?.startedInSidebar, false)
+        XCTAssertEqual(beginCalls.first?.refreshActualRects, false)
+        XCTAssertEqual(beginCalls.first?.anchorRect?.topLeftX, anchorRect.topLeftX)
+        XCTAssertEqual(startCalls.count, 1)
+        XCTAssertEqual(startCalls.first?.windowId, fixture.window.windowId)
+        XCTAssertEqual(startCalls.first?.subject, .window)
+        XCTAssertEqual(startCalls.first?.detachOrigin, .window)
+        XCTAssertEqual(startCalls.first?.startedInSidebar, false)
+    }
+
+    func testMoveTilingWindowForMouseDragWithSnapModifierUsesNormalMovePath() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.modifier = .option
+        let anchorRect = Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 180)
+        fixture.window.lastAppliedLayoutPhysicalRect = anchorRect
+        var beginCalls: [MouseMoveBeginCall] = []
+        var startCalls: [MouseMoveStartCall] = []
+
+        moveTilingWindowForMouseDrag(
+            window: fixture.window,
+            targetWorkspace: fixture.comms,
+            subject: .window,
+            anchorRect: anchorRect,
+            modifierFlags: .maskAlternate,
+            beginSession: { windowId, subject, detachOrigin, startedInSidebar, anchorRect, refreshActualRects in
+                beginCalls.append(MouseMoveBeginCall(
+                    windowId: windowId,
+                    subject: subject,
+                    detachOrigin: detachOrigin,
+                    startedInSidebar: startedInSidebar,
+                    anchorRect: anchorRect,
+                    refreshActualRects: refreshActualRects,
+                ))
+                return true
+            },
+            startMove: { windowId, subject, detachOrigin, startedInSidebar in
+                startCalls.append(MouseMoveStartCall(
+                    windowId: windowId,
+                    subject: subject,
+                    detachOrigin: detachOrigin,
+                    startedInSidebar: startedInSidebar,
+                ))
+            },
+        )
+
+        XCTAssertFalse(fixture.window.isFloating)
+        XCTAssertTrue(fixture.window.nodeWorkspace === fixture.work)
+        XCTAssertNil(fixture.window.lastAppliedLayoutPhysicalRect)
+        XCTAssertEqual(beginCalls.count, 1)
+        XCTAssertEqual(beginCalls.first?.windowId, fixture.window.windowId)
+        XCTAssertEqual(beginCalls.first?.subject, .window)
+        XCTAssertEqual(beginCalls.first?.detachOrigin, .window)
+        XCTAssertEqual(beginCalls.first?.startedInSidebar, false)
+        XCTAssertEqual(beginCalls.first?.refreshActualRects, true)
+        XCTAssertEqual(startCalls.count, 1)
+        XCTAssertEqual(startCalls.first?.windowId, fixture.window.windowId)
+        XCTAssertEqual(startCalls.first?.subject, .window)
+        XCTAssertEqual(startCalls.first?.detachOrigin, .window)
+        XCTAssertEqual(startCalls.first?.startedInSidebar, false)
+    }
+
     func testFloatUnlessSnapDoesNotFloatGroupDrags() {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap
@@ -319,6 +424,22 @@ private struct ZoneSnapFixture {
     let comms: Workspace
     let commsMonitor: Monitor
     let window: Window
+}
+
+private struct MouseMoveBeginCall {
+    let windowId: UInt32
+    let subject: WindowDragSubject
+    let detachOrigin: TabDetachOrigin
+    let startedInSidebar: Bool
+    let anchorRect: Rect?
+    let refreshActualRects: Bool
+}
+
+private struct MouseMoveStartCall {
+    let windowId: UInt32
+    let subject: WindowDragSubject
+    let detachOrigin: TabDetachOrigin
+    let startedInSidebar: Bool
 }
 
 @MainActor
