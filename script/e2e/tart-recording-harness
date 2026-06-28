@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+MOUSE_DRAG_EVENT_SPEC="${SCRIPT_DIR}/specs/mouse-drag-events.tsv"
 
 ACTION="${1:-preflight}"
 SLICE_ID="${WINMUX_E2E_SLICE:-slice-0}"
@@ -1596,157 +1597,149 @@ mouse_event_seconds() {
     printf '%s\n' "$fallback"
 }
 
-write_slice_20_event_manifest() {
+mouse_drag_event_spec_rows() {
+    local slice="$1"
+    [ -s "$MOUSE_DRAG_EVENT_SPEC" ] || die "Mouse drag event spec is missing: $MOUSE_DRAG_EVENT_SPEC"
+    /usr/bin/awk -F'\t' -v slice="$slice" '$0 == "" || $1 ~ /^#/ { next } $1 == slice { print }' "$MOUSE_DRAG_EVENT_SPEC"
+}
+
+mouse_drag_caption_label() {
+    local slice="$1"
+    local name="$2"
+    local key="$3"
+    local first_list_label
+
+    case "${slice}:${key}" in
+        slice-20:config) caption_label_for_chip "$name" "Config: policy='freeform'; alt-z='set-zone-snap-policy snap-to-zone'" ;;
+        slice-20:freeform) caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier" ;;
+        slice-20:no-overlay)
+            caption_label_for_chip "$name" "Action: freeform hover has no whole-zone overlay" ||
+                caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier"
+            ;;
+        slice-20:list-first) caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ;;
+        slice-20:set) caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone" ;;
+        slice-20:snap) caption_label_for_chip "$name" "Action: drag snap-demo.rtf with snap-to-zone active" ;;
+        slice-20:target) caption_label_for_chip "$name" "Action: target = whole Comms zone" ;;
+        slice-20:release) caption_label_for_chip "$name" "Action: release on Comms zone" ;;
+        slice-20:cycle) caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" ;;
+        slice-20:list-last)
+            first_list_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
+            last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
+                printf '%s\n' "$first_list_label"
+            ;;
+        slice-22:config) caption_label_for_chip "$name" "Config: policy='float-unless-snap'; modifier='alt'; target='zone'" ;;
+        slice-22:freeform) caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier" ;;
+        slice-22:float-result) caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ;;
+        slice-22:reset) caption_label_for_chip "$name" "Action: reset snap-demo.rtf to Work/main tiling" ;;
+        slice-22:snap) caption_label_for_chip "$name" "Action: hold Alt while dragging snap-demo.rtf" ;;
+        slice-22:target) caption_label_for_chip "$name" "Action: target = whole Comms zone" ;;
+        slice-22:release) caption_label_for_chip "$name" "Action: release on Comms zone" ;;
+        slice-22:list-last)
+            first_list_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
+            last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
+                printf '%s\n' "$first_list_label"
+            ;;
+        *) die "Unknown mouse drag caption key: ${slice}:${key}" ;;
+    esac
+}
+
+caption_seconds_for_time_source() {
     local name="$1"
+    local caption_label="$2"
+    local time_source="$3"
+    local normalized="$time_source"
+    local base offset
+
+    normalized="${normalized#mouse-}"
+    case "$normalized" in
+        caption-start)
+            caption_start_for_label "$name" "$caption_label"
+            ;;
+        caption-end)
+            caption_end_for_label "$name" "$caption_label"
+            ;;
+        caption-start+*)
+            offset="${normalized#caption-start+}"
+            base="$(caption_start_for_label "$name" "$caption_label")" \
+                || die "Could not resolve caption start for ${caption_label}"
+            /usr/bin/awk -v base="$base" -v offset="$offset" 'BEGIN { printf "%.3f\n", base + offset }'
+            ;;
+        caption-end+*)
+            offset="${normalized#caption-end+}"
+            base="$(caption_end_for_label "$name" "$caption_label")" \
+                || die "Could not resolve caption end for ${caption_label}"
+            /usr/bin/awk -v base="$base" -v offset="$offset" 'BEGIN { printf "%.3f\n", base + offset }'
+            ;;
+        *) die "Unknown mouse drag time source: $time_source" ;;
+    esac
+}
+
+mouse_drag_event_seconds() {
+    local name="$1"
+    local event_id="$2"
+    local time_source="$3"
+    local caption_label="$4"
+    local fallback
+
+    fallback="$(caption_seconds_for_time_source "$name" "$caption_label" "$time_source")"
+    case "$time_source" in
+        mouse-*) mouse_event_seconds "$name" "$event_id" "$fallback" ;;
+        *) printf '%s\n' "$fallback" ;;
+    esac
+}
+
+mouse_drag_event_path() {
+    local slice="$1"
+    local name="$2"
+    local caption_label="$3"
+    local path_kind="$4"
+    local path_value="$5"
+    local filename
+
+    case "$path_kind" in
+        none)
+            printf '%s\n' "-"
+            ;;
+        sample-start)
+            printf 'screenshots/%s.samples/%s-boundary-start.png\n' "$name" "$caption_label"
+            ;;
+        sample-end)
+            printf 'screenshots/%s.samples/%s-boundary-end.png\n' "$name" "$caption_label"
+            ;;
+        screenshot)
+            filename="${path_value//\{slice\}/$slice}"
+            printf 'screenshots/%s\n' "$filename"
+            ;;
+        *) die "Unknown mouse drag event path kind: $path_kind" ;;
+    esac
+}
+
+write_mouse_drag_event_manifest() {
+    local slice="$1"
+    local name="$2"
     local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
-    local config_label freeform_label no_overlay_label list_first_label set_label snap_label target_label release_label cycle_label list_last_label
-    config_label="$(caption_label_for_chip "$name" "Config: policy='freeform'; alt-z='set-zone-snap-policy snap-to-zone'")"
-    freeform_label="$(caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier")"
-    no_overlay_label="$(caption_label_for_chip "$name" "Action: freeform hover has no whole-zone overlay" || printf '%s\n' "$freeform_label")"
-    list_first_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
-    set_label="$(caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone")"
-    snap_label="$(caption_label_for_chip "$name" "Action: drag snap-demo.rtf with snap-to-zone active")"
-    target_label="$(caption_label_for_chip "$name" "Action: target = whole Comms zone")"
-    release_label="$(caption_label_for_chip "$name" "Action: release on Comms zone")"
-    cycle_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone")"
-    list_last_label="$(last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" || printf '%s\n' "$list_first_label")"
+    local _slice event_id kind time_source caption_key sample_label path_kind path_value expected _after_events
+    local caption_label seconds relative_path row_count=0
 
     : >"$manifest_path"
     printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
-    append_event_manifest_row "$manifest_path" config-ready context \
-        "$(caption_start_for_label "$name" "$config_label")" "$config_label" caption-01 \
-        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
-        "config and binding chips are visible before any drag"
-    append_event_manifest_row "$manifest_path" freeform-drag-start drag \
-        "$(mouse_event_seconds "$name" freeform-drag-start "$(caption_start_for_label "$name" "$freeform_label")")" "$freeform_label" freeform-pickup \
-        "screenshots/02-freeform-pickup-slice-20.png" \
-        "source pickup under configured freeform policy"
-    append_event_manifest_row "$manifest_path" freeform-drag-hover drag \
-        "$(mouse_event_seconds "$name" freeform-drag-hover "$(caption_start_for_label "$name" "$no_overlay_label")")" "$no_overlay_label" freeform-hover-no-overlay \
-        "screenshots/03-freeform-hover-no-overlay-slice-20.png" \
-        "Comms hover has no whole-zone overlay before runtime policy change"
-    append_event_manifest_row "$manifest_path" freeform-drag-release drag \
-        "$(mouse_event_seconds "$name" freeform-drag-release "$(caption_end_for_label "$name" "$no_overlay_label")")" "$no_overlay_label" - - \
-        "freeform drag completes without a zone move"
-    append_event_manifest_row "$manifest_path" freeform-post-state inspection \
-        "$(mouse_event_seconds "$name" freeform-post-state "$(caption_start_for_label "$name" "$list_first_label")")" "$list_first_label" - \
-        "screenshots/${name}.samples/${list_first_label}-boundary-start.png" \
-        "post-freeform window inspection still shows Work/main"
-    append_event_manifest_row "$manifest_path" set-command-start command \
-        "$(mouse_event_seconds "$name" set-command-start "$(caption_start_for_label "$name" "$set_label")")" "$set_label" set-policy-command-start \
-        "screenshots/${name}.samples/${set_label}-boundary-start.png" \
-        "set-zone-snap-policy command caption appears before snap affordance"
-    append_event_manifest_row "$manifest_path" set-command-end command \
-        "$(mouse_event_seconds "$name" set-command-end "$(caption_end_for_label "$name" "$set_label")")" "$set_label" - \
-        "screenshots/${name}.samples/${set_label}-boundary-end.png" \
-        "set-zone-snap-policy command caption ends before first snap affordance"
-    append_event_manifest_row "$manifest_path" reset-before-snap preparation \
-        "$(mouse_event_seconds "$name" reset-before-snap "$(caption_start_for_label "$name" "$snap_label")")" "$snap_label" reset-before-snap \
-        "screenshots/04-reset-before-snap-slice-20.png" \
-        "source is reset to Work/main before runtime snap drag"
-    append_event_manifest_row "$manifest_path" snap-drag-start drag \
-        "$(mouse_event_seconds "$name" snap-drag-start "$(caption_start_for_label "$name" "$snap_label")")" "$snap_label" snap-pickup \
-        "screenshots/05-snap-pickup-slice-20.png" \
-        "no-modifier source pickup after runtime snap-to-zone"
-    append_event_manifest_row "$manifest_path" snap-drag-path drag \
-        "$(mouse_event_seconds "$name" snap-drag-path "$(awk -v seconds="$(caption_start_for_label "$name" "$snap_label")" 'BEGIN { printf "%.3f", seconds + 1.000 }')")" \
-        "$snap_label" snap-path "screenshots/06-snap-path-slice-20.png" \
-        "runtime snap drag path toward Comms"
-    append_event_manifest_row "$manifest_path" snap-first-affordance overlay \
-        "$(mouse_event_seconds "$name" snap-first-affordance "$(caption_start_for_label "$name" "$target_label")")" "$target_label" snap-hover-comms \
-        "screenshots/07-snap-hover-comms-slice-20.png" \
-        "first visible whole-zone Comms target affordance"
-    append_event_manifest_row "$manifest_path" snap-drag-hover overlay \
-        "$(mouse_event_seconds "$name" snap-drag-hover "$(awk -v seconds="$(caption_start_for_label "$name" "$target_label")" 'BEGIN { printf "%.3f", seconds + 0.500 }')")" \
-        "$target_label" snap-hover-comms "screenshots/07-snap-hover-comms-slice-20.png" \
-        "whole Comms zone overlay remains visible before release"
-    append_event_manifest_row "$manifest_path" snap-release drag \
-        "$(mouse_event_seconds "$name" snap-release "$(caption_start_for_label "$name" "$release_label")")" "$release_label" snap-release \
-        "screenshots/${name}.samples/${release_label}-boundary-start.png" \
-        "release caption while whole-zone target is still visible"
-    append_event_manifest_row "$manifest_path" snap-post-state inspection \
-        "$(mouse_event_seconds "$name" snap-post-state "$(caption_end_for_label "$name" "$release_label")")" "$release_label" snap-final-placement \
-        "screenshots/99-after-slice-20.png" \
-        "same source window is placed in Comms/right"
-    append_event_manifest_row "$manifest_path" cycle-command-start command \
-        "$(mouse_event_seconds "$name" cycle-command-start "$(caption_start_for_label "$name" "$cycle_label")")" "$cycle_label" cycle-policy-command-start \
-        "screenshots/${name}.samples/${cycle_label}-boundary-start.png" \
-        "cycle-zone-snap-policy command starts after final placement"
-    append_event_manifest_row "$manifest_path" cycle-command-end command \
-        "$(mouse_event_seconds "$name" cycle-command-end "$(caption_end_for_label "$name" "$cycle_label")")" "$cycle_label" - \
-        "screenshots/${name}.samples/${cycle_label}-boundary-end.png" \
-        "cycle command returns runtime policy to freeform"
-    append_event_manifest_row "$manifest_path" final-inspection inspection \
-        "$(caption_start_for_label "$name" "$list_last_label")" "$list_last_label" - \
-        "screenshots/${name}.samples/${list_last_label}-boundary-start.png" \
-        "final list-windows inspection after policy cycle"
+    while IFS=$'\t' read -r _slice event_id kind time_source caption_key sample_label path_kind path_value expected _after_events; do
+        caption_label="$(mouse_drag_caption_label "$slice" "$name" "$caption_key")"
+        seconds="$(mouse_drag_event_seconds "$name" "$event_id" "$time_source" "$caption_label")"
+        relative_path="$(mouse_drag_event_path "$slice" "$name" "$caption_label" "$path_kind" "$path_value")"
+        append_event_manifest_row "$manifest_path" "$event_id" "$kind" "$seconds" "$caption_label" "$sample_label" "$relative_path" "$expected"
+        row_count=$((row_count + 1))
+    done < <(mouse_drag_event_spec_rows "$slice")
+    [ "$row_count" -gt 0 ] || die "Mouse drag event spec has no rows for $slice"
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
-write_slice_22_event_manifest() {
-    local name="$1"
-    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
-    local config_label freeform_label float_result_label reset_label snap_label target_label release_label list_last_label
-    config_label="$(caption_label_for_chip "$name" "Config: policy='float-unless-snap'; modifier='alt'; target='zone'")"
-    freeform_label="$(caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no modifier")"
-    float_result_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
-    reset_label="$(caption_label_for_chip "$name" "Action: reset snap-demo.rtf to Work/main tiling")"
-    snap_label="$(caption_label_for_chip "$name" "Action: hold Alt while dragging snap-demo.rtf")"
-    target_label="$(caption_label_for_chip "$name" "Action: target = whole Comms zone")"
-    release_label="$(caption_label_for_chip "$name" "Action: release on Comms zone")"
-    list_last_label="$(last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" || printf '%s\n' "$float_result_label")"
+write_slice_20_event_manifest() {
+    write_mouse_drag_event_manifest slice-20 "$1"
+}
 
-    : >"$manifest_path"
-    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
-    append_event_manifest_row "$manifest_path" config-ready context \
-        "$(caption_start_for_label "$name" "$config_label")" "$config_label" caption-01 \
-        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
-        "float-unless-snap config chip is visible before any drag"
-    append_event_manifest_row "$manifest_path" float-drag-start drag \
-        "$(mouse_event_seconds "$name" float-drag-start "$(caption_start_for_label "$name" "$freeform_label")")" "$freeform_label" freeform-pickup \
-        "screenshots/02-freeform-pickup-slice-22.png" \
-        "source pickup under float-unless-snap with no modifier"
-    append_event_manifest_row "$manifest_path" float-drag-hover drag \
-        "$(mouse_event_seconds "$name" float-drag-hover "$(awk -v seconds="$(caption_start_for_label "$name" "$freeform_label")" 'BEGIN { printf "%.3f", seconds + 1.000 }')")" \
-        "$freeform_label" freeform-hover-no-overlay \
-        "screenshots/03-freeform-hover-no-overlay-slice-22.png" \
-        "no-Alt hover has no whole-zone snap overlay"
-    append_event_manifest_row "$manifest_path" float-drag-release drag \
-        "$(mouse_event_seconds "$name" float-drag-release "$(caption_end_for_label "$name" "$freeform_label")")" "$freeform_label" - - \
-        "no-Alt drag completes as floating/freeform placement"
-    append_event_manifest_row "$manifest_path" float-post-state inspection \
-        "$(mouse_event_seconds "$name" float-post-state "$(caption_start_for_label "$name" "$float_result_label")")" "$float_result_label" float-final-placement \
-        "screenshots/${name}.samples/${float_result_label}-boundary-start.png" \
-        "post-freeform inspection shows layout=floating and Comms/right"
-    append_event_manifest_row "$manifest_path" reset-before-snap preparation \
-        "$(mouse_event_seconds "$name" reset-before-snap "$(caption_start_for_label "$name" "$reset_label")")" "$reset_label" reset-before-snap \
-        "screenshots/04-reset-before-snap-slice-22.png" \
-        "same source window reset to Work/main tiling before modifier drag"
-    append_event_manifest_row "$manifest_path" snap-drag-start drag \
-        "$(mouse_event_seconds "$name" snap-drag-start "$(caption_start_for_label "$name" "$snap_label")")" "$snap_label" snap-pickup \
-        "screenshots/05-snap-pickup-slice-22.png" \
-        "Alt-held pickup starts the whole-zone snap branch"
-    append_event_manifest_row "$manifest_path" snap-drag-path drag \
-        "$(mouse_event_seconds "$name" snap-drag-path "$(awk -v seconds="$(caption_start_for_label "$name" "$snap_label")" 'BEGIN { printf "%.3f", seconds + 1.000 }')")" \
-        "$snap_label" snap-path "screenshots/06-snap-path-slice-22.png" \
-        "Alt-held snap path toward Comms"
-    append_event_manifest_row "$manifest_path" snap-first-affordance overlay \
-        "$(mouse_event_seconds "$name" snap-first-affordance "$(caption_start_for_label "$name" "$target_label")")" "$target_label" snap-hover-comms \
-        "screenshots/07-snap-hover-comms-slice-22.png" \
-        "first visible whole-zone Comms target affordance"
-    append_event_manifest_row "$manifest_path" snap-drag-hover overlay \
-        "$(mouse_event_seconds "$name" snap-drag-hover "$(awk -v seconds="$(caption_start_for_label "$name" "$target_label")" 'BEGIN { printf "%.3f", seconds + 0.500 }')")" \
-        "$target_label" snap-hover-comms "screenshots/07-snap-hover-comms-slice-22.png" \
-        "whole Comms zone overlay remains visible before release"
-    append_event_manifest_row "$manifest_path" snap-release drag \
-        "$(mouse_event_seconds "$name" snap-release "$(caption_start_for_label "$name" "$release_label")")" "$release_label" snap-release \
-        "screenshots/${name}.samples/${release_label}-boundary-start.png" \
-        "release caption while whole-zone target is still visible"
-    append_event_manifest_row "$manifest_path" snap-post-state inspection \
-        "$(mouse_event_seconds "$name" snap-post-state "$(caption_start_for_label "$name" "$list_last_label")")" "$list_last_label" snap-final-placement \
-        "screenshots/99-after-slice-22.png" \
-        "same source window is placed in Comms/right after Alt-held snap"
-    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+write_slice_22_event_manifest() {
+    write_mouse_drag_event_manifest slice-22 "$1"
 }
 
 write_slice_21_event_manifest() {
@@ -2737,13 +2730,15 @@ write_mouse_snap_overlay_sentinel() {
     [ -s "$freeform" ] || return 0
     [ -s "$snap" ] || return 0
 
-    local left top width height crop diff_raw diff_norm
+    local left top width height crop crop_width crop_height diff_raw diff_norm
     left="$(zone_log_field "$zones_log" right left)"
     top="$(zone_log_field "$zones_log" right top)"
     width="$(zone_log_field "$zones_log" right width)"
     height="$(zone_log_field "$zones_log" right height)"
     [ -n "$left" ] && [ -n "$top" ] && [ -n "$width" ] && [ -n "$height" ] || return 0
     crop="$(awk -v w="$width" -v h="$height" -v x="$left" -v y="$top" 'BEGIN { printf "%dx%d+%d+%d", w + 0, h + 0, x + 0, y + 0 }')"
+    crop_width="$(awk -v w="$width" 'BEGIN { printf "%d", w + 0 }')"
+    crop_height="$(awk -v h="$height" 'BEGIN { printf "%d", h + 0 }')"
 
     local crop_dir="${SCREENSHOTS_DIR}/${name}.overlay-sentinel"
     local manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
@@ -2751,6 +2746,20 @@ write_mouse_snap_overlay_sentinel() {
     mkdir -p "$crop_dir"
     magick "$freeform" -crop "$crop" +repage "${crop_dir}/freeform-target-zone.png"
     magick "$snap" -crop "$crop" +repage "${crop_dir}/snap-target-zone.png"
+    local label_font="${WINMUX_E2E_OVERLAY_SENTINEL_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    local border_right border_bottom label_right
+    border_right=$((crop_width - 10))
+    border_bottom=$((crop_height - 10))
+    label_right="$(awk -v w="$crop_width" 'BEGIN { max = w - 24; printf "%d\n", (max < 780 ? max : 780) }')"
+    magick "$snap" -crop "$crop" +repage \
+        -fill '#D3455B33' -stroke '#D3455B' -strokewidth 8 \
+        -draw "rectangle 8,8 ${border_right},${border_bottom}" \
+        -fill '#101820' -stroke '#101820' -strokewidth 1 \
+        -draw "roundrectangle 24,24 ${label_right},100 8,8" \
+        -font "$label_font" -pointsize 38 -fill '#FFFFFF' -stroke none \
+        -annotate +42+73 'WHOLE ZONE TARGET: COMMS' \
+        "${crop_dir}/snap-target-zone-labeled.png"
     diff_raw="$(compare -metric RMSE "${crop_dir}/freeform-target-zone.png" "${crop_dir}/snap-target-zone.png" null: 2>&1 || true)"
     diff_norm="$(printf '%s\n' "$diff_raw" | sed -n 's/.*(\([0-9.][0-9.]*\)).*/\1/p')"
     [ -n "$diff_norm" ] || die "Could not compute mouse snap overlay RMSE for $name: $diff_raw"
@@ -2759,6 +2768,7 @@ write_mouse_snap_overlay_sentinel() {
         printf 'target-zone-crop\t%s\t\tlogs/%s-zones.log\tright/Comms crop derived from list-zones\n' "$crop" "$slice_prefix"
         printf 'freeform-target-zone-crop\t\t\tscreenshots/%s.overlay-sentinel/freeform-target-zone.png\tno-%s hover target-zone crop\n' "$name" "$modifier_label"
         printf 'snap-target-zone-crop\t\t\tscreenshots/%s.overlay-sentinel/snap-target-zone.png\t%s-held hover target-zone crop\n' "$name" "$modifier_label"
+        printf 'target-label\tWHOLE ZONE TARGET: COMMS\t\tscreenshots/%s.overlay-sentinel/snap-target-zone-labeled.png\tlabeled whole-zone target crop for reviewer-visible proof\n' "$name"
         printf 'overlay-rmse-normalized\t%s\t0.025\t\t%s-held target-zone hover must visibly differ from no-%s hover\n' "$diff_norm" "$modifier_label" "$modifier_label"
         printf 'target-semantics\twhole-zone\t\tscreenshots/%s\tsnap target is the whole Comms zone, not a window or slot\n' "$(basename "$snap")"
     } >"$manifest"

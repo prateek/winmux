@@ -173,7 +173,7 @@ EOF
 - Confirm the recording shows two separate desktop window drags, not a sidebar drag: first without Option, then with Option held.
 - Confirm the no-Option drag has visible source pickup and hover/path over the target area, but no whole-zone snap overlay and no zone move in the after-freeform logs.
 - Confirm the Option-held drag shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
-- Inspect `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` when present, and reports `overlay-rmse-normalized` at or above its minimum.
 - State whether the target is a whole zone or a window/slot inside a zone. For Slice 16, the expected answer is whole zone.
 - Confirm captions expose `[mouse.zone-snap]`, `policy='snap-on-modifier'`, `modifier='alt'`, `target='zone'`, and the user action `hold Option while dragging: snap to Comms zone`.
 - Name the exact media file used for each beat: freeform pickup, freeform no-overlay hover, reset-before-snap, Option pickup, Option path, whole-zone hover/overlay, release/final placement, and overlay sentinel crops.
@@ -291,7 +291,7 @@ EOF
 - Confirm the first no-modifier drag has visible source pickup and hover/path over the Comms area, but no whole-zone snap overlay and no zone move in the after-freeform logs.
 - Sample the frame around `Run: winmux set-zone-snap-policy snap-to-zone` and compare it to `logs/slice-20-command-timing.log`. Fail if the snap overlay or zone move appears before this exact command caption is already visible on a clean pre-snap frame.
 - Confirm the second no-modifier drag, after the runtime command, shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement.
-- Inspect `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-20-zone-snap-policy-switch.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes freeform and snap target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` with a readable labeled crop path, and reports `overlay-rmse-normalized` at or above its minimum.
 - Confirm the exact command logs exist: `logs/slice-20-set-zone-snap-policy.log` with `winmux set-zone-snap-policy snap-to-zone`, and `logs/slice-20-cycle-zone-snap-policy.log` with `winmux cycle-zone-snap-policy freeform snap-to-zone`.
 - If `logs/slice-20-zone-snap-policy-switch.event-manifest.tsv` exists, inspect it and confirm event ordering names separate command starts/ends, drag pickup/path/hover/release, first affordance, post-state inspection, and final inspection. Reject if it collapses those into one vague timing value.
 - Confirm captions expose the binding-friendly commands `alt-z = 'set-zone-snap-policy snap-to-zone'` and `alt-x = 'cycle-zone-snap-policy freeform snap-to-zone'` through config/caption surfaces.
@@ -322,7 +322,7 @@ EOF
 - Confirm captions expose the user actions and relevant WinMux surface: `Config: policy='float-unless-snap'; modifier='alt'; target='zone'`, `Action: drag snap-demo.rtf with no modifier`, `Run: winmux list-windows --monitor all`, `Action: reset snap-demo.rtf to Work/main tiling`, `Action: hold Alt while dragging snap-demo.rtf`, `Action: target = whole Comms zone`, and `Action: release on Comms zone`.
 - Confirm the reset beat returns the same window to Work/main and non-floating layout before the Alt-held snap. Reject proof where the second drag starts from an already-floating source.
 - Confirm the Alt-held drag shows source pickup, pointer/path, the whole Comms zone overlay/highlight, release/drop, and final placement of the same window id into Comms/right.
-- Inspect `logs/slice-22-float-unless-snap.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes no-Alt and Alt-held target-zone crop paths, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-22-float-unless-snap.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes no-Alt and Alt-held target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` with a readable labeled crop path, and reports `overlay-rmse-normalized` at or above its minimum.
 - Inspect `logs/slice-22-float-unless-snap.event-manifest.tsv`; reject if it omits separate float-drag start/hover/release/post-state, reset, snap pickup/path/first-affordance/hover/release/post-state events.
 - Confirm the proof is config-driven and modifier-driven: there must be no `winmux set-zone-snap-policy` command in the Slice 22 action log.
 - State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 22, the no-Alt branch is floating/freeform placement, and the Alt-held branch targets the whole Comms zone.

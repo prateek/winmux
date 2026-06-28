@@ -120,6 +120,28 @@ append_mouse_event() {
     }' >>"${MOUSE_EVENTS_LOG}"
 }
 
+reset_action_schema() {
+    : >"${ACTION_LOG}"
+    : >"${ACTION_MANIFEST}"
+}
+
+append_action_log_value() {
+    local key="$1"
+    local value="$2"
+    printf '%s=%s\n' "$key" "$value" >>"${ACTION_LOG}"
+}
+
+append_action_schema_value() {
+    local kind="$1"
+    local key="$2"
+    local value="$3"
+    local log_key="${4:-}"
+    printf '%s\t%s\t%s\n' "$kind" "$key" "$value" >>"${ACTION_MANIFEST}"
+    if [ -n "$log_key" ]; then
+        append_action_log_value "$log_key" "$value"
+    fi
+}
+
 write_doc() {
     local path="$1"
     local title="$2"
@@ -595,70 +617,49 @@ proof_slice() {
         freeform_result='floating-no-snap'
     fi
 
-    {
-        echo 'action=desktop-mouse-zone-snap'
-        echo 'interaction-model=desktop-window-drag'
-        echo 'config=[mouse.zone-snap]'
-        echo "policy=${CONFIG_POLICY}"
-        echo "modifier=${CONFIG_MODIFIER}"
-        echo "gesture=drag"
-        echo "target=zone"
-        echo "proof-mode=${PROOF_MODE}"
-        echo "source-title=snap-demo.rtf"
-        echo "source-window-id=${before_id}"
-        echo "before-zone=main"
-        echo "before-workspace=${before_workspace}"
-        echo 'target-zone=right'
-        echo 'target-zone-name=Comms'
-        echo 'snap-target=whole-zone'
-        echo 'not-snap-target=window-within-zone'
-        echo "source-point=${source_x},${source_y}"
-        echo "target-point=${target_x},${target_y}"
-        echo "${negative_action_text}"
-        echo "${positive_action_text}"
-        echo "freeform-pickup-screenshot=${FREEFORM_PICKUP_SCREENSHOT}"
-        echo "freeform-hover-screenshot=${FREEFORM_HOVER_SCREENSHOT}"
-        echo "snap-pickup-screenshot=${SNAP_PICKUP_SCREENSHOT}"
-        echo "snap-path-screenshot=${SNAP_PATH_SCREENSHOT}"
-        echo "snap-hover-screenshot=${SNAP_HOVER_SCREENSHOT}"
-    } | tee "${ACTION_LOG}"
-
-    {
-        printf '%s\t%s\t%s\n' drag-source title 'snap-demo.rtf'
-        printf '%s\t%s\t%s\n' drag-source window-id "${before_id}"
-        printf '%s\t%s\t%s\n' drag-source before-zone main
-        printf '%s\t%s\t%s\n' drag-source before-workspace "${before_workspace}"
-        printf '%s\t%s\t%s\n' drag-target zone-id right
-        printf '%s\t%s\t%s\n' drag-target zone-name Comms
-        printf '%s\t%s\t%s\n' drag-target snap-target whole-zone
-        printf '%s\t%s\t%s\n' drag-target not-snap-target window-within-zone
-        printf '%s\t%s\t%s\n' drag-policy policy "${CONFIG_POLICY}"
-        printf '%s\t%s\t%s\n' drag-policy modifier "${CONFIG_MODIFIER}"
-        printf '%s\t%s\t%s\n' drag-policy negative-proof "${negative_policy_key}"
-        printf '%s\t%s\t%s\n' drag-policy positive-proof "${positive_proof_key}"
-        printf '%s\t%s\t%s\n' drag-policy proof-mode "${PROOF_MODE}"
-        printf '%s\t%s\t%s\n' drag-points source "${source_x},${source_y}"
-        printf '%s\t%s\t%s\n' drag-points target "${target_x},${target_y}"
-        printf '%s\t%s\t%s\n' drag-points target-hover-hold-seconds '3.3'
-        printf '%s\t%s\t%s\n' drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
-        if [ "${PROOF_MODE}" = "runtime-policy" ]; then
-            printf '%s\t%s\t%s\n' drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
-        elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
-            printf '%s\t%s\t%s\n' drag-points mapping-assertion "no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
-        else
-            printf '%s\t%s\t%s\n' drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
-        fi
-        printf '%s\t%s\t%s\n' drag-screenshots pickup "${SNAP_PICKUP_NAME}"
-        printf '%s\t%s\t%s\n' drag-screenshots path "${SNAP_PATH_NAME}"
-        printf '%s\t%s\t%s\n' drag-screenshots hover "${SNAP_HOVER_NAME}"
-        printf '%s\t%s\t%s\n' drag-screenshots freeform-pickup "${FREEFORM_PICKUP_NAME}"
-        printf '%s\t%s\t%s\n' drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}"
-        printf '%s\t%s\t%s\n' visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
-        printf '%s\t%s\t%s\n' caption chip "${MODIFIER_CAPTION_CHIP}"
-        printf '%s\t%s\t%s\n' verification before-window-log "$(artifact_relative_path "${WINDOW_BEFORE_LOG}")"
-        printf '%s\t%s\t%s\n' verification after-freeform-window-log "$(artifact_relative_path "${WINDOW_FREEFORM_LOG}")"
-        printf '%s\t%s\t%s\n' verification after-window-log "$(artifact_relative_path "${WINDOW_AFTER_LOG}")"
-    } >"${ACTION_MANIFEST}"
+    reset_action_schema
+    append_action_log_value action desktop-mouse-zone-snap
+    append_action_log_value interaction-model desktop-window-drag
+    append_action_log_value config '[mouse.zone-snap]'
+    append_action_schema_value drag-policy policy "${CONFIG_POLICY}" policy
+    append_action_schema_value drag-policy modifier "${CONFIG_MODIFIER}" modifier
+    append_action_schema_value drag-policy gesture drag gesture
+    append_action_schema_value drag-policy target zone target
+    append_action_schema_value drag-policy proof-mode "${PROOF_MODE}" proof-mode
+    append_action_schema_value drag-source title 'snap-demo.rtf' source-title
+    append_action_schema_value drag-source window-id "${before_id}" source-window-id
+    append_action_schema_value drag-source before-zone main before-zone
+    append_action_schema_value drag-source before-workspace "${before_workspace}" before-workspace
+    append_action_schema_value drag-target zone-id right target-zone
+    append_action_schema_value drag-target zone-name Comms target-zone-name
+    append_action_schema_value drag-target snap-target whole-zone snap-target
+    append_action_schema_value drag-target not-snap-target window-within-zone not-snap-target
+    append_action_schema_value drag-points source "${source_x},${source_y}" source-point
+    append_action_schema_value drag-points target "${target_x},${target_y}" target-point
+    append_action_schema_value drag-policy negative-proof "${negative_policy_key}"
+    append_action_schema_value drag-policy positive-proof "${positive_proof_key}"
+    append_action_log_value negative-proof "${negative_action_text#negative-proof=}"
+    append_action_log_value positive-proof "${positive_action_text#positive-proof=}"
+    append_action_schema_value drag-points target-hover-hold-seconds '3.3'
+    append_action_schema_value drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        append_action_schema_value drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
+    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+        append_action_schema_value drag-points mapping-assertion "no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
+    else
+        append_action_schema_value drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
+    fi
+    append_action_schema_value drag-screenshots pickup "${SNAP_PICKUP_NAME}" snap-pickup-screenshot
+    append_action_schema_value drag-screenshots path "${SNAP_PATH_NAME}" snap-path-screenshot
+    append_action_schema_value drag-screenshots hover "${SNAP_HOVER_NAME}" snap-hover-screenshot
+    append_action_schema_value drag-screenshots freeform-pickup "${FREEFORM_PICKUP_NAME}" freeform-pickup-screenshot
+    append_action_schema_value drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}" freeform-hover-screenshot
+    append_action_schema_value visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
+    append_action_schema_value caption chip "${MODIFIER_CAPTION_CHIP}"
+    append_action_schema_value verification before-window-log "$(artifact_relative_path "${WINDOW_BEFORE_LOG}")"
+    append_action_schema_value verification after-freeform-window-log "$(artifact_relative_path "${WINDOW_FREEFORM_LOG}")"
+    append_action_schema_value verification after-window-log "$(artifact_relative_path "${WINDOW_AFTER_LOG}")"
+    cat "${ACTION_LOG}"
 
     init_mouse_events_log
     start_epoch="$(date +%s)"
@@ -685,20 +686,11 @@ proof_slice() {
     if [ -n "${freeform_expected_layout}" ]; then
         [ "${freeform_layout}" = "${freeform_expected_layout}" ] || semantic_fail "Freeform drag expected layout ${freeform_expected_layout}, got ${freeform_layout:-missing}"
     fi
-    {
-        echo "freeform-window-id-after=${freeform_id}"
-        echo "freeform-after-zone=${freeform_zone}"
-        echo "freeform-after-workspace=${freeform_workspace}"
-        echo "freeform-after-layout=${freeform_layout}"
-        echo "freeform-result=${freeform_result}"
-    } | tee -a "${ACTION_LOG}"
-    {
-        printf '%s\t%s\t%s\n' drag-result freeform-window-id-after "${freeform_id}"
-        printf '%s\t%s\t%s\n' drag-result freeform-after-zone "${freeform_zone}"
-        printf '%s\t%s\t%s\n' drag-result freeform-after-workspace "${freeform_workspace}"
-        printf '%s\t%s\t%s\n' drag-result freeform-after-layout "${freeform_layout}"
-        printf '%s\t%s\t%s\n' drag-result freeform-result "${freeform_result}"
-    } >>"${ACTION_MANIFEST}"
+    append_action_schema_value drag-result freeform-window-id-after "${freeform_id}" freeform-window-id-after
+    append_action_schema_value drag-result freeform-after-zone "${freeform_zone}" freeform-after-zone
+    append_action_schema_value drag-result freeform-after-workspace "${freeform_workspace}" freeform-after-workspace
+    append_action_schema_value drag-result freeform-after-layout "${freeform_layout}" freeform-after-layout
+    append_action_schema_value drag-result freeform-result "${freeform_result}" freeform-result
     append_mouse_event "${negative_post_state_event}" inspection "${scenario_start_ms}" "post-freeform window inspection completed"
 
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
@@ -711,14 +703,8 @@ proof_slice() {
         grep -F "Using zone snap policy '${RUNTIME_SET_POLICY}'" "${SET_POLICY_LOG}" >/dev/null \
             || semantic_fail "set-zone-snap-policy did not report ${RUNTIME_SET_POLICY}"
         append_mouse_event set-command-end command "${scenario_start_ms}" "set-zone-snap-policy command completed"
-        {
-            echo "runtime-policy-command=set-zone-snap-policy ${RUNTIME_SET_POLICY}"
-            echo "runtime-policy-after-set=${RUNTIME_SET_POLICY}"
-        } | tee -a "${ACTION_LOG}"
-        {
-            printf '%s\t%s\t%s\n' runtime-policy command "set-zone-snap-policy ${RUNTIME_SET_POLICY}"
-            printf '%s\t%s\t%s\n' runtime-policy after-set "${RUNTIME_SET_POLICY}"
-        } >>"${ACTION_MANIFEST}"
+        append_action_schema_value runtime-policy command "set-zone-snap-policy ${RUNTIME_SET_POLICY}" runtime-policy-command
+        append_action_schema_value runtime-policy after-set "${RUNTIME_SET_POLICY}" runtime-policy-after-set
         sleep 3
     fi
 
@@ -764,18 +750,10 @@ proof_slice() {
     [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" != "${after_workspace}" ] \
         || semantic_fail "${snap_error_label} did not move to the target zone active workspace"
 
-    {
-        echo "window-id-after=${after_id}"
-        echo "after-zone=${after_zone}"
-        echo "after-workspace=${after_workspace}"
-        echo 'snap-result=success'
-    } | tee -a "${ACTION_LOG}"
-    {
-        printf '%s\t%s\t%s\n' drag-result window-id-after "${after_id}"
-        printf '%s\t%s\t%s\n' drag-result after-zone "${after_zone}"
-        printf '%s\t%s\t%s\n' drag-result after-workspace "${after_workspace}"
-        printf '%s\t%s\t%s\n' drag-result result success
-    } >>"${ACTION_MANIFEST}"
+    append_action_schema_value drag-result window-id-after "${after_id}" window-id-after
+    append_action_schema_value drag-result after-zone "${after_zone}" after-zone
+    append_action_schema_value drag-result after-workspace "${after_workspace}" after-workspace
+    append_action_schema_value drag-result result success snap-result
     append_mouse_event snap-post-state inspection "${scenario_start_ms}" "post-snap window inspection completed"
 
     cycle_start_epoch=""
@@ -793,14 +771,8 @@ proof_slice() {
         grep -F "Using zone snap policy 'freeform'" "${CYCLE_POLICY_LOG}" >/dev/null \
             || semantic_fail 'cycle-zone-snap-policy did not return to freeform'
         append_mouse_event cycle-command-end command "${scenario_start_ms}" "cycle-zone-snap-policy command completed"
-        {
-            echo "runtime-cycle-command=cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
-            echo 'runtime-policy-after-cycle=freeform'
-        } | tee -a "${ACTION_LOG}"
-        {
-            printf '%s\t%s\t%s\n' runtime-policy cycle-command "cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}"
-            printf '%s\t%s\t%s\n' runtime-policy after-cycle freeform
-        } >>"${ACTION_MANIFEST}"
+        append_action_schema_value runtime-policy cycle-command "cycle-zone-snap-policy ${RUNTIME_CYCLE_POLICIES}" runtime-cycle-command
+        append_action_schema_value runtime-policy after-cycle freeform runtime-policy-after-cycle
         sleep 3
     fi
 

@@ -3780,13 +3780,24 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
   `script/e2e/prompts/no-context-artifact-review.md` and
   `script/e2e/write-review-packet` to one footer contract.
   Verified with `./script/e2e/verify-artifact --self-test`.
-- [ ] Introduce a table-driven mouse-drag event spec used by Slice 20 and Slice
+- [x] Introduce a table-driven mouse-drag event spec used by Slice 20 and Slice
   22 for event manifest generation, sample-label requirements, and ordering
   assertions.
-- [ ] Replace duplicate action-log/proof-manifest emission in
+  Implemented in `script/e2e/specs/mouse-drag-events.tsv`; the harness now
+  generates Slice 20/22 event manifests from that table, and
+  `verify-artifact` uses the same table for required event ids, kinds, sample
+  labels, mouse-event timestamp checks, and before/after ordering.
+- [x] Replace duplicate action-log/proof-manifest emission in
   `script/e2e/guest/slice-12-mouse-zone-snap.sh` with one schema helper, and
   make `verify-artifact` read that schema before consulting human-oriented
   logs.
+  Implemented with shared action-schema emitters and manifest-first verifier
+  fallbacks for the Slice 12, Slice 20, and Slice 22 mouse snap proof paths;
+  verified with `bash -n`, `shellcheck`,
+  `./script/e2e/verify-artifact --self-test`,
+  `swift test --filter WindowZoneSnapPolicyTest`,
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z ARGS=--require-review`,
+  and `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z`.
 - [x] Add one behavior-level Swift test for `float-unless-snap` through the
   tiling mouse-drag caller or an extracted policy-plus-caller seam, covering
   no-modifier float and held-modifier snap eligibility.
@@ -3807,9 +3818,15 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
   affordance named by the caption, not only the after-state.
   `verify-artifact` now rejects mouse snap target/release events without
   concrete hover or release/target sample media.
-- [ ] Strengthen proof-only zone snap affordances with a clearer whole-zone
+- [x] Strengthen proof-only zone snap affordances with a clearer whole-zone
   outline or target label, then capture an artifact crop that makes the target
   readable without opening logs.
+  Added a labeled overlay sentinel crop with
+  `target-label=WHOLE ZONE TARGET: COMMS`, required it in the verifier, updated
+  reviewer prompts/packets to require inspection, refreshed the Slice 22 derived
+  artifact, and obtained a fresh no-context review. Verified with
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z ARGS=--require-review`
+  and `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-22-20260627T221503Z`.
 
 ## Call-Site Audit
 

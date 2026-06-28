@@ -315,7 +315,10 @@ Slice-specific checks:
   `logs/slice-22-float-unless-snap.overlay-sentinel.tsv`,
   `logs/slice-22-float-unless-snap.event-manifest.tsv`,
   `logs/slice-22-mouse-zone-snap-action.log`, semantic samples, and the video
-  frames. Confirm captions expose the exact user-visible actions and WinMux
+  frames. The overlay sentinel must include `target-label` equal to
+  `WHOLE ZONE TARGET: COMMS` and a readable labeled target crop path; inspect
+  that crop and name its exact file in the review. Confirm captions expose the
+  exact user-visible actions and WinMux
   surfaces: `Config: policy='float-unless-snap'; modifier='alt'; target='zone'`,
   `Action: drag snap-demo.rtf with no modifier`,
   `Run: winmux list-windows --monitor all`,
@@ -365,8 +368,10 @@ Slice-specific checks:
 - Slice 16 must show the same desktop mouse snap workflow, but with mechanical
   affordance proof. It must include `logs/slice-16-mouse-snap-affordance.overlay-sentinel.tsv`
   with `target-semantics` equal to `whole-zone`, freeform and snap target-zone
-  crop paths, and `overlay-rmse-normalized` meeting its minimum. Captions must
-  expose the end-user action `hold Option while dragging: snap to Comms zone`.
+  crop paths, `target-label` equal to `WHOLE ZONE TARGET: COMMS` when the
+  artifact was generated after the labeled-crop gate, and
+  `overlay-rmse-normalized` meeting its minimum. Captions must expose the
+  end-user action `hold Option while dragging: snap to Comms zone`.
   Reject missing overlay sentinel, a review that does not inspect sentinel
   crops, ambiguous target semantics, snap-to-window/slot claims, logs-only
   proof, or any final-placement-only proof.

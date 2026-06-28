@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+MOUSE_DRAG_EVENT_SPEC="${SCRIPT_DIR}/specs/mouse-drag-events.tsv"
 REQUIRE_REVIEW=0
 CHECK_ONLY=0
 CHECK_SIBLING_ARTIFACTS=0
@@ -574,6 +575,23 @@ manifest_value() {
     local kind="$2"
     local key="$3"
     /usr/bin/awk -F'\t' -v kind="$kind" -v key="$key" '$1 == kind && $2 == key { print $3; exit }' "$path"
+}
+
+manifest_value_or_log() {
+    local manifest_path="$1"
+    local kind="$2"
+    local key="$3"
+    local log_key="$4"
+    local log_path="$5"
+    local value
+
+    value="$(manifest_value "$manifest_path" "$kind" "$key")"
+    if [ -n "$value" ]; then
+        printf '%s\n' "$value"
+        return 0
+    fi
+
+    value_from_log "$log_key" "$log_path"
 }
 
 annotation_chip_start() {
@@ -3243,18 +3261,22 @@ require_mouse_snap_overlay_sentinel() {
         /usr/bin/awk -F'\t' -v label="$label" -v column="$column" '$1 == label { print $column; exit }' "$manifest_path"
     }
 
-    local rmse minimum target_semantics freeform_crop snap_crop crop_geometry
+    local rmse minimum target_semantics freeform_crop snap_crop target_label target_label_crop crop_geometry
     rmse="$(sentinel_value overlay-rmse-normalized 2)"
     minimum="$(sentinel_value overlay-rmse-normalized 3)"
     target_semantics="$(sentinel_value target-semantics 2)"
     freeform_crop="$(sentinel_value freeform-target-zone-crop 4)"
     snap_crop="$(sentinel_value snap-target-zone-crop 4)"
+    target_label="$(sentinel_value target-label 2)"
+    target_label_crop="$(sentinel_value target-label 4)"
     crop_geometry="$(sentinel_value target-zone-crop 2)"
 
     [ -n "$rmse" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized value"
     [ -n "$minimum" ] || die "Mouse snap overlay sentinel missing overlay-rmse-normalized minimum"
     [ "$target_semantics" = whole-zone ] \
         || die "Mouse snap overlay sentinel must declare target-semantics=whole-zone"
+    [ "$target_label" = "WHOLE ZONE TARGET: COMMS" ] \
+        || die "Mouse snap overlay sentinel must provide a readable whole-zone target label"
     [ -n "$crop_geometry" ] || die "Mouse snap overlay sentinel missing target-zone crop geometry"
     case "$freeform_crop" in
         /*|*../*) die "Mouse snap freeform crop path must be run-relative: $freeform_crop" ;;
@@ -3262,10 +3284,16 @@ require_mouse_snap_overlay_sentinel() {
     case "$snap_crop" in
         /*|*../*) die "Mouse snap snap crop path must be run-relative: $snap_crop" ;;
     esac
+    case "$target_label_crop" in
+        screenshots/*.overlay-sentinel/*.png) ;;
+        /*|*../*) die "Mouse snap target label crop path must be run-relative: $target_label_crop" ;;
+        *) die "Mouse snap overlay sentinel missing labeled target crop path" ;;
+    esac
     require_file "${RUN_DIR}/${freeform_crop}"
     require_file "${RUN_DIR}/${snap_crop}"
+    require_file "${RUN_DIR}/${target_label_crop}"
 
-    local crop_size expected_dimensions freeform_dimensions snap_dimensions
+    local crop_size expected_dimensions freeform_dimensions snap_dimensions target_label_dimensions
     crop_size="$(printf '%s\n' "$crop_geometry" | /usr/bin/sed -n 's/^\([0-9][0-9]*\)x\([0-9][0-9]*\)+[0-9][0-9]*+[0-9][0-9]*$/\1 \2/p')"
     [ -n "$crop_size" ] || die "Mouse snap overlay sentinel has invalid crop geometry: $crop_geometry"
     # shellcheck disable=SC2086
@@ -3275,16 +3303,21 @@ require_mouse_snap_overlay_sentinel() {
         || die "Mouse snap freeform crop is not readable image media: ${RUN_DIR}/${freeform_crop}"
     snap_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${snap_crop}")" \
         || die "Mouse snap snap crop is not readable image media: ${RUN_DIR}/${snap_crop}"
+    target_label_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${target_label_crop}")" \
+        || die "Mouse snap target label crop is not readable image media: ${RUN_DIR}/${target_label_crop}"
     [ "$freeform_dimensions" = "$expected_dimensions" ] \
         || die "Mouse snap freeform crop dimensions ${freeform_dimensions} do not match ${expected_dimensions}"
     [ "$snap_dimensions" = "$expected_dimensions" ] \
         || die "Mouse snap snap crop dimensions ${snap_dimensions} do not match ${expected_dimensions}"
+    [ "$target_label_dimensions" = "$expected_dimensions" ] \
+        || die "Mouse snap target label crop dimensions ${target_label_dimensions} do not match ${expected_dimensions}"
 
     local slice_prefix source_freeform source_snap
     case "$recording_name" in
         slice-12-*) slice_prefix="slice-12" ;;
         slice-16-*) slice_prefix="slice-16" ;;
         slice-20-*) slice_prefix="slice-20" ;;
+        slice-22-*) slice_prefix="slice-22" ;;
         *) slice_prefix="" ;;
     esac
     if [ -n "$slice_prefix" ]; then
@@ -3294,6 +3327,7 @@ require_mouse_snap_overlay_sentinel() {
         require_file "$source_snap"
         require_fresh_derived_file "${RUN_DIR}/${freeform_crop}" "$source_freeform" "Mouse snap freeform overlay crop"
         require_fresh_derived_file "${RUN_DIR}/${snap_crop}" "$source_snap" "Mouse snap snap overlay crop"
+        require_fresh_derived_file "${RUN_DIR}/${target_label_crop}" "$source_snap" "Mouse snap labeled target crop"
         require_fresh_derived_file "$manifest_path" "$source_snap" "Mouse snap overlay sentinel"
     fi
 
@@ -3375,14 +3409,14 @@ require_mouse_zone_snap_proof() {
         || die "Slice 12 action log missing snap success result"
 
     local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace after_workspace
-    source_id="$(value_from_log source-window-id "$action_log")"
-    freeform_id="$(value_from_log freeform-window-id-after "$action_log")"
-    after_id="$(value_from_log window-id-after "$action_log")"
-    before_zone="$(value_from_log before-zone "$action_log")"
-    freeform_zone="$(value_from_log freeform-after-zone "$action_log")"
-    after_zone="$(value_from_log after-zone "$action_log")"
-    before_workspace="$(value_from_log before-workspace "$action_log")"
-    after_workspace="$(value_from_log after-workspace "$action_log")"
+    source_id="$(manifest_value_or_log "$proof_manifest" drag-source window-id source-window-id "$action_log")"
+    freeform_id="$(manifest_value_or_log "$proof_manifest" drag-result freeform-window-id-after freeform-window-id-after "$action_log")"
+    after_id="$(manifest_value_or_log "$proof_manifest" drag-result window-id-after window-id-after "$action_log")"
+    before_zone="$(manifest_value_or_log "$proof_manifest" drag-source before-zone before-zone "$action_log")"
+    freeform_zone="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-zone freeform-after-zone "$action_log")"
+    after_zone="$(manifest_value_or_log "$proof_manifest" drag-result after-zone after-zone "$action_log")"
+    before_workspace="$(manifest_value_or_log "$proof_manifest" drag-source before-workspace before-workspace "$action_log")"
+    after_workspace="$(manifest_value_or_log "$proof_manifest" drag-result after-workspace after-workspace "$action_log")"
     reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
 
     [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
@@ -3462,145 +3496,54 @@ require_slice_16_mouse_snap_affordance_proof() {
     require_mouse_zone_snap_proof slice-16 "Slice 16" 1
 }
 
-require_slice_20_event_manifest() {
-    local manifest_path="$1"
+mouse_drag_event_spec_rows() {
+    local slice="$1"
+    [ -s "$MOUSE_DRAG_EVENT_SPEC" ] || die "Mouse drag event spec is missing: $MOUSE_DRAG_EVENT_SPEC"
+    /usr/bin/awk -F'\t' -v slice="$slice" '$0 == "" || $1 ~ /^#/ { next } $1 == slice { print }' "$MOUSE_DRAG_EVENT_SPEC"
+}
+
+require_mouse_drag_event_manifest() {
+    local slice="$1"
+    local manifest_path="$2"
+    local slice_number="${slice#slice-}"
+    local _slice event_id kind time_source _caption_key sample_label _path_kind _path_value _expected after_events
+    local row_count=0
+    local mouse_event_ids=()
+    local before_event
+
     require_event_manifest_paths "$manifest_path"
 
-    require_event_manifest_event "$manifest_path" config-ready context
-    require_event_manifest_event "$manifest_path" freeform-drag-start drag
-    require_event_manifest_event "$manifest_path" freeform-drag-hover drag
-    require_event_manifest_event "$manifest_path" freeform-drag-release drag
-    require_event_manifest_event "$manifest_path" freeform-post-state inspection
-    require_event_manifest_event "$manifest_path" set-command-start command
-    require_event_manifest_event "$manifest_path" set-command-end command
-    require_event_manifest_event "$manifest_path" reset-before-snap preparation
-    require_event_manifest_event "$manifest_path" snap-drag-start drag
-    require_event_manifest_event "$manifest_path" snap-drag-path drag
-    require_event_manifest_event "$manifest_path" snap-first-affordance overlay
-    require_event_manifest_event "$manifest_path" snap-drag-hover overlay
-    require_event_manifest_event "$manifest_path" snap-release drag
-    require_event_manifest_event "$manifest_path" snap-post-state inspection
-    require_event_manifest_event "$manifest_path" cycle-command-start command
-    require_event_manifest_event "$manifest_path" cycle-command-end command
-    require_event_manifest_event "$manifest_path" final-inspection inspection
+    while IFS=$'\t' read -r _slice event_id kind time_source _caption_key sample_label _path_kind _path_value _expected after_events; do
+        require_event_manifest_event "$manifest_path" "$event_id" "$kind"
+        if [ "$sample_label" != "-" ]; then
+            require_event_sample_label "$manifest_path" "$event_id" "$sample_label"
+        fi
+        case "$time_source" in
+            mouse-*) mouse_event_ids+=("$event_id") ;;
+        esac
+        if [ "$after_events" != "-" ]; then
+            IFS=',' read -r -a before_events <<<"$after_events"
+            for before_event in "${before_events[@]}"; do
+                require_event_before "$manifest_path" "$before_event" "$event_id" \
+                    "Slice ${slice_number} event manifest must order ${before_event} before ${event_id}"
+            done
+        fi
+        row_count=$((row_count + 1))
+    done < <(mouse_drag_event_spec_rows "$slice")
 
-    require_event_sample_label "$manifest_path" freeform-drag-start freeform-pickup
-    require_event_sample_label "$manifest_path" freeform-drag-hover freeform-hover-no-overlay
-    require_event_sample_label "$manifest_path" set-command-start set-policy-command-start
-    require_event_sample_label "$manifest_path" snap-drag-start snap-pickup
-    require_event_sample_label "$manifest_path" snap-drag-path snap-path
-    require_event_sample_label "$manifest_path" snap-first-affordance snap-hover-comms
-    require_event_sample_label "$manifest_path" snap-release snap-release
-    require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
-    require_event_sample_label "$manifest_path" cycle-command-start cycle-policy-command-start
-    require_event_manifest_matches_mouse_events "$manifest_path" \
-        freeform-drag-start \
-        freeform-drag-hover \
-        freeform-drag-release \
-        freeform-post-state \
-        set-command-start \
-        set-command-end \
-        reset-before-snap \
-        snap-drag-start \
-        snap-drag-path \
-        snap-first-affordance \
-        snap-drag-hover \
-        snap-release \
-        snap-post-state \
-        cycle-command-start \
-        cycle-command-end
+    [ "$row_count" -gt 0 ] || die "Mouse drag event spec has no rows for $slice"
+    if [ "${#mouse_event_ids[@]}" -gt 0 ]; then
+        require_event_manifest_matches_mouse_events "$manifest_path" "${mouse_event_ids[@]}"
+    fi
     require_mouse_snap_affordance_event_paths "$manifest_path"
+}
 
-    require_event_before "$manifest_path" config-ready freeform-drag-start \
-        "Slice 20 event manifest must show config before the first drag"
-    require_event_before "$manifest_path" freeform-drag-start freeform-drag-hover \
-        "Slice 20 event manifest must show freeform pickup before hover"
-    require_event_before "$manifest_path" freeform-drag-hover freeform-drag-release \
-        "Slice 20 event manifest must show freeform hover before release"
-    require_event_before "$manifest_path" freeform-drag-release set-command-start \
-        "Slice 20 event manifest must show freeform release before set-policy command"
-    require_event_before "$manifest_path" set-command-start set-command-end \
-        "Slice 20 event manifest must show set-policy command start before end"
-    require_event_before "$manifest_path" set-command-start snap-drag-start \
-        "Slice 20 event manifest must show set-policy command before runtime snap pickup"
-    require_event_before "$manifest_path" set-command-end snap-first-affordance \
-        "Slice 20 event manifest must show set-policy command before first snap affordance"
-    require_event_before "$manifest_path" snap-drag-start snap-drag-path \
-        "Slice 20 event manifest must show runtime snap pickup before path"
-    require_event_before "$manifest_path" snap-drag-path snap-first-affordance \
-        "Slice 20 event manifest must show drag path before first snap affordance"
-    require_event_before "$manifest_path" snap-first-affordance snap-release \
-        "Slice 20 event manifest must show snap affordance before release"
-    require_event_before "$manifest_path" snap-release snap-post-state \
-        "Slice 20 event manifest must show release before post-state placement"
-    require_event_before "$manifest_path" snap-post-state cycle-command-start \
-        "Slice 20 event manifest must show final placement before cycle command"
-    require_event_before "$manifest_path" cycle-command-start cycle-command-end \
-        "Slice 20 event manifest must show cycle command start before end"
-    require_event_before "$manifest_path" cycle-command-start final-inspection \
-        "Slice 20 event manifest must show final inspection after cycle command starts"
+require_slice_20_event_manifest() {
+    require_mouse_drag_event_manifest slice-20 "$1"
 }
 
 require_slice_22_event_manifest() {
-    local manifest_path="$1"
-    require_event_manifest_paths "$manifest_path"
-
-    require_event_manifest_event "$manifest_path" config-ready context
-    require_event_manifest_event "$manifest_path" float-drag-start drag
-    require_event_manifest_event "$manifest_path" float-drag-hover drag
-    require_event_manifest_event "$manifest_path" float-drag-release drag
-    require_event_manifest_event "$manifest_path" float-post-state inspection
-    require_event_manifest_event "$manifest_path" reset-before-snap preparation
-    require_event_manifest_event "$manifest_path" snap-drag-start drag
-    require_event_manifest_event "$manifest_path" snap-drag-path drag
-    require_event_manifest_event "$manifest_path" snap-first-affordance overlay
-    require_event_manifest_event "$manifest_path" snap-drag-hover overlay
-    require_event_manifest_event "$manifest_path" snap-release drag
-    require_event_manifest_event "$manifest_path" snap-post-state inspection
-
-    require_event_sample_label "$manifest_path" float-drag-start freeform-pickup
-    require_event_sample_label "$manifest_path" float-drag-hover freeform-hover-no-overlay
-    require_event_sample_label "$manifest_path" float-post-state float-final-placement
-    require_event_sample_label "$manifest_path" reset-before-snap reset-before-snap
-    require_event_sample_label "$manifest_path" snap-drag-start snap-pickup
-    require_event_sample_label "$manifest_path" snap-drag-path snap-path
-    require_event_sample_label "$manifest_path" snap-first-affordance snap-hover-comms
-    require_event_sample_label "$manifest_path" snap-release snap-release
-    require_event_sample_label "$manifest_path" snap-post-state snap-final-placement
-    require_event_manifest_matches_mouse_events "$manifest_path" \
-        float-drag-start \
-        float-drag-hover \
-        float-drag-release \
-        float-post-state \
-        reset-before-snap \
-        snap-drag-start \
-        snap-drag-path \
-        snap-first-affordance \
-        snap-drag-hover \
-        snap-release \
-        snap-post-state
-    require_mouse_snap_affordance_event_paths "$manifest_path"
-
-    require_event_before "$manifest_path" config-ready float-drag-start \
-        "Slice 22 event manifest must show float-unless-snap config before the first drag"
-    require_event_before "$manifest_path" float-drag-start float-drag-hover \
-        "Slice 22 event manifest must show no-Alt pickup before no-overlay hover"
-    require_event_before "$manifest_path" float-drag-hover float-drag-release \
-        "Slice 22 event manifest must show no-overlay hover before release"
-    require_event_before "$manifest_path" float-drag-release float-post-state \
-        "Slice 22 event manifest must inspect floating state after no-Alt release"
-    require_event_before "$manifest_path" float-post-state reset-before-snap \
-        "Slice 22 event manifest must inspect floating state before reset"
-    require_event_before "$manifest_path" reset-before-snap snap-drag-start \
-        "Slice 22 event manifest must reset to Work/main before Alt-held snap pickup"
-    require_event_before "$manifest_path" snap-drag-start snap-drag-path \
-        "Slice 22 event manifest must show Alt-held snap pickup before path"
-    require_event_before "$manifest_path" snap-drag-path snap-first-affordance \
-        "Slice 22 event manifest must show snap path before first affordance"
-    require_event_before "$manifest_path" snap-first-affordance snap-release \
-        "Slice 22 event manifest must show whole-zone affordance before release"
-    require_event_before "$manifest_path" snap-release snap-post-state \
-        "Slice 22 event manifest must show release before final snapped placement"
+    require_mouse_drag_event_manifest slice-22 "$1"
 }
 
 require_slice_21_event_manifest() {
@@ -3752,14 +3695,14 @@ require_slice_20_zone_snap_policy_switch_proof() {
         || die "Slice 20 cycle command log missing freeform output"
 
     local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace after_workspace
-    source_id="$(value_from_log source-window-id "$action_log")"
-    freeform_id="$(value_from_log freeform-window-id-after "$action_log")"
-    after_id="$(value_from_log window-id-after "$action_log")"
-    before_zone="$(value_from_log before-zone "$action_log")"
-    freeform_zone="$(value_from_log freeform-after-zone "$action_log")"
-    after_zone="$(value_from_log after-zone "$action_log")"
-    before_workspace="$(value_from_log before-workspace "$action_log")"
-    after_workspace="$(value_from_log after-workspace "$action_log")"
+    source_id="$(manifest_value_or_log "$proof_manifest" drag-source window-id source-window-id "$action_log")"
+    freeform_id="$(manifest_value_or_log "$proof_manifest" drag-result freeform-window-id-after freeform-window-id-after "$action_log")"
+    after_id="$(manifest_value_or_log "$proof_manifest" drag-result window-id-after window-id-after "$action_log")"
+    before_zone="$(manifest_value_or_log "$proof_manifest" drag-source before-zone before-zone "$action_log")"
+    freeform_zone="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-zone freeform-after-zone "$action_log")"
+    after_zone="$(manifest_value_or_log "$proof_manifest" drag-result after-zone after-zone "$action_log")"
+    before_workspace="$(manifest_value_or_log "$proof_manifest" drag-source before-workspace before-workspace "$action_log")"
+    after_workspace="$(manifest_value_or_log "$proof_manifest" drag-result after-workspace after-workspace "$action_log")"
     reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
 
     [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
@@ -3921,16 +3864,16 @@ require_slice_22_float_unless_snap_proof() {
     fi
 
     local source_id freeform_id after_id before_zone freeform_zone reset_zone after_zone before_workspace freeform_workspace after_workspace freeform_layout reset_layout
-    source_id="$(value_from_log source-window-id "$action_log")"
-    freeform_id="$(value_from_log freeform-window-id-after "$action_log")"
-    after_id="$(value_from_log window-id-after "$action_log")"
-    before_zone="$(value_from_log before-zone "$action_log")"
-    freeform_zone="$(value_from_log freeform-after-zone "$action_log")"
-    after_zone="$(value_from_log after-zone "$action_log")"
-    before_workspace="$(value_from_log before-workspace "$action_log")"
-    freeform_workspace="$(value_from_log freeform-after-workspace "$action_log")"
-    after_workspace="$(value_from_log after-workspace "$action_log")"
-    freeform_layout="$(value_from_log freeform-after-layout "$action_log")"
+    source_id="$(manifest_value_or_log "$proof_manifest" drag-source window-id source-window-id "$action_log")"
+    freeform_id="$(manifest_value_or_log "$proof_manifest" drag-result freeform-window-id-after freeform-window-id-after "$action_log")"
+    after_id="$(manifest_value_or_log "$proof_manifest" drag-result window-id-after window-id-after "$action_log")"
+    before_zone="$(manifest_value_or_log "$proof_manifest" drag-source before-zone before-zone "$action_log")"
+    freeform_zone="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-zone freeform-after-zone "$action_log")"
+    after_zone="$(manifest_value_or_log "$proof_manifest" drag-result after-zone after-zone "$action_log")"
+    before_workspace="$(manifest_value_or_log "$proof_manifest" drag-source before-workspace before-workspace "$action_log")"
+    freeform_workspace="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-workspace freeform-after-workspace "$action_log")"
+    after_workspace="$(manifest_value_or_log "$proof_manifest" drag-result after-workspace after-workspace "$action_log")"
+    freeform_layout="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-layout freeform-after-layout "$action_log")"
     reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
     reset_layout="$(field_for_title "$windows_reset" 'snap-demo.rtf' layout)"
 

@@ -1,0 +1,30 @@
+# slice	event-id	kind	time-source	caption-key	sample-label	path-kind	path-value	expected	after-events
+slice-20	config-ready	context	caption-start	config	caption-01	sample-start	-	config and binding chips are visible before any drag	-
+slice-20	freeform-drag-start	drag	mouse-caption-start	freeform	freeform-pickup	screenshot	02-freeform-pickup-{slice}.png	source pickup under configured freeform policy	config-ready
+slice-20	freeform-drag-hover	drag	mouse-caption-start	no-overlay	freeform-hover-no-overlay	screenshot	03-freeform-hover-no-overlay-{slice}.png	Comms hover has no whole-zone overlay before runtime policy change	freeform-drag-start
+slice-20	freeform-drag-release	drag	mouse-caption-end	no-overlay	-	none	-	freeform drag completes without a zone move	freeform-drag-hover
+slice-20	freeform-post-state	inspection	mouse-caption-start	list-first	-	sample-start	-	post-freeform window inspection still shows Work/main	freeform-drag-release
+slice-20	set-command-start	command	mouse-caption-start	set	set-policy-command-start	sample-start	-	set-zone-snap-policy command caption appears before snap affordance	freeform-drag-release
+slice-20	set-command-end	command	mouse-caption-end	set	-	sample-end	-	set-zone-snap-policy command caption ends before first snap affordance	set-command-start
+slice-20	reset-before-snap	preparation	mouse-caption-start	snap	reset-before-snap	screenshot	04-reset-before-snap-{slice}.png	source is reset to Work/main before runtime snap drag	set-command-start
+slice-20	snap-drag-start	drag	mouse-caption-start	snap	snap-pickup	screenshot	05-snap-pickup-{slice}.png	no-modifier source pickup after runtime snap-to-zone	set-command-start
+slice-20	snap-drag-path	drag	mouse-caption-start+1.000	snap	snap-path	screenshot	06-snap-path-{slice}.png	runtime snap drag path toward Comms	snap-drag-start
+slice-20	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	first visible whole-zone Comms target affordance	snap-drag-path,set-command-end
+slice-20	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay remains visible before release	snap-first-affordance
+slice-20	snap-release	drag	mouse-caption-start	release	snap-release	sample-start	-	release caption while whole-zone target is still visible	snap-first-affordance
+slice-20	snap-post-state	inspection	mouse-caption-end	release	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right	snap-release
+slice-20	cycle-command-start	command	mouse-caption-start	cycle	cycle-policy-command-start	sample-start	-	cycle-zone-snap-policy command starts after final placement	snap-post-state
+slice-20	cycle-command-end	command	mouse-caption-end	cycle	-	sample-end	-	cycle command returns runtime policy to freeform	cycle-command-start
+slice-20	final-inspection	inspection	caption-start	list-last	-	sample-start	-	final list-windows inspection after policy cycle	cycle-command-start
+slice-22	config-ready	context	caption-start	config	caption-01	sample-start	-	float-unless-snap config chip is visible before any drag	-
+slice-22	float-drag-start	drag	mouse-caption-start	freeform	freeform-pickup	screenshot	02-freeform-pickup-{slice}.png	source pickup under float-unless-snap with no modifier	config-ready
+slice-22	float-drag-hover	drag	mouse-caption-start+1.000	freeform	freeform-hover-no-overlay	screenshot	03-freeform-hover-no-overlay-{slice}.png	no-Alt hover has no whole-zone snap overlay	float-drag-start
+slice-22	float-drag-release	drag	mouse-caption-end	freeform	-	none	-	no-Alt drag completes as floating/freeform placement	float-drag-hover
+slice-22	float-post-state	inspection	mouse-caption-start	float-result	float-final-placement	sample-start	-	post-freeform inspection shows layout=floating and Comms/right	float-drag-release
+slice-22	reset-before-snap	preparation	mouse-caption-start	reset	reset-before-snap	screenshot	04-reset-before-snap-{slice}.png	same source window reset to Work/main tiling before modifier drag	float-post-state
+slice-22	snap-drag-start	drag	mouse-caption-start	snap	snap-pickup	screenshot	05-snap-pickup-{slice}.png	Alt-held pickup starts the whole-zone snap branch	reset-before-snap
+slice-22	snap-drag-path	drag	mouse-caption-start+1.000	snap	snap-path	screenshot	06-snap-path-{slice}.png	Alt-held snap path toward Comms	snap-drag-start
+slice-22	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	first visible whole-zone Comms target affordance	snap-drag-path
+slice-22	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay remains visible before release	snap-first-affordance
+slice-22	snap-release	drag	mouse-caption-start	release	snap-release	sample-start	-	release caption while whole-zone target is still visible	snap-first-affordance
+slice-22	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after Alt-held snap	snap-release
