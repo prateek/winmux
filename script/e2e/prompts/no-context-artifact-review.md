@@ -23,6 +23,8 @@ Slice:
   <artifact-dir>/logs/<recording>.sample-manifest.tsv
 - event manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.event-manifest.tsv
+- event contact sheet, required when the reviewer packet lists one:
+  <artifact-dir>/screenshots/<recording>.event-contact-sheet.jpg
 - copied config: <artifact-dir>/config/winmux.toml
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
@@ -75,8 +77,8 @@ Required checks:
    action-sensitive proof into named events such as command start/end, drag
    pickup/path/hover/release, first affordance, post-state inspection, and final
    inspection. Match those rows to caption boundary frames, action screenshots,
-   or semantic samples. Reject a transition proof that hides all timing behind
-   one vague offset.
+   semantic samples, and the event contact sheet when present. Reject a
+   transition proof that hides all timing behind one vague offset.
 4. Verify the logs prove strict guest control for product slices:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
@@ -424,7 +426,10 @@ Slice-specific checks:
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
 - Use PASS_WITH_NOTES only for polish that does not block the next slice.
-- Include the exact lowercase line `next slice allowed: yes` or
+- The first nonblank line must start with exactly one of `PASS:`,
+  `PASS_WITH_NOTES:`, or `FAIL:`.
+- End the file with the exact lowercase line `next slice allowed: yes` or
   `next slice allowed: no`; do not capitalize this key.
-- End the file with exactly one of: PASS, PASS_WITH_NOTES, FAIL.
+- Do not append another `PASS`, `PASS_WITH_NOTES`, or `FAIL` line after the
+  `next slice allowed` line.
 ```

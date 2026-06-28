@@ -55,6 +55,7 @@ after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
 sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
+event_contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jpg"
 edge_crops_dir="${SCREENSHOTS_DIR}/${recording_name}.edge-crops"
 edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
@@ -85,6 +86,11 @@ if [ -s "$event_manifest" ]; then
     event_manifest_label="$event_manifest"
 else
     event_manifest_label="not applicable"
+fi
+if [ -s "$event_contact_sheet" ]; then
+    event_contact_sheet_label="$event_contact_sheet"
+else
+    event_contact_sheet_label="not applicable"
 fi
 if [ -s "$overlay_sentinel" ]; then
     overlay_sentinel_label="$overlay_sentinel"
@@ -386,6 +392,7 @@ packet fills the artifact paths and slice-specific checks.
 - ready screenshot: ${ready_screenshot:-not present}
 - after screenshot: ${after_screenshot}
 - contact sheet: ${contact_sheet}
+- event contact sheet: ${event_contact_sheet_label}
 - sample frames: ${samples_dir}
 - sample manifest: ${sample_manifest}
 - caption boundary frames: ${boundary_samples_glob}
@@ -475,6 +482,13 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
   Name the concrete baseline file or product page you checked. For columnar-zone
   demos, include \`${REPO_ROOT}/demo-columnar-zones.mp4\` unless the slice is
   explicitly unrelated to zones.
+
+## Review Output Contract
+
+- First nonblank line: \`PASS: ...\`, \`PASS_WITH_NOTES: ...\`, or \`FAIL: ...\`.
+- Final line: \`next slice allowed: yes\` or \`next slice allowed: no\`.
+- Do not append a standalone \`PASS\`, \`PASS_WITH_NOTES\`, or \`FAIL\` after
+  the final \`next slice allowed\` line.
 EOF
 } >"$PACKET_PATH"
 

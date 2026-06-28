@@ -438,6 +438,25 @@ EOF
     require_event_sample_label "$event_manifest" set-command-start set-policy-command-start
     require_event_before "$event_manifest" set-command-start snap-first-affordance \
         "Event manifest self-test expected command before overlay"
+
+    local legacy_review="${tmp_dir}/legacy-pass-review.md"
+    local modern_review="${tmp_dir}/modern-pass-review.md"
+    local missing_allow_review="${tmp_dir}/missing-allow-review.md"
+    local fail_review="${tmp_dir}/fail-review.md"
+    printf 'Reviewed legacy artifact.\nPASS\n' >"$legacy_review"
+    printf 'PASS: artifact review accepted\n\nnext slice allowed: yes\n' >"$modern_review"
+    printf 'PASS: artifact review accepted\n' >"$missing_allow_review"
+    printf 'FAIL: artifact review rejected\n\nnext slice allowed: no\n' >"$fail_review"
+    review_is_accepted "$legacy_review" \
+        || die "Review verdict self-test expected legacy final-line PASS acceptance"
+    review_is_accepted "$modern_review" \
+        || die "Review verdict self-test expected first-line PASS plus allow-line acceptance"
+    if review_is_accepted "$missing_allow_review"; then
+        die "Review verdict self-test expected missing allow line rejection"
+    fi
+    if review_is_accepted "$fail_review"; then
+        die "Review verdict self-test expected FAIL rejection"
+    fi
     RUN_DIR="$old_run_dir"
     annotation_plan="$old_annotation_plan"
     recording_path="$old_recording_path"
@@ -671,6 +690,11 @@ ensure_review_packet() {
             "${absolute_run_dir}/logs/${recording_name}.event-manifest.tsv" \
             "${relative_run_dir}/logs/${recording_name}.event-manifest.tsv" \
             || die "Review packet missing event manifest path"
+        review_packet_contains_any "$packet_path" \
+            "${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jpg" \
+            "${absolute_run_dir}/screenshots/${recording_name}.event-contact-sheet.jpg" \
+            "${relative_run_dir}/screenshots/${recording_name}.event-contact-sheet.jpg" \
+            || die "Review packet missing event contact sheet path"
     fi
     local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
     if [ -s "$transport_summary" ]; then
@@ -757,6 +781,10 @@ sample_manifest_path() {
 
 event_manifest_path() {
     printf '%s/%s.event-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+event_contact_sheet_path() {
+    printf '%s/%s.event-contact-sheet.jpg\n' "$SCREENSHOTS_DIR" "$recording_name"
 }
 
 event_manifest_value() {
@@ -934,6 +962,7 @@ require_review_freshness() {
         "$recording_path" \
         "${RUN_DIR}/reviews/reviewer-packet.md" \
         "$contact_sheet" \
+        "$(event_contact_sheet_path)" \
         "$(sample_manifest_path)" \
         "$(event_manifest_path)" \
         "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
@@ -1372,6 +1401,90 @@ sample_recording_frame() {
     require_file "$output"
 }
 
+event_contact_sheet_image_name() {
+    local index="$1"
+    local label="$2"
+    local safe_label
+    safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '-' | sed 's/^-//; s/-$//; s/^$/event/')"
+    printf '%02d-%s.png\n' "$index" "$(printf '%s' "$safe_label" | cut -c1-96)"
+}
+
+append_event_contact_sheet_image() {
+    local tmp_dir="$1"
+    local index="$2"
+    local label="$3"
+    local relative_path="$4"
+    case "$relative_path" in
+        ""|-|/*|*../*) return 0 ;;
+    esac
+
+    local source_path="${RUN_DIR}/${relative_path}"
+    [ -s "$source_path" ] || die "Event contact sheet source is missing: $relative_path"
+    local output_path
+    output_path="${tmp_dir}/$(event_contact_sheet_image_name "$index" "$label")"
+    magick "$source_path" -resize '720x405>' "$output_path"
+    require_file "$output_path"
+}
+
+generate_event_manifest_contact_sheet() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    [ -s "$manifest_path" ] || return 0
+    command -v magick >/dev/null 2>&1 || die "Event manifest contact sheet requires ImageMagick: magick"
+
+    local contact_sheet="${SCREENSHOTS_DIR}/${name}.event-contact-sheet.jpg"
+    local tmp_dir="${SCREENSHOTS_DIR}/${name}.event-contact-sheet.tmp"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    local index=0 event_id kind seconds caption_label sample_label relative_path expected
+    while IFS=$'\t' read -r event_id kind seconds caption_label sample_label relative_path expected; do
+        case "${event_id:-}" in
+            ""|\#*) continue ;;
+        esac
+        case "${relative_path:-}" in
+            ""|-) continue ;;
+        esac
+        index=$((index + 1))
+        append_event_contact_sheet_image "$tmp_dir" "$index" "${event_id}-${sample_label}" "$relative_path"
+    done <"$manifest_path"
+
+    local overlay_manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    if [ -s "$overlay_manifest" ]; then
+        local label value _minimum overlay_path _note
+        while IFS=$'\t' read -r label value _minimum overlay_path _note; do
+            case "${label:-}" in
+                ""|\#*) continue ;;
+            esac
+            case "${overlay_path:-}" in
+                screenshots/*.png)
+                    index=$((index + 1))
+                    append_event_contact_sheet_image "$tmp_dir" "$index" "sentinel-${label}" "$overlay_path"
+                    ;;
+            esac
+        done <"$overlay_manifest"
+    fi
+
+    local images=()
+    mapfile -t images < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    [ "${#images[@]}" -gt 0 ] || die "Event manifest contact sheet has no image rows: $manifest_path"
+    local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    magick montage \
+        -font "$label_font" \
+        -pointsize 22 \
+        -label '%t' \
+        "${images[@]}" \
+        -thumbnail '720x405>' \
+        -geometry '720x405+16+48' \
+        -tile 2x \
+        -background '#F4F2ED' \
+        -fill '#101820' \
+        "$contact_sheet"
+    require_file "$contact_sheet"
+    rm -rf "$tmp_dir"
+}
+
 generate_recording_samples() {
     local recording="$1"
     local name="$2"
@@ -1442,6 +1555,7 @@ generate_recording_samples() {
         -frames:v 1 \
         "$contact_sheet"
     require_file "$contact_sheet"
+    generate_event_manifest_contact_sheet "$name"
 }
 
 ensure_recording_samples() {
@@ -1476,6 +1590,15 @@ ensure_recording_samples() {
     if [ -s "$contact_sheet" ] && ! is_fresh_derived_file "$contact_sheet" "$recording"; then
         stale_count=$((stale_count + 1))
     fi
+    local event_manifest
+    event_manifest="$(event_manifest_path)"
+    local event_contact_sheet
+    event_contact_sheet="$(event_contact_sheet_path)"
+    if [ -s "$event_manifest" ]; then
+        if [ ! -s "$event_contact_sheet" ] || ! is_fresh_derived_file "$event_contact_sheet" "$event_manifest"; then
+            stale_count=$((stale_count + 1))
+        fi
+    fi
 
     if [ "$standard_count" -lt 6 ] || [ "$caption_count" -lt "$caption_rows" ] || [ "$boundary_count" -lt $((caption_rows * 3)) ] || [ ! -s "$contact_sheet" ] || [ "$stale_count" -gt 0 ]; then
         [ "$CHECK_ONLY" != "1" ] || die "Recording samples/contact sheet are missing or stale in --check-only mode: $samples_dir"
@@ -1493,6 +1616,10 @@ ensure_recording_samples() {
     fi
     require_file "$contact_sheet"
     require_fresh_derived_file "$contact_sheet" "$recording" "Contact sheet"
+    if [ -s "$event_manifest" ]; then
+        require_file "$event_contact_sheet"
+        require_fresh_derived_file "$event_contact_sheet" "$event_manifest" "Event contact sheet"
+    fi
 }
 
 field_for_title() {

@@ -3757,22 +3757,26 @@ Accepted result:
 
 Pre-Slice-23 cleanup from Slice 22 retrospectives:
 
-- [ ] Surface scenario setup/proof retries in `guest-transport-summary.tsv` or
+- [x] Surface scenario setup/proof retries in `guest-transport-summary.tsv` or
   a review-packet-linked retry summary so reviewers see attempts, failures,
   final result, and whether each failure occurred before recording.
+  Implemented by `guest-script-retry-summary.tsv` plus appended rows in
+  `guest-transport-summary.tsv`; mechanically checked with `bash -n`,
+  `shellcheck`, and `verify-artifact --check-only` on the Slice 22 artifact.
 - [ ] For the next mouse/transition proof, generate event-manifest rows from
   actual guest action timestamps for pickup, path, hover, first affordance,
   release, and post-state; use that table as the single timing source for
   captions, samples, and verifier checks.
-- [ ] Bound local session-history retrospection prompts: search by artifact id
+- [x] Bound local session-history retrospection prompts: search by artifact id
   or recording name, inspect at most three exact-hit rollout files, ignore the
   current session, and fall back to plan/diff/artifacts when no exact session is
   found.
-- [ ] Add review verdict fixtures to `script/e2e/verify-artifact --self-test`
+- [x] Add review verdict fixtures to `script/e2e/verify-artifact --self-test`
   for legacy final-line `PASS`, first-line `PASS:` plus final
   `next slice allowed: yes`, missing allow line, and `FAIL`; update
   `script/e2e/prompts/no-context-artifact-review.md` and
   `script/e2e/write-review-packet` to one footer contract.
+  Verified with `./script/e2e/verify-artifact --self-test`.
 - [ ] Introduce a table-driven mouse-drag event spec used by Slice 20 and Slice
   22 for event manifest generation, sample-label requirements, and ordering
   assertions.
@@ -3786,9 +3790,11 @@ Pre-Slice-23 cleanup from Slice 22 retrospectives:
 - [ ] Add an artifact-generation or verifier check that rejects annotated
   recordings when the last caption ends more than a short hold before video end,
   unless the run declares an intentional uncaptained tail.
-- [ ] Generate a labeled event-manifest contact sheet for mouse/transition
+- [x] Generate a labeled event-manifest contact sheet for mouse/transition
   slices, including overlay sentinel crops and separate no-modifier versus
   modifier branches.
+  Generated as `<recording>.event-contact-sheet.jpg` from the event manifest
+  and overlay sentinel crops; Slice 22 derived artifact was regenerated.
 - [ ] Require captioned target/release sample frames to show the visual
   affordance named by the caption, not only the after-state.
 - [ ] Strengthen proof-only zone snap affordances with a clearer whole-zone

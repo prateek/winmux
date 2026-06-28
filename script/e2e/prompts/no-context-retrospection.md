@@ -27,8 +27,12 @@ Inputs to inspect:
 - prior accepted artifact directories: <prior-artifact-dirs>
 - failed attempts for the slice, if any: <failed-attempt-dirs>
 - local Codex/Orca session history if you can locate it from the environment.
-  If exact session history is not accessible, say so and use repo artifacts/logs
-  as evidence. Do not make session-history-only findings blocking.
+  Bound this lookup tightly: search by the exact artifact directory basename,
+  recording name, or reviewer packet path; inspect at most three exact-hit
+  rollout/session files; ignore the currently running session; stop after 10
+  shell commands or 3 minutes, whichever comes first. If exact session history
+  is not accessible, say so and use repo artifacts/logs as evidence. Do not make
+  session-history-only findings blocking.
 
 Before relying on a prior accepted artifact path, verify that it contains product
 media and `reviews/no-ctx-artifact-review.md` ending in `PASS` or

@@ -15,6 +15,7 @@ RECORDINGS_DIR="${RUN_DIR}/recordings"
 LOGS_DIR="${RUN_DIR}/logs"
 CONFIG_OUT_DIR="${RUN_DIR}/config"
 RUN_ABORT_STATUS="${LOGS_DIR}/run-abort-status.txt"
+GUEST_RECORDING_ACTIVE=0
 
 BASE_VM="${WINMUX_E2E_BASE_VM:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 VM_NAME="${WINMUX_E2E_VM_NAME:-winmux-e2e-${RUN_ID}}"
@@ -491,6 +492,7 @@ write_preflight_log() {
 
 preflight() {
     ensure_artifact_dirs
+    rm -f "${LOGS_DIR}/guest-script-retry-summary.tsv" "${LOGS_DIR}/guest-transport-summary.tsv"
     ensure_tools
     ensure_tart_home
     [ -f "$CONFIG_PATH" ] || die "Missing WinMux e2e config: $CONFIG_PATH"
@@ -599,6 +601,33 @@ guest_script() {
     esac
 }
 
+append_guest_script_retry_summary() {
+    local log_path="$1"
+    local final_result="$2"
+    local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    local relative_log_path
+    relative_log_path="logs/$(basename "$log_path")"
+    local phase
+    phase="$(basename "$log_path" .log)"
+    local before_recording="yes"
+    if [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
+        before_recording="no"
+    fi
+
+    local attempts failures
+    attempts="$(count_log_attempts "$log_path")"
+    failures="$(last_log_value "$log_path" failure_count)"
+    if [ "$failures" = "unknown" ]; then
+        failures="$(count_log_key_value "$log_path" result failure)"
+    fi
+
+    if [ ! -s "$summary_path" ]; then
+        printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\n' >"$summary_path"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+}
+
 guest_script_retry() {
     local script="$1"
     local log_path="$2"
@@ -618,6 +647,7 @@ guest_script_retry() {
                 printf 'failure_count=%s\n' "$failure_count"
                 printf 'final_result=success\n'
             } >>"$log_path"
+            append_guest_script_retry_summary "$log_path" success
             return
         fi
         failure_count=$((failure_count + 1))
@@ -628,6 +658,7 @@ guest_script_retry() {
                 printf 'failure_count=%s\n' "$failure_count"
                 printf 'final_result=semantic_failure\n'
             } >>"$log_path"
+            append_guest_script_retry_summary "$log_path" semantic_failure
             write_run_abort_status "$(basename "$log_path" .log)" "$status" semantic_failure "$log_path" "guest scenario returned semantic failure"
             return "$status"
         fi
@@ -638,6 +669,7 @@ guest_script_retry() {
                 printf 'failure_count=%s\n' "$failure_count"
                 printf 'final_result=mutation_failure\n'
             } >>"$log_path"
+            append_guest_script_retry_summary "$log_path" mutation_failure
             write_run_abort_status "$(basename "$log_path" .log)" "$status" mutation_failure "$log_path" "guest action failed after mutation marker"
             return "$status"
         fi
@@ -654,6 +686,7 @@ guest_script_retry() {
         printf 'failure_count=%s\n' "$failure_count"
         printf 'final_result=failure\n'
     } >>"$log_path"
+    append_guest_script_retry_summary "$log_path" failure
     write_run_abort_status "$(basename "$log_path" .log)" 1 failure "$log_path" "guest action retries exhausted"
     return 1
 }
@@ -1128,6 +1161,7 @@ echo result=success"
             printf '%s\n' "$pid" >"${LOGS_DIR}/${name}.recording.pid"
             sleep 1
             if kill -0 "$pid" 2>/dev/null; then
+                GUEST_RECORDING_ACTIVE=1
                 return
             fi
             if wait "$pid"; then
@@ -1159,6 +1193,7 @@ echo result=success"
             -pix_fmt yuv420p \
             "$path" >"$log_path" 2>&1 &
         printf '%s\n' "$!" >"${LOGS_DIR}/${name}.recording.pid"
+        GUEST_RECORDING_ACTIVE=1
     fi
 }
 
@@ -2587,6 +2622,35 @@ write_transport_summary_row() {
         "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
 }
 
+transport_summary_has_log_path() {
+    local summary_path="$1"
+    local relative_log_path="$2"
+    /usr/bin/awk -F'\t' -v log_path="$relative_log_path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $2 == log_path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$summary_path"
+}
+
+append_guest_retry_rows_to_transport_summary() {
+    local summary_path="$1"
+    local retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    [ -s "$retry_summary" ] || return 0
+
+    local phase relative_log_path attempts failures final_result before_recording
+    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording; do
+        case "${phase:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_log_path:-}" ] || continue
+        if transport_summary_has_log_path "$summary_path" "$relative_log_path"; then
+            continue
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+    done <"$retry_summary"
+}
+
 write_guest_transport_summary() {
     local name="$1"
     local summary_path="${LOGS_DIR}/guest-transport-summary.tsv"
@@ -2599,6 +2663,7 @@ write_guest_transport_summary() {
     write_transport_summary_row "$summary_path" capture-ready "${LOGS_DIR}/guest-capture-ready.log" yes
     write_transport_summary_row "$summary_path" warmup-before-recording "${LOGS_DIR}/guest-control-warmup-before-recording.log" yes
     write_transport_summary_row "$summary_path" guest-recording "${LOGS_DIR}/${name}.guest-screencapture.log" no
+    append_guest_retry_rows_to_transport_summary "$summary_path"
     [ -s "$summary_path" ] || die "Guest transport summary did not produce a non-empty file: $summary_path"
 }
 
@@ -2670,6 +2735,90 @@ write_mouse_snap_overlay_sentinel() {
         printf 'target-semantics\twhole-zone\t\tscreenshots/%s\tsnap target is the whole Comms zone, not a window or slot\n' "$(basename "$snap")"
     } >"$manifest"
     [ -s "$manifest" ] || die "Mouse snap overlay sentinel did not produce a non-empty file: $manifest"
+}
+
+event_contact_sheet_image_name() {
+    local index="$1"
+    local label="$2"
+    local safe_label
+    safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '-' | sed 's/^-//; s/-$//; s/^$/event/')"
+    printf '%02d-%s.png\n' "$index" "$(printf '%s' "$safe_label" | cut -c1-96)"
+}
+
+append_event_contact_sheet_image() {
+    local tmp_dir="$1"
+    local index="$2"
+    local label="$3"
+    local relative_path="$4"
+    case "$relative_path" in
+        ""|-|/*|*../*) return 0 ;;
+    esac
+
+    local source_path="${RUN_DIR}/${relative_path}"
+    [ -s "$source_path" ] || die "Event contact sheet source is missing: $relative_path"
+    local output_path
+    output_path="${tmp_dir}/$(event_contact_sheet_image_name "$index" "$label")"
+    magick "$source_path" -resize '720x405>' "$output_path"
+    [ -s "$output_path" ] || die "Event contact sheet image did not render: $output_path"
+}
+
+generate_event_manifest_contact_sheet() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    [ -s "$manifest_path" ] || return 0
+    command -v magick >/dev/null 2>&1 || die "Event manifest contact sheet requires ImageMagick: magick"
+
+    local contact_sheet="${SCREENSHOTS_DIR}/${name}.event-contact-sheet.jpg"
+    local tmp_dir="${SCREENSHOTS_DIR}/${name}.event-contact-sheet.tmp"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    local index=0 event_id kind seconds caption_label sample_label relative_path expected
+    while IFS=$'\t' read -r event_id kind seconds caption_label sample_label relative_path expected; do
+        case "${event_id:-}" in
+            ""|\#*) continue ;;
+        esac
+        case "${relative_path:-}" in
+            ""|-) continue ;;
+        esac
+        index=$((index + 1))
+        append_event_contact_sheet_image "$tmp_dir" "$index" "${event_id}-${sample_label}" "$relative_path"
+    done <"$manifest_path"
+
+    local overlay_manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    if [ -s "$overlay_manifest" ]; then
+        local label value _minimum overlay_path _note
+        while IFS=$'\t' read -r label value _minimum overlay_path _note; do
+            case "${label:-}" in
+                ""|\#*) continue ;;
+            esac
+            case "${overlay_path:-}" in
+                screenshots/*.png)
+                    index=$((index + 1))
+                    append_event_contact_sheet_image "$tmp_dir" "$index" "sentinel-${label}" "$overlay_path"
+                    ;;
+            esac
+        done <"$overlay_manifest"
+    fi
+
+    local images=()
+    mapfile -t images < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    [ "${#images[@]}" -gt 0 ] || die "Event manifest contact sheet has no image rows: $manifest_path"
+    local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    magick montage \
+        -font "$label_font" \
+        -pointsize 22 \
+        -label '%t' \
+        "${images[@]}" \
+        -thumbnail '720x405>' \
+        -geometry '720x405+16+48' \
+        -tile 2x \
+        -background '#F4F2ED' \
+        -fill '#101820' \
+        "$contact_sheet"
+    [ -s "$contact_sheet" ] || die "Event manifest contact sheet did not produce a non-empty file: $contact_sheet"
+    rm -rf "$tmp_dir"
 }
 
 generate_recording_samples() {
@@ -2776,6 +2925,7 @@ generate_recording_samples() {
         -frames:v 1 \
         "$contact_sheet"
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
+    generate_event_manifest_contact_sheet "$name"
 }
 
 generate_final_edge_crops() {
@@ -2894,9 +3044,9 @@ refresh_annotation_artifact() {
     if [ -s "${LOGS_DIR}/guest-control-check.log" ] || [ -s "${LOGS_DIR}/${name}.guest-screencapture.log" ]; then
         write_guest_transport_summary "$name"
     fi
+    write_mouse_snap_overlay_sentinel "$name"
     generate_recording_samples "$name" "$duration"
     generate_final_edge_crops "$name"
-    write_mouse_snap_overlay_sentinel "$name"
     archive_existing_no_context_review
     write_review_packet "$name"
     log "Refreshed annotated artifact for $name in $RUN_DIR"
@@ -2917,6 +3067,7 @@ wait_for_recording() {
     local pid
     pid="$(cat "${LOGS_DIR}/${name}.recording.pid")"
     wait "$pid"
+    GUEST_RECORDING_ACTIVE=0
     local path="${RECORDINGS_DIR}/${name}.mov"
     [ -s "$path" ] || die "Recording did not produce a non-empty file: $path"
     local duration
@@ -2935,9 +3086,9 @@ wait_for_recording() {
         } >>"${LOGS_DIR}/${name}.guest-screencapture.log"
     fi
     write_guest_transport_summary "$name"
+    write_mouse_snap_overlay_sentinel "$name"
     generate_recording_samples "$name" "$duration"
     generate_final_edge_crops "$name"
-    write_mouse_snap_overlay_sentinel "$name"
     write_review_packet "$name"
 }
 
