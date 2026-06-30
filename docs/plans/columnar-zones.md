@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-29 accepted; Slice 30 not started
+Status: slices 0-30 accepted; Slice 31 not started
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -5368,26 +5368,36 @@ Slice 29 non-claims:
 
 Pre-Slice-30 cleanup from Slice 29 retrospectives:
 
-- [ ] Close accepted slices in the plan before new feature implementation starts:
+- [x] Close accepted slices in the plan before new feature implementation starts:
   record artifact path, review verdict, verifier commands, closeout command,
   retrospection paths, claims, non-claims, and dirty-baseline files.
-- [ ] Decide whether the next product-bearing slice emits both a full proof
+- [x] Decide whether the next product-bearing slice emits both a full proof
   recording and a shorter `*-product-demo` cut. If yes, add the demo-cut
-  manifest/verifier before recording.
-- [ ] Add named close-up crop support for text-first proof artifacts, or make
+  manifest/verifier before recording. Decision: Slice 30 is harness-only; the
+  next product-bearing visual slice must storyboard the existing
+  `recordings/<name>.demo.mov` sidecar up front when the full acceptance video
+  has setup/proof tail that would weaken a product demo. The existing
+  demo-cut manifest/verifier remains the accepted sidecar format.
+- [x] Add named close-up crop support for text-first proof artifacts, or make
   future contracts explicitly require readable full-frame screenshots instead
-  of "text proof crops."
-- [ ] Make review lint enforce the baseline list from the reviewer packet for
+  of "text proof crops." Decision: until named crop support is implemented, a
+  slice may not promise text-proof crops unless its verifier names those crop
+  files. Text-first slices must otherwise require readable full-frame
+  screenshots.
+- [x] Make review lint enforce the baseline list from the reviewer packet for
   columnar-zone artifacts, including `demo-columnar-zones.mp4` and Slice 7
-  root-demo samples.
-- [ ] Add a post-recording retry policy to reviewer packets: if
+  root-demo samples. Slice 30 adds a future-artifact `review_baseline_policy`
+  preflight flag and verifier self-tests for full packet baseline citation.
+- [x] Add a post-recording retry policy to reviewer packets: if
   `guest-script-retry-summary.tsv` has `before_recording=no` and failures, the
   reviewer must name the retry and decide whether it occurred before the first
   product action. High-risk proof slices should re-record after post-recording
-  transport failure.
-- [ ] Add a closeout or pre-Tart guard that fails if
+  transport failure. Slice 30 adds a future-artifact `review_retry_policy`
+  preflight flag, packet wording, prompt wording, and verifier self-tests.
+- [x] Add a closeout or pre-Tart guard that fails if
   `Sources/Common/gitHashGenerated.swift` or
-  `Sources/Common/versionGenerated.swift` is dirty after validation.
+  `Sources/Common/versionGenerated.swift` is dirty after validation. Slice 30
+  wires `script/e2e/check-generated-version-clean` into pre-Tart and closeout.
 - [ ] Replace setup movement helpers that emit benign `move-node-to-zone`
   warnings with an `ensure_window_in_zone` style helper that inspects state
   first and logs intentional setup no-ops cleanly.
@@ -5397,6 +5407,173 @@ Pre-Slice-30 cleanup from Slice 29 retrospectives:
   obvious with measurement chips or a lightweight overlay, use a more
   product-shaped fixture, and avoid accumulating proof windows in the
   product-facing view.
+
+## Slice 30: Artifact Review Gate Hardening
+
+Goal: make the reviewer/verifier contract catch the classes of misses that
+caused earlier slice rework before any new feature slice starts.
+
+Primary product claim:
+
+- No new user-facing WinMux behavior. This slice hardens the e2e harness,
+  no-context reviewer packet, review prompt, and closeout checks for future
+  product-bearing slices.
+
+Implementation scope:
+
+- Add preflight metadata for future artifacts:
+  `review_baseline_policy=full-packet` and
+  `review_retry_policy=post-recording-analysis`.
+- Make reviewer packets list `logs/guest-script-retry-summary.tsv` and require
+  post-recording retry rows to be discussed explicitly.
+- Make the no-context artifact-review prompt require reviewers to inspect
+  `guest-script-retry-summary.tsv`, name any `before_recording=no` failures,
+  and cite Slice 7 root-demo baselines when the packet lists them.
+- Make `verify-artifact --review-lint` and `--require-review` enforce full
+  local baseline citations for future artifacts that opt into the full-packet
+  policy.
+- Make `verify-artifact --review-lint` and `--require-review` enforce
+  post-recording retry citations for future artifacts that opt into the retry
+  policy.
+- Add a generated-version-file guard and run it in both `make
+  e2e-pre-tart-checks` and `make e2e-slice-closeout-check`.
+- Add verifier self-tests for the new baseline and retry-review checks.
+
+Fast validation:
+
+- `bash -n script/e2e/check-generated-version-clean script/e2e/verify-artifact script/e2e/write-review-packet script/e2e/tart-recording-harness`
+- `shellcheck script/e2e/check-generated-version-clean script/e2e/verify-artifact script/e2e/write-review-packet script/e2e/tart-recording-harness`
+- `./script/e2e/check-generated-version-clean`
+- `./script/e2e/verify-artifact --self-test`
+- `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z`
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z ARGS=--require-review`
+- `make e2e-pre-tart-checks`
+
+Tart artifact decision:
+
+- Slice 30 is harness/review-contract-only, so it does not need a fresh Tart
+  product video. The next product-bearing slice still must produce a strict
+  Tart video and pass the no-context artifact review before work proceeds.
+
+Post-slice gate:
+
+- Run three no-context retrospection agents over the Slice 30 diff before
+  committing, because this slice hardens the review gate itself.
+- First retrospection round found four blocker classes and they were fixed
+  before the slice could close:
+  - generated-version guard had to run again after `swift test`, not only
+    before the long validation tail;
+  - baseline lint had to enforce Slice 7 root-demo media, resource
+    screenshots, and product-surface URLs from the reviewer packet;
+  - retry lint had to require a decision about whether a post-recording retry
+    happened before the first visible product action;
+  - explicit preflight policies had to apply directly, not only inside the
+    slice-name `requires_current_artifact_contract` heuristic.
+- Run a second no-context retrospection pass after those fixes and do not move
+  to the next feature slice until it is clean or all new findings are fixed.
+- The second retrospection round found additional verifier/harness blockers and
+  they were fixed before the slice could close:
+  - the new helper file had to be included in the tracked diff, not left
+    untracked;
+  - post-recording retry lint had to require both a phase-tied first visible
+    product-action decision and mutation/re-record/non-stateful evidence;
+  - no-context reviews had to declare `fork_context=false` or equivalent no
+    chat-history posture;
+  - retry summaries had to be parsed by header and reject failed post-recording
+    rows that omit attempt statuses;
+  - packet-listed local baseline paths had to exist on disk before their
+    citations could satisfy review lint;
+  - recorded Tart scenarios had to run the generated-version guard immediately
+    after host build and before VM startup, not only in pre-Tart/closeout.
+- Run a third no-context retrospection pass after those fixes and do not move
+  to the next feature slice until it is clean or all new findings are fixed.
+- The third retrospection round found additional verifier edge cases and they
+  were fixed before the slice could close:
+  - demo sidecar artifacts must be all-or-nothing: orphan
+    `recordings/<name>.demo.mov` or orphan
+    `logs/<name>.demo-cut.tsv` now fail packet generation and verification;
+  - retry mutation evidence must be positive evidence such as "did not mutate",
+    "no proof-state change", "non-stateful", or "re-recorded after", not loose
+    words like "proof state" or "re-record";
+  - failed post-recording retry rows must have non-empty, non-`-`
+    `attempt_statuses`;
+  - retry summary phase lookup is header-based, not positional;
+  - no-context declaration lint applies to future policy artifacts and remains
+    compatible with historical accepted artifacts;
+  - the missing-local-baseline self-test now uses a path that matches the
+    enforced baseline selector.
+- Run another no-context retrospection pass after these fixes and do not move
+  to the next feature slice until it is clean or all new findings are fixed.
+- Final no-context retrospection pass result: process/plan, code/harness, and
+  artifact/product reviewers all returned `NO ACTIONABLE ISSUES`.
+
+Slice 30 accepted result:
+
+- no Tart artifact: harness/review-contract-only slice; no user-facing WinMux
+  behavior or product video claim;
+- focused validation:
+  `bash -n script/e2e/check-generated-version-clean script/e2e/verify-artifact script/e2e/write-review-packet script/e2e/tart-recording-harness`,
+  `shellcheck script/e2e/check-generated-version-clean script/e2e/verify-artifact script/e2e/write-review-packet script/e2e/tart-recording-harness`,
+  `./script/e2e/verify-artifact --self-test`,
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z`,
+  and
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z ARGS=--require-review`
+  passed;
+- full validation:
+  `make e2e-pre-tart-checks` passed after the final Slice 30 verifier and
+  harness changes, including 173 selected Swift tests and the final
+  generated-version-file guard;
+- final no-context retrospection agents:
+  process/plan, code/harness, and artifact/product all reported
+  `NO ACTIONABLE ISSUES`.
+
+Slice 30 accepted notes:
+
+- Future harness-generated artifacts declare
+  `review_baseline_policy=full-packet` and
+  `review_retry_policy=post-recording-analysis` in `logs/preflight.log`.
+- `verify-artifact --review-lint` and `--require-review` now enforce those
+  explicit policy flags independently of slice-name heuristics.
+- Full-packet baseline enforcement requires local baseline paths listed in the
+  reviewer packet to exist and requires reviews to cite tracked/root demo
+  baselines plus product-surface URLs.
+- Post-recording retry lint parses retry summaries by header, rejects missing
+  or `-` attempt statuses for failed post-recording rows, requires phase/log
+  path/final result/attempt statuses, and requires phase-scoped first visible
+  product-action and mutation/re-record/non-stateful analysis.
+- No-context declaration lint applies to future policy artifacts while
+  historical accepted artifacts remain re-verifiable.
+- Demo-cut sidecars are now all-or-nothing: orphan `.demo.mov` or
+  `.demo-cut.tsv` files fail packet generation and verification.
+- Generated version/hash files are guarded in pre-Tart, after recorded-scenario
+  host build and before VM startup, and during closeout.
+
+Slice 30 non-claims:
+
+- no new WinMux command, zone behavior, or user-facing interaction;
+- no fresh Tart product video;
+- no `ensure_window_in_zone` setup helper yet;
+- no new named close-up crop generator; text-first future slices must either
+  produce verifier-backed named crops or require readable full-frame
+  screenshots;
+- no automatic product-demo sidecar for every future slice; future
+  product-bearing slices must choose whether the existing demo-cut sidecar is
+  required before recording.
+
+Pre-Slice-31 cleanup:
+
+- [ ] Replace setup movement helpers that emit benign `move-node-to-zone`
+  warnings with an `ensure_window_in_zone` style helper that inspects state
+  first and logs intentional setup no-ops cleanly.
+- [ ] For the next visual layout demo, make the width/layout change more
+  obvious with measurement chips or a lightweight overlay, use a more
+  product-shaped fixture, and avoid accumulating proof windows in the
+  product-facing view.
+- [ ] Decide whether Slice 31 is a product-bearing visual feature slice. If yes,
+  storyboard both the full acceptance recording and the optional
+  `recordings/<name>.demo.mov` sidecar before Tart.
+- [ ] If Slice 31 is text-first, either add named close-up crop support with
+  verifier checks or explicitly require readable full-frame screenshots only.
 
 ## Call-Site Audit
 

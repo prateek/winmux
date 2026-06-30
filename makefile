@@ -100,10 +100,12 @@ e2e-pre-tart-checks:
 	bash -n script/e2e/package-root-demo && \
 	bash -n script/e2e/verify-root-demo && \
 	bash -n script/e2e/write-review-packet && \
+	bash -n script/e2e/check-generated-version-clean && \
 	bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
 	python3 ./script/check-command-metadata && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/write-review-packet script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/write-review-packet script/e2e/check-generated-version-clean script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	./script/e2e/check-generated-version-clean && \
 	./script/e2e/package-root-demo --self-test && \
 	./script/e2e/verify-artifact --self-test && \
 	./script/e2e/tart-recording-harness abort-status-self-test && \
@@ -114,7 +116,8 @@ e2e-pre-tart-checks:
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE29_PHASE=self-test ./script/e2e/guest/slice-29-save-zone-layout.sh && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
-	swift test --filter '"'"'ConfigBootstrapTest.testStarterConfigParses|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"''
+	swift test --filter '"'"'ConfigBootstrapTest.testStarterConfigParses|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \
+	./script/e2e/check-generated-version-clean'
 
 e2e-run-product-slice:
 	/bin/bash -lc 'set -euo pipefail; cd "$(CURDIR)"; \
@@ -150,6 +153,7 @@ e2e-slice-closeout-check:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	test -n "$(RUN_DIR)" && \
 	./script/e2e/verify-artifact --check-only --require-review --check-sibling-artifacts "$(RUN_DIR)" && \
+	./script/e2e/check-generated-version-clean && \
 	require_retrospection() { \
 		name="$$1"; \
 		if test -s "$(RUN_DIR)/retrospectives/$$name.md" || test -s "$(RUN_DIR)/reviews/retrospection-$$name.md"; then \

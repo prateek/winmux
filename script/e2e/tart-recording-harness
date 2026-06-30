@@ -545,6 +545,8 @@ write_preflight_log() {
         printf 'record_seconds=%s\n' "$RECORD_SECONDS"
         printf 'annotate_recording=%s\n' "$ANNOTATE_RECORDING"
         printf 'caption_tail_policy_required=1\n'
+        printf 'review_baseline_policy=full-packet\n'
+        printf 'review_retry_policy=post-recording-analysis\n'
         printf 'caption_tail_max_seconds=%s\n' "$CAPTION_TAIL_MAX_SECONDS"
         printf 'video_fps=%s\n' "$VIDEO_FPS"
         printf 'ffmpeg_screen_device=%s\n' "$FFMPEG_SCREEN_DEVICE"
@@ -5805,6 +5807,8 @@ run_recorded_scenario() {
     preflight
     RUN_PHASE="host-build"
     ensure_host_build
+    RUN_PHASE="host-build-generated-clean"
+    "${SCRIPT_DIR}/check-generated-version-clean"
     RUN_PHASE="prepare-vm"
     prepare_vm
     RUN_PHASE="start-vm"

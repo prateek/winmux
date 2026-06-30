@@ -69,6 +69,7 @@ event_contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jp
 edge_crops_dir="${SCREENSHOTS_DIR}/${recording_name}.edge-crops"
 edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
+guest_script_retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
@@ -120,7 +121,14 @@ if [ -s "$caption_tail" ]; then
 else
     caption_tail_label="not applicable"
 fi
-if [ -s "$demo_recording_path" ] && [ -s "$demo_cut_manifest" ]; then
+demo_recording_exists=0
+demo_cut_manifest_exists=0
+[ ! -s "$demo_recording_path" ] || demo_recording_exists=1
+[ ! -s "$demo_cut_manifest" ] || demo_cut_manifest_exists=1
+if [ "$demo_recording_exists" != "$demo_cut_manifest_exists" ]; then
+    die "Demo cut sidecar is incomplete; expected both $demo_recording_path and $demo_cut_manifest or neither"
+fi
+if [ "$demo_recording_exists" = "1" ] && [ "$demo_cut_manifest_exists" = "1" ]; then
     demo_recording_label="$demo_recording_path"
     demo_cut_manifest_label="$demo_cut_manifest"
 else
@@ -572,6 +580,7 @@ $(drag_screenshot_lines)
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
+- guest script retry summary: ${guest_script_retry_summary} (phase, attempts, failures, final result, before-recording status)
 - guest transport summary: ${transport_summary} (attempt statuses and compact failure reasons)
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
@@ -667,6 +676,12 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
   Name the concrete baseline file or product page you checked. For columnar-zone
   demos, include \`${REPO_ROOT}/demo-columnar-zones.mp4\` unless the slice is
   explicitly unrelated to zones.
+- If \`logs/guest-script-retry-summary.tsv\` has any row with
+  \`before_recording=no\` and \`failures\` greater than zero, name that phase,
+  log path, attempt statuses, final result, and whether the retry happened
+  before the first visible product action. For stateful proof after mutation,
+  require a re-record or explicit artifact evidence that the failed attempt did
+  not change the proof state.
 
 ## Review Output Contract
 

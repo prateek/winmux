@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+tracked_files=(
+    Sources/Common/gitHashGenerated.swift
+    Sources/Common/versionGenerated.swift
+)
+
+if ! git -C "$REPO_ROOT" diff --quiet -- "${tracked_files[@]}"; then
+    printf '[winmux-e2e] generated version files are dirty after validation:\n' >&2
+    git -C "$REPO_ROOT" diff --stat -- "${tracked_files[@]}" >&2 || true
+    printf '[winmux-e2e] reset or intentionally account for these files before continuing.\n' >&2
+    exit 1
+fi
+
+if ! git -C "$REPO_ROOT" diff --cached --quiet -- "${tracked_files[@]}"; then
+    printf '[winmux-e2e] generated version files have staged changes after validation:\n' >&2
+    git -C "$REPO_ROOT" diff --cached --stat -- "${tracked_files[@]}" >&2 || true
+    printf '[winmux-e2e] unstage or intentionally account for these files before continuing.\n' >&2
+    exit 1
+fi
+
+printf '[winmux-e2e] generated version files clean\n'

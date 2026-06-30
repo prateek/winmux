@@ -134,6 +134,12 @@ Required checks:
    If `logs/guest-transport-summary.tsv` exists, read it first and use it to
    identify retry counts, per-attempt statuses, compact first/last failure
    reasons, final results, and whether failures happened before recording.
+   If `logs/guest-script-retry-summary.tsv` exists, read it separately. Any row
+   with `before_recording=no` and a nonzero failure count must be named in the
+   review with its phase, log path, attempt statuses, final result, and whether
+   it happened before the first visible product action. For stateful proof after
+   product mutation, require a re-record or explicit evidence that the failed
+   attempt did not mutate the proof state.
    Use the linked raw phase logs when a compact reason needs confirmation.
    Retry noise before recording is not a hard failure by itself, but missing
    final success or semantic proof failure is.
@@ -146,10 +152,12 @@ Required checks:
 6. Compare the artifact's content and style against the baseline media and
    product surfaces. Name the exact baseline file or product page inspected.
    For columnar-zone demos, include `demo-columnar-zones.mp4` unless the slice
-   is explicitly unrelated to zones. Look for WinMux's existing product
-   language: macOS desktop, visible workspace/window-management behavior, tab
-   group/sidebar/intent-zone affordances when the slice claims them, restrained
-   presentation, and no generic demo clutter.
+   is explicitly unrelated to zones. When the reviewer packet lists Slice 7
+   root-demo screenshots or samples, inspect and cite those paths too. Look for
+   WinMux's existing product language: macOS desktop, visible
+   workspace/window-management behavior, tab group/sidebar/intent-zone
+   affordances when the slice claims them, restrained presentation, and no
+   generic demo clutter.
    For config reload or command-selector slices, compare copied configs against
    preflight source paths and checksums when available. A copied input config
    mutated in place is a hard failure unless the slice notes explicitly call out
