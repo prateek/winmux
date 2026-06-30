@@ -8,6 +8,7 @@ func destinationFromWindowDropIntent(
     mouseLocation: CGPoint,
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     func intentOverlayDestination(_ destination: WindowDragIntentDestination) -> WindowDragIntentDestination {
         var result = destination
@@ -16,7 +17,9 @@ func destinationFromWindowDropIntent(
         result.dropIntentOverlay = WindowDropIntentOverlayModel(
             targetFrame: resolution.targetFrame,
             activeZone: resolution.intent.zone,
-            cornerRadius: resolution.targetCornerRadius.map(CGFloat.init)
+            cornerRadius: resolution.targetCornerRadius.map(CGFloat.init),
+            label: labelWindowSlot ? resolution.intent.zone.windowSlotLabel : nil,
+            detail: labelWindowSlot ? resolution.intent.zone.windowSlotDetail : nil,
         )
         return result
     }
@@ -59,6 +62,27 @@ func destinationFromWindowDropIntent(
                 detachOrigin: detachOrigin,
             ) else { return nil }
             return intentOverlayDestination(destination)
+    }
+}
+
+private extension WindowDropZone {
+    var windowSlotLabel: String {
+        switch self {
+            case .tab: "Window slot: Tabs"
+            case .left: "Window slot: Left"
+            case .right: "Window slot: Right"
+            case .top: "Window slot: Top"
+            case .bottom: "Window slot: Bottom"
+            case .middle: "Window slot: Swap"
+        }
+    }
+
+    var windowSlotDetail: String {
+        switch self {
+            case .tab: "Drop to add as a tab"
+            case .left, .right, .top, .bottom: "Drop to split this window"
+            case .middle: "Drop to swap with this window"
+        }
     }
 }
 

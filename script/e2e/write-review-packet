@@ -18,11 +18,19 @@ die() {
     exit 1
 }
 
+scrub_finder_metadata() {
+    find "$RUN_DIR" -name .DS_Store -delete
+    if command -v xattr >/dev/null 2>&1; then
+        xattr -cr "$RUN_DIR" 2>/dev/null || true
+    fi
+}
+
 [ -n "$RUN_DIR" ] || {
     usage >&2
     die "Missing artifact run directory"
 }
 [ -d "$RUN_DIR" ] || die "Artifact directory does not exist: $RUN_DIR"
+scrub_finder_metadata
 
 LOGS_DIR="${RUN_DIR}/logs"
 SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
@@ -152,6 +160,24 @@ expected_chip_lines() {
     /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ && $5 != "" { printf("- `%s`\n", $5) }' "$annotation_plan"
 }
 
+semantic_sample_checklist_lines() {
+    if [ ! -s "$sample_manifest" ]; then
+        printf '%s\n' "- no semantic sample manifest present"
+        return 0
+    fi
+    /usr/bin/awk -F'\t' '
+        $1 == "semantic" {
+            printf("- [ ] `%s` -> `%s` (%s)\n", $2, $5, $6)
+            found = 1
+        }
+        END {
+            if (!found) {
+                print "- no semantic sample rows present"
+            }
+        }
+    ' "$sample_manifest"
+}
+
 slice_specific_checks() {
     case "$recording_name" in
         slice-2-config-zones)
@@ -234,7 +260,7 @@ EOF
 - Reject logs-only proof, final-state-only proof, hidden command/error text, stale live-board text, a proof that omits the stale membership-change action, or any relaunch-persistence claim.
 EOF
             ;;
-        slice-5-sidebar-drag|*drag*)
+        slice-5-sidebar-drag)
             cat <<'EOF'
 - Confirm the source sidebar item, dragged proxy, pointer/path, highlighted target zone row/section, hover hold, release, and final placement are visible in full-frame action samples or in-drag screenshots.
 - Name the exact media file used to verify each drag beat: source pickup, proxy/path, hover highlight, release/drop, and final placement.
@@ -393,6 +419,53 @@ EOF
 - Reject logs-only proof, final-state-only proof, a missing demo cut, stale or unlisted sidecar artifacts, missing visible input/result cues, missing semantic contact-sheet panels, any Alt-key positive activation, unclear overlay/no-overlay contrast, any target that looks like a window or slot inside a zone, or any claim about new runtime behavior beyond Slice 24.
 EOF
             ;;
+        slice-26-zone-divider-drag)
+            cat <<'EOF'
+- Confirm the recording shows a zone-divider interaction, not a desktop window drag, not a sidebar drag, and not a mouse snap overlay proof.
+- Inspect the full video and the named media for each beat: `screenshots/02-divider-hover-slice-26.png`, `03-divider-pickup-slice-26.png`, `04-divider-drag-path-slice-26.png`, `05-divider-preview-slice-26.png`, `06-divider-release-slice-26.png`, and `07-after-divider-resize-slice-26.png`.
+- Confirm captions expose the expected user actions and command surface: `Config: [[zone-layouts]] columns left/main/right`, `Action: hover Work|Comms divider`, `Action: click and hold divider`, `Action: drag divider right`, `Action: preview Work grows; Comms shrinks`, `Action: release divider`, and `Run: winmux list-zones`.
+- Inspect `logs/slice-26-zone-divider-drag.event-manifest.tsv` and require separate rows for `divider-hover`, `divider-pickup`, `divider-drag-path`, `divider-live-preview`, `divider-release`, and `after-divider-resize`. Reject if any beat is collapsed into final placement.
+- Inspect `logs/slice-26-zone-divider-drag.mouse-events.tsv` and confirm the event ordering matches the manifest: hover, pickup, drag path, live preview, release, then post-resize inspection.
+- Inspect `logs/slice-26-zone-divider-drag.proof-manifest.tsv`; require `drag-target	snap-target	zone-divider`, `divider-policy	target	adjacent-zone-boundary`, and `divider-policy	config-persistence	no-config-rewrite`.
+- Require the proof manifest to distinguish the real boundary from the click point: it must include `divider-points	boundary	...` and `divider-points	hit-band-offset-pixels	8`.
+- Inspect `logs/winmux-app.log`; require `zoneDivider.start` and `zoneDivider.commit`, and reject if any `resize.start ... kind=zoneDivider` row appears.
+- Compare `logs/slice-26-zones-before.log` and `logs/slice-26-zones-after.log`: Work/main must grow, Comms/right must shrink, Reference/left must stay effectively unchanged, and Work/Comms must report runtime width override state.
+- Compare `logs/slice-26-windows-before.log` and `logs/slice-26-windows-after.log`: the same Reference, Work, and Comms window ids must stay attached to the same zone ids and workspaces.
+- Confirm the media itself shows the divider affordance and live preview. Logs, proof-manifest text, and final geometry alone are not enough.
+- State explicitly that Slice 26 proves adjacent-zone runtime width resizing via a draggable divider. It does not prove visual config persistence, snap-to-window behavior, grid/freeform layouts, or a settings UI.
+- Reject logs-only proof, final-state-only proof, missing pickup/path/preview/release frames, unclear target semantics, any target that appears to be a window/slot inside a zone, any config rewrite, and any review that accepts without naming the exact media file used for each divider beat.
+EOF
+            ;;
+        slice-27-window-slot-snap)
+            cat <<'EOF'
+- Confirm the recording shows two desktop drags of `snap-demo.rtf` inside Work/main with `target = 'window'`: first ordinary/no-secondary-button, then after reset with the secondary mouse button held.
+- Inspect the full video and named media for each beat: `screenshots/02-ordinary-pickup-slice-27.png`, `03-ordinary-hover-no-overlay-slice-27.png`, `04-reset-before-window-slot-slice-27.png`, `05-slot-pickup-slice-27.png`, `06-slot-path-slice-27.png`, `07-slot-hover-right-slice-27.png`, `08-slot-release-slice-27.png`, and `99-after-slice-27.png`.
+- Treat `08-slot-release-slice-27.png` as the release-boundary frame that should still show the active slot affordance. Treat `99-after-slice-27.png` as the separate post-drop placement proof.
+- Confirm captions expose the exact user-facing surface: `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='window'`, `Action: drag snap-demo.rtf inside Work with no secondary button`, `Run: winmux list-windows --monitor all`, `Action: reset snap-demo.rtf beside target-window.rtf`, `Action: hold secondary button while dragging snap-demo.rtf`, `Action: target = target-window.rtf right slot`, and `Action: release on window slot`.
+- Confirm the ordinary drag stays in Work/main as floating/freeform placement and has no window-slot overlay. It must not snap and must not move to Comms/right.
+- Confirm the positive drag targets `target-window.rtf`'s right slot, not the whole Work zone and not Comms/right. The actual product overlay in the hover video/screenshot must visibly read `Window slot: Right`; a harness label alone is not enough.
+- Inspect `logs/slice-27-window-slot-snap.proof-manifest.tsv`; require `drag-policy	target	window`, `drag-target	snap-target	window-slot`, `drag-target	not-snap-target	whole-zone`, `drag-target	window-title	target-window.rtf`, `drag-target	window-slot	right`, and `visual-floor	product-overlay-label	Window slot: Right`.
+- Inspect `logs/slice-27-window-slot-snap.overlay-sentinel.tsv`; require `target-semantics	window-slot`, `target-label	WINDOW SLOT TARGET: RIGHT`, `product-overlay-label	Window slot: Right`, ordinary and slot target-window crop paths, and a nonzero overlay RMSE.
+- Inspect `logs/slice-27-window-slot-snap.mouse-events.tsv`; require `snap-secondary-button-down`, `snap-secondary-button-held`, and `snap-secondary-button-up` in order around snap pickup, slot affordance, and release.
+- Compare `logs/slice-27-windows-before.log`, `logs/slice-27-windows-after-freeform.log`, `logs/slice-27-windows-after-reset.log`, and `logs/slice-27-windows-after-snap.log`: the source id must stay the same, the target id must stay the same, both must be in Work/main after the positive snap, and no whole-zone move to Comms/right may occur.
+- State explicitly that Slice 27 proves a window-slot snap target inside a zone. It does not prove arbitrary grid snapping, empty-space zone snapping, persistence, settings UI, or whole-zone target semantics.
+- Reject logs-only proof, final-state-only proof, missing drag affordances, missing release frame, unclear target semantics, any Comms/right final placement, any whole-zone overlay claim, any Alt-key positive activation, or any review that accepts without naming the exact media file used for each slot beat.
+EOF
+            ;;
+        slice-28-export-zone-layout)
+            cat <<'EOF'
+- Confirm the recording shows a runtime width change before export. The `Run: winmux resize-zone Work width +10%` caption must appear before the `Run: winmux export-zone-layout saved-ultrawide --monitor 1` caption.
+- Inspect the full video and named media for each beat: `screenshots/02-before-export-resize-slice-28.png`, `03-after-runtime-resize-slice-28.png`, `04-export-output-slice-28.png`, `05-config-check-slice-28.png`, and `06-final-state-slice-28.png`.
+- Confirm captions expose the exact user-facing surface: `Config: [[zone-layouts]] columns left/main/right`, `Run: winmux resize-zone Work width +10%`, `Run: winmux export-zone-layout saved-ultrawide --monitor 1`, `Run: winmux config --check slice-28-export-zone-layout.toml`, `Result: Config OK`, and `Result: unchanged`.
+- Inspect `logs/slice-28-export-zone-layout.toml`; require `[[zone-layouts]]`, `id = "saved-ultrawide"`, `default-zone = "main"`, and current runtime widths including Work/main at `0.6`.
+- Inspect `logs/slice-28-config-check.log`; require the exact `winmux config --check` command and `Config OK`.
+- Compare `logs/slice-28-config-before.sha256` and `logs/slice-28-config-after.sha256`; they must be identical.
+- Compare `logs/slice-28-zones-before.log` and `logs/slice-28-zones-after-resize.log`: Work/main must grow before export, side zones must shrink, and the after-resize log must show runtime width override state.
+- Compare `logs/slice-28-windows-before.log` and `logs/slice-28-windows-after.log`: the same Reference, Work, and Comms windows must stay attached to the same zones and workspaces; the export-output document may appear in Work/main.
+- State explicitly that Slice 28 proves read-only export of the current runtime column widths to pasteable TOML. It does not prove automatic config write-back, relaunch persistence, visual config editing, availability export, style export, scene export, or new divider behavior.
+- Reject output that exists only in logs and not in the video, stale configured widths instead of current effective widths, partial export while zones are hidden, copied config mutation, final-state-only proof, or any review that accepts without naming the exact media frame/panel showing the TOML output.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.
@@ -456,6 +529,7 @@ packet fills the artifact paths and slice-specific checks.
 - name: ${recording_name}
 - artifact directory: ${RUN_DIR}
 - review output: ${REVIEW_OUTPUT_PATH}
+- review lint command: make e2e-review-lint RUN_DIR=${RUN_DIR}
 - verifier command: make e2e-verify-slice-check RUN_DIR=${RUN_DIR} ARGS=--require-review
 - closeout command: make e2e-slice-closeout-check RUN_DIR=${RUN_DIR}
 
@@ -482,7 +556,7 @@ $(drag_screenshot_lines)
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
-- guest transport summary: ${transport_summary}
+- guest transport summary: ${transport_summary} (attempt statuses and compact failure reasons)
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
 - caption tail manifest: ${caption_tail_label}
@@ -505,6 +579,9 @@ $(drag_screenshot_lines)
 - ${REPO_ROOT}/demo2.mp4
 - ${REPO_ROOT}/demo3.mp4
 - ${REPO_ROOT}/demo-columnar-zones.mp4
+- ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.samples
+- ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/logs/root-demo.ffprobe.json
 - ${REPO_ROOT}/resources/screenshots/winmux-overview.png
 - ${REPO_ROOT}/resources/screenshots/tab-groups.png
 - ${REPO_ROOT}/README.md
@@ -519,10 +596,17 @@ EOF
 
 ## Expected Caption Chips
 
-These exact config, command, or action chips should appear in the annotated
+These exact config, command, action, or result chips should appear in the annotated
 recording and annotation TSV:
 
 $(expected_chip_lines)
+
+## Reviewer Citation Checklist
+
+The no-context review must cite every checked row by label or exact path. The
+machine review-lint gate rejects accepted reviews that omit these citations.
+
+$(semantic_sample_checklist_lines)
 
 ## Predicate-To-Media Table
 
@@ -537,6 +621,7 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
 | action before-state | caption boundary frame or semantic screenshot |
 | action in progress / command boundary | caption boundary frame, action screenshot, or drag proof frame |
 | standalone viewer comprehension | annotated recording and event contact sheet, before reading logs |
+| target semantics from video alone | hover/release frame, labeled overlay crop, semantic contact sheet panel, or \`not applicable\` |
 | event ordering | event manifest when present, plus matching caption boundary/action frames |
 | action after-state | caption sample/boundary frame and after screenshot |
 | final contamination check | full after screenshot plus final screenshot and near-end video edge/corner crops when present |
@@ -559,6 +644,9 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
   feature being demonstrated.
 - The visible behavior must match the logs. Logs can support the proof but cannot
   substitute for action visible in the video or sampled frames.
+- For drag, divider, or snap artifacts, answer: "Could a reviewer understand
+  target semantics from the video alone before reading logs?" Cite the exact
+  media path that proves the answer.
 - Compare content and style against the baseline media and product surfaces.
   Name the concrete baseline file or product page you checked. For columnar-zone
   demos, include \`${REPO_ROOT}/demo-columnar-zones.mp4\` unless the slice is

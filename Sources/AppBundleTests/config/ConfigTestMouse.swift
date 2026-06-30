@@ -27,7 +27,7 @@ extension ConfigTest {
             [mouse.zone-snap]
                 policy = 'float-unless-snap'
                 gesture = 'secondary-button-drag'
-                target = 'zone'
+                target = 'window'
             """,
         )
 
@@ -35,7 +35,7 @@ extension ConfigTest {
         XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
         XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
         XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.zoneSnap.target, .window)
     }
 
     func testMouseZoneSnapDefaultsForConciseConfig() {
@@ -106,6 +106,21 @@ extension ConfigTest {
         XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
     }
 
+    func testParseWindowSlotSnapE2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/window-slot-snap.toml"),
+            encoding: .utf8,
+        )
+
+        let (parsed, errors) = parseConfig(toml)
+
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.zoneSnap.target, .window)
+    }
+
     func testRejectInvalidMouseZoneSnapConfig() {
         let (_, errors) = parseConfig(
             """
@@ -113,7 +128,7 @@ extension ConfigTest {
                 policy = 'snap-to-window'
                 modifier = 'alt-unicorn'
                 gesture = 'swipe'
-                target = 'window'
+                target = 'slot'
             """,
         )
 
@@ -121,7 +136,7 @@ extension ConfigTest {
             "mouse.zone-snap.policy: Possible values: freeform, snap-on-modifier, snap-to-zone, float-unless-snap",
             "mouse.zone-snap.modifier: Unsupported modifier 'unicorn'. Possible values: alt, ctrl, cmd, shift, or '-' combinations like alt-shift",
             "mouse.zone-snap.gesture: Possible values: drag, secondary-button-drag",
-            "mouse.zone-snap.target: Possible values: zone",
+            "mouse.zone-snap.target: Possible values: zone, window",
         ]))
         XCTAssertEqual(errors.count, 4)
     }

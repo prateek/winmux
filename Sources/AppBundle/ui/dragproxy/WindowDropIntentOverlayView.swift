@@ -14,7 +14,7 @@ struct WindowDropIntentOverlayView: View {
                 Image(systemName: "rectangle.dashed")
                     .font(.system(size: wholeZoneIconSize, weight: .semibold))
                     .foregroundStyle(WindowIntentPreviewPalette.gridSymbol(isActive: true))
-                wholeZoneLabelBadge
+                labelBadge
                     .frame(
                         width: model.targetFrame.width,
                         height: model.targetFrame.height,
@@ -29,6 +29,12 @@ struct WindowDropIntentOverlayView: View {
                     .stroke(
                         WindowIntentPreviewPalette.gridLineStroke,
                         style: StrokeStyle(lineWidth: borderLineWidth, lineCap: .butt, lineJoin: .miter)
+                    )
+                labelBadge
+                    .frame(
+                        width: model.targetFrame.width,
+                        height: model.targetFrame.height,
+                        alignment: .topLeading
                     )
             }
 
@@ -60,7 +66,7 @@ struct WindowDropIntentOverlayView: View {
     }
 
     @ViewBuilder
-    private var wholeZoneLabelBadge: some View {
+    private var labelBadge: some View {
         if let label = model.label?.nonEmptyString {
             VStack(alignment: .leading, spacing: 4) {
                 Text(label)

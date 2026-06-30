@@ -78,16 +78,17 @@ Required checks:
    The primary recording should include legible, restrained demo captions when
    `preflight.log` says `annotate_recording=1`; confirm the captions explain the
    visible action without hiding the windows or making the artifact look generic.
-   The captions must also expose the user-facing WinMux config, command, or
-   action that corresponds to the visible step, such as `winmux reload-config`,
-   `winmux move-node-to-monitor Reference`, or the `[[zones]]` config surface.
-   Prefer explicit chips such as `Run: ...`, `Config: ...`, `Edit: ...`, or
-   `Action: ...`. When the slice proves a before/action/after transition, inspect
+   The captions must also expose the user-facing WinMux config, command, action,
+   or result that corresponds to the visible step, such as
+   `winmux reload-config`, `winmux move-node-to-monitor Reference`, or the
+   `[[zones]]` config surface. Prefer explicit chips such as `Run: ...`,
+   `Config: ...`, `Edit: ...`, `Action: ...`, or `Result: ...`. When the slice
+   proves a before/action/after transition, inspect
    generated boundary frames such as `caption-NN-boundary-before.png`,
    `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`.
    If the reviewer packet lists expected caption chips, compare those exact
    chips with the visible captions and annotation TSV. Missing or materially
-   incomplete command, config, or user-action chips are a failure.
+   incomplete command, config, user-action, or result chips are a failure.
    When a `Run:` caption's command output is not visible in the desktop video,
    prefer an adjacent compact `Result:` line in the annotation card. If the
    command is central to the proof and neither output nor a result line is
@@ -102,10 +103,19 @@ Required checks:
    Judge whether a new viewer could understand the user action and result from
    the annotated recording alone, before reading logs. If the video relies on
    logs for the core user story, FAIL or PASS_WITH_NOTES according to severity.
+   For drag, divider, or snap artifacts, answer this exact question in the
+   review body: "Could a reviewer understand target semantics from the video
+   alone before reading logs?" Cite the exact media path that proves the answer,
+   such as the hover frame, labeled overlay crop, release frame, or semantic
+   contact-sheet panel. If target semantics are only understandable from logs,
+   FAIL the review.
    If the reviewer packet lists a caption tail manifest, verify that any
    uncaptained tail beyond the allowed hold is explicitly declared intentional
    with a concrete reason and that near-end media/edge crops support the final
-   clean-state claim.
+   clean-state claim. When that long tail is trim-worthy, the reviewer packet
+   must also list `recordings/<recording>.demo.mov` and
+   `logs/<recording>.demo-cut.tsv`; absence of both requires an explicit
+   accepted exception in the packet.
    If the reviewer packet lists a trimmed demo cut, inspect it as the
    product-facing short version, then still inspect the full primary recording
    for acceptance evidence. The demo cut must not replace the full recording.
@@ -122,9 +132,11 @@ Required checks:
    guest control ready, guest privacy setup done, guest clean slate done, guest
    capture readiness succeeded, and guest screencapture produced the recording.
    If `logs/guest-transport-summary.tsv` exists, read it first and use it to
-   identify retry counts, failed transport attempts, final results, and whether
-   failures happened before recording. Retry noise before recording is not a
-   hard failure by itself, but missing final success or semantic proof failure is.
+   identify retry counts, per-attempt statuses, compact first/last failure
+   reasons, final results, and whether failures happened before recording.
+   Use the linked raw phase logs when a compact reason needs confirmation.
+   Retry noise before recording is not a hard failure by itself, but missing
+   final success or semantic proof failure is.
    If annotation is enabled, also verify the annotation log reports success, the
    caption plan exists, and the raw guest capture is preserved under
    `recordings/raw/`.
@@ -411,6 +423,82 @@ Slice-specific checks:
   overlay sentinel must still prove whole-zone target semantics. Reject Slice 25
   if any sidecar is stale, missing from the reviewer packet, or used as a
   substitute for inspecting the full acceptance video.
+- Slice 26 must show a draggable zone-divider interaction, not a desktop window
+  drag, sidebar drag, or mouse snap proof. Inspect the full video plus
+  `screenshots/02-divider-hover-slice-26.png`,
+  `03-divider-pickup-slice-26.png`, `04-divider-drag-path-slice-26.png`,
+  `05-divider-preview-slice-26.png`, `06-divider-release-slice-26.png`, and
+  `07-after-divider-resize-slice-26.png`. The review must name the media file
+  used for each beat: hover, pickup, drag path, live preview, release, and
+  post-release inspection. Inspect the sample manifest when present and cite
+  every `semantic` row by label or exact path, including `config-ready` and
+  `after-divider-resize`; the machine gate rejects reviews that only cite the
+  midpoint caption samples. Inspect
+  `logs/slice-26-zone-divider-drag.event-manifest.tsv`,
+  `logs/slice-26-zone-divider-drag.mouse-events.tsv`, and
+  `logs/slice-26-zone-divider-drag.proof-manifest.tsv`; require separate rows
+  for `divider-hover`, `divider-pickup`, `divider-drag-path`,
+  `divider-live-preview`, `divider-release`, and `after-divider-resize`, in
+  that order. The proof manifest must state `drag-target	snap-target	zone-divider`,
+  `divider-policy	target	adjacent-zone-boundary`, and
+  `divider-policy	config-persistence	no-config-rewrite`, and it must
+  distinguish the real boundary from the click point with
+  `divider-points	boundary	...` plus
+  `divider-points	hit-band-offset-pixels	8`. Inspect
+  `logs/winmux-app.log`; require `zoneDivider.start` and `zoneDivider.commit`,
+  and reject if `resize.start ... kind=zoneDivider` appears because that means
+  the demo also used native window resizing. Compare
+  `logs/slice-26-zones-before.log` and `logs/slice-26-zones-after.log`: Work
+  must grow, Comms must shrink, Reference must stay effectively unchanged, and
+  Work/Comms must report runtime width override state. Compare
+  `logs/slice-26-windows-before.log` and `logs/slice-26-windows-after.log`: the
+  same Reference, Work, and Comms window ids must stay attached to the same zone
+  ids and workspaces. Reject logs-only proof, final-state-only proof, missing
+  pickup/path/preview/release frames, unclear target semantics, any target that
+  appears to be a window or slot inside a zone, any config rewrite, and any
+  review that accepts without inspecting the actual media.
+- Slice 27 must show a desktop window-slot snap target, not a whole-zone target.
+  Inspect the full video plus `screenshots/02-ordinary-pickup-slice-27.png`,
+  `03-ordinary-hover-no-overlay-slice-27.png`,
+  `04-reset-before-window-slot-slice-27.png`, `05-slot-pickup-slice-27.png`,
+  `06-slot-path-slice-27.png`, `07-slot-hover-right-slice-27.png`,
+  `08-slot-release-slice-27.png`, and `99-after-slice-27.png`. The first drag
+  must be ordinary/no-secondary-button inside Work/main, must not show a
+  window-slot overlay, and must leave the source as floating in Work/main.
+  Treat `08-slot-release-slice-27.png` as the release-boundary frame with the
+  active slot affordance still visible, and `99-after-slice-27.png` as the
+  separate post-drop placement proof. The second drag must visibly hold the
+  secondary button, hover over
+  `target-window.rtf`'s right slot, show the actual product label
+  `Window slot: Right`, release on that slot, and keep the source and target
+  windows in Work/main. Inspect `logs/slice-27-window-slot-snap.proof-manifest.tsv`
+  and require `drag-policy	target	window`, `drag-target	snap-target	window-slot`,
+  `drag-target	not-snap-target	whole-zone`, `drag-target	window-title	target-window.rtf`,
+  `drag-target	window-slot	right`, and `visual-floor	product-overlay-label	Window slot: Right`.
+  Inspect `logs/slice-27-window-slot-snap.overlay-sentinel.tsv` and require
+  `target-semantics	window-slot`; this is supporting evidence, not a substitute
+  for seeing the product overlay in media. Reject any Comms/right final
+  placement, whole-zone overlay, Alt-key positive activation, missing release
+  frame, logs-only proof, or review that accepts without naming the exact media
+  used for ordinary pickup, slot hover, slot release, and final placement.
+- Slice 28 must show runtime layout export, not automatic persistence. Inspect
+  the full video plus `screenshots/02-before-export-resize-slice-28.png`,
+  `03-after-runtime-resize-slice-28.png`, `04-export-output-slice-28.png`,
+  `05-config-check-slice-28.png`, and `06-final-state-slice-28.png`. The
+  `resize-zone Work width +10%` command must visibly happen before
+  `export-zone-layout saved-ultrawide --monitor 1`, and the TOML output must be
+  visible in-frame, not only stored in logs. Inspect
+  `logs/slice-28-export-zone-layout.toml`; require `[[zone-layouts]]`,
+  `id = "saved-ultrawide"`, `default-zone = "main"`, and runtime widths with
+  Work/main at `0.6`. Inspect `logs/slice-28-config-check.log` and require
+  `Config OK`. Compare `logs/slice-28-config-before.sha256` and
+  `logs/slice-28-config-after.sha256`; they must match. Compare
+  `logs/slice-28-zones-before.log` and `logs/slice-28-zones-after-resize.log`
+  to confirm the export used current effective widths, not stale configured
+  widths. Reject logs-only TOML, final-state-only proof, copied config mutation,
+  hidden-zone partial export, relaunch persistence claims, and any review that
+  accepts without naming the exact media frame or semantic panel showing the
+  emitted TOML.
 - Slice 11C must show named zone availability sets with
   `use-zone-availability focus-only` and
   `use-zone-availability communications`. The proof must show Reference, Work,

@@ -7,6 +7,7 @@ func windowSurfaceDestination(
     mouseLocation: CGPoint,
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     let targetNode = dragIntentTargetNode(
         sourceWindow: sourceWindow,
@@ -49,5 +50,6 @@ func windowSurfaceDestination(
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     )
 }

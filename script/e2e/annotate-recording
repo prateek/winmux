@@ -58,6 +58,17 @@ asset_dir="${run_dir}/logs/${recording_name}.annotation-assets"
 mkdir -p "$asset_dir"
 rm -f "${asset_dir}/"*.png
 
+caption_footprint="${WINMUX_E2E_CAPTION_FOOTPRINT:-standard}"
+caption_anchor="${WINMUX_E2E_CAPTION_ANCHOR:-bottom-left}"
+case "$caption_footprint" in
+    standard|compact) ;;
+    *) die "Unsupported WINMUX_E2E_CAPTION_FOOTPRINT: $caption_footprint" ;;
+esac
+case "$caption_anchor" in
+    bottom-left|bottom-right|top-left|top-right) ;;
+    *) die "Unsupported WINMUX_E2E_CAPTION_ANCHOR: $caption_anchor" ;;
+esac
+
 margin=$((video_width / 34))
 if [ "$margin" -lt 72 ]; then margin=72; fi
 card_width=$((video_width * 54 / 100))
@@ -66,8 +77,6 @@ if [ "$card_width" -gt "$max_card_width" ]; then card_width="$max_card_width"; f
 card_height=$((video_height * 18 / 100))
 if [ "$card_height" -lt 190 ]; then card_height=190; fi
 if [ "$card_height" -gt 260 ]; then card_height=260; fi
-card_x="$margin"
-card_y=$((video_height - margin - card_height))
 badge_size=$((video_width / 118))
 title_size=$((video_width / 55))
 subtitle_size=$((video_width / 92))
@@ -76,6 +85,42 @@ if [ "$badge_size" -lt 22 ]; then badge_size=22; fi
 if [ "$title_size" -lt 40 ]; then title_size=40; fi
 if [ "$subtitle_size" -lt 25 ]; then subtitle_size=25; fi
 if [ "$command_size" -lt 22 ]; then command_size=22; fi
+if [ "$caption_footprint" = compact ]; then
+    margin=$((video_width / 44))
+    if [ "$margin" -lt 52 ]; then margin=52; fi
+    card_width=$((video_width * 42 / 100))
+    max_card_width=$((video_width - (margin * 2)))
+    if [ "$card_width" -gt "$max_card_width" ]; then card_width="$max_card_width"; fi
+    card_height=$((video_height * 14 / 100))
+    if [ "$card_height" -lt 200 ]; then card_height=200; fi
+    if [ "$card_height" -gt 220 ]; then card_height=220; fi
+    badge_size=$((video_width / 140))
+    title_size=$((video_width / 68))
+    subtitle_size=$((video_width / 112))
+    command_size=$((video_width / 130))
+    if [ "$badge_size" -lt 18 ]; then badge_size=18; fi
+    if [ "$title_size" -lt 32 ]; then title_size=32; fi
+    if [ "$subtitle_size" -lt 21 ]; then subtitle_size=21; fi
+    if [ "$command_size" -lt 19 ]; then command_size=19; fi
+fi
+case "$caption_anchor" in
+    bottom-left)
+        card_x="$margin"
+        card_y=$((video_height - margin - card_height))
+        ;;
+    bottom-right)
+        card_x=$((video_width - margin - card_width))
+        card_y=$((video_height - margin - card_height))
+        ;;
+    top-left)
+        card_x="$margin"
+        card_y="$margin"
+        ;;
+    top-right)
+        card_x=$((video_width - margin - card_width))
+        card_y="$margin"
+        ;;
+esac
 
 render_card() {
     local title="$1"
@@ -99,10 +144,29 @@ render_card() {
     local local_result_text_y=$((local_command_box_y1 + 63))
     local local_command_box_x1="$local_text_x"
     local local_command_box_x2=$((card_width - 32))
+    if [ "$caption_footprint" = compact ]; then
+        local_accent_x2=10
+        local_text_x=34
+        local_badge_y=32
+        local_title_y=76
+        local_subtitle_y=108
+        local_command_box_y1=$((card_height - 68))
+        local_command_box_y2=$((card_height - 16))
+        local_command_text_y=$((local_command_box_y1 + 32))
+        local_result_text_y=$((local_command_box_y1 + 58))
+        local_command_box_x1="$local_text_x"
+        local_command_box_x2=$((card_width - 28))
+    fi
     if [ -n "$result" ]; then
-        local_command_box_y1=$((card_height - 96))
-        local_command_text_y=$((local_command_box_y1 + 33))
-        local_result_text_y=$((local_command_box_y1 + 68))
+        if [ "$caption_footprint" = compact ]; then
+            local_command_box_y1=$((card_height - 84))
+            local_command_text_y=$((local_command_box_y1 + 29))
+            local_result_text_y=$((local_command_box_y1 + 57))
+        else
+            local_command_box_y1=$((card_height - 96))
+            local_command_text_y=$((local_command_box_y1 + 33))
+            local_result_text_y=$((local_command_box_y1 + 68))
+        fi
     fi
     escaped_title="$(magick_escape_text "$title")"
     escaped_subtitle="$(magick_escape_text "$subtitle")"
@@ -201,6 +265,8 @@ printf 'captions=%s\n' "$CAPTIONS_PATH"
 printf 'caption_count=%s\n' "$caption_count"
 printf 'width=%s\n' "$video_width"
 printf 'height=%s\n' "$video_height"
+printf 'caption_footprint=%s\n' "$caption_footprint"
+printf 'caption_anchor=%s\n' "$caption_anchor"
 printf 'card_width=%s\n' "$card_width"
 printf 'card_height=%s\n' "$card_height"
 printf 'result=success\n'

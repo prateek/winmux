@@ -1,3 +1,4 @@
+import CoreGraphics
 import Common
 
 struct ZoneListRow {
@@ -150,6 +151,10 @@ extension String {
                     case .windowIsFullscreen: .success(.bool(w.isFullscreen))
                     case .windowTitle: .success(.string(title))
                     case .windowLayout, .windowParentContainerLayout: toLayoutResult(w: w)
+                    case .windowLeft: .success(.string(w.formatWindowRectValue(\.topLeftX)))
+                    case .windowTop: .success(.string(w.formatWindowRectValue(\.topLeftY)))
+                    case .windowWidth: .success(.string(w.formatWindowRectValue(\.width)))
+                    case .windowHeight: .success(.string(w.formatWindowRectValue(\.height)))
                 }
             case (.workspace(let w), .workspace(let f)):
                 return switch f {
@@ -258,5 +263,13 @@ private func toLayoutResult(w: Window) -> Result<Primitive, String> {
 
         case .rootTilingContainer: .failure("Not possible")
         case .shimContainerRelation: .failure("Window cannot have a shim container relation")
+    }
+}
+
+extension Window {
+    @MainActor
+    fileprivate func formatWindowRectValue(_ keyPath: KeyPath<Rect, CGFloat>) -> String {
+        guard let rect = lastKnownActualRect ?? lastAppliedLayoutPhysicalRect else { return "" }
+        return rect[keyPath: keyPath].description
     }
 }

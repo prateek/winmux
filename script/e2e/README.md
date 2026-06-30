@@ -74,6 +74,10 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-25` records the mouse-demo artifact contract with the same secondary-button gesture configuration. It exists to prove the hardened artifact shape: visible input-state cue, command result chips, semantic summary contact sheet, zoomed whole-zone crop, event manifest, mouse event timings, and trimmed `.demo.mov` sidecar while preserving the full acceptance recording.
 
+`make e2e-slice-26` records draggable zone dividers with `script/e2e/configs/zone-divider-drag.toml` and `script/e2e/guest/slice-26-zone-divider-drag.sh`. The proof stages Reference, Work, and Comms windows, hovers and drags the Work/Comms divider, then verifies Work grows, Comms shrinks, Reference stays unchanged, window/workspace assignments stay attached, and the config file is not rewritten. The verifier requires hover, pickup, drag-path, live-preview, release, and post-release inspection media plus event and proof manifests.
+
+`make e2e-slice-28` records runtime layout export with the same three-zone layout fixture and `script/e2e/guest/slice-28-export-zone-layout.sh`. The proof resizes Work at runtime, runs `winmux export-zone-layout saved-ultrawide --monitor 1`, shows the emitted `[[zone-layouts]]` TOML in the guest recording, validates it with `winmux config --check`, and verifies the copied `config/winmux.toml` checksum is unchanged.
+
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
 `make e2e-slice-12` records desktop mouse zone snapping with `script/e2e/configs/zone-mouse-snap.toml`. The setup phase stages visible Reference, Work, and Comms documents, focuses `snap-demo.rtf` in Work, and captures `01-ready-slice-12.png`. The proof first drags the desktop window without Alt to demonstrate no whole-zone snap and no zone move, then resets the same window and drags with Alt held to show a whole Comms-zone overlay and final movement into Comms/right. The pre-Tart gate includes the mouse config parser tests and `WindowZoneSnapPolicyTest`. The verifier checks the `[mouse.zone-snap]` config, negative and positive drag logs, unchanged source window id, whole-zone target semantics, per-beat drag screenshots, semantic sample labels, and exact action/config caption chips.
@@ -113,7 +117,7 @@ make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timesta
 
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
-Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests guest mouse-event log emission and guest transport warm-up policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear. Product slice targets allocate the run directory before the gate and save this output to `logs/pre-tart-checks.log`, so the accepted artifact includes the exact host-side validation transcript.
+Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests guest mouse-event log emission and guest transport warm-up/retry summary policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear. Product slice targets allocate the run directory before the gate and save this output to `logs/pre-tart-checks.log`, so the accepted artifact includes the exact host-side validation transcript.
 
 After a run, use the mechanical verifier before spawning the no-context reviewer:
 
@@ -122,6 +126,16 @@ make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-N-<timestamp>
 ```
 
 After the review file exists, rerun the non-mutating checker with `ARGS=--require-review`. The verifier checks required media, strict guest capture, duration, ultrawide resolution, clean-slate logs, capture logs, generated sample frames, the sample manifest, and the contact sheet. Reload scenarios also verify immutable config hashes when preflight recorded them. It is a tripwire; the no-context reviewer still inspects the media and product fit.
+
+Use the cheap review lint before the full post-review verifier when a review is
+freshly written:
+
+```bash
+make e2e-review-lint RUN_DIR=artifacts/e2e/slice-N-<timestamp>
+```
+
+This validates the review verdict, freshness, baseline citations, and every
+semantic sample citation listed in `logs/<recording>.sample-manifest.tsv`.
 
 For report-only checks, use the non-mutating verifier:
 
@@ -134,7 +148,9 @@ When preserving closeout evidence would help future audits, tee that command to
 an artifact log such as `logs/post-review-verify.log`; do not replace the
 rerunnable verifier with the saved transcript.
 
-When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command/action chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
+When annotation is enabled, the verifier also checks that the annotation log, caption plan, and raw preserved capture exist, and that every caption row has a command, action, config, or result chip. The no-context reviewer should inspect the annotated video as the primary artifact and use the raw capture only to debug capture or overlay problems.
+
+Dense desktop proofs can use smaller caption cards so labels do not cover target windows, slot affordances, measured geometry, or visible command output. The annotator accepts `WINMUX_E2E_CAPTION_FOOTPRINT=standard|compact` and `WINMUX_E2E_CAPTION_ANCHOR=bottom-left|bottom-right|top-left|top-right`; Slice 26, Slice 27, and Slice 28 recordings default to `compact` through the harness.
 
 Caption-boundary frames use the names `caption-NN-boundary-before.png`,
 `caption-NN-boundary-start.png`, and `caption-NN-boundary-end.png`.
@@ -167,8 +183,16 @@ instead of regenerating them.
 When an annotated recording keeps a long uncaptained verification tail,
 `recordings/<recording>.demo.mov` is a trimmed product-facing sidecar and
 `logs/<recording>.demo-cut.tsv` records its source and trim point. The full
-recording remains the acceptance artifact; the demo cut is only the shorter
-viewer path.
+recording remains the acceptance artifact; the demo cut is the shorter viewer
+path. If the tail exceeds `WINMUX_E2E_CAPTION_TAIL_MAX_SECONDS` and trimming
+would produce a meaningfully shorter demo, the verifier requires the demo-cut
+sidecar and manifest.
+
+Drag, divider, and snap reviews must answer whether the target semantics are
+understandable from the video before reading logs. The answer must cite exact
+media, such as the hover frame, release frame, labeled overlay crop, or semantic
+contact-sheet panel. Review lint rejects accepted reviews that omit the
+`target-semantics` value or its media path when an overlay sentinel declares one.
 
 Slices that prove visible color or style preservation should also write `logs/<recording>.color-sentinel.tsv`. Each non-comment row is tab-separated:
 
@@ -181,10 +205,12 @@ The screenshot path is run-relative. The verifier crops the region and requires 
 Caption plans use tab-separated fields:
 
 ```text
-start_seconds	end_seconds	title	subtitle	command_or_action
+start_seconds	end_seconds	title	subtitle	command_or_action	result_line
 ```
 
 The final field should be concrete and user-facing, for example `Run: winmux move-node-to-monitor Reference`, `Run: winmux reload-config`, `Config: [[zones]]`, `Action: drag sidebar item move-demo.rtf`, or `Action: hover over Comms zone target`. Avoid internal harness commands unless the slice is specifically proving the harness.
+The optional sixth field is for compact result evidence such as
+`Result: Work 1688 -> 1941; Comms 844 -> 591`.
 
 Before guest capture, the harness prepares the disposable guest:
 
@@ -195,7 +221,7 @@ Before guest capture, the harness prepares the disposable guest:
 
 Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` inside the guest. Debug bare-executable launches also pass `WINMUX_DEFAULT_CONFIG_PATH` so SwiftUI settings initialization can parse the staged config before the app reloads `--config-path`. `WINMUX_E2E_STARTUP_TRACE` writes startup milestones to `logs/winmux-startup-trace.log`.
 
-Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. On final guest action failure, the harness writes `logs/run-abort-status.txt` with phase, exit code, primary log, whether recording had started, and whether setup had completed. The harness also warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts. Each run writes `logs/guest-transport-summary.tsv` with phase, log path, attempt count, failure count, final result, and whether the phase happened before recording.
+Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. On final guest action failure, the harness writes `logs/run-abort-status.txt` with phase, exit code, primary log, whether recording had started, and whether setup had completed. The harness also warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts. Each run writes `logs/guest-transport-summary.tsv` with phase, log path, attempt count, failure count, final result, whether the phase happened before recording, compact per-attempt statuses, and compact first/last failure reasons. The summary links the raw phase log for the full failure detail.
 
 If a run produces media but is later replaced before acceptance, mark it
 superseded instead of leaving it as an ambiguous unreviewed artifact:
@@ -220,9 +246,9 @@ Drag proofs must include `logs/<recording>.proof-manifest.tsv`. If fixed JXA poi
 
 Slice 0 and later slices should fail or be re-recorded if screenshots or video show permission prompts, `sshd` prompts, unrelated app windows, widgets, notification banners, boot screens, or setup screens after capture begins.
 
-After each slice run, spawn a no-context artifact reviewer before starting the next slice. Give the reviewer `reviews/reviewer-packet.md` plus `script/e2e/prompts/no-context-artifact-review.md`; the packet supplies the slice goal placeholders, media, logs, local baseline media (`demo.mp4`, `demo2.mp4`, `demo3.mp4`, and `resources/screenshots/*.png`), product surfaces, and verifier command. The reviewer writes `reviews/no-ctx-artifact-review.md` inside the artifact directory and must end with `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
+After each slice run, spawn a no-context artifact reviewer before starting the next slice. Give the reviewer `reviews/reviewer-packet.md` plus `script/e2e/prompts/no-context-artifact-review.md`; the packet supplies the slice goal placeholders, media, logs, local baseline media (`demo.mp4`, `demo2.mp4`, `demo3.mp4`, and `resources/screenshots/*.png`), product surfaces, and verifier command. The reviewer writes `reviews/no-ctx-artifact-review.md` inside the artifact directory. Its first nonblank line must start with `PASS:`, `PASS_WITH_NOTES:`, or `FAIL:`, and its final line must be exactly `next slice allowed: yes` or `next slice allowed: no`.
 
-Only `PASS` or `PASS_WITH_NOTES` lets the next gate start. Hard failures such as unclean desktop state, permission prompts, sshd prompts, unrelated windows, host-only product recordings, missing live behavior, or uninspected video frames require a fix and re-recording.
+Only `PASS:` or `PASS_WITH_NOTES:` with final line `next slice allowed: yes` lets the next gate start. Hard failures such as unclean desktop state, permission prompts, sshd prompts, unrelated windows, host-only product recordings, missing live behavior, or uninspected video frames require a fix and re-recording.
 
 After an accepted artifact review, run the three-agent retrospection gate in `script/e2e/prompts/no-context-retrospection.md`. Bake accepted blocking findings into the next slice's pre-slice cleanup checklist before running the next Tart scenario.
 

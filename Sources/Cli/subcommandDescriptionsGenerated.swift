@@ -20,6 +20,7 @@ let subcommandDescriptions = [
     ["  palette", "Toggle the window switcher palette (fuzzy-search all windows)"],
     ["  enable", "Temporarily enable or disable WinMux"],
     ["  enable-zone", "Restore a temporarily hidden configured zone"],
+    ["  export-zone-layout", "Print a TOML zone layout preset from current runtime widths"],
     ["  flatten-workspace-tree", "Flatten the tree of the focused workspace"],
     ["  focus-back-and-forth", "Switch between the current and previously focused elements back and forth"],
     ["  focus-monitor", "Focus monitor by relative direction, by order, or by pattern"],

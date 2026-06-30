@@ -6,12 +6,14 @@ func currentWindowSurfaceDestination(
     mouseLocation: CGPoint,
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     if let selfTabDestination = selfTabGroupSurfaceDestination(
         sourceWindow: sourceWindow,
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     ) {
         return selfTabDestination
     }
@@ -44,6 +46,7 @@ func currentWindowSurfaceDestination(
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     )
 }
 
@@ -53,6 +56,7 @@ private func selfTabGroupSurfaceDestination(
     mouseLocation: CGPoint,
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     guard subject == .window,
           detachOrigin == .tabStrip,
@@ -76,6 +80,7 @@ private func selfTabGroupSurfaceDestination(
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     )
 }
 

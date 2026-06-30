@@ -24,8 +24,25 @@ struct ConfigCommand: Command {
                 return io.out(allKeys.joined(separator: "\n"))
             case .configPath:
                 return io.out(configUrl.absoluteURL.path)
+            case .check(let path):
+                return checkConfig(path: path, io: io)
         }
     }
+}
+
+@MainActor private func checkConfig(path: String, io: CmdIo) -> Bool {
+    let url = URL(filePath: path)
+    let text: String
+    do {
+        text = try String(contentsOf: url, encoding: .utf8)
+    } catch {
+        return io.err("Can't read config file '\(path)': \(error.localizedDescription)")
+    }
+    let errors = parseConfig(text).errors
+    guard errors.isEmpty else {
+        return io.err(errors.map(\.description).joined(separator: "\n"))
+    }
+    return io.out("Config OK: \(url.path)")
 }
 
 extension String {

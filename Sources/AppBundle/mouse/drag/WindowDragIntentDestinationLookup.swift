@@ -32,6 +32,23 @@ func currentWindowDragIntentDestination(
     ) {
         case .use(let destination):
             return destination
+        case .allowWindowDestinationsOnly:
+            return currentWindowSurfaceDestinationIfAllowed(
+                sourceWindow: sourceWindow,
+                mouseLocation: mouseLocation,
+                subject: subject,
+                detachOrigin: detachOrigin,
+                targetWorkspace: targetWorkspace,
+                sourceWorkspace: sourceWorkspace,
+                allowSameWorkspaceWithoutOption: true,
+                labelWindowSlot: true,
+            ) ?? currentStickyWindowDragIntentDestination(
+                sourceWindow: sourceWindow,
+                mouseLocation: mouseLocation,
+                subject: subject,
+                detachOrigin: detachOrigin,
+                labelWindowSlot: true,
+            )
         case .suppressDefaultDestinations:
             return nil
         case .allowDefaultDestinations:
@@ -89,8 +106,11 @@ private func currentWindowSurfaceDestinationIfAllowed(
     detachOrigin: TabDetachOrigin,
     targetWorkspace: Workspace,
     sourceWorkspace: Workspace?,
+    allowSameWorkspaceWithoutOption: Bool = false,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     let canOfferWindowSurfaceIntent = if targetWorkspace == sourceWorkspace {
+        allowSameWorkspaceWithoutOption ||
         shouldAllowSameWorkspaceWindowSurfaceIntent(
             subject: subject,
             detachOrigin: detachOrigin,
@@ -105,6 +125,7 @@ private func currentWindowSurfaceDestinationIfAllowed(
         mouseLocation: mouseLocation,
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     )
 }
 

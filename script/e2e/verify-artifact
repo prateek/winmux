@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 MOUSE_DRAG_EVENT_SPEC="${SCRIPT_DIR}/specs/mouse-drag-events.tsv"
 REQUIRE_REVIEW=0
+REVIEW_LINT=0
 CHECK_ONLY=0
 CHECK_SIBLING_ARTIFACTS=0
 SELF_TEST=0
@@ -12,12 +13,15 @@ RUN_DIR=""
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [--check-only] [--require-review] [--check-sibling-artifacts] <artifact-run-dir>
+       $(basename "$0") --review-lint <artifact-run-dir>
        $(basename "$0") --self-test
 
 Checks media, guest-control logs, clean-slate logs, and optional review verdict
 for a WinMux Tart e2e artifact directory.
 
 --check-only validates existing files without generating samples or reviewer packets.
+--review-lint validates the review verdict, freshness, and semantic citations without
+              running the full media verifier.
 --check-sibling-artifacts rejects same-slice media artifacts that are neither accepted nor superseded.
 --self-test runs verifier helper tests without requiring a Tart artifact.
 EOF
@@ -47,6 +51,23 @@ zone_log_value() {
             for (i = 1; i <= NF; i++) {
                 if (index($i, key "=") == 1) {
                     print substr($i, length(key) + 2)
+                    exit
+                }
+            }
+        }
+    ' "$path"
+}
+
+toml_width_for_zone() {
+    local path="$1"
+    local zone="$2"
+    /usr/bin/awk -v zone="$zone" '
+        index($0, "id = \"" zone "\"") > 0 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "width" && (i + 2) <= NF) {
+                    value = $(i + 2)
+                    gsub(/[^0-9.]/, "", value)
+                    print value
                     exit
                 }
             }
@@ -439,11 +460,68 @@ EOF
     require_event_sample_label "$event_manifest" set-command-start set-policy-command-start
     require_event_before "$event_manifest" set-command-start snap-first-affordance \
         "Event manifest self-test expected command before overlay"
+    local path_kind_manifest="${tmp_dir}/path-kind-events.tsv"
+    cat >"$path_kind_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+explicit-screenshot	drag	1.000	caption-01	pickup	screenshots/05-slot-pickup-slice-27.png	pickup screenshot
+sample-start	command	2.000	caption-02	command-start	screenshots/demo.samples/caption-02-boundary-start.png	start sample
+sample-end	command	3.000	caption-02	command-end	screenshots/demo.samples/caption-02-boundary-end.png	end sample
+no-path	drag	4.000	caption-03	-	-	no concrete media
+EOF
+    require_event_path_kind "$path_kind_manifest" slice-27 explicit-screenshot screenshot '05-slot-pickup-{slice}.png'
+    require_event_path_kind "$path_kind_manifest" slice-27 sample-start sample-start '-'
+    require_event_path_kind "$path_kind_manifest" slice-27 sample-end sample-end '-'
+    require_event_path_kind "$path_kind_manifest" slice-27 no-path none '-'
+    if ( require_event_path_kind "$path_kind_manifest" slice-27 explicit-screenshot sample-start '-' ) >/dev/null 2>&1; then
+        die "Event path-kind self-test expected screenshot-as-sample-start rejection"
+    fi
+    if ( require_event_path_kind "$path_kind_manifest" slice-27 no-path screenshot '05-slot-pickup-{slice}.png' ) >/dev/null 2>&1; then
+        die "Event path-kind self-test expected missing screenshot path rejection"
+    fi
+
+    local review_packet="${tmp_dir}/reviewer-packet.md"
+    local expected_chips_self_test="${tmp_dir}/expected-chips.txt"
+    local caption_manifest_self_test="${tmp_dir}/caption-proof.tsv"
+    cat >"$review_packet" <<'EOF'
+## Expected Caption Chips
+
+- `Config: self-test policy`
+- `Action: self-test drag`
+- `Action: manifest caption`
+EOF
+    cat >"$expected_chips_self_test" <<'EOF'
+Config: self-test policy
+Action: self-test drag
+EOF
+    cat >"$caption_manifest_self_test" <<'EOF'
+caption	chip	Action: manifest caption
+EOF
+    require_review_packet_lines_from_file \
+        "$review_packet" \
+        "$expected_chips_self_test" \
+        "self-test expected caption chip"
+    require_review_packet_manifest_caption_chips \
+        "$review_packet" \
+        "$caption_manifest_self_test"
+
+    printf 'Action: missing chip\n' >>"$expected_chips_self_test"
+    if ( require_review_packet_lines_from_file "$review_packet" "$expected_chips_self_test" "self-test expected caption chip" ) >/dev/null 2>&1; then
+        die "Review packet self-test expected missing expected-chip rejection"
+    fi
+    cat >"$caption_manifest_self_test" <<'EOF'
+caption	chip	Action: missing manifest caption
+EOF
+    if ( require_review_packet_manifest_caption_chips "$review_packet" "$caption_manifest_self_test" ) >/dev/null 2>&1; then
+        die "Review packet self-test expected missing proof-manifest caption rejection"
+    fi
 
     local old_logs_dir="${LOGS_DIR:-}"
+    local old_screenshots_dir="${SCREENSHOTS_DIR:-}"
     local old_recording_name="${recording_name:-}"
     LOGS_DIR="$tmp_dir"
+    SCREENSHOTS_DIR="${tmp_dir}/screenshots"
     recording_name="self-test-mouse"
+    mkdir -p "$SCREENSHOTS_DIR"
     local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
     local mouse_event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
     cat >"$mouse_events" <<'EOF'
@@ -461,9 +539,44 @@ EOF
 float-drag-start	drag	11.111	caption-02	freeform-pickup	-	freeform drag starts
 snap-drag-start	drag	18.222	caption-05	snap-pickup	-	snap drag starts
 snap-first-affordance	overlay	20.333	caption-07	snap-hover-comms	-	whole-zone overlay visible
+snap-release	drag	20.900	caption-08	snap-release	screenshots/release.png	snap release
 EOF
     require_event_manifest_matches_mouse_events "$mouse_event_manifest" \
         float-drag-start snap-drag-start snap-first-affordance
+    local proof_image
+    for proof_image in pickup.png path.png hover.png release.png; do
+        magick -size 800x450 plasma:fractal "${SCREENSHOTS_DIR}/${proof_image}"
+    done
+    printf '0\t1\t2\t3\tAction: proof drag\n' >"$annotation_plan"
+    local drag_proof_manifest="${tmp_dir}/drag-proof.tsv"
+    cat >"$drag_proof_manifest" <<'EOF'
+drag-source	title	snap-demo.rtf
+drag-target	zone-id	main
+drag-target	zone-name	Work
+drag-target	snap-target	window-slot
+drag-target	not-snap-target	whole-zone
+drag-points	source	10,10
+drag-points	target	20,20
+drag-points	target-hover-hold-seconds	3.0
+drag-points	coordinate-policy	derived-from-list-windows:self-test
+drag-screenshots	pickup	pickup.png
+drag-screenshots	path	path.png
+drag-screenshots	hover	hover.png
+drag-screenshots	release	release.png
+visual-floor	required-frames	source proxy path overlay
+caption	chip	Action: proof drag
+EOF
+    require_drag_proof_manifest "$drag_proof_manifest"
+    cat >"$mouse_event_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-start	drag	11.111	caption-02	freeform-pickup	-	freeform drag starts
+snap-drag-start	drag	18.222	caption-05	snap-pickup	-	snap drag starts
+snap-first-affordance	overlay	20.333	caption-07	snap-hover-comms	-	whole-zone overlay visible
+snap-release	drag	20.900	caption-08	snap-release	screenshots/not-release.png	wrong release path
+EOF
+    if ( require_drag_proof_manifest "$drag_proof_manifest" ) >/dev/null 2>&1; then
+        die "Drag proof self-test expected release event path mismatch rejection"
+    fi
     local secondary_input_proof="${tmp_dir}/secondary-input-proof.tsv"
     cat >"$secondary_input_proof" <<'EOF'
 drag-policy	configured-modifier	alt
@@ -528,6 +641,7 @@ EOF
         die "Mouse event self-test expected missing snap-first-affordance manifest rejection"
     fi
     LOGS_DIR="$old_logs_dir"
+    SCREENSHOTS_DIR="$old_screenshots_dir"
     recording_name="$old_recording_name"
 
     local legacy_review="${tmp_dir}/legacy-pass-review.md"
@@ -548,6 +662,123 @@ EOF
     if review_is_accepted "$fail_review"; then
         die "Review verdict self-test expected FAIL rejection"
     fi
+    local semantic_manifest="${tmp_dir}/sample-manifest.tsv"
+    local missing_semantic_review="${tmp_dir}/missing-semantic-review.md"
+    local cited_semantic_review="${tmp_dir}/cited-semantic-review.md"
+    cat >"$semantic_manifest" <<'EOF'
+semantic	config-ready	caption-01	0.100	screenshots/demo.samples/caption-01-boundary-start.png	config is visible
+semantic	after-state	caption-02	2.000	screenshots/after.png	after state is visible
+EOF
+    printf 'PASS: review without semantic citations\n\nnext slice allowed: yes\n' >"$missing_semantic_review"
+    cat >"$cited_semantic_review" <<'EOF'
+PASS: review with semantic citations
+
+- `config-ready` -> `screenshots/demo.samples/caption-01-boundary-start.png`
+- `after-state` -> `screenshots/after.png`
+
+next slice allowed: yes
+EOF
+    if ( require_review_mentions_semantic_samples "$missing_semantic_review" "$semantic_manifest" ) >/dev/null 2>&1; then
+        die "Review semantic citation self-test expected missing citations to fail"
+    fi
+    require_review_mentions_semantic_samples "$cited_semantic_review" "$semantic_manifest" \
+        || die "Review semantic citation self-test expected cited labels/paths to pass"
+
+    local target_semantics_manifest="${tmp_dir}/target-semantics.tsv"
+    local missing_target_semantics_review="${tmp_dir}/missing-target-semantics-review.md"
+    local cited_target_semantics_review="${tmp_dir}/cited-target-semantics-review.md"
+    cat >"$target_semantics_manifest" <<'EOF'
+# label	value	minimum	path	note
+target-semantics	window-slot		screenshots/slot-hover.png	snap target is a window slot
+target-label	WINDOW SLOT TARGET: RIGHT		screenshots/slot-crop.png	labeled window-slot crop
+EOF
+    printf 'PASS: review without target semantics\n\nnext slice allowed: yes\n' >"$missing_target_semantics_review"
+    cat >"$cited_target_semantics_review" <<'EOF'
+PASS: review with target semantics
+
+- Target semantics: window-slot, cited by `screenshots/slot-hover.png`.
+
+next slice allowed: yes
+EOF
+    if ( require_review_mentions_target_semantics "$missing_target_semantics_review" "$target_semantics_manifest" ) >/dev/null 2>&1; then
+        die "Review target-semantics self-test expected missing semantics to fail"
+    fi
+    require_review_mentions_target_semantics "$cited_target_semantics_review" "$target_semantics_manifest" \
+        || die "Review target-semantics self-test expected semantics/path citation to pass"
+
+    local transport_logs_dir="${tmp_dir}/logs"
+    local transport_summary_new="${tmp_dir}/transport-new.tsv"
+    local transport_summary_bad_reason="${tmp_dir}/transport-bad-reason.tsv"
+    local transport_summary_legacy="${tmp_dir}/transport-legacy.tsv"
+    mkdir -p "$transport_logs_dir"
+    printf 'attempt=1\nssh transport failed\nprobe_result=failure\nattempt=2\nprobe_result=success\nresult=success\n' \
+        >"${transport_logs_dir}/warmup.log"
+    cat >"$transport_summary_new" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason
+warmup-before-privacy	logs/warmup.log	2	1	success	yes	failure,success	ssh transport failed	ssh transport failed
+EOF
+    require_transport_summary_phase "$transport_summary_new" warmup-before-privacy success yes
+    cat >"$transport_summary_bad_reason" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason
+warmup-before-privacy	logs/warmup.log	2	1	success	yes	success	-	-
+EOF
+    if ( require_transport_summary_phase "$transport_summary_bad_reason" warmup-before-privacy success yes ) >/dev/null 2>&1; then
+        die "Transport summary self-test expected missing compact failure reasons to fail"
+    fi
+    cat >"$transport_summary_legacy" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording
+warmup-before-privacy	logs/warmup.log	2	1	success	yes
+EOF
+    require_transport_summary_phase "$transport_summary_legacy" warmup-before-privacy success yes
+
+    local old_prefight_log="${PREFLIGHT_LOG:-}"
+    local old_recordings_dir="${RECORDINGS_DIR:-}"
+    local tail_logs_dir="${tmp_dir}/tail-logs"
+    local tail_recordings_dir="${tmp_dir}/tail-recordings"
+    mkdir -p "$tail_logs_dir" "$tail_recordings_dir"
+    LOGS_DIR="$tail_logs_dir"
+    RECORDINGS_DIR="$tail_recordings_dir"
+    PREFLIGHT_LOG="${tmp_dir}/tail-preflight.log"
+    annotation_plan="${tmp_dir}/tail-annotations.tsv"
+    printf 'caption_tail_policy_required=1\n' >"$PREFLIGHT_LOG"
+    printf '0\t10\tcaption\tcaption\tAction: self-test\n' >"$annotation_plan"
+    cat >"${tail_logs_dir}/tail-demo.caption-tail.tsv" <<'EOF'
+recording	tail-demo
+duration-seconds	40.000
+last-caption-end-seconds	10.000
+tail-seconds	30.000
+max-tail-seconds	3
+intentional-uncaptioned-tail	yes
+reason	self-test long tail
+EOF
+    if ( require_caption_tail_manifest tail-demo 40.000 ) >/dev/null 2>&1; then
+        die "Caption tail self-test expected missing demo-cut sidecar rejection"
+    fi
+    printf 'demo cut manifest\n' >"${tail_logs_dir}/tail-demo.demo-cut.tsv"
+    printf 'demo movie\n' >"${tail_recordings_dir}/tail-demo.demo.mov"
+    require_caption_tail_manifest tail-demo 40.000
+    PREFLIGHT_LOG="$old_prefight_log"
+    RECORDINGS_DIR="$old_recordings_dir"
+    LOGS_DIR="$old_logs_dir"
+    annotation_plan="$old_annotation_plan"
+
+    local metadata_dir="${tmp_dir}/metadata"
+    mkdir -p "$metadata_dir"
+    RUN_DIR="$metadata_dir"
+    touch "${metadata_dir}/.DS_Store"
+    if ( require_no_finder_metadata ) >/dev/null 2>&1; then
+        die "Finder metadata self-test expected .DS_Store rejection"
+    fi
+    rm -f "${metadata_dir}/.DS_Store"
+    printf 'artifact\n' >"${metadata_dir}/artifact.txt"
+    if command -v xattr >/dev/null 2>&1 \
+        && xattr -w com.winmux.test value "${metadata_dir}/artifact.txt" 2>/dev/null; then
+        if ( require_no_finder_metadata ) >/dev/null 2>&1; then
+            die "Finder metadata self-test expected xattr rejection"
+        fi
+        xattr -c "${metadata_dir}/artifact.txt" 2>/dev/null || true
+    fi
+    require_no_finder_metadata
     RUN_DIR="$old_run_dir"
     annotation_plan="$old_annotation_plan"
     recording_path="$old_recording_path"
@@ -558,6 +789,12 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --require-review)
             REQUIRE_REVIEW=1
+            shift
+            ;;
+        --review-lint)
+            REVIEW_LINT=1
+            REQUIRE_REVIEW=1
+            CHECK_ONLY=1
             shift
             ;;
         --check-only)
@@ -623,10 +860,14 @@ file_sha256() {
     shasum -a 256 "$1" | awk '{ print $1 }'
 }
 
-require_no_ds_store() {
+require_no_finder_metadata() {
     local found
-    found="$(find "$RUN_DIR" -name .DS_Store -print -quit)"
+    found="$(find "$RUN_DIR" \( -name .DS_Store -o -name '._*' -o -name .localized -o -name 'Icon?' \) -print -quit)"
     [ -z "$found" ] || die "Artifact contains Finder metadata: $found"
+    if command -v xattr >/dev/null 2>&1; then
+        found="$(xattr -lr "$RUN_DIR" 2>/dev/null | /usr/bin/awk -F': ' 'NF >= 2 && $2 != "com.apple.provenance" { print $1 ": " $2; exit }')"
+        [ -z "$found" ] || die "Artifact contains non-portable extended attributes: $found"
+    fi
 }
 
 verify_hash_from_preflight() {
@@ -651,6 +892,13 @@ is_historical_slice_5_artifact() {
 
 is_historical_slice_8_artifact() {
     [ "$(basename "$RUN_DIR")" = "slice-8-20260624T045815Z" ]
+}
+
+is_historical_pre_demo_cut_tail_artifact() {
+    case "$(basename "$RUN_DIR")" in
+        slice-23-20260628T052231Z|slice-24-20260628T061218Z) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 requires_current_artifact_contract() {
@@ -784,6 +1032,10 @@ ensure_review_packet() {
             "${absolute_run_dir}/logs/${recording_name}.expected-chips.txt" \
             "${relative_run_dir}/logs/${recording_name}.expected-chips.txt" \
             || die "Review packet missing expected caption chips path"
+        require_review_packet_lines_from_file \
+            "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+            "expected caption chip"
     fi
     if [ -s "${LOGS_DIR}/${recording_name}.edge-crops.tsv" ]; then
         review_packet_contains_any "$packet_path" \
@@ -851,6 +1103,9 @@ ensure_review_packet() {
         "${relative_run_dir}/reviews/no-ctx-artifact-review.md" \
         || die "Review packet missing review output path"
     if [ -s "${LOGS_DIR}/${recording_name}.proof-manifest.tsv" ]; then
+        require_review_packet_manifest_caption_chips \
+            "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
         local drag_screenshot
         while IFS= read -r drag_screenshot; do
             [ -n "$drag_screenshot" ] || continue
@@ -914,6 +1169,36 @@ review_packet_contains_any() {
         fi
     done
     return 1
+}
+
+require_review_packet_lines_from_file() {
+    local packet_path="$1"
+    local source_path="$2"
+    local label="$3"
+    local value
+
+    [ -s "$source_path" ] || return 0
+    while IFS= read -r value; do
+        [ -n "$value" ] || continue
+        case "$value" in
+            \#*) continue ;;
+        esac
+        grep -F "$value" "$packet_path" >/dev/null \
+            || die "Review packet missing ${label}: $value"
+    done <"$source_path"
+}
+
+require_review_packet_manifest_caption_chips() {
+    local packet_path="$1"
+    local manifest_path="$2"
+    local chip
+
+    [ -s "$manifest_path" ] || return 0
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$packet_path" >/dev/null \
+            || die "Review packet missing proof manifest caption chip: $chip"
+    done < <(/usr/bin/awk -F'\t' '$1 == "caption" && $2 == "chip" { print $3 }' "$manifest_path")
 }
 
 sample_manifest_path() {
@@ -1037,6 +1322,50 @@ require_event_sample_label() {
     actual_label="$(require_event_manifest_value "$manifest_path" "$event_id" sample-label)"
     [ "$actual_label" = "$expected_label" ] \
         || die "Event manifest ${event_id} sample label mismatch: expected ${expected_label}, got ${actual_label}"
+}
+
+require_event_path_kind() {
+    local manifest_path="$1"
+    local slice="$2"
+    local event_id="$3"
+    local path_kind="$4"
+    local path_value="$5"
+    local actual_path
+    actual_path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+
+    case "$path_kind" in
+        screenshot)
+            [ -n "$path_value" ] && [ "$path_value" != "-" ] \
+                || die "Mouse drag event spec ${event_id} screenshot row is missing path-value"
+            local expanded_path expected_path
+            expanded_path="${path_value//\{slice\}/$slice}"
+            case "$expanded_path" in
+                screenshots/*) expected_path="$expanded_path" ;;
+                *) expected_path="screenshots/${expanded_path}" ;;
+            esac
+            [ "$actual_path" = "$expected_path" ] \
+                || die "Event manifest ${event_id} path-kind=screenshot mismatch: expected ${expected_path}, got ${actual_path}"
+            ;;
+        sample-start)
+            case "$actual_path" in
+                screenshots/*.samples/*boundary-start.png) ;;
+                *) die "Event manifest ${event_id} path-kind=sample-start must cite a boundary-start sample, got: ${actual_path}" ;;
+            esac
+            ;;
+        sample-end)
+            case "$actual_path" in
+                screenshots/*.samples/*boundary-end.png) ;;
+                *) die "Event manifest ${event_id} path-kind=sample-end must cite a boundary-end sample, got: ${actual_path}" ;;
+            esac
+            ;;
+        none)
+            [ "$actual_path" = "-" ] \
+                || die "Event manifest ${event_id} path-kind=none must use path '-', got: ${actual_path}"
+            ;;
+        *)
+            die "Mouse drag event spec ${event_id} has unsupported path-kind: ${path_kind:-missing}"
+            ;;
+    esac
 }
 
 require_mouse_event_log_shape() {
@@ -1178,12 +1507,12 @@ require_mouse_snap_affordance_event_paths() {
     [ "$target_path" != "-" ] || die "Mouse snap target affordance event must cite a concrete media path"
     [ "$release_path" != "-" ] || die "Mouse snap release event must cite a concrete media path"
     case "$target_path" in
-        screenshots/07-snap-hover-comms-*.png|screenshots/*.samples/*) ;;
+        screenshots/07-snap-hover-comms-*.png|screenshots/07-slot-hover-*.png|screenshots/*.samples/*) ;;
         *) die "Mouse snap target affordance must cite hover/affordance media, got: $target_path" ;;
     esac
     case "$release_path" in
-        screenshots/*.samples/*boundary-start.png|screenshots/07-snap-hover-comms-*.png) ;;
-        *) die "Mouse snap release must cite a release/target sample frame, got: $release_path" ;;
+        screenshots/*.samples/*boundary-start.png|screenshots/07-snap-hover-comms-*.png|screenshots/08-slot-release-*.png) ;;
+        *) die "Mouse snap release must cite a release-boundary or target sample frame, got: $release_path" ;;
     esac
 }
 
@@ -1343,6 +1672,23 @@ require_review_mentions_semantic_samples() {
     done < <(/usr/bin/awk -F'\t' '$1 == "semantic" { print $2 "\t" $5 }' "$manifest_path")
 }
 
+require_review_mentions_target_semantics() {
+    local review_path="$1"
+    local manifest_path="$2"
+    [ -s "$manifest_path" ] || return 0
+
+    local semantics path
+    semantics="$(/usr/bin/awk -F'\t' '$1 == "target-semantics" { print $2; exit }' "$manifest_path")"
+    [ -n "$semantics" ] || return 0
+    path="$(/usr/bin/awk -F'\t' '$1 == "target-semantics" { print $4; exit }' "$manifest_path")"
+    [ -n "$path" ] || die "Overlay sentinel target-semantics row has no media path: $manifest_path"
+
+    grep -F "$semantics" "$review_path" >/dev/null \
+        || die "Review does not state target semantics: $semantics"
+    grep -F "$path" "$review_path" >/dev/null \
+        || die "Review does not cite target-semantics media path ${path}"
+}
+
 review_is_accepted() {
     local review_path="$1"
     [ -s "$review_path" ] || return 1
@@ -1359,6 +1705,44 @@ review_is_accepted() {
             ;;
         *) return 1 ;;
     esac
+}
+
+recording_context_for_review() {
+    local recording_count
+    recording_count="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' ! -name '*.demo.mov' | wc -l | tr -d ' ')"
+    [ "$recording_count" = "1" ] || die "Expected exactly one .mov recording, found $recording_count"
+    recording_path="$(find "$RECORDINGS_DIR" -maxdepth 1 -type f -name '*.mov' ! -name '*.demo.mov' | head -1)"
+    require_file "$recording_path"
+    recording_name="$(basename "$recording_path" .mov)"
+    contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+}
+
+run_review_lint() {
+    recording_context_for_review
+    ensure_review_packet
+    require_no_finder_metadata
+
+    local review_path="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    require_file "$review_path"
+    if requires_current_artifact_contract; then
+        require_review_freshness "$review_path"
+        require_review_mentions_semantic_samples "$review_path" "$(sample_manifest_path)"
+        require_review_mentions_target_semantics "$review_path" "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
+    fi
+    review_is_accepted "$review_path" \
+        || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
+    grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
+        || die "Review must explicitly allow the next slice"
+    if requires_current_artifact_contract; then
+        grep -F 'resources/screenshots/winmux-overview.png' "$review_path" >/dev/null \
+            || die "Review must cite the baseline overview screenshot"
+        grep -F 'demo.mp4' "$review_path" >/dev/null \
+            || die "Review must cite repo-root demo baseline media"
+    fi
+
+    log "review=$review_path"
+    log "recording=$recording_path"
+    log "PASS"
 }
 
 artifact_has_product_media() {
@@ -1529,6 +1913,55 @@ require_slice_25_sample_manifest() {
     require_slice_22_sample_manifest "$1"
 }
 
+require_slice_27_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        ordinary-pickup \
+        ordinary-hover-no-overlay \
+        float-final-placement \
+        reset-before-window-slot \
+        slot-pickup \
+        slot-path \
+        slot-hover-right \
+        slot-release \
+        snap-release \
+        slot-final-placement; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_26_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        config-ready \
+        divider-hover \
+        divider-pickup \
+        divider-drag-path \
+        divider-live-preview \
+        divider-release \
+        after-divider-resize; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_28_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    for label in \
+        before-export-resize \
+        resize-command-start \
+        after-runtime-resize \
+        export-command-start \
+        toml-output-visible \
+        config-check-command-start \
+        config-check-success \
+        config-hash-unchanged; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
 require_slice_21_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -1618,8 +2051,20 @@ transport_summary_value() {
             column["final_result"] = 5
             column["before_recording"] = 6
         }
+        $0 ~ /^#/ {
+            for (i = 1; i <= NF; i++) {
+                label = $i
+                sub(/^# /, "", label)
+                sub(/^#/, "", label)
+                column[label] = i
+            }
+            next
+        }
         $1 == phase {
-            print $column[key]
+            if (key in column) {
+                idx = column[key]
+                print $idx
+            }
             exit
         }
     ' "$path"
@@ -1631,12 +2076,15 @@ require_transport_summary_phase() {
     local expected_result="$3"
     local expected_before_recording="$4"
 
-    local attempts failures final_result before_recording log_path
+    local attempts failures final_result before_recording log_path attempt_statuses first_failure_reason last_failure_reason
     log_path="$(transport_summary_value "$path" "$phase" log)"
     attempts="$(transport_summary_value "$path" "$phase" attempts)"
     failures="$(transport_summary_value "$path" "$phase" failures)"
     final_result="$(transport_summary_value "$path" "$phase" final_result)"
     before_recording="$(transport_summary_value "$path" "$phase" before_recording)"
+    attempt_statuses="$(transport_summary_value "$path" "$phase" attempt_statuses || true)"
+    first_failure_reason="$(transport_summary_value "$path" "$phase" first_failure_reason || true)"
+    last_failure_reason="$(transport_summary_value "$path" "$phase" last_failure_reason || true)"
 
     [ -n "$log_path" ] || die "Guest transport summary missing phase: $phase"
     [ -n "$attempts" ] || die "Guest transport summary missing attempts for phase: $phase"
@@ -1645,6 +2093,23 @@ require_transport_summary_phase() {
         "Guest transport summary final result mismatch for ${phase}"
     assert_string_eq "$before_recording" "$expected_before_recording" \
         "Guest transport summary before-recording flag mismatch for ${phase}"
+    if [[ "$attempts" =~ ^[0-9]+$ ]] && [ "$attempts" -gt 0 ] && [ -n "$attempt_statuses" ]; then
+        [ "$attempt_statuses" != "-" ] \
+            || die "Guest transport summary missing per-attempt statuses for phase: $phase"
+    fi
+    if [[ "$failures" =~ ^[0-9]+$ ]] && [ "$failures" -gt 0 ] \
+        && { [ -n "$first_failure_reason" ] || [ -n "$last_failure_reason" ]; }; then
+        [ -n "$first_failure_reason" ] && [ "$first_failure_reason" != "-" ] \
+            || die "Guest transport summary missing first failure reason for phase: $phase"
+        [ -n "$last_failure_reason" ] && [ "$last_failure_reason" != "-" ] \
+            || die "Guest transport summary missing last failure reason for phase: $phase"
+        case "$attempt_statuses" in
+            *failure*) ;;
+            *)
+                die "Guest transport summary failures for ${phase} are not reflected in attempt_statuses: ${attempt_statuses:-missing}"
+                ;;
+        esac
+    fi
     require_file "${RUN_DIR}/${log_path}"
 }
 
@@ -1665,7 +2130,7 @@ require_drag_proof_manifest() {
     require_file "$manifest_path"
 
     local source_title target_zone target_name snap_target not_snap_target source_point target_point hover_seconds
-    local pickup_screenshot path_screenshot hover_screenshot coordinate_policy required_frames caption_chip
+    local pickup_screenshot path_screenshot hover_screenshot release_screenshot coordinate_policy required_frames caption_chip
     source_title="$(require_manifest_value "$manifest_path" drag-source title)"
     target_zone="$(require_manifest_value "$manifest_path" drag-target zone-id)"
     target_name="$(require_manifest_value "$manifest_path" drag-target zone-name)"
@@ -1677,6 +2142,9 @@ require_drag_proof_manifest() {
     pickup_screenshot="$(require_manifest_drag_screenshot "$manifest_path" pickup)"
     path_screenshot="$(require_manifest_drag_screenshot "$manifest_path" path)"
     hover_screenshot="$(require_manifest_drag_screenshot "$manifest_path" hover)"
+    if [ -n "$(manifest_value "$manifest_path" drag-screenshots release)" ]; then
+        release_screenshot="$(require_manifest_drag_screenshot "$manifest_path" release)"
+    fi
     coordinate_policy="$(require_manifest_value "$manifest_path" drag-points coordinate-policy)"
     required_frames="$(require_manifest_value "$manifest_path" visual-floor required-frames)"
     caption_chip="$(require_manifest_value "$manifest_path" caption chip)"
@@ -1685,10 +2153,14 @@ require_drag_proof_manifest() {
     [ -n "$target_zone" ] || die "Proof manifest target zone is empty"
     [ -n "$target_name" ] || die "Proof manifest target zone name is empty"
     case "$snap_target" in
-        zone-row|whole-zone) ;;
-        *) die "Proof manifest must state snap-target=zone-row or whole-zone, got: ${snap_target:-missing}" ;;
+        zone-row|whole-zone|zone-divider|window-slot) ;;
+        *) die "Proof manifest must state snap-target=zone-row, whole-zone, zone-divider, or window-slot, got: ${snap_target:-missing}" ;;
     esac
-    [ "$not_snap_target" = window-within-zone ] || die "Proof manifest must state not-snap-target=window-within-zone"
+    if [ "$snap_target" = window-slot ]; then
+        [ "$not_snap_target" = whole-zone ] || die "Proof manifest must state not-snap-target=whole-zone for window-slot targets"
+    else
+        [ "$not_snap_target" = window-within-zone ] || die "Proof manifest must state not-snap-target=window-within-zone"
+    fi
     [[ "$source_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest source point is not x,y: $source_point"
     [[ "$target_point" =~ ^[0-9]+,[0-9]+$ ]] || die "Proof manifest target point is not x,y: $target_point"
     assert_numeric_gt "$hover_seconds" "2.5" "Drag hover hold is too short to demonstrate the target affordance"
@@ -1699,6 +2171,23 @@ require_drag_proof_manifest() {
     [ "$pickup_hash" != "$path_hash" ] || die "Drag pickup and path screenshots are identical"
     [ "$path_hash" != "$hover_hash" ] || die "Drag path and hover screenshots are identical"
     [ "$pickup_hash" != "$hover_hash" ] || die "Drag pickup and hover screenshots are identical"
+    if [ -n "${release_screenshot:-}" ]; then
+        local release_hash release_event_path expected_release_event_path
+        release_hash="$(file_sha256 "$release_screenshot")"
+        [ "$release_hash" != "$pickup_hash" ] || die "Drag release and pickup screenshots are identical"
+        [ "$release_hash" != "$path_hash" ] || die "Drag release and path screenshots are identical"
+        [ "$release_hash" != "$hover_hash" ] || die "Drag release and hover screenshots are identical"
+        local event_manifest
+        event_manifest="$(event_manifest_path)"
+        if [ -s "$event_manifest" ]; then
+            release_event_path="$(event_manifest_value "$event_manifest" snap-release path || true)"
+        fi
+        if [ -n "${release_event_path:-}" ] && [ "$release_event_path" != "-" ]; then
+            expected_release_event_path="screenshots/$(basename "$release_screenshot")"
+            [ "$release_event_path" = "$expected_release_event_path" ] \
+                || die "Snap release event path must match proof manifest release screenshot: manifest=${expected_release_event_path} event=${release_event_path}"
+        fi
+    fi
     local ready_screenshot
     ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' | head -1)"
     if [ -s "$ready_screenshot" ]; then
@@ -1707,10 +2196,10 @@ require_drag_proof_manifest() {
         [ "$path_hash" != "$ready_hash" ] || die "Drag path screenshot duplicates the ready screenshot"
         [ "$hover_hash" != "$ready_hash" ] || die "Drag hover screenshot duplicates the ready screenshot"
     fi
-    [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* || "$coordinate_policy" == derived-from-list-zones* ]] \
-        || die "Proof manifest must justify drag points with state/video assertions or zone-derived coordinates"
-    [[ "$required_frames" == *source* && "$required_frames" == *proxy* && "$required_frames" == *highlight* && "$required_frames" == *path* ]] \
-        || die "Proof manifest visual floor must require source, proxy, highlighted target, and path frames"
+    [[ "$coordinate_policy" == fixed-with-state-and-video-assertions* || "$coordinate_policy" == derived-from-list-zones* || "$coordinate_policy" == derived-from-list-windows* ]] \
+        || die "Proof manifest must justify drag points with state/video assertions, zone-derived coordinates, or window-derived coordinates"
+    [[ "$required_frames" == *source* && "$required_frames" == *proxy* && "$required_frames" == *path* && ( "$required_frames" == *highlight* || "$required_frames" == *overlay* ) ]] \
+        || die "Proof manifest visual floor must require source, proxy, path, and highlighted/overlay target frames"
     if [ -s "$annotation_plan" ]; then
         grep -F "$caption_chip" "$annotation_plan" >/dev/null || die "Proof manifest caption chip is missing from annotation plan"
     fi
@@ -1843,11 +2332,17 @@ append_overlay_crop_contact_sheet_rows() {
     [ -s "$overlay_manifest" ] || return 0
 
     /usr/bin/awk -F'\t' '
+        $1 == "target-semantics" { semantics = $2 }
         $1 == "target-label" && $4 ~ /^screenshots\// {
-            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\tzoomed labeled whole-zone target crop\n", $4
-            found = 1
+            target_label_path = $4
         }
-        END { exit(found ? 0 : 1) }
+        END {
+            if (target_label_path == "") {
+                exit 1
+            }
+            note = semantics == "window-slot" ? "zoomed labeled window-slot target crop" : "zoomed labeled whole-zone target crop"
+            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\t%s\n", target_label_path, note
+        }
     ' "$overlay_manifest" >>"$output_manifest" || true
 }
 
@@ -2184,6 +2679,20 @@ require_caption_tail_manifest() {
     if awk -v tail="$tail" -v max_tail="$max_tail" 'BEGIN { exit(tail + 0 > max_tail + 0 ? 0 : 1) }'; then
         [ "$intentional" = "yes" ] || die "Annotated recording has ${tail}s uncaptained tail without intentional allowance"
         [ -n "$reason" ] || die "Intentional uncaptained tail must include a reason"
+        if awk -v last_end="$last_end" -v duration="$duration" 'BEGIN {
+            trim = last_end + 2.000
+            if (trim > duration) {
+                trim = duration
+            }
+            exit(trim + 0 < duration - 0.500 ? 0 : 1)
+        }'; then
+            if is_historical_pre_demo_cut_tail_artifact; then
+                log "historical exception: accepted Slice 23/24 artifact predates required demo-cut sidecar"
+            else
+                require_file "${LOGS_DIR}/${name}.demo-cut.tsv"
+                require_file "${RECORDINGS_DIR}/${name}.demo.mov"
+            fi
+        fi
     fi
 }
 
@@ -3194,6 +3703,351 @@ require_slice_11a_zone_width_controls_proof() {
         || die "Slice 11A balance command caption must cover the command/action interval"
 }
 
+require_slice_26_zone_divider_drag_proof() {
+    local proof="${RUN_DIR}/slice-26-zone-divider-drag-proof.txt"
+    local done="${LOGS_DIR}/slice-26-zone-divider-drag.done"
+    local setup_log="${LOGS_DIR}/slice-26-zone-divider-setup.log"
+    local action_log="${LOGS_DIR}/slice-26-zone-divider-action.log"
+    local windows_before="${LOGS_DIR}/slice-26-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-26-windows-after.log"
+    local zones_before="${LOGS_DIR}/slice-26-zones-before.log"
+    local zones_after="${LOGS_DIR}/slice-26-zones-after.log"
+    local timing_log="${LOGS_DIR}/slice-26-command-timing.log"
+    local mouse_events="${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv"
+    local app_log="${LOGS_DIR}/winmux-app.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 26"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$zones_before"
+    require_file "$zones_after"
+    require_file "$timing_log"
+    require_file "$mouse_events"
+    require_file "$app_log"
+    require_drag_proof_manifest "$proof_manifest"
+    require_slice_26_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/02-divider-hover-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/03-divider-pickup-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/04-divider-drag-path-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/05-divider-preview-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/06-divider-release-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/07-after-divider-resize-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-26.png"
+    require_manifest_drag_screenshot "$proof_manifest" preview >/dev/null
+    require_manifest_drag_screenshot "$proof_manifest" release >/dev/null
+    require_manifest_drag_screenshot "$proof_manifest" after >/dev/null
+    require_file "$(event_manifest_path)"
+    require_slice_26_event_manifest "$(event_manifest_path)"
+
+    grep -F 'PASS: dragging the Work|Comms zone divider changes adjacent runtime widths only; Work grows, Comms shrinks, Reference keeps its width, windows/workspaces stay attached, and config is unchanged.' "$proof" >/dev/null \
+        || die "Slice 26 proof does not contain the expected PASS claim"
+    grep -F "Config: [[zone-layouts]] Reference/Work/Comms columns" "$setup_log" >/dev/null \
+        || die "Slice 26 setup log missing config summary"
+    grep -F "Action: drag the Work|Comms divider to resize adjacent zones" "$setup_log" >/dev/null \
+        || die "Slice 26 setup log missing divider action summary"
+    grep -F "[[zone-layouts]]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 26 config missing zone layout preset"
+    grep -F "id = 'balanced'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 26 config missing balanced layout id"
+    grep -F "{ id = 'main', name = 'Work', width = 0.50 }" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 26 config missing Work column"
+    grep -F "{ id = 'right', name = 'Comms', width = 0.25 }" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 26 config missing Comms column"
+    if grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null; then
+        die "Slice 26 config must not use mouse zone snap policy for divider proof"
+    fi
+
+    grep -F 'action=draggable-zone-divider' "$action_log" >/dev/null \
+        || die "Slice 26 action log missing draggable-zone-divider marker"
+    grep -F 'target=adjacent-zone-boundary' "$action_log" >/dev/null \
+        || die "Slice 26 action log missing adjacent-zone-boundary target"
+    grep -F 'not-target=window-within-zone' "$action_log" >/dev/null \
+        || die "Slice 26 action log missing window-within-zone exclusion"
+    grep -F 'runtime-state=zone-width-overrides' "$action_log" >/dev/null \
+        || die "Slice 26 action log missing runtime width override state"
+    grep -F 'config-persistence=no-config-rewrite' "$action_log" >/dev/null \
+        || die "Slice 26 action log missing no config rewrite claim"
+    [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = zone-divider ] \
+        || die "Slice 26 proof manifest must identify target as zone-divider"
+    [ "$(manifest_value "$proof_manifest" divider-policy target)" = adjacent-zone-boundary ] \
+        || die "Slice 26 proof manifest missing adjacent divider target"
+    [ "$(manifest_value "$proof_manifest" divider-policy config-persistence)" = no-config-rewrite ] \
+        || die "Slice 26 proof manifest missing no-config-rewrite"
+    [ "$(manifest_value "$proof_manifest" divider-source left-zone-id)" = main ] \
+        || die "Slice 26 proof manifest must start from Work/main side"
+    [ "$(manifest_value "$proof_manifest" divider-target right-zone-id)" = right ] \
+        || die "Slice 26 proof manifest must target Comms/right side"
+    [ -n "$(manifest_value "$proof_manifest" divider-points boundary)" ] \
+        || die "Slice 26 proof manifest must record the real Work|Comms boundary point"
+    [ "$(manifest_value "$proof_manifest" divider-points hit-band-offset-pixels)" = 8 ] \
+        || die "Slice 26 proof manifest must record the divider hit-band offset"
+    grep -F '[drag-live] zoneDivider.start' "$app_log" >/dev/null \
+        || die "Slice 26 app log missing zoneDivider.start"
+    grep -F '[drag-live] zoneDivider.commit' "$app_log" >/dev/null \
+        || die "Slice 26 app log missing zoneDivider.commit"
+    if grep -E 'resize\.start .*kind=zoneDivider' "$app_log" >/dev/null; then
+        die "Slice 26 divider drag also started the window resize driver"
+    fi
+
+    require_mouse_event_log_shape "$mouse_events"
+    require_mouse_event_log_event "$mouse_events" divider-hover overlay
+    require_mouse_event_log_event "$mouse_events" divider-pickup drag
+    require_mouse_event_log_event "$mouse_events" divider-drag-path drag
+    require_mouse_event_log_event "$mouse_events" divider-live-preview overlay
+    require_mouse_event_log_event "$mouse_events" divider-release drag
+    require_mouse_event_log_event "$mouse_events" after-divider-resize inspection
+    require_mouse_event_log_order "$mouse_events" divider-hover divider-pickup \
+        "Slice 26 hover must precede divider pickup"
+    require_mouse_event_log_order "$mouse_events" divider-pickup divider-drag-path \
+        "Slice 26 pickup must precede drag path"
+    require_mouse_event_log_order "$mouse_events" divider-drag-path divider-live-preview \
+        "Slice 26 drag path must precede live preview"
+    require_mouse_event_log_order "$mouse_events" divider-live-preview divider-release \
+        "Slice 26 live preview must precede release"
+    require_mouse_event_log_order "$mouse_events" divider-release after-divider-resize \
+        "Slice 26 release must precede post-resize inspection"
+
+    local before_left before_main before_right after_left after_main after_right
+    before_left="$(zone_log_value "$zones_before" left width)"
+    before_main="$(zone_log_value "$zones_before" main width)"
+    before_right="$(zone_log_value "$zones_before" right width)"
+    after_left="$(zone_log_value "$zones_after" left width)"
+    after_main="$(zone_log_value "$zones_after" main width)"
+    after_right="$(zone_log_value "$zones_after" right width)"
+    [ -n "$before_left" ] && [ -n "$before_main" ] && [ -n "$before_right" ] \
+        || die "Slice 26 before zones log missing widths"
+    [ -n "$after_left" ] && [ -n "$after_main" ] && [ -n "$after_right" ] \
+        || die "Slice 26 after zones log missing widths"
+    assert_numeric_gt "$after_main" "$before_main" "Slice 26 Work/main width did not grow after divider drag"
+    assert_numeric_lt "$after_right" "$before_right" "Slice 26 Comms/right width did not shrink after divider drag"
+    assert_numeric_approximately_equal "$after_left" "$before_left" 2 "Slice 26 Reference/left changed during adjacent divider drag"
+    [ "$(zone_log_value "$zones_after" main override-state)" = runtime ] \
+        || die "Slice 26 Work/main must report a runtime width override after divider drag"
+    [ "$(zone_log_value "$zones_after" right override-state)" = runtime ] \
+        || die "Slice 26 Comms/right must report a runtime width override after divider drag"
+
+    local title expected_zone before_id after_id before_zone after_zone before_workspace after_workspace
+    for title in reference-divider.rtf work-divider.rtf comms-divider.rtf; do
+        case "$title" in
+            reference-divider.rtf) expected_zone=left ;;
+            work-divider.rtf) expected_zone=main ;;
+            comms-divider.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        after_id="$(field_for_title "$windows_after" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$after_id" ] \
+            || die "Slice 26 missing window title across logs: $title"
+        [ "$before_id" = "$after_id" ] \
+            || die "Slice 26 window id changed for $title: $before_id -> $after_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$after_zone" = "$expected_zone" ] \
+            || die "Slice 26 zone changed for $title: $before_zone -> $after_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+            || die "Slice 26 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+
+    local before_sha after_sha
+    before_sha="$(manifest_value_or_log "$proof_manifest" verification config-sha-before config-sha-before "$action_log")"
+    after_sha="$(manifest_value_or_log "$proof_manifest" verification config-sha-after config-sha-after "$action_log")"
+    [ -n "$before_sha" ] && [ "$before_sha" = "$after_sha" ] \
+        || die "Slice 26 config hash changed or is missing: ${before_sha:-missing} -> ${after_sha:-missing}"
+
+    for chip in \
+        "Config: [[zone-layouts]] columns left/main/right" \
+        "Action: hover Work|Comms divider" \
+        "Action: click and hold divider" \
+        "Action: drag divider right" \
+        "Action: preview Work grows; Comms shrinks" \
+        "Action: release divider" \
+        "Run: winmux list-zones"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 26 annotations missing chip: $chip"
+    done
+
+    grep -F "widths-before=left:${before_left},main:${before_main},right:${before_right}" "$proof" >/dev/null \
+        || die "Slice 26 proof does not copy before widths from zones log"
+    grep -F "widths-after=left:${after_left},main:${after_main},right:${after_right}" "$proof" >/dev/null \
+        || die "Slice 26 proof does not copy after widths from zones log"
+}
+
+require_slice_28_export_zone_layout_proof() {
+    local proof="${RUN_DIR}/slice-28-export-zone-layout-proof.txt"
+    local done="${LOGS_DIR}/slice-28-export-zone-layout.done"
+    local setup_log="${LOGS_DIR}/slice-28-export-setup.log"
+    local windows_before="${LOGS_DIR}/slice-28-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-28-windows-after.log"
+    local zones_before="${LOGS_DIR}/slice-28-zones-before.log"
+    local zones_resized="${LOGS_DIR}/slice-28-zones-after-resize.log"
+    local zones_after_export="${LOGS_DIR}/slice-28-zones-after-export.log"
+    local resize_log="${LOGS_DIR}/slice-28-resize-zone.log"
+    local export_log="${LOGS_DIR}/slice-28-export-zone-layout.log"
+    local export_toml="${LOGS_DIR}/slice-28-export-zone-layout.toml"
+    local config_check_log="${LOGS_DIR}/slice-28-config-check.log"
+    local config_sha_before="${LOGS_DIR}/slice-28-config-before.sha256"
+    local config_sha_after="${LOGS_DIR}/slice-28-config-after.sha256"
+    local timing_log="${LOGS_DIR}/slice-28-command-timing.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 28"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$zones_before"
+    require_file "$zones_resized"
+    require_file "$zones_after_export"
+    require_file "$resize_log"
+    require_file "$export_log"
+    require_file "$export_toml"
+    require_file "$config_check_log"
+    require_file "$config_sha_before"
+    require_file "$config_sha_after"
+    require_file "$timing_log"
+    require_slice_28_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/02-before-export-resize-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/03-after-runtime-resize-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/04-export-output-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/05-config-check-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/06-final-state-slice-28.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-28.png"
+    require_file "$(event_manifest_path)"
+    require_slice_28_event_manifest "$(event_manifest_path)"
+
+    grep -F 'PASS: export-zone-layout emits parseable [[zone-layouts]] TOML from current runtime widths after resize-zone, preserves zone ids/names/default-zone, and leaves copied config unchanged.' "$proof" >/dev/null \
+        || die "Slice 28 proof does not contain the expected PASS claim"
+    grep -F 'Commands: resize-zone Work width +10%; export-zone-layout saved-ultrawide --monitor 1; config --check' "$setup_log" >/dev/null \
+        || die "Slice 28 setup log missing command summary"
+    grep -F "[[zone-layouts]]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 28 config missing zone layout preset"
+    grep -F "id = 'balanced'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 28 config missing balanced layout id"
+
+    grep -F '$ winmux resize-zone Work width +10%' "$resize_log" >/dev/null \
+        || die "Slice 28 resize log missing exact resize command"
+    grep -F "Resized zone 'Work' on monitor 1 by +10%" "$resize_log" >/dev/null \
+        || die "Slice 28 resize log missing success output"
+    grep -F '$ winmux export-zone-layout saved-ultrawide --monitor 1' "$export_log" >/dev/null \
+        || die "Slice 28 export log missing exact export command"
+    grep -F '[[zone-layouts]]' "$export_toml" >/dev/null \
+        || die "Slice 28 export TOML missing zone-layouts table"
+    grep -F 'id = "saved-ultrawide"' "$export_toml" >/dev/null \
+        || die "Slice 28 export TOML missing saved-ultrawide id"
+    grep -F "layout = 'columns'" "$export_toml" >/dev/null \
+        || die "Slice 28 export TOML missing columns layout"
+    grep -F 'default-zone = "main"' "$export_toml" >/dev/null \
+        || die "Slice 28 export TOML missing default-zone main"
+    grep -F '$ winmux config --check ' "$config_check_log" >/dev/null \
+        || die "Slice 28 config check log missing exact command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 28 config check log missing Config OK"
+
+    local before_left before_main before_right resized_left resized_main resized_right
+    local resized_left_effective resized_main_effective resized_right_effective
+    local exported_left exported_main exported_right
+    before_left="$(zone_log_value "$zones_before" left width)"
+    before_main="$(zone_log_value "$zones_before" main width)"
+    before_right="$(zone_log_value "$zones_before" right width)"
+    resized_left="$(zone_log_value "$zones_resized" left width)"
+    resized_main="$(zone_log_value "$zones_resized" main width)"
+    resized_right="$(zone_log_value "$zones_resized" right width)"
+    resized_left_effective="$(zone_log_value "$zones_resized" left effective)"
+    resized_main_effective="$(zone_log_value "$zones_resized" main effective)"
+    resized_right_effective="$(zone_log_value "$zones_resized" right effective)"
+    exported_left="$(toml_width_for_zone "$export_toml" left)"
+    exported_main="$(toml_width_for_zone "$export_toml" main)"
+    exported_right="$(toml_width_for_zone "$export_toml" right)"
+    [ -n "$before_left" ] && [ -n "$before_main" ] && [ -n "$before_right" ] \
+        || die "Slice 28 before zones log missing widths"
+    [ -n "$resized_left" ] && [ -n "$resized_main" ] && [ -n "$resized_right" ] \
+        || die "Slice 28 resized zones log missing widths"
+    [ -n "$resized_left_effective" ] && [ -n "$resized_main_effective" ] && [ -n "$resized_right_effective" ] \
+        || die "Slice 28 resized zones log missing effective widths"
+    [ -n "$exported_left" ] && [ -n "$exported_main" ] && [ -n "$exported_right" ] \
+        || die "Slice 28 export TOML missing one or more zone width rows"
+    assert_numeric_approximately_equal "$exported_left" "$resized_left_effective" 0.000001 \
+        "Slice 28 exported Reference width does not match runtime effective width"
+    assert_numeric_approximately_equal "$exported_main" "$resized_main_effective" 0.000001 \
+        "Slice 28 exported Work width does not match runtime effective width"
+    assert_numeric_approximately_equal "$exported_right" "$resized_right_effective" 0.000001 \
+        "Slice 28 exported Comms width does not match runtime effective width"
+    assert_numeric_gt "$resized_main" "$before_main" "Slice 28 Work/main width did not grow before export"
+    assert_numeric_lt "$resized_left" "$before_left" "Slice 28 Reference/left width did not shrink before export"
+    assert_numeric_lt "$resized_right" "$before_right" "Slice 28 Comms/right width did not shrink before export"
+    [ "$(zone_log_value "$zones_resized" main override-state)" = runtime ] \
+        || die "Slice 28 Work/main must report runtime width override before export"
+    [ "$(zone_log_value "$zones_after_export" main width)" = "$resized_main" ] \
+        || die "Slice 28 export command should not change Work/main width"
+
+    local title expected_zone before_id after_id before_zone after_zone before_workspace after_workspace
+    for title in reference-export.rtf work-export.rtf comms-export.rtf; do
+        case "$title" in
+            reference-export.rtf) expected_zone=left ;;
+            work-export.rtf) expected_zone=main ;;
+            comms-export.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        after_id="$(field_for_title "$windows_after" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$after_id" ] \
+            || die "Slice 28 missing window title across logs: $title"
+        [ "$before_id" = "$after_id" ] \
+            || die "Slice 28 window id changed for $title: $before_id -> $after_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$after_zone" = "$expected_zone" ] \
+            || die "Slice 28 zone changed for $title: $before_zone -> $after_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+            || die "Slice 28 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+    [ "$(field_for_title "$windows_after" 'export-zone-layout-output.rtf' zone)" = main ] \
+        || die "Slice 28 export output document should be visible in Work/main"
+
+    local before_sha after_sha
+    before_sha="$(cat "$config_sha_before")"
+    after_sha="$(cat "$config_sha_after")"
+    [ -n "$before_sha" ] && [ "$before_sha" = "$after_sha" ] \
+        || die "Slice 28 copied config hash changed or is missing: ${before_sha:-missing} -> ${after_sha:-missing}"
+    grep -F "config-sha-before=${before_sha}" "$proof" >/dev/null \
+        || die "Slice 28 proof does not copy before config hash"
+    grep -F "config-sha-after=${after_sha}" "$proof" >/dev/null \
+        || die "Slice 28 proof does not copy after config hash"
+
+    for chip in \
+        "Config: [[zone-layouts]] columns left/main/right" \
+        "Run: winmux resize-zone Work width +10%" \
+        "Action: Work effective width becomes 0.6" \
+        "Run: winmux export-zone-layout saved-ultrawide --monitor 1" \
+        "Action: emitted [[zone-layouts]] TOML is visible" \
+        "Run: winmux config --check slice-28-export-zone-layout.toml" \
+        "Run: shasum config/winmux.toml"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 28 annotations missing chip: $chip"
+    done
+    grep -F 'Result: Config OK' "$annotation_plan" >/dev/null \
+        || die "Slice 28 annotations missing Config OK result cue"
+    grep -F 'Result: unchanged' "$annotation_plan" >/dev/null \
+        || die "Slice 28 annotations missing unchanged config result cue"
+
+    grep -F "widths-before=left:${before_left},main:${before_main},right:${before_right}" "$proof" >/dev/null \
+        || die "Slice 28 proof does not copy before widths from zones log"
+    grep -F "widths-resized=left:${resized_left},main:${resized_main},right:${resized_right}" "$proof" >/dev/null \
+        || die "Slice 28 proof does not copy resized widths from zones log"
+}
+
 require_slice_11b_zone_style_controls_proof() {
     local proof="${RUN_DIR}/slice-11b-zone-style-controls-proof.txt"
     local done="${LOGS_DIR}/slice-11b-zone-style-controls.done"
@@ -3835,6 +4689,85 @@ require_mouse_snap_overlay_sentinel() {
         || die "Mouse snap overlay RMSE ${rmse} is below required ${minimum}"
 }
 
+require_window_slot_overlay_sentinel() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+
+    slot_sentinel_value() {
+        local label="$1"
+        local column="$2"
+        /usr/bin/awk -F'\t' -v label="$label" -v column="$column" '$1 == label { print $column; exit }' "$manifest_path"
+    }
+
+    local rmse minimum target_semantics ordinary_crop slot_crop target_label target_label_crop product_label crop_geometry
+    rmse="$(slot_sentinel_value overlay-rmse-normalized 2)"
+    minimum="$(slot_sentinel_value overlay-rmse-normalized 3)"
+    target_semantics="$(slot_sentinel_value target-semantics 2)"
+    ordinary_crop="$(slot_sentinel_value ordinary-target-window-area-crop 4)"
+    slot_crop="$(slot_sentinel_value slot-target-window-area-crop 4)"
+    target_label="$(slot_sentinel_value target-label 2)"
+    target_label_crop="$(slot_sentinel_value target-label 4)"
+    product_label="$(slot_sentinel_value product-overlay-label 2)"
+    crop_geometry="$(slot_sentinel_value target-window-area-crop 2)"
+
+    [ -n "$rmse" ] || die "Window-slot overlay sentinel missing overlay-rmse-normalized value"
+    [ -n "$minimum" ] || die "Window-slot overlay sentinel missing overlay-rmse-normalized minimum"
+    [ "$target_semantics" = window-slot ] \
+        || die "Window-slot overlay sentinel must declare target-semantics=window-slot"
+    [ "$target_label" = "WINDOW SLOT TARGET: RIGHT" ] \
+        || die "Window-slot overlay sentinel must provide a readable window-slot target label"
+    [ "$product_label" = "Window slot: Right" ] \
+        || die "Window-slot overlay sentinel must name product overlay label"
+    [ -n "$crop_geometry" ] || die "Window-slot overlay sentinel missing target-window area crop geometry"
+    case "$ordinary_crop" in
+        /*|*../*) die "Window-slot ordinary crop path must be run-relative: $ordinary_crop" ;;
+    esac
+    case "$slot_crop" in
+        /*|*../*) die "Window-slot slot crop path must be run-relative: $slot_crop" ;;
+    esac
+    case "$target_label_crop" in
+        screenshots/*.overlay-sentinel/*.png) ;;
+        /*|*../*) die "Window-slot target label crop path must be run-relative: $target_label_crop" ;;
+        *) die "Window-slot overlay sentinel missing labeled target crop path" ;;
+    esac
+    require_file "${RUN_DIR}/${ordinary_crop}"
+    require_file "${RUN_DIR}/${slot_crop}"
+    require_file "${RUN_DIR}/${target_label_crop}"
+
+    local crop_size expected_dimensions ordinary_dimensions slot_dimensions target_label_dimensions
+    crop_size="$(printf '%s\n' "$crop_geometry" | /usr/bin/sed -n 's/^\([0-9][0-9]*\)x\([0-9][0-9]*\)+[0-9][0-9]*+[0-9][0-9]*$/\1 \2/p')"
+    [ -n "$crop_size" ] || die "Window-slot overlay sentinel has invalid crop geometry: $crop_geometry"
+    # shellcheck disable=SC2086
+    set -- $crop_size
+    expected_dimensions="${1}x${2}"
+    ordinary_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${ordinary_crop}")" \
+        || die "Window-slot ordinary crop is not readable image media: ${RUN_DIR}/${ordinary_crop}"
+    slot_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${slot_crop}")" \
+        || die "Window-slot slot crop is not readable image media: ${RUN_DIR}/${slot_crop}"
+    target_label_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${RUN_DIR}/${target_label_crop}")" \
+        || die "Window-slot target label crop is not readable image media: ${RUN_DIR}/${target_label_crop}"
+    [ "$ordinary_dimensions" = "$expected_dimensions" ] \
+        || die "Window-slot ordinary crop dimensions ${ordinary_dimensions} do not match ${expected_dimensions}"
+    [ "$slot_dimensions" = "$expected_dimensions" ] \
+        || die "Window-slot slot crop dimensions ${slot_dimensions} do not match ${expected_dimensions}"
+    [ "$target_label_dimensions" = "$expected_dimensions" ] \
+        || die "Window-slot target label crop dimensions ${target_label_dimensions} do not match ${expected_dimensions}"
+
+    if [ "$recording_name" = "slice-27-window-slot-snap" ]; then
+        local source_ordinary="${SCREENSHOTS_DIR}/03-ordinary-hover-no-overlay-slice-27.png"
+        local source_slot="${SCREENSHOTS_DIR}/07-slot-hover-right-slice-27.png"
+        require_file "$source_ordinary"
+        require_file "$source_slot"
+        require_fresh_derived_file "${RUN_DIR}/${ordinary_crop}" "$source_ordinary" "Window-slot ordinary overlay crop"
+        require_fresh_derived_file "${RUN_DIR}/${slot_crop}" "$source_slot" "Window-slot snap overlay crop"
+        require_fresh_derived_file "${RUN_DIR}/${target_label_crop}" "$source_slot" "Window-slot labeled target crop"
+        require_fresh_derived_file "$manifest_path" "$source_slot" "Window-slot overlay sentinel"
+    fi
+
+    awk -v rmse="$rmse" -v minimum="$minimum" 'BEGIN { exit(rmse + 0 >= minimum + 0 ? 0 : 1) }' \
+        || die "Window-slot overlay RMSE ${rmse} is below required ${minimum}"
+}
+
 require_mouse_zone_snap_proof() {
     local slice_prefix="$1"
     local slice_label="$2"
@@ -4028,6 +4961,7 @@ require_mouse_drag_event_manifest() {
                     "Slice ${slice_number} event manifest must order ${before_event} before ${event_id}"
             done
         fi
+        require_event_path_kind "$manifest_path" "$slice" "$event_id" "$_path_kind" "$_path_value"
         row_count=$((row_count + 1))
     done < <(mouse_drag_event_spec_rows "$slice")
 
@@ -4056,6 +4990,102 @@ require_slice_24_event_manifest() {
 
 require_slice_25_event_manifest() {
     require_mouse_drag_event_manifest slice-25 "$1"
+}
+
+require_slice_27_event_manifest() {
+    require_mouse_drag_event_manifest slice-27 "$1"
+}
+
+require_slice_26_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" divider-hover overlay
+    require_event_manifest_event "$manifest_path" divider-pickup drag
+    require_event_manifest_event "$manifest_path" divider-drag-path drag
+    require_event_manifest_event "$manifest_path" divider-live-preview overlay
+    require_event_manifest_event "$manifest_path" divider-release drag
+    require_event_manifest_event "$manifest_path" after-divider-resize inspection
+
+    require_event_sample_label "$manifest_path" config-ready config-ready
+    require_event_sample_label "$manifest_path" divider-hover divider-hover
+    require_event_sample_label "$manifest_path" divider-pickup divider-pickup
+    require_event_sample_label "$manifest_path" divider-drag-path divider-drag-path
+    require_event_sample_label "$manifest_path" divider-live-preview divider-live-preview
+    require_event_sample_label "$manifest_path" divider-release divider-release
+    require_event_sample_label "$manifest_path" after-divider-resize after-divider-resize
+
+    require_event_before "$manifest_path" config-ready divider-hover \
+        "Slice 26 event manifest must show config before hover"
+    require_event_before "$manifest_path" divider-hover divider-pickup \
+        "Slice 26 event manifest must show hover before pickup"
+    require_event_before "$manifest_path" divider-pickup divider-drag-path \
+        "Slice 26 event manifest must show pickup before drag path"
+    require_event_before "$manifest_path" divider-drag-path divider-live-preview \
+        "Slice 26 event manifest must show drag path before live preview"
+    require_event_before "$manifest_path" divider-live-preview divider-release \
+        "Slice 26 event manifest must show live preview before release"
+    require_event_before "$manifest_path" divider-release after-divider-resize \
+        "Slice 26 event manifest must show release before post-resize inspection"
+
+    local event_id path
+    for event_id in divider-hover divider-pickup divider-drag-path divider-live-preview divider-release after-divider-resize; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 26 event ${event_id} must cite concrete media"
+    done
+
+    require_event_manifest_matches_mouse_events "$manifest_path" \
+        divider-hover \
+        divider-pickup \
+        divider-drag-path \
+        divider-live-preview \
+        divider-release \
+        after-divider-resize
+}
+
+require_slice_28_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" resize-command-start command
+    require_event_manifest_event "$manifest_path" after-runtime-resize state
+    require_event_manifest_event "$manifest_path" export-command-start command
+    require_event_manifest_event "$manifest_path" toml-output-visible output
+    require_event_manifest_event "$manifest_path" config-check-command-start command
+    require_event_manifest_event "$manifest_path" config-check-success inspection
+    require_event_manifest_event "$manifest_path" config-hash-unchanged inspection
+
+    require_event_sample_label "$manifest_path" config-ready config-ready
+    require_event_sample_label "$manifest_path" resize-command-start resize-command-start
+    require_event_sample_label "$manifest_path" after-runtime-resize after-runtime-resize
+    require_event_sample_label "$manifest_path" export-command-start export-command-start
+    require_event_sample_label "$manifest_path" toml-output-visible toml-output-visible
+    require_event_sample_label "$manifest_path" config-check-command-start config-check-command-start
+    require_event_sample_label "$manifest_path" config-check-success config-check-success
+    require_event_sample_label "$manifest_path" config-hash-unchanged config-hash-unchanged
+
+    require_event_before "$manifest_path" config-ready resize-command-start \
+        "Slice 28 event manifest must show config before resize"
+    require_event_before "$manifest_path" resize-command-start after-runtime-resize \
+        "Slice 28 event manifest must show resize before changed widths"
+    require_event_before "$manifest_path" after-runtime-resize export-command-start \
+        "Slice 28 event manifest must show changed widths before export"
+    require_event_before "$manifest_path" export-command-start toml-output-visible \
+        "Slice 28 event manifest must show export command before TOML output"
+    require_event_before "$manifest_path" toml-output-visible config-check-command-start \
+        "Slice 28 event manifest must show TOML output before parser check"
+    require_event_before "$manifest_path" config-check-command-start config-check-success \
+        "Slice 28 event manifest must show parser command before parser success"
+    require_event_before "$manifest_path" config-check-success config-hash-unchanged \
+        "Slice 28 event manifest must show parser success before config-hash proof"
+
+    local event_id path
+    for event_id in after-runtime-resize toml-output-visible config-check-success config-hash-unchanged; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 28 event ${event_id} must cite concrete media"
+    done
 }
 
 require_slice_21_event_manifest() {
@@ -4547,6 +5577,170 @@ require_slice_25_mouse_demo_contract_proof() {
     grep -F 'Result: same window id in Comms/right' "$annotation_plan" >/dev/null \
         || die "Slice 25 annotations missing final command result cue"
     require_slice_25_event_manifest "$(event_manifest_path)"
+}
+
+require_slice_27_window_slot_snap_proof() {
+    local slice_prefix="slice-27"
+    local slice_label="Slice 27"
+    local proof="${RUN_DIR}/${slice_prefix}-mouse-zone-snap-proof.txt"
+    local done="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap.done"
+    local setup_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-setup.log"
+    local action_log="${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-action.log"
+    local windows_before="${LOGS_DIR}/${slice_prefix}-windows-before.log"
+    local windows_freeform="${LOGS_DIR}/${slice_prefix}-windows-after-freeform.log"
+    local windows_reset="${LOGS_DIR}/${slice_prefix}-windows-after-reset.log"
+    local windows_after="${LOGS_DIR}/${slice_prefix}-windows-after-snap.log"
+    local zones="${LOGS_DIR}/${slice_prefix}-zones.log"
+    local timing_log="${LOGS_DIR}/${slice_prefix}-command-timing.log"
+    local mouse_events="${LOGS_DIR}/slice-27-window-slot-snap.mouse-events.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "$slice_label"
+    require_file "$setup_log"
+    require_file "$action_log"
+    require_file "$windows_before"
+    require_file "$windows_freeform"
+    require_file "$windows_reset"
+    require_file "$windows_after"
+    require_file "$zones"
+    require_file "$timing_log"
+    require_file "$mouse_events"
+    require_drag_proof_manifest "$proof_manifest"
+    require_slice_27_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/02-ordinary-pickup-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/03-ordinary-hover-no-overlay-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/04-reset-before-window-slot-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/05-slot-pickup-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/06-slot-path-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/07-slot-hover-right-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/08-slot-release-slice-27.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-27.png"
+    require_window_slot_overlay_sentinel "${LOGS_DIR}/slice-27-window-slot-snap.overlay-sentinel.tsv"
+    require_file "$(event_manifest_path)"
+    require_slice_27_event_manifest "$(event_manifest_path)"
+
+    grep -F "PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag and target window; ordinary drag inside Work/main floats without a slot overlay; resetting to Work/main and holding the secondary mouse button previews target-window.rtf's right window slot and keeps the same source window in Work/main on release, with no whole-zone fallback." "$proof" >/dev/null \
+        || die "Slice 27 proof does not contain the expected window-slot PASS claim"
+    grep -F "[mouse.zone-snap]" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 27 config missing mouse zone snap table"
+    grep -F "policy = 'float-unless-snap'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 27 config must start with float-unless-snap policy"
+    grep -F "gesture = 'secondary-button-drag'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 27 config missing secondary-button-drag gesture"
+    grep -F "target = 'window'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 27 config missing window target"
+    grep -F "Config: [mouse.zone-snap] policy = 'float-unless-snap', configured-modifier = 'alt', gesture = 'secondary-button-drag', activation-input = 'secondary-button', target = 'window'" "$setup_log" >/dev/null \
+        || die "Slice 27 setup log missing window-target mouse snap summary"
+
+    grep -F 'action=desktop-mouse-zone-snap' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing desktop snap action"
+    grep -F 'policy=float-unless-snap' "$action_log" >/dev/null \
+        || die "Slice 27 action log must start from float-unless-snap config"
+    grep -F 'gesture=secondary-button-drag' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing secondary-button-drag gesture"
+    grep -F 'target=window' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing target=window"
+    grep -F 'proof-mode=window-slot' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing window-slot proof mode"
+    grep -F 'snap-target=window-slot' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing window-slot snap target"
+    grep -F 'not-snap-target=whole-zone' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing whole-zone exclusion"
+    grep -F 'target-window-title=target-window.rtf' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing target window title"
+    grep -F 'target-window-slot=right' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing right slot"
+    grep -F 'freeform-result=floating-no-snap' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing ordinary floating no-snap result"
+    grep -F 'freeform-after-zone=main' "$action_log" >/dev/null \
+        || die "Slice 27 action log must keep ordinary drag in Work/main"
+    grep -F 'freeform-after-layout=floating' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing floating layout after ordinary drag"
+    grep -F 'snap-result=success' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing snap success result"
+    grep -F 'after-zone=main' "$action_log" >/dev/null \
+        || die "Slice 27 action log must keep window-slot snap in Work/main"
+    grep -F 'product-overlay-label=Window slot: Right' "$action_log" >/dev/null \
+        || die "Slice 27 action log missing product overlay label"
+    if grep -F 'runtime-policy-command=' "$action_log" >/dev/null; then
+        die "Slice 27 must not rely on runtime set-zone-snap-policy"
+    fi
+
+    local source_id freeform_id after_id target_id before_zone freeform_zone reset_zone after_zone before_workspace freeform_workspace after_workspace freeform_layout reset_layout
+    source_id="$(manifest_value_or_log "$proof_manifest" drag-source window-id source-window-id "$action_log")"
+    freeform_id="$(manifest_value_or_log "$proof_manifest" drag-result freeform-window-id-after freeform-window-id-after "$action_log")"
+    after_id="$(manifest_value_or_log "$proof_manifest" drag-result window-id-after window-id-after "$action_log")"
+    target_id="$(manifest_value_or_log "$proof_manifest" drag-target window-id target-window-id "$action_log")"
+    before_zone="$(manifest_value_or_log "$proof_manifest" drag-source before-zone before-zone "$action_log")"
+    freeform_zone="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-zone freeform-after-zone "$action_log")"
+    after_zone="$(manifest_value_or_log "$proof_manifest" drag-result after-zone after-zone "$action_log")"
+    before_workspace="$(manifest_value_or_log "$proof_manifest" drag-source before-workspace before-workspace "$action_log")"
+    freeform_workspace="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-workspace freeform-after-workspace "$action_log")"
+    after_workspace="$(manifest_value_or_log "$proof_manifest" drag-result after-workspace after-workspace "$action_log")"
+    freeform_layout="$(manifest_value_or_log "$proof_manifest" drag-result freeform-after-layout freeform-after-layout "$action_log")"
+    reset_zone="$(field_for_title "$windows_reset" 'snap-demo.rtf' zone)"
+    reset_layout="$(field_for_title "$windows_reset" 'snap-demo.rtf' layout)"
+
+    [ -n "$source_id" ] && [ "$source_id" = "$freeform_id" ] && [ "$source_id" = "$after_id" ] \
+        || die "Slice 27 source window id changed across drags: ${source_id:-missing} -> ${freeform_id:-missing} -> ${after_id:-missing}"
+    [ -n "$target_id" ] && [ "$(field_for_title "$windows_before" 'target-window.rtf' id)" = "$target_id" ] \
+        || die "Slice 27 target window id is missing or changed before drag"
+    [ "$(field_for_title "$windows_after" 'target-window.rtf' id)" = "$target_id" ] \
+        || die "Slice 27 target window id changed after slot snap"
+    [ "$before_zone" = main ] || die "Slice 27 source did not start in Work/main: ${before_zone:-missing}"
+    [ "$freeform_zone" = main ] || die "Slice 27 ordinary drag left Work/main: ${freeform_zone:-missing}"
+    [ "$freeform_layout" = floating ] || die "Slice 27 ordinary drag did not leave source floating: ${freeform_layout:-missing}"
+    [ "$reset_zone" = main ] || die "Slice 27 reset did not return source to Work/main: ${reset_zone:-missing}"
+    [ "$reset_layout" != floating ] || die "Slice 27 reset left source floating before window-slot snap"
+    [ "$(field_for_title "$windows_reset" 'target-window.rtf' zone)" = main ] \
+        || die "Slice 27 reset did not keep target-window.rtf in Work/main"
+    [ "$after_zone" = main ] || die "Slice 27 window-slot snap should stay in Work/main: ${after_zone:-missing}"
+    [ "$(field_for_title "$windows_after" 'snap-demo.rtf' zone)" = main ] \
+        || die "Slice 27 after log should keep snap-demo in main"
+    [ "$(field_for_title "$windows_after" 'target-window.rtf' zone)" = main ] \
+        || die "Slice 27 after log should keep target-window in main"
+    [ -n "$before_workspace" ] && [ -n "$freeform_workspace" ] && [ "$before_workspace" = "$freeform_workspace" ] \
+        || die "Slice 27 ordinary drag should stay in Work/main active workspace"
+    [ -n "$before_workspace" ] && [ -n "$after_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+        || die "Slice 27 window-slot snap should stay in Work/main active workspace"
+
+    [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = window-slot ] \
+        || die "Slice 27 proof manifest must show window-slot snap target"
+    [ "$(manifest_value "$proof_manifest" drag-target not-snap-target)" = whole-zone ] \
+        || die "Slice 27 proof manifest must exclude whole-zone fallback"
+    [ "$(manifest_value "$proof_manifest" drag-policy target)" = window ] \
+        || die "Slice 27 proof manifest must show target=window"
+    [ "$(manifest_value "$proof_manifest" drag-policy proof-mode)" = window-slot ] \
+        || die "Slice 27 proof manifest missing window-slot mode"
+    [ "$(manifest_value "$proof_manifest" drag-policy positive-proof)" = secondary-button-window-slot-snap ] \
+        || die "Slice 27 proof manifest missing window-slot positive proof"
+    [ "$(manifest_value "$proof_manifest" drag-policy negative-proof)" = no-secondary-button-floats-no-slot ] \
+        || die "Slice 27 proof manifest missing no-slot negative proof"
+    [ "$(manifest_value "$proof_manifest" drag-target window-slot)" = right ] \
+        || die "Slice 27 proof manifest missing right window slot"
+    [ "$(manifest_value "$proof_manifest" visual-floor product-overlay-label)" = "Window slot: Right" ] \
+        || die "Slice 27 proof manifest missing product overlay label"
+    require_secondary_button_input_evidence "$proof_manifest" "$slice_label"
+    require_mouse_event_log_event "$mouse_events" snap-first-affordance overlay
+    require_mouse_event_log_event "$mouse_events" snap-release drag
+    require_mouse_event_log_order "$mouse_events" snap-first-affordance snap-release \
+        "Slice 27 window-slot affordance must appear before release"
+
+    for chip in \
+        "Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='window'" \
+        "Action: drag snap-demo.rtf inside Work with no secondary button" \
+        "Run: winmux list-windows --monitor all" \
+        "Action: reset snap-demo.rtf beside target-window.rtf" \
+        "Action: hold secondary button while dragging snap-demo.rtf" \
+        "Action: target = target-window.rtf right slot" \
+        "Action: release on window slot"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 27 annotations missing chip: $chip"
+    done
 }
 
 require_slice_21_zone_mode_v2_proof() {
@@ -5585,7 +6779,12 @@ if [ "$SELF_TEST" = "1" ]; then
     exit 0
 fi
 
-require_no_ds_store
+if [ "$REVIEW_LINT" = "1" ]; then
+    run_review_lint
+    exit 0
+fi
+
+require_no_finder_metadata
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
 verify_hash_from_preflight config_sha256 "$CONFIG_PATH"
@@ -5670,8 +6869,8 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
     fi
     awk -F '\t' -v skip_placeholder_check="$skip_placeholder_check" '
         $0 == "" || $1 ~ /^#/ { next }
-        NF < 5 || $5 !~ /(Run|Config|Edit|Debug|Action):/ {
-            printf("Annotation row %d is missing a user-facing command/config/action: %s\n", NR, $0) > "/dev/stderr"
+        NF < 5 || $5 !~ /(Run|Config|Edit|Debug|Action|Result):/ {
+            printf("Annotation row %d is missing a user-facing command/config/action/result: %s\n", NR, $0) > "/dev/stderr"
             exit 1
         }
         skip_placeholder_check != "1" && $5 ~ /\.\.\.|<[^>]*>|winmux <command>/ {
@@ -5784,6 +6983,15 @@ case "$recording_name" in
         ;;
     slice-25-mouse-demo-contract)
         require_slice_25_mouse_demo_contract_proof
+        ;;
+    slice-26-zone-divider-drag)
+        require_slice_26_zone_divider_drag_proof
+        ;;
+    slice-27-window-slot-snap)
+        require_slice_27_window_slot_snap_proof
+        ;;
+    slice-28-export-zone-layout)
+        require_slice_28_export_zone_layout_proof
         ;;
 esac
 

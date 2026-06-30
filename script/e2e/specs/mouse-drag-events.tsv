@@ -64,3 +64,15 @@ slice-25	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-com
 slice-25	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay and product label remain visible before release	snap-first-affordance
 slice-25	snap-release	drag	mouse-caption-start	release	snap-release	sample-start	-	release caption while the secondary-button whole-zone target is still visible	snap-first-affordance
 slice-25	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after secondary-button snap	snap-release
+slice-27	config-ready	context	caption-start	config	caption-01	sample-start	-	window-slot snap config chip is visible before any drag	-
+slice-27	float-drag-start	drag	mouse-caption-start	freeform	ordinary-pickup	screenshot	02-ordinary-pickup-{slice}.png	source pickup under float-unless-snap with no secondary button	config-ready
+slice-27	float-drag-hover	drag	mouse-caption-start+1.000	freeform	ordinary-hover-no-overlay	screenshot	03-ordinary-hover-no-overlay-{slice}.png	ordinary drag inside Work/main has no window-slot overlay	float-drag-start
+slice-27	float-drag-release	drag	mouse-caption-end	freeform	-	none	-	ordinary drag completes as floating/freeform placement in Work/main	float-drag-hover
+slice-27	float-post-state	inspection	mouse-caption-start	float-result	float-final-placement	sample-start	-	post-freeform inspection shows layout=floating and Work/main	float-drag-release
+slice-27	reset-before-snap	preparation	mouse-caption-start	reset	reset-before-window-slot	screenshot	04-reset-before-window-slot-{slice}.png	same source window reset to Work/main tiling before secondary-button slot drag	float-post-state
+slice-27	snap-drag-start	drag	mouse-caption-start	snap	slot-pickup	screenshot	05-slot-pickup-{slice}.png	secondary-button pickup starts the window-slot snap branch	reset-before-snap
+slice-27	snap-drag-path	drag	mouse-caption-start+1.000	snap	slot-path	screenshot	06-slot-path-{slice}.png	secondary-button drag path toward target-window right slot	snap-drag-start
+slice-27	snap-first-affordance	overlay	mouse-caption-start	target	slot-hover-right	screenshot	07-slot-hover-right-{slice}.png	first visible product label names the target window right slot	snap-drag-path
+slice-27	snap-drag-hover	overlay	mouse-caption-start+0.500	target	slot-hover-right	screenshot	07-slot-hover-right-{slice}.png	window-slot overlay remains visible before release	snap-first-affordance
+slice-27	snap-release	drag	mouse-caption-start	release	slot-release	screenshot	08-slot-release-{slice}.png	release-boundary screenshot still shows the active window-slot affordance before post-drop placement	snap-first-affordance
+slice-27	snap-post-state	inspection	mouse-caption-start	list-last	slot-final-placement	screenshot	99-after-{slice}.png	same source window remains in Work/main after secondary-button window-slot snap	snap-release

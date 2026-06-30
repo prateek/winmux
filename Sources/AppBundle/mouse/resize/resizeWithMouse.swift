@@ -5,6 +5,7 @@ func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutabl
     let notif = notif as String
     let windowId = ax.containingWindowId()
     Task { @MainActor in
+        guard getCurrentMouseManipulationKind() != .zoneDivider else { return }
         if WindowMouseInteractionOpacityController.shared.shouldSuppressObserverEvent(windowId: windowId) {
             return
         }

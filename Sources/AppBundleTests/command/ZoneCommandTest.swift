@@ -44,6 +44,14 @@ final class ZoneCommandTest: XCTestCase {
             BalanceZonesCmdArgs(monitor: .sequenceNumber(1)),
         )
         testParseCommandSucc(
+            "export-zone-layout saved --monitor 1",
+            ExportZoneLayoutCmdArgs(layoutId: "saved", monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
+            "config --check /tmp/winmux-exported-zone-layout.toml",
+            ConfigCmdArgs(commonState: .init([])).copy(\.configPathToCheck, "/tmp/winmux-exported-zone-layout.toml"),
+        )
+        testParseCommandSucc(
             "cycle-zone-layout balanced focus",
             CycleZoneLayoutCmdArgs(layoutIds: ["balanced", "focus"]),
         )
@@ -541,6 +549,149 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
     }
 
+    func testExportZoneLayoutPrintsCurrentEffectiveWidthsAsParseableToml() async throws {
+        _ = configureThreeZones()
+        let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+
+        let export = try await parseCommand("export-zone-layout saved-ultrawide --monitor 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 0, export.stderr.joined(separator: "\n"))
+        XCTAssertEqual(export.stdout, [
+            "[[zone-layouts]]",
+            "id = \"saved-ultrawide\"",
+            "layout = 'columns'",
+            "default-zone = \"main\"",
+            "columns = [",
+            "    { id = \"left\", name = \"Reference\", width = 0.2 },",
+            "    { id = \"main\", name = \"Work\", width = 0.6 },",
+            "    { id = \"right\", name = \"Comms\", width = 0.2 },",
+            "]",
+        ])
+
+        let (parsed, errors) = parseConfig(export.stdout.joined(separator: "\n"))
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.zoneLayouts, [
+            ZoneLayoutConfig(
+                id: "saved-ultrawide",
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.2),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.6),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.2),
+                ],
+            ),
+        ])
+
+        let exportPath = FileManager.default.temporaryDirectory
+            .appending(component: "winmux-exported-zone-layout-\(UUID().uuidString).toml")
+        try export.stdout.joined(separator: "\n").write(to: exportPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: exportPath) }
+
+        let check = try await parseCommand("config --check \(exportPath.path)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(check.exitCode, 0, check.stderr.joined(separator: "\n"))
+        XCTAssertEqual(check.stdout, ["Config OK: \(exportPath.path)"])
+    }
+
+    func testExportZoneLayoutOnlyUsesSelectedPhysicalMonitor() async throws {
+        let zones = configureDuplicateZones()
+        let secondaryLeft = Workspace.get(byName: "secondary-left")
+        XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
+        XCTAssertTrue(secondaryLeft.focusWorkspace())
+        let resize = try await parseCommand("resize-zone --monitor 2 main width 70%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(resize.exitCode, 0)
+
+        let export = try await parseCommand("export-zone-layout secondary-saved --monitor 2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 0, export.stderr.joined(separator: "\n"))
+        XCTAssertEqual(export.stdout, [
+            "[[zone-layouts]]",
+            "id = \"secondary-saved\"",
+            "layout = 'columns'",
+            "default-zone = \"main\"",
+            "columns = [",
+            "    { id = \"left\", name = \"Reference\", width = 0.3 },",
+            "    { id = \"main\", name = \"Work\", width = 0.7 },",
+            "]",
+        ])
+    }
+
+    func testExportZoneLayoutRejectsDisabledZonesWithoutMutation() async throws {
+        _ = configureThreeZones()
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let export = try await parseCommand("export-zone-layout partial").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 1)
+        XCTAssertTrue(export.stderr.joined(separator: "\n").contains("Can't export zone layout while zones are disabled on monitor 1: Comms"))
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(config.zones.singleOrNil().orDie().columns.map(\.width), [0.25, 0.5, 0.25])
+    }
+
+    func testExportZoneLayoutSupportsInlineZonesWithoutNamedActiveLayout() async throws {
+        configureInlineZonesWithLayoutPresets()
+        let export = try await parseCommand("export-zone-layout inline-saved").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 0, export.stderr.joined(separator: "\n"))
+        let (parsed, errors) = parseConfig(export.stdout.joined(separator: "\n"))
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.zoneLayouts.singleOrNil(), ZoneLayoutConfig(
+            id: "inline-saved",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ZoneColumnConfig(id: "main", name: "Work", width: 0.5),
+                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+            ],
+        ))
+    }
+
+    func testExportZoneLayoutEscapesTomlStringsAndParses() async throws {
+        let leftName = #"Reference "Docs""#
+        let mainName = #"Work\Main"#
+        let rightName = "Comms\nAsync"
+        _ = configureThreeZones(columns: [
+            ZoneColumnConfig(id: "left", name: leftName, width: 0.25),
+            ZoneColumnConfig(id: "main", name: mainName, width: 0.50),
+            ZoneColumnConfig(id: "right", name: rightName, width: 0.25),
+        ])
+
+        let export = try await parseCommand("export-zone-layout escaped --monitor 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 0, export.stderr.joined(separator: "\n"))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "left", name = "Reference \"Docs\"", width = 0.25 },"#))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "main", name = "Work\\Main", width = 0.5 },"#))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "right", name = "Comms\nAsync", width = 0.25 },"#))
+
+        let (parsed, errors) = parseConfig(export.stdout.joined(separator: "\n"))
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.zoneLayouts.singleOrNil()?.columns.map(\.name), [leftName, mainName, rightName])
+    }
+
+    func testExportZoneLayoutNormalizesRoundedWidthsAndParses() async throws {
+        _ = configureThreeZones(columns: [
+            ZoneColumnConfig(id: "left", name: "Reference", width: 0.3333333),
+            ZoneColumnConfig(id: "main", name: "Work", width: 0.3333333),
+            ZoneColumnConfig(id: "right", name: "Comms", width: 0.3333334),
+        ])
+
+        let export = try await parseCommand("export-zone-layout thirds --monitor 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(export.exitCode, 0, export.stderr.joined(separator: "\n"))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "left", name = "Reference", width = 0.333333 },"#))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "main", name = "Work", width = 0.333333 },"#))
+        XCTAssertTrue(export.stdout.contains(#"    { id = "right", name = "Comms", width = 0.333334 },"#))
+
+        let (parsed, errors) = parseConfig(export.stdout.joined(separator: "\n"))
+        assertEquals(errors, [])
+        let widths = parsed.zoneLayouts.singleOrNil().orDie().columns.map(\.width)
+        XCTAssertEqual(widths, [0.333333, 0.333333, 0.333334])
+        XCTAssertEqual(widths.reduce(0.0, +), 1.0, accuracy: 0.000001)
+    }
+
     func testConfiguredRelativeZoneSelectorTargetsFocusedZone() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")
@@ -670,6 +821,131 @@ final class ZoneCommandTest: XCTestCase {
             "1:main": 500,
             "2:left": 500,
             "2:main": 500,
+        ])
+    }
+
+    func testMoveZoneDividerChangesAdjacentZonesOnlyAndPreservesWorkspaces() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let workWindow = TestWindow.new(id: 401, parent: work.rootTilingContainer)
+        let commsWindow = TestWindow.new(id: 402, parent: comms.rootTilingContainer)
+
+        let preview = try XCTUnwrap(previewZoneDividerMove(
+            on: zones["main"].orDie().physicalMonitor,
+            leftZoneId: "main",
+            rightZoneId: "right",
+            deltaPixels: 120,
+        ).getOrNil())
+        XCTAssertEqual(preview.oldBoundaryX, 900)
+        XCTAssertEqual(preview.newBoundaryX, 1020)
+        XCTAssertEqual(preview.leftAfterShare, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(preview.rightAfterShare, 0.15, accuracy: 0.0001)
+
+        let result = try XCTUnwrap(moveZoneDivider(
+            on: zones["main"].orDie().physicalMonitor,
+            leftZoneId: "main",
+            rightZoneId: "right",
+            deltaPixels: 120,
+        ).getOrNil())
+
+        XCTAssertEqual(result.appliedDeltaPixels, 120, accuracy: 0.0001)
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 300,
+            "1:main": 720,
+            "1:right": 180,
+        ])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(workWindow.nodeWorkspace === work)
+        XCTAssertTrue(commsWindow.nodeWorkspace === comms)
+    }
+
+    func testMoveZoneDividerClampsAtMinimumShare() async throws {
+        let zones = configureThreeZones()
+
+        let result = try XCTUnwrap(moveZoneDivider(
+            on: zones["main"].orDie().physicalMonitor,
+            leftZoneId: "main",
+            rightZoneId: "right",
+            deltaPixels: 1000,
+        ).getOrNil())
+
+        XCTAssertEqual(result.requestedDeltaPixels, 1000, accuracy: 0.0001)
+        XCTAssertEqual(result.appliedDeltaPixels, 240, accuracy: 0.0001)
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 300,
+            "1:main": 840,
+            "1:right": 60,
+        ])
+    }
+
+    func testMoveZoneDividerRejectsDisabledTargetAndExposesOnlyEnabledBoundaries() async throws {
+        let zones = configureThreeZones()
+
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+
+        let handles = zoneDividerHandles(hitSlop: 12)
+        XCTAssertEqual(handles.map { "\($0.leftZoneId)|\($0.rightZoneId)" }, ["left|main"])
+        XCTAssertNil(zoneDividerHandle(at: CGPoint(x: 900, y: 10), hitSlop: 12))
+
+        switch moveZoneDivider(
+            on: zones["main"].orDie().physicalMonitor,
+            leftZoneId: "main",
+            rightZoneId: "right",
+            deltaPixels: 120,
+        ) {
+            case .success:
+                XCTFail("Expected disabled right zone to reject divider movement")
+            case .failure(let message):
+                XCTAssertTrue(message.contains("not adjacent enabled zones"))
+        }
+    }
+
+    func testMoveZoneDividerOnlyAffectsSelectedPhysicalMonitorAndActiveLayout() async throws {
+        let zones = configureDuplicateZoneLayoutPresets()
+
+        let result = try XCTUnwrap(moveZoneDivider(
+            on: zones["2:left"].orDie().physicalMonitor,
+            leftZoneId: "left",
+            rightZoneId: "main",
+            deltaPixels: 100,
+        ).getOrNil())
+
+        XCTAssertEqual(result.appliedDeltaPixels, 100, accuracy: 0.0001)
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 600,
+            "2:main": 400,
+        ])
+
+        switch setActiveZoneLayout("focus", for: zones["2:left"].orDie().physicalMonitor) {
+            case .success: break
+            case .failure(let message): XCTFail(message)
+        }
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 300,
+            "2:main": 700,
+        ])
+
+        switch setActiveZoneLayout("balanced", for: zones["2:left"].orDie().physicalMonitor) {
+            case .success: break
+            case .failure(let message): XCTFail(message)
+        }
+        XCTAssertEqual(zoneWidthsByPhysicalZone(), [
+            "1:left": 500,
+            "1:main": 500,
+            "2:left": 600,
+            "2:main": 400,
         ])
     }
 
@@ -2038,7 +2314,10 @@ private func configureInlineZonesWithLayoutPresets() {
 }
 
 @MainActor
-private func configureThreeZones(defaultZone: String = "main") -> [String: Monitor] {
+private func configureThreeZones(
+    defaultZone: String = "main",
+    columns: [ZoneColumnConfig]? = nil,
+) -> [String: Monitor] {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
         name: "Main",
@@ -2054,7 +2333,7 @@ private func configureThreeZones(defaultZone: String = "main") -> [String: Monit
             monitor: .sequenceNumber(1),
             layout: .columns,
             defaultZone: defaultZone,
-            columns: [
+            columns: columns ?? [
                 ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
                 ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
                 ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),

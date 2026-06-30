@@ -374,6 +374,10 @@ extension WindowMouseInteractionDriver {
 
 extension WindowMouseInteractionDriver {
     func capturePendingResizeCandidate() async {
+        guard getCurrentMouseManipulationKind() != .zoneDivider else {
+            pendingResizeCandidate = nil
+            return
+        }
         guard let candidate = await makePendingResizeCandidate() else {
             pendingResizeCandidate = nil
             return

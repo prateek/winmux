@@ -73,21 +73,56 @@ enum GlobalObserver {
         }
     }
 
-    private static func onPointerActivity(_ event: NSEvent) {
+    @discardableResult
+    private static func onPointerActivity(_ event: NSEvent) -> Bool {
         let isLeftMouseDownEvent = event.type == .leftMouseDown
+        let isMouseMovedEvent = event.type == .mouseMoved
         let timestamp = event.timestamp
         let screenPoint = NSEvent.mouseLocation
         let point = normalizeAppKitScreenPoint(screenPoint)
-        runOnMainActor {
-            MousePointerTracker.shared.note(point: point, timestamp: timestamp)
-            WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
-            if isLeftMouseDownEvent {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated {
+                onPointerActivityMain(
+                    point: point,
+                    timestamp: timestamp,
+                    isLeftMouseDownEvent: isLeftMouseDownEvent,
+                    isMouseMovedEvent: isMouseMovedEvent,
+                )
+            }
+        }
+        Task { @MainActor in
+            _ = onPointerActivityMain(
+                point: point,
+                timestamp: timestamp,
+                isLeftMouseDownEvent: isLeftMouseDownEvent,
+                isMouseMovedEvent: isMouseMovedEvent,
+            )
+        }
+        return false
+    }
+
+    @MainActor
+    private static func onPointerActivityMain(
+        point: CGPoint,
+        timestamp: TimeInterval,
+        isLeftMouseDownEvent: Bool,
+        isMouseMovedEvent: Bool,
+    ) -> Bool {
+        MousePointerTracker.shared.note(point: point, timestamp: timestamp)
+        WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
+        var consumed = false
+        if isLeftMouseDownEvent {
+            consumed = ZoneDividerDragController.shared.handleMouseDown(at: point)
+            if !consumed {
                 Task { @MainActor in
                     await WindowMouseInteractionDriver.shared.capturePendingResizeCandidate()
                 }
             }
-            noteTapBindingKeyDown()
+        } else if isMouseMovedEvent {
+            ZoneDividerDragController.shared.updateHover(at: point)
         }
+        noteTapBindingKeyDown()
+        return consumed
     }
 
     @MainActor
@@ -110,10 +145,13 @@ enum GlobalObserver {
             //  resetManipulatedWithMouseIfPossible might call its own refreshSession
             //  The end of the callback calls refreshSession
             Task { @MainActor in
+                let mouseLocation = mouseLocation
+                if ZoneDividerDragController.shared.handleMouseUp(at: mouseLocation) {
+                    return
+                }
                 finishWorkspaceSidebarDragAfterGlobalMouseUp()
                 guard let token: RunSessionGuard = .isServerEnabled else { return }
                 try await resetManipulatedWithMouseIfPossible()
-                let mouseLocation = mouseLocation
                 let clickedMonitor = mouseLocation.monitorApproximation
                 switch true {
                     // Detect clicks on desktop of different monitors
@@ -135,6 +173,9 @@ enum GlobalObserver {
             runOnMainActor {
                 MousePointerTracker.shared.note(point: point, timestamp: timestamp)
                 WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
+                if ZoneDividerDragController.shared.handleMouseDragged(at: point) {
+                    return
+                }
                 refreshPendingWindowDragIntentFromGlobalMouseDrag()
             }
         })
@@ -145,9 +186,13 @@ enum GlobalObserver {
             .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
             .scrollWheel,
         ]
-        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: pointerActivityMask, handler: onPointerActivity))
+        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: pointerActivityMask) { event in
+            _ = onPointerActivity(event)
+        })
         retainEventMonitor(NSEvent.addLocalMonitorForEvents(matching: pointerActivityMask) { event in
-            onPointerActivity(event)
+            if onPointerActivity(event) {
+                return nil
+            }
             return event
         })
 

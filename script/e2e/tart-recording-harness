@@ -82,6 +82,15 @@ fi
 if [ "$ACTION" = "slice-24" ] || [ "$ACTION" = "slice-25" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/float-unless-snap-secondary-button.toml"
 fi
+if [ "$ACTION" = "slice-26" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
+fi
+if [ "$ACTION" = "slice-27" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/window-slot-snap.toml"
+fi
+if [ "$ACTION" = "slice-28" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
@@ -134,7 +143,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -242,6 +251,7 @@ abort_status_self_test() {
     grep -F 'phase=self-test' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing phase"
     grep -F 'exit_code=42' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing exit code"
     grep -F 'final_result=failure' "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing result"
+    grep -F "primary_log=${LOGS_DIR}/self-test.log" "$RUN_ABORT_STATUS" >/dev/null || die "Abort status self-test missing primary log"
     LOGS_DIR="$old_logs_dir"
     SCREENSHOTS_DIR="$old_screenshots_dir"
     RUN_ABORT_STATUS="$old_run_abort_status"
@@ -442,6 +452,38 @@ assert_guest_retry_policy_result() {
         || die "Guest retry policy self-test expected ${expected_attempts} attempts for ${label}, got: ${output}"
 }
 
+retry_summary_fields_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local retry_log="${tmp_dir}/retry.log"
+    {
+        printf 'attempt=1\n'
+        printf 'ssh: connect to host 127.0.0.1 port 22: Connection refused\n'
+        printf 'probe_result=failure\n'
+        printf 'attempt=2\n'
+        printf 'probe_result=success\n'
+        printf 'attempt=3\n'
+        printf 'TCC database is locked\n'
+        printf 'probe_result=failure\n'
+        printf 'attempt=4\n'
+        printf 'probe_result=success\n'
+        printf 'result=success\n'
+    } >"$retry_log"
+
+    local statuses first_reason last_reason
+    statuses="$(log_attempt_statuses "$retry_log")"
+    first_reason="$(compact_failure_reason "$retry_log" first)"
+    last_reason="$(compact_failure_reason "$retry_log" last)"
+    rm -rf "$tmp_dir"
+
+    [ "$statuses" = "failure,success,failure,success" ] \
+        || die "Retry summary self-test expected attempt statuses, got: $statuses"
+    [ "$first_reason" = "ssh: connect to host 127.0.0.1 port 22: Connection refused" ] \
+        || die "Retry summary self-test expected first failure reason, got: $first_reason"
+    [ "$last_reason" = "TCC database is locked" ] \
+        || die "Retry summary self-test expected last failure reason, got: $last_reason"
+}
+
 warmup_policy_self_test() {
     assert_warmup_policy_pass "observed transient auth miss" 10 success failure success success
     assert_warmup_policy_pass "late adjacent recovery" 10 success success failure success success
@@ -452,6 +494,7 @@ warmup_policy_self_test() {
     assert_guest_retry_policy_result "post-mutation failure stops retries" mutation_failure 1 5 86 1:mutated 0 0
     assert_guest_retry_policy_result "transient failure retries until success" success 3 5 86 1 1 0
     assert_guest_retry_policy_result "ordinary failures exhaust attempts" failure 5 5 86 1 1 1 1 1
+    retry_summary_fields_self_test
     log "Warm-up policy self-test passed"
 }
 
@@ -652,10 +695,13 @@ append_guest_script_retry_summary() {
     fi
 
     if [ ! -s "$summary_path" ]; then
-        printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\n' >"$summary_path"
+        printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\n' >"$summary_path"
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
+        "$(log_attempt_statuses "$log_path")" \
+        "$(compact_failure_reason "$log_path" first)" \
+        "$(compact_failure_reason "$log_path" last)" >>"$summary_path"
 }
 
 guest_script_retry() {
@@ -1103,7 +1149,21 @@ echo capture_probe_done"
         sleep "$GUEST_CAPTURE_READY_RETRY_SECONDS"
     done
 
+    {
+        echo diagnostics_start
+        guest_script 'set +e
+date
+/usr/bin/sw_vers
+/usr/sbin/system_profiler SPDisplaysDataType
+/usr/bin/pgrep -x Dock >/dev/null 2>&1 && echo dock_running=yes || echo dock_running=no
+/usr/bin/pgrep -x WindowServer >/dev/null 2>&1 && echo windowserver_running=yes || echo windowserver_running=no
+/usr/bin/ps -axo pid,comm | /usr/bin/grep -E "WindowServer|Dock|SystemUIServer|screencapture" | /usr/bin/grep -v grep
+exit 0'
+        echo diagnostics_done
+    } >>"$log_path" 2>&1 || true
+
     cat "$log_path" >&2 || true
+    write_run_abort_status guest-capture-ready 1 failure "$log_path" "Guest screencapture did not become ready"
     die "Guest screencapture did not become ready"
 }
 
@@ -1160,6 +1220,9 @@ test -s ${guest_path_quoted}
 
 scrub_finder_metadata() {
     find "$RUN_DIR" -name .DS_Store -delete
+    if command -v xattr >/dev/null 2>&1; then
+        xattr -cr "$RUN_DIR" 2>/dev/null || true
+    fi
 }
 
 start_recording() {
@@ -1388,6 +1451,20 @@ write_static_slice_25_annotation_plan() {
 CAPTIONS
 }
 
+write_static_slice_27_annotation_plan() {
+    local captions_path="$1"
+    cat >"$captions_path" <<'CAPTIONS'
+0	8	Window-slot snap ready	The mouse policy starts in float-unless-snap mode with a secondary-button drag gesture and window target.	Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='window'
+8	19	Drag normally	Pick up snap-demo.rtf inside Work without the secondary button; this should not show a slot overlay.	Action: drag snap-demo.rtf inside Work with no secondary button
+19	28	Floating result	The same source is now floating/freeform inside Work/main.	Run: winmux list-windows --monitor all	Result: layout=floating, zone=Work/main
+28	37	Reset beside target	Return snap-demo.rtf beside target-window.rtf before proving the slot branch.	Action: reset snap-demo.rtf beside target-window.rtf
+37	48	Secondary-button drag	Hold the secondary mouse button while dragging toward target-window.rtf.	Action: hold secondary button while dragging snap-demo.rtf	Input: secondary button held
+48	59	Window-slot target	The product overlay targets the right slot of target-window.rtf, not the whole Work zone.	Action: target = target-window.rtf right slot
+59	68	Release on slot	Drop to split target-window.rtf inside Work/main.	Action: release on window slot
+68	78	Inspect slot snap	The window log proves the same source id stayed in Work/main after the slot drop.	Run: winmux list-windows --monitor all	Result: same window id still in Work/main
+CAPTIONS
+}
+
 write_timed_slice_22_annotation_plan() {
     local captions_path="$1"
     local slice_prefix="${2:-slice-22}"
@@ -1609,6 +1686,76 @@ write_timed_slice_25_annotation_plan() {
             emit(target_start, release_start, "Whole-zone target", "The product overlay targets the Comms zone itself, not a window or slot.", "Action: target = whole Comms zone")
             emit(release_start, snap_end + 3, "Release into Comms", "Drop to move the same window to Comms active workspace.", "Action: release on Comms zone")
             emit(snap_end + 3, snap_end + 10, "Inspect snap", "The window log proves the same id snapped from Work/main to Comms/right.", "Run: winmux list-windows --monitor all", "Result: same window id in Comms/right")
+        }
+    ' >"$captions_path"
+}
+
+write_timed_slice_27_annotation_plan() {
+    local captions_path="$1"
+    local timing_log="${LOGS_DIR}/slice-27-command-timing.log"
+    if [ ! -s "$timing_log" ]; then
+        write_static_slice_27_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    local freeform_start_offset freeform_end_offset snap_start_offset snap_end_offset
+    freeform_start_offset="$(timing_value_from_log freeform-drag-start-offset-seconds "$timing_log")"
+    freeform_end_offset="$(timing_value_from_log freeform-drag-end-offset-seconds "$timing_log")"
+    snap_start_offset="$(timing_value_from_log snap-drag-start-offset-seconds "$timing_log")"
+    snap_end_offset="$(timing_value_from_log snap-drag-end-offset-seconds "$timing_log")"
+    if [ -z "$freeform_start_offset" ] || [ -z "$freeform_end_offset" ] || [ -z "$snap_start_offset" ] || [ -z "$snap_end_offset" ]; then
+        write_static_slice_27_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    /usr/bin/awk \
+        -v base=8 \
+        -v freeform_start_offset="$freeform_start_offset" \
+        -v freeform_end_offset="$freeform_end_offset" \
+        -v snap_start_offset="$snap_start_offset" \
+        -v snap_end_offset="$snap_end_offset" '
+        function max(a, b) { return a > b ? a : b }
+        function min(a, b) { return a < b ? a : b }
+        function emit(start, end, title, body, chip, result) {
+            if (end <= start) {
+                end = start + 1
+            }
+            if (result != "") {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\t%s\n", start, end, title, body, chip, result
+            } else {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            }
+        }
+        BEGIN {
+            freeform_start = base + freeform_start_offset
+            freeform_end = base + freeform_end_offset
+            snap_start = base + snap_start_offset
+            snap_end = base + snap_end_offset
+
+            freeform_pickup_end = min(freeform_start + 5, max(freeform_start + 1, freeform_end - 4))
+            float_result_end = min(max(freeform_end + 3, freeform_pickup_end + 1), snap_start - 3)
+            if (float_result_end <= freeform_pickup_end) {
+                float_result_end = freeform_pickup_end + 1
+            }
+            reset_end = max(snap_start, float_result_end + 1)
+            snap_pickup_end = min(snap_start + 5, snap_end - 5)
+            if (snap_pickup_end <= snap_start) {
+                snap_pickup_end = snap_start + 3
+            }
+            target_start = snap_pickup_end
+            release_start = min(snap_end - 1, target_start + 7)
+            if (release_start <= target_start) {
+                release_start = target_start + 2
+            }
+
+            emit(0, base, "Window-slot snap ready", "The mouse policy starts in float-unless-snap mode with a secondary-button drag gesture and window target.", "Config: policy='\''float-unless-snap'\''; gesture='\''secondary-button-drag'\''; target='\''window'\''")
+            emit(freeform_start, freeform_pickup_end, "Drag normally", "Pick up snap-demo.rtf inside Work without the secondary button; this should not show a slot overlay.", "Action: drag snap-demo.rtf inside Work with no secondary button")
+            emit(freeform_pickup_end, float_result_end, "Floating result", "The same source is now floating/freeform inside Work/main.", "Run: winmux list-windows --monitor all", "Result: layout=floating, zone=Work/main")
+            emit(float_result_end, reset_end, "Reset beside target", "Return snap-demo.rtf beside target-window.rtf before proving the slot branch.", "Action: reset snap-demo.rtf beside target-window.rtf")
+            emit(snap_start, snap_pickup_end, "Secondary-button drag", "Hold the secondary mouse button while dragging toward target-window.rtf.", "Action: hold secondary button while dragging snap-demo.rtf", "Input: secondary button held")
+            emit(target_start, release_start, "Window-slot target", "The product overlay targets the right slot of target-window.rtf, not the whole Work zone.", "Action: target = target-window.rtf right slot")
+            emit(release_start, snap_end + 3, "Release on slot", "Drop to split target-window.rtf inside Work/main.", "Action: release on window slot")
+            emit(snap_end + 3, snap_end + 10, "Inspect slot snap", "The window log proves the same source id stayed in Work/main after the slot drop.", "Run: winmux list-windows --monitor all", "Result: same window id still in Work/main")
         }
     ' >"$captions_path"
 }
@@ -1886,6 +2033,18 @@ mouse_drag_caption_label() {
             last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
                 printf '%s\n' "$first_list_label"
             ;;
+        slice-27:config) caption_label_for_chip "$name" "Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='window'" ;;
+        slice-27:freeform) caption_label_for_chip "$name" "Action: drag snap-demo.rtf inside Work with no secondary button" ;;
+        slice-27:float-result) caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ;;
+        slice-27:reset) caption_label_for_chip "$name" "Action: reset snap-demo.rtf beside target-window.rtf" ;;
+        slice-27:snap) caption_label_for_chip "$name" "Action: hold secondary button while dragging snap-demo.rtf" ;;
+        slice-27:target) caption_label_for_chip "$name" "Action: target = target-window.rtf right slot" ;;
+        slice-27:release) caption_label_for_chip "$name" "Action: release on window slot" ;;
+        slice-27:list-last)
+            first_list_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
+            last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
+                printf '%s\n' "$first_list_label"
+            ;;
         *) die "Unknown mouse drag caption key: ${slice}:${key}" ;;
     esac
 }
@@ -2001,6 +2160,106 @@ write_slice_25_event_manifest() {
     write_mouse_drag_event_manifest slice-25 "$1"
 }
 
+write_slice_27_event_manifest() {
+    write_mouse_drag_event_manifest slice-27 "$1"
+}
+
+write_slice_26_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label hover_label pickup_label drag_label preview_label release_label inspect_label
+    local config_seconds hover_seconds pickup_seconds drag_seconds preview_seconds release_seconds inspect_seconds
+
+    config_label="$(caption_label_for_chip "$name" "Config: [[zone-layouts]] columns left/main/right")"
+    hover_label="$(caption_label_for_chip "$name" "Action: hover Work|Comms divider")"
+    pickup_label="$(caption_label_for_chip "$name" "Action: click and hold divider")"
+    drag_label="$(caption_label_for_chip "$name" "Action: drag divider right")"
+    preview_label="$(caption_label_for_chip "$name" "Action: preview Work grows; Comms shrinks")"
+    release_label="$(caption_label_for_chip "$name" "Action: release divider")"
+    inspect_label="$(caption_label_for_chip "$name" "Run: winmux list-zones")"
+
+    config_seconds="$(caption_start_for_label "$name" "$config_label")"
+    hover_seconds="$(mouse_event_seconds "$name" divider-hover "$(caption_start_for_label "$name" "$hover_label")")"
+    pickup_seconds="$(mouse_event_seconds "$name" divider-pickup "$(caption_start_for_label "$name" "$pickup_label")")"
+    drag_seconds="$(mouse_event_seconds "$name" divider-drag-path "$(caption_start_for_label "$name" "$drag_label")")"
+    preview_seconds="$(mouse_event_seconds "$name" divider-live-preview "$(caption_start_for_label "$name" "$preview_label")")"
+    release_seconds="$(mouse_event_seconds "$name" divider-release "$(caption_start_for_label "$name" "$release_label")")"
+    inspect_seconds="$(mouse_event_seconds "$name" after-divider-resize "$(caption_start_for_label "$name" "$inspect_label")")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context "$config_seconds" "$config_label" config-ready \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "column layout config is visible before divider interaction"
+    append_event_manifest_row "$manifest_path" divider-hover overlay "$hover_seconds" "$hover_label" divider-hover \
+        "screenshots/02-divider-hover-slice-26.png" \
+        "Work|Comms divider hover affordance is visible before mouse down"
+    append_event_manifest_row "$manifest_path" divider-pickup drag "$pickup_seconds" "$pickup_label" divider-pickup \
+        "screenshots/03-divider-pickup-slice-26.png" \
+        "divider is picked up as a divider, not a window or sidebar item"
+    append_event_manifest_row "$manifest_path" divider-drag-path drag "$drag_seconds" "$drag_label" divider-drag-path \
+        "screenshots/04-divider-drag-path-slice-26.png" \
+        "divider moves right along the Work and Comms boundary"
+    append_event_manifest_row "$manifest_path" divider-live-preview overlay "$preview_seconds" "$preview_label" divider-live-preview \
+        "screenshots/05-divider-preview-slice-26.png" \
+        "live preview shows Work growing and Comms shrinking before release"
+    append_event_manifest_row "$manifest_path" divider-release drag "$release_seconds" "$release_label" divider-release \
+        "screenshots/06-divider-release-slice-26.png" \
+        "mouse release commits adjacent runtime widths"
+    append_event_manifest_row "$manifest_path" after-divider-resize inspection "$inspect_seconds" "$inspect_label" after-divider-resize \
+        "screenshots/07-after-divider-resize-slice-26.png" \
+        "list-zones after release shows adjacent-only runtime width override"
+}
+
+write_slice_28_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label resize_label changed_label export_label toml_label check_label hash_label
+
+    config_label="$(caption_label_for_chip "$name" "Config: [[zone-layouts]] columns left/main/right")"
+    resize_label="$(caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%")"
+    changed_label="$(caption_label_for_chip "$name" "Action: Work effective width becomes 0.6")"
+    export_label="$(caption_label_for_chip "$name" "Run: winmux export-zone-layout saved-ultrawide --monitor 1")"
+    toml_label="$(caption_label_for_chip "$name" "Action: emitted [[zone-layouts]] TOML is visible")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check slice-28-export-zone-layout.toml")"
+    hash_label="$(caption_label_for_chip "$name" "Run: shasum config/winmux.toml")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" config-ready \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "column layout config is visible before the runtime resize and export"
+    append_event_manifest_row "$manifest_path" resize-command-start command \
+        "$(caption_start_for_label "$name" "$resize_label")" "$resize_label" resize-command-start \
+        "screenshots/${name}.samples/${resize_label}-boundary-start.png" \
+        "resize-zone command caption appears before exporting"
+    append_event_manifest_row "$manifest_path" after-runtime-resize state \
+        "$(caption_start_for_label "$name" "$changed_label")" "$changed_label" after-runtime-resize \
+        "screenshots/03-after-runtime-resize-slice-28.png" \
+        "Work/main runtime effective width is wider before export"
+    append_event_manifest_row "$manifest_path" export-command-start command \
+        "$(caption_start_for_label "$name" "$export_label")" "$export_label" export-command-start \
+        "screenshots/${name}.samples/${export_label}-boundary-start.png" \
+        "export command caption appears before TOML output is shown"
+    append_event_manifest_row "$manifest_path" toml-output-visible output \
+        "$(caption_start_for_label "$name" "$toml_label")" "$toml_label" toml-output-visible \
+        "screenshots/04-export-output-slice-28.png" \
+        "exported [[zone-layouts]] TOML is visible in the guest desktop"
+    append_event_manifest_row "$manifest_path" config-check-command-start command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check-command-start \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "config --check command caption appears before parse success proof"
+    append_event_manifest_row "$manifest_path" config-check-success inspection \
+        "55.000" "$check_label" config-check-success \
+        "screenshots/05-config-check-slice-28.png" \
+        "config check output shows the emitted TOML parses"
+    append_event_manifest_row "$manifest_path" config-hash-unchanged inspection \
+        "$(caption_start_for_label "$name" "$hash_label")" "$hash_label" config-hash-unchanged \
+        "screenshots/06-final-state-slice-28.png" \
+        "copied config hash stays unchanged after export"
+}
+
 write_slice_21_event_manifest() {
     local name="$1"
     local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
@@ -2086,6 +2345,15 @@ write_event_manifest() {
             ;;
         slice-25-mouse-demo-contract)
             write_slice_25_event_manifest "$name"
+            ;;
+        slice-26-zone-divider-drag)
+            write_slice_26_event_manifest "$name"
+            ;;
+        slice-27-window-slot-snap)
+            write_slice_27_event_manifest "$name"
+            ;;
+        slice-28-export-zone-layout)
+            write_slice_28_event_manifest "$name"
             ;;
         *)
             ;;
@@ -2213,6 +2481,31 @@ CAPTIONS
         slice-25-mouse-demo-contract)
             write_timed_slice_25_annotation_plan "$captions_path"
             ;;
+        slice-27-window-slot-snap)
+            write_timed_slice_27_annotation_plan "$captions_path"
+            ;;
+        slice-26-zone-divider-drag)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Divider-ready zones	Reference, Work, and Comms start from the configured balanced layout.	Config: [[zone-layouts]] columns left/main/right
+8	15	Hover divider	The Work and Comms boundary shows the divider affordance before mouse down.	Action: hover Work|Comms divider
+15	22	Pick up divider	Click and hold the boundary itself, not a window edge or sidebar item.	Action: click and hold divider
+22	34	Drag divider	Move the adjacent-zone divider to the right.	Action: drag divider right
+34	46	Live preview	Work grows while Comms shrinks; Reference stays fixed.	Action: preview Work grows; Comms shrinks
+46	56	Release divider	Release commits runtime width overrides for the adjacent zones.	Action: release divider
+56	72	Inspect zones	The CLI shows Work and Comms changed, Reference unchanged, and config untouched.	Run: winmux list-zones
+CAPTIONS
+            ;;
+        slice-28-export-zone-layout)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Export-ready zones	Reference, Work, and Comms start from a named column layout.	Config: [[zone-layouts]] columns left/main/right
+8	18	Runtime resize	Change the current in-memory widths before exporting.	Run: winmux resize-zone Work width +10%
+18	28	Changed widths	Work is now wider and the side zones are narrower.	Action: Work effective width becomes 0.6
+28	40	Export layout	Print a pasteable preset from the current runtime geometry.	Run: winmux export-zone-layout saved-ultrawide --monitor 1
+40	50	TOML output	The emitted snippet is visible in-frame with ids, names, default zone, and widths.	Action: emitted [[zone-layouts]] TOML is visible
+50	60	Validate snippet	Parse the emitted TOML through WinMux before accepting it as config.	Run: winmux config --check slice-28-export-zone-layout.toml	Result: Config OK
+60	68	Runtime-only proof	The original copied config hash is unchanged after export.	Run: shasum config/winmux.toml	Result: unchanged
+CAPTIONS
+            ;;
         slice-10-zone-availability)
             cat >"$captions_path" <<'CAPTIONS'
 0	8	Availability-ready zones	Reference, Work, and Comms are visible before the toggle.	Config: [[zones]] Reference + Work + Comms
@@ -2331,6 +2624,18 @@ CAPTIONS
     esac
 }
 
+caption_footprint_for_recording() {
+    local name="$1"
+    case "$name" in
+        slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout)
+            printf 'compact\n'
+            ;;
+        *)
+            printf 'standard\n'
+            ;;
+    esac
+}
+
 annotate_recording() {
     local name="$1"
     local path="${RECORDINGS_DIR}/${name}.mov"
@@ -2346,7 +2651,12 @@ annotate_recording() {
     write_expected_caption_chips "$name"
     write_event_manifest "$name"
     mv "$path" "$raw_path"
-    if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$path" >"$annotation_log" 2>&1; then
+    local caption_footprint caption_anchor
+    caption_footprint="${WINMUX_E2E_CAPTION_FOOTPRINT:-$(caption_footprint_for_recording "$name")}"
+    caption_anchor="${WINMUX_E2E_CAPTION_ANCHOR:-bottom-left}"
+    if ! WINMUX_E2E_CAPTION_FOOTPRINT="$caption_footprint" \
+        WINMUX_E2E_CAPTION_ANCHOR="$caption_anchor" \
+        "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
         die "Recording annotation failed for $name"
     fi
@@ -2387,7 +2697,7 @@ annotation_preflight() {
         -pix_fmt yuv420p \
         "$input"
 
-    local name captions output render_log
+    local name captions output render_log caption_footprint caption_anchor
     for name in \
         harness-smoke \
         slice-1-zone-spike \
@@ -2415,14 +2725,17 @@ annotation_preflight() {
         slice-22-float-unless-snap \
         slice-23-product-snap-overlay-label \
         slice-24-secondary-button-snap \
-        slice-25-mouse-demo-contract
+        slice-25-mouse-demo-contract \
+        slice-26-zone-divider-drag \
+        slice-27-window-slot-snap \
+        slice-28-export-zone-layout
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -2435,11 +2748,19 @@ annotation_preflight() {
                 exit 1
             }
         ' "$captions" || die "Annotation preflight found an overlong chip in $name"
-        if ! "${SCRIPT_DIR}/annotate-recording" "$input" "$captions" "$output" >"$render_log" 2>&1; then
+        caption_footprint="${WINMUX_E2E_CAPTION_FOOTPRINT:-$(caption_footprint_for_recording "$name")}"
+        caption_anchor="${WINMUX_E2E_CAPTION_ANCHOR:-bottom-left}"
+        if ! WINMUX_E2E_CAPTION_FOOTPRINT="$caption_footprint" \
+            WINMUX_E2E_CAPTION_ANCHOR="$caption_anchor" \
+            "${SCRIPT_DIR}/annotate-recording" "$input" "$captions" "$output" >"$render_log" 2>&1; then
             cat "$render_log" >&2 || true
             die "Annotation preflight failed for $name"
         fi
         grep -F 'result=success' "$render_log" >/dev/null || die "Annotation preflight did not report success for $name"
+        grep -F "caption_footprint=${caption_footprint}" "$render_log" >/dev/null \
+            || die "Annotation preflight did not render ${name} with ${caption_footprint} captions"
+        grep -F "caption_anchor=${caption_anchor}" "$render_log" >/dev/null \
+            || die "Annotation preflight did not render ${name} with ${caption_anchor} captions"
     done
     log "Annotation preflight rendered all caption plans"
 }
@@ -2728,6 +3049,109 @@ write_semantic_sample_manifest() {
                 "screenshots/99-after-${sample_slice_prefix}.png" \
                 "$snap_final_description"
             ;;
+        slice-27-window-slot-snap)
+            local float_caption_label float_caption_start release_caption_label release_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            float_caption_label="$(event_manifest_field "$event_manifest" float-post-state caption-label || caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" || printf 'caption-03\n')"
+            float_caption_start="$(event_manifest_field "$event_manifest" float-post-state seconds || caption_start_for_label "$name" "$float_caption_label" || printf 'caption-boundary-start\n')"
+            release_caption_label="$(event_manifest_field "$event_manifest" snap-release caption-label || caption_label_for_chip "$name" "Action: release on window slot" || printf 'caption-07\n')"
+            release_caption_start="$(event_manifest_field "$event_manifest" snap-release seconds || caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic ordinary-pickup screenshot screenshot \
+                "screenshots/02-ordinary-pickup-slice-27.png" \
+                "desktop window pickup under float-unless-snap with no secondary button held"
+            append_sample_manifest_row "$manifest_path" semantic ordinary-hover-no-overlay screenshot screenshot \
+                "screenshots/03-ordinary-hover-no-overlay-slice-27.png" \
+                "ordinary drag inside Work/main has no window-slot snap overlay"
+            append_sample_manifest_row "$manifest_path" semantic float-final-placement "$float_caption_label" "$float_caption_start" \
+                "screenshots/${name}.samples/${float_caption_label}-boundary-start.png" \
+                "post-freeform inspection shows the same window as layout=floating in Work/main"
+            append_sample_manifest_row "$manifest_path" semantic reset-before-window-slot screenshot screenshot \
+                "screenshots/04-reset-before-window-slot-slice-27.png" \
+                "same source window reset beside target-window.rtf before secondary-button slot drag"
+            append_sample_manifest_row "$manifest_path" semantic slot-pickup screenshot screenshot \
+                "screenshots/05-slot-pickup-slice-27.png" \
+                "secondary-button desktop pickup starts the window-slot branch"
+            append_sample_manifest_row "$manifest_path" semantic slot-path screenshot screenshot \
+                "screenshots/06-slot-path-slice-27.png" \
+                "secondary-button path toward target-window.rtf right slot"
+            append_sample_manifest_row "$manifest_path" semantic slot-hover-right screenshot screenshot \
+                "screenshots/07-slot-hover-right-slice-27.png" \
+                "product overlay labels the target window right slot before release"
+            append_sample_manifest_row "$manifest_path" semantic slot-release screenshot screenshot \
+                "screenshots/08-slot-release-slice-27.png" \
+                "release-boundary frame still shows the active window-slot affordance before post-drop placement"
+            append_sample_manifest_row "$manifest_path" semantic snap-release "$release_caption_label" "$release_caption_start" \
+                "screenshots/${name}.samples/${release_caption_label}-boundary-start.png" \
+                "release caption starts while the window-slot target is still visible"
+            append_sample_manifest_row "$manifest_path" semantic slot-final-placement screenshot screenshot \
+                "screenshots/99-after-slice-27.png" \
+                "same source window remains in Work/main after secondary-button window-slot snap"
+            ;;
+        slice-26-zone-divider-drag)
+            local config_caption_label config_caption_start inspect_caption_label inspect_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            config_caption_label="$(event_manifest_field "$event_manifest" config-ready caption-label || caption_label_for_chip "$name" "Config: [[zone-layouts]] columns left/main/right" || printf 'caption-01\n')"
+            config_caption_start="$(event_manifest_field "$event_manifest" config-ready seconds || caption_start_for_label "$name" "$config_caption_label" || printf 'caption-boundary-start\n')"
+            inspect_caption_label="$(event_manifest_field "$event_manifest" after-divider-resize caption-label || caption_label_for_chip "$name" "Run: winmux list-zones" || printf 'caption-07\n')"
+            inspect_caption_start="$(event_manifest_field "$event_manifest" after-divider-resize seconds || caption_start_for_label "$name" "$inspect_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic config-ready "$config_caption_label" "$config_caption_start" \
+                "screenshots/${name}.samples/${config_caption_label}-boundary-start.png" \
+                "column layout config is visible before divider interaction"
+            append_sample_manifest_row "$manifest_path" semantic divider-hover screenshot screenshot \
+                "screenshots/02-divider-hover-slice-26.png" \
+                "Work|Comms divider hover affordance before mouse down"
+            append_sample_manifest_row "$manifest_path" semantic divider-pickup screenshot screenshot \
+                "screenshots/03-divider-pickup-slice-26.png" \
+                "divider pickup at the adjacent-zone boundary"
+            append_sample_manifest_row "$manifest_path" semantic divider-drag-path screenshot screenshot \
+                "screenshots/04-divider-drag-path-slice-26.png" \
+                "divider drag path moves right along the boundary"
+            append_sample_manifest_row "$manifest_path" semantic divider-live-preview screenshot screenshot \
+                "screenshots/05-divider-preview-slice-26.png" \
+                "live preview shows Work growing and Comms shrinking"
+            append_sample_manifest_row "$manifest_path" semantic divider-release screenshot screenshot \
+                "screenshots/06-divider-release-slice-26.png" \
+                "release commits the adjacent runtime width change"
+            append_sample_manifest_row "$manifest_path" semantic after-divider-resize "$inspect_caption_label" "$inspect_caption_start" \
+                "screenshots/07-after-divider-resize-slice-26.png" \
+                "post-release inspection keeps Reference fixed and updates Work/Comms"
+            ;;
+        slice-28-export-zone-layout)
+            local resize_caption_label resize_caption_start export_caption_label export_caption_start check_caption_label check_caption_start hash_caption_label hash_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            resize_caption_label="$(event_manifest_field "$event_manifest" resize-command-start caption-label || caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%" || printf 'caption-02\n')"
+            resize_caption_start="$(event_manifest_field "$event_manifest" resize-command-start seconds || caption_start_for_label "$name" "$resize_caption_label" || printf 'caption-boundary-start\n')"
+            export_caption_label="$(event_manifest_field "$event_manifest" export-command-start caption-label || caption_label_for_chip "$name" "Run: winmux export-zone-layout saved-ultrawide --monitor 1" || printf 'caption-04\n')"
+            export_caption_start="$(event_manifest_field "$event_manifest" export-command-start seconds || caption_start_for_label "$name" "$export_caption_label" || printf 'caption-boundary-start\n')"
+            check_caption_label="$(event_manifest_field "$event_manifest" config-check-command-start caption-label || caption_label_for_chip "$name" "Run: winmux config --check slice-28-export-zone-layout.toml" || printf 'caption-06\n')"
+            check_caption_start="$(event_manifest_field "$event_manifest" config-check-command-start seconds || caption_start_for_label "$name" "$check_caption_label" || printf 'caption-boundary-start\n')"
+            hash_caption_label="$(event_manifest_field "$event_manifest" config-hash-unchanged caption-label || caption_label_for_chip "$name" "Run: shasum config/winmux.toml" || printf 'caption-07\n')"
+            hash_caption_start="$(event_manifest_field "$event_manifest" config-hash-unchanged seconds || caption_start_for_label "$name" "$hash_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic before-export-resize screenshot screenshot \
+                "screenshots/02-before-export-resize-slice-28.png" \
+                "Reference, Work, and Comms visible before runtime resize"
+            append_sample_manifest_row "$manifest_path" semantic resize-command-start "$resize_caption_label" "$resize_caption_start" \
+                "screenshots/${name}.samples/${resize_caption_label}-boundary-start.png" \
+                "resize-zone command appears before export"
+            append_sample_manifest_row "$manifest_path" semantic after-runtime-resize screenshot screenshot \
+                "screenshots/03-after-runtime-resize-slice-28.png" \
+                "Work/main is wider before export command"
+            append_sample_manifest_row "$manifest_path" semantic export-command-start "$export_caption_label" "$export_caption_start" \
+                "screenshots/${name}.samples/${export_caption_label}-boundary-start.png" \
+                "export-zone-layout command appears before TOML output"
+            append_sample_manifest_row "$manifest_path" semantic toml-output-visible screenshot screenshot \
+                "screenshots/04-export-output-slice-28.png" \
+                "exported [[zone-layouts]] TOML is visible in the guest desktop"
+            append_sample_manifest_row "$manifest_path" semantic config-check-command-start "$check_caption_label" "$check_caption_start" \
+                "screenshots/${name}.samples/${check_caption_label}-boundary-start.png" \
+                "config --check command appears before parse success"
+            append_sample_manifest_row "$manifest_path" semantic config-check-success screenshot screenshot \
+                "screenshots/05-config-check-slice-28.png" \
+                "Config OK result is visible for the emitted TOML"
+            append_sample_manifest_row "$manifest_path" semantic config-hash-unchanged "$hash_caption_label" "$hash_caption_start" \
+                "screenshots/06-final-state-slice-28.png" \
+                "copied config checksum remains unchanged after export"
+            ;;
         slice-21-zone-mode-v2)
             local snap_caption_label layout_caption_label focus_caption_label communications_caption_label style_caption_label
             local snap_caption_start layout_caption_start focus_caption_start communications_caption_start style_caption_start
@@ -2918,6 +3342,105 @@ count_log_attempts() {
     /usr/bin/awk -F= '$1 == "attempt" { count += 1 } END { print count + 0 }' "$path"
 }
 
+log_attempt_statuses() {
+    local path="$1"
+    [ -s "$path" ] || {
+        printf -- '-\n'
+        return
+    }
+    /usr/bin/awk '
+        function emit() {
+            if (!seen_attempt) {
+                return
+            }
+            if (status == "") {
+                status = "unknown"
+            }
+            if (statuses != "") {
+                statuses = statuses ","
+            }
+            statuses = statuses status
+        }
+        /^attempt=/ {
+            emit()
+            seen_attempt = 1
+            status = ""
+            next
+        }
+        /^(probe_result|result)=/ {
+            value = $0
+            sub(/^[^=]*=/, "", value)
+            if (seen_attempt) {
+                status = value
+            }
+            next
+        }
+        END {
+            emit()
+            if (statuses == "") {
+                statuses = "-"
+            }
+            print statuses
+        }
+    ' "$path"
+}
+
+compact_failure_reason() {
+    local path="$1"
+    local which="$2"
+    [ -s "$path" ] || {
+        printf -- '-\n'
+        return
+    }
+    /usr/bin/awk -v which="$which" '
+        function trim(text) {
+            gsub(/\r/, "", text)
+            gsub(/\t/, " ", text)
+            sub(/^[[:space:]]+/, "", text)
+            sub(/[[:space:]]+$/, "", text)
+            if (length(text) > 120) {
+                text = substr(text, 1, 117) "..."
+            }
+            return text
+        }
+        function note_failure(marker) {
+            reason = trim(candidate)
+            if (reason == "") {
+                reason = trim(marker)
+            }
+            if (first == "") {
+                first = reason
+            }
+            last = reason
+        }
+        /^attempt=/ {
+            candidate = ""
+            next
+        }
+        /^(probe_result|result)=(failure|semantic_failure|mutation_failure)$/ {
+            note_failure($0)
+            candidate = ""
+            next
+        }
+        /^[[:alnum:]_.-]+=/ {
+            next
+        }
+        {
+            line = trim($0)
+            if (line != "") {
+                candidate = line
+            }
+        }
+        END {
+            value = which == "first" ? first : last
+            if (value == "") {
+                value = "-"
+            }
+            print value
+        }
+    ' "$path"
+}
+
 write_transport_summary_row() {
     local summary_path="$1"
     local phase="$2"
@@ -2944,8 +3467,11 @@ write_transport_summary_row() {
         fi
     fi
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
+        "$(log_attempt_statuses "$log_path")" \
+        "$(compact_failure_reason "$log_path" first)" \
+        "$(compact_failure_reason "$log_path" last)" >>"$summary_path"
 }
 
 transport_summary_has_log_path() {
@@ -2963,8 +3489,8 @@ append_guest_retry_rows_to_transport_summary() {
     local retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
     [ -s "$retry_summary" ] || return 0
 
-    local phase relative_log_path attempts failures final_result before_recording
-    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording; do
+    local phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason
+    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason; do
         case "${phase:-}" in
             ""|\#*) continue ;;
         esac
@@ -2972,8 +3498,13 @@ append_guest_retry_rows_to_transport_summary() {
         if transport_summary_has_log_path "$summary_path" "$relative_log_path"; then
             continue
         fi
-        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-            "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" >>"$summary_path"
+        local retry_log_path="${RUN_DIR}/${relative_log_path}"
+        [ -n "${attempt_statuses:-}" ] || attempt_statuses="$(log_attempt_statuses "$retry_log_path")"
+        [ -n "${first_failure_reason:-}" ] || first_failure_reason="$(compact_failure_reason "$retry_log_path" first)"
+        [ -n "${last_failure_reason:-}" ] || last_failure_reason="$(compact_failure_reason "$retry_log_path" last)"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
+            "$attempt_statuses" "$first_failure_reason" "$last_failure_reason" >>"$summary_path"
     done <"$retry_summary"
 }
 
@@ -2981,7 +3512,7 @@ write_guest_transport_summary() {
     local name="$1"
     local summary_path="${LOGS_DIR}/guest-transport-summary.tsv"
     : >"$summary_path"
-    printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\n' >>"$summary_path"
+    printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\n' >>"$summary_path"
     write_transport_summary_row "$summary_path" guest-control "${LOGS_DIR}/guest-control-check.log" yes
     write_transport_summary_row "$summary_path" warmup-before-privacy "${LOGS_DIR}/guest-control-warmup-before-privacy.log" yes
     write_transport_summary_row "$summary_path" privacy-setup "${LOGS_DIR}/guest-privacy-setup.log" yes
@@ -3091,6 +3622,67 @@ write_mouse_snap_overlay_sentinel() {
     [ -s "$manifest" ] || die "Mouse snap overlay sentinel did not produce a non-empty file: $manifest"
 }
 
+write_window_slot_overlay_sentinel() {
+    local name="$1"
+    [ "$name" = "slice-27-window-slot-snap" ] || return 0
+    command -v magick >/dev/null 2>&1 || die "Window-slot overlay sentinel requires ImageMagick: magick"
+    command -v compare >/dev/null 2>&1 || die "Window-slot overlay sentinel requires ImageMagick: compare"
+
+    local slice_prefix="slice-27"
+    local zones_log="${LOGS_DIR}/${slice_prefix}-zones.log"
+    local ordinary="${SCREENSHOTS_DIR}/03-ordinary-hover-no-overlay-${slice_prefix}.png"
+    local slot="${SCREENSHOTS_DIR}/07-slot-hover-right-${slice_prefix}.png"
+    [ -s "$zones_log" ] || die "Window-slot overlay sentinel missing zones log: $zones_log"
+    [ -s "$ordinary" ] || die "Window-slot overlay sentinel missing ordinary hover screenshot: $ordinary"
+    [ -s "$slot" ] || die "Window-slot overlay sentinel missing slot hover screenshot: $slot"
+
+    local left top width height crop crop_width crop_height diff_raw diff_norm
+    left="$(zone_log_field "$zones_log" main left)"
+    top="$(zone_log_field "$zones_log" main top)"
+    width="$(zone_log_field "$zones_log" main width)"
+    height="$(zone_log_field "$zones_log" main height)"
+    [ -n "$left" ] && [ -n "$top" ] && [ -n "$width" ] && [ -n "$height" ] \
+        || die "Window-slot overlay sentinel could not derive main/Work crop from $zones_log"
+    crop="$(awk -v w="$width" -v h="$height" -v x="$left" -v y="$top" 'BEGIN { printf "%dx%d+%d+%d", w + 0, h + 0, x + 0, y + 0 }')"
+    crop_width="$(awk -v w="$width" 'BEGIN { printf "%d", w + 0 }')"
+    crop_height="$(awk -v h="$height" 'BEGIN { printf "%d", h + 0 }')"
+
+    local crop_dir="${SCREENSHOTS_DIR}/${name}.overlay-sentinel"
+    local manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
+    rm -rf "$crop_dir"
+    mkdir -p "$crop_dir"
+    magick "$ordinary" -crop "$crop" +repage "${crop_dir}/ordinary-target-window-area.png"
+    magick "$slot" -crop "$crop" +repage "${crop_dir}/slot-target-window-area.png"
+    local label_font="${WINMUX_E2E_OVERLAY_SENTINEL_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    local border_right border_bottom label_right
+    border_right=$((crop_width - 10))
+    border_bottom=$((crop_height - 10))
+    label_right="$(awk -v w="$crop_width" 'BEGIN { max = w - 24; printf "%d\n", (max < 760 ? max : 760) }')"
+    magick "$slot" -crop "$crop" +repage \
+        -fill '#3EA2FF33' -stroke '#3EA2FF' -strokewidth 8 \
+        -draw "rectangle 8,8 ${border_right},${border_bottom}" \
+        -fill '#101820' -stroke '#101820' -strokewidth 1 \
+        -draw "roundrectangle 24,24 ${label_right},100 8,8" \
+        -font "$label_font" -pointsize 38 -fill '#FFFFFF' -stroke none \
+        -annotate +42+73 'WINDOW SLOT TARGET: RIGHT' \
+        "${crop_dir}/slot-target-window-labeled.png"
+    diff_raw="$(compare -metric RMSE "${crop_dir}/ordinary-target-window-area.png" "${crop_dir}/slot-target-window-area.png" null: 2>&1 || true)"
+    diff_norm="$(printf '%s\n' "$diff_raw" | sed -n 's/.*(\([0-9.][0-9.]*\)).*/\1/p')"
+    [ -n "$diff_norm" ] || die "Could not compute window-slot overlay RMSE for $name: $diff_raw"
+    {
+        printf '# label\tvalue\tminimum\tpath\tnote\n'
+        printf 'target-window-area-crop\t%s\t\tlogs/%s-zones.log\tmain/Work crop derived from list-zones\n' "$crop" "$slice_prefix"
+        printf 'ordinary-target-window-area-crop\t\t\tscreenshots/%s.overlay-sentinel/ordinary-target-window-area.png\tordinary hover target-window area crop\n' "$name"
+        printf 'slot-target-window-area-crop\t\t\tscreenshots/%s.overlay-sentinel/slot-target-window-area.png\tsecondary-button slot hover target-window area crop\n' "$name"
+        printf 'target-label\tWINDOW SLOT TARGET: RIGHT\t\tscreenshots/%s.overlay-sentinel/slot-target-window-labeled.png\tlabeled window-slot target crop for reviewer-visible proof\n' "$name"
+        printf 'product-overlay-label\tWindow slot: Right\t\tscreenshots/%s\tproduct overlay should name the right window slot\n' "$(basename "$slot")"
+        printf 'overlay-rmse-normalized\t%s\t0.010\t\tsecondary-button slot hover must visibly differ from ordinary hover\n' "$diff_norm"
+        printf 'target-semantics\twindow-slot\t\tscreenshots/%s\tsnap target is a slot inside target-window.rtf, not the whole Work zone\n' "$(basename "$slot")"
+    } >"$manifest"
+    [ -s "$manifest" ] || die "Window-slot overlay sentinel did not produce a non-empty file: $manifest"
+}
+
 event_contact_sheet_image_name() {
     local index="$1"
     local label="$2"
@@ -3111,6 +3703,21 @@ snap-hover-comms
 snap-release
 snap-final-placement
 cycle-policy-command-start
+EOF
+}
+
+window_slot_contact_sheet_summary_label_order() {
+    cat <<'EOF'
+ordinary-pickup
+ordinary-hover-no-overlay
+float-final-placement
+reset-before-window-slot
+slot-pickup
+slot-path
+slot-hover-right
+slot-release
+snap-release
+slot-final-placement
 EOF
 }
 
@@ -3140,7 +3747,12 @@ write_contact_sheet_summary_manifest() {
     : >"$output_manifest"
     printf '# kind\tlabel\tcaption\ttimestamp\tpath\texpected\n' >>"$output_manifest"
 
-    if ! sample_manifest_has_label "$sample_manifest" snap-hover-comms ||
+    local label_source=contact_sheet_summary_label_order
+    if sample_manifest_has_label "$sample_manifest" slot-hover-right &&
+        sample_manifest_has_label "$sample_manifest" slot-release &&
+        sample_manifest_has_label "$sample_manifest" slot-final-placement; then
+        label_source=window_slot_contact_sheet_summary_label_order
+    elif ! sample_manifest_has_label "$sample_manifest" snap-hover-comms ||
         ! sample_manifest_has_label "$sample_manifest" snap-release ||
         ! sample_manifest_has_label "$sample_manifest" snap-final-placement; then
         return 1
@@ -3153,7 +3765,7 @@ write_contact_sheet_summary_manifest() {
             append_sample_manifest_row_for_label "$sample_manifest" "$output_manifest" "$label"
             row_count=$((row_count + 1))
         fi
-    done < <(contact_sheet_summary_label_order)
+    done < <("$label_source")
 
     [ "$row_count" -ge 3 ] || return 1
 }
@@ -3165,11 +3777,17 @@ append_overlay_crop_contact_sheet_rows() {
     [ -s "$overlay_manifest" ] || return 0
 
     /usr/bin/awk -F'\t' '
+        $1 == "target-semantics" { semantics = $2 }
         $1 == "target-label" && $4 ~ /^screenshots\// {
-            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\tzoomed labeled whole-zone target crop\n", $4
-            found = 1
+            target_label_path = $4
         }
-        END { exit(found ? 0 : 1) }
+        END {
+            if (target_label_path == "") {
+                exit 1
+            }
+            note = semantics == "window-slot" ? "zoomed labeled window-slot target crop" : "zoomed labeled whole-zone target crop"
+            printf "proof-crop\ttarget-zone-crop\tcrop\tcrop\t%s\t%s\n", target_label_path, note
+        }
     ' "$overlay_manifest" >>"$output_manifest" || true
 }
 
@@ -3260,6 +3878,16 @@ append_event_contact_sheet_image() {
     [ -s "$output_path" ] || die "Event contact sheet image did not render: $output_path"
 }
 
+event_contact_sheet_label() {
+    local event_id="$1"
+    local sample_label="$2"
+    if [ -z "$sample_label" ] || [ "$sample_label" = "$event_id" ]; then
+        printf '%s\n' "$event_id"
+    else
+        printf '%s-%s\n' "$event_id" "$sample_label"
+    fi
+}
+
 generate_event_manifest_contact_sheet() {
     local name="$1"
     local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
@@ -3280,7 +3908,7 @@ generate_event_manifest_contact_sheet() {
             ""|-) continue ;;
         esac
         index=$((index + 1))
-        append_event_contact_sheet_image "$tmp_dir" "$index" "${event_id}-${sample_label}" "$relative_path"
+        append_event_contact_sheet_image "$tmp_dir" "$index" "$(event_contact_sheet_label "$event_id" "$sample_label")" "$relative_path"
     done <"$manifest_path"
 
     local overlay_manifest="${LOGS_DIR}/${name}.overlay-sentinel.tsv"
@@ -3630,7 +4258,12 @@ refresh_annotation_artifact() {
     write_annotation_plan "$name" "$captions_path"
     write_expected_caption_chips "$name"
     write_event_manifest "$name"
-    if ! "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$output_path" >"$annotation_log" 2>&1; then
+    local caption_footprint caption_anchor
+    caption_footprint="${WINMUX_E2E_CAPTION_FOOTPRINT:-$(caption_footprint_for_recording "$name")}"
+    caption_anchor="${WINMUX_E2E_CAPTION_ANCHOR:-bottom-left}"
+    if ! WINMUX_E2E_CAPTION_FOOTPRINT="$caption_footprint" \
+        WINMUX_E2E_CAPTION_ANCHOR="$caption_anchor" \
+        "${SCRIPT_DIR}/annotate-recording" "$raw_path" "$captions_path" "$output_path" >"$annotation_log" 2>&1; then
         cat "$annotation_log" >&2 || true
         die "Recording annotation refresh failed for $name"
     fi
@@ -3643,6 +4276,7 @@ refresh_annotation_artifact() {
         write_guest_transport_summary "$name"
     fi
     write_mouse_snap_overlay_sentinel "$name"
+    write_window_slot_overlay_sentinel "$name"
     write_caption_tail_manifest "$name" "$duration"
     generate_demo_cut "$name"
     generate_recording_samples "$name" "$duration"
@@ -3687,6 +4321,7 @@ wait_for_recording() {
     fi
     write_guest_transport_summary "$name"
     write_mouse_snap_overlay_sentinel "$name"
+    write_window_slot_overlay_sentinel "$name"
     write_caption_tail_manifest "$name" "$duration"
     generate_demo_cut "$name"
     generate_recording_samples "$name" "$duration"
@@ -4793,6 +5428,82 @@ run_slice_25_mouse_demo_contract() {
         "${LOGS_DIR}/slice-25-run.log"
 }
 
+run_slice_27_window_slot_snap_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=setup WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-27 WINMUX_E2E_RECORDING_NAME=slice-27-window-slot-snap WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 27: window slot snap target' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=float-unless-snap WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE=secondary-button-drag WINMUX_E2E_MOUSE_SNAP_CONFIG_TARGET=window WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=window-slot WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL='Window slot: Right' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-27-setup.log"
+}
+
+run_slice_27_window_slot_snap() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=proof WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-27 WINMUX_E2E_RECORDING_NAME=slice-27-window-slot-snap WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 27: window slot snap target' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=float-unless-snap WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE=secondary-button-drag WINMUX_E2E_MOUSE_SNAP_CONFIG_TARGET=window WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=window-slot WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL='Window slot: Right' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-27-run.log"
+}
+
+run_slice_26_zone_divider_drag_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-26-zone-divider-drag.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE26_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-26-setup.log"
+}
+
+run_slice_26_zone_divider_drag() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-26-zone-divider-drag.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE26_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-26-run.log"
+}
+
+run_slice_28_export_zone_layout_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-28-export-zone-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE28_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-28-setup.log"
+}
+
+run_slice_28_export_zone_layout() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-28-export-zone-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE28_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-28-run.log"
+}
+
 run_slice_21_zone_mode_v2_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-21-zone-mode-v2.sh"
     local scenario_path_quoted
@@ -5133,6 +5844,18 @@ slice_25() {
     run_recorded_scenario "slice-25-mouse-demo-contract" "00-before-slice-25" "99-after-slice-25" "run_slice_25_mouse_demo_contract" "run_slice_25_mouse_demo_contract_setup" "01-ready-slice-25"
 }
 
+slice_26() {
+    run_recorded_scenario "slice-26-zone-divider-drag" "00-before-slice-26" "99-after-slice-26" "run_slice_26_zone_divider_drag" "run_slice_26_zone_divider_drag_setup" "01-ready-slice-26"
+}
+
+slice_27() {
+    run_recorded_scenario "slice-27-window-slot-snap" "00-before-slice-27" "99-after-slice-27" "run_slice_27_window_slot_snap" "run_slice_27_window_slot_snap_setup" "01-ready-slice-27"
+}
+
+slice_28() {
+    run_recorded_scenario "slice-28-export-zone-layout" "00-before-slice-28" "99-after-slice-28" "run_slice_28_export_zone_layout" "run_slice_28_export_zone_layout_setup" "01-ready-slice-28"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -5235,6 +5958,15 @@ case "$ACTION" in
         ;;
     slice-25)
         slice_25
+        ;;
+    slice-26)
+        slice_26
+        ;;
+    slice-27)
+        slice_27
+        ;;
+    slice-28)
+        slice_28
         ;;
     *)
         usage >&2

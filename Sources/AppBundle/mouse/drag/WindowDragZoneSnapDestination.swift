@@ -2,6 +2,7 @@ import AppKit
 
 enum ZoneSnapDestinationResolution {
     case allowDefaultDestinations
+    case allowWindowDestinationsOnly
     case suppressDefaultDestinations
     case use(WindowDragIntentDestination)
 }
@@ -24,38 +25,45 @@ func zoneSnapDestinationResolution(
     )
     let snapConfig = effectiveZoneSnapConfig(for: targetMonitor)
     guard detachOrigin == .window,
-          snapConfig.target == .zone,
           let zoneId = targetMonitor.zoneId
     else {
         return .allowDefaultDestinations
     }
 
-    guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
-        return .suppressDefaultDestinations
-    }
-    guard targetWorkspace != sourceWorkspace else {
-        return .suppressDefaultDestinations
-    }
+    switch snapConfig.target {
+        case .zone:
+            guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
+                return .suppressDefaultDestinations
+            }
+            guard targetWorkspace != sourceWorkspace else {
+                return .suppressDefaultDestinations
+            }
 
-    let previewRect = targetMonitor.visibleRectPaddedByOuterGaps
-    let zoneName = targetMonitor.zoneName ?? zoneId
-    return .use(WindowDragIntentDestination(
-        kind: .moveToZone(zoneId: zoneId, workspaceName: targetWorkspace.name),
-        previewRect: previewRect,
-        interactionRect: previewRect,
-        title: "Snap to \(zoneName)",
-        subtitle: "Drop to move this item to the \(zoneName) zone",
-        previewStyle: .workspaceMove,
-        previewGeometry: .rounded,
-        isGroup: subject == .group,
-        dropIntentOverlay: WindowDropIntentOverlayModel(
-            targetFrame: previewRect,
-            activeZone: nil,
-            cornerRadius: nil,
-            label: "Whole zone: \(zoneName)",
-            detail: "Drop to move to \(zoneName)",
-        ),
-    ))
+            let previewRect = targetMonitor.visibleRectPaddedByOuterGaps
+            let zoneName = targetMonitor.zoneName ?? zoneId
+            return .use(WindowDragIntentDestination(
+                kind: .moveToZone(zoneId: zoneId, workspaceName: targetWorkspace.name),
+                previewRect: previewRect,
+                interactionRect: previewRect,
+                title: "Snap to \(zoneName)",
+                subtitle: "Drop to move this item to the \(zoneName) zone",
+                previewStyle: .workspaceMove,
+                previewGeometry: .rounded,
+                isGroup: subject == .group,
+                dropIntentOverlay: WindowDropIntentOverlayModel(
+                    targetFrame: previewRect,
+                    activeZone: nil,
+                    cornerRadius: nil,
+                    label: "Whole zone: \(zoneName)",
+                    detail: "Drop to move to \(zoneName)",
+                ),
+            ))
+        case .window:
+            guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
+                return .suppressDefaultDestinations
+            }
+            return .allowWindowDestinationsOnly
+    }
 }
 
 func shouldActivateZoneSnap(_ config: ZoneSnapConfig, inputState: ZoneSnapInputState) -> Bool {

@@ -24,6 +24,7 @@ let config_help_generated = """
        OR: config [-h|--help] --major-keys
        OR: config [-h|--help] --all-keys
        OR: config [-h|--help] --config-path
+       OR: config [-h|--help] --check <path>
     """
 let cycle_zone_availability_help_generated = """
     USAGE: cycle-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>...
@@ -53,6 +54,9 @@ let enable_zone_help_generated = """
     """
 let exec_and_forget_help_generated = """
     USAGE: exec-and-forget <bash-script>
+    """
+let export_zone_layout_help_generated = """
+    USAGE: export-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
     """
 let flatten_workspace_tree_help_generated = """
     USAGE: flatten-workspace-tree [-h|--help] [--workspace <workspace>]

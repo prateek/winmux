@@ -81,6 +81,37 @@ final class ListWindowsTest: XCTestCase {
 
             assertEquals(windows.format([.interVar("workspace")]), .success(["NULL-WORKSPACE"]))
         }
+
+        Workspace.get(byName: name).rootTilingContainer.apply {
+            let actual = TestWindow.new(
+                id: 7,
+                parent: $0,
+                rect: Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 400),
+            )
+            let layout = TestWindow.new(id: 8, parent: $0)
+            layout.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 50, topLeftY: 60, width: 700, height: 800)
+
+            let windows = [
+                FormatObject.window(window: actual, title: "actual"),
+                FormatObject.window(window: layout, title: "layout"),
+            ]
+
+            assertEquals(
+                windows.format([
+                    .interVar("window-left"),
+                    .literal(","),
+                    .interVar("window-top"),
+                    .literal(","),
+                    .interVar("window-width"),
+                    .literal(","),
+                    .interVar("window-height"),
+                ]),
+                .success([
+                    "10.0,20.0,300.0,400.0",
+                    "50.0,60.0,700.0,800.0",
+                ]),
+            )
+        }
     }
 
     func testListWindowsAllIgnoresNonUserFacingWorkspace() async throws {

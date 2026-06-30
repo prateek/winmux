@@ -124,7 +124,6 @@ func floatTilingWindowForMouseDragIfNeeded(
 
     let snapConfig = effectiveZoneSnapConfig(for: targetWorkspace.workspaceMonitor)
     guard snapConfig.policy == .floatUnlessSnap,
-          snapConfig.target == .zone,
           targetWorkspace.workspaceMonitor.zoneId != nil,
           !zoneSnapActivationInputIsPressed(snapConfig, inputState: inputState)
     else { return false }

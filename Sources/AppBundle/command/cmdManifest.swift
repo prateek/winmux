@@ -21,6 +21,7 @@ extension CmdArgs {
             case let args as EnableCmdArgs: EnableCommand(args: args)
             case let args as EnableZoneCmdArgs: EnableZoneCommand(args: args)
             case is ExecAndForgetCmdArgs: die("exec-and-forget is parsed separately")
+            case let args as ExportZoneLayoutCmdArgs: ExportZoneLayoutCommand(args: args)
             case let args as FlattenWorkspaceTreeCmdArgs: FlattenWorkspaceTreeCommand(args: args)
             case let args as FocusCmdArgs: FocusCommand(args: args)
             case let args as FocusBackAndForthCmdArgs: FocusBackAndForthCommand(args: args)

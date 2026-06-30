@@ -7,6 +7,7 @@ func currentStickyWindowDragIntentDestination(
     mouseLocation: CGPoint,
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
+    labelWindowSlot: Bool = false,
 ) -> WindowDragIntentDestination? {
     guard let sticky = pendingWindowDragIntent,
           sticky.sourceWindowId == sourceWindow.windowId,
@@ -28,5 +29,6 @@ func currentStickyWindowDragIntentDestination(
         mouseLocation: intentReferenceRect.clampedPoint(mouseLocation),
         subject: subject,
         detachOrigin: detachOrigin,
+        labelWindowSlot: labelWindowSlot,
     )
 }

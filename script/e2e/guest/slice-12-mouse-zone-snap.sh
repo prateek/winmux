@@ -12,10 +12,15 @@ RECORDING_NAME="${WINMUX_E2E_RECORDING_NAME:-${SLICE_PREFIX}-mouse-zone-snap-dra
 CONFIG_MODIFIER="${WINMUX_E2E_MOUSE_SNAP_CONFIG_MODIFIER:-alt}"
 CONFIG_POLICY="${WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY:-snap-on-modifier}"
 CONFIG_GESTURE="${WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE:-drag}"
+CONFIG_TARGET="${WINMUX_E2E_MOUSE_SNAP_CONFIG_TARGET:-zone}"
 PROOF_MODE="${WINMUX_E2E_MOUSE_SNAP_PROOF_MODE:-modifier}"
 PRODUCT_OVERLAY_LABEL="${WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL:-}"
 RUNTIME_SET_POLICY="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_SET_POLICY:-snap-to-zone}"
 RUNTIME_CYCLE_POLICIES="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_CYCLE_POLICIES:-freeform snap-to-zone}"
+SNAP_TARGET_PROFILE=whole-zone
+if [ "${PROOF_MODE}" = "window-slot" ]; then
+    SNAP_TARGET_PROFILE=window-slot
+fi
 if [ "${SLICE_PREFIX}" = "slice-16" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Option}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Option while dragging: snap to Comms zone}"
@@ -26,6 +31,9 @@ elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-Alt}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold Alt while dragging snap-demo.rtf}"
 elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+    USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-secondary button}"
+    MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold secondary button while dragging snap-demo.rtf}"
+elif [ "${PROOF_MODE}" = "window-slot" ]; then
     USER_MODIFIER_LABEL="${WINMUX_E2E_MOUSE_SNAP_MODIFIER_LABEL:-secondary button}"
     MODIFIER_CAPTION_CHIP="${WINMUX_E2E_MOUSE_SNAP_CAPTION_CHIP:-Action: hold secondary button while dragging snap-demo.rtf}"
 else
@@ -76,16 +84,45 @@ RESET_NAME="04-reset-before-snap-${SLICE_PREFIX}.png"
 SNAP_PICKUP_NAME="05-snap-pickup-${SLICE_PREFIX}.png"
 SNAP_PATH_NAME="06-snap-path-${SLICE_PREFIX}.png"
 SNAP_HOVER_NAME="07-snap-hover-comms-${SLICE_PREFIX}.png"
+SNAP_RELEASE_NAME=""
+
+configure_profile_screenshot_names() {
+    case "$SNAP_TARGET_PROFILE" in
+        whole-zone)
+            ;;
+        window-slot)
+            FREEFORM_PICKUP_NAME="02-ordinary-pickup-${SLICE_PREFIX}.png"
+            FREEFORM_HOVER_NAME="03-ordinary-hover-no-overlay-${SLICE_PREFIX}.png"
+            RESET_NAME="04-reset-before-window-slot-${SLICE_PREFIX}.png"
+            SNAP_PICKUP_NAME="05-slot-pickup-${SLICE_PREFIX}.png"
+            SNAP_PATH_NAME="06-slot-path-${SLICE_PREFIX}.png"
+            SNAP_HOVER_NAME="07-slot-hover-right-${SLICE_PREFIX}.png"
+            SNAP_RELEASE_NAME="08-slot-release-${SLICE_PREFIX}.png"
+            ;;
+        *)
+            echo "Unsupported mouse snap target profile: ${SNAP_TARGET_PROFILE}" >&2
+            exit "${SEMANTIC_FAILURE_EXIT:-86}"
+            ;;
+    esac
+}
+
+configure_profile_screenshot_names
+
 FREEFORM_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/${FREEFORM_PICKUP_NAME}"
 FREEFORM_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/${FREEFORM_HOVER_NAME}"
 RESET_SCREENSHOT="${SCREENSHOTS_DIR}/${RESET_NAME}"
 SNAP_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_PICKUP_NAME}"
 SNAP_PATH_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_PATH_NAME}"
 SNAP_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_HOVER_NAME}"
+SNAP_RELEASE_SCREENSHOT=""
+if [ -n "${SNAP_RELEASE_NAME}" ]; then
+    SNAP_RELEASE_SCREENSHOT="${SCREENSHOTS_DIR}/${SNAP_RELEASE_NAME}"
+fi
 
 DOC_DIR="${HOME}/winmux-e2e/${SLICE_PREFIX}-mouse-zone-snap-docs"
 REFERENCE_DOC="${DOC_DIR}/reference-mouse-snap.rtf"
 SNAP_DOC="${DOC_DIR}/snap-demo.rtf"
+TARGET_DOC="${DOC_DIR}/target-window.rtf"
 COMMS_DOC="${DOC_DIR}/comms-mouse-snap.rtf"
 
 uid="$(/usr/bin/id -u)"
@@ -172,7 +209,7 @@ write_zones_log() {
 refresh_window_log() {
     local path="$1"
     "${CLI}" list-windows --workspace visible --app-bundle-id com.apple.TextEdit \
-        --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|layout=%{window-layout}|monitor=%{monitor-name}' \
+        --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|layout=%{window-layout}|monitor=%{monitor-name}|left=%{window-left}|top=%{window-top}|width=%{window-width}|height=%{window-height}' \
         >"${path}" 2>>"${WAIT_ERR}"
 }
 
@@ -220,6 +257,10 @@ window_id_for_title() {
     field_for_title "$1" "$2" id
 }
 
+window_rect_field_for_title() {
+    field_for_title "$1" "$2" "$3"
+}
+
 assert_window_zone() {
     local path="$1"
     local title="$2"
@@ -230,6 +271,151 @@ assert_window_zone() {
         cat "${path}" >&2 || true
         semantic_fail "Expected ${title} in zone ${expected_zone}, got ${actual_zone:-missing}"
     fi
+}
+
+profile_requires_target_window() {
+    [ "${SNAP_TARGET_PROFILE}" = "window-slot" ]
+}
+
+proof_uses_secondary_button() {
+    [ "${PROOF_MODE}" = "secondary-button" ] || [ "${PROOF_MODE}" = "window-slot" ]
+}
+
+derive_whole_zone_drag_geometry() {
+    main_left="$(zone_field main left)"
+    main_top="$(zone_field main top)"
+    main_width="$(zone_field main width)"
+    right_left="$(zone_field right left)"
+    right_top="$(zone_field right top)"
+    right_width="$(zone_field right width)"
+    right_height="$(zone_field right height)"
+    source_x="$(awk_int "${main_left} + (${main_width} * 0.50)")"
+    source_y="$(awk_int "${main_top} + 32")"
+    target_x="$(awk_int "${right_left} + (${right_width} * 0.50)")"
+    target_y="$(awk_int "${right_top} + (${right_height} * 0.38)")"
+    target_title='Comms zone'
+    target_window_id=''
+    target_slot=''
+}
+
+derive_window_slot_drag_geometry() {
+    local window_log="$1"
+    local snap_left snap_top snap_width target_left target_top target_width target_height
+    snap_left="$(window_rect_field_for_title "${window_log}" 'snap-demo.rtf' left)"
+    snap_top="$(window_rect_field_for_title "${window_log}" 'snap-demo.rtf' top)"
+    snap_width="$(window_rect_field_for_title "${window_log}" 'snap-demo.rtf' width)"
+    target_left="$(window_rect_field_for_title "${window_log}" 'target-window.rtf' left)"
+    target_top="$(window_rect_field_for_title "${window_log}" 'target-window.rtf' top)"
+    target_width="$(window_rect_field_for_title "${window_log}" 'target-window.rtf' width)"
+    target_height="$(window_rect_field_for_title "${window_log}" 'target-window.rtf' height)"
+    [ -n "${snap_left}" ] && [ -n "${snap_top}" ] && [ -n "${snap_width}" ] \
+        || semantic_fail "Missing source window geometry for window-slot proof in ${window_log}"
+    [ -n "${target_left}" ] && [ -n "${target_top}" ] && [ -n "${target_width}" ] && [ -n "${target_height}" ] \
+        || semantic_fail "Missing target window geometry for window-slot proof in ${window_log}"
+    source_x="$(awk_int "${snap_left} + (${snap_width} * 0.50)")"
+    source_y="$(awk_int "${snap_top} + 32")"
+    target_x="$(awk_int "${target_left} + (${target_width} * 0.88)")"
+    target_y="$(awk_int "${target_top} + (${target_height} * 0.50)")"
+    target_title='target-window.rtf'
+    target_window_id="${TARGET_ID}"
+    target_slot='right'
+}
+
+derive_positive_drag_geometry() {
+    local window_log="$1"
+    case "$SNAP_TARGET_PROFILE" in
+        whole-zone)
+            derive_whole_zone_drag_geometry
+            ;;
+        window-slot)
+            derive_window_slot_drag_geometry "$window_log"
+            ;;
+        *)
+            semantic_fail "Unsupported mouse snap target profile: ${SNAP_TARGET_PROFILE}"
+            ;;
+    esac
+}
+
+configure_whole_zone_proof_fields() {
+    positive_drag_with_alt=1
+    positive_drag_input='alt'
+    positive_proof_key='alt-held-whole-zone-snap'
+    positive_action_text="positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
+    negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
+    negative_policy_key='no-alt-no-zone-move'
+    freeform_expected_zone=main
+    freeform_expected_layout=''
+    freeform_result='no-zone-move'
+    snap_expected_zone=right
+    snap_expected_workspace_relation=different
+    snap_target_kind=whole-zone
+    snap_not_target_kind=window-within-zone
+    target_zone_id=right
+    target_zone_name=Comms
+    coordinate_policy='derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
+    mapping_assertion="freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
+    visual_floor='source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
+
+    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
+        positive_drag_with_alt=0
+        positive_drag_input='none'
+        positive_proof_key='runtime-set-snap-to-zone'
+        positive_action_text='positive-proof=runtime set-zone-snap-policy enables whole-zone snap without a held modifier'
+        mapping_assertion='freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
+    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
+        positive_drag_with_alt=0
+        positive_drag_input='secondary-button'
+        positive_proof_key='secondary-button-whole-zone-snap'
+        positive_action_text='positive-proof=hold secondary mouse button while dragging previews the whole Comms zone and snaps on release'
+        negative_action_text='negative-proof=ordinary drag without secondary button detaches the tiled window into floating/freeform placement without a snap overlay'
+        negative_policy_key='no-secondary-button-floats-no-snap'
+        freeform_expected_zone=right
+        freeform_expected_layout='floating'
+        freeform_result='floating-no-snap'
+        mapping_assertion='ordinary drag floats snap-demo into Comms/right without a snap overlay; secondary-button drag moves the same id as a whole-zone snap'
+    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
+        negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} detaches the tiled window into floating/freeform placement without a snap overlay"
+        negative_policy_key='no-alt-floats-no-snap'
+        freeform_expected_zone=right
+        freeform_expected_layout='floating'
+        freeform_result='floating-no-snap'
+        mapping_assertion="no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
+    fi
+}
+
+configure_window_slot_proof_fields() {
+    positive_drag_with_alt=0
+    positive_drag_input='secondary-button'
+    positive_proof_key='secondary-button-window-slot-snap'
+    positive_action_text='positive-proof=hold secondary mouse button while dragging over target-window.rtf right slot; release splits that target window instead of moving to a whole zone'
+    negative_action_text='negative-proof=ordinary drag inside Work/main stays floating/freeform with no slot overlay'
+    negative_policy_key='no-secondary-button-floats-no-slot'
+    freeform_expected_zone=main
+    freeform_expected_layout='floating'
+    freeform_result='floating-no-snap'
+    snap_expected_zone=main
+    snap_expected_workspace_relation=same
+    snap_target_kind=window-slot
+    snap_not_target_kind=whole-zone
+    target_zone_id=main
+    target_zone_name=Work
+    coordinate_policy='derived-from-list-windows: source titlebar point comes from snap-demo.rtf frame; target point is the right slot of target-window.rtf in Work/main'
+    mapping_assertion='ordinary drag inside Work/main floats with no slot overlay; secondary-button drag over target-window.rtf right slot splits that window and keeps the same source id in Work/main'
+    visual_floor='source window, target window, dragged proxy/path, window-slot right overlay, release, final split placement, and ordinary no-overlay negative proof'
+}
+
+configure_proof_manifest_profile() {
+    case "$SNAP_TARGET_PROFILE" in
+        whole-zone)
+            configure_whole_zone_proof_fields
+            ;;
+        window-slot)
+            configure_window_slot_proof_fields
+            ;;
+        *)
+            semantic_fail "Unsupported mouse snap target profile: ${SNAP_TARGET_PROFILE}"
+            ;;
+    esac
 }
 
 wait_for_textedit_windows() {
@@ -333,6 +519,9 @@ setup_slice() {
         "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}" \
         "${FREEFORM_PICKUP_SCREENSHOT}" "${FREEFORM_HOVER_SCREENSHOT}" "${RESET_SCREENSHOT}" \
         "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}"
+    if [ -n "${SNAP_RELEASE_SCREENSHOT}" ]; then
+        rm -f "${SNAP_RELEASE_SCREENSHOT}"
+    fi
     rm -rf "${DOC_DIR}"
 
     {
@@ -340,11 +529,11 @@ setup_slice() {
         echo "Source App: ${SOURCE_APP}"
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
-        if [ "${PROOF_MODE}" = "secondary-button" ]; then
-            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', configured-modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', activation-input = 'secondary-button', target = 'zone'"
+        if proof_uses_secondary_button; then
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', configured-modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', activation-input = 'secondary-button', target = '${CONFIG_TARGET}'"
         else
-            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = 'zone'"
-            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', target = 'zone'"
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', target = '${CONFIG_TARGET}'"
+            echo "Config: [mouse.zone-snap] policy = '${CONFIG_POLICY}', modifier = '${CONFIG_MODIFIER}', gesture = '${CONFIG_GESTURE}', target = '${CONFIG_TARGET}'"
         fi
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo "Runtime command: set-zone-snap-policy ${RUNTIME_SET_POLICY}"
@@ -366,10 +555,15 @@ setup_slice() {
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag once in freeform, run set-zone-snap-policy, then drag again with no modifier"
     elif [ "${PROOF_MODE}" = "secondary-button" ]; then
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without secondary button to float, reset, then hold secondary button to snap"
+    elif [ "${PROOF_MODE}" = "window-slot" ]; then
+        write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without secondary button to float inside Work, reset, then hold secondary button and drop on the target window right slot"
     elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag without ${USER_MODIFIER_LABEL} to float, reset, then hold ${USER_MODIFIER_LABEL} to snap"
     else
         write_doc "${SNAP_DOC}" 'SNAP DEMO' 'Work' "Drag this window without ${USER_MODIFIER_LABEL}, then with ${USER_MODIFIER_LABEL}"
+    fi
+    if profile_requires_target_window; then
+        write_doc "${TARGET_DOC}" 'TARGET WINDOW' 'Work' 'Drop on this window right slot; whole-zone fallback must stay inactive'
     fi
     write_doc "${COMMS_DOC}" 'COMMS' 'Comms' 'Whole-zone snap target'
 
@@ -383,9 +577,17 @@ setup_slice() {
     sleep 1
     /usr/bin/open -a TextEdit "${SNAP_DOC}"
     sleep 1
+    if profile_requires_target_window; then
+        /usr/bin/open -a TextEdit "${TARGET_DOC}"
+        sleep 1
+    fi
     /usr/bin/open -a TextEdit "${COMMS_DOC}"
 
-    if ! wait_for_textedit_windows 3; then
+    expected_textedit_count=3
+    if profile_requires_target_window; then
+        expected_textedit_count=4
+    fi
+    if ! wait_for_textedit_windows "${expected_textedit_count}"; then
         cat "${WINDOW_SETUP_LOG}" >&2 || true
         cat "${WAIT_ERR}" >&2 || true
         semantic_fail 'TextEdit windows did not become visible to WinMux'
@@ -393,24 +595,35 @@ setup_slice() {
 
     REFERENCE_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'reference-mouse-snap.rtf')"
     SNAP_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'snap-demo.rtf')"
+    TARGET_ID=""
+    if profile_requires_target_window; then
+        TARGET_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'target-window.rtf')"
+    fi
     COMMS_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'comms-mouse-snap.rtf')"
 
-    if [ -z "${REFERENCE_ID}" ] || [ -z "${SNAP_ID}" ] || [ -z "${COMMS_ID}" ]; then
+    if [ -z "${REFERENCE_ID}" ] || [ -z "${SNAP_ID}" ] || [ -z "${COMMS_ID}" ] || { profile_requires_target_window && [ -z "${TARGET_ID}" ]; }; then
         cat "${WINDOW_SETUP_LOG}" >&2 || true
         semantic_fail 'Could not resolve all TextEdit window ids'
     fi
 
     move_window_to_zone "${REFERENCE_ID}" 'reference-mouse-snap.rtf' Reference left
     move_window_to_zone "${SNAP_ID}" 'snap-demo.rtf' Work main
+    if profile_requires_target_window; then
+        move_window_to_zone "${TARGET_ID}" 'target-window.rtf' Work main
+    fi
     move_window_to_zone "${COMMS_ID}" 'comms-mouse-snap.rtf' Comms right
     refresh_window_log "${WINDOW_BEFORE_LOG}"
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'reference-mouse-snap.rtf' left
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'snap-demo.rtf' main
+    if profile_requires_target_window; then
+        assert_window_zone "${WINDOW_BEFORE_LOG}" 'target-window.rtf' main
+    fi
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'comms-mouse-snap.rtf' right
 
     cat >"${STATE_FILE}" <<STATE
 REFERENCE_ID=${REFERENCE_ID}
 SNAP_ID=${SNAP_ID}
+TARGET_ID=${TARGET_ID}
 COMMS_ID=${COMMS_ID}
 STATE
 
@@ -441,6 +654,7 @@ drag_window_jxa() {
     local event_branch="$9"
     local scenario_start_ms="${10}"
     local activation_input="${11:-}"
+    local release_path="${12:-}"
     if [ -z "${activation_input}" ]; then
         if [ "${with_alt}" = "1" ]; then
             activation_input=alt
@@ -457,6 +671,7 @@ const eventBranch = '${event_branch}'
 const scenarioStartMs = Number('${scenario_start_ms}')
 const mouseEventsLog = '${MOUSE_EVENTS_LOG}'
 const activationInput = '${activation_input}'
+const releasePath = '${release_path}'
 
 function shellQuote(value) {
   return "'" + String(value).replace(/'/g, "'\"'\"'") + "'"
@@ -532,7 +747,7 @@ function emitSecondaryButtonDownEvent() {
 
 function emitSecondaryButtonHeldEvent() {
   if (eventBranch === 'snap' && activationInput === 'secondary-button') {
-    emit('snap-secondary-button-held', 'input-state', 'secondary mouse button still held at whole-zone hover')
+    emit('snap-secondary-button-held', 'input-state', 'secondary mouse button still held at target hover')
   }
 }
 
@@ -544,8 +759,8 @@ function emitSecondaryButtonUpEvent() {
 
 function emitHoverEvent() {
   if (eventBranch === 'snap') {
-    emit('snap-first-affordance', 'overlay', 'whole-zone hover screenshot captured')
-    emit('snap-drag-hover', 'overlay', 'whole-zone hover screenshot captured')
+    emit('snap-first-affordance', 'overlay', 'snap target hover screenshot captured')
+    emit('snap-drag-hover', 'overlay', 'snap target hover screenshot captured')
   } else if (eventBranch === 'float') {
     emit('float-drag-hover', 'drag', 'no-modifier hover screenshot captured')
   } else {
@@ -555,7 +770,11 @@ function emitHoverEvent() {
 
 function emitReleaseEvent() {
   if (eventBranch === 'snap') {
-    emit('snap-release', 'drag', 'mouse released on target zone')
+    if (releasePath !== '') {
+      emit('snap-release', 'drag', 'release-boundary screenshot captured before mouse up')
+    } else {
+      emit('snap-release', 'drag', 'mouse released on target zone')
+    }
   } else if (eventBranch === 'float') {
     emit('float-drag-release', 'drag', 'mouse released after float/freeform branch')
   } else {
@@ -603,8 +822,17 @@ capture('${hover_path}')
 emitSecondaryButtonHeldEvent()
 emitHoverEvent()
 delay(1.8)
-postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
-emitReleaseEvent()
+if (eventBranch === 'snap' && releasePath !== '') {
+  capture(releasePath)
+  emitReleaseEvent()
+  postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
+} else {
+  postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
+  if (releasePath !== '') {
+    capture(releasePath)
+  }
+  emitReleaseEvent()
+}
 if (useSecondaryButton) {
   delay(0.25)
   postSecondaryMouse(false, tx, ty)
@@ -623,6 +851,12 @@ reset_snap_window_to_work() {
         "${CLI}" layout --window-id "${SNAP_ID}" tiling || true
         echo "$ winmux move-node-to-zone --window-id ${SNAP_ID} Work"
         "${CLI}" move-node-to-zone --window-id "${SNAP_ID}" Work || true
+        if [ -n "${TARGET_ID:-}" ]; then
+            echo "$ winmux layout --window-id ${TARGET_ID} tiling || true"
+            "${CLI}" layout --window-id "${TARGET_ID}" tiling || true
+            echo "$ winmux move-node-to-zone --window-id ${TARGET_ID} Work"
+            "${CLI}" move-node-to-zone --window-id "${TARGET_ID}" Work || true
+        fi
         echo "$ winmux focus-zone Work"
         "${CLI}" focus-zone Work
         echo "$ winmux focus --window-id ${SNAP_ID}"
@@ -632,6 +866,10 @@ reset_snap_window_to_work() {
     for _ in $(seq 1 20); do
         refresh_window_log "${WINDOW_RESET_LOG}"
         if [ "$(zone_for_title "${WINDOW_RESET_LOG}" 'snap-demo.rtf')" = main ]; then
+            if [ -n "${TARGET_ID:-}" ] && [ "$(zone_for_title "${WINDOW_RESET_LOG}" 'target-window.rtf')" != main ]; then
+                sleep 1
+                continue
+            fi
             return
         fi
         sleep 1
@@ -649,101 +887,64 @@ proof_slice() {
     write_zones_log
     refresh_window_log "${WINDOW_BEFORE_LOG}"
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'snap-demo.rtf' main
+    if profile_requires_target_window; then
+        test -n "${TARGET_ID:-}"
+        assert_window_zone "${WINDOW_BEFORE_LOG}" 'target-window.rtf' main
+    fi
     before_workspace="$(workspace_for_title "${WINDOW_BEFORE_LOG}" 'snap-demo.rtf')"
     before_id="$(window_id_for_title "${WINDOW_BEFORE_LOG}" 'snap-demo.rtf')"
 
-    main_left="$(zone_field main left)"
-    main_top="$(zone_field main top)"
-    main_width="$(zone_field main width)"
-    right_left="$(zone_field right left)"
-    right_top="$(zone_field right top)"
-    right_width="$(zone_field right width)"
-    right_height="$(zone_field right height)"
-    source_x="$(awk_int "${main_left} + (${main_width} * 0.50)")"
-    source_y="$(awk_int "${main_top} + 32")"
-    target_x="$(awk_int "${right_left} + (${right_width} * 0.50)")"
-    target_y="$(awk_int "${right_top} + (${right_height} * 0.38)")"
-
-    positive_drag_with_alt=1
-    positive_drag_input='alt'
-    positive_proof_key='alt-held-whole-zone-snap'
-    positive_action_text="positive-proof=hold ${USER_MODIFIER_LABEL} while dragging previews the whole Comms zone and snaps on release"
-    negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} does not show snap overlay or change zone binding"
-    negative_policy_key='no-alt-no-zone-move'
-    freeform_expected_zone=main
-    freeform_expected_layout=''
-    freeform_result='no-zone-move'
-    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
-        positive_drag_with_alt=0
-        positive_drag_input='none'
-        positive_proof_key='runtime-set-snap-to-zone'
-        positive_action_text='positive-proof=runtime set-zone-snap-policy enables whole-zone snap without a held modifier'
-    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
-        positive_drag_with_alt=0
-        positive_drag_input='secondary-button'
-        positive_proof_key='secondary-button-whole-zone-snap'
-        positive_action_text='positive-proof=hold secondary mouse button while dragging previews the whole Comms zone and snaps on release'
-        negative_action_text='negative-proof=ordinary drag without secondary button detaches the tiled window into floating/freeform placement without a snap overlay'
-        negative_policy_key='no-secondary-button-floats-no-snap'
-        freeform_expected_zone=right
-        freeform_expected_layout='floating'
-        freeform_result='floating-no-snap'
-    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
-        negative_action_text="negative-proof=drag without ${USER_MODIFIER_LABEL} detaches the tiled window into floating/freeform placement without a snap overlay"
-        negative_policy_key='no-alt-floats-no-snap'
-        freeform_expected_zone=right
-        freeform_expected_layout='floating'
-        freeform_result='floating-no-snap'
-    fi
+    derive_positive_drag_geometry "${WINDOW_BEFORE_LOG}"
+    configure_proof_manifest_profile
 
     reset_action_schema
     append_action_log_value action desktop-mouse-zone-snap
     append_action_log_value interaction-model desktop-window-drag
     append_action_log_value config '[mouse.zone-snap]'
     append_action_schema_value drag-policy policy "${CONFIG_POLICY}" policy
-    if [ "${PROOF_MODE}" = "secondary-button" ]; then
+    if proof_uses_secondary_button; then
         append_action_schema_value drag-policy configured-modifier "${CONFIG_MODIFIER}" configured-modifier
         append_action_schema_value drag-policy activation-input secondary-button activation-input
     else
         append_action_schema_value drag-policy modifier "${CONFIG_MODIFIER}" modifier
     fi
     append_action_schema_value drag-policy gesture "${CONFIG_GESTURE}" gesture
-    append_action_schema_value drag-policy target zone target
+    append_action_schema_value drag-policy target "${CONFIG_TARGET}" target
     append_action_schema_value drag-policy proof-mode "${PROOF_MODE}" proof-mode
     append_action_schema_value drag-source title 'snap-demo.rtf' source-title
     append_action_schema_value drag-source window-id "${before_id}" source-window-id
     append_action_schema_value drag-source before-zone main before-zone
     append_action_schema_value drag-source before-workspace "${before_workspace}" before-workspace
-    append_action_schema_value drag-target zone-id right target-zone
-    append_action_schema_value drag-target zone-name Comms target-zone-name
-    append_action_schema_value drag-target snap-target whole-zone snap-target
-    append_action_schema_value drag-target not-snap-target window-within-zone not-snap-target
+    append_action_schema_value drag-target zone-id "${target_zone_id}" target-zone
+    append_action_schema_value drag-target zone-name "${target_zone_name}" target-zone-name
+    append_action_schema_value drag-target snap-target "${snap_target_kind}" snap-target
+    append_action_schema_value drag-target not-snap-target "${snap_not_target_kind}" not-snap-target
+    if profile_requires_target_window; then
+        append_action_schema_value drag-target window-title "${target_title}" target-window-title
+        append_action_schema_value drag-target window-id "${target_window_id}" target-window-id
+        append_action_schema_value drag-target window-slot "${target_slot}" target-window-slot
+    fi
     append_action_schema_value drag-points source "${source_x},${source_y}" source-point
     append_action_schema_value drag-points target "${target_x},${target_y}" target-point
     append_action_schema_value drag-policy negative-proof "${negative_policy_key}"
     append_action_schema_value drag-policy positive-proof "${positive_proof_key}"
-    if [ "${PROOF_MODE}" = "secondary-button" ]; then
+    if proof_uses_secondary_button; then
         append_action_schema_value drag-policy input-state-evidence secondary-button-events
     fi
     append_action_log_value negative-proof "${negative_action_text#negative-proof=}"
     append_action_log_value positive-proof "${positive_action_text#positive-proof=}"
     append_action_schema_value drag-points target-hover-hold-seconds '3.3'
-    append_action_schema_value drag-points coordinate-policy 'derived-from-list-zones: source titlebar point is centered in Work/main; target point is centered inside Comms/right'
-    if [ "${PROOF_MODE}" = "runtime-policy" ]; then
-        append_action_schema_value drag-points mapping-assertion 'freeform keeps snap-demo in Work/main; runtime snap-to-zone moves the same id to Comms/right without a held modifier'
-    elif [ "${PROOF_MODE}" = "secondary-button" ]; then
-        append_action_schema_value drag-points mapping-assertion 'ordinary drag floats snap-demo into Comms/right without a snap overlay; secondary-button drag moves the same id as a whole-zone snap'
-    elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
-        append_action_schema_value drag-points mapping-assertion "no-${USER_MODIFIER_LABEL} drag floats snap-demo into Comms/right without a snap overlay; ${USER_MODIFIER_LABEL}-held drag moves the same id as a whole-zone snap"
-    else
-        append_action_schema_value drag-points mapping-assertion "freeform keeps snap-demo in Work/main; ${USER_MODIFIER_LABEL}-held drag moves the same id to Comms/right"
-    fi
+    append_action_schema_value drag-points coordinate-policy "${coordinate_policy}"
+    append_action_schema_value drag-points mapping-assertion "${mapping_assertion}"
     append_action_schema_value drag-screenshots pickup "${SNAP_PICKUP_NAME}" snap-pickup-screenshot
     append_action_schema_value drag-screenshots path "${SNAP_PATH_NAME}" snap-path-screenshot
     append_action_schema_value drag-screenshots hover "${SNAP_HOVER_NAME}" snap-hover-screenshot
+    if [ -n "${SNAP_RELEASE_NAME}" ]; then
+        append_action_schema_value drag-screenshots release "${SNAP_RELEASE_NAME}" snap-release-screenshot
+    fi
     append_action_schema_value drag-screenshots freeform-pickup "${FREEFORM_PICKUP_NAME}" freeform-pickup-screenshot
     append_action_schema_value drag-screenshots freeform-hover "${FREEFORM_HOVER_NAME}" freeform-hover-screenshot
-    append_action_schema_value visual-floor required-frames 'source window, dragged proxy/path, whole-zone Comms highlight/overlay, release, final placement, and freeform no-overlay negative proof'
+    append_action_schema_value visual-floor required-frames "${visual_floor}"
     if [ -n "${PRODUCT_OVERLAY_LABEL}" ]; then
         append_action_schema_value visual-floor product-overlay-label "${PRODUCT_OVERLAY_LABEL}" product-overlay-label
     fi
@@ -756,7 +957,7 @@ proof_slice() {
     init_mouse_events_log
     start_epoch="$(date +%s)"
     scenario_start_ms="$((start_epoch * 1000))"
-    if [ "${PROOF_MODE}" = "float-unless-snap" ] || [ "${PROOF_MODE}" = "secondary-button" ]; then
+    if [ "${PROOF_MODE}" = "float-unless-snap" ] || proof_uses_secondary_button; then
         negative_drag_branch="float"
         negative_post_state_event="float-post-state"
     else
@@ -804,6 +1005,11 @@ proof_slice() {
     sleep 1
     capture_guest_screenshot "${RESET_NAME%.png}"
     append_mouse_event reset-before-snap preparation "${scenario_start_ms}" "source reset screenshot captured before snap drag"
+    if profile_requires_target_window; then
+        derive_positive_drag_geometry "${WINDOW_RESET_LOG}"
+        append_action_schema_value drag-points snap-source "${source_x},${source_y}" snap-source-point
+        append_action_schema_value drag-points snap-target "${target_x},${target_y}" snap-target-point
+    fi
     if [ "${PROOF_MODE}" = "runtime-policy" ]; then
         sleep 4
     fi
@@ -811,7 +1017,7 @@ proof_slice() {
     snap_start_epoch="$(date +%s)"
     drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" "${positive_drag_with_alt}" \
         "${SNAP_PICKUP_SCREENSHOT}" "${SNAP_PATH_SCREENSHOT}" "${SNAP_HOVER_SCREENSHOT}" \
-        snap "${scenario_start_ms}" "${positive_drag_input}" >>"${MOUSE_EVENTS_LOG}"
+        snap "${scenario_start_ms}" "${positive_drag_input}" "${SNAP_RELEASE_SCREENSHOT}" >>"${MOUSE_EVENTS_LOG}"
     sleep 4
     snap_end_epoch="$(date +%s)"
 
@@ -821,10 +1027,13 @@ proof_slice() {
     test -s "${SNAP_PICKUP_SCREENSHOT}"
     test -s "${SNAP_PATH_SCREENSHOT}"
     test -s "${SNAP_HOVER_SCREENSHOT}"
+    if [ -n "${SNAP_RELEASE_SCREENSHOT}" ]; then
+        test -s "${SNAP_RELEASE_SCREENSHOT}"
+    fi
 
     for _ in $(seq 1 30); do
         refresh_window_log "${WINDOW_AFTER_LOG}"
-        if [ "$(zone_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')" = right ]; then
+        if [ "$(zone_for_title "${WINDOW_AFTER_LOG}" 'snap-demo.rtf')" = "${snap_expected_zone}" ]; then
             break
         fi
         sleep 1
@@ -836,13 +1045,20 @@ proof_slice() {
         snap_error_label='runtime snap-to-zone'
     elif [ "${PROOF_MODE}" = "secondary-button" ]; then
         snap_error_label='secondary-button snap'
+    elif [ "${PROOF_MODE}" = "window-slot" ]; then
+        snap_error_label='secondary-button window-slot snap'
     else
         snap_error_label="${USER_MODIFIER_LABEL} snap"
     fi
     [ "${after_id}" = "${before_id}" ] || semantic_fail "${snap_error_label} changed window id: ${before_id} -> ${after_id:-missing}"
-    [ "${after_zone}" = right ] || semantic_fail "${snap_error_label} did not move to Comms/right: ${after_zone:-missing}"
-    [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" != "${after_workspace}" ] \
-        || semantic_fail "${snap_error_label} did not move to the target zone active workspace"
+    [ "${after_zone}" = "${snap_expected_zone}" ] || semantic_fail "${snap_error_label} ended in unexpected zone ${after_zone:-missing}, expected ${snap_expected_zone}"
+    if [ "${snap_expected_workspace_relation}" = same ]; then
+        [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" = "${after_workspace}" ] \
+            || semantic_fail "${snap_error_label} should stay in the same active workspace"
+    else
+        [ -n "${before_workspace}" ] && [ -n "${after_workspace}" ] && [ "${before_workspace}" != "${after_workspace}" ] \
+            || semantic_fail "${snap_error_label} did not move to the target zone active workspace"
+    fi
 
     append_action_schema_value drag-result window-id-after "${after_id}" window-id-after
     append_action_schema_value drag-result after-zone "${after_zone}" after-zone
@@ -892,7 +1108,7 @@ proof_slice() {
         echo "policy = '${CONFIG_POLICY}'"
         echo "modifier = '${CONFIG_MODIFIER}'"
         echo "gesture = '${CONFIG_GESTURE}'"
-        echo "target = 'zone'"
+        echo "target = '${CONFIG_TARGET}'"
         if [ "${PROOF_MODE}" = "runtime-policy" ]; then
             echo
             echo 'Runtime commands under proof:'
@@ -916,6 +1132,8 @@ proof_slice() {
             echo 'After runtime snap-to-zone drag:'
         elif [ "${PROOF_MODE}" = "secondary-button" ]; then
             echo 'After secondary-button snap:'
+        elif [ "${PROOF_MODE}" = "window-slot" ]; then
+            echo 'After secondary-button window-slot snap:'
         else
             echo "After ${USER_MODIFIER_LABEL} snap:"
         fi
@@ -925,6 +1143,8 @@ proof_slice() {
             echo "PASS: desktop drag starts from config freeform/no-zone-move; winmux set-zone-snap-policy snap-to-zone makes the next no-modifier drag preview a whole Comms zone target and move the same window into Comms/right on release; winmux cycle-zone-snap-policy freeform snap-to-zone returns the runtime policy to freeform."
         elif [ "${PROOF_MODE}" = "secondary-button" ]; then
             echo "PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
+        elif [ "${PROOF_MODE}" = "window-slot" ]; then
+            echo "PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag and target window; ordinary drag inside Work/main floats without a slot overlay; resetting to Work/main and holding the secondary mouse button previews target-window.rtf's right window slot and keeps the same source window in Work/main on release, with no whole-zone fallback."
         elif [ "${PROOF_MODE}" = "float-unless-snap" ]; then
             echo "PASS: desktop drag starts from config float-unless-snap; no-${USER_MODIFIER_LABEL} drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding ${USER_MODIFIER_LABEL} previews a whole Comms zone target and moves the same window into Comms/right on release."
         else

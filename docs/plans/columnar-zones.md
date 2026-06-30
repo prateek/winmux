@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-25 accepted; Slice 26 pending
+Status: slices 0-28 accepted; Slice 29 scoped as explicit runtime layout save; not implemented
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -219,9 +219,11 @@ Mouse behavior should be explicit, configurable, and demoable:
 - one-handed mouse workflows should be possible through configurable gestures,
   but gesture recognition must call the same zone commands as keyboard
   bindings.
-- The current implementation only claims whole-zone snap. Snap-to-window,
-  snap-to-slot, and richer one-handed gestures need their own slice, with video
-  proof that distinguishes "snap to zone" from "snap within a zone".
+- The current implementation claims both whole-zone snap and the first
+  window-slot snap target. Whole-zone snap uses `target = 'zone'`; window-slot
+  snap uses `target = 'window'` and existing intent-zone split/tab/swap
+  behavior. Richer gesture editing, empty-space snapping, and persistence need
+  their own slices with video proof.
 
 ## Product Semantics
 
@@ -241,7 +243,7 @@ Required MVP behavior:
 Deferred behavior:
 
 - grid or rectangle layouts;
-- draggable zone dividers;
+- persistence or TOML write-back for dragged divider changes;
 - per-zone sidebar panels;
 - visual editor;
 - direct tab-group-to-zone persistence beyond the workspace binding model.
@@ -291,13 +293,13 @@ The subagent must verify:
 - the visual/stylistic choices do not drift from the root demo videos, screenshots, README, GitHub README, and public listing;
 - the artifact would make sense to an end user reviewing the feature without reading the implementation notes.
 
-The review output goes in the slice artifact directory as `reviews/no-ctx-artifact-review.md` and must end with one of:
+The review output goes in the slice artifact directory as
+`reviews/no-ctx-artifact-review.md`. The first nonblank line must start with
+`PASS:`, `PASS_WITH_NOTES:`, or `FAIL:`. The final line must be exactly
+`next slice allowed: yes` or `next slice allowed: no`.
 
-- `PASS`: the slice can proceed;
-- `PASS_WITH_NOTES`: non-blocking polish notes are recorded;
-- `FAIL`: re-record or fix before continuing.
-
-Only `PASS` or `PASS_WITH_NOTES` allows the next slice to start.
+Only `PASS:` or `PASS_WITH_NOTES:` with final line `next slice allowed: yes`
+allows the next slice to start.
 
 Use the prompt template in `script/e2e/prompts/no-context-artifact-review.md`.
 
@@ -314,7 +316,12 @@ Do not advance on a hard failure. Re-record the slice or fix the harness first.
 
 ## No-Context Retrospection Gate
 
-After each accepted artifact review, run three fresh no-context subagents with `fork_context=false` before starting the next slice. This is a process-quality gate: the agents look backward through the available Codex/Orca session history, the repo diff, the slice artifacts, failed attempts, and durable docs to find preventable failures or cheaper proof paths.
+After each accepted artifact review, run three fresh no-context subagents with
+`fork_context=false` before starting the next slice. This is a process-quality
+gate: the agents inspect repo files, the current diff, slice artifacts, failed
+attempt directories, logs, media, and durable docs to find preventable failures
+or cheaper proof paths. They do not inspect Codex/Orca session history unless
+the coordinator explicitly requests forensic mode for a specific question.
 
 Use the prompt template in `script/e2e/prompts/no-context-retrospection.md`.
 
@@ -376,11 +383,16 @@ Gate order for every product slice:
 3. Run `make e2e-verify-slice RUN_DIR=...`.
 4. Locally inspect screenshots, standard samples, and contact sheet for obvious hard failures.
 5. Run the no-context artifact review.
-6. Run `make e2e-verify-slice-check RUN_DIR=... ARGS=--require-review` so the
+6. Run `make e2e-review-lint RUN_DIR=...` and tee the transcript to
+   `logs/review-lint.log`.
+7. Run `make e2e-verify-slice-check RUN_DIR=... ARGS=--require-review` and tee
+   the transcript to `logs/post-review-verify.log` so the
    post-review gate cannot silently regenerate missing packet or sample files.
-7. Run the three no-context retrospection agents.
-8. Update this plan with slice result, accepted findings, and the next pre-slice cleanup checklist.
-9. Start the next slice only after the checklist is complete.
+8. Run the three no-context retrospection agents.
+9. Update this plan with slice result, accepted findings, and the next pre-slice cleanup checklist.
+10. Run `make e2e-slice-closeout-check RUN_DIR=...` and tee the transcript to
+    `logs/closeout-check.log`.
+11. Start the next slice only after the checklist is complete.
 
 Reusable pre-slice cleanup floor:
 
@@ -507,6 +519,44 @@ Do not treat every zone as a sidebar panel monitor. That would shrink every colu
 MVP validation should reject overlapping zones. Grid/freeform layouts can be added later with an explicit hit-test priority policy.
 
 ## Implementation Slices
+
+Compact slice inventory:
+
+| Slice | Scope |
+| --- | --- |
+| 0 | Tart VM recording harness with clean desktop setup, screenshots, video, logs, and no-context artifact review. |
+| 1 | Hardcoded zone spike proving one physical ultrawide can expose independent virtual-monitor workspaces. |
+| 2 | User config for column zones, validation, and visible live windows in each configured zone. |
+| 3 | Stable zone viewport identity across config reload and width changes. |
+| 4 | Zone commands and selectors: focus and move nodes to named zones while preserving physical monitor command compatibility. |
+| 5 | Sidebar zone sections and drag-to-zone UX, with corrected proof that sidebar drag snaps to a zone row. |
+| 6A | Named zone layout presets plus `use-zone-layout` runtime switching. |
+| 6B | Zone scenes that apply a layout preset and activate named workspaces per zone. |
+| 7 | Root product demo packaging from accepted Tart-captured columnar-zone evidence. |
+| 8 | Window detection rules route matching windows to zones through config. |
+| 9 | User-facing columnar-zones docs tied to accepted video evidence. |
+| 10 | Runtime zone availability: hide and restore one zone without losing its parked workspace. |
+| 11A | Runtime zone sizing: `resize-zone`, `balance-zones`, layout cycling tests, and numeric geometry proof. |
+| 11B | Runtime zone style tokens and visible sidebar row styling. |
+| 11C | Availability sets and cross-zone availability commands for focus-only or communications-style layouts. |
+| 12 | Initial mouse zone-snap policy, modifier-gated whole-zone drag, and freeform no-snap behavior. |
+| 13 | Portable `alt-z` zone mode with relative selectors such as `current`, `next`, and `prev`. |
+| 14 | Workspace-to-zone bindings through `[[zone-bindings]]` and `apply-zone-bindings`. |
+| 15 | Runtime window/tab-group zone binding with `bind-node-to-zone` and `list-zone-bindings`. |
+| 16 | Mouse snap affordance semantics, including visible proof that the target is a whole zone. |
+| 17 | Node-binding guardrails and machine-safe `list-zone-bindings` output. |
+| 18 | Durable zone affinity routing for newly detected matching windows. |
+| 19 | Ergonomic `cycle-zone-style` command for compact keyboard workflows. |
+| 20 | Runtime mouse snap policy switching without editing TOML. |
+| 21 | Ergonomic zone mode v2, covering keyboard control for focus, move, layout, style, and availability. |
+| 22 | Float-unless-snap mouse policy: ordinary drags stay floating unless snap activation is held. |
+| 23 | Product whole-zone snap overlay label so the drag target is legible in-app. |
+| 24 | Secondary-button mouse snap gesture for one-handed whole-zone snapping. |
+| 25 | Hardened mouse demo artifact contract with trimmed demo cut, input-state cues, and strict review media. |
+| 26 | Draggable zone dividers: drag a visible Work/Comms divider to update adjacent runtime widths only. |
+| 27 | Window-slot snap target inside a zone, separate from whole-zone snapping. |
+| 28 | Export the effective runtime zone layout as pasteable TOML after resize, balance, or divider drag. |
+| 29 | Planned: explicitly save the effective runtime zone layout back to config with reviewable backup, dry-run, and diff behavior. |
 
 ### Slice 0: Tart Recording Harness
 
@@ -4238,6 +4288,987 @@ Pre-Slice-26 cleanup from Slice 25 retrospectives:
 - Deferred: collapse the Slice 24/25 mouse-snap guest-wrapper duplication into
   a parameterized helper before the next mouse-drag product proof. This is not
   blocking for Slice 26 unless Slice 26 is another mouse-drag proof.
+
+## Slice 26: Draggable Zone Dividers
+
+Goal: make runtime zone sizing direct-manipulation. A user should be able to
+grab the visible boundary between two enabled column zones, drag it horizontally,
+and release to update runtime width overrides for the active layout on that
+physical monitor.
+
+Pre-Slice-26 cleanup from the three no-context preflight retrospectives:
+
+- [x] Run three fresh no-context retrospection agents for process/plan,
+  code/harness, and artifact/product before starting Slice 26 implementation.
+  Reports:
+  `artifacts/e2e/slice-26-preflight-retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-26-preflight-retrospectives/code-harness.md`, and
+  `artifacts/e2e/slice-26-preflight-retrospectives/artifact-product.md`.
+- [x] Pin the accepted runtime-width baseline to
+  `artifacts/e2e/slice-11a-20260626T102409Z`. The older
+  `slice-11a-20260626T100241Z` directory is historical only because it lacks an
+  accepted no-context artifact review.
+- [x] Define divider width semantics before implementation: dragging a divider
+  changes only the two adjacent enabled zones that share that boundary; all
+  non-adjacent enabled zones keep their effective width unless normalization is
+  required by the existing model.
+- [x] Reuse the existing runtime width model:
+  `ZoneRuntimeOverlay.widthOverridesByLayoutIdentity`, physical-monitor
+  identity scope, active-layout identity scope, `list-zones` runtime override
+  fields, `refreshZoneTopologySnapshot()`, and
+  `Workspace.reconcileWorkspaceState()`.
+- [x] Keep the existing 5% minimum zone share for both adjacent zones. A drag
+  that would cross the minimum clamps or rejects deterministically; it must not
+  leave a hidden gap, overlap, or negative-width zone.
+- [x] Define input architecture before implementation: use a dedicated
+  zone-divider drag state/session. Do not piggyback on window AX resize,
+  `currentlyManipulatedWithMouseWindowId`, desktop window snap, sidebar drag, or
+  tab-strip drag.
+- [x] Add fast behavior tests for adjacent-only divider math, min-share
+  handling, disabled-zone behavior, active-layout/physical-monitor scoping, and
+  workspace/window preservation.
+- [x] Add Slice 26 e2e harness, guest script, config fixture, annotation plan,
+  verifier branch, reviewer-packet branch, and no-context reviewer prompt checks
+  before recording Tart media.
+
+User-visible story:
+
+- Start with three visible live windows in Reference/left, Work/main, and
+  Comms/right, plus a readable state board generated from `list-zones`.
+- Show a visible divider affordance between adjacent enabled zones. The first
+  proof uses the Work/Comms divider.
+- Hover or pick up the divider so the active handle is visually distinct from
+  window resize handles and whole-zone snap overlays.
+- Drag the divider horizontally, showing a live preview of the boundary and
+  adjacent width labels.
+- Release the divider. Work/main and Comms/right change width; Reference/left
+  keeps its width. The same windows and workspaces remain attached to the same
+  zone ids.
+- Inspect `list-zones` after release. The changed zones report
+  `monitor-zone-runtime-width-override-state = runtime`; copied config remains
+  unchanged.
+
+Product semantics:
+
+- Divider handles exist only between adjacent enabled column zones on the same
+  physical monitor and active layout.
+- A disabled zone has no active divider handle.
+- Divider drag is a runtime width-control input surface, not a new layout kind,
+  TOML editor, sidebar drag, window movement, window resize, or zone-snap
+  gesture.
+- The direct-manipulation rule is adjacent-pair-only. For example, dragging the
+  Work/Comms divider left grows Comms and shrinks Work while Reference stays the
+  same.
+- Width state remains runtime-only for this slice. Persistence across relaunch
+  and writing updated zone widths back into TOML are not claimed.
+
+Implementation scope:
+
+- Extract a model-level divider operation before UI wiring. The operation should
+  accept an adjacent left/right zone pair plus a delta or target x-position,
+  apply the existing min-share and runtime-overlay invariants, refresh topology,
+  and reconcile workspace state.
+- Add a `ZoneDividerDragSession` or equivalent dedicated session that owns the
+  physical monitor, active layout id, left/right zone ids, initial boundary x,
+  initial adjacent widths, active pointer x, and final result.
+- Render a restrained product affordance using the existing overlay/panel visual
+  language. The active state must include readable labels such as
+  `Work 55% | Comms 20%` without obscuring the managed windows.
+- Suppress normal mouse-up focus side effects while a divider drag is finishing.
+- Keep other mouse systems out of scope: window drop overlays, whole-zone snap
+  overlays, sidebar row drag, and tab-strip reorder must not activate during a
+  divider drag.
+
+Fast validation:
+
+- Add a focused pure/helper test showing `main|right` divider movement changes
+  only Work/main and Comms/right.
+- Cover min-share clamping or rejection for both sides.
+- Cover disabled-zone boundaries: no divider operation should target a hidden
+  zone.
+- Cover duplicate physical monitors and active-layout scoping: a drag on monitor
+  2 must not change monitor 1, and an override for layout `focus` must not
+  change layout `balanced`.
+- Cover workspace/window preservation after the divider update.
+
+Tart video gate:
+
+- Use `TART_HOME=/Volumes/RiftTartVMs/tart` and strict guest control with guest
+  display capture.
+- Scenario name:
+  `slice-26-zone-divider-drag`.
+- Config fixture:
+  `script/e2e/configs/zone-divider-drag.toml`, derived from the Slice 11A width
+  config.
+- Guest script:
+  `script/e2e/guest/slice-26-zone-divider-drag.sh`.
+- The guest script must compute divider start/end coordinates from live
+  `list-zones` geometry, not hardcoded ultrawide constants.
+- Captions should expose the user action, for example
+  `Action: drag zone divider Work | Comms`, and result chips from `list-zones`.
+  Do not present the proof as `Run: winmux resize-zone ...`; CLI logs are
+  supporting evidence, not the user action.
+
+Required artifact contract before no-context review:
+
+- Full acceptance recording:
+  `recordings/slice-26-zone-divider-drag.mov`.
+- Raw guest recording under `recordings/raw/`.
+- Before/ready/after screenshots, including a clean before screenshot and
+  after-state edge crops.
+- In-action screenshots:
+  `02-divider-hover-slice-26.png`, `03-divider-pickup-slice-26.png`,
+  `04-divider-drag-path-slice-26.png`, `05-divider-preview-slice-26.png`, and
+  `06-divider-release-slice-26.png`.
+- Before/after logs:
+  `slice-26-zones-before.log`, `slice-26-zones-after.log`,
+  `slice-26-windows-before.log`, `slice-26-windows-after.log`, and a copied
+  config checksum proving TOML was not edited by the scenario.
+- Proof manifest:
+  `logs/slice-26-zone-divider-drag.proof-manifest.tsv`, with divider pair,
+  old boundary x, new boundary x, delta px, coordinate policy, affected zones,
+  unchanged zones, min-share policy, before/after effective widths, before/after
+  pixel widths, and workspace/window identity checks.
+- Event manifest with divider-specific beats:
+  `divider-hover`, `divider-pickup`, `divider-drag-path`,
+  `divider-live-preview`, `divider-release`, and `after-divider-resize`.
+- Semantic contact sheet backed by
+  `logs/slice-26-zone-divider-drag.contact-sheet-manifest.tsv`, including
+  divider pickup, in-drag preview, release, final geometry, and a boundary crop.
+- Reviewer packet listing the accepted Slice 11A width baseline and the root
+  product demos.
+
+No-context artifact review requirements:
+
+- The reviewer must inspect the full recording, semantic contact sheet,
+  in-action screenshots, proof manifest, event manifest, before/after zone logs,
+  and copied config checksum.
+- The reviewer must answer which divider moved, which adjacent zones changed,
+  which zone stayed unchanged, whether any window moved, and whether the change
+  was runtime-only.
+- Hard failures: command-only resize proof, final-width-only proof, invisible
+  divider handle, stale/static measurement board, geometry numbers only in logs,
+  copied config mutation, window movement presented as divider movement, whole
+  zone snap overlay, or review that infers the drag without naming per-beat
+  media files.
+
+Validation gate:
+
+- Run focused Swift tests for the divider width helper and interaction guard.
+- Run `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`, and
+  `make e2e-pre-tart-checks`.
+- Produce the strict Tart artifact.
+- Run the no-context artifact review with `fork_context=false` using
+  `script/e2e/prompts/no-context-artifact-review.md`.
+- Run `make e2e-verify-slice-check RUN_DIR=<slice-26-dir> ARGS=--require-review`
+  only after the no-context review exists.
+- Run `make e2e-slice-closeout-check RUN_DIR=<slice-26-dir>`.
+- Run the three post-slice no-context retrospectives and fold accepted findings
+  into the next pre-slice cleanup before Slice 27.
+
+Slice 26 accepted artifact:
+
+- Accepted run:
+  `artifacts/e2e/slice-26-20260628T191207Z`.
+- Product recording:
+  `recordings/slice-26-zone-divider-drag.mov` at 3440x1440, 79.98s, guest
+  captured with annotated command/action chips.
+- Mechanical proof:
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-26-20260628T191207Z`,
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-26-20260628T191207Z ARGS=--require-review`
+  and
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-26-20260628T191207Z`
+  pass after the final no-context review cited every semantic sample row
+  required by `logs/slice-26-zone-divider-drag.sample-manifest.tsv`.
+- No-context artifact review:
+  `artifacts/e2e/slice-26-20260628T191207Z/reviews/no-ctx-artifact-review.md`
+  returned `PASS` and `next slice allowed: yes`.
+- Behavior proven:
+  dragging the Work/main | Comms/right divider changed adjacent runtime widths
+  only. Work grew from 1688px to 1941px, Comms shrank from 844px to 591px, and
+  Reference stayed 844px. Window ids and workspace attachments stayed stable.
+  The config checksum stayed unchanged.
+- Dedicated divider proof:
+  `logs/winmux-app.log` contains `zoneDivider.start` and `zoneDivider.commit`
+  for the Work/Comms boundary, and the verifier rejects
+  `resize.start ... kind=zoneDivider`.
+- Superseded-run lessons:
+  - `slice-26-20260628T184751Z` proved the width change but also let native
+    window resize start, so it was rejected as contaminated.
+  - `slice-26-20260628T185936Z` and `slice-26-20260628T190507Z` showed that an
+    interactive near-transparent hit panel can blackhole Tart-posted mouse
+    events; the accepted implementation uses pass-through divider visuals plus
+    global/local event monitoring.
+  - `slice-26-20260628T185640Z` and `slice-26-20260628T190851Z` failed before
+    product recording because guest `screencapture` did not become ready.
+    Rerunning with a larger capture-ready budget produced the accepted artifact.
+  - The first successful review was human-acceptable but failed the machine gate
+    because it did not cite the exact `config-ready` semantic sample. The
+    reviewer prompt now requires every semantic sample row to be cited by label
+    or exact path.
+  - A follow-up review after packet regeneration found `.DS_Store` in the
+    artifact root. `write-review-packet` now scrubs Finder sidecars before
+    review handoff, and the verifier rejects them.
+  - Another follow-up review found FinderInfo, last-used, quarantine, and other
+    non-portable xattrs. The harness and packet writer now run `xattr -cr`
+    during artifact cleanup, and the verifier rejects non-provenance xattrs.
+    `com.apple.provenance` is tolerated because this macOS volume attaches it
+    automatically and does not clear it with `xattr -c`.
+
+Post-Slice-26 retrospectives:
+
+- Process/plan:
+  `artifacts/e2e/slice-26-20260628T191207Z/retrospectives/process-plan.md`.
+- Code/harness:
+  `artifacts/e2e/slice-26-20260628T191207Z/retrospectives/code-harness.md`.
+- Artifact/product:
+  `artifacts/e2e/slice-26-20260628T191207Z/retrospectives/artifact-product.md`.
+
+Pre-Slice-27 cleanup from the three post-Slice-26 retrospectives:
+
+- [x] Generate or copy a reviewer citation checklist into the Slice 27 reviewer
+  packet from the slice artifact contract, including every semantic sample row,
+  expected chip, required log, and negative assertion. Run a pre-review lint
+  before the full `--require-review` verifier so citation misses are caught
+  before a no-context review is accepted. `write-review-packet` now emits a
+  semantic-sample citation checklist, and `make e2e-review-lint` checks review
+  freshness, accepted verdict, baseline citations, and semantic citations before
+  the full media verifier.
+- [x] Keep one source of truth for the Slice 27 artifact contract. The plan,
+  reviewer packet, verifier, expected chips, and prompt must agree before the
+  first Tart recording; do not let the plan require a sidecar that the packet
+  marks not applicable. The accepted Slice 27 packet, verifier, expected chips,
+  prompt checks, and proof manifests all agree on `target = 'window'`,
+  `window-slot`, `not-snap-target whole-zone`, and `Window slot: Right`.
+- [x] Harden capture readiness before the next product run: run a pre-recording
+  guest `screencapture` smoke with the final timeout/budget, and on repeated
+  `could not create image from display` failures write
+  `primary_log=logs/guest-capture-ready.log` plus display diagnostics into
+  `run-abort-status.txt`. Capture-ready failure now writes the primary log,
+  display diagnostics, WindowServer/Dock process state, and abort status.
+- [x] Resolve the Slice 27 mouse-smoke requirement explicitly. No separate
+  unrecorded guest smoke artifact was retained; the first strict recorded Tart
+  attempts served as semantic smoke and exposed the `target = 'window'`
+  float-unless-snap bug before the accepted run. Future mouse or
+  direct-manipulation slices must either run an explicit pre-record smoke or
+  record a plan waiver before recording.
+- [x] Treat transparent or near-transparent interactive panels as e2e capture-risky
+  until proven with Tart-posted `CGEvent` input. Prefer pass-through visuals
+  plus global/local event monitors for proof artifacts.
+- [x] Add focused verifier self-tests for the Slice 27 mouse path so the event
+  manifest timing comes from mouse-event logs and missing app-log start/commit
+  evidence is rejected. `./script/e2e/verify-artifact --self-test` now covers
+  the window-slot proof contract, semantic citation lint, artifact hygiene, and
+  the refreshed contact-sheet label path. Release-screenshot and spec
+  `path-kind` checks are carried into Pre-Slice-28 cleanup.
+- [x] Improve final-result visibility in Slice 27 demos. Use a `Result:` chip or
+  compact result card, show actual `winmux list-zones` output or equivalent
+  in-frame evidence, and include before/after values when geometry changes.
+  `Result:` chips are now allowed by the annotation validator and required in
+  reviewer guidance when they are part of a slice contract.
+- [x] Keep the current `Config:`, `Action:`, and `Run:` chip structure, but clean
+  semantic contact-sheet labels so tiles show one short beat name. Event
+  contact sheet labels now avoid duplicated labels when the event id and sample
+  label match.
+- [x] Make fixtures more self-explanatory and product-aligned: larger semantic
+  labels or width markers inside zones, caption placement that does not cover
+  evidence-heavy regions, and product-native surfaces or visible WinMux sidebar
+  context when the slice does not require plain fixture windows. Slice 27 uses
+  full-resolution action screenshots, the product overlay label
+  `Window slot: Right`, and a labeled window-slot crop; caption footprint and
+  demo-cut defaults are carried into Pre-Slice-28 cleanup.
+
+Non-claims:
+
+- no TOML visual editor or persistence of divider changes across relaunch;
+- no grid, freeform, or arbitrary rectangle layout editing;
+- no per-zone sidebar panels;
+- Slice 26 itself does not cover window-slot or snap-to-slot behavior;
+- no change to existing `resize-zone`, `balance-zones`, sidebar drag, tab-strip
+  drag, or desktop whole-zone snap semantics except preventing them from
+  stealing active divider drags.
+
+## Slice 27: Window Slot Snap Target
+
+Goal: make the second snap target explicit and ergonomic. Whole-zone snap is
+already implemented as `target = 'zone'`. Slice 27 adds
+`target = 'window'`, where an active snap drag over a managed window previews a
+slot inside that target window or tab group and releases through the existing
+tab/split/swap intent logic.
+
+Pre-slice cleanup:
+
+- [x] Complete the final Slice 26 no-context review after artifact hygiene
+  cleanup and rerun `make e2e-review-lint`,
+  `make e2e-verify-slice-check ... ARGS=--require-review`, and
+  `make e2e-slice-closeout-check`.
+- [x] Keep the Slice 27 artifact contract in one source of truth before code:
+  this section defines config, behavior, visible beats, expected logs, verifier
+  checks, prompt checks, and non-claims.
+- [x] Add fast parser/resolver/overlay tests before Tart. Focused
+  `WindowZoneSnapPolicyTest`, config parser coverage, list-window geometry
+  coverage, and the Slice 27 pre-Tart selected suite passed before the accepted
+  artifact.
+- [x] Add the Slice 27 e2e config, guest script, recording action, annotation
+  plan, semantic sample manifest, verifier branch, review-packet branch, and
+  no-context prompt checks before recording.
+- [x] Resolve the short unrecorded guest interaction smoke requirement. No
+  separate smoke artifact was kept; the strict Tart attempts and accepted proof
+  cover app-log, overlay, release, and negative whole-zone assertions. Future
+  mouse slices keep this as a required pre-record smoke or explicit waiver.
+
+User-facing config:
+
+```toml
+[mouse.zone-snap]
+policy = 'float-unless-snap'
+gesture = 'secondary-button-drag'
+target = 'window'
+```
+
+Product semantics:
+
+- `target = 'zone'` keeps the existing whole-zone overlay and final
+  `moveToZone` behavior.
+- `target = 'window'` activates only when the configured policy/gesture is
+  active and the pointer is over a target window inside a zone.
+- The overlay must say it is a window/slot target, for example
+  `Window slot: Right` and `Drop to split this window`. It must not use the
+  whole-zone label.
+- Release uses the existing window intent-zone behaviors: tab insert, split
+  left/right/above/below, or swap/middle. This slice should not invent a second
+  tiling engine.
+- If the policy/gesture is inactive, ordinary `float-unless-snap` behavior
+  remains freeform/floating and no window-slot overlay is shown.
+- If the policy/gesture is active but no target window is under the pointer,
+  no snap destination is offered; do not fall back to whole-zone snap.
+
+Implementation scope:
+
+- Add `window` to `ZoneSnapTarget` parsing and validation.
+- Extend the zone-snap resolver with a "window destinations only" mode for
+  active `target = 'window'` drags. This mode should allow the existing
+  `currentWindowSurfaceDestination` and sticky target paths, then stop rather
+  than falling through to workspace or whole-zone destinations.
+- Add product overlay text for active window intent zones. The label should be
+  specific enough for users and reviewers to distinguish `tab`, `left`,
+  `right`, `top`, `bottom`, and `middle` targets.
+- Keep existing same-workspace window intent gating unless the active snap
+  policy intentionally opens it; do not regress tab-strip drag semantics.
+- Add behavior tests for parser acceptance/rejection, inactive suppression,
+  active window-only routing, no-window no-fallback behavior, whole-zone
+  target preservation, and overlay label content.
+
+Tart storyboard:
+
+- Use an ultrawide zone config with Work/main containing two tiled windows and
+  Comms/right visible.
+- Start from `policy = 'float-unless-snap'`,
+  `gesture = 'secondary-button-drag'`, and `target = 'window'`.
+- Show an ordinary left drag of `snap-demo.rtf` over a Work/main target window:
+  no window-slot overlay appears and the source stays freeform/floating.
+- Reset the same source window to a tiled state.
+- Show a secondary-button-held drag over the right slot of the target window:
+  the product overlay must label `Window slot: Right`, show the active right
+  slot inside the target window, and not show `Whole zone: ...`.
+- Release and show the same source window inserted/split to the right of the
+  target window in Work/main.
+- Include a negative in-frame check or result chip that says
+  `Result: target = window slot, not whole zone`.
+
+Required artifact contract before review:
+
+- Primary recording: `recordings/slice-27-window-slot-snap.mov`.
+- Raw guest recording under `recordings/raw/`.
+- Before/ready/after screenshots plus action screenshots for ordinary pickup,
+  ordinary no-overlay hover, reset, secondary-button pickup, slot-hover,
+  release, and final layout.
+- Logs: before/after windows, before/after layout tree or list-windows output,
+  mouse-event timings, event manifest, proof manifest, overlay sentinel, and
+  app log.
+- Proof manifest must name `drag-policy	target	window`, the exact active
+  slot, the target window id/title, the source window id/title, and a negative
+  `whole-zone-overlay-absent` assertion.
+- Reviewer packet must list every semantic sample row, expected chip, and
+  negative target-semantics assertion.
+
+No-context review requirements:
+
+- The reviewer must inspect the full video, event contact sheet, action
+  screenshots, proof manifest, overlay sentinel, window/layout logs, and
+  baseline product media.
+- The reviewer must answer whether the drop target is a whole zone or a slot
+  inside a window. Expected answer: a slot inside the Work/main target window.
+- Hard failures: whole-zone overlay, final-layout-only proof, logs-only proof,
+  missing secondary-button evidence, inactive branch showing a slot overlay,
+  no active-slot label, no target window id/title proof, or fallback to
+  whole-zone `moveToZone`.
+
+Validation gate:
+
+- Run focused Swift parser/resolver/overlay tests.
+- Run `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`, and
+  `make e2e-pre-tart-checks`.
+- Resolve the unrecorded guest interaction smoke requirement before acceptance:
+  either run it or record the accepted waiver described in the pre-slice
+  cleanup notes above.
+- Produce the strict Tart artifact from the external SSD-backed Tart home.
+- Run no-context artifact review with `fork_context=false`.
+- Run `make e2e-review-lint`, `make e2e-verify-slice-check ... ARGS=--require-review`,
+  and `make e2e-slice-closeout-check`.
+- Run three post-slice no-context retrospectives and fold accepted findings
+  into the next pre-slice cleanup.
+
+Non-claims:
+
+- no grid/freeform rectangle editor;
+- no arbitrary snap-to-empty-position behavior;
+- no persistence of window-slot snap choices;
+- no new gesture editor UI;
+- no change to whole-zone `target = 'zone'` semantics.
+
+Accepted Slice 27 result:
+
+- Accepted artifact:
+  `artifacts/e2e/slice-27-20260630T043500Z`.
+- Primary recording:
+  `recordings/slice-27-window-slot-snap.mov`, H.264, 3440x1440,
+  86.000000s, 4045 frames.
+- Raw guest recording:
+  `recordings/raw/slice-27-window-slot-snap.raw.mov`.
+- Demo cut:
+  `recordings/slice-27-window-slot-snap.demo.mov`, backed by
+  `logs/slice-27-window-slot-snap.demo-cut.tsv`.
+- Decisive product overlay frame:
+  `screenshots/07-slot-hover-right-slice-27.png`, where the actual product
+  overlay reads `Window slot: Right`.
+- Labeled target crop:
+  `screenshots/slice-27-window-slot-snap.overlay-sentinel/slot-target-window-labeled.png`.
+- Refreshed contact-sheet manifest:
+  `logs/slice-27-window-slot-snap.contact-sheet-manifest.tsv` now labels the
+  proof crop as `zoomed labeled window-slot target crop`; the stale
+  whole-zone wording was regenerated before the final review.
+- No-context artifact review:
+  `reviews/no-ctx-artifact-review.md` returned `PASS` with final gate line
+  `next slice allowed: yes` after the artifact refresh. The pre-refresh review
+  was archived as
+  `reviews/no-ctx-artifact-review.stale-20260630T045255Z.md`.
+- Mechanical proof:
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-27-20260630T043500Z`,
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-27-20260630T043500Z ARGS=--require-review`,
+  and
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-27-20260630T043500Z`
+  passed on the refreshed artifact.
+- Focused source and harness checks:
+  `bash -n script/e2e/tart-recording-harness script/e2e/verify-artifact script/e2e/write-review-packet script/e2e/guest/slice-12-mouse-zone-snap.sh script/e2e/guest/slice-26-zone-divider-drag.sh`,
+  `./script/e2e/verify-artifact --self-test`, and
+  `swift test --filter WindowZoneSnapPolicyTest` passed after the Slice 27
+  artifact refresh.
+- Behavior proven:
+  ordinary no-secondary-button drag of `snap-demo.rtf` inside Work/main stays
+  freeform/floating with no window-slot overlay; after reset, secondary-button
+  drag targets `target-window.rtf`'s right slot, shows the product overlay
+  `Window slot: Right`, releases through the existing window intent-zone split
+  behavior, and keeps the source and target windows in Work/main. Comms/right
+  remains a negative-control surface; the proof manifest records
+  `drag-target snap-target window-slot` and
+  `drag-target not-snap-target whole-zone`.
+- Product fix discovered during Tart validation:
+  `float-unless-snap` freeform conversion now applies when
+  `mouse.zone-snap.target = 'window'` and the activation gesture is inactive.
+  Before the fix, ordinary inactive drags could stay tiled because the float
+  path was gated on `target = 'zone'`.
+- Accepted non-claims:
+  no arbitrary grid/rectangle editor, no empty-space snap target, no persisted
+  window-slot snap choices, no new gesture editor UI, and no change to
+  whole-zone `target = 'zone'` semantics.
+
+Failed and superseded Slice 27 attempts:
+
+- `artifacts/e2e/slice-27-20260630T041926Z`: preflight failure before product
+  media. `logs/run-abort-status.txt` records `phase=preflight`,
+  `final_result=failure`, and `recording_started=no`.
+- `artifacts/e2e/slice-27-20260630T042242Z`: strict recorded Tart semantic
+  failure. It exposed the product bug where inactive
+  `float-unless-snap + target = 'window'` did not float the dragged window.
+  `logs/run-abort-status.txt` records `phase=slice-27-run`,
+  `final_result=semantic_failure`, and `recording_started=yes`.
+- `artifacts/e2e/slice-27-20260630T042721Z`: media-producing run superseded
+  after the guest proof-manifest caption chip disagreed with the annotation
+  plan. It is formally marked with `reviews/superseded.md` and
+  `logs/run-abort-status.txt`, superseded by
+  `artifacts/e2e/slice-27-20260630T043500Z`.
+
+Post-Slice-27 retrospectives:
+
+- Process/plan:
+  `artifacts/e2e/slice-27-20260630T043500Z/retrospectives/process-plan.md`.
+- Code/harness:
+  `artifacts/e2e/slice-27-20260630T043500Z/retrospectives/code-harness.md`.
+- Artifact/product:
+  `artifacts/e2e/slice-27-20260630T043500Z/retrospectives/artifact-product.md`.
+
+Pre-Slice-28 cleanup from Slice 27 retrospectives:
+
+- [x] Refresh derived Slice 27 media after the contact-sheet proof-crop wording
+  fix, rerun the no-context artifact review with `fork_context=false`, and pass
+  review lint, require-review verification, and closeout on the refreshed
+  artifact.
+- [x] Record the accepted Slice 27 artifact, failed-attempt ledger, verification
+  commands, review verdict, accepted claims, non-claims, and retrospective paths
+  in this plan.
+- [x] Preserve the Slice 27 citation-checklist pattern for Slice 28: reviewer
+  packets must list exact semantic sample rows, negative assertions, expected
+  chips, and baseline/product-surface citations.
+- [x] Add a pre-review consistency check for future mouse slices: generated
+  proof-manifest caption chips, annotation TSV, expected chips, reviewer
+  packet, and verifier-required chips must match before no-context review.
+  `verify-artifact` now requires every expected-chip row to appear in both the
+  annotation TSV and reviewer packet, and requires proof-manifest
+  `caption/chip` rows to appear in both the annotation TSV and reviewer packet.
+  Future slice-specific verifier-required chips must be listed in the
+  expected-chips file when they are part of the user-facing review surface.
+- [x] Decide before Slice 28 whether `Result:` lines are required user-facing
+  evidence. Decision: `Result:` lines are required when command output or final
+  state is central to viewer comprehension and is not otherwise visible in the
+  desktop video; otherwise they are optional. When a slice uses `Result:` as
+  proof evidence, include the exact line in expected chips so the annotation TSV
+  and reviewer packet checks enforce it.
+- [x] Extend `require_drag_proof_manifest` to validate optional release
+  screenshots and cross-check the `snap-release` event path against the manifest
+  release screenshot.
+- [x] Add spec-driven `path-kind` validation to
+  `require_mouse_drag_event_manifest`, with a self-test fixture that fails when
+  `mouse-drag-events.tsv` and the emitted event manifest disagree.
+- [x] Remove non-portable FinderInfo and last-used-date xattrs from the accepted
+  Slice 23, Slice 24, and Slice 25 artifacts, verify representative PNG hashes
+  stayed unchanged, and rerun their `--require-review` verifier checks so the
+  shared mouse verifier has clean backward-compatibility evidence.
+- [x] Split the shared mouse snap guest script into common helpers plus explicit
+  whole-zone and window-slot profiles, starting with geometry derivation,
+  screenshot naming, and proof-manifest fields. The shared guest script now
+  routes through `SNAP_TARGET_PROFILE`, profile-owned screenshot naming,
+  `derive_positive_drag_geometry`, and whole-zone/window-slot manifest profile
+  helpers while keeping the existing harness entry point and slice env vars
+  stable. Verified with `bash -n`, `shellcheck`,
+  `./script/e2e/verify-artifact --self-test`,
+  `./script/e2e/tart-recording-harness warmup-policy-self-test`, and
+  representative Slice 25 whole-zone plus Slice 27 window-slot
+  `--require-review` verifier checks.
+- [x] Add retry-summary columns for per-attempt status and compact
+  first/last-failure reason while keeping raw phase logs linked from the summary.
+  New `guest-script-retry-summary.tsv` and `guest-transport-summary.tsv` rows
+  include `attempt_statuses`, `first_failure_reason`, and
+  `last_failure_reason`; the verifier reads the header so older accepted
+  six-column summaries remain valid. Verified with `bash -n`, `shellcheck`,
+  `./script/e2e/tart-recording-harness warmup-policy-self-test`,
+  `./script/e2e/verify-artifact --self-test`, Slice 23-27
+  `--require-review` verifier checks, and Slice 27 review lint.
+- [x] Add an integrated unit test for the `.allowWindowDestinationsOnly` lookup
+  branch proving same-workspace target-window destinations are allowed, slot
+  labels are attached, and whole-zone/default destinations do not leak through.
+  `WindowZoneSnapPolicyTest.testWindowTargetLookupAllowsSameWorkspaceWindowSlotWithoutWholeZoneLeak`
+  drives `currentWindowDragIntentDestination` and passed in the focused test and
+  full `WindowZoneSnapPolicyTest` run.
+- [x] For long-tail recordings, make the product-facing demo cut the default
+  review video or add a strict tail policy: trim the primary, add a final
+  clean-state hold caption, or require an explicit accepted exception when
+  `tail-seconds` exceeds `max-tail-seconds`.
+  Decision: keep the full recording as the acceptance artifact and enforce the
+  strict tail policy. `caption-tail.tsv` remains mandatory for annotated runs,
+  long intentional tails require a reason, and `verify-artifact` now requires
+  the `.demo.mov` sidecar plus `demo-cut.tsv` whenever the long tail is
+  trim-worthy. Narrow historical exception: the accepted Slice 23 and Slice 24
+  artifacts predate the demo-cut sidecar requirement and keep their existing
+  accepted reviews instead of changing packets after the fact.
+- [x] Generate a zoomed product-overlay crop or inset for the decisive hover
+  beat in future slot/overlay demos, and require reviewers to inspect both the
+  full-resolution frame and the contact sheet.
+  The overlay-sentinel/contact-sheet path already emits labeled proof crops:
+  the accepted Slice 27 manifest includes
+  `proof-crop	target-zone-crop	...	slot-target-window-labeled.png`, and
+  future reviewer packets list the overlay sentinel plus semantic contact sheet
+  as required evidence.
+- [x] Capture a release-boundary frame that still shows the active affordance,
+  then keep post-drop placement as a separate final-state beat. When a snap
+  release screenshot is configured, the guest JXA now captures it before mouse
+  up, emits `snap-release` as release-boundary evidence, and keeps `99-after`
+  as the separate post-drop placement proof. The Slice 27 event spec, sample
+  manifest wording, reviewer packet, prompt, and verifier diagnostics now use
+  that distinction. Verified with `bash -n`, `shellcheck`,
+  `./script/e2e/verify-artifact --self-test`,
+  `./script/e2e/tart-recording-harness warmup-policy-self-test`, and Slice 27
+  `--require-review` verification.
+- [x] Reduce caption footprint for dense desktop demos so captions expose the
+  config/action without covering target windows, slot affordances, or measured
+  geometry. `annotate-recording` now supports
+  `WINMUX_E2E_CAPTION_FOOTPRINT=standard|compact` and
+  `WINMUX_E2E_CAPTION_ANCHOR=bottom-left|bottom-right|top-left|top-right`.
+  The harness defaults Slice 26 and Slice 27 to compact captions, and
+  `annotation-preflight` renders with the same per-recording footprint so dense
+  caption layout is tested before Tart. Verified with `bash -n`, `shellcheck`,
+  `./script/e2e/verify-artifact --self-test`,
+  `./script/e2e/tart-recording-harness annotation-preflight`, explicit
+  `WINMUX_E2E_CAPTION_FOOTPRINT=compact WINMUX_E2E_CAPTION_ANCHOR=top-right`
+  annotation preflight,
+  `./script/e2e/tart-recording-harness warmup-policy-self-test`, Slice 26 and
+  Slice 27 `--require-review` verifier checks, and `git diff --check`.
+- [x] Harden no-context reviewer prompts with a concrete target-semantics
+  question: "Could a reviewer understand target semantics from the video alone
+  before reading logs?" Require exact media citations for the answer.
+  The shared no-context prompt and reviewer packet now require that exact
+  question for drag/divider/snap artifacts. Review lint now rejects accepted
+  reviews that omit the declared `target-semantics` value or its exact media
+  path when an overlay-sentinel manifest provides one.
+
+## Slice 28: Export Runtime Zone Layout
+
+Goal: give users a safe bridge from direct manipulation to durable config.
+After resizing zones with `resize-zone`, `balance-zones`, or the Slice 26
+divider drag, a user should be able to run one command and get a pasteable
+`[[zone-layouts]]` TOML preset that reflects the current effective column
+widths.
+
+Pre-slice cleanup:
+
+- [x] Complete all Pre-Slice-28 cleanup items from the Slice 27 retrospectives
+  before writing implementation code.
+- [x] Keep the Slice 28 scope narrower than automatic persistence: export a
+  config snippet, do not rewrite the user's config file.
+
+User-visible story:
+
+- Start with the accepted three-zone ultrawide layout.
+- Resize the Work/Comms boundary through the current runtime width model.
+- Run `winmux export-zone-layout my-ultrawide --monitor 1`.
+- Show the emitted TOML snippet with `[[zone-layouts]]`, `id`,
+  `layout = 'columns'`, `default-zone`, and `columns` entries that preserve
+  zone ids, display names, and current effective widths.
+- Re-parse the emitted snippet with the copied base config or a small parser
+  check so the artifact proves the output is usable config, not prose.
+
+Product semantics:
+
+- `export-zone-layout <layout-id>` reads the current effective layout for one
+  physical monitor. Without `--monitor`, it uses the focused workspace's
+  physical monitor, matching existing zone commands.
+- The command is read-only. It writes TOML to stdout and never mutates
+  `configUrl`, `config/winmux.toml`, runtime overlay state, workspace
+  assignment, window layout, or active layout id.
+- It exports the full current column layout only when all configured zones for
+  that physical monitor are enabled. If a zone is hidden, the command fails with
+  a concrete message instructing the user to enable zones first. Availability
+  sets remain separate from layout presets.
+- The exported width values are normalized for config readability and must sum
+  to `1.0` within the existing parser tolerance.
+- The command preserves zone ids, optional names, and default-zone. It does not
+  export availability, style, workspace bindings, scenes, mouse snap policy, or
+  runtime node bindings.
+
+Implementation scope:
+
+- Add `ExportZoneLayoutCmdArgs` with `--monitor <monitor-pattern>` and mandatory
+  `<layout-id>`.
+- Add `ExportZoneLayoutCommand` that resolves the target physical monitor,
+  reads `getCurrentZoneTopologySnapshot().configuredZones`, groups rows by
+  physical monitor, rejects missing or hidden zone data, and renders a TOML
+  snippet.
+- Add small TOML string/width formatting helpers close to the command, with
+  tests covering quote escaping and width sums if the helpers are not trivial.
+- Keep `list-zones` unchanged. It remains the inspection surface; the new
+  command is the copy/paste config surface.
+
+Fast validation:
+
+- Parser test: `export-zone-layout saved --monitor 1`.
+- Command test: after `resize-zone Work width +10%`, exporting `saved` emits a
+  `[[zone-layouts]]` snippet where Work is wider, side zones are narrower, ids
+  and names are preserved, and parsing the snippet as part of a config succeeds.
+- Command test: duplicate physical monitors require `--monitor` or focused
+  monitor resolution, and `--monitor 2` exports only monitor 2 widths.
+- Command test: disabled zones make export fail without mutating state.
+- Command test: inline zones without a named active layout still export as a
+  named preset.
+
+Tart video gate:
+
+- Scenario name:
+  `slice-28-export-zone-layout`.
+- Config fixture should reuse the Slice 26/11A three-zone width setup unless a
+  smaller fixture is enough.
+- The recording must show a runtime width change before export, the exact
+  `winmux export-zone-layout saved-ultrawide --monitor 1` command surface, the
+  emitted TOML in-frame, and a parse/proof command that validates the snippet.
+- Required logs: before/after `list-zones`, export stdout, parser check output,
+  copied config checksum proving no config rewrite, annotation TSV, expected
+  chips, event/sample manifest, reviewer packet, and no-context review.
+- The semantic contact sheet must include before widths, changed widths, export
+  output, parser success, and final unchanged desktop state.
+
+No-context artifact review requirements:
+
+- The reviewer must be able to tell from the video that runtime widths changed
+  first and the export command emitted a config snippet after the change.
+- The review must cite the exact media frame or semantic panel showing the TOML
+  output, plus the log proving the emitted snippet parsed successfully.
+- Hard failures: command mutates config, output is only logs and not visible,
+  exported widths are stale configured widths instead of current effective
+  widths, hidden-zone export silently emits a partial layout, or the artifact
+  claims relaunch persistence.
+
+Slice 28 non-claims:
+
+- no automatic config write-back;
+- no config editor UI;
+- no persistence of runtime overlays across relaunch;
+- no export of availability sets, scenes, styles, mouse policy, or node
+  bindings;
+- no new divider behavior beyond using the runtime widths Slice 26 already
+  proved.
+
+Accepted artifact:
+
+- run directory: `artifacts/e2e/slice-28-20260630T060514Z`;
+- recording:
+  `artifacts/e2e/slice-28-20260630T060514Z/recordings/slice-28-export-zone-layout.mov`;
+- proof:
+  `artifacts/e2e/slice-28-20260630T060514Z/slice-28-export-zone-layout-proof.txt`;
+- reviewer packet:
+  `artifacts/e2e/slice-28-20260630T060514Z/reviews/reviewer-packet.md`;
+- no-context review:
+  `artifacts/e2e/slice-28-20260630T060514Z/reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS: Slice 28 demonstrates runtime read-only zone layout
+  export after a visible runtime resize.`, `NO ACTIONABLE ISSUES`, final gate
+  line `next slice allowed: yes`;
+- retrospectives:
+  `artifacts/e2e/slice-28-20260630T060514Z/retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-28-20260630T060514Z/retrospectives/code-harness.md`,
+  and
+  `artifacts/e2e/slice-28-20260630T060514Z/retrospectives/artifact-product.md`.
+
+Accepted proof:
+
+- The artifact shows a clean 3440x1440 Tart desktop, strict guest control,
+  prepared privacy permissions, and clean before/after screenshots.
+- The video shows the runtime sequence: start from 25/50/25 zones, run
+  `winmux resize-zone Work width +10%`, show Work/main widened to `0.6`, run
+  `winmux export-zone-layout saved-ultrawide --monitor 1`, show the emitted
+  `[[zone-layouts]]` TOML in-frame, and run `winmux config --check` on the
+  emitted file.
+- `logs/slice-28-zones-before.log`,
+  `logs/slice-28-zones-after-resize.log`, and
+  `logs/slice-28-export-zone-layout.toml` prove the export used current runtime
+  effective widths `0.2 / 0.6 / 0.2`, not stale configured widths.
+- `logs/slice-28-config-before.sha256` and
+  `logs/slice-28-config-after.sha256` match, proving the command did not mutate
+  the copied config.
+
+Accepted validation:
+
+- `swift test --filter ZoneCommandTest/testExportZoneLayout`;
+- `swift test --filter ZoneCommandTest`;
+- `make e2e-pre-tart-checks`;
+- `TART_HOME=/Volumes/RiftTartVMs/tart make e2e-slice-28`;
+- `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-28-20260630T060514Z`;
+- `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-28-20260630T060514Z`;
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-28-20260630T060514Z ARGS=--require-review`;
+- `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-28-20260630T060514Z`.
+
+Saved post-review gate logs:
+
+- `artifacts/e2e/slice-28-20260630T060514Z/logs/review-lint.log`;
+- `artifacts/e2e/slice-28-20260630T060514Z/logs/post-review-verify.log`;
+- `artifacts/e2e/slice-28-20260630T060514Z/logs/closeout-check.log`;
+- accepted dirty baseline:
+  `artifacts/e2e/slice-28-20260630T060514Z/logs/accepted-dirty-baseline.status.txt`
+  and
+  `artifacts/e2e/slice-28-20260630T060514Z/logs/accepted-dirty-baseline.diffstat.txt`.
+
+Pre-Slice-29 cleanup from blocking or low-risk retrospective findings:
+
+- [x] Close Slice 28 in this plan with the accepted run, review, proof,
+  verifier, retrospection, and dirty-baseline paths.
+- [x] Replace stale artifact-review wording that said reviews must end with
+  `PASS`, `PASS_WITH_NOTES`, or `FAIL`; durable docs now require first-line
+  `PASS:` / `PASS_WITH_NOTES:` / `FAIL:` plus final line
+  `next slice allowed: yes/no`.
+- [x] Make no-context retrospection disk-only by default. Session history is
+  now an explicit forensic mode, not part of the normal gate.
+- [x] Persist post-review gate transcripts for Slice 28.
+- [x] Record the accepted dirty baseline for Slice 26-28 because the worktree is
+  intentionally not clean yet.
+- [x] Add a `WINMUX_E2E_SLICE28_PHASE=self-test` guest-script self-test and
+  wire it into `make e2e-pre-tart-checks` so Slice 28 shell helpers fail before
+  Tart.
+- [x] Add focused export tests for TOML escaping and width normalization edge
+  cases.
+- [x] Make the Slice 28 exported-TOML shell proof data-derived from
+  `slice-28-zones-after-resize.log` rather than exact row greps.
+- [x] Add the Slice 7 root-demo contact sheet and sample-frame directory to
+  future baseline lists when comparing against `demo-columnar-zones.mp4`.
+
+Deferred non-blocking follow-ups:
+
+- Reduce future packet drift by centralizing each slice's artifact contract:
+  expected chips, semantic sample labels, event ids, and named screenshot paths.
+  Deferred because the Slice 28 packet/verifier is already passing and the
+  refactor should happen when a new slice first adds or changes contract rows.
+- For future text-first proof slices, generate close-up proof crops and cite
+  those crops in reviewer packets beside the full-frame screenshot. This is
+  conditional on the next slice depending on small TOML, shell output, or config
+  text.
+- For future packets, cite annotated caption samples when the overlay carries
+  the proof. Do not cite a semantic screenshot unless the claimed text is
+  actually visible in that screenshot. This is conditional on the proof living
+  primarily in captions.
+- Decide in the next slice storyboard whether its artifact is proof-only or a
+  shareable demo. Product-facing slices should emit a compressed MP4 cut plus
+  ffprobe metadata.
+
+## Slice 29: Explicit Runtime Zone Layout Save
+
+Goal: close the runtime-width loop without hiding writes from the user. After a
+user changes zone sizes with `resize-zone`, `balance-zones`, or the Slice 26
+divider drag, they should be able to save the effective column widths back to
+their WinMux config deliberately, with a visible backup and a dry-run diff.
+
+Primary product claim:
+
+- `save-zone-layout [--monitor <monitor-pattern>] [--layout <layout-id>]`
+  updates the configured column widths for the target physical monitor and
+  layout to match the current effective runtime widths.
+
+Pre-Slice-29 cleanup:
+
+- [ ] Commit the accepted Slice 26-28 dirty stack or write an explicit
+  carry-forward inventory before any Slice 29 source changes. Do not mix the
+  new save behavior into the accepted divider, slot-snap, and export diff.
+- [ ] Keep `Sources/Common/gitHashGenerated.swift` out of the Slice 29 source
+  diff unless the build system intentionally regenerated it for release.
+- [ ] Fold the Slice 28 retrospection follow-up about text-first proof crops
+  into the Slice 29 packet, because this slice will likely prove config text,
+  dry-run output, and file diffs on screen.
+- [ ] Decide whether the Slice 29 product artifact emits a trimmed demo sidecar
+  in addition to the full acceptance recording. If it does, add the demo cut
+  manifest to the verifier before recording.
+
+Command surface:
+
+```toml
+[mode.zone.binding]
+s = 'save-zone-layout --dry-run'
+shift-s = 'save-zone-layout'
+```
+
+Commands:
+
+- `export-zone-layout [--monitor <monitor-pattern>] [--layout <layout-id>]`
+  remains the read-only escape hatch from Slice 28.
+- `save-zone-layout [--monitor <monitor-pattern>] [--layout <layout-id>]`
+  writes the current effective widths to the config file.
+- `save-zone-layout --dry-run [--monitor <monitor-pattern>] [--layout <layout-id>]`
+  prints the same planned edit and backup path but does not modify the file.
+
+Safety and config semantics:
+
+- The command must update only the targeted column widths. It must preserve
+  unrelated config content, including comments when the existing TOML editing
+  library can do so safely. If comments cannot be preserved by the selected
+  writer, the slice must stop at dry-run plus export and keep write-back
+  deferred.
+- The write path must create a timestamped backup beside the config file before
+  replacing it. The command output must print the backup path and the changed
+  zone widths.
+- `--dry-run` must not write the config file or create a backup.
+- The command targets the focused physical monitor by default. `--monitor` uses
+  the existing physical-monitor selector behavior. `--layout` defaults to the
+  active layout id on that monitor.
+- Inline `[[zones]]` columns and named `[[zone-layouts]]` are both in scope.
+  The command must reject configs where the target monitor resolves through a
+  layout kind it cannot edit safely.
+- Runtime width overrides should remain in effect after save until the user
+  changes layout state again. A follow-up relaunch or reload can verify that the
+  saved widths become the configured baseline, but this slice should not add
+  automatic persistence on every drag.
+
+Fast validation:
+
+- Add command parser and help metadata tests for `save-zone-layout`,
+  `--dry-run`, `--monitor`, and `--layout`.
+- Add config-edit tests using temporary files that prove:
+  - dry-run leaves the file byte-identical and creates no backup;
+  - save writes only the targeted inline layout widths;
+  - save writes only the targeted named layout preset widths;
+  - unrelated zone layouts, availability sets, styles, bindings, affinities,
+    and mouse config survive unchanged;
+  - invalid targets fail with clear errors and no partial write;
+  - backup creation happens before replacement.
+- Add command tests proving the saved widths are the current runtime effective
+  widths after a resize or divider-width operation.
+
+Tart video gate:
+
+- Use the accepted three-zone ultrawide setup from Slice 26 and Slice 28.
+- Start from a clean desktop with Reference, Work, and Comms visible.
+- Change runtime widths in the recording with either a divider drag or a concise
+  command-backed setup step. If the runtime width change is setup-only, the
+  video must say that the save command is the slice's product claim and cite
+  Slice 26 as the accepted divider proof.
+- Show `winmux save-zone-layout --dry-run` before the write. The video must
+  make it readable that the config file did not change.
+- Show `winmux save-zone-layout`, the backup path, and the changed widths.
+- Show the config file or a readable config excerpt after save, with the saved
+  widths matching `list-zones` effective widths.
+- Reload WinMux or run an equivalent config parse/inspect command proving the
+  saved widths are now the configured baseline. If a full app reload makes the
+  recording too noisy, the proof may use a focused command-level reload with
+  before/after logs and a visible state board.
+
+Required artifact contract:
+
+- Full recording:
+  `recordings/slice-29-save-zone-layout.mov`.
+- Raw guest recording under `recordings/raw/`.
+- Optional demo sidecar:
+  `recordings/slice-29-save-zone-layout.demo.mov`, if the storyboard chooses a
+  shareable demo cut.
+- Screenshots for ready state, dry-run output, save output, config before,
+  config after, and post-reload configured/effective widths.
+- Text proof crops for the dry-run output, backup path, and saved TOML width
+  lines.
+- Logs for `list-zones` before save, after runtime resize, after dry-run, after
+  save, copied config hash before/after, backup file hash, and reload/inspect
+  output.
+- Proof manifest with target monitor, target layout id, old configured widths,
+  runtime effective widths, saved configured widths, backup path, dry-run
+  mutation status, and unchanged unrelated config sections.
+
+No-context artifact review requirements:
+
+- The reviewer must inspect the full recording, text proof crops, proof
+  manifest, before/after config hashes, backup file, post-save config excerpt,
+  and baseline product videos.
+- The reviewer must answer whether the slice proves dry-run safety, explicit
+  write-back, backup creation, and saved widths matching runtime widths.
+- Hard failures: automatic background persistence presented as an explicit save,
+  config text too small to read, no backup evidence, dry-run mutating files,
+  width values only present in logs, unrelated TOML sections rewritten without
+  explanation, or a review that does not compare against the baseline product
+  style and root demo artifacts.
+
+Validation gate:
+
+- Run focused Swift tests for the save command and config edit path.
+- Run `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`, and
+  `make e2e-pre-tart-checks`.
+- Produce the strict Tart artifact with
+  `TART_HOME=/Volumes/RiftTartVMs/tart`.
+- Run a fresh no-context artifact review with `fork_context=false`.
+- Run
+  `make e2e-verify-slice-check RUN_DIR=<slice-29-dir> ARGS=--require-review`.
+- Run `make e2e-slice-closeout-check RUN_DIR=<slice-29-dir>`.
+- Run the three post-slice no-context retrospectives and fold accepted findings
+  into the next pre-slice cleanup before Slice 30.
 
 ## Call-Site Audit
 

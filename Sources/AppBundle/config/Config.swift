@@ -105,6 +105,7 @@ enum ZoneSnapGesture: String, CaseIterable, Equatable, Sendable {
 
 enum ZoneSnapTarget: String, CaseIterable, Equatable, Sendable {
     case zone
+    case window
 }
 
 struct ZoneConfig: ConvenienceCopyable, Equatable, Sendable {

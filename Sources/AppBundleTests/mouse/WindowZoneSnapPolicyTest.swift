@@ -105,6 +105,149 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertNil(overlay.detail)
     }
 
+    func testWindowTargetRequiresActivationAndAllowsOnlyWindowDestinations() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        config.mouse.zoneSnap.target = .window
+        let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
+
+        let inactive = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+            pressedMouseButtons: 0,
+        )
+        guard case .suppressDefaultDestinations = inactive else {
+            XCTFail("Expected inactive window snap target to suppress snap destinations")
+            return
+        }
+
+        let active = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+            pressedMouseButtons: secondaryButtonMask,
+        )
+        guard case .allowWindowDestinationsOnly = active else {
+            XCTFail("Expected active window snap target to allow only target-window destinations")
+            return
+        }
+    }
+
+    func testWindowTargetDoesNotProduceWholeZoneDestinationWhenActive() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapToZone
+        config.mouse.zoneSnap.target = .window
+
+        let resolution = zoneSnapDestinationResolution(
+            sourceWindow: fixture.window,
+            targetMonitor: fixture.commsMonitor,
+            targetWorkspace: fixture.comms,
+            sourceWorkspace: fixture.work,
+            mouseLocation: fixture.commsMonitor.rect.center,
+            subject: .window,
+            detachOrigin: .window,
+            modifierFlags: [],
+        )
+
+        guard case .allowWindowDestinationsOnly = resolution else {
+            XCTFail("Expected target=window to avoid whole-zone moveToZone destination")
+            return
+        }
+    }
+
+    func testWindowSlotOverlayLabelIsOnlyAddedForActiveWindowTargetPath() {
+        let fixture = configureZoneSnapFixture()
+        let targetFrame = Rect(topLeftX: 900, topLeftY: 100, width: 220, height: 240)
+        let targetWindow = TestWindow.new(
+            id: 902,
+            parent: fixture.comms.rootTilingContainer,
+            rect: targetFrame,
+            title: "target-window.rtf",
+        )
+        let pointer = CGPoint(x: targetFrame.maxX - 12, y: targetFrame.center.y)
+        guard let resolution = WindowDropIntentResolver().resolve(
+            sourceWindowId: fixture.window.windowId,
+            targetWindowId: targetWindow.windowId,
+            pointer: pointer,
+            targetFrame: targetFrame,
+        ) else {
+            XCTFail("Expected pointer to resolve to the right target-window slot")
+            return
+        }
+        XCTAssertEqual(resolution.intent.zone, .right)
+
+        let unlabeled = destinationFromWindowDropIntent(
+            resolution,
+            sourceWindow: fixture.window,
+            targetWindow: targetWindow,
+            mouseLocation: pointer,
+            subject: .window,
+            detachOrigin: .window,
+        )
+        XCTAssertNil(unlabeled?.dropIntentOverlay?.label)
+        XCTAssertNil(unlabeled?.dropIntentOverlay?.detail)
+
+        let labeled = destinationFromWindowDropIntent(
+            resolution,
+            sourceWindow: fixture.window,
+            targetWindow: targetWindow,
+            mouseLocation: pointer,
+            subject: .window,
+            detachOrigin: .window,
+            labelWindowSlot: true,
+        )
+        XCTAssertEqual(labeled?.kind, .stackSplit(targetWindowId: targetWindow.windowId, position: .right))
+        XCTAssertEqual(labeled?.dropIntentOverlay?.activeZone, .right)
+        XCTAssertEqual(labeled?.dropIntentOverlay?.label, "Window slot: Right")
+        XCTAssertEqual(labeled?.dropIntentOverlay?.detail, "Drop to split this window")
+    }
+
+    func testWindowTargetLookupAllowsSameWorkspaceWindowSlotWithoutWholeZoneLeak() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .snapToZone
+        config.mouse.zoneSnap.target = .window
+
+        let targetFrame = Rect(
+            topLeftX: fixture.workMonitor.rect.topLeftX + 180,
+            topLeftY: fixture.workMonitor.rect.topLeftY + 120,
+            width: 260,
+            height: 240,
+        )
+        let targetWindow = TestWindow.new(
+            id: 904,
+            parent: fixture.work.rootTilingContainer,
+            rect: targetFrame,
+            title: "same-workspace-target.rtf",
+        )
+        let pointer = CGPoint(x: targetFrame.maxX - 12, y: targetFrame.center.y)
+
+        let destination = currentWindowDragIntentDestination(
+            sourceWindow: fixture.window,
+            mouseLocation: pointer,
+            subject: .window,
+            detachOrigin: .window,
+        )
+
+        XCTAssertEqual(destination?.kind, .stackSplit(targetWindowId: targetWindow.windowId, position: .right))
+        XCTAssertEqual(destination?.dropIntentOverlay?.activeZone, .right)
+        XCTAssertEqual(destination?.dropIntentOverlay?.label, "Window slot: Right")
+        XCTAssertEqual(destination?.dropIntentOverlay?.detail, "Drop to split this window")
+        XCTAssertNotEqual(destination?.kind, .moveToZone(zoneId: "main", workspaceName: fixture.work.name))
+        XCTAssertNotEqual(destination?.kind, .moveToWorkspace(workspaceName: fixture.work.name))
+    }
+
     func testFloatUnlessSnapRequiresConfiguredModifier() {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap
@@ -271,6 +414,26 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertTrue((fixture.window.parent as? Workspace) === fixture.comms)
         XCTAssertTrue(fixture.comms.floatingWindows.contains { $0 === fixture.window })
         XCTAssertFalse(fixture.work.floatingWindows.contains { $0 === fixture.window })
+    }
+
+    func testFloatUnlessSnapWindowTargetWithoutActivationFloatsInCurrentZoneWorkspace() {
+        let fixture = configureZoneSnapFixture()
+        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        config.mouse.zoneSnap.target = .window
+
+        let didFloat = floatTilingWindowForMouseDragIfNeeded(
+            window: fixture.window,
+            targetWorkspace: fixture.work,
+            subject: .window,
+            modifierFlags: [],
+            pressedMouseButtons: 0,
+        )
+
+        XCTAssertTrue(didFloat)
+        XCTAssertTrue(fixture.window.isFloating)
+        XCTAssertTrue((fixture.window.parent as? Workspace) === fixture.work)
+        XCTAssertTrue(fixture.work.floatingWindows.contains { $0 === fixture.window })
     }
 
     func testFloatUnlessSnapHeldModifierKeepsTilingWindowEligibleForSnap() {
@@ -546,6 +709,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 private struct ZoneSnapFixture {
     let work: Workspace
     let comms: Workspace
+    let workMonitor: Monitor
     let commsMonitor: Monitor
     let window: Window
 }
@@ -602,6 +766,7 @@ private func configureZoneSnapFixture() -> ZoneSnapFixture {
     return ZoneSnapFixture(
         work: work,
         comms: comms,
+        workMonitor: zonesById["main"].orDie(),
         commsMonitor: zonesById["right"].orDie(),
         window: window,
     )

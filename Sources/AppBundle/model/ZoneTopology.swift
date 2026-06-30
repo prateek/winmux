@@ -504,6 +504,57 @@ struct ZoneWidthChangeResult {
     let widths: [ConfiguredZoneSummary]
 }
 
+struct ZoneDividerChangeResult {
+    let physicalMonitor: Monitor
+    let layoutId: String?
+    let leftZoneId: String
+    let leftZoneName: String?
+    let rightZoneId: String
+    let rightZoneName: String?
+    let requestedDeltaPixels: CGFloat
+    let appliedDeltaPixels: CGFloat
+    let oldBoundaryX: CGFloat
+    let newBoundaryX: CGFloat
+    let widths: [ConfiguredZoneSummary]
+}
+
+struct ZoneDividerWidthPreview {
+    let leftZoneId: String
+    let leftZoneName: String?
+    let rightZoneId: String
+    let rightZoneName: String?
+    let requestedDeltaPixels: CGFloat
+    let appliedDeltaPixels: CGFloat
+    let oldBoundaryX: CGFloat
+    let newBoundaryX: CGFloat
+    let leftBeforeShare: Double
+    let leftAfterShare: Double
+    let rightBeforeShare: Double
+    let rightAfterShare: Double
+}
+
+struct ZoneDividerHandle {
+    let physicalMonitor: Monitor
+    let layoutId: String?
+    let leftZoneId: String
+    let leftZoneName: String?
+    let rightZoneId: String
+    let rightZoneName: String?
+    let boundaryX: CGFloat
+    let workspaceRect: Rect
+    let leftZoneRect: Rect
+    let rightZoneRect: Rect
+
+    func hitRect(hitSlop: CGFloat) -> Rect {
+        Rect(
+            topLeftX: boundaryX - hitSlop,
+            topLeftY: workspaceRect.topLeftY,
+            width: hitSlop * 2,
+            height: workspaceRect.height,
+        )
+    }
+}
+
 struct ZoneStyleChangeResult {
     let physicalMonitor: Monitor
     let zoneId: String
@@ -951,6 +1002,8 @@ private enum ZoneWidthOperation {
     case balance
 }
 
+private let zoneMinimumShare = 0.05
+
 @MainActor
 private func configuredZones(on physicalMonitor: Monitor) -> [ConfiguredZoneSummary] {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
@@ -971,6 +1024,126 @@ private func resolvedConfiguredZone(from summary: ConfiguredZoneSummary) -> Reso
 }
 
 @MainActor
+func zoneDividerHandles(hitSlop: CGFloat = 10) -> [ZoneDividerHandle] {
+    let zoneViewports = sortedMonitors.filter { $0.zoneId != nil }
+    guard zoneViewports.count > 1 else { return [] }
+
+    let grouped = Dictionary(grouping: zoneViewports) { monitor in
+        "\(monitor.physicalMonitor.rect.topLeftX),\(monitor.physicalMonitor.rect.topLeftY)"
+    }
+
+    return grouped.values.flatMap { viewports -> [ZoneDividerHandle] in
+        let ordered = viewports.sorted { lhs, rhs in
+            if lhs.rect.topLeftX == rhs.rect.topLeftX {
+                lhs.rect.topLeftY < rhs.rect.topLeftY
+            } else {
+                lhs.rect.topLeftX < rhs.rect.topLeftX
+            }
+        }
+        guard ordered.count > 1,
+              let first = ordered.first
+        else { return [] }
+
+        let workspaceRect = ordered.dropFirst().reduce(first.rect) { acc, monitor in
+            Rect(
+                topLeftX: min(acc.minX, monitor.rect.minX),
+                topLeftY: min(acc.minY, monitor.rect.minY),
+                width: max(acc.maxX, monitor.rect.maxX) - min(acc.minX, monitor.rect.minX),
+                height: max(acc.maxY, monitor.rect.maxY) - min(acc.minY, monitor.rect.minY),
+            )
+        }
+
+        return ordered.indices.dropLast().compactMap { index -> ZoneDividerHandle? in
+            let left = ordered[index]
+            let right = ordered[index + 1]
+            guard let leftZoneId = left.zoneId,
+                  let rightZoneId = right.zoneId,
+                  left.physicalMonitor.rect.topLeftCorner == right.physicalMonitor.rect.topLeftCorner
+            else { return nil }
+            return ZoneDividerHandle(
+                physicalMonitor: left.physicalMonitor,
+                layoutId: left.zoneLayoutId,
+                leftZoneId: leftZoneId,
+                leftZoneName: left.zoneName,
+                rightZoneId: rightZoneId,
+                rightZoneName: right.zoneName,
+                boundaryX: left.rect.maxX,
+                workspaceRect: workspaceRect,
+                leftZoneRect: left.rect,
+                rightZoneRect: right.rect,
+            )
+        }
+    }.sorted { lhs, rhs in
+        if lhs.workspaceRect.topLeftX == rhs.workspaceRect.topLeftX {
+            lhs.boundaryX < rhs.boundaryX
+        } else {
+            lhs.workspaceRect.topLeftX < rhs.workspaceRect.topLeftX
+        }
+    }
+}
+
+@MainActor
+func zoneDividerHandle(at point: CGPoint, hitSlop: CGFloat = 10) -> ZoneDividerHandle? {
+    zoneDividerHandles(hitSlop: hitSlop)
+        .filter { $0.hitRect(hitSlop: hitSlop).contains(point) }
+        .min { lhs, rhs in
+            abs(lhs.boundaryX - point.x) < abs(rhs.boundaryX - point.x)
+        }
+}
+
+@MainActor
+func previewZoneDividerMove(
+    on physicalMonitor: Monitor,
+    leftZoneId: String,
+    rightZoneId: String,
+    deltaPixels: CGFloat,
+) -> Result<ZoneDividerWidthPreview, String> {
+    calculateZoneDividerMove(
+        on: physicalMonitor,
+        leftZoneId: leftZoneId,
+        rightZoneId: rightZoneId,
+        deltaPixels: deltaPixels,
+    ).map(\.preview)
+}
+
+@MainActor
+func moveZoneDivider(
+    on physicalMonitor: Monitor,
+    leftZoneId: String,
+    rightZoneId: String,
+    deltaPixels: CGFloat,
+) -> Result<ZoneDividerChangeResult, String> {
+    switch calculateZoneDividerMove(
+        on: physicalMonitor,
+        leftZoneId: leftZoneId,
+        rightZoneId: rightZoneId,
+        deltaPixels: deltaPixels,
+    ) {
+        case .failure(let message):
+            return .failure(message)
+        case .success(let computation):
+            let nextSummaries = applyZoneWidthOverrides(
+                on: computation.physicalMonitor,
+                layoutId: computation.layoutId,
+                effectiveWidthsByZoneId: computation.nextEffectiveWidthsByZoneId,
+            )
+            return .success(ZoneDividerChangeResult(
+                physicalMonitor: computation.physicalMonitor,
+                layoutId: computation.layoutId,
+                leftZoneId: computation.left.zoneId,
+                leftZoneName: computation.left.zoneName,
+                rightZoneId: computation.right.zoneId,
+                rightZoneName: computation.right.zoneName,
+                requestedDeltaPixels: computation.requestedDeltaPixels,
+                appliedDeltaPixels: computation.appliedDeltaPixels,
+                oldBoundaryX: computation.oldBoundaryX,
+                newBoundaryX: computation.newBoundaryX,
+                widths: nextSummaries,
+            ))
+    }
+}
+
+@MainActor
 private func updateZoneWidths(
     on physicalMonitor: Monitor,
     targetZoneId: String?,
@@ -978,7 +1151,6 @@ private func updateZoneWidths(
     operation: ZoneWidthOperation,
 ) -> Result<ZoneWidthChangeResult, String> {
     let targetPhysicalMonitor = physicalMonitor.physicalMonitor
-    let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysicalMonitor)
     let configuredZones = getCurrentZoneTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetPhysicalMonitor.rect.topLeftCorner }
@@ -991,7 +1163,6 @@ private func updateZoneWidths(
     }
 
     let layoutId = configuredZones.first?.zoneLayoutId
-    let layoutIdentity = zoneRuntimeLayoutIdentity(layoutId)
     let enabledTotal = enabledZones.reduce(0.0) { $0 + $1.effectiveWidth }
     guard enabledTotal > 0 else {
         return .failure("Cannot resize zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0); enabled zone widths must be positive")
@@ -1014,11 +1185,10 @@ private func updateZoneWidths(
                 case .add(let percent): oldTargetShare + percent
                 case .subtract(let percent): oldTargetShare - percent
             }
-            let minShare = 0.05
-            guard nextTargetShare >= minShare else {
+            guard nextTargetShare >= zoneMinimumShare else {
                 return .failure("Cannot resize zone '\(target.displayName)' below 5%")
             }
-            guard nextTargetShare <= 1.0 - (Double(enabledZones.count - 1) * minShare) else {
+            guard nextTargetShare <= 1.0 - (Double(enabledZones.count - 1) * zoneMinimumShare) else {
                 return .failure("Cannot resize zone '\(target.displayName)'; sibling zones would fall below 5%")
             }
             let oldSiblingTotalShare = 1.0 - oldTargetShare
@@ -1036,27 +1206,19 @@ private func updateZoneWidths(
     }
 
     for zone in enabledZones {
-        guard (nextEnabledShares[zone.zoneId] ?? 0) >= 0.05 else {
+        guard (nextEnabledShares[zone.zoneId] ?? 0) >= zoneMinimumShare else {
             return .failure("Cannot resize zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0); zone '\(zone.displayName)' would fall below 5%")
         }
     }
 
-    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
-    var overrides = runtimeOverlay.widthOverridesByLayoutIdentity[layoutIdentity] ?? [:]
-    for zone in enabledZones {
-        if let nextShare = nextEnabledShares[zone.zoneId] {
-            overrides[zone.zoneId] = nextShare * enabledTotal
-        }
-    }
-    runtimeOverlay.widthOverridesByLayoutIdentity[layoutIdentity] = overrides
-    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-
-    refreshZoneTopologySnapshot()
-    Workspace.reconcileWorkspaceState()
-
-    let nextSummaries = getCurrentZoneTopologySnapshot()
-        .configuredZones(for: sortedPhysicalMonitors)
-        .filter { $0.physicalMonitor.rect.topLeftCorner == targetPhysicalMonitor.rect.topLeftCorner }
+    let nextEffectiveWidthsByZoneId = Dictionary(uniqueKeysWithValues: enabledZones.compactMap { zone in
+        nextEnabledShares[zone.zoneId].map { (zone.zoneId, $0 * enabledTotal) }
+    })
+    let nextSummaries = applyZoneWidthOverrides(
+        on: targetPhysicalMonitor,
+        layoutId: layoutId,
+        effectiveWidthsByZoneId: nextEffectiveWidthsByZoneId,
+    )
     return .success(ZoneWidthChangeResult(
         physicalMonitor: targetPhysicalMonitor,
         layoutId: layoutId,
@@ -1064,6 +1226,133 @@ private func updateZoneWidths(
         zoneName: targetZoneName,
         widths: nextSummaries,
     ))
+}
+
+private struct ZoneDividerMoveComputation {
+    let physicalMonitor: Monitor
+    let layoutId: String?
+    let left: ConfiguredZoneSummary
+    let right: ConfiguredZoneSummary
+    let requestedDeltaPixels: CGFloat
+    let appliedDeltaPixels: CGFloat
+    let oldBoundaryX: CGFloat
+    let newBoundaryX: CGFloat
+    let enabledTotal: Double
+    let nextEffectiveWidthsByZoneId: [String: Double]
+
+    var preview: ZoneDividerWidthPreview {
+        ZoneDividerWidthPreview(
+            leftZoneId: left.zoneId,
+            leftZoneName: left.zoneName,
+            rightZoneId: right.zoneId,
+            rightZoneName: right.zoneName,
+            requestedDeltaPixels: requestedDeltaPixels,
+            appliedDeltaPixels: appliedDeltaPixels,
+            oldBoundaryX: oldBoundaryX,
+            newBoundaryX: newBoundaryX,
+            leftBeforeShare: left.effectiveWidth / enabledTotal,
+            leftAfterShare: (nextEffectiveWidthsByZoneId[left.zoneId] ?? left.effectiveWidth) / enabledTotal,
+            rightBeforeShare: right.effectiveWidth / enabledTotal,
+            rightAfterShare: (nextEffectiveWidthsByZoneId[right.zoneId] ?? right.effectiveWidth) / enabledTotal,
+        )
+    }
+}
+
+@MainActor
+private func calculateZoneDividerMove(
+    on physicalMonitor: Monitor,
+    leftZoneId: String,
+    rightZoneId: String,
+    deltaPixels: CGFloat,
+) -> Result<ZoneDividerMoveComputation, String> {
+    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
+    let configuredZones = configuredZones(on: targetPhysicalMonitor)
+    guard !configuredZones.isEmpty else {
+        return .failure("No zone config targets monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+    }
+    let enabledZones = configuredZones.filter(\.isEnabled)
+    guard enabledZones.count > 1 else {
+        return .failure("Cannot drag zone dividers on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0); at least two zones must be enabled")
+    }
+    guard let leftIndex = enabledZones.firstIndex(where: { $0.zoneId == leftZoneId }),
+          enabledZones.indices.contains(leftIndex + 1),
+          enabledZones[leftIndex + 1].zoneId == rightZoneId
+    else {
+        return .failure("Zones '\(leftZoneId)' and '\(rightZoneId)' are not adjacent enabled zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
+    }
+
+    let left = enabledZones[leftIndex]
+    let right = enabledZones[leftIndex + 1]
+    let enabledTotal = enabledZones.reduce(0.0) { $0 + $1.effectiveWidth }
+    guard enabledTotal > 0 else {
+        return .failure("Cannot drag zone dividers on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0); enabled zone widths must be positive")
+    }
+    let pixelTotal = enabledZones.reduce(CGFloat(0)) { total, zone in
+        total + (zone.pixelWidth ?? 0)
+    }
+    guard pixelTotal > 0 else {
+        return .failure("Cannot drag zone dividers on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0); zone pixel widths are unavailable")
+    }
+    guard let oldBoundaryX = left.left.map({ $0 + (left.pixelWidth ?? 0) }) else {
+        return .failure("Cannot drag zone divider '\(left.displayName)|\(right.displayName)'; boundary geometry is unavailable")
+    }
+
+    let requestedEffectiveDelta = Double(deltaPixels / pixelTotal) * enabledTotal
+    let minimumEffectiveWidth = enabledTotal * zoneMinimumShare
+    let minDelta = minimumEffectiveWidth - left.effectiveWidth
+    let maxDelta = right.effectiveWidth - minimumEffectiveWidth
+    let appliedEffectiveDelta = min(max(requestedEffectiveDelta, minDelta), maxDelta)
+    let appliedDeltaPixels = CGFloat(appliedEffectiveDelta / enabledTotal) * pixelTotal
+    let nextLeftWidth = left.effectiveWidth + appliedEffectiveDelta
+    let nextRightWidth = right.effectiveWidth - appliedEffectiveDelta
+    let widthTolerance = 0.0000001
+    guard nextLeftWidth + widthTolerance >= minimumEffectiveWidth,
+          nextRightWidth + widthTolerance >= minimumEffectiveWidth
+    else {
+        return .failure("Cannot drag zone divider '\(left.displayName)|\(right.displayName)' below 5%")
+    }
+
+    return .success(ZoneDividerMoveComputation(
+        physicalMonitor: targetPhysicalMonitor,
+        layoutId: configuredZones.first?.zoneLayoutId,
+        left: left,
+        right: right,
+        requestedDeltaPixels: deltaPixels,
+        appliedDeltaPixels: appliedDeltaPixels,
+        oldBoundaryX: oldBoundaryX,
+        newBoundaryX: oldBoundaryX + appliedDeltaPixels,
+        enabledTotal: enabledTotal,
+        nextEffectiveWidthsByZoneId: [
+            left.zoneId: nextLeftWidth,
+            right.zoneId: nextRightWidth,
+        ],
+    ))
+}
+
+@MainActor
+@discardableResult
+private func applyZoneWidthOverrides(
+    on physicalMonitor: Monitor,
+    layoutId: String?,
+    effectiveWidthsByZoneId: [String: Double],
+) -> [ConfiguredZoneSummary] {
+    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysicalMonitor)
+    let layoutIdentity = zoneRuntimeLayoutIdentity(layoutId)
+    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
+    var overrides = runtimeOverlay.widthOverridesByLayoutIdentity[layoutIdentity] ?? [:]
+    for (zoneId, effectiveWidth) in effectiveWidthsByZoneId {
+        overrides[zoneId] = effectiveWidth
+    }
+    runtimeOverlay.widthOverridesByLayoutIdentity[layoutIdentity] = overrides
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+
+    refreshZoneTopologySnapshot()
+    Workspace.reconcileWorkspaceState()
+
+    return getCurrentZoneTopologySnapshot()
+        .configuredZones(for: sortedPhysicalMonitors)
+        .filter { $0.physicalMonitor.rect.topLeftCorner == targetPhysicalMonitor.rect.topLeftCorner }
 }
 
 @MainActor

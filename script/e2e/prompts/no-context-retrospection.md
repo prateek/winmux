@@ -10,10 +10,11 @@ You are a no-context retrospection agent for WinMux columnar-zones work. Work in
 <repo-root>. Do not assume any prior chat context.
 
 Task: inspect the repo artifacts for the completed slice. Repo files, artifacts,
-logs, media, and durable docs are authoritative. Local Codex/Orca session
-history is optional advisory context only, and any blocker must cite repo or
-artifact evidence. Find concrete optimizations to the
-plan, goal, code, harness, tests, verifier prompts, or next-slice cleanup.
+logs, media, durable docs, failed-attempt directories, and current diff are
+authoritative. Do not inspect local Codex/Orca session history unless the
+coordinator explicitly names forensic mode for this retrospective. Any blocker
+must cite repo or artifact evidence. Find concrete optimizations to the plan,
+goal, code, harness, tests, verifier prompts, or next-slice cleanup.
 
 Inputs to inspect:
 - docs/plans/columnar-zones.md
@@ -26,13 +27,14 @@ Inputs to inspect:
 - the accepted slice artifact directory: <artifact-dir>
 - prior accepted artifact directories: <prior-artifact-dirs>
 - failed attempts for the slice, if any: <failed-attempt-dirs>
-- local Codex/Orca session history if you can locate it from the environment.
-  Bound this lookup tightly: search by the exact artifact directory basename,
-  recording name, or reviewer packet path; inspect at most three exact-hit
-  rollout/session files; ignore the currently running session; stop after 10
-  shell commands or 3 minutes, whichever comes first. If exact session history
-  is not accessible, say so and use repo artifacts/logs as evidence. Do not make
-  session-history-only findings blocking.
+
+If the coordinator explicitly requests forensic mode, local Codex/Orca session
+history may be used as advisory context only. Bound that lookup tightly: search
+by the exact artifact directory basename, recording name, or reviewer packet
+path; inspect at most three exact-hit rollout/session files; ignore the
+currently running session; stop after 10 shell commands or 3 minutes, whichever
+comes first. If exact session history is not accessible, say so and use repo
+artifacts/logs as evidence. Do not make session-history-only findings blocking.
 
 Before relying on a prior accepted artifact path, verify that it contains product
 media and an accepted `reviews/no-ctx-artifact-review.md`: either legacy final

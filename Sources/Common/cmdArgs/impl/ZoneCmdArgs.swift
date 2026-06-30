@@ -297,6 +297,35 @@ func parseBalanceZonesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<BalanceZonesCmdA
     parseSpecificCmdArgs(BalanceZonesCmdArgs(rawArgs: args), args)
 }
 
+public struct ExportZoneLayoutCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .exportZoneLayout,
+        allowInConfig: false,
+        help: export_zone_layout_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [
+            newMandatoryPosArgParser(\.layoutId, parseZoneLayoutId, placeholder: "<layout-id>"),
+        ],
+    )
+
+    public init(layoutId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.layoutId = .initialized(layoutId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var layoutId: Lateinit<String> = .uninitialized
+}
+
+func parseExportZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ExportZoneLayoutCmdArgs> {
+    parseSpecificCmdArgs(ExportZoneLayoutCmdArgs(rawArgs: args), args)
+}
+
 public struct SetZoneStyleCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
