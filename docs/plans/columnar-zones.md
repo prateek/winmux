@@ -5140,11 +5140,13 @@ Primary product claim:
 
 Pre-Slice-29 cleanup:
 
-- [ ] Commit the accepted Slice 26-28 dirty stack or write an explicit
+- [x] Commit the accepted Slice 26-28 dirty stack or write an explicit
   carry-forward inventory before any Slice 29 source changes. Do not mix the
   new save behavior into the accepted divider, slot-snap, and export diff.
-- [ ] Keep `Sources/Common/gitHashGenerated.swift` out of the Slice 29 source
-  diff unless the build system intentionally regenerated it for release.
+  Accepted boundary commit: `ebbbb3ce`.
+- [x] Keep `Sources/Common/gitHashGenerated.swift` out of the Slice 29 source
+  diff unless the build system intentionally regenerated it for release. The
+  generated hash churn was reset before `ebbbb3ce`.
 - [ ] Fold the Slice 28 retrospection follow-up about text-first proof crops
   into the Slice 29 packet, because this slice will likely prove config text,
   dry-run output, and file diffs on screen.
