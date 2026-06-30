@@ -60,6 +60,9 @@ COMMS_DOC="${DOC_DIR}/comms-divider.rtf"
 
 uid="$(/usr/bin/id -u)"
 
+# shellcheck source=script/e2e/guest/zone-window-helpers.sh
+. "${REPO_DIR}/script/e2e/guest/zone-window-helpers.sh"
+
 copy_runtime_logs() {
     /bin/cp "${APP_LOG_LOCAL}" "${APP_LOG}" >/dev/null 2>&1 || true
     /bin/cp "${STARTUP_TRACE_LOCAL}" "${STARTUP_TRACE}" >/dev/null 2>&1 || true
@@ -208,17 +211,7 @@ wait_for_textedit_windows() {
 }
 
 move_window_to_zone() {
-    local id="$1"
-    local title="$2"
-    local zone_name="$3"
-    local expected_zone="$4"
-    {
-        echo "setup: ${title} -> ${zone_name}"
-        echo "$ winmux move-node-to-zone --window-id ${id} ${zone_name}"
-        "${CLI}" move-node-to-zone --window-id "${id}" "${zone_name}"
-    } | tee -a "${CLI_LOG}"
-    refresh_window_log "${WINDOW_SETUP_LOG}"
-    assert_window_zone "${WINDOW_SETUP_LOG}" "${title}" "${expected_zone}"
+    ensure_window_in_zone "$@"
 }
 
 launch_winmux() {
@@ -700,6 +693,7 @@ proof_slice() {
 
 mouse_event_writer_self_test() {
     mkdir -p "${ARTIFACTS_DIR}/logs"
+    zone_window_helpers_self_test "${ARTIFACTS_DIR}/logs/zone-window-helper-self-test"
     init_mouse_events_log
     scenario_start_ms="$(/bin/date +%s)000"
     append_mouse_event divider-hover overlay "${scenario_start_ms}" 'hover event'

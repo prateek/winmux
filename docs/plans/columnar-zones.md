@@ -5398,9 +5398,10 @@ Pre-Slice-30 cleanup from Slice 29 retrospectives:
   `Sources/Common/gitHashGenerated.swift` or
   `Sources/Common/versionGenerated.swift` is dirty after validation. Slice 30
   wires `script/e2e/check-generated-version-clean` into pre-Tart and closeout.
-- [ ] Replace setup movement helpers that emit benign `move-node-to-zone`
+- [x] Replace setup movement helpers that emit benign `move-node-to-zone`
   warnings with an `ensure_window_in_zone` style helper that inspects state
-  first and logs intentional setup no-ops cleanly.
+  first and logs intentional setup no-ops cleanly. Resolved in Pre-Slice-31
+  cleanup with `script/e2e/guest/zone-window-helpers.sh`.
 - [ ] Consider moving repeated shell TOML/zone-width parsing into a shared e2e
   helper or a structured proof manifest that the verifier can consume.
 - [ ] For the next visual layout demo, make the width/layout change more
@@ -5552,7 +5553,8 @@ Slice 30 non-claims:
 
 - no new WinMux command, zone behavior, or user-facing interaction;
 - no fresh Tart product video;
-- no `ensure_window_in_zone` setup helper yet;
+- no `ensure_window_in_zone` setup helper yet at Slice 30 closeout; the
+  Pre-Slice-31 cleanup adds the guest helper before the next product slice;
 - no new named close-up crop generator; text-first future slices must either
   produce verifier-backed named crops or require readable full-frame
   screenshots;
@@ -5562,9 +5564,13 @@ Slice 30 non-claims:
 
 Pre-Slice-31 cleanup:
 
-- [ ] Replace setup movement helpers that emit benign `move-node-to-zone`
+- [x] Replace setup movement helpers that emit benign `move-node-to-zone`
   warnings with an `ensure_window_in_zone` style helper that inspects state
-  first and logs intentional setup no-ops cleanly.
+  first and logs intentional setup no-ops cleanly. Implemented in
+  `script/e2e/guest/zone-window-helpers.sh`, self-tested directly in
+  `make e2e-pre-tart-checks`, and adopted by the recent Slice 26/28/29 guest
+  scripts so layout-demo setup no longer invokes `move-node-to-zone` for an
+  already-correct window.
 - [ ] For the next visual layout demo, make the width/layout change more
   obvious with measurement chips or a lightweight overlay, use a more
   product-shaped fixture, and avoid accumulating proof windows in the

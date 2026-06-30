@@ -110,6 +110,7 @@ e2e-pre-tart-checks:
 	./script/e2e/verify-artifact --self-test && \
 	./script/e2e/tart-recording-harness abort-status-self-test && \
 	mouse_event_tmp="$$(mktemp -d)" && trap '"'"'rm -rf "$$mouse_event_tmp"'"'"' EXIT && \
+	ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_ZONE_WINDOW_HELPERS_PHASE=self-test ./script/e2e/guest/zone-window-helpers.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_MOUSE_SNAP_PHASE=self-test ./script/e2e/guest/slice-12-mouse-zone-snap.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE26_PHASE=self-test ./script/e2e/guest/slice-26-zone-divider-drag.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE28_PHASE=self-test ./script/e2e/guest/slice-28-export-zone-layout.sh && \
