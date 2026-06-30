@@ -59,7 +59,7 @@ private func renderZoneLayoutToml(
     rows: [ConfiguredZoneSummary],
     widthTotal: Double,
 ) -> [String] {
-    let widths = normalizedExportWidths(rows.map { $0.effectiveWidth / widthTotal })
+    let widths = normalizedZoneLayoutWidths(rows.map { $0.effectiveWidth / widthTotal })
     var output = [
         "[[zone-layouts]]",
         "id = \(tomlBasicString(layoutId))",
@@ -79,33 +79,6 @@ private func renderZoneLayoutToml(
     }
     output.append("]")
     return output
-}
-
-private func normalizedExportWidths(_ rawWidths: [Double]) -> [Double] {
-    guard rawWidths.count > 1 else { return [1.0] }
-    var result: [Double] = []
-    var used = 0.0
-    for (index, width) in rawWidths.enumerated() {
-        if index == rawWidths.count - 1 {
-            result.append(max(0.000001, 1.0 - used))
-        } else {
-            let rounded = (width * 1_000_000).rounded() / 1_000_000
-            result.append(rounded)
-            used += rounded
-        }
-    }
-    return result
-}
-
-private func formatTomlFloat(_ value: Double) -> String {
-    var text = String(format: "%.6f", value)
-    while text.last == "0" {
-        text.removeLast()
-    }
-    if text.last == "." {
-        text.append("0")
-    }
-    return text == "-0.0" ? "0.0" : text
 }
 
 private func tomlBasicString(_ value: String) -> String {

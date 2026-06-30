@@ -466,6 +466,22 @@ EOF
 - Reject output that exists only in logs and not in the video, stale configured widths instead of current effective widths, partial export while zones are hidden, copied config mutation, final-state-only proof, or any review that accepts without naming the exact media frame/panel showing the TOML output.
 EOF
             ;;
+        slice-29-save-zone-layout)
+            cat <<'EOF'
+- Confirm the recording shows an explicit runtime width change before any save. The `Run: winmux resize-zone Work width +10%` caption must appear before `Run: winmux save-zone-layout --dry-run`.
+- Inspect the full video and named media for each beat: `screenshots/02-before-save-resize-slice-29.png`, `03-after-runtime-resize-slice-29.png`, `04-dry-run-output-slice-29.png`, `05-save-output-slice-29.png`, `06-config-after-save-slice-29.png`, and `07-after-reload-inspect-slice-29.png`.
+- Confirm captions expose the exact user-facing surface: `Config: [mode.zone.binding] s / shift-s save layout`, `Run: winmux resize-zone Work width +10%`, `Run: winmux save-zone-layout --dry-run`, `Run: winmux save-zone-layout`, `Run: winmux reload-config && list-zones`, and `Result: configured = 0.2 / 0.6 / 0.2`.
+- Inspect `logs/slice-29-save-zone-layout-dry-run.log`; require the exact dry-run command and planned old -> new width output.
+- Compare `logs/slice-29-config-before.sha256` and `logs/slice-29-config-after-dry-run.sha256`; they must be identical.
+- Inspect `logs/slice-29-save-zone-layout.log`; require the exact save command, the backup path, and changed widths.
+- Compare `logs/slice-29-config-before.sha256`, `logs/slice-29-config-after-save.sha256`, and `logs/slice-29-config-backup.sha256`: after-save must differ from before, and backup must equal before.
+- Inspect `logs/slice-29-config-after.toml` and `logs/slice-29-config-after-excerpt.toml`; the balanced layout widths must match runtime effective widths, the `focus` layout must still exist, and the preserved comment plus unrelated availability, binding, affinity, mouse, and mode sections must remain.
+- Inspect `logs/slice-29-zones-after-reload.log`; configured widths must match the saved runtime widths after reload/inspect.
+- Inspect `logs/slice-29-save-zone-layout.proof-manifest.tsv`; require `safety	dry-run-mutated-config	no`, `safety	backup-matches-original	yes`, `target	layout-id	balanced`, and `preserved	column-comment	yes`.
+- State explicitly that Slice 29 proves deliberate config write-back of runtime widths with dry-run and backup safety. It does not prove automatic persistence on every drag, a settings UI, exporting styles/scenes/availability, or relaunch persistence beyond the focused reload/config inspection.
+- Reject logs-only proof, config text too small to read, missing backup evidence, dry-run mutation, save output without changed widths, saved widths that do not match runtime effective widths, unrelated TOML sections rewritten away, or any review that accepts without naming the exact media frame/panel showing dry-run output, backup path, and saved TOML width lines.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.

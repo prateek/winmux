@@ -52,6 +52,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case reloadConfig = "reload-config"
     case resize
     case resizeZone = "resize-zone"
+    case saveZoneLayout = "save-zone-layout"
     case setZoneSnapPolicy = "set-zone-snap-policy"
     case setZoneStyle = "set-zone-style"
     case split
@@ -180,6 +181,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseResizeCmdArgs)
             case .resizeZone:
                 result[kind.rawValue] = SubCommandParser(parseResizeZoneCmdArgs)
+            case .saveZoneLayout:
+                result[kind.rawValue] = SubCommandParser(parseSaveZoneLayoutCmdArgs)
             case .setZoneSnapPolicy:
                 result[kind.rawValue] = SubCommandParser(parseSetZoneSnapPolicyCmdArgs)
             case .setZoneStyle:

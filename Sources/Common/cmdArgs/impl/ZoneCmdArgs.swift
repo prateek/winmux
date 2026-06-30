@@ -326,6 +326,37 @@ func parseExportZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ExportZoneLa
     parseSpecificCmdArgs(ExportZoneLayoutCmdArgs(rawArgs: args), args)
 }
 
+public struct SaveZoneLayoutCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .saveZoneLayout,
+        allowInConfig: true,
+        help: save_zone_layout_help_generated,
+        flags: [
+            "--dry-run": trueBoolFlag(\.dryRun),
+            "--layout": ArgParser(\.layoutId, parseZoneLayoutSubArg),
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [],
+    )
+
+    public init(monitor: MonitorDescription? = nil, layoutId: String? = nil, dryRun: Bool = false) {
+        self.commonState = .init([])
+        self.monitor = monitor
+        self.layoutId = layoutId
+        self.dryRun = dryRun
+    }
+
+    public var monitor: MonitorDescription?
+    public var layoutId: String?
+    public var dryRun: Bool = false
+}
+
+func parseSaveZoneLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<SaveZoneLayoutCmdArgs> {
+    parseSpecificCmdArgs(SaveZoneLayoutCmdArgs(rawArgs: args), args)
+}
+
 public struct SetZoneStyleCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -681,6 +712,13 @@ private func parseZoneLayoutId(i: PosArgParserInput) -> ParsedCliArgs<String> {
         case .success(let layoutId): .succ(layoutId, advanceBy: 1)
         case .failure(let msg): .fail(msg, advanceBy: 1)
     }
+}
+
+private func parseZoneLayoutSubArg(i: SubArgParserInput) -> ParsedCliArgs<String?> {
+    guard let arg = i.nonFlagArgOrNil() else {
+        return .fail("'\(i.superArg)' must be followed by mandatory layout id", advanceBy: 0)
+    }
+    return .init(parseZoneLayoutIdentifier(arg).map(Optional.some), advanceBy: 1)
 }
 
 private func parseZoneLayoutIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {

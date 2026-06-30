@@ -47,6 +47,11 @@ final class ZoneCommandTest: XCTestCase {
             "export-zone-layout saved --monitor 1",
             ExportZoneLayoutCmdArgs(layoutId: "saved", monitor: .sequenceNumber(1)),
         )
+        testParseCommandSucc("save-zone-layout", SaveZoneLayoutCmdArgs())
+        testParseCommandSucc(
+            "save-zone-layout --dry-run --monitor 1 --layout balanced",
+            SaveZoneLayoutCmdArgs(monitor: .sequenceNumber(1), layoutId: "balanced", dryRun: true),
+        )
         testParseCommandSucc(
             "config --check /tmp/winmux-exported-zone-layout.toml",
             ConfigCmdArgs(commonState: .init([])).copy(\.configPathToCheck, "/tmp/winmux-exported-zone-layout.toml"),
@@ -690,6 +695,133 @@ final class ZoneCommandTest: XCTestCase {
         let widths = parsed.zoneLayouts.singleOrNil().orDie().columns.map(\.width)
         XCTAssertEqual(widths, [0.333333, 0.333333, 0.333334])
         XCTAssertEqual(widths.reduce(0.0, +), 1.0, accuracy: 0.000001)
+    }
+
+    func testSaveZoneLayoutDryRunDoesNotWriteConfigOrBackup() async throws {
+        configureZoneLayoutPresets()
+        let originalText = zoneLayoutPresetConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(resize.exitCode, 0)
+
+            let save = try await parseCommand("save-zone-layout --dry-run").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(save.exitCode, 0, save.stderr.joined(separator: "\n"))
+            XCTAssertEqual(save.stdout.first, "Dry run: would save zone layout 'balanced' on monitor 1 to \(url.path)")
+            XCTAssertTrue(save.stdout.contains("left: 0.25 -> 0.2"))
+            XCTAssertTrue(save.stdout.contains("main: 0.5 -> 0.6"))
+            XCTAssertTrue(save.stdout.contains("right: 0.25 -> 0.2"))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
+    }
+
+    func testSaveZoneLayoutWritesNamedLayoutAndBackup() async throws {
+        configureZoneLayoutPresets()
+        let originalText = zoneLayoutPresetConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(resize.exitCode, 0)
+
+            let save = try await parseCommand("save-zone-layout").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(save.exitCode, 0, save.stderr.joined(separator: "\n"))
+            XCTAssertEqual(save.stdout.first, "Saved zone layout 'balanced' on monitor 1 to \(url.path)")
+            XCTAssertTrue(save.stdout.contains("left: 0.25 -> 0.2"))
+            XCTAssertTrue(save.stdout.contains("main: 0.5 -> 0.6"))
+            XCTAssertTrue(save.stdout.contains("right: 0.25 -> 0.2"))
+
+            let backups = try zoneLayoutBackupUrls(for: url)
+            XCTAssertEqual(backups.count, 1)
+            XCTAssertEqual(try String(contentsOf: backups.singleOrNil().orDie(), encoding: .utf8), originalText)
+
+            let updatedText = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertTrue(updatedText.contains("# keep user comments"))
+            XCTAssertTrue(updatedText.contains("{ id = 'left', name = 'Reference', width = 0.2 }, # left comment"))
+            XCTAssertTrue(updatedText.contains("{ id = 'main', name = 'Work', width = 0.6 },"))
+            XCTAssertTrue(updatedText.contains("{ id = 'right', name = 'Comms', width = 0.2 },"))
+            XCTAssertTrue(updatedText.contains("{ id = 'main', name = 'Work', width = 0.70 },"))
+
+            let (parsed, errors) = parseConfig(updatedText)
+            assertEquals(errors, [])
+            let balanced = parsed.zoneLayouts.singleOrNil { $0.id == "balanced" }.orDie()
+            XCTAssertEqual(balanced.columns.map(\.width), [0.2, 0.6, 0.2])
+            let focus = parsed.zoneLayouts.singleOrNil { $0.id == "focus" }.orDie()
+            XCTAssertEqual(focus.columns.map(\.width), [0.15, 0.70, 0.15])
+        }
+    }
+
+    func testSaveZoneLayoutWritesCRLFNamedLayoutAndBackup() async throws {
+        configureZoneLayoutPresets()
+        let originalText = zoneLayoutPresetConfigText()
+            .replacingOccurrences(of: "\n", with: "\r\n")
+
+        try await withTemporaryConfig(originalText) { url in
+            let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(resize.exitCode, 0)
+
+            let save = try await parseCommand("save-zone-layout").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(save.exitCode, 0, save.stderr.joined(separator: "\n"))
+            let backups = try zoneLayoutBackupUrls(for: url)
+            XCTAssertEqual(backups.count, 1)
+            XCTAssertEqual(try String(contentsOf: backups.singleOrNil().orDie(), encoding: .utf8), originalText)
+
+            let updatedText = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertTrue(updatedText.contains("\r\n"))
+            XCTAssertFalse(updatedText.replacingOccurrences(of: "\r\n", with: "").contains("\n"))
+            XCTAssertTrue(updatedText.contains("{ id = 'left', name = 'Reference', width = 0.2 }, # left comment"))
+            XCTAssertTrue(updatedText.contains("{ id = 'main', name = 'Work', width = 0.6 },"))
+            XCTAssertTrue(updatedText.contains("{ id = 'right', name = 'Comms', width = 0.2 },"))
+
+            let (parsed, errors) = parseConfig(updatedText)
+            assertEquals(errors, [])
+            let balanced = parsed.zoneLayouts.singleOrNil { $0.id == "balanced" }.orDie()
+            XCTAssertEqual(balanced.columns.map(\.width), [0.2, 0.6, 0.2])
+        }
+    }
+
+    func testSaveZoneLayoutWritesInlineZonesAndBackup() async throws {
+        configureInlineZonesWithLayoutPresets()
+        let originalText = inlineZoneConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(resize.exitCode, 0)
+
+            let save = try await parseCommand("save-zone-layout").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(save.exitCode, 0, save.stderr.joined(separator: "\n"))
+            XCTAssertEqual(save.stdout.first, "Saved inline [[zones]] on monitor 1 to \(url.path)")
+            let backups = try zoneLayoutBackupUrls(for: url)
+            XCTAssertEqual(backups.count, 1)
+            XCTAssertEqual(try String(contentsOf: backups.singleOrNil().orDie(), encoding: .utf8), originalText)
+
+            let updatedText = try String(contentsOf: url, encoding: .utf8)
+            let (parsed, errors) = parseConfig(updatedText)
+            assertEquals(errors, [])
+            XCTAssertEqual(parsed.zones.singleOrNil().orDie().columns.map(\.width), [0.2, 0.6, 0.2])
+            XCTAssertEqual(parsed.zoneLayouts.singleOrNil().orDie().columns.map(\.width), [0.15, 0.70, 0.15])
+        }
+    }
+
+    func testSaveZoneLayoutRejectsMismatchedConfigWithoutMutation() async throws {
+        configureZoneLayoutPresets()
+        let originalText = zoneLayoutPresetConfigText(missingRightColumnInBalanced: true)
+
+        try await withTemporaryConfig(originalText) { url in
+            let resize = try await parseCommand("resize-zone Work width +10%").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(resize.exitCode, 0)
+
+            let save = try await parseCommand("save-zone-layout").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(save.exitCode, 1)
+            XCTAssertTrue(save.stderr.joined(separator: "\n").contains("missing active runtime zone ids: right"))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
     }
 
     func testConfiguredRelativeZoneSelectorTargetsFocusedZone() async throws {
@@ -2369,6 +2501,86 @@ private func configureNoZones() {
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = []
+}
+
+@MainActor
+private func withTemporaryConfig(_ text: String, _ body: (URL) async throws -> Void) async throws {
+    let previousConfigUrl = configUrl
+    let directory = FileManager.default.temporaryDirectory
+        .appending(component: "winmux-save-zone-layout-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appending(component: "winmux.toml")
+    try text.write(to: url, atomically: true, encoding: .utf8)
+    configUrl = url
+    defer {
+        configUrl = previousConfigUrl
+        try? FileManager.default.removeItem(at: directory)
+    }
+    try await body(url)
+}
+
+private func zoneLayoutBackupUrls(for url: URL) throws -> [URL] {
+    let directory = url.deletingLastPathComponent()
+    let prefix = "\(url.lastPathComponent).backup-"
+    return try FileManager.default.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: nil,
+    )
+    .filter { $0.lastPathComponent.hasPrefix(prefix) }
+    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+}
+
+private func zoneLayoutPresetConfigText(missingRightColumnInBalanced: Bool = false) -> String {
+    let rightColumn = missingRightColumnInBalanced ? "" : "    { id = 'right', name = 'Comms', width = 0.25 },\n"
+    return """
+        # keep user comments
+        [[zone-layouts]]
+        id = 'balanced'
+        layout = 'columns'
+        default-zone = 'main'
+        columns = [
+            { id = 'left', name = 'Reference', width = 0.25 }, # left comment
+            { id = 'main', name = 'Work', width = 0.50 },
+        \(rightColumn)    ]
+
+        [[zone-layouts]]
+        id = 'focus'
+        layout = 'columns'
+        default-zone = 'main'
+        columns = [
+            { id = 'left', name = 'Reference', width = 0.15 },
+            { id = 'main', name = 'Work', width = 0.70 },
+            { id = 'right', name = 'Comms', width = 0.15 },
+        ]
+
+        [[zones]]
+        monitor = 1
+        layout-preset = 'balanced'
+        """
+}
+
+private func inlineZoneConfigText() -> String {
+    """
+    [[zone-layouts]]
+    id = 'focus'
+    layout = 'columns'
+    default-zone = 'main'
+    columns = [
+        { id = 'left', name = 'Reference', width = 0.15 },
+        { id = 'main', name = 'Work', width = 0.70 },
+        { id = 'right', name = 'Comms', width = 0.15 },
+    ]
+
+    [[zones]]
+    monitor = 1
+    layout = 'columns'
+    default-zone = 'main'
+    columns = [
+        { id = 'left', name = 'Reference', width = 0.25 },
+        { id = 'main', name = 'Work', width = 0.50 },
+        { id = 'right', name = 'Comms', width = 0.25 },
+    ]
+    """
 }
 
 @MainActor

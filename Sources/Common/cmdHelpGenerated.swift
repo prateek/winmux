@@ -184,6 +184,9 @@ let resize_help_generated = """
 let resize_zone_help_generated = """
     USAGE: resize-zone [-h|--help] [--monitor <monitor-pattern>] <zone> width [+|-]<percent>%
     """
+let save_zone_layout_help_generated = """
+    USAGE: save-zone-layout [-h|--help] [--dry-run] [--layout <layout-id>] [--monitor <monitor-pattern>]
+    """
 let set_zone_snap_policy_help_generated = """
     USAGE: set-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>
     """

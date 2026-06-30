@@ -91,7 +91,14 @@ fi
 if [ "$ACTION" = "slice-28" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
 fi
+if [ "$ACTION" = "slice-29" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-save-layout.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
+ACTIVE_CONFIG_HASH_POLICY="${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-immutable}"
+if [ "$ACTION" = "slice-29" ] && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
+    ACTIVE_CONFIG_HASH_POLICY=mutates
+fi
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
 BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
 DISPLAY_ID="${WINMUX_E2E_DISPLAY_ID:-1}"
@@ -143,7 +150,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -527,6 +534,7 @@ write_preflight_log() {
         printf 'reuse_build=%s\n' "$REUSE_BUILD"
         printf 'config_path=%s\n' "$CONFIG_PATH"
         printf 'config_sha256=%s\n' "$(file_sha256 "$CONFIG_PATH")"
+        printf 'active_config_hash_policy=%s\n' "$ACTIVE_CONFIG_HASH_POLICY"
         printf 'reload_config_path=%s\n' "$RELOAD_CONFIG_PATH"
         if [ "$ACTION" = "slice-3" ] && [ -f "$RELOAD_CONFIG_PATH" ]; then
             printf 'reload_config_sha256=%s\n' "$(file_sha256 "$RELOAD_CONFIG_PATH")"
@@ -2260,6 +2268,61 @@ write_slice_28_event_manifest() {
         "copied config hash stays unchanged after export"
 }
 
+write_slice_29_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label resize_label changed_label dry_label dry_output_label save_label save_output_label config_after_label reload_label
+
+    config_label="$(caption_label_for_chip "$name" "Config: [mode.zone.binding] s / shift-s save layout")"
+    resize_label="$(caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%")"
+    changed_label="$(caption_label_for_chip "$name" "Action: Work effective width becomes 0.6")"
+    dry_label="$(caption_label_for_chip "$name" "Run: winmux save-zone-layout --dry-run")"
+    dry_output_label="$(caption_label_for_chip "$name" "Action: dry-run output, config hash unchanged")"
+    save_label="$(caption_label_for_chip "$name" "Run: winmux save-zone-layout")"
+    save_output_label="$(caption_label_for_chip "$name" "Action: backup path and changed widths are visible")"
+    config_after_label="$(caption_label_for_chip "$name" "Action: winmux.toml now has saved widths")"
+    reload_label="$(caption_label_for_chip "$name" "Run: winmux reload-config && list-zones")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" config-ready \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "zone save key bindings and named layout config are visible before runtime resize"
+    append_event_manifest_row "$manifest_path" resize-command-start command \
+        "$(caption_start_for_label "$name" "$resize_label")" "$resize_label" resize-command-start \
+        "screenshots/${name}.samples/${resize_label}-boundary-start.png" \
+        "resize-zone command appears before dry-run and save"
+    append_event_manifest_row "$manifest_path" after-runtime-resize state \
+        "$(caption_start_for_label "$name" "$changed_label")" "$changed_label" after-runtime-resize \
+        "screenshots/03-after-runtime-resize-slice-29.png" \
+        "Work/main runtime effective width is wider before save"
+    append_event_manifest_row "$manifest_path" dry-run-command-start command \
+        "$(caption_start_for_label "$name" "$dry_label")" "$dry_label" dry-run-command-start \
+        "screenshots/${name}.samples/${dry_label}-boundary-start.png" \
+        "dry-run command appears before save command"
+    append_event_manifest_row "$manifest_path" dry-run-output-visible output \
+        "$(caption_start_for_label "$name" "$dry_output_label")" "$dry_output_label" dry-run-output-visible \
+        "screenshots/04-dry-run-output-slice-29.png" \
+        "dry-run output is visible and records unchanged config hash"
+    append_event_manifest_row "$manifest_path" save-command-start command \
+        "$(caption_start_for_label "$name" "$save_label")" "$save_label" save-command-start \
+        "screenshots/${name}.samples/${save_label}-boundary-start.png" \
+        "save command appears after dry-run"
+    append_event_manifest_row "$manifest_path" save-output-visible output \
+        "$(caption_start_for_label "$name" "$save_output_label")" "$save_output_label" save-output-visible \
+        "screenshots/05-save-output-slice-29.png" \
+        "save output shows backup path and changed widths"
+    append_event_manifest_row "$manifest_path" config-after-save output \
+        "$(caption_start_for_label "$name" "$config_after_label")" "$config_after_label" config-after-save \
+        "screenshots/06-config-after-save-slice-29.png" \
+        "saved winmux.toml excerpt shows persisted widths"
+    append_event_manifest_row "$manifest_path" reload-inspect inspection \
+        "$(caption_start_for_label "$name" "$reload_label")" "$reload_label" reload-inspect \
+        "screenshots/07-after-reload-inspect-slice-29.png" \
+        "reload and list-zones show saved widths as configured baseline"
+}
+
 write_slice_21_event_manifest() {
     local name="$1"
     local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
@@ -2354,6 +2417,9 @@ write_event_manifest() {
             ;;
         slice-28-export-zone-layout)
             write_slice_28_event_manifest "$name"
+            ;;
+        slice-29-save-zone-layout)
+            write_slice_29_event_manifest "$name"
             ;;
         *)
             ;;
@@ -2506,6 +2572,19 @@ CAPTIONS
 60	68	Runtime-only proof	The original copied config hash is unchanged after export.	Run: shasum config/winmux.toml	Result: unchanged
 CAPTIONS
             ;;
+        slice-29-save-zone-layout)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Save-ready layout	Zone mode exposes explicit dry-run and save commands.	Config: [mode.zone.binding] s / shift-s save layout
+8	18	Runtime resize	Change the current in-memory widths before writing config.	Run: winmux resize-zone Work width +10%
+18	26	Changed widths	Work is now wider and the side zones are narrower.	Action: Work effective width becomes 0.6
+26	36	Dry run first	Preview the write; the config hash must remain unchanged.	Run: winmux save-zone-layout --dry-run
+36	46	Dry-run output	The planned width changes are visible and no backup is created.	Action: dry-run output, config hash unchanged
+46	55	Explicit save	Write the current runtime widths to the active config.	Run: winmux save-zone-layout
+55	62	Backup and widths	The command prints the backup path and old -> new width changes.	Action: backup path and changed widths are visible
+62	68	Config after save	The saved balanced layout now matches the runtime effective widths.	Action: winmux.toml now has saved widths
+68	74	Reload inspect	Reload and inspect zones to prove saved widths are configured baseline.	Run: winmux reload-config && list-zones	Result: configured = 0.2 / 0.6 / 0.2
+CAPTIONS
+            ;;
         slice-10-zone-availability)
             cat >"$captions_path" <<'CAPTIONS'
 0	8	Availability-ready zones	Reference, Work, and Comms are visible before the toggle.	Config: [[zones]] Reference + Work + Comms
@@ -2627,7 +2706,7 @@ CAPTIONS
 caption_footprint_for_recording() {
     local name="$1"
     case "$name" in
-        slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout)
+        slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout)
             printf 'compact\n'
             ;;
         *)
@@ -2728,14 +2807,15 @@ annotation_preflight() {
         slice-25-mouse-demo-contract \
         slice-26-zone-divider-drag \
         slice-27-window-slot-snap \
-        slice-28-export-zone-layout
+        slice-28-export-zone-layout \
+        slice-29-save-zone-layout
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -3151,6 +3231,40 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic config-hash-unchanged "$hash_caption_label" "$hash_caption_start" \
                 "screenshots/06-final-state-slice-28.png" \
                 "copied config checksum remains unchanged after export"
+            ;;
+        slice-29-save-zone-layout)
+            local dry_caption_label dry_caption_start save_caption_label save_caption_start reload_caption_label reload_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            dry_caption_label="$(event_manifest_field "$event_manifest" dry-run-command-start caption-label || caption_label_for_chip "$name" "Run: winmux save-zone-layout --dry-run" || printf 'caption-04\n')"
+            dry_caption_start="$(event_manifest_field "$event_manifest" dry-run-command-start seconds || caption_start_for_label "$name" "$dry_caption_label" || printf 'caption-boundary-start\n')"
+            save_caption_label="$(event_manifest_field "$event_manifest" save-command-start caption-label || caption_label_for_chip "$name" "Run: winmux save-zone-layout" || printf 'caption-06\n')"
+            save_caption_start="$(event_manifest_field "$event_manifest" save-command-start seconds || caption_start_for_label "$name" "$save_caption_label" || printf 'caption-boundary-start\n')"
+            reload_caption_label="$(event_manifest_field "$event_manifest" reload-inspect caption-label || caption_label_for_chip "$name" "Run: winmux reload-config && list-zones" || printf 'caption-09\n')"
+            reload_caption_start="$(event_manifest_field "$event_manifest" reload-inspect seconds || caption_start_for_label "$name" "$reload_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic before-save-resize screenshot screenshot \
+                "screenshots/02-before-save-resize-slice-29.png" \
+                "Reference, Work, and Comms visible before runtime resize"
+            append_sample_manifest_row "$manifest_path" semantic after-runtime-resize screenshot screenshot \
+                "screenshots/03-after-runtime-resize-slice-29.png" \
+                "Work/main is wider before dry-run and save"
+            append_sample_manifest_row "$manifest_path" semantic dry-run-command-start "$dry_caption_label" "$dry_caption_start" \
+                "screenshots/${name}.samples/${dry_caption_label}-boundary-start.png" \
+                "dry-run command appears before any config write"
+            append_sample_manifest_row "$manifest_path" semantic dry-run-output-visible screenshot screenshot \
+                "screenshots/04-dry-run-output-slice-29.png" \
+                "dry-run output shows planned width changes and unchanged config hash"
+            append_sample_manifest_row "$manifest_path" semantic save-command-start "$save_caption_label" "$save_caption_start" \
+                "screenshots/${name}.samples/${save_caption_label}-boundary-start.png" \
+                "explicit save command appears after dry-run proof"
+            append_sample_manifest_row "$manifest_path" semantic save-output-visible screenshot screenshot \
+                "screenshots/05-save-output-slice-29.png" \
+                "save output shows backup path and changed widths"
+            append_sample_manifest_row "$manifest_path" semantic config-after-save screenshot screenshot \
+                "screenshots/06-config-after-save-slice-29.png" \
+                "saved config excerpt shows persisted balanced layout widths"
+            append_sample_manifest_row "$manifest_path" semantic reload-inspect "$reload_caption_label" "$reload_caption_start" \
+                "screenshots/07-after-reload-inspect-slice-29.png" \
+                "reload/list-zones inspection shows saved widths as configured baseline"
             ;;
         slice-21-zone-mode-v2)
             local snap_caption_label layout_caption_label focus_caption_label communications_caption_label style_caption_label
@@ -5504,6 +5618,32 @@ run_slice_28_export_zone_layout() {
         "${LOGS_DIR}/slice-28-run.log"
 }
 
+run_slice_29_save_zone_layout_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-29-save-zone-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE29_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-29-setup.log"
+}
+
+run_slice_29_save_zone_layout() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-29-save-zone-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE29_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-29-run.log"
+}
+
 run_slice_21_zone_mode_v2_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-21-zone-mode-v2.sh"
     local scenario_path_quoted
@@ -5856,6 +5996,10 @@ slice_28() {
     run_recorded_scenario "slice-28-export-zone-layout" "00-before-slice-28" "99-after-slice-28" "run_slice_28_export_zone_layout" "run_slice_28_export_zone_layout_setup" "01-ready-slice-28"
 }
 
+slice_29() {
+    run_recorded_scenario "slice-29-save-zone-layout" "00-before-slice-29" "99-after-slice-29" "run_slice_29_save_zone_layout" "run_slice_29_save_zone_layout_setup" "01-ready-slice-29"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -5967,6 +6111,9 @@ case "$ACTION" in
         ;;
     slice-28)
         slice_28
+        ;;
+    slice-29)
+        slice_29
         ;;
     *)
         usage >&2

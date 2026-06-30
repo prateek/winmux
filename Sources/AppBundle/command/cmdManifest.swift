@@ -54,6 +54,7 @@ extension CmdArgs {
             case let args as ReloadConfigCmdArgs: ReloadConfigCommand(args: args)
             case let args as ResizeCmdArgs: ResizeCommand(args: args)
             case let args as ResizeZoneCmdArgs: ResizeZoneCommand(args: args)
+            case let args as SaveZoneLayoutCmdArgs: SaveZoneLayoutCommand(args: args)
             case let args as SetZoneSnapPolicyCmdArgs: SetZoneSnapPolicyCommand(args: args)
             case let args as SetZoneStyleCmdArgs: SetZoneStyleCommand(args: args)
             case let args as SplitCmdArgs: SplitCommand(args: args)

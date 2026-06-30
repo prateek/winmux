@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-28 accepted; Slice 29 scoped as explicit runtime layout save; not implemented
+Status: slices 0-29 accepted; Slice 30 not started
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -5147,12 +5147,17 @@ Pre-Slice-29 cleanup:
 - [x] Keep `Sources/Common/gitHashGenerated.swift` out of the Slice 29 source
   diff unless the build system intentionally regenerated it for release. The
   generated hash churn was reset before `ebbbb3ce`.
-- [ ] Fold the Slice 28 retrospection follow-up about text-first proof crops
+- [x] Fold the Slice 28 retrospection follow-up about text-first proof crops
   into the Slice 29 packet, because this slice will likely prove config text,
-  dry-run output, and file diffs on screen.
-- [ ] Decide whether the Slice 29 product artifact emits a trimmed demo sidecar
+  dry-run output, and file diffs on screen. Slice 29 now requires screenshots
+  for dry-run output, save output, saved config text, and reload inspection;
+  the verifier and reviewer packet inspect those files directly.
+- [x] Decide whether the Slice 29 product artifact emits a trimmed demo sidecar
   in addition to the full acceptance recording. If it does, add the demo cut
-  manifest to the verifier before recording.
+  manifest to the verifier before recording. Decision: do not emit a sidecar
+  before first acceptance; keep the proof in the full recording and add a demo
+  cut only if artifact review finds the acceptance video unsuitable as product
+  evidence.
 
 Command surface:
 
@@ -5207,6 +5212,20 @@ Fast validation:
   - backup creation happens before replacement.
 - Add command tests proving the saved widths are the current runtime effective
   widths after a resize or divider-width operation.
+
+Implementation progress:
+
+- `save-zone-layout` command, parser/help metadata, named-layout write-back,
+  inline-zone write-back, dry-run, backup creation, edited-config parse
+  validation, and shared export/save width formatting are implemented.
+- Slice 29 e2e config, guest script, annotation plan, event manifest, artifact
+  verifier, reviewer packet requirements, README note, and Make target are
+  wired.
+- `make e2e-pre-tart-checks` passed after the Slice 29 harness was added. The
+  gate covered shell syntax, `shellcheck`, command metadata, verifier
+  self-test, Slice 12/26/28/29 guest helper self-tests, annotation preflight,
+  warm-up policy self-test, `ConfigTest.testParseZoneSaveLayoutE2EConfig`, and
+  `ZoneCommandTest` including the new save-layout cases.
 
 Tart video gate:
 
@@ -5271,6 +5290,113 @@ Validation gate:
 - Run `make e2e-slice-closeout-check RUN_DIR=<slice-29-dir>`.
 - Run the three post-slice no-context retrospectives and fold accepted findings
   into the next pre-slice cleanup before Slice 30.
+
+Slice 29 accepted result:
+
+- accepted artifact: `artifacts/e2e/slice-29-20260630T070758Z`;
+- recording:
+  `artifacts/e2e/slice-29-20260630T070758Z/recordings/slice-29-save-zone-layout.mov`;
+- raw recording:
+  `artifacts/e2e/slice-29-20260630T070758Z/recordings/raw/slice-29-save-zone-layout.raw.mov`;
+- screenshots: `01-ready-slice-29.png`,
+  `02-before-save-resize-slice-29.png`,
+  `03-after-runtime-resize-slice-29.png`,
+  `04-dry-run-output-slice-29.png`,
+  `05-save-output-slice-29.png`,
+  `06-config-after-save-slice-29.png`,
+  `07-after-reload-inspect-slice-29.png`, `99-after-slice-29.png`, contact
+  sheet, event contact sheet, samples, and edge crops under the artifact
+  `screenshots/` directory;
+- proof: `slice-29-save-zone-layout-proof.txt`;
+- review: `reviews/no-ctx-artifact-review.md`;
+- review verdict: `PASS`, `Next slice allowed: yes`;
+- mechanical verifier:
+  `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z`
+  passed;
+- post-review verifier:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z ARGS=--require-review`
+  passed;
+- review lint:
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z`
+  passed;
+- closeout check:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-29-20260630T070758Z`
+  passed;
+- retrospectives:
+  `artifacts/e2e/slice-29-20260630T070758Z/retrospectives/process-plan.md`,
+  `code-harness.md`, and `artifact-product.md`.
+
+What the accepted artifact proves:
+
+- `winmux resize-zone Work width +10%` changes the runtime effective widths
+  from `0.25 / 0.5 / 0.25` to `0.2 / 0.6 / 0.2`;
+- `winmux save-zone-layout --dry-run` prints the planned width changes and
+  leaves the active config hash unchanged;
+- `winmux save-zone-layout` writes the current runtime effective widths into
+  the active named `balanced` layout only after the explicit command;
+- the save output shows a backup path, and the backup hash matches the original
+  config hash;
+- the saved config keeps the unrelated `focus` layout, availability sets,
+  zone bindings, affinities, mouse config, mode bindings, and column comment;
+- `reload-config` plus `config --check` and `list-zones` show the saved widths
+  as configured baseline values.
+
+Slice 29 accepted notes:
+
+- The accepted artifact has readable full-resolution proof screenshots for
+  dry-run output, save output, saved config text, and reload inspection, rather
+  than separate named text-proof crops. Future text-first slices must either
+  produce named close-up crops plus a manifest/verifier checks, or avoid
+  promising proof crops in the contract.
+- After acceptance, the harness was hardened so Slice 29 declares
+  `active_config_hash_policy=mutates`, the verifier reads that metadata instead
+  of matching the slice name, and the guest script emits the mutation marker
+  before `save-zone-layout` so post-save failures do not retry against an
+  already-mutated config. The accepted artifact's `preflight.log` was updated
+  with the same metadata row and reverified.
+- A CRLF named-layout write-back bug was fixed after the retrospective and
+  covered by `ZoneCommandTest.testSaveZoneLayoutWritesCRLFNamedLayoutAndBackup`.
+
+Slice 29 non-claims:
+
+- no automatic persistence on every divider drag or resize command;
+- no settings UI or visual config editor;
+- no relaunch-persistence proof beyond focused `reload-config` and
+  `config --check` inspection;
+- no write-back for styles, availability, scenes, affinities, or unrelated
+  layout kinds.
+
+Pre-Slice-30 cleanup from Slice 29 retrospectives:
+
+- [ ] Close accepted slices in the plan before new feature implementation starts:
+  record artifact path, review verdict, verifier commands, closeout command,
+  retrospection paths, claims, non-claims, and dirty-baseline files.
+- [ ] Decide whether the next product-bearing slice emits both a full proof
+  recording and a shorter `*-product-demo` cut. If yes, add the demo-cut
+  manifest/verifier before recording.
+- [ ] Add named close-up crop support for text-first proof artifacts, or make
+  future contracts explicitly require readable full-frame screenshots instead
+  of "text proof crops."
+- [ ] Make review lint enforce the baseline list from the reviewer packet for
+  columnar-zone artifacts, including `demo-columnar-zones.mp4` and Slice 7
+  root-demo samples.
+- [ ] Add a post-recording retry policy to reviewer packets: if
+  `guest-script-retry-summary.tsv` has `before_recording=no` and failures, the
+  reviewer must name the retry and decide whether it occurred before the first
+  product action. High-risk proof slices should re-record after post-recording
+  transport failure.
+- [ ] Add a closeout or pre-Tart guard that fails if
+  `Sources/Common/gitHashGenerated.swift` or
+  `Sources/Common/versionGenerated.swift` is dirty after validation.
+- [ ] Replace setup movement helpers that emit benign `move-node-to-zone`
+  warnings with an `ensure_window_in_zone` style helper that inspects state
+  first and logs intentional setup no-ops cleanly.
+- [ ] Consider moving repeated shell TOML/zone-width parsing into a shared e2e
+  helper or a structured proof manifest that the verifier can consume.
+- [ ] For the next visual layout demo, make the width/layout change more
+  obvious with measurement chips or a lightweight overlay, use a more
+  product-shaped fixture, and avoid accumulating proof windows in the
+  product-facing view.
 
 ## Call-Site Audit
 

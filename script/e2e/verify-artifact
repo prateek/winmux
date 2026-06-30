@@ -62,7 +62,7 @@ toml_width_for_zone() {
     local path="$1"
     local zone="$2"
     /usr/bin/awk -v zone="$zone" '
-        index($0, "id = \"" zone "\"") > 0 {
+        index($0, "id = \"" zone "\"") > 0 || index($0, "id = '\''" zone "'\''") > 0 {
             for (i = 1; i <= NF; i++) {
                 if ($i == "width" && (i + 2) <= NF) {
                     value = $(i + 2)
@@ -899,6 +899,10 @@ is_historical_pre_demo_cut_tail_artifact() {
         slice-23-20260628T052231Z|slice-24-20260628T061218Z) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+artifact_intentionally_mutates_active_config() {
+    [ "$(value_from_log active_config_hash_policy "$PREFLIGHT_LOG")" = mutates ]
 }
 
 requires_current_artifact_contract() {
@@ -4048,6 +4052,242 @@ require_slice_28_export_zone_layout_proof() {
         || die "Slice 28 proof does not copy resized widths from zones log"
 }
 
+require_slice_29_save_zone_layout_proof() {
+    local proof="${RUN_DIR}/slice-29-save-zone-layout-proof.txt"
+    local done="${LOGS_DIR}/slice-29-save-zone-layout.done"
+    local setup_log="${LOGS_DIR}/slice-29-save-setup.log"
+    local windows_before="${LOGS_DIR}/slice-29-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-29-windows-after.log"
+    local zones_before="${LOGS_DIR}/slice-29-zones-before.log"
+    local zones_resized="${LOGS_DIR}/slice-29-zones-after-resize.log"
+    local zones_after_dry_run="${LOGS_DIR}/slice-29-zones-after-dry-run.log"
+    local zones_after_save="${LOGS_DIR}/slice-29-zones-after-save.log"
+    local zones_after_reload="${LOGS_DIR}/slice-29-zones-after-reload.log"
+    local resize_log="${LOGS_DIR}/slice-29-resize-zone.log"
+    local dry_run_log="${LOGS_DIR}/slice-29-save-zone-layout-dry-run.log"
+    local save_log="${LOGS_DIR}/slice-29-save-zone-layout.log"
+    local reload_log="${LOGS_DIR}/slice-29-reload-config.log"
+    local config_check_log="${LOGS_DIR}/slice-29-config-check.log"
+    local config_sha_before="${LOGS_DIR}/slice-29-config-before.sha256"
+    local config_sha_after_dry_run="${LOGS_DIR}/slice-29-config-after-dry-run.sha256"
+    local config_sha_after_save="${LOGS_DIR}/slice-29-config-after-save.sha256"
+    local backup_sha="${LOGS_DIR}/slice-29-config-backup.sha256"
+    local backup_path_log="${LOGS_DIR}/slice-29-backup-path.txt"
+    local config_before_copy="${LOGS_DIR}/slice-29-config-before.toml"
+    local config_after_copy="${LOGS_DIR}/slice-29-config-after.toml"
+    local config_backup_copy="${LOGS_DIR}/slice-29-config-backup.toml"
+    local config_after_excerpt="${LOGS_DIR}/slice-29-config-after-excerpt.toml"
+    local proof_manifest="${LOGS_DIR}/slice-29-save-zone-layout.proof-manifest.tsv"
+    local timing_log="${LOGS_DIR}/slice-29-command-timing.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 29"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$zones_before"
+    require_file "$zones_resized"
+    require_file "$zones_after_dry_run"
+    require_file "$zones_after_save"
+    require_file "$zones_after_reload"
+    require_file "$resize_log"
+    require_file "$dry_run_log"
+    require_file "$save_log"
+    require_file "$reload_log"
+    require_file "$config_check_log"
+    require_file "$config_sha_before"
+    require_file "$config_sha_after_dry_run"
+    require_file "$config_sha_after_save"
+    require_file "$backup_sha"
+    require_file "$backup_path_log"
+    require_file "$config_before_copy"
+    require_file "$config_after_copy"
+    require_file "$config_backup_copy"
+    require_file "$config_after_excerpt"
+    require_file "$proof_manifest"
+    require_file "$timing_log"
+    require_file "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/02-before-save-resize-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/03-after-runtime-resize-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/04-dry-run-output-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/05-save-output-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/06-config-after-save-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/07-after-reload-inspect-slice-29.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-29.png"
+    require_file "$(event_manifest_path)"
+    require_slice_29_event_manifest "$(event_manifest_path)"
+
+    grep -F 'PASS: save-zone-layout writes current runtime widths back to the active named layout only after an explicit command' "$proof" >/dev/null \
+        || die "Slice 29 proof does not contain the expected PASS claim"
+    grep -F 'Commands: resize-zone Work width +10%; save-zone-layout --dry-run; save-zone-layout; reload-config' "$setup_log" >/dev/null \
+        || die "Slice 29 setup log missing command summary"
+    grep -F '$ winmux resize-zone Work width +10%' "$resize_log" >/dev/null \
+        || die "Slice 29 resize log missing exact resize command"
+    grep -F '$ winmux save-zone-layout --dry-run' "$dry_run_log" >/dev/null \
+        || die "Slice 29 dry-run log missing exact command"
+    grep -F 'Dry run: would save zone layout' "$dry_run_log" >/dev/null \
+        || die "Slice 29 dry-run log missing dry-run output"
+    grep -F '$ winmux save-zone-layout' "$save_log" >/dev/null \
+        || die "Slice 29 save log missing exact command"
+    grep -F 'Saved zone layout' "$save_log" >/dev/null \
+        || die "Slice 29 save log missing saved output"
+    grep -F 'Backup:' "$save_log" >/dev/null \
+        || die "Slice 29 save log missing backup path"
+    grep -F '$ winmux reload-config' "$reload_log" >/dev/null \
+        || die "Slice 29 reload log missing exact command"
+    grep -F '$ winmux config --check ' "$config_check_log" >/dev/null \
+        || die "Slice 29 config check log missing exact command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 29 config check log missing Config OK"
+
+    local before_left before_main before_right resized_left resized_main resized_right
+    local runtime_left runtime_main runtime_right saved_left saved_main saved_right
+    local before_configured_main
+    local configured_left configured_main configured_right dry_configured_main save_configured_main
+    before_left="$(zone_log_value "$zones_before" left width)"
+    before_main="$(zone_log_value "$zones_before" main width)"
+    before_right="$(zone_log_value "$zones_before" right width)"
+    resized_left="$(zone_log_value "$zones_resized" left width)"
+    resized_main="$(zone_log_value "$zones_resized" main width)"
+    resized_right="$(zone_log_value "$zones_resized" right width)"
+    runtime_left="$(zone_log_value "$zones_resized" left effective)"
+    runtime_main="$(zone_log_value "$zones_resized" main effective)"
+    runtime_right="$(zone_log_value "$zones_resized" right effective)"
+    before_configured_main="$(zone_log_value "$zones_before" main configured)"
+    dry_configured_main="$(zone_log_value "$zones_after_dry_run" main configured)"
+    save_configured_main="$(zone_log_value "$zones_after_save" main configured)"
+    saved_left="$(toml_width_for_zone "$config_after_copy" left)"
+    saved_main="$(toml_width_for_zone "$config_after_copy" main)"
+    saved_right="$(toml_width_for_zone "$config_after_copy" right)"
+    configured_left="$(zone_log_value "$zones_after_reload" left configured)"
+    configured_main="$(zone_log_value "$zones_after_reload" main configured)"
+    configured_right="$(zone_log_value "$zones_after_reload" right configured)"
+    [ -n "$before_left" ] && [ -n "$before_main" ] && [ -n "$before_right" ] \
+        || die "Slice 29 before zones log missing widths"
+    [ -n "$runtime_left" ] && [ -n "$runtime_main" ] && [ -n "$runtime_right" ] \
+        || die "Slice 29 runtime zones log missing effective widths"
+    [ -n "$saved_left" ] && [ -n "$saved_main" ] && [ -n "$saved_right" ] \
+        || die "Slice 29 saved config missing one or more zone width rows"
+    assert_numeric_gt "$resized_main" "$before_main" "Slice 29 Work/main width did not grow before save"
+    assert_numeric_lt "$resized_left" "$before_left" "Slice 29 Reference/left width did not shrink before save"
+    assert_numeric_lt "$resized_right" "$before_right" "Slice 29 Comms/right width did not shrink before save"
+    [ "$(zone_log_value "$zones_resized" main override-state)" = runtime ] \
+        || die "Slice 29 Work/main must report runtime width override before save"
+    assert_numeric_approximately_equal "$saved_left" "$runtime_left" 0.000001 \
+        "Slice 29 saved Reference width does not match runtime effective width"
+    assert_numeric_approximately_equal "$saved_main" "$runtime_main" 0.000001 \
+        "Slice 29 saved Work width does not match runtime effective width"
+    assert_numeric_approximately_equal "$saved_right" "$runtime_right" 0.000001 \
+        "Slice 29 saved Comms width does not match runtime effective width"
+    assert_numeric_approximately_equal "$configured_left" "$runtime_left" 0.000001 \
+        "Slice 29 reloaded Reference configured width does not match runtime effective width"
+    assert_numeric_approximately_equal "$configured_main" "$runtime_main" 0.000001 \
+        "Slice 29 reloaded Work configured width does not match runtime effective width"
+    assert_numeric_approximately_equal "$configured_right" "$runtime_right" 0.000001 \
+        "Slice 29 reloaded Comms configured width does not match runtime effective width"
+    assert_numeric_approximately_equal "$dry_configured_main" "$before_configured_main" 0.000001 \
+        "Slice 29 dry-run should not change configured Work width"
+    assert_numeric_approximately_equal "$save_configured_main" "$before_configured_main" 0.000001 \
+        "Slice 29 save should not change running configured width before reload"
+
+    local before_sha dry_sha save_sha backup_copy_sha backup_recorded_sha backup_path
+    before_sha="$(cat "$config_sha_before")"
+    dry_sha="$(cat "$config_sha_after_dry_run")"
+    save_sha="$(cat "$config_sha_after_save")"
+    backup_recorded_sha="$(cat "$backup_sha")"
+    backup_copy_sha="$(file_sha256 "$config_backup_copy")"
+    backup_path="$(cat "$backup_path_log")"
+    [ -n "$backup_path" ] || die "Slice 29 backup path log is empty"
+    [ "$dry_sha" = "$before_sha" ] \
+        || die "Slice 29 dry-run changed config hash: ${before_sha} -> ${dry_sha}"
+    [ "$save_sha" != "$before_sha" ] \
+        || die "Slice 29 save did not change config hash"
+    [ "$backup_recorded_sha" = "$before_sha" ] && [ "$backup_copy_sha" = "$before_sha" ] \
+        || die "Slice 29 backup does not match original config"
+    [ "$(file_sha256 "$config_before_copy")" = "$before_sha" ] \
+        || die "Slice 29 original config copy hash does not match before hash"
+    [ "$(file_sha256 "$config_after_copy")" = "$save_sha" ] \
+        || die "Slice 29 after config copy hash does not match saved hash"
+
+    grep -F "id = 'focus'" "$config_after_copy" >/dev/null \
+        || die "Slice 29 focus layout disappeared after save"
+    grep -F "[[zone-availability-sets]]" "$config_after_copy" >/dev/null \
+        || die "Slice 29 zone availability sets disappeared after save"
+    grep -F "[[zone-bindings]]" "$config_after_copy" >/dev/null \
+        || die "Slice 29 zone bindings disappeared after save"
+    grep -F "[[zone-affinities]]" "$config_after_copy" >/dev/null \
+        || die "Slice 29 zone affinities disappeared after save"
+    grep -F "[mouse.zone-snap]" "$config_after_copy" >/dev/null \
+        || die "Slice 29 mouse zone snap config disappeared after save"
+    grep -F '# preserve this comment' "$config_after_copy" >/dev/null \
+        || die "Slice 29 column comment was not preserved after save"
+
+    [ "$(manifest_value "$proof_manifest" safety dry-run-mutated-config)" = no ] \
+        || die "Slice 29 proof manifest must record dry-run-mutated-config=no"
+    [ "$(manifest_value "$proof_manifest" safety backup-matches-original)" = yes ] \
+        || die "Slice 29 proof manifest must record backup-matches-original=yes"
+    [ "$(manifest_value "$proof_manifest" target layout-id)" = balanced ] \
+        || die "Slice 29 proof manifest must record target layout id"
+    [ "$(manifest_value "$proof_manifest" preserved column-comment)" = yes ] \
+        || die "Slice 29 proof manifest must record preserved column comment"
+
+    local title expected_zone before_id after_id before_zone after_zone before_workspace after_workspace
+    for title in reference-save.rtf work-save.rtf comms-save.rtf; do
+        case "$title" in
+            reference-save.rtf) expected_zone=left ;;
+            work-save.rtf) expected_zone=main ;;
+            comms-save.rtf) expected_zone=right ;;
+        esac
+        before_id="$(field_for_title "$windows_before" "$title" id)"
+        after_id="$(field_for_title "$windows_after" "$title" id)"
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after" "$title" workspace)"
+        [ -n "$before_id" ] && [ -n "$after_id" ] \
+            || die "Slice 29 missing window title across logs: $title"
+        [ "$before_id" = "$after_id" ] \
+            || die "Slice 29 window id changed for $title: $before_id -> $after_id"
+        [ "$before_zone" = "$expected_zone" ] && [ "$after_zone" = "$expected_zone" ] \
+            || die "Slice 29 zone changed for $title: $before_zone -> $after_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+            || die "Slice 29 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+
+    for chip in \
+        "Config: [mode.zone.binding] s / shift-s save layout" \
+        "Run: winmux resize-zone Work width +10%" \
+        "Action: Work effective width becomes 0.6" \
+        "Run: winmux save-zone-layout --dry-run" \
+        "Action: dry-run output, config hash unchanged" \
+        "Run: winmux save-zone-layout" \
+        "Action: backup path and changed widths are visible" \
+        "Action: winmux.toml now has saved widths" \
+        "Run: winmux reload-config && list-zones"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 29 annotations missing chip: $chip"
+    done
+    grep -F 'Result: configured = 0.2 / 0.6 / 0.2' "$annotation_plan" >/dev/null \
+        || die "Slice 29 annotations missing configured-width result cue"
+
+    grep -F "config-sha-before=${before_sha}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy before config hash"
+    grep -F "config-sha-after-dry-run=${dry_sha}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy dry-run config hash"
+    grep -F "config-sha-after-save=${save_sha}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy saved config hash"
+    grep -F "backup-path=${backup_path}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy backup path"
+    grep -F "widths-runtime=left:${runtime_left},main:${runtime_main},right:${runtime_right}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy runtime widths from zones log"
+    grep -F "widths-saved=left:${saved_left},main:${saved_main},right:${saved_right}" "$proof" >/dev/null \
+        || die "Slice 29 proof does not copy saved widths from config"
+}
+
 require_slice_11b_zone_style_controls_proof() {
     local proof="${RUN_DIR}/slice-11b-zone-style-controls-proof.txt"
     local done="${LOGS_DIR}/slice-11b-zone-style-controls.done"
@@ -5085,6 +5325,54 @@ require_slice_28_event_manifest() {
     for event_id in after-runtime-resize toml-output-visible config-check-success config-hash-unchanged; do
         path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
         [ "$path" != "-" ] || die "Slice 28 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_29_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" resize-command-start command
+    require_event_manifest_event "$manifest_path" after-runtime-resize state
+    require_event_manifest_event "$manifest_path" dry-run-command-start command
+    require_event_manifest_event "$manifest_path" dry-run-output-visible output
+    require_event_manifest_event "$manifest_path" save-command-start command
+    require_event_manifest_event "$manifest_path" save-output-visible output
+    require_event_manifest_event "$manifest_path" config-after-save output
+    require_event_manifest_event "$manifest_path" reload-inspect inspection
+
+    require_event_sample_label "$manifest_path" config-ready config-ready
+    require_event_sample_label "$manifest_path" resize-command-start resize-command-start
+    require_event_sample_label "$manifest_path" after-runtime-resize after-runtime-resize
+    require_event_sample_label "$manifest_path" dry-run-command-start dry-run-command-start
+    require_event_sample_label "$manifest_path" dry-run-output-visible dry-run-output-visible
+    require_event_sample_label "$manifest_path" save-command-start save-command-start
+    require_event_sample_label "$manifest_path" save-output-visible save-output-visible
+    require_event_sample_label "$manifest_path" config-after-save config-after-save
+    require_event_sample_label "$manifest_path" reload-inspect reload-inspect
+
+    require_event_before "$manifest_path" config-ready resize-command-start \
+        "Slice 29 event manifest must show config before resize"
+    require_event_before "$manifest_path" resize-command-start after-runtime-resize \
+        "Slice 29 event manifest must show resize before changed widths"
+    require_event_before "$manifest_path" after-runtime-resize dry-run-command-start \
+        "Slice 29 event manifest must show changed widths before dry-run"
+    require_event_before "$manifest_path" dry-run-command-start dry-run-output-visible \
+        "Slice 29 event manifest must show dry-run command before dry-run output"
+    require_event_before "$manifest_path" dry-run-output-visible save-command-start \
+        "Slice 29 event manifest must show dry-run proof before save"
+    require_event_before "$manifest_path" save-command-start save-output-visible \
+        "Slice 29 event manifest must show save command before save output"
+    require_event_before "$manifest_path" save-output-visible config-after-save \
+        "Slice 29 event manifest must show save output before config excerpt"
+    require_event_before "$manifest_path" config-after-save reload-inspect \
+        "Slice 29 event manifest must show config excerpt before reload inspection"
+
+    local event_id path
+    for event_id in after-runtime-resize dry-run-output-visible save-output-visible config-after-save reload-inspect; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 29 event ${event_id} must cite concrete media"
     done
 }
 
@@ -6787,7 +7075,11 @@ fi
 require_no_finder_metadata
 require_file "$PREFLIGHT_LOG"
 require_file "$CONFIG_PATH"
-verify_hash_from_preflight config_sha256 "$CONFIG_PATH"
+if artifact_intentionally_mutates_active_config; then
+    log "active config hash is slice-specific: preflight declares active_config_hash_policy=mutates"
+else
+    verify_hash_from_preflight config_sha256 "$CONFIG_PATH"
+fi
 verify_hash_from_preflight reload_config_sha256 "${RUN_DIR}/config/winmux-shifted.toml"
 require_file "${LOGS_DIR}/guest-control-check.log"
 require_file "${LOGS_DIR}/guest-privacy-setup.log"
@@ -6992,6 +7284,9 @@ case "$recording_name" in
         ;;
     slice-28-export-zone-layout)
         require_slice_28_export_zone_layout_proof
+        ;;
+    slice-29-save-zone-layout)
+        require_slice_29_save_zone_layout_proof
         ;;
 esac
 
