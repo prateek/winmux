@@ -16,6 +16,7 @@ import Foundation
             await toggleReleaseServerIfDebug(.off)
             traceE2EStartup("debug release-server toggle off finished")
             interceptTermination(SIGINT)
+            interceptTermination(SIGTERM)
             interceptTermination(SIGKILL)
         }
         do {
@@ -59,6 +60,7 @@ import Foundation
         Workspace.reconcileWorkspaceState() // init workspaces
         _ = Workspace.all.first?.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()
+        traceE2EStartup("persisted frozen world loaded: \(didLoadPersistedFrozenWorld)")
         traceE2EStartup("startup refresh started")
         try await runRefreshSessionBlocking(.startup, layoutWorkspaces: false)
         traceE2EStartup("startup refresh finished")

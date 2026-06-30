@@ -1,0 +1,43 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zone-layouts]]
+id = 'balanced'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zone-layouts]]
+id = 'focus'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.15 },
+  { id = 'main', name = 'Work', width = 0.70 },
+  { id = 'right', name = 'Comms', width = 0.15 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+[workspace-sidebar]
+enabled = true
+enable-focus = false
+width = 260
+collapsed-width = 64
+show-date = false
+
+[mode.main.binding]
+alt-z = 'mode zone'
+
+[mode.zone.binding]
+minus = ['resize-zone current width -10%', 'mode main']
+equal = ['resize-zone current width +10%', 'mode main']
+s = ['save-zone-layout', 'mode main']
+esc = 'mode main'

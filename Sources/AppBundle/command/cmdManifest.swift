@@ -13,6 +13,7 @@ extension CmdArgs {
             case let args as ConfigCmdArgs: ConfigCommand(args: args)
             case let args as CycleZoneAvailabilityCmdArgs: CycleZoneAvailabilityCommand(args: args)
             case let args as CycleZoneLayoutCmdArgs: CycleZoneLayoutCommand(args: args)
+            case let args as CycleZoneSceneCmdArgs: CycleZoneSceneCommand(args: args)
             case let args as CycleZoneSnapPolicyCmdArgs: CycleZoneSnapPolicyCommand(args: args)
             case let args as CycleZoneStyleCmdArgs: CycleZoneStyleCommand(args: args)
             case let args as DebugWindowsCmdArgs: DebugWindowsCommand(args: args)

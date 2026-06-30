@@ -30,6 +30,24 @@ columns = [
   { id = 'right', name = 'Comms', width = 0.18 },
 ]
 
+[[zone-scenes]]
+id = 'triage'
+layout-preset = 'balanced'
+workspaces = [
+  { zone = 'left', workspace = 'TriageInbox' },
+  { zone = 'main', workspace = 'TriageDraft' },
+  { zone = 'right', workspace = 'TriageUpdates' },
+]
+
+[[zone-scenes]]
+id = 'deep-work'
+layout-preset = 'focus'
+workspaces = [
+  { zone = 'left', workspace = 'FocusQueue' },
+  { zone = 'main', workspace = 'FocusBuild' },
+  { zone = 'right', workspace = 'FocusNotes' },
+]
+
 [[zones]]
 monitor = 1
 layout-preset = 'balanced'
@@ -77,3 +95,4 @@ s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
 tab = ['cycle-zone-layout balanced focus', 'mode main']
 a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
 y = ['cycle-zone-style current urgent calm', 'mode main']
+c = ['cycle-zone-scene triage deep-work', 'mode main']

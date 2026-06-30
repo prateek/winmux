@@ -390,6 +390,7 @@ struct ResolvedConfiguredZoneSelector {
 
 struct ZoneRuntimeOverlay: Sendable, Equatable {
     var activeLayoutId: String?
+    var activeSceneId: String?
     var activeAvailabilitySetId: String?
     var zoneSnapPolicyOverride: ZoneSnapPolicy?
     var disabledZoneIds: Set<String> = []
@@ -418,6 +419,10 @@ func activeZoneDisabledSelectionsSnapshot() -> [String: Set<String>] {
 
 func activeZoneAvailabilitySelectionsSnapshot() -> [String: String] {
     zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.activeAvailabilitySetId)
+}
+
+func activeZoneSceneSelectionsSnapshot() -> [String: String] {
+    zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.activeSceneId)
 }
 
 func activeZoneSnapPolicyOverridesSnapshot() -> [String: ZoneSnapPolicy] {
@@ -476,6 +481,7 @@ func setActiveZoneLayout(_ layoutId: String, for physicalMonitor: Monitor) -> Re
     let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysical)
     var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
     runtimeOverlay.activeLayoutId = layoutId
+    runtimeOverlay.activeSceneId = nil
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
     refreshZoneTopologySnapshot()
     Workspace.reconcileWorkspaceState()
@@ -1457,8 +1463,71 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
         appliedBindings.append((zone: binding.zone, workspace: workspaceName))
     }
 
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysicalMonitor)
+    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
+    runtimeOverlay.activeSceneId = sceneId
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+    refreshZoneTopologySnapshot()
     Workspace.reconcileWorkspaceState()
     return .success(ZoneSceneActivationResult(sceneId: sceneId, layoutId: layoutId, bindings: appliedBindings))
+}
+
+@MainActor
+func cycleZoneScene(_ sceneIds: [String], for physicalMonitor: Monitor) -> Result<ZoneSceneActivationResult, String> {
+    guard !sceneIds.isEmpty else {
+        return .failure("cycle-zone-scene requires at least one scene id")
+    }
+    let duplicatedIds = sceneIds.grouped { $0 }
+        .filter { id, ids in !id.isEmpty && ids.count > 1 }
+        .keys
+        .sorted()
+    guard duplicatedIds.isEmpty else {
+        return .failure("cycle-zone-scene requires unique scene ids: \(duplicatedIds.joined(separator: ", "))")
+    }
+
+    var scenes: [ZoneSceneConfig] = []
+    for sceneId in sceneIds {
+        guard let scene = config.zoneScenes.first(where: { $0.id == sceneId }) else {
+            return .failure("Unknown zone scene '\(sceneId)'")
+        }
+        scenes.append(scene)
+    }
+
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor.physicalMonitor)
+    let activeSceneId = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity]?.activeSceneId
+    let selectedIndex: Int
+    if let activeSceneId,
+       let activeIndex = scenes.firstIndex(where: { $0.id == activeSceneId })
+    {
+        selectedIndex = (activeIndex + 1) % scenes.count
+    } else if let matchingIndex = scenes.firstIndex(where: { zoneSceneMatchesCurrentState($0, on: physicalMonitor) }) {
+        selectedIndex = (matchingIndex + 1) % scenes.count
+    } else {
+        selectedIndex = 0
+    }
+
+    return setActiveZoneScene(scenes[selectedIndex].id, for: physicalMonitor)
+}
+
+@MainActor
+private func zoneSceneMatchesCurrentState(_ scene: ZoneSceneConfig, on physicalMonitor: Monitor) -> Bool {
+    guard let layoutPreset = scene.layoutPreset else { return false }
+    let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
+    let configuredZones = getCurrentZoneTopologySnapshot()
+        .configuredZones(for: sortedPhysicalMonitors)
+        .filter { $0.physicalMonitor.rect.topLeftCorner == targetTopLeft }
+    guard configuredZones.first?.zoneLayoutId == layoutPreset else { return false }
+
+    let activeWorkspaceByZoneId = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor -> (String, String)? in
+        guard monitor.physicalMonitor.rect.topLeftCorner == targetTopLeft,
+              let zoneId = monitor.zoneId
+        else { return nil }
+        return (zoneId, monitor.activeWorkspace.name)
+    })
+    return scene.workspaces.allSatisfy { binding in
+        guard let workspaceName = binding.workspace?.raw else { return false }
+        return activeWorkspaceByZoneId[binding.zone] == workspaceName
+    }
 }
 
 @MainActor

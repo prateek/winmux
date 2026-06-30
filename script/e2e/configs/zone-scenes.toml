@@ -50,3 +50,4 @@ enabled = false
 [mode.main.binding]
 alt-1 = 'use-zone-scene triage'
 alt-2 = 'use-zone-scene deep-work'
+alt-tab = 'cycle-zone-scene triage deep-work'

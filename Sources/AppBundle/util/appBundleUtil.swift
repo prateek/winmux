@@ -40,12 +40,16 @@ private func makeAllWindowsVisibleAndRestoreSize() async throws {
         let monitor = try await window.getCenter()?.monitorApproximation ?? mainMonitor
         let monitorVisibleRect = monitor.visibleRect
         let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-        let point = CGPoint(
-            x: (monitorVisibleRect.width - windowSize.width) / 2,
-            y: (monitorVisibleRect.height - windowSize.height) / 2,
-        )
+        let point = restartRestoreTopLeft(in: monitorVisibleRect, windowSize: windowSize)
         try await window.setAxFrameBlocking(point, windowSize)
     }
+}
+
+func restartRestoreTopLeft(in monitorVisibleRect: Rect, windowSize: CGSize) -> CGPoint {
+    CGPoint(
+        x: monitorVisibleRect.topLeftX + (monitorVisibleRect.width - windowSize.width) / 2,
+        y: monitorVisibleRect.topLeftY + (monitorVisibleRect.height - windowSize.height) / 2,
+    )
 }
 
 @MainActor

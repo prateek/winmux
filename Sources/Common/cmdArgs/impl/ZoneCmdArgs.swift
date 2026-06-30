@@ -610,6 +610,33 @@ func parseUseZoneSceneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneSceneCmdA
     parseSpecificCmdArgs(UseZoneSceneCmdArgs(rawArgs: args), args)
 }
 
+public struct CycleZoneSceneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneScene,
+        allowInConfig: true,
+        help: cycle_zone_scene_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.sceneIds, parseZoneSceneIds, placeholder: "<scene-id>...")],
+    )
+
+    public init(sceneIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.sceneIds = .initialized(sceneIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var sceneIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneSceneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneSceneCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneSceneCmdArgs(rawArgs: args), args)
+}
+
 public struct ListZoneBindingsCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -743,6 +770,23 @@ private func parseZoneSceneId(i: PosArgParserInput) -> ParsedCliArgs<String> {
         case .success(let sceneId): .succ(sceneId, advanceBy: 1)
         case .failure(let msg): .fail(msg, advanceBy: 1)
     }
+}
+
+private func parseZoneSceneIds(i: PosArgParserInput) -> ParsedCliArgs<[String]> {
+    let args = i.nonFlagArgs()
+    guard !args.isEmpty else {
+        return .fail("<scene-id> is mandatory", advanceBy: 0)
+    }
+    var sceneIds: [String] = []
+    for (offset, arg) in args.enumerated() {
+        switch parseZoneSceneIdentifier(arg) {
+            case .success(let sceneId):
+                sceneIds.append(sceneId)
+            case .failure(let msg):
+                return .fail(msg, advanceBy: offset + 1)
+        }
+    }
+    return .succ(sceneIds, advanceBy: args.count)
 }
 
 private func parseZoneAvailabilitySetId(i: PosArgParserInput) -> ParsedCliArgs<String> {

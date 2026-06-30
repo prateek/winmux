@@ -136,10 +136,11 @@ Required checks:
    reasons, final results, and whether failures happened before recording.
    If `logs/guest-script-retry-summary.tsv` exists, read it separately. Any row
    with `before_recording=no` and a nonzero failure count must be named in the
-   review with its phase, log path, attempt statuses, final result, and whether
-   it happened before the first visible product action. For stateful proof after
-   product mutation, require a re-record or explicit evidence that the failed
-   attempt did not mutate the proof state.
+   review with its phase, log path, attempt statuses, final result, mutation
+   metadata when present, and whether it happened before the first visible
+   product action. For stateful proof after product mutation, require a
+   re-record or explicit evidence that the failed attempt did not mutate the
+   proof state.
    Use the linked raw phase logs when a compact reason needs confirmation.
    Retry noise before recording is not a hard failure by itself, but missing
    final success or semantic proof failure is.

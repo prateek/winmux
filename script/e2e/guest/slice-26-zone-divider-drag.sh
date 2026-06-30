@@ -587,6 +587,7 @@ proof_slice() {
     sleep 7
     local scenario_start_ms
     scenario_start_ms="$(/bin/date +%s)000"
+    echo "${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
     drag_divider_jxa "${start_x}" "${start_y}" "${target_x}" "${target_y}" "${scenario_start_ms}"
     sleep 2
 

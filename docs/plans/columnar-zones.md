@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-30 accepted; Slice 31 not started
+Status: slices 0-33 accepted; pre-slice 34 cleanup pending
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -118,6 +118,8 @@ Keyboard and command workflows should stay thin over the same zone model:
 - `set-zone-snap-policy` and `cycle-zone-snap-policy` change the effective
   desktop-drag snap policy at runtime without changing the configured modifier,
   gesture, or target.
+- `use-zone-scene` and `cycle-zone-scene` switch a physical monitor between
+  named scene states that combine layout preset plus zone workspace bindings.
 - Example key bindings should compose these commands directly. The default idiom
   should use portable relative selectors when possible, for example a modal
   `alt-z` zone mode that maps `h`/`l` to `focus-zone prev`/`focus-zone next`
@@ -202,6 +204,8 @@ The ergonomic control surface should stay small and composable:
 - `resize-zone <zone> width [+|-]<percent>%` and `balance-zones` tune zone
   sizing without editing config.
 - `use-zone-scene <scene-id>` switches layout and workspace bindings together.
+- `cycle-zone-scene <scene-id> <scene-id>...` advances a monitor through named
+  whole-layout states such as `triage` and `deep-work`.
 - `set-zone-style <zone> <style-id>` and
   `cycle-zone-style <zone> <style-id>...` change visible zone chrome without
   changing layout, size, or workspace bindings.
@@ -243,7 +247,8 @@ Required MVP behavior:
 Deferred behavior:
 
 - grid or rectangle layouts;
-- persistence or TOML write-back for dragged divider changes;
+- automatic persistence or TOML write-back for every divider drag without an
+  explicit `save-zone-layout`;
 - per-zone sidebar panels;
 - visual editor;
 - direct tab-group-to-zone persistence beyond the workspace binding model.
@@ -556,7 +561,11 @@ Compact slice inventory:
 | 26 | Draggable zone dividers: drag a visible Work/Comms divider to update adjacent runtime widths only. |
 | 27 | Window-slot snap target inside a zone, separate from whole-zone snapping. |
 | 28 | Export the effective runtime zone layout as pasteable TOML after resize, balance, or divider drag. |
-| 29 | Planned: explicitly save the effective runtime zone layout back to config with reviewable backup, dry-run, and diff behavior. |
+| 29 | Explicitly save the effective runtime zone layout back to config with reviewable backup, dry-run, and diff behavior. |
+| 30 | Harness/review gate hardening for future product-bearing artifact contracts. |
+| 31 | Relaunch-safe saved-layout showcase with product-shaped fixture, measurement chips, and demo cut. |
+| 32 | Divider drag plus explicit save/relaunch proof for persisted dragged widths. |
+| 33 | Scene cycling: one repeated command switches triage -> deep-work -> triage. |
 
 ### Slice 0: Tart Recording Harness
 
@@ -5571,15 +5580,822 @@ Pre-Slice-31 cleanup:
   `make e2e-pre-tart-checks`, and adopted by the recent Slice 26/28/29 guest
   scripts so layout-demo setup no longer invokes `move-node-to-zone` for an
   already-correct window.
-- [ ] For the next visual layout demo, make the width/layout change more
+- [x] Run the required three no-context pre-slice retrospectives before starting
+  Slice 31 implementation. Reports:
+  `artifacts/e2e/slice-31-preflight-retrospectives/process-plan.md`,
+  `code-harness.md`, and `artifact-product.md`.
+- [x] Persist the missing Slice 29 post-review gate transcripts before relying on
+  it as the latest baseline. Added
+  `artifacts/e2e/slice-29-20260630T070758Z/logs/review-lint.log`,
+  `post-review-verify.log`, and `slice-closeout.log`; all reruns passed.
+- [x] For the next visual layout demo, make the width/layout change more
   obvious with measurement chips or a lightweight overlay, use a more
   product-shaped fixture, and avoid accumulating proof windows in the
-  product-facing view.
-- [ ] Decide whether Slice 31 is a product-bearing visual feature slice. If yes,
+  product-facing view. Slice 31 is a visual/product-bearing slice and requires
+  before/resized/relaunched measurement chips, task-shaped zone documents, no
+  proof-output windows in the product-facing final view, and a structured proof
+  manifest for the logged width values.
+- [x] Decide whether Slice 31 is a product-bearing visual feature slice. If yes,
   storyboard both the full acceptance recording and the optional
-  `recordings/<name>.demo.mov` sidecar before Tart.
-- [ ] If Slice 31 is text-first, either add named close-up crop support with
+  `recordings/<name>.demo.mov` sidecar before Tart. Decision: Slice 31 is
+  product-bearing visual and the demo sidecar is mandatory because the full proof
+  includes save/relaunch verification.
+- [x] If Slice 31 is text-first, either add named close-up crop support with
   verifier checks or explicitly require readable full-frame screenshots only.
+  Decision: Slice 31 is not text-first; it must not promise text-proof crops.
+  Any visible command/config text must be readable in full-frame screenshots and
+  backed by structured logs.
+- [x] Handle the repeated shell TOML/zone-width parsing cleanup for this slice.
+  Decision: Slice 31 must not add another local TOML width parser. It emits
+  `logs/slice-31-relaunch-saved-layout.proof-manifest.tsv` and
+  `logs/slice-31-relaunch-saved-layout.measurements.tsv`; the verifier consumes
+  those structured rows and cross-checks them against config hashes, backup
+  output, and `list-zones` logs.
+
+## Slice 31: Relaunch-Safe Saved Layout Showcase
+
+Goal: make the explicit save loop feel durable in the product, not just
+technically correct. A user should see that after resizing and saving a zone
+layout, quitting and relaunching WinMux brings the same ultrawide column widths
+back without another runtime resize command.
+
+Primary product claim:
+
+- `save-zone-layout` writes the current effective column widths to config, and a
+  fresh WinMux launch reads those saved widths as the configured baseline for the
+  active layout.
+
+User-visible story:
+
+- Start on a clean ultrawide desktop with three task-shaped documents:
+  Research/Reference, Draft/Work, and Inbox/Comms.
+- Show the starting measurement chip:
+  `Reference 25% | Work 50% | Comms 25%`.
+- Run the visible user command
+  `winmux resize-zone Work width +10%`.
+- Show the resized measurement chip:
+  `Reference 20% | Work 60% | Comms 20%`.
+- Run the visible user command `winmux save-zone-layout`.
+- Quit WinMux and relaunch it from the same saved config. Do not use
+  `reload-config` as the relaunch proof.
+- Show the relaunched measurement chip:
+  `Reference 20% | Work 60% | Comms 20%`, with the task documents still in the
+  same zone ids/workspaces. Window ids may be logged as diagnostics, but the
+  acceptance proof is title-based document continuity, zone identity, workspace
+  continuity, and saved width restoration after a fresh WinMux launch.
+
+Product/demo framing:
+
+- Slice 31 is product-bearing visual, not text-first.
+- The full acceptance recording is
+  `recordings/slice-31-relaunch-saved-layout.mov`.
+- The raw guest recording is preserved under `recordings/raw/`.
+- A shorter product/demo sidecar is required:
+  `recordings/slice-31-relaunch-saved-layout.demo.mov` with
+  `logs/slice-31-relaunch-saved-layout.demo-cut.tsv`.
+  Reviewer-packet generation must fail for Slice 31 if either sidecar file is
+  missing, so a no-context reviewer cannot treat the demo as optional.
+- Caption chips must expose the user-facing WinMux actions and relaunch cues:
+  `Run: winmux resize-zone Work width +10%`,
+  `Run: winmux save-zone-layout`, `Action: quit WinMux`,
+  `Result: WinMux sidebar absent`, `Action: relaunch WinMux`,
+  `Result: WinMux sidebar restored`, and `Run: winmux list-zones`.
+- The annotator and verifier must render and validate every chip column from
+  the annotation TSV, not only columns 5 and 6. Stale expected chips, overlong
+  chips, placeholder chips, and unrendered column 7+ chips are hard failures.
+- Result chips must expose the measurement changes:
+  `Result: Reference 25% | Work 50% | Comms 25%`,
+  `Result: Work 50% -> 60%`,
+  `Result: Reference 20% | Work 60% | Comms 20%`, and
+  `Result: relaunch kept Reference 20% | Work 60% | Comms 20%`.
+- The product-facing view should avoid extra proof-output windows. Proof text
+  belongs in logs/manifests and caption chips, while the visible desktop remains
+  the three task documents plus WinMux sidebar/zone chrome.
+
+Implementation scope:
+
+- Add `script/e2e/configs/zone-relaunch-saved-layout.toml` from the Slice 29
+  saved-layout fixture.
+- Add `script/e2e/guest/slice-31-relaunch-saved-layout.sh` with setup/proof and
+  self-test phases.
+- Reuse `ensure_window_in_zone` for setup-only placement.
+- Save through the real CLI, stop the LaunchAgent/app, relaunch it from the same
+  config path, and wait for `list-zones` after relaunch. The debug app must
+  handle the LaunchAgent stop path as a restart, persist `window-state.json`
+  before exit, and the relaunch must load that persisted restart state.
+- Emit structured proof rows instead of adding another shell TOML-width parser:
+  `logs/slice-31-relaunch-saved-layout.measurements.tsv` and
+  `logs/slice-31-relaunch-saved-layout.proof-manifest.tsv`.
+
+Required artifact contract:
+
+- Screenshots:
+  `01-ready-slice-31.png`, `02-after-runtime-resize-slice-31.png`,
+  `03-after-save-slice-31.png`, `04-after-quit-slice-31.png`,
+  `05-after-relaunch-slice-31.png`, and `99-after-slice-31.png`.
+- Logs:
+  `slice-31-zones-before.log`, `slice-31-zones-after-resize.log`,
+  `slice-31-zones-after-save.log`, `slice-31-zones-after-relaunch.log`,
+  `slice-31-windows-before.log`, `slice-31-windows-after-relaunch.log`,
+  `slice-31-save-zone-layout.log`, `slice-31-relaunch.log`,
+  `winmux-startup-trace.log`,
+  `slice-31-config-before.sha256`, `slice-31-config-after-save.sha256`,
+  `slice-31-config-backup.sha256`, the measurement TSV, the proof manifest, the
+  event manifest, expected chips, demo-cut manifest, contact sheets, and
+  reviewer packet.
+- Proof manifest rows must include:
+  `target	layout-id	balanced`, `safety	backup-matches-original	yes`,
+  `relaunch	app-restarted	yes`, `relaunch	widths-restored	yes`,
+  `relaunch	no-runtime-resize-after-launch	yes`,
+  `relaunch	runtime-override-values-cleared	yes`,
+  `relaunch	persisted-restart-state-loaded	yes`,
+  `clean-view	before-visible-textedit-window-count	3`,
+  `clean-view	relaunched-visible-textedit-window-count	3`, and per-zone
+  before/resized/saved/relaunched effective widths.
+- The guest proof must fail before writing `DONE` unless before widths are exactly
+  `25/50/25`, resized widths are exactly `20/60/20`, relaunched configured and
+  effective widths match the saved `20/60/20` layout, and relaunched
+  `override-state` is `configured` with an empty or `none` `override` value. It
+  must also fail if the visible TextEdit window set before resize or after
+  relaunch is anything other than the three task documents
+  `research-reference.rtf`, `focus-draft.rtf`, and `team-inbox.rtf`. The proof
+  phase must re-run this exact-title check immediately before the first
+  stateful mutation, not only during setup.
+- The guest proof must emit unfiltered visible-window cleanliness logs for the
+  ready, after-save, after-relaunch, and final product views. Each log must show
+  exactly the three intended TextEdit task documents, may include WinMux's own
+  sidebar/chrome, and must fail on Terminal, permission prompts, System
+  Settings, Finder, proof-output windows, or any other unrelated visible app.
+- The guest proof and host verifier must cross-check the product-window
+  `x`/`width` coordinates against the matching zone logs. Research must be
+  physically inside Reference, focus-draft inside Work, and team-inbox inside
+  Comms for the ready, after-save, after-relaunch, and final product views. A
+  correct logical `list-windows` zone is not enough if the visible TextEdit
+  rectangle is in the wrong column.
+- The verifier must parse `slice-31-command-timing.log` and require the actual
+  resize/save/quit/relaunch/list-zones offsets to fall inside the matching
+  visible caption windows.
+- The verifier must require exact command lines in the resize/save/aggregate CLI
+  logs and reject extra or variant `resize-zone` or `save-zone-layout` command
+  lines, including lines hidden by leading whitespace.
+- The verifier must also require exact `launchctl bootout WinMux slice service`
+  and `launchctl bootstrap WinMux slice service` command lines in the relaunch
+  and aggregate CLI logs, and reject leading-whitespace or suffixed variants.
+- The verifier must require `logs/winmux-startup-trace.log` to contain
+  `persisted frozen world loaded: false` for the initial launch and
+  `persisted frozen world loaded: true` for the relaunch. If the relaunch did
+  not load persisted restart state, the slice fails even when the final
+  screenshot appears correct.
+- The guest script must emit the post-recording retry mutation marker before the
+  first visible stateful mutation, which for Slice 31 is
+  `winmux resize-zone Work width +10%`; any failure after that point must not be
+  retried inside the same recording.
+- The measurement TSV must have exactly the expected header and exactly the
+  before/resized/saved/relaunched rows for left/main/right, with the expected
+  zone names and measurement chips on every row. Duplicate, missing, or extra
+  rows are hard verifier failures.
+- The verifier must cross-check every measurement TSV configured/effective/pixel
+  width row against the source `list-zones` logs for before, resized, saved, and
+  relaunched phases.
+- The recording harness must snapshot
+  `Sources/Common/gitHashGenerated.swift` and
+  `Sources/Common/versionGenerated.swift` before its host build, restore those
+  tracked files immediately after the build or on harness exit, and then run
+  `check-generated-version-clean` before VM startup. `make build` legitimately
+  embeds the current commit hash into `.debug/WinMuxApp`; the Tart gate must
+  preserve a clean source tree without weakening the generated-file guard.
+- `make e2e-pre-tart-checks` must include the pure restart placement regression
+  test (`AppBundleUtilTest`) so the LaunchAgent relaunch fix cannot regress
+  outside the VM harness.
+- `expected-chips.txt` must be an exact, fresh derivation of columns 5..N from
+  the annotation TSV. A stale, partial, or hand-trimmed expected-chip file is a
+  hard verifier failure.
+- Event and semantic sample rows that claim to show measurement chips must cite
+  annotated caption boundary frames, not raw guest screenshots without caption
+  chips. Raw screenshots remain required as geometry/sidebar state evidence.
+- Event and semantic sample rows for `Action: quit WinMux`,
+  `Result: WinMux sidebar absent`, `Action: relaunch WinMux`, and
+  `Result: WinMux sidebar restored` must cite annotated caption boundary frames;
+  raw quit/relaunch screenshots are additional geometry evidence, not a
+  substitute for the visible command/action/result chips.
+- `make e2e-review-lint` must require an accepted Slice 31 review to cite the
+  primary full recording, demo sidecar, demo-cut manifest, event contact sheet,
+  expected chips,
+  measurement TSV, proof manifest, relaunch log, startup trace, aggregate CLI log, timing log,
+  config hashes, before/after zone and window logs, unfiltered product-window
+  cleanliness logs, guest privacy/clean-slate logs, clean/ready/final
+  screenshots, every semantic sample path, edge/corner crop paths when present,
+  the visual absent/restored relaunch cues, every expected caption chip, and the
+  Slice 7/root-demo baselines. The accepted review must cite both
+  `persisted frozen world loaded: false` and
+  `persisted frozen world loaded: true` from the startup trace. Review
+  freshness must include this full Slice 31 evidence set, not only the media
+  files.
+- Accepted Slice 31 reviews must include a `Baseline comparison:` paragraph that
+  names the primary recording path, `demo-columnar-zones.mp4`, the Slice 7
+  root-demo package, and at least one product screenshot or product surface. The
+  paragraph must make explicit comparison claims for clean desktop, restrained
+  captions, live windows/task documents, and command/config chips against those
+  baselines, not merely list those keywords.
+
+No-context artifact review requirements:
+
+- The reviewer must inspect the full recording, demo sidecar, event contact
+  sheet, measurement TSV, proof manifest, before/after zone logs, relaunch log,
+  startup trace, saved config/backup hashes, and baseline product media
+  including the root demo videos and Slice 7 root-demo package.
+- The reviewer must answer from media alone whether the final widths are the
+  saved `20/60/20` layout after a real app relaunch.
+- Hard failures: relaunch is only a `reload-config`, final widths are only in
+  logs, measurement chips are missing or unreadable, proof-output windows crowd
+  the final product view, a task document is physically visible in the wrong
+  zone column, the startup trace does not prove relaunch loaded persisted
+  restart state, the demo sidecar is missing while the full recording has proof
+  tail, or the review does not cite the Slice 7/root-demo baselines listed in
+  the packet.
+
+Validation gate:
+
+- Add focused guest-script self-tests for measurement/proof manifest writing.
+- Add an offline config-parse test for
+  `script/e2e/configs/zone-relaunch-saved-layout.toml` and keep it in
+  `make e2e-pre-tart-checks`.
+- Run `bash -n`, `shellcheck`, `./script/e2e/verify-artifact --self-test`, and
+  `make e2e-pre-tart-checks`.
+- Produce the strict Tart artifact with `TART_HOME=/Volumes/RiftTartVMs/tart`.
+- Run a fresh no-context artifact review with `fork_context=false`.
+- Run and persist:
+  `make e2e-review-lint RUN_DIR=<slice-31-dir>`,
+  `make e2e-verify-slice-check RUN_DIR=<slice-31-dir> ARGS=--require-review`,
+  and `make e2e-slice-closeout-check RUN_DIR=<slice-31-dir>`.
+- Run three post-slice no-context retrospectives and fold accepted findings into
+  the next pre-slice cleanup before Slice 32.
+
+Slice 31 non-claims:
+
+- no automatic persistence on every divider drag or resize command;
+- no visual config editor;
+- no new WinMux command syntax beyond the existing `resize-zone` and
+  `save-zone-layout`;
+- no proof of persistence across macOS reboot, only WinMux app relaunch;
+- no named text-proof crop support;
+- no grid/freeform zone layout editor.
+
+Slice 31 accepted result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-31-20260630T123932Z`;
+- recordings:
+  `recordings/slice-31-relaunch-saved-layout.mov`,
+  `recordings/raw/slice-31-relaunch-saved-layout.raw.mov`, and
+  `recordings/slice-31-relaunch-saved-layout.demo.mov`;
+- media metadata: H.264, 3440x1440, 77.933333 seconds, 3426 frames for the
+  full recording; 3440x1440, 64.150000 seconds for the demo sidecar;
+- proof files:
+  `logs/slice-31-relaunch-saved-layout.measurements.tsv`,
+  `logs/slice-31-relaunch-saved-layout.proof-manifest.tsv`,
+  `logs/winmux-startup-trace.log`,
+  `logs/slice-31-relaunch.log`,
+  `logs/slice-31-product-windows-after-relaunch.log`, and
+  `logs/slice-31-zones-after-relaunch.log`;
+- accepted claim: after `winmux resize-zone Work width +10%` and
+  `winmux save-zone-layout`, a real `launchctl bootout` / `launchctl bootstrap`
+  relaunch restores the saved `Reference 20% | Work 60% | Comms 20%` layout as
+  configured widths, with `research-reference.rtf`, `focus-draft.rtf`, and
+  `team-inbox.rtf` physically inside Reference, Work, and Comms;
+- startup-state evidence: `logs/winmux-startup-trace.log` contains
+  `persisted frozen world loaded: false` for the initial launch and
+  `persisted frozen world loaded: true` for the relaunch;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md` returned `PASS_WITH_NOTES:` and final
+  line `next slice allowed: yes`;
+- artifact review note: the relaunch/result boundary-start caption frames show
+  result cues before the visible transition fully settles. Later caption frames,
+  `screenshots/04-after-quit-slice-31.png`,
+  `screenshots/05-after-relaunch-slice-31.png`,
+  `screenshots/99-after-slice-31.png`, and the logs prove the settled state, so
+  the accepted artifact does not need re-recording. Future async lifecycle
+  proofs should split action-start rows from settled-result rows.
+- verification transcripts:
+  `logs/review-lint.log`,
+  `logs/post-review-verify.log`, and
+  `logs/closeout-check.log` all pass against the final accepted review;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+Slice 31 failed-attempt notes:
+
+- `artifacts/e2e/slice-31-20260630T103835Z` failed before recording at
+  `phase=host-build-generated-clean`; the abort status did not include a
+  primary log. The accepted run's `logs/pre-tart-checks.log` and
+  `logs/closeout-check.log` both end with generated version files clean.
+- `artifacts/e2e/slice-31-20260630T115356Z` failed after recording started with
+  `after relaunch zone mismatch for focus-draft.rtf: expected 'main', got
+  'left'`. The accepted run fixes this with
+  `logs/slice-31-windows-after-relaunch.log`,
+  `logs/slice-31-product-windows-after-relaunch.log`, the startup trace, and
+  the `restartRestoreTopLeft` monitor-origin regression test.
+
+Pre-Slice-32 cleanup from Slice 31 retrospectives:
+
+- [x] Finish all three Slice 31 no-context retrospectives and read them
+  together.
+- [x] Repair the accepted Slice 31 review so the current verifier accepts the
+  full reviewer-packet baseline set, including `demo.mp4`, `demo2.mp4`,
+  `demo3.mp4`, `demo-columnar-zones.mp4`, Slice 7 root-demo evidence, product
+  screenshots, README, and product URLs.
+- [x] Persist successful `make e2e-review-lint
+  RUN_DIR=artifacts/e2e/slice-31-20260630T123932Z` output to
+  `logs/review-lint.log`.
+- [x] Persist successful `make e2e-verify-slice-check
+  RUN_DIR=artifacts/e2e/slice-31-20260630T123932Z ARGS=--require-review`
+  output to `logs/post-review-verify.log`.
+- [x] Rerun and persist successful `make e2e-slice-closeout-check
+  RUN_DIR=artifacts/e2e/slice-31-20260630T123932Z` output to
+  `logs/closeout-check.log`.
+- [x] Update this plan with the accepted Slice 31 result, failed-attempt notes,
+  review caveat, gate transcripts, retrospectives, claims, and non-claims.
+- [x] Add a `script/e2e/README.md` entry for `make e2e-slice-31`.
+- [x] Before starting Slice 32 implementation, either commit the accepted Slice
+  31 dirty set or record an explicit dirty-baseline diffstat/status for the
+  current Slice 31 changes. Dirty baseline recorded on 2026-06-30 before Slice
+  32 work: modified
+  `Sources/AppBundle/initAppBundle.swift`,
+  `Sources/AppBundle/util/appBundleUtil.swift`,
+  `Sources/AppBundleTests/config/ConfigTest.swift`,
+  `docs/plans/columnar-zones.md`, `makefile`, `script/e2e/README.md`,
+  `script/e2e/annotate-recording`, `script/e2e/tart-recording-harness`,
+  `script/e2e/verify-artifact`, and `script/e2e/write-review-packet`;
+  untracked
+  `Sources/AppBundleTests/util/AppBundleUtilTest.swift`,
+  `script/e2e/configs/zone-relaunch-saved-layout.toml`, and
+  `script/e2e/guest/slice-31-relaunch-saved-layout.sh`. Tracked diffstat before
+  this note: 10 files changed, 2081 insertions, 76 deletions; `git diff
+  --check` passed.
+- [ ] Before any future lifecycle or async-state proof, update event/sample rows
+  so `sidebar-absent`, `sidebar-restored`, and equivalent result predicates cite
+  settled evidence frames or named state screenshots, not the same action-start
+  boundary frame.
+- [x] Finish the Slice 31 harness follow-ups before another long-running
+  lifecycle slice. `host-build-generated-clean` now writes
+  `logs/host-build-generated-clean.log` as the abort primary log; guest retry
+  summaries include `mutation_started` and `first_mutation_line`; generic
+  reviewer packets say `proof manifest` instead of `drag proof manifest`;
+  no-context review prompts and verifier checks require mutation metadata when
+  present; and `require_annotation_chip_covers_offset` scans caption columns
+  5..N. Verified on 2026-06-30 with `bash -n`, `shellcheck`,
+  `./script/e2e/verify-artifact --self-test`,
+  `./script/e2e/tart-recording-harness warmup-policy-self-test`,
+  `make e2e-pre-tart-checks`, `git diff --check`, and
+  `./script/e2e/check-generated-version-clean`.
+
+### Slice 32: Divider Drag Save/Relaunch
+
+Status: accepted.
+
+Goal:
+
+- Prove the user-visible Work/Comms divider drag can be made durable with the
+  same explicit `winmux save-zone-layout` command that Slice 31 validated for
+  keyboard-driven `resize-zone`.
+- Keep the UX claim narrow: this slice proves explicit save/relaunch durability
+  after a visible divider drag. It does not prove automatic persistence after
+  every drag, macOS reboot restore, a visual config editor, or arbitrary
+  grid/freeform zone layout editing.
+
+Storyboard:
+
+- Start from the accepted three-zone ultrawide layout using
+  `script/e2e/configs/zone-divider-drag.toml`.
+- Show a clean ready desktop with Reference, Work, and Comms task documents.
+- Drag the Work/Comms divider with the Slice 26 hover, pickup, drag-path,
+  live-preview, release, and after-resize proof frames.
+- Hold the dragged state on screen long enough for the demo captions to explain
+  that runtime width overrides are visible.
+- Run `winmux save-zone-layout`.
+- Quit WinMux with the slice LaunchAgent service, then relaunch it with
+  `launchctl bootstrap`.
+- Run `winmux list-zones` after relaunch.
+- Show the dragged widths restored as configured widths with runtime override
+  values cleared.
+
+Required artifacts:
+
+- `recordings/slice-32-divider-save-relaunch.mov`;
+- `recordings/raw/slice-32-divider-save-relaunch.raw.mov`;
+- `recordings/slice-32-divider-save-relaunch.demo.mov`;
+- `screenshots/02-divider-hover-slice-26.png`,
+  `03-divider-pickup-slice-26.png`,
+  `04-divider-drag-path-slice-26.png`,
+  `05-divider-preview-slice-26.png`,
+  `06-divider-release-slice-26.png`, and
+  `07-after-divider-resize-slice-26.png`;
+- `screenshots/08-after-save-slice-32.png`,
+  `09-after-quit-slice-32.png`,
+  `10-after-relaunch-slice-32.png`, and `99-after-slice-32.png`;
+- `logs/slice-26-zone-divider-drag.proof-manifest.tsv`;
+- `logs/slice-26-zone-divider-drag.mouse-events.tsv`;
+- `logs/slice-32-divider-save-relaunch.event-manifest.tsv`;
+- `logs/slice-32-divider-save-relaunch.measurements.tsv`;
+- `logs/slice-32-divider-save-relaunch.proof-manifest.tsv`;
+- `logs/slice-32-save-zone-layout.log`;
+- `logs/slice-32-relaunch.log`;
+- `logs/winmux-startup-trace.log`;
+- config hash, backup, sample-manifest, event-manifest, expected-chip, review,
+  post-review verifier, and closeout logs.
+
+Verifier requirements:
+
+- The delegated Slice 26 proof manifest must show
+  `drag-target/snap-target=zone-divider`,
+  `divider-policy/target=adjacent-zone-boundary`, and
+  `divider-policy/config-persistence=no-config-rewrite`.
+- The Slice 32 event manifest must split the delegated divider drag into
+  `divider-hover`, `divider-pickup`, `divider-drag-path`,
+  `divider-live-preview`, `divider-release`, and `after-divider-resize`, with
+  seconds matching `logs/slice-26-zone-divider-drag.mouse-events.tsv`.
+- Measurements must include `before`, `dragged`, `saved`, and `relaunched`
+  rows for `left`, `main`, and `right`.
+- Dragged Work/main must grow, dragged Comms/right must shrink, and
+  Reference/left must stay stable.
+- Saved effective widths must match the dragged widths.
+- Relaunched configured and effective widths must match the dragged widths.
+- Relaunched zones must report `override-state=configured` and empty runtime
+  override values.
+- The save log must contain exactly `$ winmux save-zone-layout`, saved output,
+  and a backup path.
+- The relaunch log must contain exactly one `launchctl bootout` and one
+  `launchctl bootstrap`, plus `stopped=yes`; `reload-config` and post-relaunch
+  `resize-zone` are forbidden.
+- The startup trace must include initial `persisted frozen world loaded: false`
+  and relaunch `persisted frozen world loaded: true`.
+- The no-context review must cite the divider media, save/backup evidence,
+  relaunch evidence, expected caption chips, product baselines, and full-packet
+  baseline comparison before the next slice starts.
+
+Execution gate:
+
+- Run focused host checks, then three no-context pre-Tart reviewers. Each
+  pre-Tart reviewer must inspect the current Slice 32 harness/verifier wiring
+  without chat history and finish with `NO ACTIONABLE ISSUES` before Tart
+  starts.
+- Run `TART_HOME=/Volumes/RiftTartVMs/tart make e2e-slice-32`.
+- Run `make e2e-verify-slice RUN_DIR=<slice-32-run-dir>`.
+- Run the no-context artifact review, `make e2e-review-lint`,
+  `make e2e-verify-slice-check ARGS=--require-review`, and
+  `make e2e-slice-closeout-check`.
+- Run three no-context retrospectives and fold accepted findings into the next
+  pre-slice cleanup.
+
+Slice 32 accepted result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-32-20260630T181608Z`;
+- recordings:
+  `recordings/slice-32-divider-save-relaunch.mov`,
+  `recordings/raw/slice-32-divider-save-relaunch.raw.mov`, and
+  `recordings/slice-32-divider-save-relaunch.demo.mov`;
+- media metadata: H.264, 3440x1440, 104.000000 seconds, 4658 frames for the
+  full recording; the demo sidecar is 90.000000 seconds;
+- proof files:
+  `logs/slice-26-zone-divider-drag.proof-manifest.tsv`,
+  `logs/slice-26-zone-divider-drag.mouse-events.tsv`,
+  `logs/slice-32-divider-save-relaunch.event-manifest.tsv`,
+  `logs/slice-32-divider-save-relaunch.measurements.tsv`,
+  `logs/slice-32-divider-save-relaunch.proof-manifest.tsv`,
+  `logs/slice-32-save-zone-layout.log`,
+  `logs/slice-32-relaunch.log`,
+  `logs/slice-32-zones-after-relaunch.log`,
+  `logs/slice-32-windows-after-relaunch.log`, and
+  `logs/winmux-startup-trace.log`;
+- accepted claim: after a visible Work/Comms zone-divider drag,
+  `winmux save-zone-layout`, and a real `launchctl bootout` / `launchctl
+  bootstrap` relaunch, `winmux list-zones` reports the dragged widths restored
+  as configured widths and runtime override values cleared;
+- accepted divider proof: Slice 32 delegates the mouse drag affordance media to
+  the accepted Slice 26 frames and carries those timings into
+  `logs/slice-32-divider-save-relaunch.event-manifest.tsv` as separate
+  `divider-hover`, `divider-pickup`, `divider-drag-path`,
+  `divider-live-preview`, `divider-release`, and `after-divider-resize` rows;
+- accepted measurements: Work grows from `0.5` to `0.5749407582938388` during
+  the drag, Comms shrinks from `0.25` to `0.17505924170616113`, saved effective
+  widths match the dragged widths, and relaunched configured/effective widths
+  are `0.574941` for Work and `0.175059` for Comms;
+- startup-state evidence: `logs/winmux-startup-trace.log` contains
+  `persisted frozen world loaded: false` for initial launch and
+  `persisted frozen world loaded: true` for relaunch;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md` returned `PASS:` and final line
+  `next slice allowed: yes`;
+- pre-Tart review gate: Hubble, Hilbert, and Turing each finished with
+  `NO ACTIONABLE ISSUES` after the Slice 32 harness/verifier fixes;
+- validation commands:
+  `make e2e-pre-tart-checks`,
+  `TART_HOME=/Volumes/RiftTartVMs/tart make e2e-slice-32`,
+  `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z`,
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z`,
+  and
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z ARGS=--require-review`
+  all pass against the accepted artifact;
+- verification transcripts:
+  `logs/review-lint.log`, `logs/post-review-verify.log`, and
+  `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- dirty baseline:
+  `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`, and
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`.
+
+Slice 32 accepted notes:
+
+- The guest transport had retry noise before recording started:
+  `00-before-slice-32.screencapture` retried SSH setup and
+  `warmup-before-recording` retried once. Post-recording phases
+  `slice-32-run` and `99-after-slice-32.screencapture` had zero failures, so
+  no product action was hidden by a retry.
+- Two derived-sidecar verifier issues were fixed after recording: the
+  event-sample label changed from `config-ready` to `ready-divider-zones`, and
+  the verifier learned that Slice 32's delegated Slice 26 drag proof has an
+  external caption plan. The raw and primary recordings did not change; the
+  accepted sidecars were refreshed from
+  `recordings/raw/slice-32-divider-save-relaunch.raw.mov`.
+- Slice 32 lifecycle proof still reuses some Slice 26 service/path names for
+  delegated divider evidence. This is accepted for Slice 32 because verifier and
+  review evidence disambiguate the delegation, but future lifecycle slices
+  should use slice-local service names for their relaunch proof.
+
+Slice 32 non-claims:
+
+- no automatic persistence after every divider drag without explicit
+  `winmux save-zone-layout`;
+- no persistence proof across macOS reboot;
+- no visual config editor;
+- no arbitrary grid/rectangle/freeform zone layout editor;
+- no proof that changing layouts, styles, or zone availability persists through
+  the same relaunch path.
+
+Pre-Slice-33 cleanup from Slice 32 retrospectives:
+
+- [x] Finish all three Slice 32 no-context retrospectives and read them
+  together.
+- [x] Persist successful `make e2e-review-lint
+  RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z` output to
+  `logs/review-lint.log`.
+- [x] Persist successful `make e2e-verify-slice-check
+  RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z ARGS=--require-review`
+  output to `logs/post-review-verify.log`.
+- [x] Record an explicit dirty-baseline inventory for the accepted Slice 32
+  dirty set in `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`, and
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`.
+- [x] Update this plan with the accepted Slice 32 result, review/verifier
+  evidence, transcripts, retrospectives, claims, non-claims, and sidecar repair
+  notes.
+- [x] Rerun and persist successful `make e2e-slice-closeout-check
+  RUN_DIR=artifacts/e2e/slice-32-20260630T181608Z` output to
+  `logs/closeout-check.log`.
+- [ ] Before the next lifecycle proof, rename slice-specific LaunchAgent labels,
+  plist names, temp logs, and startup traces so the proof does not look like the
+  wrong slice.
+- [ ] Before the next measurement-heavy proof, factor the repeated
+  `list-zones`/`list-windows` parsing used by Slice 29/31/32 into a shared guest
+  helper or generated TSV contract.
+- [ ] Before the next async lifecycle proof, prefer observable settled-state
+  waits over fixed sleeps for relaunch, sidebar/chrome readiness, and final
+  product screenshots.
+- [x] Decide whether to commit the accepted Slice 31/32 dirty set or carry the
+  explicit dirty baseline forward in the next slice notes before starting a new
+  Tart run. Decision: carry the explicit dirty baseline forward for Slice 33;
+  do not commit mid-slice unless requested.
+
+### Slice 33: Scene Cycling for Whole-Layout State
+
+Status: accepted.
+
+Goal: make whole-monitor scene changes ergonomic enough for one-key workflows.
+Users should be able to bind one command to cycle an ultrawide layout through
+states such as triage, deep-work, and back to triage. A scene remains a virtual
+monitor-level state: layout preset plus active workspace per zone.
+
+Implementation scope:
+
+- Add `cycle-zone-scene [--monitor <monitor-pattern>] <scene-id>...`.
+- Track the active scene per physical monitor runtime overlay.
+- If the current active scene is in the provided cycle list, advance to the next
+  scene and wrap at the end.
+- If the runtime overlay has no active scene but the current layout/workspace
+  state exactly matches one of the cycle entries, advance from that matched
+  scene.
+- If the current state does not match the list, apply the first scene.
+- Reject duplicate or unknown scene ids without mutating state.
+- Clear active scene state when `use-zone-layout` directly overrides the
+  monitor layout.
+- Expose the workflow in example configs:
+  `alt-tab = 'cycle-zone-scene triage deep-work'` for direct mode and
+  `c = ['cycle-zone-scene triage deep-work', 'mode main']` in zone mode.
+
+Required fast checks before Tart:
+
+- `python3 ./script/check-command-metadata`;
+- `swift test --filter ZoneCommandTest`;
+- `swift test --filter ConfigTest.testParseZoneModeV2E2EConfig`;
+- `git diff --check`;
+- `bash -n script/e2e/tart-recording-harness script/e2e/verify-artifact
+  script/e2e/write-review-packet script/e2e/guest/slice-6b-zone-scenes.sh`;
+- `./script/e2e/tart-recording-harness annotation-preflight`.
+
+Required pre-Tart no-context gate:
+
+- Run three no-context reviewers against the Slice 33 code, config, harness, and
+  verifier diff.
+- Each reviewer must answer either `NO ACTIONABLE ISSUES` or list blocking
+  issues. Silence, generic approval, or failure to inspect the exact Slice 33
+  files is not a pass.
+- Do not run `TART_HOME=/Volumes/RiftTartVMs/tart make e2e-slice-33` until all
+  three pre-Tart reviewers are clean.
+
+Required Tart artifact:
+
+- `recordings/slice-33-cycle-zone-scene.mov`;
+- `recordings/raw/slice-33-cycle-zone-scene.raw.mov`;
+- `logs/slice-33-cycle-zone-scene.annotations.tsv`;
+- `logs/slice-33-cycle-zone-scene.expected-chips.txt`;
+- `logs/slice-33-cycle-zone-scene.event-manifest.tsv`;
+- `logs/slice-33-scene-before.log`;
+- `logs/slice-33-scene-after.log`;
+- `logs/slice-33-scene-wrap.log`;
+- `logs/slice-33-cycle-zone-scene.log`;
+- `logs/slice-33-cycle-zone-scene-wrap.log`;
+- `logs/slice-33-windows-before.log`;
+- `logs/slice-33-windows-after.log`;
+- `logs/slice-33-windows-wrap.log`;
+- `screenshots/00-before-slice-33.png`,
+  `01-ready-slice-33.png`, and `99-after-slice-33.png`.
+
+Video contract:
+
+- The video must show triage before the first command.
+- The first mutating command/action caption must be
+  `Run: winmux cycle-zone-scene triage deep-work`.
+- Deep-work documents must appear after the first command, not before it.
+- The same command must appear a second time.
+- Triage documents must appear again after the second command, proving
+  wraparound.
+- Captions must expose the exact user-facing binding/config surface and the
+  exact inspection commands.
+
+Post-artifact gates:
+
+- Run `make e2e-verify-slice RUN_DIR=<slice-33-run-dir>`.
+- Generate a no-context artifact review packet and run the no-context artifact
+  reviewer.
+- Run `make e2e-review-lint RUN_DIR=<slice-33-run-dir>`.
+- Run `make e2e-verify-slice-check RUN_DIR=<slice-33-run-dir>
+  ARGS=--require-review`.
+- Run three no-context retrospectives over plan/process, code/harness, and
+  artifact/product quality, then carry actionable findings into Pre-Slice-34
+  cleanup before proceeding.
+
+Slice 33 accepted result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-33-20260630T200032Z`;
+- primary recording:
+  `artifacts/e2e/slice-33-20260630T200032Z/recordings/slice-33-cycle-zone-scene.mov`;
+- raw guest recording:
+  `artifacts/e2e/slice-33-20260630T200032Z/recordings/raw/slice-33-cycle-zone-scene.raw.mov`;
+- accepted review:
+  `artifacts/e2e/slice-33-20260630T200032Z/reviews/no-ctx-artifact-review.md`
+  with verdict `PASS` and `next slice allowed: yes`;
+- reviewer packet:
+  `artifacts/e2e/slice-33-20260630T200032Z/reviews/reviewer-packet.md`;
+- proof file:
+  `artifacts/e2e/slice-33-20260630T200032Z/slice-33-zone-scene-proof.txt`;
+- post-review gate logs:
+  `artifacts/e2e/slice-33-20260630T200032Z/logs/review-lint.log`,
+  `artifacts/e2e/slice-33-20260630T200032Z/logs/post-review-verify.log`,
+  and
+  `artifacts/e2e/slice-33-20260630T200032Z/logs/closeout-check.log`;
+- retrospectives:
+  `artifacts/e2e/slice-33-20260630T200032Z/retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-33-20260630T200032Z/retrospectives/code-harness.md`,
+  and
+  `artifacts/e2e/slice-33-20260630T200032Z/retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- `cycle-zone-scene triage deep-work` advances the active monitor from the
+  triage scene to the deep-work scene, then wraps back to triage when run again;
+- the same command is visible twice in the annotated 3440x1440 guest recording;
+- the first command starts while Triage Inbox, Triage Draft, and Triage Updates
+  are still visible;
+- Focus Queue, Focus Build, and Focus Notes are visible after the first command;
+- the second command starts while Focus Queue, Focus Build, and Focus Notes are
+  still visible;
+- Triage Inbox, Triage Draft, and Triage Updates return after the second command;
+- scene logs, window logs, expected caption chips, and the event manifest agree
+  with the video sequence.
+
+Accepted claims:
+
+- `cycle-zone-scene [--monitor <monitor-pattern>] <scene-id>...` is wired into
+  command parsing, manifests, generated help, config examples, and command
+  execution;
+- the runtime overlay tracks the active scene per physical monitor and wraps
+  through the supplied scene list;
+- if no active scene is recorded, the command can advance from the scene that
+  matches the current layout/workspace state;
+- duplicate or unknown scene ids fail without mutating state;
+- direct `use-zone-layout` clears active scene state;
+- the e2e config exposes `alt-tab = 'cycle-zone-scene triage deep-work'` and
+  the zone-mode binding `c = ['cycle-zone-scene triage deep-work',
+  'mode main']`.
+
+Accepted non-claims:
+
+- no visual scene editor;
+- no sidebar, tab-group, drag, snap, or style-control UX claim;
+- no persistence or relaunch claim for active scene state;
+- no multi-monitor scene-cycle proof beyond the selected physical monitor;
+- no claim that verifier image-content checks can replace no-context media
+  review for command/result timing.
+
+Slice 33 failed-attempt ledger:
+
+- `artifacts/e2e/slice-33-20260630T192903Z` is superseded by
+  `artifacts/e2e/slice-33-20260630T200032Z`. Its no-context artifact review
+  failed because the second `Run: winmux cycle-zone-scene triage deep-work`
+  caption appeared after the video had already wrapped back to triage. The run
+  is formally marked with `reviews/superseded.md` and
+  `logs/run-abort-status.txt`.
+
+Slice 33 accepted notes:
+
+- The accepted Tart run used `TART_HOME=/Volumes/RiftTartVMs/tart`; preflight
+  recorded 1.8 TiB available on `/Volumes/RiftTartVMs`.
+- The accepted artifact's guest retry summaries have no failed attempts. The
+  only mutable product phase is `slice-33-run`, with
+  `mutation_started=yes`.
+- The no-context artifact review required targeted citation/language amendments
+  before the machine review lint accepted it; the final review and both
+  post-review verifier gates pass.
+- The pre-Tart no-context reviewer gate passed with three clean
+  `NO ACTIONABLE ISSUES` results, but those reviewer outputs were not persisted
+  into the artifact. Future slices should store pre-Tart reviewer reports if the
+  plan treats that gate as auditable artifact evidence.
+
+Pre-Slice-34 cleanup:
+
+- [x] Persist successful `make e2e-review-lint
+  RUN_DIR=artifacts/e2e/slice-33-20260630T200032Z` output to
+  `logs/review-lint.log`.
+- [x] Persist successful `make e2e-verify-slice-check
+  RUN_DIR=artifacts/e2e/slice-33-20260630T200032Z ARGS=--require-review`
+  output to `logs/post-review-verify.log`.
+- [x] Run all three Slice 33 no-context retrospectives and fold their blocking
+  findings into this checklist.
+- [x] Run and persist successful `make e2e-slice-closeout-check
+  RUN_DIR=artifacts/e2e/slice-33-20260630T200032Z` output to
+  `logs/closeout-check.log`.
+- [x] Mark the failed media-producing Slice 33 attempt as superseded by the
+  accepted artifact.
+- [x] Record an explicit dirty-baseline inventory for the accepted Slice 33
+  dirty set in `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`, and
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`.
+- [x] Update this plan with the accepted Slice 33 result, failed-attempt note,
+  review/verifier evidence, retrospectives, claims, non-claims, and closeout
+  evidence.
+- [x] Before the next Tart run, either commit the accepted Slice 31-33 dirty set
+  or explicitly decide to carry the Slice 33 dirty-baseline inventory forward.
+  Decision: commit the accepted Slice 31-33 dirty set as the Slice 33 closeout
+  boundary before starting the next product slice.
+- [x] Before the next action-sensitive command-transition proof, add either
+  command timing evidence or frame-content verifier checks for the command
+  boundary that failed in the first Slice 33 attempt. Future Slice 33 reruns now
+  emit `logs/slice-33-command-timing.log`, and the verifier requires both
+  `cycle-zone-scene` command starts to occur under their matching `Run:`
+  captions. The accepted `slice-33-20260630T200032Z` artifact is a documented
+  historical exception because it predates the timing log but passed media
+  review.
+- [x] Before the next transition proof, tighten the slice-specific reviewer
+  packet so reviewers reject target-state visibility before the relevant
+  command caption starts. The Slice 33 packet now fails triage visibility before
+  or at the second command-caption start.
+- [x] Before the next reusable zone-scene proof, rename the leftover
+  `slice-6b-zone-count.txt` guest log to use `${SLICE_PREFIX}`.
+- [x] Before another non-Slice-31 review path uses it, rename
+  `require_review_mentions_slice_31_sample_paths` to a generic helper and fix
+  its error text.
+- [x] If future pre-Tart no-context reviewer gates remain required, write their
+  outputs to a named artifact directory and cite them in the plan before
+  starting the Tart recording. Convention: when the coordinator runs pre-Tart
+  reviewers, write their reports under
+  `<run-dir>/reviews/pre-tart/{process-plan,code-harness,artifact-product}.md`
+  and cite those paths in the slice result or pre-slice checklist.
 
 ## Call-Site Audit
 

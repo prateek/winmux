@@ -76,6 +76,8 @@ final class ConfigTest: XCTestCase {
         XCTAssertEqual(zoneBindings["tab"], "cycle-zone-layout balanced focus; mode main")
         XCTAssertEqual(zoneBindings["a"], "cycle-zone-availability focus-only communications full-dashboard; mode main")
         XCTAssertEqual(zoneBindings["y"], "cycle-zone-style current urgent calm; mode main")
+        XCTAssertEqual(zoneBindings["c"], "cycle-zone-scene triage deep-work; mode main")
+        XCTAssertEqual(parsedConfig.zoneScenes.map(\.id), ["triage", "deep-work"])
     }
 
     func testParseZoneSaveLayoutE2EConfig() throws {
@@ -91,6 +93,24 @@ final class ConfigTest: XCTestCase {
         } ?? [])
         XCTAssertEqual(zoneBindings["s"], "save-zone-layout --dry-run")
         XCTAssertEqual(zoneBindings["shift-s"], "save-zone-layout")
+        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "balanced" }?.columns.map(\.width), [0.25, 0.50, 0.25])
+        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "focus" }?.columns.map(\.width), [0.15, 0.70, 0.15])
+    }
+
+    func testParseZoneRelaunchSavedLayoutE2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-relaunch-saved-layout.toml"),
+            encoding: .utf8,
+        )
+        let (parsedConfig, errors) = parseConfig(toml)
+        assertEquals(errors, [])
+
+        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? [])
+        XCTAssertEqual(zoneBindings["equal"], "resize-zone current width +10%; mode main")
+        XCTAssertEqual(zoneBindings["minus"], "resize-zone current width -10%; mode main")
+        XCTAssertEqual(zoneBindings["s"], "save-zone-layout; mode main")
         XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "balanced" }?.columns.map(\.width), [0.25, 0.50, 0.25])
         XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "focus" }?.columns.map(\.width), [0.15, 0.70, 0.15])
     }

@@ -79,10 +79,14 @@ expected_chips="${LOGS_DIR}/${recording_name}.expected-chips.txt"
 proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
 event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
 mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+delegated_mouse_events="${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv"
 color_sentinel="${LOGS_DIR}/${recording_name}.color-sentinel.tsv"
 overlay_sentinel="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
 visible_geometry_board="${LOGS_DIR}/slice-11a-visible-geometry-board.txt"
-proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
+proof_file="${RUN_DIR}/${recording_name}-proof.txt"
+if [ ! -s "$proof_file" ]; then
+    proof_file="$(single_match "${RUN_DIR}/*-proof.txt")"
+fi
 if [ ! -s "$visible_geometry_board" ]; then
     visible_geometry_board="not applicable"
 fi
@@ -106,7 +110,9 @@ if [ -s "$contact_sheet_manifest" ]; then
 else
     contact_sheet_manifest_label="not applicable"
 fi
-if [ -s "$mouse_events" ]; then
+if [ "$recording_name" = "slice-32-divider-save-relaunch" ] && [ -s "$delegated_mouse_events" ]; then
+    mouse_events_label="$delegated_mouse_events"
+elif [ -s "$mouse_events" ]; then
     mouse_events_label="$mouse_events"
 else
     mouse_events_label="not applicable"
@@ -128,6 +134,12 @@ demo_cut_manifest_exists=0
 if [ "$demo_recording_exists" != "$demo_cut_manifest_exists" ]; then
     die "Demo cut sidecar is incomplete; expected both $demo_recording_path and $demo_cut_manifest or neither"
 fi
+case "$recording_name" in
+    slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch)
+        [ "$demo_recording_exists" = "1" ] \
+            || die "${recording_name} reviewer packet requires demo sidecar evidence: $demo_recording_path and $demo_cut_manifest"
+        ;;
+esac
 if [ "$demo_recording_exists" = "1" ] && [ "$demo_cut_manifest_exists" = "1" ]; then
     demo_recording_label="$demo_recording_path"
     demo_cut_manifest_label="$demo_cut_manifest"
@@ -165,7 +177,16 @@ expected_chip_lines() {
         return 0
     fi
     [ -s "$annotation_plan" ] || return 0
-    /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ && $5 != "" { printf("- `%s`\n", $5) }' "$annotation_plan"
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            for (i = 5; i <= NF; i++) {
+                if ($i != "") {
+                    printf("- `%s`\n", $i)
+                }
+            }
+        }
+    ' "$annotation_plan"
 }
 
 semantic_sample_checklist_lines() {
@@ -290,6 +311,18 @@ EOF
 - Sample frames around the command-caption boundary. Fail if Focus Queue/Build/Notes are visible before the `Run: winmux use-zone-scene deep-work` caption starts, or if the triage scene persists after the after-scene caption begins.
 - Confirm captions expose the `[[zone-scenes]]` config surface, the exact scene switch command, and the list commands users would run to inspect zone workspaces and visible windows.
 - Confirm the proof shows live TextEdit documents changing from triage workspaces to deep-work workspaces, not only a layout width change or CLI output.
+EOF
+            ;;
+        slice-33-cycle-zone-scene)
+            cat <<'EOF'
+- Confirm the recording has a readable triage -> deep-work -> triage wraparound sequence driven by the same command: `winmux cycle-zone-scene triage deep-work`.
+- Sample frames around both `Run: winmux cycle-zone-scene triage deep-work` caption boundaries. Fail if the deep-work documents are visible before the first command caption starts, if triage documents are visible before or at the second command-caption start, or if triage documents are not visible again after the second command result.
+- Confirm captions expose the exact binding/config surface `alt-tab = 'cycle-zone-scene triage deep-work'`, both command runs, and the inspection commands `winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'` and `winmux list-windows --workspace visible`.
+- Inspect `logs/slice-33-cycle-zone-scene.event-manifest.tsv`; reject if it omits separate first command, first result, second command, wrap result, zone inspection, and window inspection events.
+- Inspect `logs/slice-33-command-timing.log` when present; reject if either command offset falls outside the matching command caption window or if a result is detected before its command starts.
+- Inspect `logs/slice-33-scene-before.log`, `logs/slice-33-scene-after.log`, and `logs/slice-33-scene-wrap.log`; require balanced triage before, focus deep-work after the first cycle, and balanced triage after wraparound.
+- Inspect `logs/slice-33-cycle-zone-scene.log` and `logs/slice-33-cycle-zone-scene-wrap.log`; require both to contain the exact command and the expected success output for `deep-work` then `triage`.
+- Confirm the proof uses live TextEdit documents and zone workspaces, not only CLI text, and state clearly whether the video quality is suitable for product-demo use.
 EOF
             ;;
         slice-8-window-routing)
@@ -490,6 +523,47 @@ EOF
 - Reject logs-only proof, config text too small to read, missing backup evidence, dry-run mutation, save output without changed widths, saved widths that do not match runtime effective widths, unrelated TOML sections rewritten away, or any review that accepts without naming the exact media frame/panel showing dry-run output, backup path, and saved TOML width lines.
 EOF
             ;;
+        slice-31-relaunch-saved-layout)
+            cat <<'EOF'
+- Inspect the full acceptance video and the trimmed `.demo.mov` sidecar. The demo sidecar is required, but it does not replace the full recording as proof.
+- Confirm the recording starts with a clean product-shaped desktop: three task documents in Reference, Work, and Comms, with no proof-output windows crowding the view.
+- Confirm the recording shows a runtime width change before save. The `Run: winmux resize-zone Work width +10%` caption must appear before `Run: winmux save-zone-layout`.
+- Confirm the recording shows a real app relaunch after save. The `Action: quit WinMux` caption must show WinMux sidebar/chrome absent in `screenshots/04-after-quit-slice-31.png`; the `Action: relaunch WinMux` caption must precede `Run: winmux list-zones`; and `screenshots/05-after-relaunch-slice-31.png` must show WinMux sidebar/chrome restored. This must not be a `reload-config` proof.
+- Inspect the full video and named media for each beat: `screenshots/00-before-slice-31.png`, `01-ready-slice-31.png`, `02-after-runtime-resize-slice-31.png`, `03-after-save-slice-31.png`, `04-after-quit-slice-31.png`, `05-after-relaunch-slice-31.png`, `99-after-slice-31.png`, every path in the semantic sample manifest, generated edge/corner crops when present, and the event contact sheet. The quit/action and sidebar absent/restored rows must cite annotated caption boundary frames, not only raw screenshots.
+- Confirm captions expose the exact user-facing surface: `Config: saved layout relaunch proof`, `Result: Reference 25% | Work 50% | Comms 25%`, `Run: winmux resize-zone Work width +10%`, `Result: Work 50% -> 60%`, `Result: Reference 20% | Work 60% | Comms 20%`, `Run: winmux save-zone-layout`, `Action: quit WinMux`, `Result: WinMux sidebar absent`, `Action: relaunch WinMux`, `Result: WinMux sidebar restored`, `Run: winmux list-zones`, and `Result: relaunch kept Reference 20% | Work 60% | Comms 20%`.
+- Inspect `logs/slice-31-relaunch-saved-layout.measurements.tsv`; require before widths `Reference 25% | Work 50% | Comms 25%`, resized widths `Reference 20% | Work 60% | Comms 20%`, and relaunched widths `Reference 20% | Work 60% | Comms 20%`.
+- Inspect `logs/slice-31-relaunch-saved-layout.proof-manifest.tsv`; require `target	layout-id	balanced`, `safety	backup-matches-original	yes`, `relaunch	app-stopped	yes`, `relaunch	app-restarted	yes`, `relaunch	widths-restored	yes`, `relaunch	no-runtime-resize-after-launch	yes`, `relaunch	persisted-restart-state-loaded	yes`, `continuity	documents-in-same-zones	yes`, and `continuity	workspaces-preserved	yes`.
+- Inspect `logs/slice-31-save-zone-layout.log`; require the exact save command, saved output, and backup path. Inspect `logs/slice-31-resize-zone.log` and `logs/slice-31-cli.log`; reject extra or variant `resize-zone` or `save-zone-layout` command lines.
+- Compare `logs/slice-31-config-before.sha256`, `logs/slice-31-config-after-save.sha256`, and `logs/slice-31-config-backup.sha256`: after-save must differ from before, and backup must equal before.
+- Inspect `logs/slice-31-relaunch.log`, `logs/slice-31-command-timing.log`, and `logs/slice-31-cli.log`; require bootout, `stopped=yes`, bootstrap, command offsets aligned with captions, no `reload-config`, and no extra post-relaunch `resize-zone`.
+- Inspect `logs/winmux-startup-trace.log`; require the initial launch to record `persisted frozen world loaded: false` and the relaunch to record `persisted frozen world loaded: true`. If the relaunch did not load persisted restart state, reject the artifact even if the final screenshot looks correct.
+- Compare `logs/slice-31-zones-before.log`, `logs/slice-31-zones-after-resize.log`, `logs/slice-31-zones-after-save.log`, `logs/slice-31-zones-after-relaunch.log`, and `logs/slice-31-relaunch-saved-layout.measurements.tsv`: the measurement TSV must have exactly the before/resized/saved/relaunched rows for left/main/right, every row must match the corresponding `list-zones` source log, and relaunched configured/effective widths must match the saved `20/60/20` layout.
+- Compare `logs/slice-31-windows-before.log` and `logs/slice-31-windows-after-relaunch.log`: exactly the three titled task documents must remain in the same zone ids and workspaces, with no extra TextEdit/proof windows. Then inspect `logs/slice-31-product-windows-ready.log`, `logs/slice-31-product-windows-after-save.log`, `logs/slice-31-product-windows-after-relaunch.log`, and `logs/slice-31-product-windows-final.log`; each must show only those three TextEdit task documents and no Terminal, permission prompt, System Settings, Finder, or proof-output window. Cross-check each product-window log's `x` and `width` fields against the corresponding zone log so Research is physically inside Reference, focus-draft is physically inside Work, and team-inbox is physically inside Comms. Do not require internal window ids to remain stable; they are diagnostic only.
+- Include a paragraph beginning `Baseline comparison:` that cites the exact primary recording path, `demo-columnar-zones.mp4`, the Slice 7 root-demo package, and at least one product surface or screenshot. It must explicitly compare clean desktop, restrained captions, live windows/task documents, and command/config chips.
+- State explicitly that Slice 31 proves explicit saved layout durability across a fresh WinMux app relaunch. It does not prove automatic persistence after every drag, persistence across a macOS reboot, a visual config editor, or new command syntax beyond `resize-zone` and `save-zone-layout`.
+- Reject logs-only proof, final-state-only proof, reload-config-only proof, missing or unreadable measurement chips, missing demo sidecar, proof-output windows crowding the product view, missing backup evidence, saved widths that do not match runtime effective widths, a review that assumes relaunch without citing both the visual absent/restored media and `slice-31-relaunch.log`, or any review that accepts without citing the Slice 7/root-demo baselines listed in this packet.
+EOF
+            ;;
+        slice-32-divider-save-relaunch)
+            cat <<'EOF'
+- Confirm the recording visibly shows the Work|Comms divider drag before any save command. Reject proof where the drag is only inferred from final widths or logs.
+- Inspect the full acceptance video and the trimmed `.demo.mov` sidecar. The demo sidecar is required, but it does not replace the full recording as proof.
+- Inspect the full video and named media for each beat: `screenshots/02-divider-hover-slice-26.png`, `03-divider-pickup-slice-26.png`, `04-divider-drag-path-slice-26.png`, `05-divider-preview-slice-26.png`, `06-divider-release-slice-26.png`, `07-after-divider-resize-slice-26.png`, `08-after-save-slice-32.png`, `09-after-quit-slice-32.png`, `10-after-relaunch-slice-32.png`, `99-after-slice-32.png`, every path in the semantic sample manifest, and the event contact sheet.
+- Confirm captions expose the exact user-facing surface: `Config: draggable divider + save-zone-layout`, `Action: drag Work|Comms divider`, `Result: dragged width overrides visible`, `Run: winmux save-zone-layout`, `Action: quit WinMux`, `Action: relaunch WinMux`, `Run: winmux list-zones`, and `Result: dragged widths restored after relaunch`.
+- Inspect `logs/slice-32-divider-save-relaunch.event-manifest.tsv` and require separate rows for `divider-hover`, `divider-pickup`, `divider-drag-path`, `divider-live-preview`, `divider-release`, and `after-divider-resize`. Reject if the delegated divider drag is collapsed into one generic drag event.
+- Inspect `logs/slice-26-zone-divider-drag.mouse-events.tsv` and confirm the Slice 32 event manifest seconds match the delegated hover, pickup, drag path, live preview, release, and post-resize inspection times.
+- Inspect `logs/slice-26-zone-divider-drag.proof-manifest.tsv`; require `drag-target	snap-target	zone-divider`, `divider-policy	target	adjacent-zone-boundary`, and `divider-policy	config-persistence	no-config-rewrite` for the delegated drag phase.
+- Inspect `logs/slice-32-divider-save-relaunch.measurements.tsv`; require before, dragged, saved, and relaunched rows for left/main/right. Dragged Work/main must be wider than before, Comms/right narrower than before, and relaunched configured/effective widths must match the dragged widths.
+- Inspect `logs/slice-32-divider-save-relaunch.proof-manifest.tsv`; require `drag	widths-changed	yes`, `save	config-changed	yes`, `safety	backup-matches-original	yes`, `relaunch	app-stopped	yes`, `relaunch	app-restarted	yes`, `relaunch	dragged-widths-restored	yes`, `relaunch	no-runtime-resize-after-launch	yes`, `relaunch	runtime-override-values-cleared	yes`, and `relaunch	persisted-restart-state-loaded	yes`.
+- Inspect `logs/slice-32-save-zone-layout.log`; require the exact save command, saved output, and backup path. Compare `logs/slice-32-config-before-save.sha256`, `logs/slice-32-config-after-save.sha256`, and `logs/slice-32-config-backup.sha256`: after-save must differ from before-save, and backup must equal before-save.
+- Inspect `logs/slice-32-relaunch.log`, `logs/slice-32-command-timing.log`, and `logs/slice-32-cli.log`; require bootout, `stopped=yes`, bootstrap, command offsets aligned with captions, no `reload-config`, and no post-relaunch `resize-zone` or divider drag.
+- Inspect `logs/winmux-startup-trace.log`; require the initial launch to record `persisted frozen world loaded: false` and the relaunch to record `persisted frozen world loaded: true`.
+- Compare `logs/slice-32-windows-after-relaunch.log` against the delegated Slice 26 window logs: the Reference, Work, and Comms documents must remain in left/main/right after relaunch.
+- Include a paragraph beginning `Baseline comparison:` that cites the exact primary recording path, `demo-columnar-zones.mp4`, the Slice 7 root-demo package, and at least one product surface or screenshot. It must explicitly compare clean desktop, restrained captions, live windows/task documents, divider affordance clarity, and command/config chips.
+- State explicitly that Slice 32 proves explicit save/relaunch durability after a user-visible divider drag. It does not prove automatic persistence on every divider drag, persistence across macOS reboot, a visual config editor, or arbitrary grid/rectangle layout editing.
+- Reject logs-only proof, final-state-only proof, missing divider affordance media, missing backup evidence, saved widths that do not match dragged effective widths, reload-config-only proof, a relaunch that needs another resize/drag command, or any review that accepts without citing both the divider media and relaunch evidence.
+EOF
+            ;;
         slice-11b-zone-style-controls)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, with the sidebar enabled and the Comms zone row readable before any style is applied.
@@ -580,14 +654,14 @@ $(drag_screenshot_lines)
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
-- guest script retry summary: ${guest_script_retry_summary} (phase, attempts, failures, final result, before-recording status)
+- guest script retry summary: ${guest_script_retry_summary} (phase, attempts, failures, final result, before-recording status, mutation metadata when present)
 - guest transport summary: ${transport_summary} (attempt statuses and compact failure reasons)
 - annotation plan: ${annotation_plan}
 - annotation log: ${annotation_log}
 - caption tail manifest: ${caption_tail_label}
 - demo cut manifest: ${demo_cut_manifest_label}
 - expected caption chips: ${expected_chips:-not present}
-- drag proof manifest: ${proof_manifest_label}
+- proof manifest: ${proof_manifest_label}
 - event manifest: ${event_manifest_label}
 - mouse event timings: ${mouse_events_label}
 - color sentinel manifest: ${color_sentinel_label}
@@ -622,7 +696,7 @@ EOF
 ## Expected Caption Chips
 
 These exact config, command, action, or result chips should appear in the annotated
-recording and annotation TSV:
+recording and annotation TSV. The verifier rejects stale or partial chip lists:
 
 $(expected_chip_lines)
 
@@ -678,8 +752,9 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
   explicitly unrelated to zones.
 - If \`logs/guest-script-retry-summary.tsv\` has any row with
   \`before_recording=no\` and \`failures\` greater than zero, name that phase,
-  log path, attempt statuses, final result, and whether the retry happened
-  before the first visible product action. For stateful proof after mutation,
+  log path, attempt statuses, final result, mutation metadata when present, and
+  whether the retry happened before the first visible product action. For
+  stateful proof after mutation,
   require a re-record or explicit artifact evidence that the failed attempt did
   not change the proof state.
 

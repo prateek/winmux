@@ -17,6 +17,7 @@ LOGS_DIR="${RUN_DIR}/logs"
 CONFIG_OUT_DIR="${RUN_DIR}/config"
 RUN_ABORT_STATUS="${LOGS_DIR}/run-abort-status.txt"
 GUEST_RECORDING_ACTIVE=0
+GENERATED_VERSION_SNAPSHOT_DIR=""
 
 BASE_VM="${WINMUX_E2E_BASE_VM:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 VM_NAME="${WINMUX_E2E_VM_NAME:-winmux-e2e-${RUN_ID}}"
@@ -32,6 +33,9 @@ if [ "$ACTION" = "slice-6" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-layout-presets.toml"
 fi
 if [ "$ACTION" = "slice-6b" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
+fi
+if [ "$ACTION" = "slice-33" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
 if [ "$ACTION" = "slice-8" ]; then
@@ -82,7 +86,7 @@ fi
 if [ "$ACTION" = "slice-24" ] || [ "$ACTION" = "slice-25" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/float-unless-snap-secondary-button.toml"
 fi
-if [ "$ACTION" = "slice-26" ]; then
+if [ "$ACTION" = "slice-26" ] || [ "$ACTION" = "slice-32" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
 fi
 if [ "$ACTION" = "slice-27" ]; then
@@ -94,9 +98,12 @@ fi
 if [ "$ACTION" = "slice-29" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-save-layout.toml"
 fi
+if [ "$ACTION" = "slice-31" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-relaunch-saved-layout.toml"
+fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 ACTIVE_CONFIG_HASH_POLICY="${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-immutable}"
-if [ "$ACTION" = "slice-29" ] && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
+if { [ "$ACTION" = "slice-29" ] || [ "$ACTION" = "slice-31" ] || [ "$ACTION" = "slice-32" ]; } && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
     ACTIVE_CONFIG_HASH_POLICY=mutates
 fi
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
@@ -150,7 +157,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -472,15 +479,33 @@ retry_summary_fields_self_test() {
         printf 'attempt=3\n'
         printf 'TCC database is locked\n'
         printf 'probe_result=failure\n'
+        printf '%s\n' "$GUEST_ACTION_MUTATION_MARKER"
         printf 'attempt=4\n'
         printf 'probe_result=success\n'
         printf 'result=success\n'
+        printf 'failure_count=2\n'
     } >"$retry_log"
 
-    local statuses first_reason last_reason
+    local statuses first_reason last_reason mutation_started mutation_line
     statuses="$(log_attempt_statuses "$retry_log")"
     first_reason="$(compact_failure_reason "$retry_log" first)"
     last_reason="$(compact_failure_reason "$retry_log" last)"
+    mutation_started="$(log_mutation_started "$retry_log")"
+    mutation_line="$(first_mutation_line "$retry_log")"
+
+    local old_logs_dir old_guest_recording_active
+    old_logs_dir="$LOGS_DIR"
+    old_guest_recording_active="${GUEST_RECORDING_ACTIVE:-0}"
+    LOGS_DIR="${tmp_dir}/logs"
+    GUEST_RECORDING_ACTIVE=1
+    mkdir -p "$LOGS_DIR"
+    append_guest_script_retry_summary "$retry_log" success
+    grep -F $'last_failure_reason\tmutation_started\tfirst_mutation_line' "${LOGS_DIR}/guest-script-retry-summary.tsv" >/dev/null \
+        || die "Retry summary self-test expected mutation metadata header"
+    grep -F $'\tyes\t9' "${LOGS_DIR}/guest-script-retry-summary.tsv" >/dev/null \
+        || die "Retry summary self-test expected mutation metadata row"
+    LOGS_DIR="$old_logs_dir"
+    GUEST_RECORDING_ACTIVE="$old_guest_recording_active"
     rm -rf "$tmp_dir"
 
     [ "$statuses" = "failure,success,failure,success" ] \
@@ -489,6 +514,10 @@ retry_summary_fields_self_test() {
         || die "Retry summary self-test expected first failure reason, got: $first_reason"
     [ "$last_reason" = "TCC database is locked" ] \
         || die "Retry summary self-test expected last failure reason, got: $last_reason"
+    [ "$mutation_started" = "yes" ] \
+        || die "Retry summary self-test expected mutation_started=yes, got: $mutation_started"
+    [ "$mutation_line" = "9" ] \
+        || die "Retry summary self-test expected first mutation line 9, got: $mutation_line"
 }
 
 warmup_policy_self_test() {
@@ -601,6 +630,53 @@ ensure_host_build() {
     build_exists || die "WinMux build did not produce expected app or executable: $BUILD_PATH"
 }
 
+generated_version_files() {
+    cat <<'EOF'
+Sources/Common/gitHashGenerated.swift
+Sources/Common/versionGenerated.swift
+EOF
+}
+
+snapshot_generated_version_files() {
+    local snapshot_dir="$1"
+    local relative_path target_path
+
+    mkdir -p "$snapshot_dir"
+    while IFS= read -r relative_path; do
+        [ -n "$relative_path" ] || continue
+        target_path="${snapshot_dir}/${relative_path}"
+        mkdir -p "$(dirname "$target_path")"
+        if [ -e "${REPO_ROOT}/${relative_path}" ]; then
+            cp "${REPO_ROOT}/${relative_path}" "$target_path"
+        else
+            : >"${target_path}.missing"
+        fi
+    done < <(generated_version_files)
+}
+
+restore_generated_version_files() {
+    local snapshot_dir="$1"
+    local relative_path
+
+    [ -n "$snapshot_dir" ] || return
+    [ -d "$snapshot_dir" ] || return
+    while IFS= read -r relative_path; do
+        [ -n "$relative_path" ] || continue
+        if [ -e "${snapshot_dir}/${relative_path}.missing" ]; then
+            rm -f "${REPO_ROOT}/${relative_path}"
+        elif [ -e "${snapshot_dir}/${relative_path}" ]; then
+            cp "${snapshot_dir}/${relative_path}" "${REPO_ROOT}/${relative_path}"
+        fi
+    done < <(generated_version_files)
+}
+
+restore_pending_generated_version_snapshot() {
+    if [ -n "${GENERATED_VERSION_SNAPSHOT_DIR:-}" ]; then
+        restore_generated_version_files "$GENERATED_VERSION_SNAPSHOT_DIR"
+        GENERATED_VERSION_SNAPSHOT_DIR=""
+    fi
+}
+
 prepare_vm() {
     if vm_exists "$VM_NAME"; then
         if [ "$RECREATE_VM" = "1" ]; then
@@ -705,13 +781,15 @@ append_guest_script_retry_summary() {
     fi
 
     if [ ! -s "$summary_path" ]; then
-        printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\n' >"$summary_path"
+        printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\tmutation_started\tfirst_mutation_line\n' >"$summary_path"
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
         "$(log_attempt_statuses "$log_path")" \
         "$(compact_failure_reason "$log_path" first)" \
-        "$(compact_failure_reason "$log_path" last)" >>"$summary_path"
+        "$(compact_failure_reason "$log_path" last)" \
+        "$(log_mutation_started "$log_path")" \
+        "$(first_mutation_line "$log_path")" >>"$summary_path"
 }
 
 guest_script_retry() {
@@ -1192,6 +1270,7 @@ stop_vm() {
 
 recorded_scenario_exit() {
     local rc=$?
+    restore_pending_generated_version_snapshot
     if [ "$rc" -ne 0 ] && [ ! -s "$RUN_ABORT_STATUS" ]; then
         write_run_abort_status "${RUN_PHASE:-unknown}" "$rc" failure "" "tart-recording-harness exited before scenario completion"
     fi
@@ -2325,6 +2404,138 @@ write_slice_29_event_manifest() {
         "reload and list-zones show saved widths as configured baseline"
 }
 
+write_slice_31_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label resize_label resized_label save_label quit_label relaunch_label inspect_label final_label
+
+    config_label="$(caption_label_for_chip "$name" "Config: saved layout relaunch proof")"
+    resize_label="$(caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%")"
+    resized_label="$(caption_label_for_chip "$name" "Result: Work 50% -> 60%")"
+    save_label="$(caption_label_for_chip "$name" "Run: winmux save-zone-layout")"
+    quit_label="$(caption_label_for_chip "$name" "Action: quit WinMux")"
+    relaunch_label="$(caption_label_for_chip "$name" "Action: relaunch WinMux")"
+    inspect_label="$(caption_label_for_chip "$name" "Run: winmux list-zones")"
+    final_label="$(caption_label_for_chip "$name" "Result: relaunch kept Reference 20% | Work 60% | Comms 20%")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" config-ready \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "task-shaped Reference, Work, and Comms documents are visible before resizing"
+    append_event_manifest_row "$manifest_path" resize-command-start command \
+        "$(caption_start_for_label "$name" "$resize_label")" "$resize_label" resize-command-start \
+        "screenshots/${name}.samples/${resize_label}-boundary-start.png" \
+        "resize-zone command caption appears before the runtime width change"
+    append_event_manifest_row "$manifest_path" after-runtime-resize state \
+        "$(caption_start_for_label "$name" "$resized_label")" "$resized_label" after-runtime-resize \
+        "screenshots/${name}.samples/${resized_label}-boundary-start.png" \
+        "measurement chip shows Work grew from 50% to 60%"
+    append_event_manifest_row "$manifest_path" save-command-start command \
+        "$(caption_start_for_label "$name" "$save_label")" "$save_label" save-command-start \
+        "screenshots/${name}.samples/${save_label}-boundary-start.png" \
+        "save-zone-layout command appears before the app relaunch"
+    append_event_manifest_row "$manifest_path" quit-action action \
+        "$(caption_start_for_label "$name" "$quit_label")" "$quit_label" quit-action \
+        "screenshots/${name}.samples/${quit_label}-boundary-start.png" \
+        "quit action caption appears with sidebar absent result cue"
+    append_event_manifest_row "$manifest_path" quit-sidebar-absent state \
+        "$(caption_start_for_label "$name" "$quit_label")" "$quit_label" quit-sidebar-absent \
+        "screenshots/${name}.samples/${quit_label}-boundary-start.png" \
+        "WinMux sidebar/chrome absent result cue is visible"
+    append_event_manifest_row "$manifest_path" relaunch-action action \
+        "$(caption_start_for_label "$name" "$relaunch_label")" "$relaunch_label" relaunch-action \
+        "screenshots/${name}.samples/${relaunch_label}-boundary-start.png" \
+        "WinMux relaunch starts after the quit proof and before list-zones"
+    append_event_manifest_row "$manifest_path" relaunch-sidebar-restored state \
+        "$(caption_start_for_label "$name" "$relaunch_label")" "$relaunch_label" relaunch-sidebar-restored \
+        "screenshots/${name}.samples/${relaunch_label}-boundary-start.png" \
+        "WinMux sidebar/chrome restored result cue is visible"
+    append_event_manifest_row "$manifest_path" list-zones-after-relaunch command \
+        "$(caption_start_for_label "$name" "$inspect_label")" "$inspect_label" list-zones-after-relaunch \
+        "screenshots/${name}.samples/${inspect_label}-boundary-start.png" \
+        "list-zones inspection happens only after the app relaunch"
+    append_event_manifest_row "$manifest_path" relaunch-kept-widths inspection \
+        "$(caption_start_for_label "$name" "$final_label")" "$final_label" relaunch-kept-widths \
+        "screenshots/${name}.samples/${final_label}-boundary-start.png" \
+        "measurement chip shows the saved 20/60/20 layout after relaunch"
+}
+
+write_slice_32_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label drag_label dragged_label save_label quit_label relaunch_label inspect_label final_label
+    local delegated_drag_name="slice-26-zone-divider-drag"
+    local hover_seconds pickup_seconds drag_path_seconds preview_seconds release_seconds after_drag_seconds
+
+    config_label="$(caption_label_for_chip "$name" "Config: draggable divider + save-zone-layout")"
+    drag_label="$(caption_label_for_chip "$name" "Action: drag Work|Comms divider")"
+    dragged_label="$(caption_label_for_chip "$name" "Result: dragged width overrides visible")"
+    save_label="$(caption_label_for_chip "$name" "Run: winmux save-zone-layout")"
+    quit_label="$(caption_label_for_chip "$name" "Action: quit WinMux")"
+    relaunch_label="$(caption_label_for_chip "$name" "Action: relaunch WinMux")"
+    inspect_label="$(caption_label_for_chip "$name" "Run: winmux list-zones")"
+    final_label="$(caption_label_for_chip "$name" "Result: dragged widths restored after relaunch")"
+    hover_seconds="$(mouse_event_seconds "$delegated_drag_name" divider-hover "$(caption_start_for_label "$name" "$drag_label")")"
+    pickup_seconds="$(mouse_event_seconds "$delegated_drag_name" divider-pickup "$(caption_start_for_label "$name" "$drag_label")")"
+    drag_path_seconds="$(mouse_event_seconds "$delegated_drag_name" divider-drag-path "$(caption_start_for_label "$name" "$drag_label")")"
+    preview_seconds="$(mouse_event_seconds "$delegated_drag_name" divider-live-preview "$(caption_start_for_label "$name" "$drag_label")")"
+    release_seconds="$(mouse_event_seconds "$delegated_drag_name" divider-release "$(caption_start_for_label "$name" "$drag_label")")"
+    after_drag_seconds="$(mouse_event_seconds "$delegated_drag_name" after-divider-resize "$(caption_start_for_label "$name" "$dragged_label")")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" ready-divider-zones \
+        "screenshots/${name}.samples/${config_label}-boundary-start.png" \
+        "Reference, Work, and Comms are visible before dragging the divider"
+    append_event_manifest_row "$manifest_path" divider-hover overlay \
+        "$hover_seconds" "$drag_label" divider-hover \
+        "screenshots/02-divider-hover-slice-26.png" \
+        "Work|Comms divider hover affordance is visible before mouse down"
+    append_event_manifest_row "$manifest_path" divider-pickup drag \
+        "$pickup_seconds" "$drag_label" divider-pickup \
+        "screenshots/03-divider-pickup-slice-26.png" \
+        "divider is picked up as a zone boundary, not a window or sidebar item"
+    append_event_manifest_row "$manifest_path" divider-drag-path drag \
+        "$drag_path_seconds" "$drag_label" divider-drag-path \
+        "screenshots/04-divider-drag-path-slice-26.png" \
+        "divider moves right along the Work and Comms boundary"
+    append_event_manifest_row "$manifest_path" divider-live-preview overlay \
+        "$preview_seconds" "$drag_label" divider-live-preview \
+        "screenshots/05-divider-preview-slice-26.png" \
+        "live preview shows Work growing and Comms shrinking before release"
+    append_event_manifest_row "$manifest_path" divider-release drag \
+        "$release_seconds" "$drag_label" divider-release \
+        "screenshots/06-divider-release-slice-26.png" \
+        "mouse release commits adjacent runtime widths"
+    append_event_manifest_row "$manifest_path" after-divider-resize inspection \
+        "$after_drag_seconds" "$dragged_label" after-divider-resize \
+        "screenshots/07-after-divider-resize-slice-26.png" \
+        "Work grew and Comms shrank after divider release"
+    append_event_manifest_row "$manifest_path" save-command-start command \
+        "$(caption_start_for_label "$name" "$save_label")" "$save_label" save-command-start \
+        "screenshots/${name}.samples/${save_label}-boundary-start.png" \
+        "save-zone-layout command appears after divider release"
+    append_event_manifest_row "$manifest_path" quit-action action \
+        "$(caption_start_for_label "$name" "$quit_label")" "$quit_label" quit-action \
+        "screenshots/${name}.samples/${quit_label}-boundary-start.png" \
+        "WinMux is stopped after saving"
+    append_event_manifest_row "$manifest_path" relaunch-action action \
+        "$(caption_start_for_label "$name" "$relaunch_label")" "$relaunch_label" relaunch-action \
+        "screenshots/${name}.samples/${relaunch_label}-boundary-start.png" \
+        "WinMux starts again from the saved config"
+    append_event_manifest_row "$manifest_path" list-zones-after-relaunch command \
+        "$(caption_start_for_label "$name" "$inspect_label")" "$inspect_label" list-zones-after-relaunch \
+        "screenshots/${name}.samples/${inspect_label}-boundary-start.png" \
+        "list-zones runs after relaunch"
+    append_event_manifest_row "$manifest_path" relaunch-kept-dragged-widths inspection \
+        "$(caption_start_for_label "$name" "$final_label")" "$final_label" relaunch-kept-dragged-widths \
+        "screenshots/${name}.samples/${final_label}-boundary-start.png" \
+        "measurement chip shows the dragged widths restored as configured widths"
+}
+
 write_slice_21_event_manifest() {
     local name="$1"
     local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
@@ -2390,6 +2601,56 @@ write_slice_21_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_33_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label before_label first_label first_result_label second_label wrap_result_label inspect_zones_label inspect_windows_label
+    config_label="$(caption_label_for_chip "$name" "Config: alt-tab = 'cycle-zone-scene triage deep-work'")"
+    before_label="$(caption_label_for_chip "$name" "Action: before scene = triage")"
+    first_label="$(caption_label_for_chip "$name" "Run: winmux cycle-zone-scene triage deep-work")"
+    first_result_label="$(caption_label_for_chip "$name" "Action: cycle result = deep-work")"
+    second_label="$(last_caption_label_for_chip "$name" "Run: winmux cycle-zone-scene triage deep-work")"
+    wrap_result_label="$(caption_label_for_chip "$name" "Action: cycle result = triage")"
+    inspect_zones_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'")"
+    inspect_windows_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --workspace visible")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" scene-cycle-ready \
+        "screenshots/01-ready-slice-33.png" \
+        "cycle-zone-scene key binding and triage scene are visible before mutation"
+    append_event_manifest_row "$manifest_path" before-cycle state \
+        "$(caption_start_for_label "$name" "$before_label")" "$before_label" before-cycle-triage \
+        "screenshots/${name}.samples/${before_label}-boundary-start.png" \
+        "triage documents are visible before the first cycle command"
+    append_event_manifest_row "$manifest_path" first-cycle-command-start command \
+        "$(caption_start_for_label "$name" "$first_label")" "$first_label" first-cycle-command-start \
+        "screenshots/${name}.samples/${first_label}-boundary-start.png" \
+        "first cycle-zone-scene command caption starts before deep-work result"
+    append_event_manifest_row "$manifest_path" first-cycle-result state \
+        "$(caption_start_for_label "$name" "$first_result_label")" "$first_result_label" first-cycle-result \
+        "screenshots/${name}.samples/${first_result_label}-boundary-start.png" \
+        "deep-work scene documents are visible after the first command"
+    append_event_manifest_row "$manifest_path" second-cycle-command-start command \
+        "$(caption_start_for_label "$name" "$second_label")" "$second_label" second-cycle-command-start \
+        "screenshots/${name}.samples/${second_label}-boundary-start.png" \
+        "second cycle-zone-scene command caption starts before triage wrap result"
+    append_event_manifest_row "$manifest_path" wrap-cycle-result state \
+        "$(caption_start_for_label "$name" "$wrap_result_label")" "$wrap_result_label" wrap-cycle-result \
+        "screenshots/${name}.samples/${wrap_result_label}-boundary-start.png" \
+        "triage scene documents are visible after wraparound"
+    append_event_manifest_row "$manifest_path" inspect-zones command \
+        "$(caption_start_for_label "$name" "$inspect_zones_label")" "$inspect_zones_label" inspect-zones \
+        "screenshots/${name}.samples/${inspect_zones_label}-boundary-start.png" \
+        "list-zones inspection caption is visible after wraparound"
+    append_event_manifest_row "$manifest_path" inspect-windows command \
+        "$(caption_start_for_label "$name" "$inspect_windows_label")" "$inspect_windows_label" inspect-windows \
+        "screenshots/${name}.samples/${inspect_windows_label}-boundary-start.png" \
+        "list-windows inspection caption is visible after wraparound"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -2422,6 +2683,15 @@ write_event_manifest() {
             ;;
         slice-29-save-zone-layout)
             write_slice_29_event_manifest "$name"
+            ;;
+        slice-31-relaunch-saved-layout)
+            write_slice_31_event_manifest "$name"
+            ;;
+        slice-32-divider-save-relaunch)
+            write_slice_32_event_manifest "$name"
+            ;;
+        slice-33-cycle-zone-scene)
+            write_slice_33_event_manifest "$name"
             ;;
         *)
             ;;
@@ -2497,6 +2767,18 @@ CAPTIONS
 27	34	After scene = deep-work	Focus Queue, Build, and Notes replace the triage workspaces.	Action: after scene = deep-work
 34	39	Inspect zone workspaces	The active workspace in each zone now comes from the scene.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
 39	42	Inspect visible windows	Only the deep-work TextEdit documents are visible after the switch.	Run: winmux list-windows --workspace visible
+CAPTIONS
+            ;;
+        slice-33-cycle-zone-scene)
+            cat >"$captions_path" <<'CAPTIONS'
+0	6	Scene-cycle ready	The triage scene shows Inbox, Draft, and Updates workspaces.	Config: alt-tab = 'cycle-zone-scene triage deep-work'
+6	15	Before cycle = triage	Live triage documents are visible before the first cycle.	Action: before scene = triage
+15	27	First scene cycle	The same one-key workflow advances to deep-work.	Run: winmux cycle-zone-scene triage deep-work
+27	38	After first cycle	Focus Queue, Build, and Notes replace the triage workspaces.	Action: cycle result = deep-work
+38	50	Second scene cycle	Running the same command again wraps back to triage.	Run: winmux cycle-zone-scene triage deep-work
+50	60	Wrapped to triage	Inbox, Draft, and Updates are visible again after wraparound.	Action: cycle result = triage
+60	66	Inspect zone workspaces	The active workspace in each zone matches the wrapped scene.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
+66	72	Inspect visible windows	Only the triage TextEdit documents are visible after wraparound.	Run: winmux list-windows --workspace visible
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -2585,6 +2867,30 @@ CAPTIONS
 55	62	Backup and widths	The command prints the backup path and old -> new width changes.	Action: backup path and changed widths are visible
 62	68	Config after save	The saved balanced layout now matches the runtime effective widths.	Action: winmux.toml now has saved widths
 68	74	Reload inspect	Reload and inspect zones to prove saved widths are configured baseline.	Run: winmux reload-config && list-zones	Result: configured = 0.2 / 0.6 / 0.2
+CAPTIONS
+            ;;
+        slice-31-relaunch-saved-layout)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Task zones ready	Research, Draft, and Inbox documents start in Reference, Work, and Comms.	Config: saved layout relaunch proof	Result: Reference 25% | Work 50% | Comms 25%
+8	18	Runtime resize	Widen the Work zone before saving.	Run: winmux resize-zone Work width +10%
+18	28	Measurement update	The visible result chip makes the width change obvious.	Result: Work 50% -> 60%	Result: Reference 20% | Work 60% | Comms 20%
+28	38	Explicit save	Write the current runtime layout to the active config.	Run: winmux save-zone-layout
+38	44	Quit WinMux	Stop WinMux before the launch proof; the sidebar disappears.	Action: quit WinMux	Result: WinMux sidebar absent
+44	50	Relaunch WinMux	Start WinMux again from the saved config, not reload-config.	Action: relaunch WinMux	Result: WinMux sidebar restored
+50	58	Inspect relaunched zones	List zones after the fresh launch has read winmux.toml.	Run: winmux list-zones
+58	62	Saved layout restored	The relaunched desktop keeps the 20/60/20 saved layout.	Result: relaunch kept Reference 20% | Work 60% | Comms 20%
+CAPTIONS
+            ;;
+        slice-32-divider-save-relaunch)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Divider-ready zones	Reference, Work, and Comms start from the balanced layout.	Config: draggable divider + save-zone-layout	Result: Reference 25% | Work 50% | Comms 25%
+8	28	Drag divider	Move the Work and Comms divider before any save command runs.	Action: drag Work|Comms divider
+28	38	Runtime widths changed	Work is wider, Comms is narrower, and Reference stays fixed.	Result: dragged width overrides visible
+38	48	Explicit save	Write the dragged runtime widths into the active config.	Run: winmux save-zone-layout
+48	58	Quit WinMux	Stop WinMux so the next proof is a fresh launch.	Action: quit WinMux
+58	68	Relaunch WinMux	Start WinMux again from the saved config file.	Action: relaunch WinMux
+68	78	Inspect relaunched zones	List zones after the fresh launch has read winmux.toml.	Run: winmux list-zones
+78	88	Dragged layout restored	The relaunched desktop keeps the dragged divider widths.	Result: dragged widths restored after relaunch
 CAPTIONS
             ;;
         slice-10-zone-availability)
@@ -2708,7 +3014,7 @@ CAPTIONS
 caption_footprint_for_recording() {
     local name="$1"
     case "$name" in
-        slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout)
+        slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch)
             printf 'compact\n'
             ;;
         *)
@@ -2752,7 +3058,13 @@ write_expected_caption_chips() {
     [ -s "$captions_path" ] || return 0
     /usr/bin/awk -F'\t' '
         $0 == "" || $1 ~ /^#/ { next }
-        $5 != "" { print $5 }
+        {
+            for (i = 5; i <= NF; i++) {
+                if ($i != "") {
+                    print $i
+                }
+            }
+        }
     ' "$captions_path" >"$expected_chips_path"
 }
 
@@ -2810,14 +3122,17 @@ annotation_preflight() {
         slice-26-zone-divider-drag \
         slice-27-window-slot-snap \
         slice-28-export-zone-layout \
-        slice-29-save-zone-layout
+        slice-29-save-zone-layout \
+        slice-31-relaunch-saved-layout \
+        slice-32-divider-save-relaunch \
+        slice-33-cycle-zone-scene
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -2825,11 +3140,32 @@ annotation_preflight() {
         esac
         awk -F '\t' '
             $0 == "" || $1 ~ /^#/ { next }
-            length($5) > 100 {
-                printf("Caption command/action chip is too long for preflight (%d chars): %s\n", length($5), $5) > "/dev/stderr"
-                exit 1
+            {
+                chip_count = 0
+                for (i = 5; i <= NF; i++) {
+                    if ($i == "") {
+                        continue
+                    }
+                    chip_count++
+                    if ($i !~ /^(Run|Config|Edit|Debug|Action|Result|Input):/) {
+                        printf("Caption chip %d is missing a user-facing prefix: %s\n", i - 4, $i) > "/dev/stderr"
+                        exit 1
+                    }
+                    if ($i ~ /\.\.\.|<[^>]*>|winmux <command>/) {
+                        printf("Caption chip %d uses a placeholder command/config/action/result: %s\n", i - 4, $i) > "/dev/stderr"
+                        exit 1
+                    }
+                    if (length($i) > 100) {
+                        printf("Caption chip %d is too long for preflight (%d chars): %s\n", i - 4, length($i), $i) > "/dev/stderr"
+                        exit 1
+                    }
+                }
+                if (chip_count == 0) {
+                    printf("Caption row %d has no user-facing command/config/action/result chip: %s\n", NR, $0) > "/dev/stderr"
+                    exit 1
+                }
             }
-        ' "$captions" || die "Annotation preflight found an overlong chip in $name"
+        ' "$captions" || die "Annotation preflight rejected a caption chip in $name"
         caption_footprint="${WINMUX_E2E_CAPTION_FOOTPRINT:-$(caption_footprint_for_recording "$name")}"
         caption_anchor="${WINMUX_E2E_CAPTION_ANCHOR:-bottom-left}"
         if ! WINMUX_E2E_CAPTION_FOOTPRINT="$caption_footprint" \
@@ -3268,6 +3604,112 @@ write_semantic_sample_manifest() {
                 "screenshots/07-after-reload-inspect-slice-29.png" \
                 "reload/list-zones inspection shows saved widths as configured baseline"
             ;;
+        slice-31-relaunch-saved-layout)
+            local resize_caption_label resize_caption_start resized_caption_label resized_caption_start save_caption_label save_caption_start
+            local quit_caption_label quit_caption_start relaunch_caption_label relaunch_caption_start inspect_caption_label inspect_caption_start final_caption_label final_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            resize_caption_label="$(event_manifest_field "$event_manifest" resize-command-start caption-label || caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%" || printf 'caption-02\n')"
+            resize_caption_start="$(event_manifest_field "$event_manifest" resize-command-start seconds || caption_start_for_label "$name" "$resize_caption_label" || printf 'caption-boundary-start\n')"
+            resized_caption_label="$(event_manifest_field "$event_manifest" after-runtime-resize caption-label || caption_label_for_chip "$name" "Result: Work 50% -> 60%" || printf 'caption-03\n')"
+            resized_caption_start="$(event_manifest_field "$event_manifest" after-runtime-resize seconds || caption_start_for_label "$name" "$resized_caption_label" || printf 'caption-boundary-start\n')"
+            save_caption_label="$(event_manifest_field "$event_manifest" save-command-start caption-label || caption_label_for_chip "$name" "Run: winmux save-zone-layout" || printf 'caption-04\n')"
+            save_caption_start="$(event_manifest_field "$event_manifest" save-command-start seconds || caption_start_for_label "$name" "$save_caption_label" || printf 'caption-boundary-start\n')"
+            quit_caption_label="$(event_manifest_field "$event_manifest" quit-action caption-label || caption_label_for_chip "$name" "Action: quit WinMux" || printf 'caption-05\n')"
+            quit_caption_start="$(event_manifest_field "$event_manifest" quit-action seconds || caption_start_for_label "$name" "$quit_caption_label" || printf 'caption-boundary-start\n')"
+            relaunch_caption_label="$(event_manifest_field "$event_manifest" relaunch-action caption-label || caption_label_for_chip "$name" "Action: relaunch WinMux" || printf 'caption-06\n')"
+            relaunch_caption_start="$(event_manifest_field "$event_manifest" relaunch-action seconds || caption_start_for_label "$name" "$relaunch_caption_label" || printf 'caption-boundary-start\n')"
+            inspect_caption_label="$(event_manifest_field "$event_manifest" list-zones-after-relaunch caption-label || caption_label_for_chip "$name" "Run: winmux list-zones" || printf 'caption-07\n')"
+            inspect_caption_start="$(event_manifest_field "$event_manifest" list-zones-after-relaunch seconds || caption_start_for_label "$name" "$inspect_caption_label" || printf 'caption-boundary-start\n')"
+            final_caption_label="$(event_manifest_field "$event_manifest" relaunch-kept-widths caption-label || caption_label_for_chip "$name" "Result: relaunch kept Reference 20% | Work 60% | Comms 20%" || printf 'caption-08\n')"
+            final_caption_start="$(event_manifest_field "$event_manifest" relaunch-kept-widths seconds || caption_start_for_label "$name" "$final_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic ready-task-zones screenshot screenshot \
+                "screenshots/01-ready-slice-31.png" \
+                "Research, Draft, and Inbox task documents are visible before resizing"
+            append_sample_manifest_row "$manifest_path" semantic resize-command-start "$resize_caption_label" "$resize_caption_start" \
+                "screenshots/${name}.samples/${resize_caption_label}-boundary-start.png" \
+                "resize-zone command appears before the runtime width change"
+            append_sample_manifest_row "$manifest_path" semantic after-runtime-resize "$resized_caption_label" "$resized_caption_start" \
+                "screenshots/${name}.samples/${resized_caption_label}-boundary-start.png" \
+                "measurement chip shows Reference 20%, Work 60%, and Comms 20%"
+            append_sample_manifest_row "$manifest_path" semantic save-command-start "$save_caption_label" "$save_caption_start" \
+                "screenshots/${name}.samples/${save_caption_label}-boundary-start.png" \
+                "save-zone-layout command appears before relaunch"
+            append_sample_manifest_row "$manifest_path" semantic after-save screenshot screenshot \
+                "screenshots/03-after-save-slice-31.png" \
+                "desktop remains product-shaped after explicit save"
+            append_sample_manifest_row "$manifest_path" semantic quit-action "$quit_caption_label" "$quit_caption_start" \
+                "screenshots/${name}.samples/${quit_caption_label}-boundary-start.png" \
+                "quit action caption appears with sidebar absent result cue"
+            append_sample_manifest_row "$manifest_path" semantic quit-sidebar-absent "$quit_caption_label" "$quit_caption_start" \
+                "screenshots/${name}.samples/${quit_caption_label}-boundary-start.png" \
+                "WinMux sidebar/chrome absent result cue is visible"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-action "$relaunch_caption_label" "$relaunch_caption_start" \
+                "screenshots/${name}.samples/${relaunch_caption_label}-boundary-start.png" \
+                "relaunch action caption appears after the quit proof"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-sidebar-restored "$relaunch_caption_label" "$relaunch_caption_start" \
+                "screenshots/${name}.samples/${relaunch_caption_label}-boundary-start.png" \
+                "WinMux sidebar/chrome restored result cue is visible"
+            append_sample_manifest_row "$manifest_path" semantic list-zones-after-relaunch "$inspect_caption_label" "$inspect_caption_start" \
+                "screenshots/${name}.samples/${inspect_caption_label}-boundary-start.png" \
+                "list-zones runs after relaunch"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-kept-widths "$final_caption_label" "$final_caption_start" \
+                "screenshots/${name}.samples/${final_caption_label}-boundary-start.png" \
+                "relaunch keeps the saved 20/60/20 layout"
+            ;;
+        slice-32-divider-save-relaunch)
+            local save_caption_label save_caption_start
+            local quit_caption_label quit_caption_start relaunch_caption_label relaunch_caption_start inspect_caption_label inspect_caption_start final_caption_label final_caption_start
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            save_caption_label="$(event_manifest_field "$event_manifest" save-command-start caption-label || caption_label_for_chip "$name" "Run: winmux save-zone-layout" || printf 'caption-04\n')"
+            save_caption_start="$(event_manifest_field "$event_manifest" save-command-start seconds || caption_start_for_label "$name" "$save_caption_label" || printf 'caption-boundary-start\n')"
+            quit_caption_label="$(event_manifest_field "$event_manifest" quit-action caption-label || caption_label_for_chip "$name" "Action: quit WinMux" || printf 'caption-05\n')"
+            quit_caption_start="$(event_manifest_field "$event_manifest" quit-action seconds || caption_start_for_label "$name" "$quit_caption_label" || printf 'caption-boundary-start\n')"
+            relaunch_caption_label="$(event_manifest_field "$event_manifest" relaunch-action caption-label || caption_label_for_chip "$name" "Action: relaunch WinMux" || printf 'caption-06\n')"
+            relaunch_caption_start="$(event_manifest_field "$event_manifest" relaunch-action seconds || caption_start_for_label "$name" "$relaunch_caption_label" || printf 'caption-boundary-start\n')"
+            inspect_caption_label="$(event_manifest_field "$event_manifest" list-zones-after-relaunch caption-label || caption_label_for_chip "$name" "Run: winmux list-zones" || printf 'caption-07\n')"
+            inspect_caption_start="$(event_manifest_field "$event_manifest" list-zones-after-relaunch seconds || caption_start_for_label "$name" "$inspect_caption_label" || printf 'caption-boundary-start\n')"
+            final_caption_label="$(event_manifest_field "$event_manifest" relaunch-kept-dragged-widths caption-label || caption_label_for_chip "$name" "Result: dragged widths restored after relaunch" || printf 'caption-08\n')"
+            final_caption_start="$(event_manifest_field "$event_manifest" relaunch-kept-dragged-widths seconds || caption_start_for_label "$name" "$final_caption_label" || printf 'caption-boundary-start\n')"
+            append_sample_manifest_row "$manifest_path" semantic ready-divider-zones screenshot screenshot \
+                "screenshots/01-ready-slice-32.png" \
+                "Reference, Work, and Comms are visible before divider drag"
+            append_sample_manifest_row "$manifest_path" semantic divider-hover screenshot screenshot \
+                "screenshots/02-divider-hover-slice-26.png" \
+                "Work and Comms divider hover affordance is visible before pickup"
+            append_sample_manifest_row "$manifest_path" semantic divider-pickup screenshot screenshot \
+                "screenshots/03-divider-pickup-slice-26.png" \
+                "divider is picked up as a zone boundary"
+            append_sample_manifest_row "$manifest_path" semantic divider-drag-path screenshot screenshot \
+                "screenshots/04-divider-drag-path-slice-26.png" \
+                "divider drag path is visible between Work and Comms"
+            append_sample_manifest_row "$manifest_path" semantic divider-live-preview screenshot screenshot \
+                "screenshots/05-divider-preview-slice-26.png" \
+                "Work grows and Comms shrinks during live divider preview"
+            append_sample_manifest_row "$manifest_path" semantic divider-release screenshot screenshot \
+                "screenshots/06-divider-release-slice-26.png" \
+                "release commits the adjacent divider widths"
+            append_sample_manifest_row "$manifest_path" semantic after-divider-resize screenshot screenshot \
+                "screenshots/07-after-divider-resize-slice-26.png" \
+                "Work grew and Comms shrank after divider release"
+            append_sample_manifest_row "$manifest_path" semantic save-command-start "$save_caption_label" "$save_caption_start" \
+                "screenshots/${name}.samples/${save_caption_label}-boundary-start.png" \
+                "save-zone-layout command appears after divider release"
+            append_sample_manifest_row "$manifest_path" semantic after-save screenshot screenshot \
+                "screenshots/08-after-save-slice-32.png" \
+                "save completes while dragged widths remain visible"
+            append_sample_manifest_row "$manifest_path" semantic quit-action "$quit_caption_label" "$quit_caption_start" \
+                "screenshots/${name}.samples/${quit_caption_label}-boundary-start.png" \
+                "quit action starts after save"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-action "$relaunch_caption_label" "$relaunch_caption_start" \
+                "screenshots/${name}.samples/${relaunch_caption_label}-boundary-start.png" \
+                "relaunch action starts after quit"
+            append_sample_manifest_row "$manifest_path" semantic list-zones-after-relaunch "$inspect_caption_label" "$inspect_caption_start" \
+                "screenshots/${name}.samples/${inspect_caption_label}-boundary-start.png" \
+                "list-zones runs after relaunch"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-kept-dragged-widths "$final_caption_label" "$final_caption_start" \
+                "screenshots/${name}.samples/${final_caption_label}-boundary-start.png" \
+                "relaunch keeps the saved dragged divider widths"
+            ;;
         slice-21-zone-mode-v2)
             local snap_caption_label layout_caption_label focus_caption_label communications_caption_label style_caption_label
             local snap_caption_start layout_caption_start focus_caption_start communications_caption_start style_caption_start
@@ -3501,6 +3943,35 @@ log_attempt_statuses() {
     ' "$path"
 }
 
+log_mutation_started() {
+    local path="$1"
+    if [ -s "$path" ] && /usr/bin/grep -F "$GUEST_ACTION_MUTATION_MARKER" "$path" >/dev/null 2>&1; then
+        printf 'yes\n'
+    else
+        printf 'no\n'
+    fi
+}
+
+first_mutation_line() {
+    local path="$1"
+    [ -s "$path" ] || {
+        printf -- '-\n'
+        return
+    }
+    /usr/bin/awk -v marker="$GUEST_ACTION_MUTATION_MARKER" '
+        index($0, marker) {
+            print NR
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                print "-"
+            }
+        }
+    ' "$path"
+}
+
 compact_failure_reason() {
     local path="$1"
     local which="$2"
@@ -3605,8 +4076,8 @@ append_guest_retry_rows_to_transport_summary() {
     local retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
     [ -s "$retry_summary" ] || return 0
 
-    local phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason
-    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason; do
+    local phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason _mutation_started _first_mutation_line
+    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason _mutation_started _first_mutation_line; do
         case "${phase:-}" in
             ""|\#*) continue ;;
         esac
@@ -5132,6 +5603,34 @@ run_slice_6b_zone_scenes() {
         "${LOGS_DIR}/slice-6b-run.log"
 }
 
+run_slice_33_cycle_zone_scene_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_ZONE_SCENE_PHASE=setup WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX=slice-33 WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS='cycle-zone-scene triage deep-work' WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME=slice-33-cycle-zone-scene.log WINMUX_E2E_ZONE_SCENE_PROOF_MODE=cycle-wrap /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-33-setup.log"
+}
+
+run_slice_33_cycle_zone_scene() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_ZONE_SCENE_PHASE=proof WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX=slice-33 WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS='cycle-zone-scene triage deep-work' WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME=slice-33-cycle-zone-scene.log WINMUX_E2E_ZONE_SCENE_PROOF_MODE=cycle-wrap /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-33-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -5646,6 +6145,58 @@ run_slice_29_save_zone_layout() {
         "${LOGS_DIR}/slice-29-run.log"
 }
 
+run_slice_31_relaunch_saved_layout_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-31-relaunch-saved-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE31_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-31-setup.log"
+}
+
+run_slice_31_relaunch_saved_layout() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-31-relaunch-saved-layout.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE31_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-31-run.log"
+}
+
+run_slice_32_divider_save_relaunch_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-32-divider-save-relaunch.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE32_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-32-setup.log"
+}
+
+run_slice_32_divider_save_relaunch() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-32-divider-save-relaunch.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE32_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-32-run.log"
+}
+
 run_slice_21_zone_mode_v2_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-21-zone-mode-v2.sh"
     local scenario_path_quoted
@@ -5805,10 +6356,22 @@ run_recorded_scenario() {
     RUN_PHASE="preflight"
     trap recorded_scenario_exit EXIT
     preflight
+    local generated_version_snapshot="${LOGS_DIR}/host-build-generated-version-snapshot"
     RUN_PHASE="host-build"
+    snapshot_generated_version_files "$generated_version_snapshot"
+    GENERATED_VERSION_SNAPSHOT_DIR="$generated_version_snapshot"
     ensure_host_build
+    restore_pending_generated_version_snapshot
     RUN_PHASE="host-build-generated-clean"
-    "${SCRIPT_DIR}/check-generated-version-clean"
+    local generated_clean_log="${LOGS_DIR}/host-build-generated-clean.log"
+    local generated_clean_rc=0
+    "${SCRIPT_DIR}/check-generated-version-clean" >"$generated_clean_log" 2>&1 || generated_clean_rc=$?
+    if [ "$generated_clean_rc" -ne 0 ]; then
+        cat "$generated_clean_log" >&2 || true
+        write_run_abort_status "$RUN_PHASE" "$generated_clean_rc" failure "$generated_clean_log" \
+            "generated version files were dirty after host build"
+        return "$generated_clean_rc"
+    fi
     RUN_PHASE="prepare-vm"
     prepare_vm
     RUN_PHASE="start-vm"
@@ -5912,6 +6475,10 @@ slice_6b() {
     run_recorded_scenario "slice-6b-zone-scenes" "00-before-slice-6b" "99-after-slice-6b" "run_slice_6b_zone_scenes" "run_slice_6b_zone_scene_setup" "01-ready-slice-6b"
 }
 
+slice_33() {
+    run_recorded_scenario "slice-33-cycle-zone-scene" "00-before-slice-33" "99-after-slice-33" "run_slice_33_cycle_zone_scene" "run_slice_33_cycle_zone_scene_setup" "01-ready-slice-33"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -6004,6 +6571,14 @@ slice_29() {
     run_recorded_scenario "slice-29-save-zone-layout" "00-before-slice-29" "99-after-slice-29" "run_slice_29_save_zone_layout" "run_slice_29_save_zone_layout_setup" "01-ready-slice-29"
 }
 
+slice_31() {
+    run_recorded_scenario "slice-31-relaunch-saved-layout" "00-before-slice-31" "99-after-slice-31" "run_slice_31_relaunch_saved_layout" "run_slice_31_relaunch_saved_layout_setup" "01-ready-slice-31"
+}
+
+slice_32() {
+    run_recorded_scenario "slice-32-divider-save-relaunch" "00-before-slice-32" "99-after-slice-32" "run_slice_32_divider_save_relaunch" "run_slice_32_divider_save_relaunch_setup" "01-ready-slice-32"
+}
+
 case "$ACTION" in
     -h|--help|help)
         usage
@@ -6049,6 +6624,9 @@ case "$ACTION" in
         ;;
     slice-6b)
         slice_6b
+        ;;
+    slice-33)
+        slice_33
         ;;
     slice-8)
         slice_8
@@ -6118,6 +6696,12 @@ case "$ACTION" in
         ;;
     slice-29)
         slice_29
+        ;;
+    slice-31)
+        slice_31
+        ;;
+    slice-32)
+        slice_32
         ;;
     *)
         usage >&2

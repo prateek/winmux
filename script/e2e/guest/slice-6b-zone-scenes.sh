@@ -4,7 +4,11 @@ set -euo pipefail
 : "${REPO_DIR:?}"
 : "${ARTIFACTS_DIR:?}"
 
-PHASE="${WINMUX_E2E_SLICE6B_PHASE:-proof}"
+SLICE_PREFIX="${WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX:-slice-6b}"
+PHASE="${WINMUX_E2E_ZONE_SCENE_PHASE:-${WINMUX_E2E_SLICE6B_PHASE:-proof}}"
+COMMAND_ARGS_TEXT="${WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS:-use-zone-scene deep-work}"
+COMMAND_LOG_BASENAME="${WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME:-${SLICE_PREFIX}-use-zone-scene.log}"
+PROOF_MODE="${WINMUX_E2E_ZONE_SCENE_PROOF_MODE:-single-switch}"
 SEMANTIC_FAILURE_EXIT="${WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT:-86}"
 SOURCE_APP="${REPO_DIR}/.debug/WinMuxApp"
 SOURCE_CLI="${REPO_DIR}/.debug/winmux"
@@ -14,26 +18,31 @@ CLI="${BIN_DIR}/winmux"
 CONFIG="${ARTIFACTS_DIR}/config/winmux.toml"
 
 APP_LOG="${ARTIFACTS_DIR}/logs/winmux-app.log"
-APP_LOG_LOCAL="/tmp/winmux-e2e-slice6b-app.log"
+APP_LOG_LOCAL="/tmp/winmux-e2e-${SLICE_PREFIX}-app.log"
 STARTUP_TRACE="${ARTIFACTS_DIR}/logs/winmux-startup-trace.log"
-STARTUP_TRACE_LOCAL="/tmp/winmux-e2e-slice6b-startup.log"
+STARTUP_TRACE_LOCAL="/tmp/winmux-e2e-${SLICE_PREFIX}-startup.log"
 LAUNCH_STATUS="${ARTIFACTS_DIR}/logs/winmux-launchagent-status.log"
-LAUNCH_LABEL="local.winmux.e2e.slice6b"
-LAUNCH_PLIST="/tmp/winmux-e2e-slice6b.plist"
-LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-slice6b.plist"
+LAUNCH_LABEL="local.winmux.e2e.${SLICE_PREFIX//-/.}"
+LAUNCH_PLIST="/tmp/winmux-e2e-${SLICE_PREFIX}.plist"
+LAUNCH_PLIST_COPY="${ARTIFACTS_DIR}/logs/winmux-e2e-${SLICE_PREFIX}.plist"
 
-SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-6b-scene-setup.log"
-SCENE_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-6b-scene-before.log"
-SCENE_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-6b-scene-after.log"
-WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-6b-windows-setup.log"
-WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-6b-windows-before.log"
-WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-6b-windows-after.log"
-SWITCH_LOG="${ARTIFACTS_DIR}/logs/slice-6b-use-zone-scene.log"
-CLI_LOG="${ARTIFACTS_DIR}/logs/slice-6b-cli.log"
-WAIT_ERR="${ARTIFACTS_DIR}/logs/slice-6b-cli-wait.err"
-STATE_FILE="${ARTIFACTS_DIR}/logs/slice-6b-window-ids.env"
-DONE="${ARTIFACTS_DIR}/logs/slice-6b-zone-scene.done"
-PROOF="${ARTIFACTS_DIR}/slice-6b-zone-scene-proof.txt"
+SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-scene-setup.log"
+SCENE_BEFORE_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-scene-before.log"
+SCENE_AFTER_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-scene-after.log"
+SCENE_WRAP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-scene-wrap.log"
+WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-setup.log"
+WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-before.log"
+WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after.log"
+WINDOW_WRAP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-wrap.log"
+SWITCH_LOG="${ARTIFACTS_DIR}/logs/${COMMAND_LOG_BASENAME}"
+WRAP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cycle-zone-scene-wrap.log"
+CLI_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli.log"
+WAIT_ERR="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli-wait.err"
+ZONE_COUNT_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zone-count.txt"
+TIMING_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-command-timing.log"
+STATE_FILE="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-window-ids.env"
+DONE="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zone-scene.done"
+PROOF="${ARTIFACTS_DIR}/${SLICE_PREFIX}-zone-scene-proof.txt"
 
 DOC_DIR="${HOME}/winmux-e2e/zone-scene-docs"
 TRIAGE_INBOX_DOC="${DOC_DIR}/triage-inbox.rtf"
@@ -177,6 +186,13 @@ assert_title_absent() {
     fi
 }
 
+sleep_until_proof_second() {
+    local target_seconds="$1"
+    if [ "${SECONDS}" -lt "${target_seconds}" ]; then
+        sleep $((target_seconds - SECONDS))
+    fi
+}
+
 wait_for_textedit_windows() {
     local expected="$1"
     for _ in $(seq 1 60); do
@@ -250,7 +266,7 @@ PLIST
         /bin/launchctl print "gui/${uid}/${LAUNCH_LABEL}" >"${LAUNCH_STATUS}" 2>&1 || true
         /usr/bin/awk '/pid =/ { print $3; exit }' "${LAUNCH_STATUS}" >"${ARTIFACTS_DIR}/logs/winmux-app.pid" || true
         copy_runtime_logs
-        if "${CLI}" list-zones --count >"${ARTIFACTS_DIR}/logs/slice-6b-zone-count.txt" 2>"${WAIT_ERR}"; then
+        if "${CLI}" list-zones --count >"${ZONE_COUNT_LOG}" 2>"${WAIT_ERR}"; then
             return
         fi
         sleep 1
@@ -267,19 +283,21 @@ PLIST
 
 setup_slice() {
     rm -f \
-        "${DONE}" "${SETUP_LOG}" "${SCENE_BEFORE_LOG}" "${SCENE_AFTER_LOG}" \
-        "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" \
-        "${SWITCH_LOG}" "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${PROOF}" \
+        "${DONE}" "${SETUP_LOG}" "${SCENE_BEFORE_LOG}" "${SCENE_AFTER_LOG}" "${SCENE_WRAP_LOG}" \
+        "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" "${WINDOW_WRAP_LOG}" \
+        "${SWITCH_LOG}" "${WRAP_LOG}" "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${PROOF}" \
         "${APP_LOG}" "${APP_LOG_LOCAL}" "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" \
         "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}"
     rm -rf "${DOC_DIR}"
 
     {
-        echo 'WinMux Slice 6B: zone scenes'
+        echo "WinMux ${SLICE_PREFIX}: zone scenes"
         echo "Source App: ${SOURCE_APP}"
         echo "Source CLI: ${SOURCE_CLI}"
         echo "Config: ${CONFIG}"
         echo 'Config: [[zone-scenes]] triage and deep-work'
+        echo "Command: winmux ${COMMAND_ARGS_TEXT}"
+        echo "Proof mode: ${PROOF_MODE}"
     } | tee "${SETUP_LOG}"
 
     test -x "${SOURCE_APP}"
@@ -291,12 +309,12 @@ setup_slice() {
     /bin/cp "${SOURCE_CLI}" "${CLI}"
     chmod +x "${APP}" "${CLI}"
 
-    write_scene_doc "${TRIAGE_INBOX_DOC}" 'TRIAGE INBOX' 'scene: triage' 'left zone before use-zone-scene'
-    write_scene_doc "${TRIAGE_DRAFT_DOC}" 'TRIAGE DRAFT' 'scene: triage' 'main zone before use-zone-scene'
-    write_scene_doc "${TRIAGE_UPDATES_DOC}" 'TRIAGE UPDATES' 'scene: triage' 'right zone before use-zone-scene'
-    write_scene_doc "${FOCUS_QUEUE_DOC}" 'FOCUS QUEUE' 'scene: deep-work' 'left zone after use-zone-scene'
-    write_scene_doc "${FOCUS_BUILD_DOC}" 'FOCUS BUILD' 'scene: deep-work' 'main zone after use-zone-scene'
-    write_scene_doc "${FOCUS_NOTES_DOC}" 'FOCUS NOTES' 'scene: deep-work' 'right zone after use-zone-scene'
+    write_scene_doc "${TRIAGE_INBOX_DOC}" 'TRIAGE INBOX' 'scene: triage' "left zone before ${COMMAND_ARGS_TEXT}"
+    write_scene_doc "${TRIAGE_DRAFT_DOC}" 'TRIAGE DRAFT' 'scene: triage' "main zone before ${COMMAND_ARGS_TEXT}"
+    write_scene_doc "${TRIAGE_UPDATES_DOC}" 'TRIAGE UPDATES' 'scene: triage' "right zone before ${COMMAND_ARGS_TEXT}"
+    write_scene_doc "${FOCUS_QUEUE_DOC}" 'FOCUS QUEUE' 'scene: deep-work' "left zone after ${COMMAND_ARGS_TEXT}"
+    write_scene_doc "${FOCUS_BUILD_DOC}" 'FOCUS BUILD' 'scene: deep-work' "main zone after ${COMMAND_ARGS_TEXT}"
+    write_scene_doc "${FOCUS_NOTES_DOC}" 'FOCUS NOTES' 'scene: deep-work' "right zone after ${COMMAND_ARGS_TEXT}"
 
     launch_winmux
 
@@ -370,6 +388,10 @@ STATE
 }
 
 proof_slice() {
+    local command_args
+    IFS=' ' read -r -a command_args <<<"${COMMAND_ARGS_TEXT}"
+    SECONDS=0
+    : >"${TIMING_LOG}"
     test -f "${STATE_FILE}"
     # shellcheck disable=SC1090
     source "${STATE_FILE}"
@@ -382,17 +404,21 @@ proof_slice() {
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'triage-inbox.rtf' left
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'triage-draft.rtf' main
     assert_window_zone "${WINDOW_BEFORE_LOG}" 'triage-updates.rtf' right
-    sleep 15
+    sleep_until_proof_second 15
 
+    printf 'first-command-start-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
     {
-        echo '$ winmux use-zone-scene deep-work'
-        "${CLI}" use-zone-scene deep-work
+        echo "${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
+        echo "$ winmux ${COMMAND_ARGS_TEXT}"
+        "${CLI}" "${command_args[@]}"
     } | tee "${SWITCH_LOG}"
+    printf 'first-command-end-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
     sleep 5
 
     for _ in $(seq 1 30); do
         write_scene_log "${SCENE_AFTER_LOG}" >/dev/null
         if [ "$(workspace_for_zone "${SCENE_AFTER_LOG}" main)" = FocusBuild ]; then
+            printf 'first-result-detected-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
             break
         fi
         sleep 1
@@ -417,12 +443,49 @@ proof_slice() {
     assert_float_lt "${after_left_width}" "${before_left_width}" 'left scene width shrank'
     assert_float_gt "${after_main_width}" "${before_main_width}" 'main scene width grew'
     assert_float_lt "${after_right_width}" "${before_right_width}" 'right scene width shrank'
+
+    if [ "${PROOF_MODE}" = cycle-wrap ]; then
+        sleep_until_proof_second 39
+        printf 'second-command-start-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
+        {
+            echo "$ winmux ${COMMAND_ARGS_TEXT}"
+            "${CLI}" "${command_args[@]}"
+        } | tee "${WRAP_LOG}"
+        printf 'second-command-end-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
+        sleep 5
+
+        for _ in $(seq 1 30); do
+            write_scene_log "${SCENE_WRAP_LOG}" >/dev/null
+            if [ "$(workspace_for_zone "${SCENE_WRAP_LOG}" main)" = TriageDraft ]; then
+                printf 'wrap-result-detected-offset-seconds=%s\n' "${SECONDS}" >>"${TIMING_LOG}"
+                break
+            fi
+            sleep 1
+        done
+        assert_scene_state "${SCENE_WRAP_LOG}" balanced TriageInbox TriageDraft TriageUpdates
+        "${CLI}" focus-zone main
+        "${CLI}" focus --window-id "${TRIAGE_DRAFT_ID}"
+        refresh_window_log "${WINDOW_WRAP_LOG}"
+        assert_window_zone "${WINDOW_WRAP_LOG}" 'triage-inbox.rtf' left
+        assert_window_zone "${WINDOW_WRAP_LOG}" 'triage-draft.rtf' main
+        assert_window_zone "${WINDOW_WRAP_LOG}" 'triage-updates.rtf' right
+        assert_title_absent "${WINDOW_WRAP_LOG}" 'focus-queue.rtf'
+        assert_title_absent "${WINDOW_WRAP_LOG}" 'focus-build.rtf'
+        assert_title_absent "${WINDOW_WRAP_LOG}" 'focus-notes.rtf'
+        sleep 8
+    fi
     sleep 8
 
-    cat "${SCENE_BEFORE_LOG}" "${SWITCH_LOG}" "${SCENE_AFTER_LOG}" "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" >"${CLI_LOG}"
+    cat \
+        "${SCENE_BEFORE_LOG}" "${SWITCH_LOG}" "${SCENE_AFTER_LOG}" \
+        "${WINDOW_BEFORE_LOG}" "${WINDOW_AFTER_LOG}" \
+        >"${CLI_LOG}"
+    if [ "${PROOF_MODE}" = cycle-wrap ]; then
+        cat "${WRAP_LOG}" "${SCENE_WRAP_LOG}" "${WINDOW_WRAP_LOG}" >>"${CLI_LOG}"
+    fi
 
     {
-        echo 'WinMux Slice 6B: zone scenes'
+        echo "WinMux ${SLICE_PREFIX}: zone scenes"
         echo
         echo 'Scene before command:'
         cat "${SCENE_BEFORE_LOG}"
@@ -439,7 +502,23 @@ proof_slice() {
         echo 'Windows after scene switch:'
         cat "${WINDOW_AFTER_LOG}"
         echo
-        echo 'PASS: use-zone-scene switched from triage to deep-work, applied the focus layout, and activated the configured workspace in each zone.'
+        if [ "${PROOF_MODE}" = cycle-wrap ]; then
+            echo 'Command timing:'
+            cat "${TIMING_LOG}"
+            echo
+            echo 'Wrap command:'
+            cat "${WRAP_LOG}"
+            echo
+            echo 'Scene after wrap command:'
+            cat "${SCENE_WRAP_LOG}"
+            echo
+            echo 'Windows after wrap command:'
+            cat "${WINDOW_WRAP_LOG}"
+            echo
+            echo 'PASS: cycle-zone-scene advanced from triage to deep-work, then wrapped back to triage with the same command while preserving scene layout and workspace bindings.'
+        else
+            echo 'PASS: use-zone-scene switched from triage to deep-work, applied the focus layout, and activated the configured workspace in each zone.'
+        fi
     } >"${PROOF}"
 
     echo
@@ -457,7 +536,7 @@ case "${PHASE}" in
         proof_slice
         ;;
     *)
-        echo "Unknown WINMUX_E2E_SLICE6B_PHASE: ${PHASE}" >&2
+        echo "Unknown zone scene phase: ${PHASE}" >&2
         exit 64
         ;;
 esac

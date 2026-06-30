@@ -39,6 +39,7 @@ extension Command {
                  is ConfigCommand,
                  is CycleZoneAvailabilityCommand,
                  is CycleZoneLayoutCommand,
+                 is CycleZoneSceneCommand,
                  is CycleZoneStyleCommand,
                  is DebugWindowsCommand,
                  is DisableZoneCommand,

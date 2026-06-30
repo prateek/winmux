@@ -58,6 +58,39 @@ zone_log_value() {
     ' "$path"
 }
 
+require_zone_log_empty_or_none() {
+    local path="$1"
+    local zone="$2"
+    local key="$3"
+    local description="$4"
+    /usr/bin/awk -F'|' -v zone="$zone" -v key="$key" -v description="$description" '
+        $1 == "zone=" zone {
+            found_zone = 1
+            for (i = 1; i <= NF; i++) {
+                if (index($i, key "=") == 1) {
+                    found_key = 1
+                    value = substr($i, length(key) + 2)
+                    if (value == "" || value == "none") {
+                        exit 0
+                    }
+                    printf("%s: expected %s to be empty or none, got %s\n", description, key, value) > "/dev/stderr"
+                    exit 1
+                }
+            }
+        }
+        END {
+            if (!found_zone) {
+                printf("%s: missing zone %s\n", description, zone) > "/dev/stderr"
+                exit 1
+            }
+            if (!found_key) {
+                printf("%s: missing key %s for zone %s\n", description, key, zone) > "/dev/stderr"
+                exit 1
+            }
+        }
+    ' "$path" || die "$description"
+}
+
 toml_width_for_zone() {
     local path="$1"
     local zone="$2"
@@ -407,13 +440,23 @@ run_self_test() {
 
     local good_log="${tmp_dir}/zones-good.log"
     cat >"$good_log" <<'EOF'
-zone=left|enabled=true|left=0|width=240|workspace=reference
-zone=main|enabled=true|left=240|width=720|workspace=work
-zone=right|enabled=false|left=|width=|workspace=
+zone=left|enabled=true|left=0|width=240|workspace=reference|override=|override-state=configured
+zone=main|enabled=true|left=240|width=720|workspace=work|override=|override-state=configured
+zone=right|enabled=false|left=|width=|workspace=|override=none|override-state=configured
 EOF
     require_zone_geometry_contiguous "$good_log" "self-test good geometry" 100 960
     [ "$(zone_log_value "$good_log" main width)" = "720" ] \
         || die "zone_log_value self-test failed"
+    require_zone_log_empty_or_none "$good_log" main override \
+        "self-test empty runtime override"
+
+    local bad_override_log="${tmp_dir}/zones-bad-override.log"
+    cat >"$bad_override_log" <<'EOF'
+zone=main|enabled=true|left=240|width=720|workspace=work|override=0.6|override-state=configured
+EOF
+    if ( require_zone_log_empty_or_none "$bad_override_log" main override "self-test bad runtime override" ) >/dev/null 2>&1; then
+        die "Runtime override self-test expected non-empty override rejection"
+    fi
 
     local bad_log="${tmp_dir}/zones-bad.log"
     cat >"$bad_log" <<'EOF'
@@ -504,6 +547,29 @@ EOF
         "$review_packet" \
         "$caption_manifest_self_test"
 
+    local chip_plan="${tmp_dir}/chip-annotations.tsv"
+    local expected_chip_file="${tmp_dir}/chip-expected.txt"
+    cat >"$chip_plan" <<'EOF'
+0	4	Caption	Subtitle	Run: first	Result: second	Result: third
+EOF
+    cat >"$expected_chip_file" <<'EOF'
+Run: first
+Result: second
+Result: third
+EOF
+    require_expected_caption_chips_exact "$expected_chip_file" "$chip_plan"
+    require_annotation_chip_covers_offset "$chip_plan" "Result: second" 2 \
+        "self-test annotation multi-chip coverage"
+    require_annotation_chip_covers_offset "$chip_plan" "Result: third" 2 \
+        "self-test annotation multi-chip coverage"
+    if ( require_annotation_chip_covers_offset "$chip_plan" "Result: third" 5 "self-test annotation out-of-range coverage" ) >/dev/null 2>&1; then
+        die "Annotation chip coverage self-test expected out-of-range rejection"
+    fi
+    printf 'Run: first\nResult: second\n' >"$expected_chip_file"
+    if ( require_expected_caption_chips_exact "$expected_chip_file" "$chip_plan" ) >/dev/null 2>&1; then
+        die "Expected caption chips self-test expected missing third chip rejection"
+    fi
+
     printf 'Action: missing chip\n' >>"$expected_chips_self_test"
     if ( require_review_packet_lines_from_file "$review_packet" "$expected_chips_self_test" "self-test expected caption chip" ) >/dev/null 2>&1; then
         die "Review packet self-test expected missing expected-chip rejection"
@@ -513,6 +579,80 @@ caption	chip	Action: missing manifest caption
 EOF
     if ( require_review_packet_manifest_caption_chips "$review_packet" "$caption_manifest_self_test" ) >/dev/null 2>&1; then
         die "Review packet self-test expected missing proof-manifest caption rejection"
+    fi
+
+    local product_zones_log="${tmp_dir}/slice-31-zones.log"
+    cat >"$product_zones_log" <<'EOF'
+zone=left|name=Reference|layout=balanced|enabled=true|configured=0.2|effective=0.2|override=|override-state=configured|workspace=Research|left=64.0|width=675.2|physical=1
+zone=main|name=Work|layout=balanced|enabled=true|configured=0.6|effective=0.6|override=|override-state=configured|workspace=Draft|left=739.2|width=2025.6|physical=1
+zone=right|name=Comms|layout=balanced|enabled=true|configured=0.2|effective=0.2|override=|override-state=configured|workspace=Inbox|left=2764.8|width=675.2|physical=1
+EOF
+    local product_log="${tmp_dir}/slice-31-product-windows.log"
+    cat >"$product_log" <<'EOF'
+com.apple.TextEdit|TextEdit|research-reference.rtf|x=64|y=96|width=675|height=1180
+com.example.WinMux|WinMuxApp|WinMux|x=16|y=48|width=380|height=980
+com.apple.TextEdit|TextEdit|focus-draft.rtf|x=739|y=96|width=2026|height=1180
+com.apple.TextEdit|TextEdit|team-inbox.rtf|x=2765|y=96|width=675|height=1180
+EOF
+    require_slice_31_product_window_log_clean "$product_log" "self-test clean"
+    require_slice_31_product_windows_match_zones "$product_log" "$product_zones_log" "self-test clean"
+    cat >"$product_log.bad" <<'EOF'
+com.apple.TextEdit|TextEdit|research-reference.rtf|x=64|y=96|width=675|height=1180
+com.apple.Terminal|Terminal|sshd prompt|x=739|y=96|width=2026|height=1180
+com.apple.TextEdit|TextEdit|team-inbox.rtf|x=2765|y=96|width=675|height=1180
+EOF
+    if ( require_slice_31_product_window_log_clean "$product_log.bad" "self-test bad" ) >/dev/null 2>&1; then
+        die "Slice 31 product-window self-test expected unrelated visible app rejection"
+    fi
+    cat >"$product_log.bad-title" <<'EOF'
+com.apple.TextEdit|TextEdit|research-reference.rtf|x=64|y=96|width=675|height=1180
+com.apple.TextEdit|TextEdit|WinMux proof notes.rtf|x=739|y=96|width=2026|height=1180
+com.apple.TextEdit|TextEdit|team-inbox.rtf|x=2765|y=96|width=675|height=1180
+EOF
+    if ( require_slice_31_product_window_log_clean "$product_log.bad-title" "self-test bad title" ) >/dev/null 2>&1; then
+        die "Slice 31 product-window self-test expected proof-output TextEdit title rejection"
+    fi
+    cat >"$product_log.bad-physical" <<'EOF'
+com.apple.TextEdit|TextEdit|research-reference.rtf|x=64|y=96|width=675|height=1180
+com.apple.TextEdit|TextEdit|focus-draft.rtf|x=64|y=756|width=675|height=520
+com.apple.TextEdit|TextEdit|team-inbox.rtf|x=2765|y=96|width=675|height=1180
+EOF
+    require_slice_31_product_window_log_clean "$product_log.bad-physical" "self-test bad physical clean"
+    if ( require_slice_31_product_windows_match_zones "$product_log.bad-physical" "$product_zones_log" "self-test bad physical" ) >/dev/null 2>&1; then
+        die "Slice 31 product-window self-test expected physical zone mismatch rejection"
+    fi
+
+    local startup_trace_self_test="${tmp_dir}/winmux-startup-trace.log"
+    cat >"$startup_trace_self_test" <<'EOF'
+2026-06-30T12:00:00Z persisted frozen world loaded: false
+2026-06-30T12:01:00Z persisted frozen world loaded: true
+EOF
+    require_slice_31_startup_trace_loaded_relaunch_state "$startup_trace_self_test"
+    cat >"$startup_trace_self_test.missing-false" <<'EOF'
+2026-06-30T12:01:00Z persisted frozen world loaded: true
+EOF
+    if ( require_slice_31_startup_trace_loaded_relaunch_state "$startup_trace_self_test.missing-false" ) >/dev/null 2>&1; then
+        die "Slice 31 startup-trace self-test expected missing initial false-state rejection"
+    fi
+    cat >"$startup_trace_self_test.missing-true" <<'EOF'
+2026-06-30T12:00:00Z persisted frozen world loaded: false
+EOF
+    if ( require_slice_31_startup_trace_loaded_relaunch_state "$startup_trace_self_test.missing-true" ) >/dev/null 2>&1; then
+        die "Slice 31 startup-trace self-test expected missing relaunch true-state rejection"
+    fi
+
+    local relaunch_command_log="${tmp_dir}/slice-31-relaunch.log"
+    cat >"$relaunch_command_log" <<'EOF'
+$ launchctl bootout WinMux slice service
+$ launchctl bootstrap WinMux slice service
+EOF
+    require_exact_line_count "$relaunch_command_log" '$ launchctl bootout WinMux slice service' 1 \
+        "self-test relaunch command"
+    require_no_command_variants "$relaunch_command_log" '$ launchctl bootout WinMux slice service' '$ launchctl bootout WinMux slice service' \
+        "self-test relaunch command"
+    printf ' $ launchctl bootout WinMux slice service\n' >>"$relaunch_command_log"
+    if ( require_no_command_variants "$relaunch_command_log" '$ launchctl bootout WinMux slice service' '$ launchctl bootout WinMux slice service' "self-test bad relaunch command" ) >/dev/null 2>&1; then
+        die "Relaunch command self-test expected leading-whitespace command variant rejection"
     fi
 
     local old_logs_dir="${LOGS_DIR:-}"
@@ -652,8 +792,9 @@ EOF
     printf 'PASS: artifact review accepted\n\nnext slice allowed: yes\n' >"$modern_review"
     printf 'PASS: artifact review accepted\n' >"$missing_allow_review"
     printf 'FAIL: artifact review rejected\n\nnext slice allowed: no\n' >"$fail_review"
-    review_is_accepted "$legacy_review" \
-        || die "Review verdict self-test expected legacy final-line PASS acceptance"
+    if review_is_accepted "$legacy_review"; then
+        die "Review verdict self-test expected legacy final-line PASS rejection"
+    fi
     review_is_accepted "$modern_review" \
         || die "Review verdict self-test expected first-line PASS plus allow-line acceptance"
     if review_is_accepted "$missing_allow_review"; then
@@ -786,7 +927,30 @@ EOF
         die "Review baseline self-test expected missing local packet baseline path to fail"
     fi
 
+    local stuffed_slice_31_baseline_review="${tmp_dir}/stuffed-slice-31-baseline-review.md"
+    local substantive_slice_31_baseline_review="${tmp_dir}/substantive-slice-31-baseline-review.md"
+    cat >"$stuffed_slice_31_baseline_review" <<EOF
+PASS: keyword-stuffed Slice 31 baseline
+
+Baseline comparison: ${recording_path} demo-columnar-zones.mp4 slice-7-root-demo-20260624T042021Z resources/screenshots/winmux-overview.png clean desktop comparison restrained caption comparison live windows comparison command/config chips comparison.
+
+next slice allowed: yes
+EOF
+    if ( require_slice_31_baseline_comparison "$stuffed_slice_31_baseline_review" ) >/dev/null 2>&1; then
+        die "Slice 31 baseline comparison self-test expected keyword stuffing rejection"
+    fi
+    cat >"$substantive_slice_31_baseline_review" <<EOF
+PASS: substantive Slice 31 baseline
+
+Baseline comparison: ${recording_path} is compared against demo-columnar-zones.mp4, slice-7-root-demo-20260624T042021Z, and resources/screenshots/winmux-overview.png. Its clean desktop matches the product surface baseline. Restrained captions align with the demo-columnar-zones baseline. Live windows and task documents are clearer than the Slice 7 root-demo baseline. Command/config chips are consistent with the product surface baseline.
+
+next slice allowed: yes
+EOF
+    require_slice_31_baseline_comparison "$substantive_slice_31_baseline_review" \
+        || die "Slice 31 baseline comparison self-test expected substantive paragraph to pass"
+
     local retry_summary="${tmp_dir}/guest-script-retry-summary.tsv"
+    local mutated_retry_summary="${tmp_dir}/mutated-guest-script-retry-summary.tsv"
     local legacy_retry_summary="${tmp_dir}/legacy-guest-script-retry-summary.tsv"
     local dash_retry_summary="${tmp_dir}/dash-guest-script-retry-summary.tsv"
     local reordered_retry_summary="${tmp_dir}/reordered-guest-script-retry-summary.tsv"
@@ -795,10 +959,14 @@ EOF
     local negative_mutation_retry_review="${tmp_dir}/negative-mutation-retry-review.md"
     local cited_retry_review="${tmp_dir}/cited-retry-review.md"
     cat >"$retry_summary" <<'EOF'
-# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason
-slice-run	logs/slice-run.log	2	1	success	no	failure,success	ssh auth failed	ssh auth failed
-after-screenshot	logs/after-screenshot.log	1	0	success	no	success	-	-
-setup	logs/setup.log	2	1	success	yes	failure,success	ssh auth failed	ssh auth failed
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-run	logs/slice-run.log	2	1	success	no	failure,success	ssh auth failed	ssh auth failed	no	-
+after-screenshot	logs/after-screenshot.log	1	0	success	no	success	-	-	no	-
+setup	logs/setup.log	2	1	success	yes	failure,success	ssh auth failed	ssh auth failed	no	-
+EOF
+    cat >"$mutated_retry_summary" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-run	logs/slice-run.log	1	1	mutation_failure	no	failure	automation crashed	automation crashed	yes	17
 EOF
     cat >"$legacy_retry_summary" <<'EOF'
 # phase	log	attempts	failures	final_result	before_recording
@@ -834,8 +1002,20 @@ PASS: cited retry
 
 `slice-run` retried after recording started (`before_recording=no`) using
 `logs/slice-run.log`; attempt statuses were `failure,success` and final result
-was `success`. It happened before the first visible product action and did not
-mutate proof state.
+was `success`; mutation_started=no. It happened before the first visible
+product action and did not mutate proof state.
+
+next slice allowed: yes
+EOF
+    local cited_mutated_retry_review="${tmp_dir}/cited-mutated-retry-review.md"
+    cat >"$cited_mutated_retry_review" <<'EOF'
+PASS: cited mutated retry
+
+`slice-run` retried after recording started (`before_recording=no`) using
+`logs/slice-run.log`; attempt statuses were `failure` and final result was
+`mutation_failure`; mutation_started=yes and first_mutation_line=17. It
+happened after the first visible product action, so the slice was re-recorded
+after that failed attempt.
 
 next slice allowed: yes
 EOF
@@ -866,6 +1046,8 @@ EOF
     fi
     require_review_mentions_post_recording_retries "$cited_retry_review" "$retry_summary" \
         || die "Review retry self-test expected post-recording retry citation to pass"
+    require_review_mentions_post_recording_retries "$cited_mutated_retry_review" "$mutated_retry_summary" \
+        || die "Review retry self-test expected mutated post-recording retry citation to pass"
     require_review_mentions_post_recording_retries "$cited_retry_review" "$reordered_retry_summary" \
         || die "Review retry self-test expected reordered header summary to pass"
 
@@ -1076,6 +1258,10 @@ is_historical_slice_8_artifact() {
     [ "$(basename "$RUN_DIR")" = "slice-8-20260624T045815Z" ]
 }
 
+is_historical_slice_33_artifact() {
+    [ "$(basename "$RUN_DIR")" = "slice-33-20260630T200032Z" ]
+}
+
 is_historical_pre_demo_cut_tail_artifact() {
     case "$(basename "$RUN_DIR")" in
         slice-23-20260628T052231Z|slice-24-20260628T061218Z) return 0 ;;
@@ -1113,6 +1299,292 @@ manifest_value() {
     /usr/bin/awk -F'\t' -v kind="$kind" -v key="$key" '$1 == kind && $2 == key { print $3; exit }' "$path"
 }
 
+measurement_value() {
+    local path="$1"
+    local phase="$2"
+    local zone="$3"
+    local field="$4"
+    /usr/bin/awk -F'\t' -v phase="$phase" -v zone="$zone" -v field="$field" '
+        BEGIN {
+            column["configured"] = 4
+            column["effective"] = 5
+            column["pixel-width"] = 6
+            column["chip"] = 7
+        }
+        $1 == phase && $2 == zone && column[field] {
+            print $column[field]
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$path"
+}
+
+require_measurement_value() {
+    local path="$1"
+    local phase="$2"
+    local zone="$3"
+    local field="$4"
+    local value
+    value="$(measurement_value "$path" "$phase" "$zone" "$field")" \
+        || die "Measurement TSV missing ${phase}/${zone}/${field}: $path"
+    [ -n "$value" ] || die "Measurement TSV has empty ${phase}/${zone}/${field}: $path"
+    printf '%s\n' "$value"
+}
+
+require_slice_31_measurements_match_zone_log() {
+    local measurements_path="$1"
+    local phase="$2"
+    local zones_log="$3"
+    local zone
+    for zone in left main right; do
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" configured)" \
+            "$(zone_log_value "$zones_log" "$zone" configured)" \
+            0.000001 \
+            "Slice 31 ${phase}/${zone} measurement configured width does not match list-zones log"
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" effective)" \
+            "$(zone_log_value "$zones_log" "$zone" effective)" \
+            0.000001 \
+            "Slice 31 ${phase}/${zone} measurement effective width does not match list-zones log"
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" pixel-width)" \
+            "$(zone_log_value "$zones_log" "$zone" width)" \
+            0.001 \
+            "Slice 31 ${phase}/${zone} measurement pixel width does not match list-zones log"
+    done
+}
+
+require_slice_31_measurement_table() {
+    local measurements_path="$1"
+    require_file "$measurements_path"
+    /usr/bin/awk -F'\t' '
+        BEGIN {
+            expected_header = "phase\tzone-id\tzone-name\tconfigured\teffective\tpixel-width\tchip"
+            split("before resized saved relaunched", phases, " ")
+            split("left main right", zones, " ")
+            zone_name["left"] = "Reference"
+            zone_name["main"] = "Work"
+            zone_name["right"] = "Comms"
+            phase_chip["before"] = "Reference 25% | Work 50% | Comms 25%"
+            phase_chip["resized"] = "Reference 20% | Work 60% | Comms 20%"
+            phase_chip["saved"] = "Reference 20% | Work 60% | Comms 20%"
+            phase_chip["relaunched"] = "Reference 20% | Work 60% | Comms 20%"
+            for (phase_index in phases) {
+                for (zone_index in zones) {
+                    expected[phases[phase_index] SUBSEP zones[zone_index]] = 1
+                }
+            }
+        }
+        NR == 1 {
+            if ($0 != expected_header) {
+                printf("Slice 31 measurement header mismatch: %s\n", $0) > "/dev/stderr"
+                invalid = 1
+            }
+            next
+        }
+        $0 == "" {
+            printf("Slice 31 measurement TSV contains a blank row\n") > "/dev/stderr"
+            invalid = 1
+            next
+        }
+        NF != 7 {
+            printf("Slice 31 measurement row has %d fields, expected 7: %s\n", NF, $0) > "/dev/stderr"
+            invalid = 1
+            next
+        }
+        {
+            key = $1 SUBSEP $2
+            if (!(key in expected)) {
+                printf("Slice 31 measurement row has unexpected phase/zone: %s/%s\n", $1, $2) > "/dev/stderr"
+                invalid = 1
+            }
+            if (++seen[key] > 1) {
+                printf("Slice 31 measurement row is duplicated: %s/%s\n", $1, $2) > "/dev/stderr"
+                invalid = 1
+            }
+            if ($3 != zone_name[$2]) {
+                printf("Slice 31 measurement row has wrong zone name for %s: %s\n", $2, $3) > "/dev/stderr"
+                invalid = 1
+            }
+            if ($7 != phase_chip[$1]) {
+                printf("Slice 31 measurement row has wrong chip for %s/%s: %s\n", $1, $2, $7) > "/dev/stderr"
+                invalid = 1
+            }
+            for (i = 4; i <= 6; i++) {
+                if ($i !~ /^[0-9]+([.][0-9]+)?$/) {
+                    printf("Slice 31 measurement numeric field %d is invalid in %s/%s: %s\n", i, $1, $2, $i) > "/dev/stderr"
+                    invalid = 1
+                }
+            }
+            row_count++
+        }
+        END {
+            if (NR == 0) {
+                printf("Slice 31 measurement TSV is empty\n") > "/dev/stderr"
+                invalid = 1
+            }
+            if (row_count != 12) {
+                printf("Slice 31 measurement TSV has %d data rows, expected 12\n", row_count) > "/dev/stderr"
+                invalid = 1
+            }
+            for (key in expected) {
+                if (!(key in seen)) {
+                    split(key, parts, SUBSEP)
+                    printf("Slice 31 measurement TSV missing row: %s/%s\n", parts[1], parts[2]) > "/dev/stderr"
+                    invalid = 1
+                }
+            }
+            exit(invalid ? 1 : 0)
+        }
+    ' "$measurements_path" || die "Slice 31 measurement TSV is malformed: $measurements_path"
+}
+
+require_slice_32_measurements_match_zone_log() {
+    local measurements_path="$1"
+    local phase="$2"
+    local zones_log="$3"
+    local zone
+    for zone in left main right; do
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" configured)" \
+            "$(zone_log_value "$zones_log" "$zone" configured)" \
+            0.000001 \
+            "Slice 32 ${phase}/${zone} measurement configured width does not match list-zones log"
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" effective)" \
+            "$(zone_log_value "$zones_log" "$zone" effective)" \
+            0.000001 \
+            "Slice 32 ${phase}/${zone} measurement effective width does not match list-zones log"
+        assert_numeric_approximately_equal \
+            "$(require_measurement_value "$measurements_path" "$phase" "$zone" pixel-width)" \
+            "$(zone_log_value "$zones_log" "$zone" width)" \
+            0.001 \
+            "Slice 32 ${phase}/${zone} measurement pixel width does not match list-zones log"
+    done
+}
+
+require_slice_32_measurement_table() {
+    local measurements_path="$1"
+    require_file "$measurements_path"
+    /usr/bin/awk -F'\t' '
+        BEGIN {
+            expected_header = "phase\tzone-id\tzone-name\tconfigured\teffective\tpixel-width\tchip"
+            split("before dragged saved relaunched", phases, " ")
+            split("left main right", zones, " ")
+            zone_name["left"] = "Reference"
+            zone_name["main"] = "Work"
+            zone_name["right"] = "Comms"
+            for (phase_index in phases) {
+                for (zone_index in zones) {
+                    expected[phases[phase_index] SUBSEP zones[zone_index]] = 1
+                }
+            }
+        }
+        NR == 1 {
+            if ($0 != expected_header) {
+                printf("Slice 32 measurement header mismatch: %s\n", $0) > "/dev/stderr"
+                invalid = 1
+            }
+            next
+        }
+        $0 == "" {
+            printf("Slice 32 measurement TSV contains a blank row\n") > "/dev/stderr"
+            invalid = 1
+            next
+        }
+        NF != 7 {
+            printf("Slice 32 measurement row has %d fields, expected 7: %s\n", NF, $0) > "/dev/stderr"
+            invalid = 1
+            next
+        }
+        {
+            key = $1 SUBSEP $2
+            if (!(key in expected)) {
+                printf("Slice 32 measurement row has unexpected phase/zone: %s/%s\n", $1, $2) > "/dev/stderr"
+                invalid = 1
+            }
+            if (++seen[key] > 1) {
+                printf("Slice 32 measurement row is duplicated: %s/%s\n", $1, $2) > "/dev/stderr"
+                invalid = 1
+            }
+            if ($3 != zone_name[$2]) {
+                printf("Slice 32 measurement row has wrong zone name for %s: %s\n", $2, $3) > "/dev/stderr"
+                invalid = 1
+            }
+            if ($7 == "" || index($7, "Reference ") != 1 || index($7, " | Work ") == 0 || index($7, " | Comms ") == 0) {
+                printf("Slice 32 measurement row has malformed chip for %s/%s: %s\n", $1, $2, $7) > "/dev/stderr"
+                invalid = 1
+            }
+            if (phase_chip[$1] == "") {
+                phase_chip[$1] = $7
+            } else if (phase_chip[$1] != $7) {
+                printf("Slice 32 measurement chip differs within phase %s: %s vs %s\n", $1, phase_chip[$1], $7) > "/dev/stderr"
+                invalid = 1
+            }
+            for (i = 4; i <= 6; i++) {
+                if ($i !~ /^[0-9]+([.][0-9]+)?$/) {
+                    printf("Slice 32 measurement numeric field %d is invalid in %s/%s: %s\n", i, $1, $2, $i) > "/dev/stderr"
+                    invalid = 1
+                }
+            }
+            row_count++
+        }
+        END {
+            if (NR == 0) {
+                printf("Slice 32 measurement TSV is empty\n") > "/dev/stderr"
+                invalid = 1
+            }
+            if (row_count != 12) {
+                printf("Slice 32 measurement TSV has %d data rows, expected 12\n", row_count) > "/dev/stderr"
+                invalid = 1
+            }
+            for (key in expected) {
+                if (!(key in seen)) {
+                    split(key, parts, SUBSEP)
+                    printf("Slice 32 measurement TSV missing row: %s/%s\n", parts[1], parts[2]) > "/dev/stderr"
+                    invalid = 1
+                }
+            }
+            exit(invalid ? 1 : 0)
+        }
+    ' "$measurements_path" || die "Slice 32 measurement TSV is malformed: $measurements_path"
+}
+
+require_exact_line_count() {
+    local path="$1"
+    local expected_line="$2"
+    local expected_count="$3"
+    local description="$4"
+    local actual_count
+    actual_count="$(/usr/bin/awk -v expected="$expected_line" '$0 == expected { count++ } END { print count + 0 }' "$path")"
+    [ "$actual_count" = "$expected_count" ] \
+        || die "${description}: expected ${expected_count} exact line(s) '${expected_line}', got ${actual_count}"
+}
+
+require_no_command_variants() {
+    local path="$1"
+    local command_prefix="$2"
+    local exact_line="$3"
+    local description="$4"
+    local variants
+    if variants="$(/usr/bin/awk -v prefix="$command_prefix" -v exact="$exact_line" '
+        {
+            trimmed = $0
+            sub(/^[ \t]+/, "", trimmed)
+            sub(/[ \t]+$/, "", trimmed)
+        }
+        index(trimmed, prefix) == 1 && $0 != exact {
+            print
+            found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$path")"; then
+        die "${description} contains unexpected command variant(s): ${variants}"
+    fi
+}
+
 manifest_value_or_log() {
     local manifest_path="$1"
     local kind="$2"
@@ -1143,6 +1615,25 @@ require_annotation_chip_start() {
     value="$(annotation_chip_start "$path" "$chip")"
     [ -n "$value" ] || die "Annotation plan missing timing for chip: $chip"
     printf '%s\n' "$value"
+}
+
+require_annotation_chip_covers_offset() {
+    local path="$1"
+    local chip="$2"
+    local offset="$3"
+    local message="$4"
+    /usr/bin/awk -F'\t' -v chip="$chip" -v offset="$offset" '
+        $0 == "" || $1 ~ /^#/ { next }
+        offset + 0 >= $1 + 0 && offset + 0 <= $2 + 0 {
+            for (i = 5; i <= NF; i++) {
+                if ($i == chip) {
+                    found = 1
+                    exit
+                }
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$path" || die "$message: offset $offset is not covered by chip: $chip"
 }
 
 require_manifest_value() {
@@ -1423,6 +1914,38 @@ demo_recording_path() {
     printf '%s/%s.demo.mov\n' "$RECORDINGS_DIR" "$recording_name"
 }
 
+annotation_expected_chips() {
+    local plan_path="$1"
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            for (i = 5; i <= NF; i++) {
+                if ($i != "") {
+                    print $i
+                }
+            }
+        }
+    ' "$plan_path"
+}
+
+require_expected_caption_chips_exact() {
+    local expected_path="$1"
+    local plan_path="$2"
+    require_file "$expected_path"
+    require_file "$plan_path"
+    require_fresh_derived_file "$expected_path" "$plan_path" "Expected caption chips"
+
+    local derived_path
+    derived_path="$(mktemp "${TMPDIR:-/tmp}/winmux-expected-chips.XXXXXX")"
+    annotation_expected_chips "$plan_path" >"$derived_path"
+    if ! cmp -s "$derived_path" "$expected_path"; then
+        diff -u "$derived_path" "$expected_path" >&2 || true
+        rm -f "$derived_path"
+        die "Expected caption chips must exactly match annotation TSV command/config/action/result fields"
+    fi
+    rm -f "$derived_path"
+}
+
 require_demo_cut_sidecar_pair() {
     local name="$1"
     local demo_path="${RECORDINGS_DIR}/${name}.demo.mov"
@@ -1613,6 +2136,14 @@ require_event_manifest_matches_mouse_events() {
     shift
     local mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
     [ -s "$mouse_events" ] || return 0
+    require_event_manifest_matches_mouse_event_log "$manifest_path" "$mouse_events" "$@"
+}
+
+require_event_manifest_matches_mouse_event_log() {
+    local manifest_path="$1"
+    local mouse_events="$2"
+    shift 2
+    require_file "$mouse_events"
     require_mouse_event_log_shape "$mouse_events"
 
     local event_id expected_seconds actual_seconds
@@ -1869,11 +2400,112 @@ require_review_freshness() {
         "$(event_contact_sheet_path)" \
         "$(sample_manifest_path)" \
         "$(event_manifest_path)" \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
         "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
         [ -s "$dependency" ] || continue
         [ "$review_path" -nt "$dependency" ] \
             || die "Review is stale relative to artifact dependency: $dependency"
     done
+
+    if [ "${recording_name:-}" = "slice-31-relaunch-saved-layout" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-31-relaunch-saved-layout.measurements.tsv" \
+            "${LOGS_DIR}/slice-31-relaunch-saved-layout.proof-manifest.tsv" \
+            "${LOGS_DIR}/slice-31-relaunch.log" \
+            "${LOGS_DIR}/winmux-startup-trace.log" \
+            "${LOGS_DIR}/slice-31-cli.log" \
+            "${LOGS_DIR}/slice-31-resize-zone.log" \
+            "${LOGS_DIR}/slice-31-save-zone-layout.log" \
+            "${LOGS_DIR}/slice-31-command-timing.log" \
+            "${LOGS_DIR}/slice-31-config-before.sha256" \
+            "${LOGS_DIR}/slice-31-config-after-save.sha256" \
+            "${LOGS_DIR}/slice-31-config-backup.sha256" \
+            "${LOGS_DIR}/slice-31-zones-before.log" \
+            "${LOGS_DIR}/slice-31-zones-after-resize.log" \
+            "${LOGS_DIR}/slice-31-zones-after-save.log" \
+            "${LOGS_DIR}/slice-31-zones-after-relaunch.log" \
+            "${LOGS_DIR}/slice-31-windows-before.log" \
+            "${LOGS_DIR}/slice-31-windows-after-relaunch.log" \
+            "${LOGS_DIR}/slice-31-product-windows-ready.log" \
+            "${LOGS_DIR}/slice-31-product-windows-after-save.log" \
+            "${LOGS_DIR}/slice-31-product-windows-after-relaunch.log" \
+            "${LOGS_DIR}/slice-31-product-windows-final.log" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-31.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-31.png" \
+            "${SCREENSHOTS_DIR}/02-after-runtime-resize-slice-31.png" \
+            "${SCREENSHOTS_DIR}/03-after-save-slice-31.png" \
+            "${SCREENSHOTS_DIR}/04-after-quit-slice-31.png" \
+            "${SCREENSHOTS_DIR}/05-after-relaunch-slice-31.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-31.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 31 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-32-divider-save-relaunch" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-26-zone-divider-drag.proof-manifest.tsv" \
+            "${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv" \
+            "${LOGS_DIR}/slice-26-zones-before.log" \
+            "${LOGS_DIR}/slice-26-zones-after.log" \
+            "${LOGS_DIR}/slice-26-windows-after.log" \
+            "${LOGS_DIR}/slice-32-divider-save-relaunch.measurements.tsv" \
+            "${LOGS_DIR}/slice-32-divider-save-relaunch.proof-manifest.tsv" \
+            "${LOGS_DIR}/slice-32-save-zone-layout.log" \
+            "${LOGS_DIR}/slice-32-relaunch.log" \
+            "${LOGS_DIR}/winmux-startup-trace.log" \
+            "${LOGS_DIR}/slice-32-cli.log" \
+            "${LOGS_DIR}/slice-32-command-timing.log" \
+            "${LOGS_DIR}/slice-32-config-before-save.sha256" \
+            "${LOGS_DIR}/slice-32-config-after-save.sha256" \
+            "${LOGS_DIR}/slice-32-config-backup.sha256" \
+            "${LOGS_DIR}/slice-32-backup-path.txt" \
+            "${LOGS_DIR}/slice-32-zones-after-save.log" \
+            "${LOGS_DIR}/slice-32-zones-after-relaunch.log" \
+            "${LOGS_DIR}/slice-32-windows-after-relaunch.log" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-32.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-32.png" \
+            "${SCREENSHOTS_DIR}/02-divider-hover-slice-26.png" \
+            "${SCREENSHOTS_DIR}/03-divider-pickup-slice-26.png" \
+            "${SCREENSHOTS_DIR}/04-divider-drag-path-slice-26.png" \
+            "${SCREENSHOTS_DIR}/05-divider-preview-slice-26.png" \
+            "${SCREENSHOTS_DIR}/06-divider-release-slice-26.png" \
+            "${SCREENSHOTS_DIR}/07-after-divider-resize-slice-26.png" \
+            "${SCREENSHOTS_DIR}/08-after-save-slice-32.png" \
+            "${SCREENSHOTS_DIR}/09-after-quit-slice-32.png" \
+            "${SCREENSHOTS_DIR}/10-after-relaunch-slice-32.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-32.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 32 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-33-cycle-zone-scene" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-33-scene-before.log" \
+            "${LOGS_DIR}/slice-33-scene-after.log" \
+            "${LOGS_DIR}/slice-33-scene-wrap.log" \
+            "${LOGS_DIR}/slice-33-cycle-zone-scene.log" \
+            "${LOGS_DIR}/slice-33-cycle-zone-scene-wrap.log" \
+            "${LOGS_DIR}/slice-33-cli.log" \
+            "${LOGS_DIR}/slice-33-windows-before.log" \
+            "${LOGS_DIR}/slice-33-windows-after.log" \
+            "${LOGS_DIR}/slice-33-windows-wrap.log" \
+            "${LOGS_DIR}/slice-33-cycle-zone-scene.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-33.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-33.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-33.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 33 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -1908,10 +2540,414 @@ require_review_mentions_target_semantics() {
         || die "Review does not cite target-semantics media path ${path}"
 }
 
+require_review_mentions_artifact_path() {
+    local review_path="$1"
+    local path="$2"
+    local description="$3"
+    local exact="${4:-0}"
+    [ -s "$path" ] || die "Required review citation target is missing: $path"
+
+    local relative="${path#"$RUN_DIR"/}"
+    local basename_path
+    basename_path="$(basename "$path")"
+    if [ "$exact" = "1" ]; then
+        grep -F "$path" "$review_path" >/dev/null \
+            || grep -F "$relative" "$review_path" >/dev/null \
+            || die "Review does not cite ${description} by exact artifact path: $relative"
+    else
+        grep -F "$path" "$review_path" >/dev/null \
+            || grep -F "$relative" "$review_path" >/dev/null \
+            || grep -F "$basename_path" "$review_path" >/dev/null \
+            || die "Review does not cite ${description}: $relative"
+    fi
+}
+
+require_review_mentions_semantic_sample_paths_exact() {
+    local review_path="$1"
+    local manifest_path="$2"
+    local context="${3:-semantic sample}"
+    [ -s "$manifest_path" ] || return 0
+
+    local label relative_path
+    while IFS=$'\t' read -r label relative_path; do
+        [ -n "$label" ] || continue
+        [ -n "$relative_path" ] || die "${context} row has no path for label: $label"
+        require_review_mentions_artifact_path \
+            "$review_path" "${RUN_DIR}/${relative_path}" "${context} ${label}" 1
+    done < <(/usr/bin/awk -F'\t' '$1 == "semantic" { print $2 "\t" $5 }' "$manifest_path")
+}
+
+require_review_mentions_edge_crop_paths_if_present() {
+    local review_path="$1"
+    local manifest_path="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
+    [ -s "$manifest_path" ] || return 0
+
+    require_review_mentions_artifact_path "$review_path" "$manifest_path" "edge crop manifest" 1
+    local label relative_path _description
+    while IFS=$'\t' read -r label relative_path _description; do
+        case "${label:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_path:-}" ] || die "Edge crop manifest row is missing a path: $manifest_path"
+        require_review_mentions_artifact_path \
+            "$review_path" "${RUN_DIR}/${relative_path}" "edge crop ${label}" 1
+    done <"$manifest_path"
+}
+
+require_slice_31_baseline_comparison() {
+    local review_path="$1"
+    local recording_relative_path="${recording_path#"$RUN_DIR"/}"
+
+    /usr/bin/awk \
+        -v primary_recording="$recording_path" \
+        -v primary_recording_relative="$recording_relative_path" '
+        function cue_compared(line, cue) {
+            object = "(baseline|demo-columnar-zones|root-demo|slice 7|slice-7|product surface|product screenshot|winmux-overview|tab-groups)"
+            connector = "(compared to|compared with|compared against|against|than|matches|aligns with|align with|mirrors|follows|consistent with|same as|similar to|unlike|cleaner than|clearer than|more [a-z ]+ than|less [a-z ]+ than)"
+            return line ~ (cue "[^.]*" connector "[^.]*" object) ||
+                line ~ (object "[^.]*" connector "[^.]*" cue)
+        }
+        function check(block) {
+            line = tolower(block)
+            return index(line, "baseline comparison") > 0 &&
+                (index(block, primary_recording) > 0 ||
+                 index(block, primary_recording_relative) > 0) &&
+                index(line, "demo-columnar-zones.mp4") > 0 &&
+                index(line, "slice-7-root-demo-20260624t042021z") > 0 &&
+                (index(line, "resources/screenshots/") > 0 ||
+                 index(line, "winmux-overview.png") > 0 ||
+                 index(line, "tab-groups.png") > 0 ||
+                 index(line, "github.com/zimengxiong/winmux") > 0 ||
+                 index(line, "macoswm.com/wm/winmux") > 0 ||
+                 index(line, "product surface") > 0) &&
+                cue_compared(line, "clean desktop") &&
+                cue_compared(line, "restrained caption") &&
+                cue_compared(line, "(live window|live windows|task document|task documents)") &&
+                cue_compared(line, "(command/config chip|command/config chips|command[^.]*chip|config[^.]*chip)")
+        }
+        {
+            if (index(tolower($0), "baseline comparison") > 0) {
+                in_block = 1
+                block = $0
+                if (check(block)) {
+                    found = 1
+                }
+                next
+            }
+            if (in_block && $0 ~ /^[[:space:]]*$/) {
+                if (check(block)) {
+                    found = 1
+                }
+                in_block = 0
+                block = ""
+                next
+            }
+            if (in_block) {
+                block = block " " $0
+                if (check(block)) {
+                    found = 1
+                }
+            }
+        }
+        END {
+            if (in_block && check(block)) {
+                found = 1
+            }
+            exit(found ? 0 : 1)
+        }
+    ' "$review_path" \
+        || die "Slice 31 review must include a substantive Baseline comparison paragraph naming the primary recording path, demo-columnar-zones.mp4, the Slice 7 package, a product surface/screenshot, and explicit comparison claims for clean desktop, restrained captions, live windows/task documents, and command/config chips"
+}
+
+require_slice_32_baseline_comparison() {
+    local review_path="$1"
+    require_slice_31_baseline_comparison "$review_path"
+
+    /usr/bin/awk '
+        function cue_compared(line, cue) {
+            object = "(baseline|demo-columnar-zones|root-demo|slice 7|slice-7|product surface|product screenshot|winmux-overview|tab-groups)"
+            connector = "(compared to|compared with|compared against|against|than|matches|aligns with|align with|mirrors|follows|consistent with|same as|similar to|unlike|cleaner than|clearer than|more [a-z ]+ than|less [a-z ]+ than)"
+            return line ~ (cue "[^.]*" connector "[^.]*" object) ||
+                line ~ (object "[^.]*" connector "[^.]*" cue)
+        }
+        function check(block) {
+            line = tolower(block)
+            return index(line, "baseline comparison") > 0 &&
+                cue_compared(line, "(divider affordance|divider handle|divider clarity|zone divider|work[|/]comms divider|affordance clarity)")
+        }
+        {
+            if (index(tolower($0), "baseline comparison") > 0) {
+                in_block = 1
+                block = $0
+                if (check(block)) {
+                    found = 1
+                }
+                next
+            }
+            if (in_block && $0 ~ /^[[:space:]]*$/) {
+                if (check(block)) {
+                    found = 1
+                }
+                in_block = 0
+                block = ""
+                next
+            }
+            if (in_block) {
+                block = block " " $0
+                if (check(block)) {
+                    found = 1
+                }
+            }
+        }
+        END {
+            if (in_block && check(block)) {
+                found = 1
+            }
+            exit(found ? 0 : 1)
+        }
+    ' "$review_path" \
+        || die "Slice 32 review baseline comparison must explicitly compare divider affordance clarity against baseline media or product surfaces"
+}
+
+require_review_mentions_slice_31_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-31-relaunch-saved-layout) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(demo_recording_path)	trimmed demo sidecar
+$(demo_cut_manifest_path)	demo-cut manifest
+$(event_contact_sheet_path)	event contact sheet
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-31-relaunch-saved-layout.measurements.tsv	measurement TSV
+${LOGS_DIR}/slice-31-relaunch-saved-layout.proof-manifest.tsv	proof manifest
+${LOGS_DIR}/slice-31-relaunch.log	relaunch log
+${LOGS_DIR}/winmux-startup-trace.log	startup trace
+${LOGS_DIR}/slice-31-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-31-save-zone-layout.log	save-zone-layout log
+${LOGS_DIR}/slice-31-command-timing.log	command timing log
+${LOGS_DIR}/slice-31-config-before.sha256	config before hash
+${LOGS_DIR}/slice-31-config-after-save.sha256	config after-save hash
+${LOGS_DIR}/slice-31-config-backup.sha256	config backup hash
+${LOGS_DIR}/slice-31-zones-before.log	before zone log
+${LOGS_DIR}/slice-31-zones-after-resize.log	after-resize zone log
+${LOGS_DIR}/slice-31-zones-after-save.log	after-save zone log
+${LOGS_DIR}/slice-31-zones-after-relaunch.log	after-relaunch zone log
+${LOGS_DIR}/slice-31-windows-before.log	before relaunch window log
+${LOGS_DIR}/slice-31-windows-after-relaunch.log	after relaunch window log
+${LOGS_DIR}/slice-31-product-windows-ready.log	ready product-window cleanliness log
+${LOGS_DIR}/slice-31-product-windows-after-save.log	after-save product-window cleanliness log
+${LOGS_DIR}/slice-31-product-windows-after-relaunch.log	after-relaunch product-window cleanliness log
+${LOGS_DIR}/slice-31-product-windows-final.log	final product-window cleanliness log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-31.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-31.png	ready task-zone screenshot
+${SCREENSHOTS_DIR}/02-after-runtime-resize-slice-31.png	after runtime resize screenshot
+${SCREENSHOTS_DIR}/03-after-save-slice-31.png	after save screenshot
+${SCREENSHOTS_DIR}/04-after-quit-slice-31.png	after quit screenshot
+${SCREENSHOTS_DIR}/05-after-relaunch-slice-31.png	after relaunch screenshot
+${SCREENSHOTS_DIR}/99-after-slice-31.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 31 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 31 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -Eiq 'sidebar[^[:alnum:]]+absent|absent[^[:alnum:]]+sidebar|WinMux[^[:alnum:]]+(chrome|sidebar)[^[:alnum:]]+absent' "$review_path" \
+        || die "Slice 31 review must state the visual quit cue: WinMux sidebar/chrome absent"
+    grep -Eiq 'sidebar[^[:alnum:]]+restored|restored[^[:alnum:]]+sidebar|WinMux[^[:alnum:]]+(chrome|sidebar)[^[:alnum:]]+restored' "$review_path" \
+        || die "Slice 31 review must state the visual relaunch cue: WinMux sidebar/chrome restored"
+    grep -F 'persisted frozen world loaded: false' "$review_path" >/dev/null \
+        || die "Slice 31 review must cite startup trace initial persisted-state line"
+    grep -F 'persisted frozen world loaded: true' "$review_path" >/dev/null \
+        || die "Slice 31 review must cite startup trace relaunch persisted-state line"
+    require_slice_31_baseline_comparison "$review_path"
+
+    grep -F 'slice-7-root-demo-20260624T042021Z' "$review_path" >/dev/null \
+        || die "Slice 31 review must cite the Slice 7 root-demo baseline package"
+    grep -F 'demo-columnar-zones.mp4' "$review_path" >/dev/null \
+        || die "Slice 31 review must cite the columnar-zones root demo baseline"
+}
+
+require_review_mentions_slice_32_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-32-divider-save-relaunch) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(demo_recording_path)	trimmed demo sidecar
+$(demo_cut_manifest_path)	demo-cut manifest
+$(event_contact_sheet_path)	event contact sheet
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-26-zone-divider-drag.proof-manifest.tsv	delegated divider drag proof manifest
+${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv	delegated divider drag mouse timing table
+${LOGS_DIR}/slice-32-divider-save-relaunch.measurements.tsv	measurement TSV
+${LOGS_DIR}/slice-32-divider-save-relaunch.proof-manifest.tsv	proof manifest
+${LOGS_DIR}/slice-32-save-zone-layout.log	save-zone-layout log
+${LOGS_DIR}/slice-32-relaunch.log	relaunch log
+${LOGS_DIR}/winmux-startup-trace.log	startup trace
+${LOGS_DIR}/slice-32-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-32-command-timing.log	command timing log
+${LOGS_DIR}/slice-32-config-before-save.sha256	config before-save hash
+${LOGS_DIR}/slice-32-config-after-save.sha256	config after-save hash
+${LOGS_DIR}/slice-32-config-backup.sha256	config backup hash
+${LOGS_DIR}/slice-32-backup-path.txt	backup path log
+${LOGS_DIR}/slice-32-zones-after-save.log	after-save zone log
+${LOGS_DIR}/slice-32-zones-after-relaunch.log	after-relaunch zone log
+${LOGS_DIR}/slice-32-windows-after-relaunch.log	after relaunch window log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-32.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-32.png	ready divider layout screenshot
+${SCREENSHOTS_DIR}/02-divider-hover-slice-26.png	divider hover screenshot
+${SCREENSHOTS_DIR}/03-divider-pickup-slice-26.png	divider pickup screenshot
+${SCREENSHOTS_DIR}/04-divider-drag-path-slice-26.png	divider drag path screenshot
+${SCREENSHOTS_DIR}/05-divider-preview-slice-26.png	divider preview screenshot
+${SCREENSHOTS_DIR}/06-divider-release-slice-26.png	divider release screenshot
+${SCREENSHOTS_DIR}/07-after-divider-resize-slice-26.png	after divider resize screenshot
+${SCREENSHOTS_DIR}/08-after-save-slice-32.png	after save screenshot
+${SCREENSHOTS_DIR}/09-after-quit-slice-32.png	after quit screenshot
+${SCREENSHOTS_DIR}/10-after-relaunch-slice-32.png	after relaunch screenshot
+${SCREENSHOTS_DIR}/99-after-slice-32.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 32 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 32 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -Eiq 'divider[^[:alnum:]]+(drag|pickup|hover|preview|release)|drag[^[:alnum:]]+Work[|/][[:space:]]*Comms[^[:alnum:]]+divider' "$review_path" \
+        || die "Slice 32 review must describe the visible Work|Comms divider drag affordance"
+    grep -F 'slice-32-divider-save-relaunch.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite the Slice 32 event manifest"
+    grep -F 'slice-26-zone-divider-drag.mouse-events.tsv' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite the delegated divider mouse timing table"
+    for event_id in divider-hover divider-pickup divider-drag-path divider-live-preview divider-release after-divider-resize; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 32 review must cite delegated divider event: $event_id"
+    done
+    grep -F 'persisted frozen world loaded: false' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite startup trace initial persisted-state line"
+    grep -F 'persisted frozen world loaded: true' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite startup trace relaunch persisted-state line"
+    grep -Eiq 'backup[^[:alnum:]]+(match|matches|matched)[^[:alnum:]]+original|backup-matches-original' "$review_path" \
+        || die "Slice 32 review must state that the saved-layout backup matches the original config"
+    require_slice_32_baseline_comparison "$review_path"
+
+    grep -F 'slice-7-root-demo-20260624T042021Z' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite the Slice 7 root-demo baseline package"
+    grep -F 'demo-columnar-zones.mp4' "$review_path" >/dev/null \
+        || die "Slice 32 review must cite the columnar-zones root demo baseline"
+}
+
+require_review_mentions_slice_33_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-33-cycle-zone-scene) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(event_contact_sheet_path)	event contact sheet
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-33-scene-before.log	before scene zone log
+${LOGS_DIR}/slice-33-scene-after.log	after first cycle zone log
+${LOGS_DIR}/slice-33-scene-wrap.log	after wrap zone log
+${LOGS_DIR}/slice-33-cycle-zone-scene.log	first cycle command log
+${LOGS_DIR}/slice-33-cycle-zone-scene-wrap.log	second cycle command log
+${LOGS_DIR}/slice-33-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-33-windows-before.log	before visible-window log
+${LOGS_DIR}/slice-33-windows-after.log	after first cycle visible-window log
+${LOGS_DIR}/slice-33-windows-wrap.log	after wrap visible-window log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-33.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-33.png	ready triage scene screenshot
+${SCREENSHOTS_DIR}/99-after-slice-33.png	final product-view screenshot
+EOF
+    if [ -s "${LOGS_DIR}/slice-33-command-timing.log" ]; then
+        require_review_mentions_artifact_path \
+            "$review_path" "${LOGS_DIR}/slice-33-command-timing.log" "Slice 33 command timing log" 1
+    fi
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 33 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 33 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-33-cycle-zone-scene.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 33 review must cite the Slice 33 event manifest"
+    for event_id in first-cycle-command-start first-cycle-result second-cycle-command-start wrap-cycle-result inspect-zones inspect-windows; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 33 review must cite scene-cycle event: $event_id"
+    done
+    grep -F '$ winmux cycle-zone-scene triage deep-work' "$review_path" >/dev/null \
+        || grep -F 'Run: winmux cycle-zone-scene triage deep-work' "$review_path" >/dev/null \
+        || die "Slice 33 review must cite the exact cycle-zone-scene command"
+    grep -Eiq 'wrap(ped|around)?[^[:alnum:]]+(back )?to[^[:alnum:]]+triage|triage[^[:alnum:]]+wrap' "$review_path" \
+        || die "Slice 33 review must explicitly state that the second cycle wraps back to triage"
+    grep -Eiq 'deep-work|FocusQueue|FocusBuild|FocusNotes' "$review_path" \
+        || die "Slice 33 review must identify the deep-work result after the first cycle"
+    grep -Eiq 'TriageInbox|TriageDraft|TriageUpdates' "$review_path" \
+        || die "Slice 33 review must identify the triage result after wraparound"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
     local repo_root="$3"
+    local exact="${4:-0}"
     local relative="$candidate"
     local basename_candidate
     local url_without_scheme="$candidate"
@@ -1935,9 +2971,14 @@ review_mentions_candidate() {
             ;;
     esac
 
-    grep -F "$candidate" "$review_path" >/dev/null \
-        || grep -F "$relative" "$review_path" >/dev/null \
-        || grep -F "$basename_candidate" "$review_path" >/dev/null
+    if [ "$exact" = "1" ]; then
+        grep -F "$candidate" "$review_path" >/dev/null \
+            || grep -F "$relative" "$review_path" >/dev/null
+    else
+        grep -F "$candidate" "$review_path" >/dev/null \
+            || grep -F "$relative" "$review_path" >/dev/null \
+            || grep -F "$basename_candidate" "$review_path" >/dev/null
+    fi
 }
 
 require_review_mentions_packet_baselines() {
@@ -1948,6 +2989,10 @@ require_review_mentions_packet_baselines() {
 
     local required_count=0 candidate
     local candidate_path
+    local exact_local_baselines=0
+    case "${recording_name:-}" in
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch) exact_local_baselines=1 ;;
+    esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
         case "$candidate" in
@@ -1961,7 +3006,7 @@ require_review_mentions_packet_baselines() {
                 ;;
         esac
         required_count=$((required_count + 1))
-        review_mentions_candidate "$review_path" "$candidate" "$repo_root" \
+        review_mentions_candidate "$review_path" "$candidate" "$repo_root" "$exact_local_baselines" \
             || die "Review does not cite baseline from reviewer packet: $candidate"
     done < <(/usr/bin/awk '
         /^## Baseline And Product Surfaces$/ { in_section = 1; next }
@@ -1996,16 +3041,25 @@ review_mentions_retry_product_action_decision() {
                 in_phase_block = 0
             }
             if (!in_phase_block) {
+                previous_line = line
                 next
             }
+            joined_line = previous_line " " line
             if (index(line, "before the first visible product action") > 0 ||
                 index(line, "after the first visible product action") > 0 ||
                 index(line, "before the first product action") > 0 ||
                 index(line, "after the first product action") > 0 ||
                 index(line, "before visible product action") > 0 ||
-                index(line, "after visible product action") > 0) {
+                index(line, "after visible product action") > 0 ||
+                index(joined_line, "before the first visible product action") > 0 ||
+                index(joined_line, "after the first visible product action") > 0 ||
+                index(joined_line, "before the first product action") > 0 ||
+                index(joined_line, "after the first product action") > 0 ||
+                index(joined_line, "before visible product action") > 0 ||
+                index(joined_line, "after visible product action") > 0) {
                 found = 1
             }
+            previous_line = line
         }
         END { exit(found ? 0 : 1) }
     ' "$review_path"
@@ -2025,8 +3079,10 @@ review_mentions_retry_mutation_decision() {
                 in_phase_block = 0
             }
             if (!in_phase_block) {
+                previous_line = line
                 next
             }
+            joined_line = previous_line " " line
             if (index(line, "did not mutate") > 0 ||
                 (index(previous_line, "did not") > 0 && index(line, "mutate proof state") > 0) ||
                 index(line, "did not change proof state") > 0 ||
@@ -2038,13 +3094,44 @@ review_mentions_retry_mutation_decision() {
                 index(line, "rerecorded after") > 0 ||
                 index(line, "re recorded after") > 0 ||
                 index(line, "re-recorded the slice") > 0 ||
-                index(line, "re-recorded artifact") > 0) {
+                index(line, "re-recorded artifact") > 0 ||
+                index(joined_line, "did not mutate") > 0 ||
+                index(joined_line, "did not change proof state") > 0 ||
+                index(joined_line, "no proof-state change") > 0 ||
+                index(joined_line, "no state mutation") > 0 ||
+                index(joined_line, "non-stateful") > 0 ||
+                index(joined_line, "stateless") > 0 ||
+                index(joined_line, "re-recorded after") > 0 ||
+                index(joined_line, "rerecorded after") > 0 ||
+                index(joined_line, "re recorded after") > 0 ||
+                index(joined_line, "re-recorded the slice") > 0 ||
+                index(joined_line, "re-recorded artifact") > 0) {
                 found = 1
             }
             previous_line = line
         }
         END { exit(found ? 0 : 1) }
     ' "$review_path"
+}
+
+review_mentions_retry_mutation_metadata() {
+    local review_path="$1"
+    local phase="$2"
+    local mutation_started="$3"
+    local first_mutation_line="$4"
+
+    [ -n "$mutation_started" ] || return 0
+    [ "$mutation_started" != "-" ] || return 0
+
+    grep -F "mutation_started=${mutation_started}" "$review_path" >/dev/null \
+        || grep -F "mutation started: ${mutation_started}" "$review_path" >/dev/null \
+        || die "Review does not cite mutation_started for post-recording retry ${phase}: ${mutation_started}"
+
+    [ -n "$first_mutation_line" ] || return 0
+    [ "$first_mutation_line" != "-" ] || return 0
+    grep -F "first_mutation_line=${first_mutation_line}" "$review_path" >/dev/null \
+        || grep -F "line ${first_mutation_line}" "$review_path" >/dev/null \
+        || die "Review does not cite first mutation line for post-recording retry ${phase}: ${first_mutation_line}"
 }
 
 require_review_declares_no_context() {
@@ -2058,7 +3145,7 @@ require_review_mentions_post_recording_retries() {
     local summary_path="$2"
     [ -s "$summary_path" ] || return 0
 
-    local phase log_path failures final_result before_recording attempt_statuses
+    local phase log_path failures final_result before_recording attempt_statuses mutation_started first_mutation_line
     while IFS= read -r phase; do
         case "${phase:-}" in
             ""|\#*) continue ;;
@@ -2068,6 +3155,8 @@ require_review_mentions_post_recording_retries() {
         final_result="$(transport_summary_value "$summary_path" "$phase" final_result)"
         before_recording="$(transport_summary_value "$summary_path" "$phase" before_recording)"
         attempt_statuses="$(transport_summary_value "$summary_path" "$phase" attempt_statuses || true)"
+        mutation_started="$(transport_summary_value "$summary_path" "$phase" mutation_started || true)"
+        first_mutation_line="$(transport_summary_value "$summary_path" "$phase" first_mutation_line || true)"
         [ -n "$log_path" ] || die "Retry summary missing log path for phase: $phase"
         [ -n "$failures" ] || die "Retry summary missing failures for phase: $phase"
         [ -n "$final_result" ] || die "Retry summary missing final result for phase: $phase"
@@ -2090,6 +3179,7 @@ require_review_mentions_post_recording_retries() {
             || die "Review does not cite final result for post-recording retry ${phase}: $final_result"
         grep -F "$attempt_statuses" "$review_path" >/dev/null \
             || die "Review does not cite attempt statuses for post-recording retry ${phase}: $attempt_statuses"
+        review_mentions_retry_mutation_metadata "$review_path" "$phase" "$mutation_started" "$first_mutation_line"
         review_mentions_retry_product_action_decision "$review_path" "$phase" \
             || die "Review does not decide whether ${phase} happened before the first visible product action"
         review_mentions_retry_mutation_decision "$review_path" "$phase" \
@@ -2103,16 +3193,11 @@ review_is_accepted() {
     local first_line last_line
     first_line="$(/usr/bin/awk 'NF { print; exit }' "$review_path")"
     last_line="$(tail -n 1 "$review_path")"
-    case "$last_line" in
-        PASS|PASS_WITH_NOTES) return 0 ;;
-        'next slice allowed: yes')
-            case "$first_line" in
-                PASS|PASS_WITH_NOTES|PASS:*|PASS_WITH_NOTES:*) return 0 ;;
-                *) return 1 ;;
-            esac
-            ;;
+    case "$first_line" in
+        PASS:*|PASS_WITH_NOTES:*) ;;
         *) return 1 ;;
     esac
+    [ "$last_line" = "next slice allowed: yes" ]
 }
 
 recording_context_for_review() {
@@ -2146,6 +3231,9 @@ run_review_lint() {
     if requires_post_recording_retry_review; then
         require_review_mentions_post_recording_retries "$review_path" "${LOGS_DIR}/guest-script-retry-summary.tsv"
     fi
+    require_review_mentions_slice_31_evidence "$review_path"
+    require_review_mentions_slice_32_evidence "$review_path"
+    require_review_mentions_slice_33_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -2206,6 +3294,51 @@ require_sample_manifest_label() {
     local label="$2"
     /usr/bin/awk -F'\t' -v label="$label" '$1 == "semantic" && $2 == label { found = 1 } END { exit(found ? 0 : 1) }' "$manifest_path" \
         || die "Sample manifest missing semantic proof label: $label"
+}
+
+require_sample_manifest_label_path_kind() {
+    local manifest_path="$1"
+    local label="$2"
+    local path_kind="$3"
+    local path
+    path="$(/usr/bin/awk -F'\t' -v label="$label" '
+        $1 == "semantic" && $2 == label {
+            print $5
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest_path")" || die "Sample manifest missing semantic proof path for label: $label"
+
+    case "$path_kind" in
+        sample-start)
+            case "$path" in
+                screenshots/*.samples/*boundary-start.png) ;;
+                *) die "Sample manifest ${label} must cite an annotated caption boundary-start frame, got: ${path}" ;;
+            esac
+            ;;
+        *)
+            die "Unsupported sample manifest path kind for ${label}: ${path_kind}"
+            ;;
+    esac
+}
+
+require_sample_manifest_label_path() {
+    local manifest_path="$1"
+    local label="$2"
+    local expected_path="$3"
+    local path
+    path="$(/usr/bin/awk -F'\t' -v label="$label" '
+        $1 == "semantic" && $2 == label {
+            print $5
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest_path")" || die "Sample manifest missing semantic proof path for label: $label"
+
+    [ "$path" = "$expected_path" ] \
+        || die "Sample manifest ${label} path mismatch: expected ${expected_path}, got ${path}"
 }
 
 require_slice_11a_sample_manifest() {
@@ -2377,6 +3510,77 @@ require_slice_28_sample_manifest() {
         config-hash-unchanged; do
         require_sample_manifest_label "$manifest_path" "$label"
     done
+}
+
+require_slice_31_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        ready-task-zones \
+        resize-command-start \
+        after-runtime-resize \
+        save-command-start \
+        after-save \
+        quit-action \
+        quit-sidebar-absent \
+        relaunch-action \
+        relaunch-sidebar-restored \
+        list-zones-after-relaunch \
+        relaunch-kept-widths; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    for label in \
+        resize-command-start \
+        after-runtime-resize \
+        save-command-start \
+        quit-action \
+        quit-sidebar-absent \
+        relaunch-action \
+        relaunch-sidebar-restored \
+        list-zones-after-relaunch \
+        relaunch-kept-widths; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
+    done
+}
+
+require_slice_32_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        ready-divider-zones \
+        divider-hover \
+        divider-pickup \
+        divider-drag-path \
+        divider-live-preview \
+        divider-release \
+        after-divider-resize \
+        save-command-start \
+        after-save \
+        quit-action \
+        relaunch-action \
+        list-zones-after-relaunch \
+        relaunch-kept-dragged-widths; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    for label in \
+        save-command-start \
+        quit-action \
+        relaunch-action \
+        list-zones-after-relaunch \
+        relaunch-kept-dragged-widths; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
+    done
+
+    require_sample_manifest_label_path "$manifest_path" divider-hover "screenshots/02-divider-hover-slice-26.png"
+    require_sample_manifest_label_path "$manifest_path" divider-pickup "screenshots/03-divider-pickup-slice-26.png"
+    require_sample_manifest_label_path "$manifest_path" divider-drag-path "screenshots/04-divider-drag-path-slice-26.png"
+    require_sample_manifest_label_path "$manifest_path" divider-live-preview "screenshots/05-divider-preview-slice-26.png"
+    require_sample_manifest_label_path "$manifest_path" divider-release "screenshots/06-divider-release-slice-26.png"
+    require_sample_manifest_label_path "$manifest_path" after-divider-resize "screenshots/07-after-divider-resize-slice-26.png"
 }
 
 require_slice_21_sample_manifest() {
@@ -2571,6 +3775,7 @@ require_guest_transport_summary() {
 
 require_drag_proof_manifest() {
     local manifest_path="$1"
+    local allow_external_caption_plan="${2:-0}"
     require_file "$manifest_path"
 
     local source_title target_zone target_name snap_target not_snap_target source_point target_point hover_seconds
@@ -2644,7 +3849,7 @@ require_drag_proof_manifest() {
         || die "Proof manifest must justify drag points with state/video assertions, zone-derived coordinates, or window-derived coordinates"
     [[ "$required_frames" == *source* && "$required_frames" == *proxy* && "$required_frames" == *path* && ( "$required_frames" == *highlight* || "$required_frames" == *overlay* ) ]] \
         || die "Proof manifest visual floor must require source, proxy, path, and highlighted/overlay target frames"
-    if [ -s "$annotation_plan" ]; then
+    if [ -s "$annotation_plan" ] && [ "$allow_external_caption_plan" != "1" ]; then
         grep -F "$caption_chip" "$annotation_plan" >/dev/null || die "Proof manifest caption chip is missing from annotation plan"
     fi
 }
@@ -3211,6 +4416,148 @@ field_for_title() {
     }' "$path"
 }
 
+require_slice_31_exact_textedit_documents() {
+    local path="$1"
+    local description="$2"
+    local count extra title title_count
+
+    require_file "$path"
+    count="$(/usr/bin/awk 'NF { count++ } END { print count + 0 }' "$path")"
+    [ "$count" = "3" ] \
+        || die "Slice 31 ${description} must list exactly three visible TextEdit task documents, got ${count}: $path"
+
+    for title in research-reference.rtf focus-draft.rtf team-inbox.rtf; do
+        title_count="$(/usr/bin/awk -F'|' -v title="$title" '$2 == title { count++ } END { print count + 0 }' "$path")"
+        [ "$title_count" = "1" ] \
+            || die "Slice 31 ${description} must list ${title} exactly once, got ${title_count}: $path"
+    done
+
+    extra="$(/usr/bin/awk -F'|' '$0 != "" && $2 != "research-reference.rtf" && $2 != "focus-draft.rtf" && $2 != "team-inbox.rtf" { print $2 }' "$path")"
+    [ -z "$extra" ] \
+        || die "Slice 31 ${description} contains unexpected TextEdit window(s): ${extra}"
+}
+
+require_slice_31_product_window_log_clean() {
+    local path="$1"
+    local description="$2"
+    require_file "$path"
+    /usr/bin/awk -F'|' -v description="$description" '
+        function is_expected_textedit(bundle, app, title) {
+            return bundle == "com.apple.TextEdit" &&
+                app == "TextEdit" &&
+                (title == "research-reference.rtf" ||
+                 title == "focus-draft.rtf" ||
+                 title == "team-inbox.rtf")
+        }
+        function is_winmux_chrome(bundle, app, title) {
+            bundle = tolower(bundle)
+            app = tolower(app)
+            return index(bundle, "winmux") > 0 ||
+                index(app, "winmux") > 0
+        }
+        NF {
+            row_count++
+            if (NF != 7) {
+                printf("Slice 31 %s product window row has %d fields, expected 7: %s\n", description, NF, $0) > "/dev/stderr"
+                invalid = 1
+                next
+            }
+            if (is_expected_textedit($1, $2, $3)) {
+                titles[$3]++
+                next
+            }
+            if (is_winmux_chrome($1, $2, $3)) {
+                chrome_count++
+                next
+            }
+            if ($1 == "com.apple.TextEdit") {
+                printf("Slice 31 %s contains unexpected TextEdit title %s\n", description, $3) > "/dev/stderr"
+            } else {
+                printf("Slice 31 %s contains unrelated visible app %s (%s) title %s\n", description, $1, $2, $3) > "/dev/stderr"
+            }
+            invalid = 1
+        }
+        END {
+            if (titles["research-reference.rtf"] != 1 ||
+                titles["focus-draft.rtf"] != 1 ||
+                titles["team-inbox.rtf"] != 1) {
+                printf("Slice 31 %s product window log has wrong title set\n", description) > "/dev/stderr"
+                invalid = 1
+            }
+            if (row_count < 3) {
+                printf("Slice 31 %s product window log has %d rows, expected at least 3\n", description, row_count) > "/dev/stderr"
+                invalid = 1
+            }
+            exit(invalid ? 1 : 0)
+        }
+    ' "$path" || die "Slice 31 ${description} product view contains unrelated, proof, or prompt windows: $path"
+}
+
+require_slice_31_product_windows_match_zones() {
+    local product_log="$1"
+    local zones_log="$2"
+    local description="$3"
+    require_file "$product_log"
+    require_file "$zones_log"
+    /usr/bin/awk -F'|' -v description="$description" '
+        function field_value(prefix,   i) {
+            for (i = 1; i <= NF; i++) {
+                if (index($i, prefix "=") == 1) {
+                    return substr($i, length(prefix) + 2)
+                }
+            }
+            return ""
+        }
+        function expected_zone_for_title(title) {
+            if (title == "research-reference.rtf") return "left"
+            if (title == "focus-draft.rtf") return "main"
+            if (title == "team-inbox.rtf") return "right"
+            return ""
+        }
+        FNR == NR {
+            zone = substr($1, length("zone=") + 1)
+            left[zone] = field_value("left") + 0
+            width[zone] = field_value("width") + 0
+            right[zone] = left[zone] + width[zone]
+            next
+        }
+        $1 == "com.apple.TextEdit" && $2 == "TextEdit" {
+            zone = expected_zone_for_title($3)
+            if (zone == "") next
+            x = field_value("x") + 0
+            window_width = field_value("width") + 0
+            window_right = x + window_width
+            tolerance = 4
+            if (!(zone in left)) {
+                printf("Slice 31 %s has no zone geometry for %s\n", description, zone) > "/dev/stderr"
+                invalid = 1
+                next
+            }
+            if (x < left[zone] - tolerance || window_right > right[zone] + tolerance) {
+                printf("Slice 31 %s window %s is physically outside expected %s zone: x=%s right=%s zone-left=%s zone-right=%s\n", description, $3, zone, x, window_right, left[zone], right[zone]) > "/dev/stderr"
+                invalid = 1
+            }
+            seen[$3] = 1
+        }
+        END {
+            if (!seen["research-reference.rtf"] || !seen["focus-draft.rtf"] || !seen["team-inbox.rtf"]) {
+                printf("Slice 31 %s physical zone check did not see all expected task documents\n", description) > "/dev/stderr"
+                invalid = 1
+            }
+            exit(invalid ? 1 : 0)
+        }
+    ' "$zones_log" "$product_log" || die "Slice 31 ${description} product windows are not physically inside their expected zones"
+}
+
+require_slice_31_startup_trace_loaded_relaunch_state() {
+    local path="$1"
+    require_file "$path"
+    grep -F 'persisted frozen world loaded: false' "$path" >/dev/null \
+        || die "Slice 31 startup trace must show the initial launch had no persisted restart world"
+    grep -F 'persisted frozen world loaded: true' "$path" >/dev/null \
+        || die "Slice 31 startup trace must show the relaunch loaded persisted restart state"
+}
+
 field_for_id() {
     local path="$1"
     local id="$2"
@@ -3692,6 +5039,164 @@ require_slice_6b_zone_scene_proof() {
         || die "Slice 6B annotations missing list-zones workspace chip"
     grep -F "Run: winmux list-windows --workspace visible" "$annotation_plan" >/dev/null \
         || die "Slice 6B annotations missing list-windows chip"
+}
+
+require_slice_33_cycle_zone_scene_proof() {
+    local proof="${RUN_DIR}/slice-33-zone-scene-proof.txt"
+    local done="${LOGS_DIR}/slice-33-zone-scene.done"
+    local scene_before="${LOGS_DIR}/slice-33-scene-before.log"
+    local scene_after="${LOGS_DIR}/slice-33-scene-after.log"
+    local scene_wrap="${LOGS_DIR}/slice-33-scene-wrap.log"
+    local timing_log="${LOGS_DIR}/slice-33-command-timing.log"
+    local command_log="${LOGS_DIR}/slice-33-cycle-zone-scene.log"
+    local wrap_log="${LOGS_DIR}/slice-33-cycle-zone-scene-wrap.log"
+    local windows_before="${LOGS_DIR}/slice-33-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-33-windows-after.log"
+    local windows_wrap="${LOGS_DIR}/slice-33-windows-wrap.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-33.png"
+    local event_manifest="${LOGS_DIR}/slice-33-cycle-zone-scene.event-manifest.tsv"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 33"
+    require_file "$scene_before"
+    require_file "$scene_after"
+    require_file "$scene_wrap"
+    require_file "$command_log"
+    require_file "$wrap_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$windows_wrap"
+    require_file "$ready_screenshot"
+    require_file "$event_manifest"
+    require_slice_33_event_manifest "$event_manifest"
+
+    grep -F 'PASS: cycle-zone-scene advanced from triage to deep-work, then wrapped back to triage with the same command while preserving scene layout and workspace bindings.' "$proof" >/dev/null \
+        || die "Slice 33 proof does not contain the expected cycle PASS claim"
+    grep -F '$ winmux cycle-zone-scene triage deep-work' "$command_log" >/dev/null \
+        || die "Slice 33 first command log missing cycle-zone-scene command"
+    grep -F '$ winmux cycle-zone-scene triage deep-work' "$wrap_log" >/dev/null \
+        || die "Slice 33 wrap command log missing cycle-zone-scene command"
+    grep -F "Using zone scene 'deep-work' on monitor" "$command_log" >/dev/null \
+        || die "Slice 33 first command log missing deep-work success output"
+    grep -F "Using zone scene 'triage' on monitor" "$wrap_log" >/dev/null \
+        || die "Slice 33 wrap command log missing triage success output"
+
+    grep -F 'zone=left|layout=balanced|' "$scene_before" >/dev/null || die "Slice 33 before scene missing left balanced layout"
+    grep -F 'zone=main|layout=balanced|' "$scene_before" >/dev/null || die "Slice 33 before scene missing main balanced layout"
+    grep -F 'zone=right|layout=balanced|' "$scene_before" >/dev/null || die "Slice 33 before scene missing right balanced layout"
+    grep -F 'zone=left|layout=focus|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing left focus layout"
+    grep -F 'zone=main|layout=focus|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing main focus layout"
+    grep -F 'zone=right|layout=focus|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing right focus layout"
+    grep -F 'zone=left|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing left balanced layout"
+    grep -F 'zone=main|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing main balanced layout"
+    grep -F 'zone=right|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing right balanced layout"
+
+    grep -F 'workspace=TriageInbox|' "$scene_before" >/dev/null || die "Slice 33 before scene missing TriageInbox"
+    grep -F 'workspace=TriageDraft|' "$scene_before" >/dev/null || die "Slice 33 before scene missing TriageDraft"
+    grep -F 'workspace=TriageUpdates|' "$scene_before" >/dev/null || die "Slice 33 before scene missing TriageUpdates"
+    grep -F 'workspace=FocusQueue|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing FocusQueue"
+    grep -F 'workspace=FocusBuild|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing FocusBuild"
+    grep -F 'workspace=FocusNotes|' "$scene_after" >/dev/null || die "Slice 33 first cycle missing FocusNotes"
+    grep -F 'workspace=TriageInbox|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing TriageInbox"
+    grep -F 'workspace=TriageDraft|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing TriageDraft"
+    grep -F 'workspace=TriageUpdates|' "$scene_wrap" >/dev/null || die "Slice 33 wrap scene missing TriageUpdates"
+
+    local before_left_width before_main_width before_right_width after_left_width after_main_width after_right_width wrap_left_width wrap_main_width wrap_right_width
+    before_left_width="$(monitor_field_for_zone "$scene_before" left width)"
+    before_main_width="$(monitor_field_for_zone "$scene_before" main width)"
+    before_right_width="$(monitor_field_for_zone "$scene_before" right width)"
+    after_left_width="$(monitor_field_for_zone "$scene_after" left width)"
+    after_main_width="$(monitor_field_for_zone "$scene_after" main width)"
+    after_right_width="$(monitor_field_for_zone "$scene_after" right width)"
+    wrap_left_width="$(monitor_field_for_zone "$scene_wrap" left width)"
+    wrap_main_width="$(monitor_field_for_zone "$scene_wrap" main width)"
+    wrap_right_width="$(monitor_field_for_zone "$scene_wrap" right width)"
+    assert_numeric_lt "$after_left_width" "$before_left_width" "Slice 33 left width did not shrink on first cycle"
+    assert_numeric_gt "$after_main_width" "$before_main_width" "Slice 33 main width did not grow on first cycle"
+    assert_numeric_lt "$after_right_width" "$before_right_width" "Slice 33 right width did not shrink on first cycle"
+    assert_numeric_approximately_equal "$wrap_left_width" "$before_left_width" 2 "Slice 33 left width did not wrap back"
+    assert_numeric_approximately_equal "$wrap_main_width" "$before_main_width" 2 "Slice 33 main width did not wrap back"
+    assert_numeric_approximately_equal "$wrap_right_width" "$before_right_width" 2 "Slice 33 right width did not wrap back"
+
+    local title expected_zone zone
+    for title in triage-inbox.rtf triage-draft.rtf triage-updates.rtf; do
+        case "$title" in
+            triage-inbox.rtf) expected_zone=left ;;
+            triage-draft.rtf) expected_zone=main ;;
+            triage-updates.rtf) expected_zone=right ;;
+        esac
+        zone="$(field_for_title "$windows_before" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 33 before zone for $title was ${zone:-missing}, expected $expected_zone"
+        zone="$(field_for_title "$windows_wrap" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 33 wrap zone for $title was ${zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_after" "$title" id)" ] || die "Slice 33 after first cycle should not include $title"
+    done
+    for title in focus-queue.rtf focus-build.rtf focus-notes.rtf; do
+        case "$title" in
+            focus-queue.rtf) expected_zone=left ;;
+            focus-build.rtf) expected_zone=main ;;
+            focus-notes.rtf) expected_zone=right ;;
+        esac
+        zone="$(field_for_title "$windows_after" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 33 first cycle zone for $title was ${zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_before" "$title" id)" ] || die "Slice 33 before cycle should not include $title"
+        [ -z "$(field_for_title "$windows_wrap" "$title" id)" ] || die "Slice 33 wrap cycle should not include $title"
+    done
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-33-cycle-zone-scene.expected-chips.txt" \
+        "${LOGS_DIR}/slice-33-cycle-zone-scene.annotations.tsv"
+    require_slice_33_command_timing "$timing_log"
+    grep -F "Config: alt-tab = 'cycle-zone-scene triage deep-work'" "$annotation_plan" >/dev/null \
+        || die "Slice 33 annotations missing cycle binding config chip"
+    local cycle_caption_count
+    cycle_caption_count="$(/usr/bin/awk '/Run: winmux cycle-zone-scene triage deep-work/ { count += 1 } END { print count + 0 }' "$annotation_plan")"
+    [ "$cycle_caption_count" -ge 2 ] \
+        || die "Slice 33 annotations must expose the cycle command twice"
+    grep -F "Action: cycle result = deep-work" "$annotation_plan" >/dev/null \
+        || die "Slice 33 annotations missing deep-work result chip"
+    grep -F "Action: cycle result = triage" "$annotation_plan" >/dev/null \
+        || die "Slice 33 annotations missing triage wrap result chip"
+}
+
+require_slice_33_command_timing() {
+    local timing_log="$1"
+    if [ ! -s "$timing_log" ]; then
+        if is_historical_slice_33_artifact; then
+            log "historical exception: accepted Slice 33 artifact predates command timing log hardening"
+            return 0
+        fi
+        die "Slice 33 missing command timing log: $timing_log"
+    fi
+
+    local first_start first_end first_result second_start second_end wrap_result
+    first_start="$(value_from_log first-command-start-offset-seconds "$timing_log")"
+    first_end="$(value_from_log first-command-end-offset-seconds "$timing_log")"
+    first_result="$(value_from_log first-result-detected-offset-seconds "$timing_log")"
+    second_start="$(value_from_log second-command-start-offset-seconds "$timing_log")"
+    second_end="$(value_from_log second-command-end-offset-seconds "$timing_log")"
+    wrap_result="$(value_from_log wrap-result-detected-offset-seconds "$timing_log")"
+    [ -n "$first_start" ] || die "Slice 33 timing log missing first command start offset"
+    [ -n "$first_end" ] || die "Slice 33 timing log missing first command end offset"
+    [ -n "$first_result" ] || die "Slice 33 timing log missing first result detection offset"
+    [ -n "$second_start" ] || die "Slice 33 timing log missing second command start offset"
+    [ -n "$second_end" ] || die "Slice 33 timing log missing second command end offset"
+    [ -n "$wrap_result" ] || die "Slice 33 timing log missing wrap result detection offset"
+
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux cycle-zone-scene triage deep-work" "$first_start" \
+        "Slice 33 first cycle command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux cycle-zone-scene triage deep-work" "$second_start" \
+        "Slice 33 second cycle command must happen while its command caption is visible"
+    assert_numeric_gt "$first_result" "$first_start" \
+        "Slice 33 first result must be detected after the first command starts"
+    assert_numeric_gt "$wrap_result" "$second_start" \
+        "Slice 33 wrap result must be detected after the second command starts"
+    assert_numeric_gt "$second_start" "$first_result" \
+        "Slice 33 second command must not run before the deep-work result is detected"
+    assert_numeric_gt "$wrap_result" "$second_end" \
+        "Slice 33 wrap result must be detected after the second command completes"
 }
 
 require_slice_8_window_routing_proof() {
@@ -4727,6 +6232,807 @@ require_slice_29_save_zone_layout_proof() {
         || die "Slice 29 proof does not copy runtime widths from zones log"
     grep -F "widths-saved=left:${saved_left},main:${saved_main},right:${saved_right}" "$proof" >/dev/null \
         || die "Slice 29 proof does not copy saved widths from config"
+}
+
+require_slice_31_relaunch_saved_layout_proof() {
+    local proof="${RUN_DIR}/slice-31-relaunch-saved-layout-proof.txt"
+    local done="${LOGS_DIR}/slice-31-relaunch-saved-layout.done"
+    local harness_setup_log="${LOGS_DIR}/slice-31-setup.log"
+    local harness_run_log="${LOGS_DIR}/slice-31-run.log"
+    local setup_log="${LOGS_DIR}/slice-31-relaunch-setup.log"
+    local windows_before="${LOGS_DIR}/slice-31-windows-before.log"
+    local windows_after_relaunch="${LOGS_DIR}/slice-31-windows-after-relaunch.log"
+    local product_windows_ready="${LOGS_DIR}/slice-31-product-windows-ready.log"
+    local product_windows_after_save="${LOGS_DIR}/slice-31-product-windows-after-save.log"
+    local product_windows_after_relaunch="${LOGS_DIR}/slice-31-product-windows-after-relaunch.log"
+    local product_windows_final="${LOGS_DIR}/slice-31-product-windows-final.log"
+    local zones_before="${LOGS_DIR}/slice-31-zones-before.log"
+    local zones_resized="${LOGS_DIR}/slice-31-zones-after-resize.log"
+    local zones_after_save="${LOGS_DIR}/slice-31-zones-after-save.log"
+    local zones_after_relaunch="${LOGS_DIR}/slice-31-zones-after-relaunch.log"
+    local resize_log="${LOGS_DIR}/slice-31-resize-zone.log"
+    local save_log="${LOGS_DIR}/slice-31-save-zone-layout.log"
+    local relaunch_log="${LOGS_DIR}/slice-31-relaunch.log"
+    local cli_log="${LOGS_DIR}/slice-31-cli.log"
+    local config_sha_before="${LOGS_DIR}/slice-31-config-before.sha256"
+    local config_sha_after_save="${LOGS_DIR}/slice-31-config-after-save.sha256"
+    local backup_sha="${LOGS_DIR}/slice-31-config-backup.sha256"
+    local backup_path_log="${LOGS_DIR}/slice-31-backup-path.txt"
+    local config_before_copy="${LOGS_DIR}/slice-31-config-before.toml"
+    local config_after_copy="${LOGS_DIR}/slice-31-config-after.toml"
+    local config_backup_copy="${LOGS_DIR}/slice-31-config-backup.toml"
+    local measurements="${LOGS_DIR}/slice-31-relaunch-saved-layout.measurements.tsv"
+    local proof_manifest="${LOGS_DIR}/slice-31-relaunch-saved-layout.proof-manifest.tsv"
+    local timing_log="${LOGS_DIR}/slice-31-command-timing.log"
+    local startup_trace="${LOGS_DIR}/winmux-startup-trace.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 31"
+    require_file "$harness_setup_log"
+    require_file "$harness_run_log"
+    require_file "$setup_log"
+    require_file "$windows_before"
+    require_file "$windows_after_relaunch"
+    require_file "$product_windows_ready"
+    require_file "$product_windows_after_save"
+    require_file "$product_windows_after_relaunch"
+    require_file "$product_windows_final"
+    require_file "$zones_before"
+    require_file "$zones_resized"
+    require_file "$zones_after_save"
+    require_file "$zones_after_relaunch"
+    require_file "$resize_log"
+    require_file "$save_log"
+    require_file "$relaunch_log"
+    require_file "$cli_log"
+    require_file "$config_sha_before"
+    require_file "$config_sha_after_save"
+    require_file "$backup_sha"
+    require_file "$backup_path_log"
+    require_file "$config_before_copy"
+    require_file "$config_after_copy"
+    require_file "$config_backup_copy"
+    require_file "$startup_trace"
+    require_file "$measurements"
+    require_file "$proof_manifest"
+    require_file "$timing_log"
+    require_slice_31_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/02-after-runtime-resize-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/03-after-save-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/04-after-quit-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/05-after-relaunch-slice-31.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-31.png"
+    require_file "$(event_manifest_path)"
+    require_slice_31_event_manifest "$(event_manifest_path)"
+    require_file "$(demo_recording_path)"
+    require_file "$(demo_cut_manifest_path)"
+    require_demo_cut_manifest "$recording_name" "$duration"
+    require_slice_31_measurement_table "$measurements"
+    require_slice_31_exact_textedit_documents "$windows_before" "before resize window log"
+    require_slice_31_exact_textedit_documents "$windows_after_relaunch" "after relaunch window log"
+    require_slice_31_product_window_log_clean "$product_windows_ready" "ready"
+    require_slice_31_product_window_log_clean "$product_windows_after_save" "after save"
+    require_slice_31_product_window_log_clean "$product_windows_after_relaunch" "after relaunch"
+    require_slice_31_product_window_log_clean "$product_windows_final" "final"
+    require_slice_31_product_windows_match_zones "$product_windows_ready" "$zones_before" "ready"
+    require_slice_31_product_windows_match_zones "$product_windows_after_save" "$zones_after_save" "after save"
+    require_slice_31_product_windows_match_zones "$product_windows_after_relaunch" "$zones_after_relaunch" "after relaunch"
+    require_slice_31_product_windows_match_zones "$product_windows_final" "$zones_after_relaunch" "final"
+
+    grep -F 'PASS: save-zone-layout persists the resized 20/60/20 layout, and a fresh WinMux launch reads that saved layout without another runtime resize command.' "$proof" >/dev/null \
+        || die "Slice 31 proof does not contain the expected PASS claim"
+    grep -F 'Commands: resize-zone Work width +10%; save-zone-layout; quit and relaunch WinMux' "$setup_log" >/dev/null \
+        || die "Slice 31 setup log missing command summary"
+    require_exact_line_count "$resize_log" '$ winmux resize-zone Work width +10%' 1 \
+        "Slice 31 resize log"
+    require_no_command_variants "$resize_log" '$ winmux resize-zone' '$ winmux resize-zone Work width +10%' \
+        "Slice 31 resize log"
+    require_exact_line_count "$save_log" '$ winmux save-zone-layout' 1 \
+        "Slice 31 save log"
+    require_no_command_variants "$save_log" '$ winmux save-zone-layout' '$ winmux save-zone-layout' \
+        "Slice 31 save log"
+    grep -F 'Saved zone layout' "$save_log" >/dev/null \
+        || die "Slice 31 save log missing saved output"
+    grep -F 'Backup:' "$save_log" >/dev/null \
+        || die "Slice 31 save log missing backup path"
+    require_exact_line_count "$relaunch_log" '$ launchctl bootout WinMux slice service' 1 \
+        "Slice 31 relaunch log"
+    require_no_command_variants "$relaunch_log" '$ launchctl bootout WinMux slice service' '$ launchctl bootout WinMux slice service' \
+        "Slice 31 relaunch log"
+    require_exact_line_count "$relaunch_log" '$ launchctl bootstrap WinMux slice service' 1 \
+        "Slice 31 relaunch log"
+    require_no_command_variants "$relaunch_log" '$ launchctl bootstrap WinMux slice service' '$ launchctl bootstrap WinMux slice service' \
+        "Slice 31 relaunch log"
+    grep -F 'stopped=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 31 relaunch log does not prove WinMux stopped"
+    require_slice_31_startup_trace_loaded_relaunch_state "$startup_trace"
+    if grep -F 'reload-config' "$relaunch_log" "$proof" "$cli_log" "$harness_setup_log" "$harness_run_log" >/dev/null; then
+        die "Slice 31 relaunch proof must not use reload-config"
+    fi
+    if grep -F 'resize-zone' "$relaunch_log" >/dev/null; then
+        die "Slice 31 relaunch log must not contain a runtime resize after launch"
+    fi
+    require_exact_line_count "$cli_log" '$ winmux resize-zone Work width +10%' 1 \
+        "Slice 31 aggregate CLI log"
+    require_no_command_variants "$cli_log" '$ winmux resize-zone' '$ winmux resize-zone Work width +10%' \
+        "Slice 31 aggregate CLI log"
+    require_exact_line_count "$cli_log" '$ winmux save-zone-layout' 1 \
+        "Slice 31 aggregate CLI log"
+    require_no_command_variants "$cli_log" '$ winmux save-zone-layout' '$ winmux save-zone-layout' \
+        "Slice 31 aggregate CLI log"
+    require_exact_line_count "$cli_log" '$ launchctl bootout WinMux slice service' 1 \
+        "Slice 31 aggregate CLI log"
+    require_no_command_variants "$cli_log" '$ launchctl bootout WinMux slice service' '$ launchctl bootout WinMux slice service' \
+        "Slice 31 aggregate CLI log"
+    require_exact_line_count "$cli_log" '$ launchctl bootstrap WinMux slice service' 1 \
+        "Slice 31 aggregate CLI log"
+    require_no_command_variants "$cli_log" '$ launchctl bootstrap WinMux slice service' '$ launchctl bootstrap WinMux slice service' \
+        "Slice 31 aggregate CLI log"
+
+    local resize_offset save_offset quit_offset relaunch_offset list_zones_offset
+    resize_offset="$(value_from_log resize-command-offset-seconds "$timing_log")"
+    save_offset="$(value_from_log save-command-offset-seconds "$timing_log")"
+    quit_offset="$(value_from_log quit-command-offset-seconds "$timing_log")"
+    relaunch_offset="$(value_from_log relaunch-command-offset-seconds "$timing_log")"
+    list_zones_offset="$(value_from_log list-zones-after-relaunch-offset-seconds "$timing_log")"
+    [ -n "$resize_offset" ] || die "Slice 31 timing log missing resize command offset"
+    [ -n "$save_offset" ] || die "Slice 31 timing log missing save command offset"
+    [ -n "$quit_offset" ] || die "Slice 31 timing log missing quit command offset"
+    [ -n "$relaunch_offset" ] || die "Slice 31 timing log missing relaunch command offset"
+    [ -n "$list_zones_offset" ] || die "Slice 31 timing log missing post-relaunch list-zones offset"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux resize-zone Work width +10%" "$resize_offset" \
+        "Slice 31 resize command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux save-zone-layout" "$save_offset" \
+        "Slice 31 save command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: quit WinMux" "$quit_offset" \
+        "Slice 31 quit action must happen while its quit caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: relaunch WinMux" "$relaunch_offset" \
+        "Slice 31 relaunch action must happen while its relaunch caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones" "$list_zones_offset" \
+        "Slice 31 post-relaunch list-zones command must happen while its command caption is visible"
+
+    local before_left before_main before_right resized_left resized_main resized_right
+    local saved_left saved_main saved_right relaunched_left relaunched_main relaunched_right
+    before_left="$(require_measurement_value "$measurements" before left effective)"
+    before_main="$(require_measurement_value "$measurements" before main effective)"
+    before_right="$(require_measurement_value "$measurements" before right effective)"
+    resized_left="$(require_measurement_value "$measurements" resized left effective)"
+    resized_main="$(require_measurement_value "$measurements" resized main effective)"
+    resized_right="$(require_measurement_value "$measurements" resized right effective)"
+    saved_left="$(require_measurement_value "$measurements" saved left effective)"
+    saved_main="$(require_measurement_value "$measurements" saved main effective)"
+    saved_right="$(require_measurement_value "$measurements" saved right effective)"
+    relaunched_left="$(require_measurement_value "$measurements" relaunched left effective)"
+    relaunched_main="$(require_measurement_value "$measurements" relaunched main effective)"
+    relaunched_right="$(require_measurement_value "$measurements" relaunched right effective)"
+
+    require_slice_31_measurements_match_zone_log "$measurements" before "$zones_before"
+    require_slice_31_measurements_match_zone_log "$measurements" resized "$zones_resized"
+    require_slice_31_measurements_match_zone_log "$measurements" saved "$zones_after_save"
+    require_slice_31_measurements_match_zone_log "$measurements" relaunched "$zones_after_relaunch"
+
+    assert_numeric_approximately_equal "$before_left" 0.25 0.000001 \
+        "Slice 31 before Reference width must be 25%"
+    assert_numeric_approximately_equal "$before_main" 0.5 0.000001 \
+        "Slice 31 before Work width must be 50%"
+    assert_numeric_approximately_equal "$before_right" 0.25 0.000001 \
+        "Slice 31 before Comms width must be 25%"
+    assert_numeric_approximately_equal "$resized_left" 0.2 0.000001 \
+        "Slice 31 resized Reference width must be 20%"
+    assert_numeric_approximately_equal "$resized_main" 0.6 0.000001 \
+        "Slice 31 resized Work width must be 60%"
+    assert_numeric_approximately_equal "$resized_right" 0.2 0.000001 \
+        "Slice 31 resized Comms width must be 20%"
+    assert_numeric_approximately_equal "$saved_left" "$resized_left" 0.000001 \
+        "Slice 31 saved Reference effective width does not match resized width"
+    assert_numeric_approximately_equal "$saved_main" "$resized_main" 0.000001 \
+        "Slice 31 saved Work effective width does not match resized width"
+    assert_numeric_approximately_equal "$saved_right" "$resized_right" 0.000001 \
+        "Slice 31 saved Comms effective width does not match resized width"
+    assert_numeric_approximately_equal "$relaunched_left" "$resized_left" 0.000001 \
+        "Slice 31 relaunched Reference width does not match saved width"
+    assert_numeric_approximately_equal "$relaunched_main" "$resized_main" 0.000001 \
+        "Slice 31 relaunched Work width does not match saved width"
+    assert_numeric_approximately_equal "$relaunched_right" "$resized_right" 0.000001 \
+        "Slice 31 relaunched Comms width does not match saved width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" left configured)" "$resized_left" 0.000001 \
+        "Slice 31 relaunched Reference configured width does not match saved width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" main configured)" "$resized_main" 0.000001 \
+        "Slice 31 relaunched Work configured width does not match saved width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" right configured)" "$resized_right" 0.000001 \
+        "Slice 31 relaunched Comms configured width does not match saved width"
+    [ "$(zone_log_value "$zones_after_relaunch" left override-state)" = configured ] \
+        || die "Slice 31 relaunched Reference should use configured width, not a runtime override"
+    [ "$(zone_log_value "$zones_after_relaunch" main override-state)" = configured ] \
+        || die "Slice 31 relaunched Work should use configured width, not a runtime override"
+    [ "$(zone_log_value "$zones_after_relaunch" right override-state)" = configured ] \
+        || die "Slice 31 relaunched Comms should use configured width, not a runtime override"
+    require_zone_log_empty_or_none "$zones_after_relaunch" left override \
+        "Slice 31 relaunched Reference runtime override value"
+    require_zone_log_empty_or_none "$zones_after_relaunch" main override \
+        "Slice 31 relaunched Work runtime override value"
+    require_zone_log_empty_or_none "$zones_after_relaunch" right override \
+        "Slice 31 relaunched Comms runtime override value"
+
+    local before_chip resized_chip relaunched_chip
+    before_chip="$(require_measurement_value "$measurements" before main chip)"
+    resized_chip="$(require_measurement_value "$measurements" resized main chip)"
+    relaunched_chip="$(require_measurement_value "$measurements" relaunched main chip)"
+    [ "$before_chip" = 'Reference 25% | Work 50% | Comms 25%' ] \
+        || die "Slice 31 before measurement chip is wrong: $before_chip"
+    [ "$resized_chip" = 'Reference 20% | Work 60% | Comms 20%' ] \
+        || die "Slice 31 resized measurement chip is wrong: $resized_chip"
+    [ "$relaunched_chip" = 'Reference 20% | Work 60% | Comms 20%' ] \
+        || die "Slice 31 relaunched measurement chip is wrong: $relaunched_chip"
+
+    local before_sha save_sha backup_recorded_sha backup_copy_sha backup_path
+    before_sha="$(cat "$config_sha_before")"
+    save_sha="$(cat "$config_sha_after_save")"
+    backup_recorded_sha="$(cat "$backup_sha")"
+    backup_copy_sha="$(file_sha256 "$config_backup_copy")"
+    backup_path="$(cat "$backup_path_log")"
+    [ -n "$backup_path" ] || die "Slice 31 backup path log is empty"
+    [ "$save_sha" != "$before_sha" ] \
+        || die "Slice 31 save did not change config hash"
+    [ "$backup_recorded_sha" = "$before_sha" ] && [ "$backup_copy_sha" = "$before_sha" ] \
+        || die "Slice 31 backup does not match original config"
+    [ "$(file_sha256 "$config_before_copy")" = "$before_sha" ] \
+        || die "Slice 31 original config copy hash does not match before hash"
+    [ "$(file_sha256 "$config_after_copy")" = "$save_sha" ] \
+        || die "Slice 31 after config copy hash does not match saved hash"
+
+    [ "$(manifest_value "$proof_manifest" target layout-id)" = balanced ] \
+        || die "Slice 31 proof manifest must record target layout id"
+    [ "$(manifest_value "$proof_manifest" command resize)" = 'winmux resize-zone Work width +10%' ] \
+        || die "Slice 31 proof manifest must record resize command"
+    [ "$(manifest_value "$proof_manifest" command save)" = 'winmux save-zone-layout' ] \
+        || die "Slice 31 proof manifest must record save command"
+    [ "$(manifest_value "$proof_manifest" command relaunch)" = 'launchctl bootout/bootstrap WinMux slice service' ] \
+        || die "Slice 31 proof manifest must record relaunch command"
+    [ "$(manifest_value "$proof_manifest" command list-zones)" = 'winmux list-zones' ] \
+        || die "Slice 31 proof manifest must record list-zones command"
+    [ "$(manifest_value "$proof_manifest" timing resize-command-offset-seconds)" = "$resize_offset" ] \
+        || die "Slice 31 proof manifest must copy resize command offset"
+    [ "$(manifest_value "$proof_manifest" timing save-command-offset-seconds)" = "$save_offset" ] \
+        || die "Slice 31 proof manifest must copy save command offset"
+    [ "$(manifest_value "$proof_manifest" timing quit-command-offset-seconds)" = "$quit_offset" ] \
+        || die "Slice 31 proof manifest must copy quit command offset"
+    [ "$(manifest_value "$proof_manifest" timing relaunch-command-offset-seconds)" = "$relaunch_offset" ] \
+        || die "Slice 31 proof manifest must copy relaunch command offset"
+    [ "$(manifest_value "$proof_manifest" timing list-zones-after-relaunch-offset-seconds)" = "$list_zones_offset" ] \
+        || die "Slice 31 proof manifest must copy list-zones command offset"
+    [ "$(manifest_value "$proof_manifest" safety backup-path)" = "$backup_path" ] \
+        || die "Slice 31 proof manifest must copy backup path"
+    [ "$(manifest_value "$proof_manifest" safety backup-matches-original)" = yes ] \
+        || die "Slice 31 proof manifest must record backup-matches-original=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch app-stopped)" = yes ] \
+        || die "Slice 31 proof manifest must record app-stopped=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch app-restarted)" = yes ] \
+        || die "Slice 31 proof manifest must record app-restarted=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch widths-restored)" = yes ] \
+        || die "Slice 31 proof manifest must record widths-restored=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch no-runtime-resize-after-launch)" = yes ] \
+        || die "Slice 31 proof manifest must record no-runtime-resize-after-launch=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch runtime-override-values-cleared)" = yes ] \
+        || die "Slice 31 proof manifest must record runtime-override-values-cleared=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch persisted-restart-state-loaded)" = yes ] \
+        || die "Slice 31 proof manifest must record persisted-restart-state-loaded=yes"
+    [ "$(manifest_value "$proof_manifest" continuity documents-in-same-zones)" = yes ] \
+        || die "Slice 31 proof manifest must record documents-in-same-zones=yes"
+    [ "$(manifest_value "$proof_manifest" continuity workspaces-preserved)" = yes ] \
+        || die "Slice 31 proof manifest must record workspaces-preserved=yes"
+    [ "$(manifest_value "$proof_manifest" clean-view before-visible-textedit-window-count)" = 3 ] \
+        || die "Slice 31 proof manifest must record exactly three visible TextEdit windows before resize"
+    [ "$(manifest_value "$proof_manifest" clean-view before-visible-textedit-title-set)" = 'research-reference.rtf,focus-draft.rtf,team-inbox.rtf' ] \
+        || die "Slice 31 proof manifest must record the exact before TextEdit title set"
+    [ "$(manifest_value "$proof_manifest" clean-view relaunched-visible-textedit-window-count)" = 3 ] \
+        || die "Slice 31 proof manifest must record exactly three visible TextEdit windows after relaunch"
+    [ "$(manifest_value "$proof_manifest" clean-view relaunched-visible-textedit-title-set)" = 'research-reference.rtf,focus-draft.rtf,team-inbox.rtf' ] \
+        || die "Slice 31 proof manifest must record the exact relaunched TextEdit title set"
+    [ "$(manifest_value "$proof_manifest" measurement before)" = "$before_chip" ] \
+        || die "Slice 31 proof manifest before measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" measurement resized)" = "$resized_chip" ] \
+        || die "Slice 31 proof manifest resized measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" measurement relaunched)" = "$relaunched_chip" ] \
+        || die "Slice 31 proof manifest relaunched measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" hash config-before)" = "$before_sha" ] \
+        || die "Slice 31 proof manifest before config hash does not match copied hash"
+    [ "$(manifest_value "$proof_manifest" hash config-after-save)" = "$save_sha" ] \
+        || die "Slice 31 proof manifest saved config hash does not match copied hash"
+    [ "$(manifest_value "$proof_manifest" hash config-backup)" = "$backup_recorded_sha" ] \
+        || die "Slice 31 proof manifest backup config hash does not match copied hash"
+    local zone want_before want_resized want_saved want_relaunched
+    for zone in left main right; do
+        case "$zone" in
+            left)
+                want_before="$before_left"
+                want_resized="$resized_left"
+                want_saved="$saved_left"
+                want_relaunched="$relaunched_left"
+                ;;
+            main)
+                want_before="$before_main"
+                want_resized="$resized_main"
+                want_saved="$saved_main"
+                want_relaunched="$relaunched_main"
+                ;;
+            right)
+                want_before="$before_right"
+                want_resized="$resized_right"
+                want_saved="$saved_right"
+                want_relaunched="$relaunched_right"
+                ;;
+            *)
+                die "Unexpected Slice 31 zone id in proof manifest loop: $zone"
+                ;;
+        esac
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-before "$zone")" "$want_before" 0.000001 \
+            "Slice 31 proof manifest width-before/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-resized "$zone")" "$want_resized" 0.000001 \
+            "Slice 31 proof manifest width-resized/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-saved "$zone")" "$want_saved" 0.000001 \
+            "Slice 31 proof manifest width-saved/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-relaunched "$zone")" "$want_relaunched" 0.000001 \
+            "Slice 31 proof manifest width-relaunched/${zone} does not match measurement TSV"
+    done
+
+    local title expected_zone before_zone after_zone before_workspace after_workspace
+    for title in research-reference.rtf focus-draft.rtf team-inbox.rtf; do
+        case "$title" in
+            research-reference.rtf) expected_zone=left ;;
+            focus-draft.rtf) expected_zone=main ;;
+            team-inbox.rtf) expected_zone=right ;;
+            *) expected_zone= ;;
+        esac
+        before_zone="$(field_for_title "$windows_before" "$title" zone)"
+        after_zone="$(field_for_title "$windows_after_relaunch" "$title" zone)"
+        before_workspace="$(field_for_title "$windows_before" "$title" workspace)"
+        after_workspace="$(field_for_title "$windows_after_relaunch" "$title" workspace)"
+        [ -n "$before_zone" ] && [ -n "$after_zone" ] \
+            || die "Slice 31 missing title across relaunch logs: $title"
+        [ "$before_zone" = "$expected_zone" ] && [ "$after_zone" = "$expected_zone" ] \
+            || die "Slice 31 zone changed for $title: $before_zone -> $after_zone"
+        [ -n "$before_workspace" ] && [ "$before_workspace" = "$after_workspace" ] \
+            || die "Slice 31 workspace changed for $title: $before_workspace -> $after_workspace"
+    done
+
+    for chip in \
+        "Config: saved layout relaunch proof" \
+        "Run: winmux resize-zone Work width +10%" \
+        "Result: Work 50% -> 60%" \
+        "Run: winmux save-zone-layout" \
+        "Result: Reference 25% | Work 50% | Comms 25%" \
+        "Action: quit WinMux" \
+        "Result: WinMux sidebar absent" \
+        "Action: relaunch WinMux" \
+        "Result: WinMux sidebar restored" \
+        "Run: winmux list-zones" \
+        "Result: relaunch kept Reference 20% | Work 60% | Comms 20%"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 31 annotations missing chip: $chip"
+    done
+    grep -F 'Result: Reference 25% | Work 50% | Comms 25%' "$annotation_plan" >/dev/null \
+        || die "Slice 31 annotations missing starting measurement result"
+    grep -F 'Result: Reference 20% | Work 60% | Comms 20%' "$annotation_plan" >/dev/null \
+        || die "Slice 31 annotations missing resized measurement result"
+
+    grep -F "config-sha-before=${before_sha}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy before config hash"
+    grep -F "config-sha-after-save=${save_sha}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy saved config hash"
+    grep -F "config-backup-sha=${backup_recorded_sha}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy backup config hash"
+    grep -F "backup-path=${backup_path}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy backup path"
+    grep -F "measurement-before=${before_chip}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy before measurement chip"
+    grep -F "measurement-resized=${resized_chip}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy resized measurement chip"
+    grep -F "measurement-relaunched=${relaunched_chip}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy relaunched measurement chip"
+    grep -F "resize-command-offset-seconds=${resize_offset}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy resize command offset"
+    grep -F "save-command-offset-seconds=${save_offset}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy save command offset"
+    grep -F "quit-command-offset-seconds=${quit_offset}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy quit command offset"
+    grep -F "relaunch-command-offset-seconds=${relaunch_offset}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy relaunch command offset"
+    grep -F "list-zones-after-relaunch-offset-seconds=${list_zones_offset}" "$proof" >/dev/null \
+        || die "Slice 31 proof does not copy post-relaunch list-zones offset"
+}
+
+require_slice_32_divider_save_relaunch_proof() {
+    local proof="${RUN_DIR}/slice-32-divider-save-relaunch-proof.txt"
+    local done="${LOGS_DIR}/slice-32-divider-save-relaunch.done"
+    local harness_setup_log="${LOGS_DIR}/slice-32-setup.log"
+    local harness_run_log="${LOGS_DIR}/slice-32-run.log"
+    local setup_log="${LOGS_DIR}/slice-32-divider-save-relaunch-setup.log"
+    local delegated_drag_log="${LOGS_DIR}/slice-32-delegated-divider-drag.log"
+    local delegated_proof_manifest="${LOGS_DIR}/slice-26-zone-divider-drag.proof-manifest.tsv"
+    local delegated_mouse_events="${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv"
+    local windows_after_drag="${LOGS_DIR}/slice-26-windows-after.log"
+    local windows_after_relaunch="${LOGS_DIR}/slice-32-windows-after-relaunch.log"
+    local zones_before_drag="${LOGS_DIR}/slice-26-zones-before.log"
+    local zones_after_drag="${LOGS_DIR}/slice-26-zones-after.log"
+    local zones_after_save="${LOGS_DIR}/slice-32-zones-after-save.log"
+    local zones_after_relaunch="${LOGS_DIR}/slice-32-zones-after-relaunch.log"
+    local save_log="${LOGS_DIR}/slice-32-save-zone-layout.log"
+    local relaunch_log="${LOGS_DIR}/slice-32-relaunch.log"
+    local cli_log="${LOGS_DIR}/slice-32-cli.log"
+    local config_sha_before_save="${LOGS_DIR}/slice-32-config-before-save.sha256"
+    local config_sha_after_save="${LOGS_DIR}/slice-32-config-after-save.sha256"
+    local backup_sha="${LOGS_DIR}/slice-32-config-backup.sha256"
+    local backup_path_log="${LOGS_DIR}/slice-32-backup-path.txt"
+    local config_after_copy="${LOGS_DIR}/slice-32-config-after.toml"
+    local config_backup_copy="${LOGS_DIR}/slice-32-config-backup.toml"
+    local measurements="${LOGS_DIR}/slice-32-divider-save-relaunch.measurements.tsv"
+    local proof_manifest="${LOGS_DIR}/slice-32-divider-save-relaunch.proof-manifest.tsv"
+    local timing_log="${LOGS_DIR}/slice-32-command-timing.log"
+    local startup_trace="${LOGS_DIR}/winmux-startup-trace.log"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 32"
+    require_file "$harness_setup_log"
+    require_file "$harness_run_log"
+    require_file "$setup_log"
+    require_file "$delegated_drag_log"
+    require_file "$delegated_proof_manifest"
+    require_file "$delegated_mouse_events"
+    require_file "$windows_after_drag"
+    require_file "$windows_after_relaunch"
+    require_file "$zones_before_drag"
+    require_file "$zones_after_drag"
+    require_file "$zones_after_save"
+    require_file "$zones_after_relaunch"
+    require_file "$save_log"
+    require_file "$relaunch_log"
+    require_file "$cli_log"
+    require_file "$config_sha_before_save"
+    require_file "$config_sha_after_save"
+    require_file "$backup_sha"
+    require_file "$backup_path_log"
+    require_file "$config_after_copy"
+    require_file "$config_backup_copy"
+    require_file "$startup_trace"
+    require_file "$measurements"
+    require_file "$proof_manifest"
+    require_file "$timing_log"
+    require_slice_32_sample_manifest "$sample_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-32.png"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-32.png"
+    require_file "${SCREENSHOTS_DIR}/02-divider-hover-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/03-divider-pickup-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/04-divider-drag-path-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/05-divider-preview-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/06-divider-release-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/07-after-divider-resize-slice-26.png"
+    require_file "${SCREENSHOTS_DIR}/08-after-save-slice-32.png"
+    require_file "${SCREENSHOTS_DIR}/09-after-quit-slice-32.png"
+    require_file "${SCREENSHOTS_DIR}/10-after-relaunch-slice-32.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-32.png"
+    require_file "$(event_manifest_path)"
+    require_slice_32_event_manifest "$(event_manifest_path)"
+    require_file "$(demo_recording_path)"
+    require_file "$(demo_cut_manifest_path)"
+    require_demo_cut_manifest "$recording_name" "$duration"
+    require_slice_32_measurement_table "$measurements"
+    require_drag_proof_manifest "$delegated_proof_manifest" 1
+
+    grep -F 'PASS: dragging the Work|Comms divider, running save-zone-layout, and relaunching WinMux restores the dragged widths as configured layout widths without another resize command.' "$proof" >/dev/null \
+        || die "Slice 32 proof does not contain the expected PASS claim"
+    grep -F 'Action: drag Work|Comms divider, save-zone-layout, quit, relaunch, list-zones' "$setup_log" >/dev/null \
+        || die "Slice 32 setup log missing command summary"
+    [ "$(manifest_value "$delegated_proof_manifest" drag-target snap-target)" = zone-divider ] \
+        || die "Slice 32 delegated proof must show a zone-divider drag target"
+    [ "$(manifest_value "$delegated_proof_manifest" divider-policy target)" = adjacent-zone-boundary ] \
+        || die "Slice 32 delegated proof must show an adjacent-zone-boundary divider policy"
+    [ "$(manifest_value "$delegated_proof_manifest" divider-policy config-persistence)" = no-config-rewrite ] \
+        || die "Slice 32 delegated proof must show divider drag did not rewrite config"
+
+    require_exact_line_count "$save_log" '$ winmux save-zone-layout' 1 \
+        "Slice 32 save log"
+    require_no_command_variants "$save_log" '$ winmux save-zone-layout' '$ winmux save-zone-layout' \
+        "Slice 32 save log"
+    grep -F 'Saved zone layout' "$save_log" >/dev/null \
+        || die "Slice 32 save log missing saved output"
+    grep -F 'Backup:' "$save_log" >/dev/null \
+        || die "Slice 32 save log missing backup path"
+    require_exact_line_count "$relaunch_log" '$ launchctl bootout WinMux slice service' 1 \
+        "Slice 32 relaunch log"
+    require_no_command_variants "$relaunch_log" '$ launchctl bootout WinMux slice service' '$ launchctl bootout WinMux slice service' \
+        "Slice 32 relaunch log"
+    require_exact_line_count "$relaunch_log" '$ launchctl bootstrap WinMux slice service' 1 \
+        "Slice 32 relaunch log"
+    require_no_command_variants "$relaunch_log" '$ launchctl bootstrap WinMux slice service' '$ launchctl bootstrap WinMux slice service' \
+        "Slice 32 relaunch log"
+    grep -F 'stopped=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 32 relaunch log does not prove WinMux stopped"
+    require_slice_31_startup_trace_loaded_relaunch_state "$startup_trace"
+    if grep -F 'reload-config' "$relaunch_log" "$proof" "$cli_log" "$harness_setup_log" "$harness_run_log" >/dev/null; then
+        die "Slice 32 relaunch proof must not use reload-config"
+    fi
+    if grep -F 'resize-zone' "$relaunch_log" "$cli_log" >/dev/null; then
+        die "Slice 32 relaunch proof must not resize zones after launch"
+    fi
+    require_exact_line_count "$cli_log" '$ winmux save-zone-layout' 1 \
+        "Slice 32 aggregate CLI log"
+    require_exact_line_count "$cli_log" '$ launchctl bootout WinMux slice service' 1 \
+        "Slice 32 aggregate CLI log"
+    require_exact_line_count "$cli_log" '$ launchctl bootstrap WinMux slice service' 1 \
+        "Slice 32 aggregate CLI log"
+
+    local save_offset quit_offset relaunch_offset list_zones_offset
+    save_offset="$(value_from_log save-command-offset-seconds "$timing_log")"
+    quit_offset="$(value_from_log quit-command-offset-seconds "$timing_log")"
+    relaunch_offset="$(value_from_log relaunch-command-offset-seconds "$timing_log")"
+    list_zones_offset="$(value_from_log list-zones-after-relaunch-offset-seconds "$timing_log")"
+    [ -n "$save_offset" ] || die "Slice 32 timing log missing save command offset"
+    [ -n "$quit_offset" ] || die "Slice 32 timing log missing quit command offset"
+    [ -n "$relaunch_offset" ] || die "Slice 32 timing log missing relaunch command offset"
+    [ -n "$list_zones_offset" ] || die "Slice 32 timing log missing post-relaunch list-zones offset"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux save-zone-layout" "$save_offset" \
+        "Slice 32 save command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: quit WinMux" "$quit_offset" \
+        "Slice 32 quit action must happen while its quit caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: relaunch WinMux" "$relaunch_offset" \
+        "Slice 32 relaunch action must happen while its relaunch caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones" "$list_zones_offset" \
+        "Slice 32 post-relaunch list-zones command must happen while its command caption is visible"
+
+    local before_left before_main before_right dragged_left dragged_main dragged_right
+    local saved_left saved_main saved_right relaunched_left relaunched_main relaunched_right
+    before_left="$(require_measurement_value "$measurements" before left effective)"
+    before_main="$(require_measurement_value "$measurements" before main effective)"
+    before_right="$(require_measurement_value "$measurements" before right effective)"
+    dragged_left="$(require_measurement_value "$measurements" dragged left effective)"
+    dragged_main="$(require_measurement_value "$measurements" dragged main effective)"
+    dragged_right="$(require_measurement_value "$measurements" dragged right effective)"
+    saved_left="$(require_measurement_value "$measurements" saved left effective)"
+    saved_main="$(require_measurement_value "$measurements" saved main effective)"
+    saved_right="$(require_measurement_value "$measurements" saved right effective)"
+    relaunched_left="$(require_measurement_value "$measurements" relaunched left effective)"
+    relaunched_main="$(require_measurement_value "$measurements" relaunched main effective)"
+    relaunched_right="$(require_measurement_value "$measurements" relaunched right effective)"
+
+    require_slice_32_measurements_match_zone_log "$measurements" before "$zones_before_drag"
+    require_slice_32_measurements_match_zone_log "$measurements" dragged "$zones_after_drag"
+    require_slice_32_measurements_match_zone_log "$measurements" saved "$zones_after_save"
+    require_slice_32_measurements_match_zone_log "$measurements" relaunched "$zones_after_relaunch"
+
+    assert_numeric_gt "$dragged_main" "$before_main" \
+        "Slice 32 dragged Work/main width did not grow"
+    assert_numeric_lt "$dragged_right" "$before_right" \
+        "Slice 32 dragged Comms/right width did not shrink"
+    assert_numeric_approximately_equal "$dragged_left" "$before_left" 0.001 \
+        "Slice 32 dragged Reference/left width changed during adjacent divider drag"
+    assert_numeric_approximately_equal "$saved_left" "$dragged_left" 0.000001 \
+        "Slice 32 saved Reference effective width does not match dragged width"
+    assert_numeric_approximately_equal "$saved_main" "$dragged_main" 0.000001 \
+        "Slice 32 saved Work effective width does not match dragged width"
+    assert_numeric_approximately_equal "$saved_right" "$dragged_right" 0.000001 \
+        "Slice 32 saved Comms effective width does not match dragged width"
+    assert_numeric_approximately_equal "$relaunched_left" "$dragged_left" 0.000001 \
+        "Slice 32 relaunched Reference width does not match dragged saved width"
+    assert_numeric_approximately_equal "$relaunched_main" "$dragged_main" 0.000001 \
+        "Slice 32 relaunched Work width does not match dragged saved width"
+    assert_numeric_approximately_equal "$relaunched_right" "$dragged_right" 0.000001 \
+        "Slice 32 relaunched Comms width does not match dragged saved width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" left configured)" "$dragged_left" 0.000001 \
+        "Slice 32 relaunched Reference configured width does not match dragged width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" main configured)" "$dragged_main" 0.000001 \
+        "Slice 32 relaunched Work configured width does not match dragged width"
+    assert_numeric_approximately_equal "$(zone_log_value "$zones_after_relaunch" right configured)" "$dragged_right" 0.000001 \
+        "Slice 32 relaunched Comms configured width does not match dragged width"
+    [ "$(zone_log_value "$zones_after_relaunch" left override-state)" = configured ] \
+        || die "Slice 32 relaunched Reference should use configured width, not a runtime override"
+    [ "$(zone_log_value "$zones_after_relaunch" main override-state)" = configured ] \
+        || die "Slice 32 relaunched Work should use configured width, not a runtime override"
+    [ "$(zone_log_value "$zones_after_relaunch" right override-state)" = configured ] \
+        || die "Slice 32 relaunched Comms should use configured width, not a runtime override"
+    require_zone_log_empty_or_none "$zones_after_relaunch" left override \
+        "Slice 32 relaunched Reference runtime override value"
+    require_zone_log_empty_or_none "$zones_after_relaunch" main override \
+        "Slice 32 relaunched Work runtime override value"
+    require_zone_log_empty_or_none "$zones_after_relaunch" right override \
+        "Slice 32 relaunched Comms runtime override value"
+
+    local before_chip dragged_chip saved_chip relaunched_chip
+    before_chip="$(require_measurement_value "$measurements" before main chip)"
+    dragged_chip="$(require_measurement_value "$measurements" dragged main chip)"
+    saved_chip="$(require_measurement_value "$measurements" saved main chip)"
+    relaunched_chip="$(require_measurement_value "$measurements" relaunched main chip)"
+    [ "$before_chip" = 'Reference 25% | Work 50% | Comms 25%' ] \
+        || die "Slice 32 before measurement chip is wrong: $before_chip"
+    [ "$saved_chip" = "$dragged_chip" ] \
+        || die "Slice 32 saved measurement chip does not match dragged chip"
+    [ "$relaunched_chip" = "$dragged_chip" ] \
+        || die "Slice 32 relaunched measurement chip does not match dragged chip"
+
+    local before_sha save_sha backup_recorded_sha backup_copy_sha backup_path
+    before_sha="$(cat "$config_sha_before_save")"
+    save_sha="$(cat "$config_sha_after_save")"
+    backup_recorded_sha="$(cat "$backup_sha")"
+    backup_copy_sha="$(file_sha256 "$config_backup_copy")"
+    backup_path="$(cat "$backup_path_log")"
+    [ -n "$backup_path" ] || die "Slice 32 backup path log is empty"
+    [ "$save_sha" != "$before_sha" ] \
+        || die "Slice 32 save did not change config hash"
+    [ "$backup_recorded_sha" = "$before_sha" ] && [ "$backup_copy_sha" = "$before_sha" ] \
+        || die "Slice 32 backup does not match original config"
+    [ "$(file_sha256 "$config_after_copy")" = "$save_sha" ] \
+        || die "Slice 32 after config copy hash does not match saved hash"
+    assert_numeric_approximately_equal "$(toml_width_for_zone "$config_after_copy" left)" "$dragged_left" 0.000001 \
+        "Slice 32 saved config Reference width does not match dragged width"
+    assert_numeric_approximately_equal "$(toml_width_for_zone "$config_after_copy" main)" "$dragged_main" 0.000001 \
+        "Slice 32 saved config Work width does not match dragged width"
+    assert_numeric_approximately_equal "$(toml_width_for_zone "$config_after_copy" right)" "$dragged_right" 0.000001 \
+        "Slice 32 saved config Comms width does not match dragged width"
+
+    [ "$(manifest_value "$proof_manifest" target layout-id)" = balanced ] \
+        || die "Slice 32 proof manifest must record target layout id"
+    [ "$(manifest_value "$proof_manifest" command drag)" = 'drag Work|Comms divider' ] \
+        || die "Slice 32 proof manifest must record drag command"
+    [ "$(manifest_value "$proof_manifest" command save)" = 'winmux save-zone-layout' ] \
+        || die "Slice 32 proof manifest must record save command"
+    [ "$(manifest_value "$proof_manifest" command relaunch)" = 'launchctl bootout/bootstrap WinMux slice service' ] \
+        || die "Slice 32 proof manifest must record relaunch command"
+    [ "$(manifest_value "$proof_manifest" command list-zones)" = 'winmux list-zones' ] \
+        || die "Slice 32 proof manifest must record list-zones command"
+    [ "$(manifest_value "$proof_manifest" timing save-command-offset-seconds)" = "$save_offset" ] \
+        || die "Slice 32 proof manifest must copy save command offset"
+    [ "$(manifest_value "$proof_manifest" timing quit-command-offset-seconds)" = "$quit_offset" ] \
+        || die "Slice 32 proof manifest must copy quit command offset"
+    [ "$(manifest_value "$proof_manifest" timing relaunch-command-offset-seconds)" = "$relaunch_offset" ] \
+        || die "Slice 32 proof manifest must copy relaunch command offset"
+    [ "$(manifest_value "$proof_manifest" timing list-zones-after-relaunch-offset-seconds)" = "$list_zones_offset" ] \
+        || die "Slice 32 proof manifest must copy list-zones command offset"
+    [ "$(manifest_value "$proof_manifest" safety backup-path)" = "$backup_path" ] \
+        || die "Slice 32 proof manifest must copy backup path"
+    [ "$(manifest_value "$proof_manifest" safety backup-matches-original)" = yes ] \
+        || die "Slice 32 proof manifest must record backup-matches-original=yes"
+    [ "$(manifest_value "$proof_manifest" drag source-proof)" = 'logs/slice-26-zone-divider-drag.proof-manifest.tsv' ] \
+        || die "Slice 32 proof manifest must record delegated Slice 26 drag proof"
+    [ "$(manifest_value "$proof_manifest" drag widths-changed)" = yes ] \
+        || die "Slice 32 proof manifest must record widths-changed=yes"
+    [ "$(manifest_value "$proof_manifest" save config-changed)" = yes ] \
+        || die "Slice 32 proof manifest must record config-changed=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch app-stopped)" = yes ] \
+        || die "Slice 32 proof manifest must record app-stopped=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch app-restarted)" = yes ] \
+        || die "Slice 32 proof manifest must record app-restarted=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch dragged-widths-restored)" = yes ] \
+        || die "Slice 32 proof manifest must record dragged-widths-restored=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch no-runtime-resize-after-launch)" = yes ] \
+        || die "Slice 32 proof manifest must record no-runtime-resize-after-launch=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch runtime-override-values-cleared)" = yes ] \
+        || die "Slice 32 proof manifest must record runtime-override-values-cleared=yes"
+    [ "$(manifest_value "$proof_manifest" relaunch persisted-restart-state-loaded)" = yes ] \
+        || die "Slice 32 proof manifest must record persisted-restart-state-loaded=yes"
+    [ "$(manifest_value "$proof_manifest" continuity documents-in-same-zones)" = yes ] \
+        || die "Slice 32 proof manifest must record documents-in-same-zones=yes"
+    [ "$(manifest_value "$proof_manifest" measurement before)" = "$before_chip" ] \
+        || die "Slice 32 proof manifest before measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" measurement dragged)" = "$dragged_chip" ] \
+        || die "Slice 32 proof manifest dragged measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" measurement saved)" = "$saved_chip" ] \
+        || die "Slice 32 proof manifest saved measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" measurement relaunched)" = "$relaunched_chip" ] \
+        || die "Slice 32 proof manifest relaunched measurement does not match measurement TSV"
+    [ "$(manifest_value "$proof_manifest" hash config-before-save)" = "$before_sha" ] \
+        || die "Slice 32 proof manifest before-save config hash does not match copied hash"
+    [ "$(manifest_value "$proof_manifest" hash config-after-save)" = "$save_sha" ] \
+        || die "Slice 32 proof manifest after-save config hash does not match copied hash"
+    [ "$(manifest_value "$proof_manifest" hash config-backup)" = "$backup_recorded_sha" ] \
+        || die "Slice 32 proof manifest backup config hash does not match copied hash"
+
+    local zone want_before want_dragged want_saved want_relaunched
+    for zone in left main right; do
+        case "$zone" in
+            left)
+                want_before="$before_left"
+                want_dragged="$dragged_left"
+                want_saved="$saved_left"
+                want_relaunched="$relaunched_left"
+                ;;
+            main)
+                want_before="$before_main"
+                want_dragged="$dragged_main"
+                want_saved="$saved_main"
+                want_relaunched="$relaunched_main"
+                ;;
+            right)
+                want_before="$before_right"
+                want_dragged="$dragged_right"
+                want_saved="$saved_right"
+                want_relaunched="$relaunched_right"
+                ;;
+            *)
+                die "Unexpected Slice 32 zone id in proof manifest loop: $zone"
+                ;;
+        esac
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-before "$zone")" "$want_before" 0.000001 \
+            "Slice 32 proof manifest width-before/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-dragged "$zone")" "$want_dragged" 0.000001 \
+            "Slice 32 proof manifest width-dragged/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-saved "$zone")" "$want_saved" 0.000001 \
+            "Slice 32 proof manifest width-saved/${zone} does not match measurement TSV"
+        assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-relaunched "$zone")" "$want_relaunched" 0.000001 \
+            "Slice 32 proof manifest width-relaunched/${zone} does not match measurement TSV"
+    done
+
+    local title expected_zone after_drag_zone after_relaunch_zone
+    local extra_title_count
+    extra_title_count="$(/usr/bin/awk 'NF { count++ } END { print count + 0 }' "$windows_after_relaunch")"
+    [ "$extra_title_count" = "3" ] \
+        || die "Slice 32 after-relaunch window log must list exactly three visible TextEdit task documents, got ${extra_title_count}: $windows_after_relaunch"
+    for title in reference-divider.rtf work-divider.rtf comms-divider.rtf; do
+        case "$title" in
+            reference-divider.rtf) expected_zone=left ;;
+            work-divider.rtf) expected_zone=main ;;
+            comms-divider.rtf) expected_zone=right ;;
+            *) expected_zone= ;;
+        esac
+        after_drag_zone="$(field_for_title "$windows_after_drag" "$title" zone)"
+        after_relaunch_zone="$(field_for_title "$windows_after_relaunch" "$title" zone)"
+        [ -n "$after_drag_zone" ] && [ -n "$after_relaunch_zone" ] \
+            || die "Slice 32 missing title across drag/relaunch logs: $title"
+        [ "$after_drag_zone" = "$expected_zone" ] && [ "$after_relaunch_zone" = "$expected_zone" ] \
+            || die "Slice 32 zone changed for $title: $after_drag_zone -> $after_relaunch_zone"
+    done
+
+    for chip in \
+        "Config: draggable divider + save-zone-layout" \
+        "Action: drag Work|Comms divider" \
+        "Result: dragged width overrides visible" \
+        "Run: winmux save-zone-layout" \
+        "Action: quit WinMux" \
+        "Action: relaunch WinMux" \
+        "Run: winmux list-zones" \
+        "Result: dragged widths restored after relaunch"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 32 annotations missing chip: $chip"
+    done
+
+    grep -F "config-sha-before-save=${before_sha}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy before-save config hash"
+    grep -F "config-sha-after-save=${save_sha}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy saved config hash"
+    grep -F "config-backup-sha=${backup_recorded_sha}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy backup config hash"
+    grep -F "backup-path=${backup_path}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy backup path"
+    grep -F "measurement-before=${before_chip}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy before measurement chip"
+    grep -F "measurement-dragged=${dragged_chip}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy dragged measurement chip"
+    grep -F "measurement-relaunched=${relaunched_chip}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy relaunched measurement chip"
+    grep -F "save-command-offset-seconds=${save_offset}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy save command offset"
+    grep -F "quit-command-offset-seconds=${quit_offset}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy quit command offset"
+    grep -F "relaunch-command-offset-seconds=${relaunch_offset}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy relaunch command offset"
+    grep -F "list-zones-after-relaunch-offset-seconds=${list_zones_offset}" "$proof" >/dev/null \
+        || die "Slice 32 proof does not copy post-relaunch list-zones offset"
 }
 
 require_slice_11b_zone_style_controls_proof() {
@@ -5814,6 +8120,237 @@ require_slice_29_event_manifest() {
     for event_id in after-runtime-resize dry-run-output-visible save-output-visible config-after-save reload-inspect; do
         path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
         [ "$path" != "-" ] || die "Slice 29 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_31_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" resize-command-start command
+    require_event_manifest_event "$manifest_path" after-runtime-resize state
+    require_event_manifest_event "$manifest_path" save-command-start command
+    require_event_manifest_event "$manifest_path" quit-action action
+    require_event_manifest_event "$manifest_path" quit-sidebar-absent state
+    require_event_manifest_event "$manifest_path" relaunch-action action
+    require_event_manifest_event "$manifest_path" relaunch-sidebar-restored state
+    require_event_manifest_event "$manifest_path" list-zones-after-relaunch command
+    require_event_manifest_event "$manifest_path" relaunch-kept-widths inspection
+
+    require_event_sample_label "$manifest_path" config-ready config-ready
+    require_event_sample_label "$manifest_path" resize-command-start resize-command-start
+    require_event_sample_label "$manifest_path" after-runtime-resize after-runtime-resize
+    require_event_sample_label "$manifest_path" save-command-start save-command-start
+    require_event_sample_label "$manifest_path" quit-action quit-action
+    require_event_sample_label "$manifest_path" quit-sidebar-absent quit-sidebar-absent
+    require_event_sample_label "$manifest_path" relaunch-action relaunch-action
+    require_event_sample_label "$manifest_path" relaunch-sidebar-restored relaunch-sidebar-restored
+    require_event_sample_label "$manifest_path" list-zones-after-relaunch list-zones-after-relaunch
+    require_event_sample_label "$manifest_path" relaunch-kept-widths relaunch-kept-widths
+
+    require_event_before "$manifest_path" config-ready resize-command-start \
+        "Slice 31 event manifest must show the saved-layout baseline before resize"
+    require_event_before "$manifest_path" resize-command-start after-runtime-resize \
+        "Slice 31 event manifest must show resize before changed widths"
+    require_event_before "$manifest_path" after-runtime-resize save-command-start \
+        "Slice 31 event manifest must show changed widths before save"
+    require_event_before "$manifest_path" save-command-start quit-action \
+        "Slice 31 event manifest must show save before quitting WinMux"
+    require_event_before "$manifest_path" quit-action relaunch-action \
+        "Slice 31 event manifest must show quit proof before relaunch"
+    require_event_before "$manifest_path" relaunch-action list-zones-after-relaunch \
+        "Slice 31 event manifest must show app relaunch before post-launch inspection"
+    require_event_before "$manifest_path" list-zones-after-relaunch relaunch-kept-widths \
+        "Slice 31 event manifest must show post-launch inspection before final restored-width proof"
+
+    for event_id in \
+        resize-command-start \
+        after-runtime-resize \
+        save-command-start \
+        quit-action \
+        quit-sidebar-absent \
+        relaunch-action \
+        relaunch-sidebar-restored \
+        list-zones-after-relaunch \
+        relaunch-kept-widths; do
+        require_event_path_kind "$manifest_path" slice-31 "$event_id" sample-start '-'
+    done
+
+    local event_id path
+    for event_id in \
+        config-ready \
+        resize-command-start \
+        after-runtime-resize \
+        save-command-start \
+        quit-action \
+        quit-sidebar-absent \
+        relaunch-action \
+        relaunch-sidebar-restored \
+        list-zones-after-relaunch \
+        relaunch-kept-widths; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 31 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_32_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" divider-hover overlay
+    require_event_manifest_event "$manifest_path" divider-pickup drag
+    require_event_manifest_event "$manifest_path" divider-drag-path drag
+    require_event_manifest_event "$manifest_path" divider-live-preview overlay
+    require_event_manifest_event "$manifest_path" divider-release drag
+    require_event_manifest_event "$manifest_path" after-divider-resize inspection
+    require_event_manifest_event "$manifest_path" save-command-start command
+    require_event_manifest_event "$manifest_path" quit-action action
+    require_event_manifest_event "$manifest_path" relaunch-action action
+    require_event_manifest_event "$manifest_path" list-zones-after-relaunch command
+    require_event_manifest_event "$manifest_path" relaunch-kept-dragged-widths inspection
+
+    require_event_sample_label "$manifest_path" config-ready ready-divider-zones
+    require_event_sample_label "$manifest_path" divider-hover divider-hover
+    require_event_sample_label "$manifest_path" divider-pickup divider-pickup
+    require_event_sample_label "$manifest_path" divider-drag-path divider-drag-path
+    require_event_sample_label "$manifest_path" divider-live-preview divider-live-preview
+    require_event_sample_label "$manifest_path" divider-release divider-release
+    require_event_sample_label "$manifest_path" after-divider-resize after-divider-resize
+    require_event_sample_label "$manifest_path" save-command-start save-command-start
+    require_event_sample_label "$manifest_path" quit-action quit-action
+    require_event_sample_label "$manifest_path" relaunch-action relaunch-action
+    require_event_sample_label "$manifest_path" list-zones-after-relaunch list-zones-after-relaunch
+    require_event_sample_label "$manifest_path" relaunch-kept-dragged-widths relaunch-kept-dragged-widths
+
+    require_event_before "$manifest_path" config-ready divider-hover \
+        "Slice 32 event manifest must show the ready divider layout before drag"
+    require_event_before "$manifest_path" divider-hover divider-pickup \
+        "Slice 32 event manifest must show hover before divider pickup"
+    require_event_before "$manifest_path" divider-pickup divider-drag-path \
+        "Slice 32 event manifest must show pickup before drag path"
+    require_event_before "$manifest_path" divider-drag-path divider-live-preview \
+        "Slice 32 event manifest must show drag path before live preview"
+    require_event_before "$manifest_path" divider-live-preview divider-release \
+        "Slice 32 event manifest must show live preview before release"
+    require_event_before "$manifest_path" divider-release after-divider-resize \
+        "Slice 32 event manifest must show release before post-resize inspection"
+    require_event_before "$manifest_path" after-divider-resize save-command-start \
+        "Slice 32 event manifest must show dragged widths before save"
+    require_event_before "$manifest_path" save-command-start quit-action \
+        "Slice 32 event manifest must show save before quitting WinMux"
+    require_event_before "$manifest_path" quit-action relaunch-action \
+        "Slice 32 event manifest must show quit before relaunch"
+    require_event_before "$manifest_path" relaunch-action list-zones-after-relaunch \
+        "Slice 32 event manifest must show app relaunch before post-launch inspection"
+    require_event_before "$manifest_path" list-zones-after-relaunch relaunch-kept-dragged-widths \
+        "Slice 32 event manifest must show post-launch inspection before restored-width proof"
+
+    for event_id in \
+        save-command-start \
+        quit-action \
+        relaunch-action \
+        list-zones-after-relaunch \
+        relaunch-kept-dragged-widths; do
+        require_event_path_kind "$manifest_path" slice-32 "$event_id" sample-start '-'
+    done
+
+    require_event_path_kind "$manifest_path" slice-26 divider-hover screenshot '02-divider-hover-{slice}.png'
+    require_event_path_kind "$manifest_path" slice-26 divider-pickup screenshot '03-divider-pickup-{slice}.png'
+    require_event_path_kind "$manifest_path" slice-26 divider-drag-path screenshot '04-divider-drag-path-{slice}.png'
+    require_event_path_kind "$manifest_path" slice-26 divider-live-preview screenshot '05-divider-preview-{slice}.png'
+    require_event_path_kind "$manifest_path" slice-26 divider-release screenshot '06-divider-release-{slice}.png'
+    require_event_path_kind "$manifest_path" slice-26 after-divider-resize screenshot '07-after-divider-resize-{slice}.png'
+
+    local delegated_mouse_events="${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv"
+    require_event_manifest_matches_mouse_event_log "$manifest_path" "$delegated_mouse_events" \
+        divider-hover \
+        divider-pickup \
+        divider-drag-path \
+        divider-live-preview \
+        divider-release \
+        after-divider-resize
+
+    local event_id path
+    for event_id in \
+        config-ready \
+        divider-hover \
+        divider-pickup \
+        divider-drag-path \
+        divider-live-preview \
+        divider-release \
+        after-divider-resize \
+        save-command-start \
+        quit-action \
+        relaunch-action \
+        list-zones-after-relaunch \
+        relaunch-kept-dragged-widths; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 32 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_33_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" before-cycle state
+    require_event_manifest_event "$manifest_path" first-cycle-command-start command
+    require_event_manifest_event "$manifest_path" first-cycle-result state
+    require_event_manifest_event "$manifest_path" second-cycle-command-start command
+    require_event_manifest_event "$manifest_path" wrap-cycle-result state
+    require_event_manifest_event "$manifest_path" inspect-zones command
+    require_event_manifest_event "$manifest_path" inspect-windows command
+
+    require_event_sample_label "$manifest_path" config-ready scene-cycle-ready
+    require_event_sample_label "$manifest_path" before-cycle before-cycle-triage
+    require_event_sample_label "$manifest_path" first-cycle-command-start first-cycle-command-start
+    require_event_sample_label "$manifest_path" first-cycle-result first-cycle-result
+    require_event_sample_label "$manifest_path" second-cycle-command-start second-cycle-command-start
+    require_event_sample_label "$manifest_path" wrap-cycle-result wrap-cycle-result
+    require_event_sample_label "$manifest_path" inspect-zones inspect-zones
+    require_event_sample_label "$manifest_path" inspect-windows inspect-windows
+
+    require_event_before "$manifest_path" config-ready before-cycle \
+        "Slice 33 event manifest must show config before triage baseline"
+    require_event_before "$manifest_path" before-cycle first-cycle-command-start \
+        "Slice 33 event manifest must show triage before first cycle command"
+    require_event_before "$manifest_path" first-cycle-command-start first-cycle-result \
+        "Slice 33 event manifest must show first command before deep-work result"
+    require_event_before "$manifest_path" first-cycle-result second-cycle-command-start \
+        "Slice 33 event manifest must show deep-work before second cycle command"
+    require_event_before "$manifest_path" second-cycle-command-start wrap-cycle-result \
+        "Slice 33 event manifest must show second command before triage wrap result"
+    require_event_before "$manifest_path" wrap-cycle-result inspect-zones \
+        "Slice 33 event manifest must show wrapped triage before zone inspection"
+    require_event_before "$manifest_path" inspect-zones inspect-windows \
+        "Slice 33 event manifest must show zone inspection before window inspection"
+
+    for event_id in \
+        before-cycle \
+        first-cycle-command-start \
+        first-cycle-result \
+        second-cycle-command-start \
+        wrap-cycle-result \
+        inspect-zones \
+        inspect-windows; do
+        require_event_path_kind "$manifest_path" slice-33 "$event_id" sample-start '-'
+    done
+
+    local event_id path
+    for event_id in \
+        config-ready \
+        before-cycle \
+        first-cycle-command-start \
+        first-cycle-result \
+        second-cycle-command-start \
+        wrap-cycle-result \
+        inspect-zones \
+        inspect-windows; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 33 event ${event_id} must cite concrete media"
     done
 }
 
@@ -7602,21 +10139,36 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
     fi
     awk -F '\t' -v skip_placeholder_check="$skip_placeholder_check" '
         $0 == "" || $1 ~ /^#/ { next }
-        NF < 5 || $5 !~ /(Run|Config|Edit|Debug|Action|Result):/ {
-            printf("Annotation row %d is missing a user-facing command/config/action/result: %s\n", NR, $0) > "/dev/stderr"
-            exit 1
-        }
-        skip_placeholder_check != "1" && $5 ~ /\.\.\.|<[^>]*>|winmux <command>/ {
-            printf("Annotation row %d uses a placeholder command/config/action: %s\n", NR, $0) > "/dev/stderr"
-            exit 1
+        {
+            chip_count = 0
+            for (i = 5; i <= NF; i++) {
+                if ($i == "") {
+                    continue
+                }
+                chip_count++
+                if ($i !~ /^(Run|Config|Edit|Debug|Action|Result|Input):/) {
+                    printf("Annotation row %d chip %d is missing a user-facing command/config/action/result prefix: %s\n", NR, i - 4, $i) > "/dev/stderr"
+                    exit 1
+                }
+                if (skip_placeholder_check != "1" && $i ~ /\.\.\.|<[^>]*>|winmux <command>/) {
+                    printf("Annotation row %d chip %d uses a placeholder command/config/action/result: %s\n", NR, i - 4, $i) > "/dev/stderr"
+                    exit 1
+                }
+                if (length($i) > 100) {
+                    printf("Annotation row %d chip %d is too long (%d chars): %s\n", NR, i - 4, length($i), $i) > "/dev/stderr"
+                    exit 1
+                }
+            }
+            if (chip_count == 0) {
+                printf("Annotation row %d is missing a user-facing command/config/action/result: %s\n", NR, $0) > "/dev/stderr"
+                exit 1
+            }
         }
     ' "$annotation_plan" || die "Annotation plan must expose command/config/action chips"
     if [ -s "$expected_chips" ]; then
-        while IFS= read -r expected_chip; do
-            [ -n "$expected_chip" ] || continue
-            grep -F "$expected_chip" "$annotation_plan" >/dev/null \
-                || die "Annotation plan missing expected caption chip: $expected_chip"
-        done <"$expected_chips"
+        require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
+    elif requires_current_artifact_contract; then
+        die "Annotated current-contract artifact is missing expected caption chips: $expected_chips"
     fi
     require_caption_tail_manifest "$recording_name" "$duration"
     require_demo_cut_manifest "$recording_name" "$duration"
@@ -7632,13 +10184,17 @@ if [ -s "$color_sentinel_manifest" ]; then
     require_color_sentinel_manifest "$color_sentinel_manifest" "$RUN_DIR" "$recording_name"
 fi
 
-if [[ "$recording_name" == *drag* ]]; then
-    if is_historical_slice_5_artifact; then
-        log "historical exception: Slice 5 artifact predates drag proof manifest hardening"
-    else
-        require_drag_proof_manifest "$proof_manifest"
-    fi
-fi
+case "$recording_name" in
+    slice-32-divider-save-relaunch)
+        ;;
+    *drag*)
+        if is_historical_slice_5_artifact; then
+            log "historical exception: Slice 5 artifact predates drag proof manifest hardening"
+        else
+            require_drag_proof_manifest "$proof_manifest"
+        fi
+        ;;
+esac
 
 case "$recording_name" in
     slice-3-stable-identity)
@@ -7659,6 +10215,9 @@ case "$recording_name" in
         ;;
     slice-6b-zone-scenes)
         require_slice_6b_zone_scene_proof
+        ;;
+    slice-33-cycle-zone-scene)
+        require_slice_33_cycle_zone_scene_proof
         ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
@@ -7729,6 +10288,12 @@ case "$recording_name" in
     slice-29-save-zone-layout)
         require_slice_29_save_zone_layout_proof
         ;;
+    slice-31-relaunch-saved-layout)
+        require_slice_31_relaunch_saved_layout_proof
+        ;;
+    slice-32-divider-save-relaunch)
+        require_slice_32_divider_save_relaunch_proof
+        ;;
 esac
 
 if [ "$REQUIRE_REVIEW" = "1" ]; then
@@ -7748,6 +10313,9 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     if requires_post_recording_retry_review; then
         require_review_mentions_post_recording_retries "$review_path" "${LOGS_DIR}/guest-script-retry-summary.tsv"
     fi
+    require_review_mentions_slice_31_evidence "$review_path"
+    require_review_mentions_slice_32_evidence "$review_path"
+    require_review_mentions_slice_33_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

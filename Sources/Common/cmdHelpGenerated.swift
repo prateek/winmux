@@ -32,6 +32,9 @@ let cycle_zone_availability_help_generated = """
 let cycle_zone_layout_help_generated = """
     USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
+let cycle_zone_scene_help_generated = """
+    USAGE: cycle-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>...
+    """
 let cycle_zone_snap_policy_help_generated = """
     USAGE: cycle-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>...
     """

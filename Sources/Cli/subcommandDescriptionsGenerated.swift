@@ -12,6 +12,7 @@ let subcommandDescriptions = [
     ["  config", "Query WinMux config options"],
     ["  cycle-zone-availability", "Cycle a monitor through named zone availability sets"],
     ["  cycle-zone-layout", "Cycle a monitor through named zone layout presets"],
+    ["  cycle-zone-scene", "Cycle a monitor through named zone scenes"],
     ["  cycle-zone-snap-policy", "Cycle a monitor through mouse zone snap policies"],
     ["  cycle-zone-style", "Cycle a zone through configured style tokens"],
     ["  debug-windows", "Interactive command to record Accessibility API debug information to create bug reports"],

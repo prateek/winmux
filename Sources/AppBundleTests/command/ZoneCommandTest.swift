@@ -94,6 +94,10 @@ final class ZoneCommandTest: XCTestCase {
             UseZoneSceneCmdArgs(sceneId: "deep-work", monitor: .sequenceNumber(1)),
         )
         testParseCommandSucc(
+            "cycle-zone-scene --monitor 1 triage deep-work",
+            CycleZoneSceneCmdArgs(sceneIds: ["triage", "deep-work"], monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
             "apply-zone-bindings --monitor 1",
             ApplyZoneBindingsCmdArgs(monitor: .sequenceNumber(1)),
         )
@@ -1833,6 +1837,94 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Unknown zone scene 'missing'"))
     }
 
+    func testCycleZoneSceneAdvancesFromMatchingCurrentSceneAndWraps() async throws {
+        let zones = configureZoneScenes()
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(Workspace.get(byName: "TriageInbox")))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(Workspace.get(byName: "TriageDraft")))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(Workspace.get(byName: "TriageUpdates")))
+        XCTAssertTrue(Workspace.get(byName: "TriageDraft").focusWorkspace())
+
+        let first = try await parseCommand("cycle-zone-scene triage deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(first.exitCode, 0)
+        XCTAssertEqual(first.stdout, ["Using zone scene 'deep-work' on monitor 1 with layout 'focus': left=FocusQueue, main=FocusBuild, right=FocusNotes"])
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["deep-work"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(activeWorkspaceNamesByZone(), [
+            "left": "FocusQueue",
+            "main": "FocusBuild",
+            "right": "FocusNotes",
+        ])
+
+        let second = try await parseCommand("cycle-zone-scene triage deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(second.exitCode, 0)
+        XCTAssertEqual(second.stdout, ["Using zone scene 'triage' on monitor 1 with layout 'balanced': left=TriageInbox, main=TriageDraft, right=TriageUpdates"])
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["triage"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["balanced", "balanced", "balanced"])
+        XCTAssertEqual(activeWorkspaceNamesByZone(), [
+            "left": "TriageInbox",
+            "main": "TriageDraft",
+            "right": "TriageUpdates",
+        ])
+
+        let wrapped = try await parseCommand("cycle-zone-scene triage deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(wrapped.exitCode, 0)
+        XCTAssertEqual(wrapped.stdout, ["Using zone scene 'deep-work' on monitor 1 with layout 'focus': left=FocusQueue, main=FocusBuild, right=FocusNotes"])
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["deep-work"])
+        XCTAssertEqual(sortedMonitors.map(\.zoneLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(activeWorkspaceNamesByZone(), [
+            "left": "FocusQueue",
+            "main": "FocusBuild",
+            "right": "FocusNotes",
+        ])
+    }
+
+    func testCycleZoneSceneUsesFirstSceneWhenCurrentStateDoesNotMatch() async throws {
+        let zones = configureZoneScenes()
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(Workspace.get(byName: "scratch")))
+        XCTAssertTrue(Workspace.get(byName: "scratch").focusWorkspace())
+
+        let result = try await parseCommand("cycle-zone-scene triage deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, ["Using zone scene 'triage' on monitor 1 with layout 'balanced': left=TriageInbox, main=TriageDraft, right=TriageUpdates"])
+        XCTAssertEqual(activeWorkspaceNamesByZone(), [
+            "left": "TriageInbox",
+            "main": "TriageDraft",
+            "right": "TriageUpdates",
+        ])
+    }
+
+    func testCycleZoneSceneRejectsUnknownAndDuplicateScenesWithoutMutation() async throws {
+        _ = configureZoneScenes()
+        let use = try await parseCommand("use-zone-scene triage").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(use.exitCode, 0)
+
+        let unknown = try await parseCommand("cycle-zone-scene triage missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(unknown.exitCode, 1)
+        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown zone scene 'missing'"))
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["triage"])
+
+        let duplicate = try await parseCommand("cycle-zone-scene triage triage").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(duplicate.exitCode, 1)
+        XCTAssertTrue(duplicate.stderr.joined(separator: "\n").contains("cycle-zone-scene requires unique scene ids: triage"))
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["triage"])
+    }
+
+    func testUseZoneLayoutClearsActiveZoneScene() async throws {
+        _ = configureZoneScenes()
+        let use = try await parseCommand("use-zone-scene deep-work").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(use.exitCode, 0)
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot().values.sorted(), ["deep-work"])
+
+        let layout = try await parseCommand("use-zone-layout balanced").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(layout.exitCode, 0)
+        XCTAssertEqual(activeZoneSceneSelectionsSnapshot(), [:])
+    }
+
     func testApplyZoneBindingsActivatesConfiguredWorkspaces() async throws {
         let zones = configureThreeZones()
         let referenceScratch = Workspace.get(byName: "reference-scratch")
@@ -2310,6 +2402,15 @@ private func configureZoneScenes() -> [String: Monitor] {
     configureZoneLayoutPresets()
     config.zoneScenes = [
         ZoneSceneConfig(
+            id: "triage",
+            layoutPreset: "balanced",
+            workspaces: [
+                ZoneSceneWorkspaceConfig(zone: "left", workspace: WorkspaceName.parse("TriageInbox").getOrDie()),
+                ZoneSceneWorkspaceConfig(zone: "main", workspace: WorkspaceName.parse("TriageDraft").getOrDie()),
+                ZoneSceneWorkspaceConfig(zone: "right", workspace: WorkspaceName.parse("TriageUpdates").getOrDie()),
+            ],
+        ),
+        ZoneSceneConfig(
             id: "deep-work",
             layoutPreset: "focus",
             workspaces: [
@@ -2321,6 +2422,13 @@ private func configureZoneScenes() -> [String: Monitor] {
     ]
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
+    })
+}
+
+@MainActor
+private func activeWorkspaceNamesByZone() -> [String: String] {
+    Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+        monitor.zoneId.map { ($0, monitor.activeWorkspace.name) }
     })
 }
 

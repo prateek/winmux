@@ -11,6 +11,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case config
     case cycleZoneAvailability = "cycle-zone-availability"
     case cycleZoneLayout = "cycle-zone-layout"
+    case cycleZoneScene = "cycle-zone-scene"
     case cycleZoneSnapPolicy = "cycle-zone-snap-policy"
     case cycleZoneStyle = "cycle-zone-style"
     case debugWindows = "debug-windows"
@@ -95,6 +96,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneAvailabilityCmdArgs)
             case .cycleZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneLayoutCmdArgs)
+            case .cycleZoneScene:
+                result[kind.rawValue] = SubCommandParser(parseCycleZoneSceneCmdArgs)
             case .cycleZoneSnapPolicy:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneSnapPolicyCmdArgs)
             case .cycleZoneStyle:
