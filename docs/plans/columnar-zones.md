@@ -7539,16 +7539,15 @@ Pre-Slice-40 cleanup from Slice 39 retrospectives:
   `retrospectives/artifact-product.md`.
 - [x] Update this plan with the accepted Slice 39 artifact, review verdict,
   persisted gate logs, closeout command, accepted findings, and non-claims.
-- [ ] Before implementing Slice 40, add a small slice-contract registry or
-  generated review skeleton spike if it can be done without delaying the setup
-  assistant; otherwise record an explicit deferral and keep the existing
-  verifier/reviewer packet self-tests strict.
-- [ ] For the Slice 40 pre-Tart storyboard, identify which frames prove setup
-  assistant behavior visually, and treat Slice 39 install/status proof as
+- [x] Add a generated review skeleton spike without delaying the setup
+  assistant. `script/e2e/write-review-packet` now writes
+  `reviews/no-ctx-artifact-review.skeleton.md` from
+  `reviews/reviewer-citation-checklist.tsv`, and `script/e2e/README.md`
+  documents that the skeleton is a media-first drafting aid, not an accepted
+  review.
+- [x] Define the Slice 40 pre-Tart storyboard below. The Slice 40 artifact must
+  prove setup-assistant behavior visually; Slice 39 install/status proof is
   baseline context only.
-- [ ] Launch the first Slice 40 artifact-product reviewer with the reviewer
-  packet plus key contact sheets and semantic screenshots instead of waiting for
-  a stalled text-only review path.
 
 Goal: make first-time ultrawide setup possible without hand-editing the large
 starter TOML block.
@@ -7568,6 +7567,27 @@ Required scope:
 
 Required artifact: a fresh Tart video starting from no zone config, running the
 setup assistant, launching WinMux, and showing Reference, Work, and Comms.
+
+Required storyboard beats:
+
+- start from a clean desktop and a normal user config with no active
+  `[[zones]]`;
+- run `winmux zone init --dry-run --preset balanced` and show the proposed
+  Reference, Work, and Comms columns without writing the config;
+- run `winmux zone init --preset balanced --write` and show the backup path plus
+  the inserted TOML block;
+- run `winmux config --check ~/.config/winmux/winmux.toml`;
+- launch WinMux normally, without `--config-path` or
+  `WINMUX_DEFAULT_CONFIG_PATH`;
+- run `winmux list-zones --format
+  'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'`;
+- finish with live Reference, Work, and Comms zones visible and a concise result
+  board that names the setup command the user should run.
+
+Artifact-review requirement: launch the first Slice 40 artifact-product reviewer
+with the reviewer packet plus key contact sheets and semantic screenshots, using
+the generated `reviews/no-ctx-artifact-review.skeleton.md` as the checklist
+starting point instead of waiting for a stalled text-only review path.
 
 Non-claims:
 

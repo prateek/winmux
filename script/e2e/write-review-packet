@@ -38,6 +38,7 @@ RECORDINGS_DIR="${RUN_DIR}/recordings"
 REVIEWS_DIR="${RUN_DIR}/reviews"
 PACKET_PATH="${REVIEWS_DIR}/reviewer-packet.md"
 REVIEW_OUTPUT_PATH="${REVIEWS_DIR}/no-ctx-artifact-review.md"
+REVIEW_SKELETON_PATH="${REVIEWS_DIR}/no-ctx-artifact-review.skeleton.md"
 CONFIG_PATH="${RUN_DIR}/config/winmux.toml"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
@@ -396,6 +397,62 @@ write_reviewer_citation_checklist() {
     add_baseline_citation_row "${REPO_ROOT}/README.md"
     add_baseline_citation_row "https://github.com/zimengxiong/winmux"
     add_baseline_citation_row "https://macoswm.com/wm/winmux"
+}
+
+write_review_skeleton() {
+    {
+        cat <<EOF
+# No-Context Artifact Review Skeleton
+
+This is a reviewer drafting aid, not an accepted review. Write the final review
+to:
+
+\`${REVIEW_OUTPUT_PATH}\`
+
+The final review still has to satisfy
+\`script/e2e/prompts/no-context-artifact-review.md\`.
+
+## Output Contract
+
+- First nonblank line: \`PASS: ...\`, \`PASS_WITH_NOTES: ...\`, or \`FAIL: ...\`.
+- Include \`fork_context=false\` and state whether prior chat history was absent.
+- Final line: \`next slice allowed: yes\` or \`next slice allowed: no\`.
+
+## Visual Proof Path
+
+Inspect these before reading implementation details:
+
+- primary recording: \`${recording_path}\`
+- before screenshot: \`${before_screenshot}\`
+- ready screenshot: \`${ready_screenshot:-not present}\`
+- after screenshot: \`${after_screenshot}\`
+- contact sheet: \`${contact_sheet}\`
+- event contact sheet: \`${event_contact_sheet_label}\`
+- sample manifest: \`${sample_manifest}\`
+- event manifest: \`${event_manifest_label}\`
+- edge crops: \`${edge_crops_label}\`
+
+## Required Citation Checklist
+
+Use this checklist to make the review lintable. Keep the exact paths, labels,
+timing keys, event ids, and caption chips that apply.
+
+EOF
+        /usr/bin/awk -F'\t' '
+            NR == 1 { next }
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                printf("- [ ] %s `%s`: `%s` - %s\n", $1, $2, $3, $4)
+            }
+        ' "$reviewer_citation_checklist"
+        cat <<EOF
+
+## Verdict Draft
+
+Replace this section with the actual review. Do not leave unchecked boxes as a
+substitute for evidence.
+EOF
+    } >"$REVIEW_SKELETON_PATH"
 }
 
 slice_specific_checks() {
@@ -874,6 +931,7 @@ EOF
 }
 
 write_reviewer_citation_checklist
+write_review_skeleton
 
 {
     cat <<EOF
@@ -918,6 +976,7 @@ $(drag_screenshot_lines)
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
 - reviewer citation checklist: ${reviewer_citation_checklist}
+- reviewer skeleton: ${REVIEW_SKELETON_PATH}
 - reviewer attempt ledger: ${reviewer_attempts} (role, start, finish, status,
   output path, and replacement reason for stalled or superseded reviewers)
 - reviewer ledger append helper: script/e2e/record-reviewer-attempt ${RUN_DIR} --role <role> --status <status> --output <path> --replacement-reason <reason>
