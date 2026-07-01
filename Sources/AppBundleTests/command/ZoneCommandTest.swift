@@ -1812,6 +1812,41 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(missing.stderr.joined(separator: "\n").contains("Unknown zone availability set 'missing'"))
     }
 
+    func testZoneProfileAliasesUseMonitorFlagOnlyAffectsSelectedPhysicalMonitor() async throws {
+        _ = configureDuplicateZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "full", enabledZones: ["left", "main"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let useSecondaryFocus = try await parseCommand("use-zone-profile --monitor 2 focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(useSecondaryFocus.exitCode, 0)
+        XCTAssertEqual(useSecondaryFocus.stdout, ["Using zone profile 'focus-only' on monitor 2"])
+        var rows = try await parseCommand(
+            "list-zones --format '%{monitor-physical-id}:%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-availability-set-id}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(Set(rows.stdout), [
+            "1:left|true|",
+            "1:main|true|",
+            "2:left|false|focus-only",
+            "2:main|true|focus-only",
+        ])
+
+        let cycleSecondary = try await parseCommand("cycle-zone-profile --monitor 2 focus-only full").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(cycleSecondary.exitCode, 0)
+        XCTAssertEqual(cycleSecondary.stdout, ["Using zone profile 'full' on monitor 2"])
+        rows = try await parseCommand(
+            "list-zones --format '%{monitor-physical-id}:%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-availability-set-id}'",
+        ).cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(Set(rows.stdout), [
+            "1:left|true|",
+            "1:main|true|",
+            "2:left|true|full",
+            "2:main|true|full",
+        ])
+    }
+
     func testAvailabilitySetsClearCurrentToggleRestoreMemory() async throws {
         let zones = configureThreeZones()
         config.zoneAvailabilitySets = [
@@ -1837,6 +1872,40 @@ final class ZoneCommandTest: XCTestCase {
 
         let hideWithSet = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(hideWithSet.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main"])
+        XCTAssertTrue(focus.workspace === work)
+
+        let currentToggle = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(currentToggle.exitCode, 1)
+        XCTAssertTrue(currentToggle.stderr.joined(separator: "\n").contains("at least one zone must stay enabled"))
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main"])
+    }
+
+    func testZoneProfileAliasesClearCurrentToggleRestoreMemory() async throws {
+        let zones = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(comms.focusWorkspace())
+
+        let hideCurrent = try await parseCommand("toggle-zone current").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(hideCurrent.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertTrue(focus.workspace === work)
+
+        let restoreWithProfile = try await parseCommand("use-zone-profile communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(restoreWithProfile.exitCode, 0)
+        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main", "right"])
+
+        let hideWithCycleProfile = try await parseCommand("cycle-zone-profile communications focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(hideWithCycleProfile.exitCode, 0)
         XCTAssertEqual(sortedMonitors.map(\.zoneId), ["main"])
         XCTAssertTrue(focus.workspace === work)
 

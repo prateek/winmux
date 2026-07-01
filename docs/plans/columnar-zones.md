@@ -8041,14 +8041,14 @@ Pre-Slice-43 cleanup from Slice 42 retrospectives:
 - [x] Isolate the accepted Slice 42 source, generated files, harness, prompt,
   config, guest script, and plan updates in this closeout commit before starting
   Slice 43 pre-Tart freshness.
-- [ ] Resolve command metadata provenance before the next command-heavy slice:
+- [x] Resolve command metadata provenance before the next command-heavy slice:
   either restore the real source/generator for generated command help and
   descriptions, or change the headers/docs so they match the maintained-source
   policy.
-- [ ] Add focused alias parity tests for monitor-scoped `use-zone-profile` /
+- [x] Add focused alias parity tests for monitor-scoped `use-zone-profile` /
   `cycle-zone-profile` and restore-memory clearing, or explicitly defer them in
   the Slice 43 notes before pre-Tart freshness.
-- [ ] Add a cheap duplicate-command-line lint for visible proof boards, or
+- [x] Add a cheap duplicate-command-line lint for visible proof boards, or
   document the crop/excerpt requirement before the next text-heavy proof board.
 
 Goal: make mouse-driven zone snapping ergonomic and configurable, especially for

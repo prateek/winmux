@@ -1,5 +1,6 @@
-// FILE IS GENERATED FROM docs/winmux-*.adoc files
-// TO REGENERATE THE FILE RUN generate.sh
+// FILE IS MAINTAINED BY HAND
+// Keep parser manifests, help strings, and CLI descriptions in sync.
+// Validate with: python3 script/check-command-metadata
 
 let apply_zone_bindings_help_generated = """
     USAGE: apply-zone-bindings [-h|--help] [--monitor <monitor-pattern>]

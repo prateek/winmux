@@ -116,19 +116,21 @@ e2e-pre-tart-checks:
 	bash -n script/e2e/write-visible-proof-excerpt && \
 	bash -n script/e2e/root-demo-closeout && \
 	bash -n script/e2e/write-review-packet && \
-		bash -n script/e2e/check-zone-init-local-validation && \
-		bash -n script/e2e/check-generated-version-clean && \
-		bash -n script/e2e/check-pre-tart-review-gate && \
-		bash -n script/e2e/verify-artifact && \
+	bash -n script/e2e/check-visible-proof-board && \
+	bash -n script/e2e/check-zone-init-local-validation && \
+	bash -n script/e2e/check-generated-version-clean && \
+	bash -n script/e2e/check-pre-tart-review-gate && \
+	bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
 		echo "[winmux-e2e] bash syntax checks PASS" && \
 		python3 ./script/check-command-metadata && \
 		git diff --check && \
 		echo "[winmux-e2e] git diff --check PASS" && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-zone-init-local-validation script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/verify-artifact "$${guest_scripts[@]}" && echo "[winmux-e2e] shellcheck PASS"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-visible-proof-board script/e2e/check-zone-init-local-validation script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/verify-artifact "$${guest_scripts[@]}" && echo "[winmux-e2e] shellcheck PASS"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	./script/e2e/check-generated-version-clean && \
 	./script/e2e/record-reviewer-attempt --self-test && \
 	./script/e2e/write-visible-proof-excerpt --self-test && \
+	./script/e2e/check-visible-proof-board --self-test && \
 	./script/e2e/root-demo-closeout --self-test && \
 	./script/e2e/package-root-demo --self-test && \
 	./script/e2e/verify-artifact --self-test && \

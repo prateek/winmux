@@ -34,6 +34,11 @@ Use `script/e2e/record-reviewer-attempt` to append accepted, stalled, superseded
 
 For text-heavy config demos, use `script/e2e/write-visible-proof-excerpt` to generate a compact reviewer-facing excerpt. It enforces that the required active TOML table appears within the configured line budget, which keeps proof text above the fold in screenshots and videos.
 
+For text-heavy proof boards built from command logs, run
+`script/e2e/check-visible-proof-board <board.txt>` before recording. It rejects
+duplicated command headings where the same `winmux ...` command appears twice
+with no output between the repeats.
+
 For timed-caption guest scripts, source `script/e2e/guest/recording-timing-helpers.sh` and use `sleep_until_recording_offset <start> <end> <label>` before visible user actions or commands. The helper fails with the semantic-failure exit when the action has already missed its caption window, which keeps timing drift out of Tart recordings.
 
 `make e2e-smoke` validates the capture pipeline and will still produce a host-visible recording if guest control is unavailable. Product slices must use strict guest control and guest display capture:

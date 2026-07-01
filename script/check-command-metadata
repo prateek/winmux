@@ -7,6 +7,11 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MAINTAINED_BY_HAND_HEADER = "\n".join([
+    "// FILE IS MAINTAINED BY HAND",
+    "// Keep parser manifests, help strings, and CLI descriptions in sync.",
+    "// Validate with: python3 script/check-command-metadata",
+])
 
 
 def read(path: str) -> str:
@@ -56,12 +61,26 @@ def check_subset(
     return messages
 
 
+def check_header(path: str) -> list[str]:
+    source = read(path)
+    if not source.startswith(MAINTAINED_BY_HAND_HEADER):
+        return [(
+            f"{path} must start with the maintained-by-hand metadata header; "
+            "do not cite missing docs/winmux-*.adoc generator sources"
+        )]
+    if "docs/winmux-*.adoc" in source or "generate.sh" in source:
+        return [f"{path} still cites missing generated-file provenance"]
+    return []
+
+
 def main() -> int:
     kinds = cmd_kinds()
     help_commands = generated_help_commands()
     descriptions = described_commands()
 
     errors: list[str] = []
+    errors.extend(check_header("Sources/Common/cmdHelpGenerated.swift"))
+    errors.extend(check_header("Sources/Cli/subcommandDescriptionsGenerated.swift"))
     errors.extend(check_subset(
         kinds,
         help_commands,

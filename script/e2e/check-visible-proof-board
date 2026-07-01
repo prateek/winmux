@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: check-visible-proof-board <text-board>...
+       check-visible-proof-board --self-test
+
+Rejects repeated visible command headings where the same command appears twice
+with no output between them.
+EOF
+}
+
+die() {
+    printf '[winmux-visible-board] error: %s\n' "$*" >&2
+    exit 1
+}
+
+check_board() {
+    local path="$1"
+    [ -s "$path" ] || die "missing or empty proof board: $path"
+    /usr/bin/awk -v path="$path" '
+        function trim(text) {
+            sub(/^[[:space:]]+/, "", text)
+            sub(/[[:space:]]+$/, "", text)
+            return text
+        }
+        function normalize_command(text) {
+            text = trim(text)
+            sub(/^\$[[:space:]]+/, "", text)
+            return text
+        }
+        /^[[:space:]]*(\$[[:space:]]+)?winmux([[:space:]]|$)/ {
+            command = normalize_command($0)
+            if (last_command == command && output_since_last_command == 0) {
+                printf("%s:%d: duplicate visible command with no output between repeats: %s\n", path, NR, command) > "/dev/stderr"
+                exit 1
+            }
+            last_command = command
+            output_since_last_command = 0
+            next
+        }
+        trim($0) != "" && last_command != "" {
+            output_since_last_command = 1
+        }
+    ' "$path" || die "visible proof board has duplicate command headings: $path"
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    local good="${tmp_dir}/good.txt"
+    local bad="${tmp_dir}/bad.txt"
+    cat >"$good" <<'EOF'
+Slice proof
+
+$ winmux list-zones
+zone=main|enabled=true
+$ winmux list-zones
+zone=main|enabled=true
+EOF
+
+    cat >"$bad" <<'EOF'
+Slice proof
+
+$ winmux list-zones
+$ winmux list-zones
+zone=main|enabled=true
+EOF
+
+    check_board "$good"
+    if /bin/bash "$0" "$bad" >/dev/null 2>&1; then
+        die "self-test expected duplicate command failure"
+    fi
+
+    printf '[winmux-visible-board] self-test PASS\n'
+}
+
+if [ "$#" -eq 0 ]; then
+    usage >&2
+    exit 2
+fi
+
+if [ "$1" = "--self-test" ]; then
+    [ "$#" -eq 1 ] || die "--self-test does not accept paths"
+    run_self_test
+    exit 0
+fi
+
+for path in "$@"; do
+    case "$path" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            check_board "$path"
+            ;;
+    esac
+done

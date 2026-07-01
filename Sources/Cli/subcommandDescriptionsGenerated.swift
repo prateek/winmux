@@ -1,5 +1,6 @@
-// FILE IS GENERATED FROM docs/winmux-*.adoc files
-// TO REGENERATE THE FILE RUN generate.sh
+// FILE IS MAINTAINED BY HAND
+// Keep parser manifests, help strings, and CLI descriptions in sync.
+// Validate with: python3 script/check-command-metadata
 
 let subcommandDescriptions = [
     ["  agent", "Query, validate, and apply agent-oriented window layout JSON"],
