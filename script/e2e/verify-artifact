@@ -91,6 +91,23 @@ require_zone_log_empty_or_none() {
     ' "$path" || die "$description"
 }
 
+require_visible_proof_active_table_above_fold() {
+    local path="$1"
+    local table_pattern="$2"
+    local max_line="$3"
+    local description="$4"
+    local line
+
+    require_file "$path"
+    [[ "$max_line" =~ ^[0-9]+$ ]] \
+        || die "${description}: max line must be numeric, got ${max_line}"
+    line="$(/usr/bin/grep -En "$table_pattern" "$path" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+    [ -n "$line" ] \
+        || die "${description}: missing required active table matching ${table_pattern}"
+    [ "$line" -le "$max_line" ] \
+        || die "${description}: required table appears below visible line budget, line ${line}, max ${max_line}"
+}
+
 toml_width_for_zone() {
     local path="$1"
     local zone="$2"
@@ -458,6 +475,47 @@ EOF
         die "Runtime override self-test expected non-empty override rejection"
     fi
 
+    local visible_excerpt_good="${tmp_dir}/visible-excerpt-good.toml"
+    local visible_excerpt_bad="${tmp_dir}/visible-excerpt-bad.toml"
+    cat >"$visible_excerpt_good" <<'EOF'
+# Active TOML excerpt
+# proof
+
+[mode.zone.binding]
+    tab = ['cycle-zone-layout balanced focus', 'mode main']
+    a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+    y = ['cycle-zone-style current urgent calm', 'mode main']
+    c = ['cycle-zone-scene triage deep-work', 'mode main']
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+EOF
+    require_visible_proof_active_table_above_fold \
+        "$visible_excerpt_good" \
+        '^[[:space:]]*[[][[]zones[]][]]' \
+        12 \
+        "self-test visible excerpt"
+    cat >"$visible_excerpt_bad" <<'EOF'
+# Active TOML excerpt
+# proof
+# filler
+# filler
+# filler
+# filler
+# filler
+# filler
+# filler
+# filler
+# filler
+# filler
+[[zones]]
+monitor = 1
+EOF
+    if ( require_visible_proof_active_table_above_fold "$visible_excerpt_bad" '^[[:space:]]*[[][[]zones[]][]]' 12 "self-test bad visible excerpt" ) >/dev/null 2>&1; then
+        die "Visible excerpt self-test expected below-fold table rejection"
+    fi
+
     local bad_log="${tmp_dir}/zones-bad.log"
     cat >"$bad_log" <<'EOF'
 zone=left|enabled=true|left=0|width=240
@@ -488,8 +546,52 @@ EOF
     RUN_DIR="$tmp_dir"
     annotation_plan="${tmp_dir}/annotations.tsv"
     recording_path="${tmp_dir}/recording.mov"
-    printf 'annotations\n' >"$annotation_plan"
+    cat >"$annotation_plan" <<'EOF'
+0	8	First caption	Subtitle	Action: first
+8	17	Second caption	Subtitle	Action: second
+EOF
     printf 'recording\n' >"$recording_path"
+    local sample_dir="${tmp_dir}/screenshots/demo.samples"
+    mkdir -p "$sample_dir"
+    local sample_file
+    for sample_file in \
+        caption-01.png \
+        caption-01-boundary-before.png \
+        caption-01-boundary-start.png \
+        caption-01-boundary-end.png \
+        caption-02.png \
+        caption-02-boundary-before.png \
+        caption-02-boundary-start.png \
+        caption-02-boundary-end.png; do
+        printf 'sample\n' >"${sample_dir}/${sample_file}"
+    done
+    local good_sample_manifest="${tmp_dir}/sample-manifest-good.tsv"
+    cat >"$good_sample_manifest" <<'EOF'
+caption	caption-01	caption-01	4.000	screenshots/demo.samples/caption-01.png	caption midpoint sample
+caption	caption-01-boundary-before	caption-01	0.000	screenshots/demo.samples/caption-01-boundary-before.png	frame before caption start
+caption	caption-01-boundary-start	caption-01	0.100	screenshots/demo.samples/caption-01-boundary-start.png	frame immediately after caption start
+caption	caption-01-boundary-end	caption-01	7.900	screenshots/demo.samples/caption-01-boundary-end.png	frame immediately before caption end
+caption	caption-02	caption-02	12.500	screenshots/demo.samples/caption-02.png	caption midpoint sample
+caption	caption-02-boundary-before	caption-02	7.500	screenshots/demo.samples/caption-02-boundary-before.png	frame before caption start
+caption	caption-02-boundary-start	caption-02	8.100	screenshots/demo.samples/caption-02-boundary-start.png	frame immediately after caption start
+caption	caption-02-boundary-end	caption-02	16.900	screenshots/demo.samples/caption-02-boundary-end.png	frame immediately before caption end
+EOF
+    require_sample_manifest_paths "$good_sample_manifest"
+    local expression_sample_manifest="${tmp_dir}/sample-manifest-expression.tsv"
+    cat >"$expression_sample_manifest" <<'EOF'
+caption	caption-02-boundary-start	caption-02	8+0.100	screenshots/demo.samples/caption-02-boundary-start.png	frame immediately after caption start
+EOF
+    if ( require_sample_manifest_paths "$expression_sample_manifest" ) >/dev/null 2>&1; then
+        die "Sample manifest self-test expected expression timestamp rejection"
+    fi
+    local out_of_window_sample_manifest="${tmp_dir}/sample-manifest-out-of-window.tsv"
+    cat >"$out_of_window_sample_manifest" <<'EOF'
+caption	caption-02	caption-02	17.500	screenshots/demo.samples/caption-02.png	caption midpoint sample
+EOF
+    if ( require_sample_manifest_paths "$out_of_window_sample_manifest" ) >/dev/null 2>&1; then
+        die "Sample manifest self-test expected out-of-window caption timestamp rejection"
+    fi
+
     printf 'event media\n' >"${tmp_dir}/event.png"
     local event_manifest="${tmp_dir}/events.tsv"
     cat >"$event_manifest" <<'EOF'
@@ -1636,6 +1738,54 @@ require_annotation_chip_covers_offset() {
     ' "$path" || die "$message: offset $offset is not covered by chip: $chip"
 }
 
+annotation_chip_window_by_index() {
+    local path="$1"
+    local chip="$2"
+    local target_index="$3"
+    /usr/bin/awk -F'\t' -v chip="$chip" -v target_index="$target_index" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            has_chip = 0
+            for (i = 5; i <= NF; i++) {
+                if ($i == chip) {
+                    has_chip = 1
+                    break
+                }
+            }
+            if (has_chip) {
+                count += 1
+                if (count == target_index) {
+                    start = $1
+                    end = $2
+                    found = 1
+                    exit
+                }
+            }
+        }
+        END {
+            if (found) {
+                print start "\t" end
+            }
+            exit(found ? 0 : 1)
+        }
+    ' "$path"
+}
+
+require_annotation_chip_index_covers_offset() {
+    local path="$1"
+    local chip="$2"
+    local target_index="$3"
+    local offset="$4"
+    local message="$5"
+    local window start end
+    window="$(annotation_chip_window_by_index "$path" "$chip" "$target_index")" \
+        || die "$message: missing chip occurrence ${target_index}: $chip"
+    IFS=$'\t' read -r start end <<<"$window"
+    /usr/bin/awk -v offset="$offset" -v start="$start" -v end="$end" 'BEGIN {
+        exit((offset + 0 >= start + 0 && offset + 0 <= end + 0) ? 0 : 1)
+    }' || die "$message: offset $offset is not covered by chip occurrence ${target_index}: $chip"
+}
+
 require_manifest_value() {
     local path="$1"
     local kind="$2"
@@ -1793,6 +1943,16 @@ ensure_review_packet() {
             "${absolute_run_dir}/logs/guest-script-retry-summary.tsv" \
             "${relative_run_dir}/logs/guest-script-retry-summary.tsv" \
             || die "Review packet missing guest script retry summary path"
+    fi
+    local reviewer_attempts="${RUN_DIR}/reviews/reviewer-attempts.tsv"
+    if [ -s "$reviewer_attempts" ]; then
+        /usr/bin/awk -F'\t' 'NR == 1 { exit($0 == "# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason" ? 0 : 1) }' "$reviewer_attempts" \
+            || die "Reviewer attempt ledger has unexpected header: $reviewer_attempts"
+        review_packet_contains_any "$packet_path" \
+            "$reviewer_attempts" \
+            "${absolute_run_dir}/reviews/reviewer-attempts.tsv" \
+            "${relative_run_dir}/reviews/reviewer-attempts.tsv" \
+            || die "Review packet missing reviewer attempt ledger path"
     fi
     review_packet_contains_any "$packet_path" \
         "${RUN_DIR}/reviews/no-ctx-artifact-review.md" \
@@ -2297,10 +2457,107 @@ require_fresh_derived_file() {
         || die "${label} is stale relative to ${source}: ${path}"
 }
 
+require_sample_manifest_shape_and_timing() {
+    local manifest_path="$1"
+    local captions_path="${2:-}"
+
+    /usr/bin/awk -F'\t' -v captions="$captions_path" -v manifest="$manifest_path" '
+        function fail(message) {
+            printf("%s\n", message) > "/dev/stderr"
+            exit 1
+        }
+
+        BEGIN {
+            tolerance = 0.151
+            caption_count = 0
+            if (captions != "") {
+                while ((getline line < captions) > 0) {
+                    if (line == "" || line ~ /^#/) {
+                        continue
+                    }
+                    field_count = split(line, fields, "\t")
+                    if (field_count < 2) {
+                        fail("Caption annotation row has fewer than 2 fields in " captions ": " line)
+                    }
+                    if (fields[1] !~ /^[0-9]+([.][0-9]+)?$/ || fields[2] !~ /^[0-9]+([.][0-9]+)?$/) {
+                        fail("Caption annotation row must start with numeric start/end seconds in " captions ": " line)
+                    }
+                    caption_count++
+                    caption_start[caption_count] = fields[1] + 0
+                    caption_end[caption_count] = fields[2] + 0
+                    if (caption_end[caption_count] <= caption_start[caption_count]) {
+                        fail("Caption annotation end must be after start in " captions ": " line)
+                    }
+                }
+                close(captions)
+            }
+        }
+
+        $0 == "" || $1 ~ /^#/ {
+            next
+        }
+
+        NF != 6 {
+            fail("Sample manifest row has " NF " fields, expected 6 in " manifest ": " $0)
+        }
+
+        $1 == "caption" {
+            if (caption_count == 0) {
+                fail("Caption sample row has no annotation plan to validate against in " manifest ": " $0)
+            }
+            if ($4 !~ /^[0-9]+([.][0-9]+)?$/) {
+                fail("Caption sample timestamp must be decimal seconds in " manifest ", got " $4 ": " $0)
+            }
+            if ($3 !~ /^caption-[0-9][0-9]$/) {
+                fail("Caption sample reference must look like caption-NN in " manifest ": " $0)
+            }
+
+            caption_index = $3
+            sub(/^caption-0*/, "", caption_index)
+            caption_index += 0
+            if (caption_index < 1 || caption_index > caption_count) {
+                fail("Caption sample references missing annotation " $3 " in " manifest ": " $0)
+            }
+
+            expected_label = $3
+            lower = caption_start[caption_index]
+            upper = caption_end[caption_index]
+            if ($2 == expected_label "-boundary-before") {
+                lower = caption_start[caption_index] - 0.500
+                if (lower < 0) {
+                    lower = 0
+                }
+                upper = caption_start[caption_index]
+            } else if ($2 == expected_label "-boundary-start") {
+                lower = caption_start[caption_index]
+                upper = caption_end[caption_index]
+            } else if ($2 == expected_label "-boundary-end") {
+                lower = caption_start[caption_index]
+                upper = caption_end[caption_index]
+            } else if ($2 != expected_label) {
+                fail("Caption sample label must match its caption reference or boundary suffix in " manifest ": " $0)
+            }
+
+            seconds = $4 + 0
+            if (seconds + tolerance < lower || seconds - tolerance > upper) {
+                fail("Caption sample timestamp " $4 " is outside " $3 " window [" lower ", " upper "] in " manifest ": " $0)
+            }
+        }
+    ' "$manifest_path" || die "Sample manifest shape/timing validation failed: $manifest_path"
+}
+
 require_sample_manifest_paths() {
     local manifest_path="$1"
     require_file "$manifest_path"
     require_fresh_derived_file "$manifest_path" "${recording_path:-}" "Sample manifest"
+
+    local captions_path=""
+    if [ -s "${annotation_plan:-}" ]; then
+        captions_path="$annotation_plan"
+    elif [ -n "${LOGS_DIR:-}" ] && [ -n "${recording_name:-}" ] && [ -s "${LOGS_DIR}/${recording_name}.annotations.tsv" ]; then
+        captions_path="${LOGS_DIR}/${recording_name}.annotations.tsv"
+    fi
+    require_sample_manifest_shape_and_timing "$manifest_path" "$captions_path"
 
     /usr/bin/awk -F'\t' '$0 != "" && $1 !~ /^#/ { print $5 }' "$manifest_path" | while IFS= read -r relative_path; do
         [ -n "$relative_path" ] || die "Sample manifest has a row with an empty path: $manifest_path"
@@ -2504,6 +2761,51 @@ require_review_freshness() {
             [ -s "$dependency" ] || continue
             [ "$review_path" -nt "$dependency" ] \
                 || die "Review is stale relative to Slice 33 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-34-zone-mode-scene" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-34-scene-before.log" \
+            "${LOGS_DIR}/slice-34-scene-after.log" \
+            "${LOGS_DIR}/slice-34-scene-wrap.log" \
+            "${LOGS_DIR}/slice-34-trigger-binding-alt-tab.log" \
+            "${LOGS_DIR}/slice-34-trigger-binding-alt-tab-wrap.log" \
+            "${LOGS_DIR}/slice-34-cli.log" \
+            "${LOGS_DIR}/slice-34-command-timing.log" \
+            "${LOGS_DIR}/slice-34-windows-before.log" \
+            "${LOGS_DIR}/slice-34-windows-after.log" \
+            "${LOGS_DIR}/slice-34-windows-wrap.log" \
+            "${LOGS_DIR}/slice-34-zone-mode-scene.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-34.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-34.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-34.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 34 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-35-starter-ultrawide-template" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-35-setup.log" \
+            "${LOGS_DIR}/slice-35-starter-config-before.toml" \
+            "${LOGS_DIR}/slice-35-starter-config-uncommented.toml" \
+            "${LOGS_DIR}/slice-35-visible-uncommented-template.txt" \
+            "${LOGS_DIR}/slice-35-config-check.log" \
+            "${LOGS_DIR}/slice-35-list-zones.log" \
+            "${LOGS_DIR}/slice-35-cli.log" \
+            "${LOGS_DIR}/slice-35-command-timing.log" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-35.png" \
+            "${SCREENSHOTS_DIR}/01-starter-template-commented-slice-35.png" \
+            "${SCREENSHOTS_DIR}/02-template-uncommented-slice-35.png" \
+            "${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-35.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-35.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 35 evidence dependency: $dependency"
         done
     fi
 }
@@ -2943,6 +3245,156 @@ EOF
         || die "Slice 33 review must identify the triage result after wraparound"
 }
 
+require_review_mentions_slice_34_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-34-zone-mode-scene) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(event_contact_sheet_path)	event contact sheet
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-34-scene-before.log	before scene zone log
+${LOGS_DIR}/slice-34-scene-after.log	after first binding zone log
+${LOGS_DIR}/slice-34-scene-wrap.log	after wrap zone log
+${LOGS_DIR}/slice-34-trigger-binding-alt-tab.log	first binding command log
+${LOGS_DIR}/slice-34-trigger-binding-alt-tab-wrap.log	second binding command log
+${LOGS_DIR}/slice-34-command-timing.log	command timing log
+${LOGS_DIR}/slice-34-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-34-windows-before.log	before visible-window log
+${LOGS_DIR}/slice-34-windows-after.log	after first binding visible-window log
+${LOGS_DIR}/slice-34-windows-wrap.log	after wrap visible-window log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-34.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-34.png	ready triage scene screenshot
+${SCREENSHOTS_DIR}/99-after-slice-34.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 34 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 34 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-34-zone-mode-scene.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 34 review must cite the Slice 34 event manifest"
+    for event_id in first-binding-command-start first-binding-result second-binding-command-start wrap-binding-result inspect-zones inspect-windows; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 34 review must cite binding-scene event: $event_id"
+    done
+    grep -F '$ winmux trigger-binding --mode main alt-tab' "$review_path" >/dev/null \
+        || grep -F 'Run: winmux trigger-binding --mode main alt-tab' "$review_path" >/dev/null \
+        || die "Slice 34 review must cite the exact trigger-binding command"
+    grep -F "alt-tab = 'cycle-zone-scene triage deep-work'" "$review_path" >/dev/null \
+        || die "Slice 34 review must cite the exact alt-tab binding"
+    for timing_key in \
+        first-command-start-offset-seconds \
+        first-command-end-offset-seconds \
+        first-result-detected-offset-seconds \
+        second-command-start-offset-seconds \
+        second-command-end-offset-seconds \
+        wrap-result-detected-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 34 review must cite timing value key: $timing_key"
+    done
+    grep -Eiq 'wrap(ped|around)?[^[:alnum:]]+(back )?to[^[:alnum:]]+triage|triage[^[:alnum:]]+wrap' "$review_path" \
+        || die "Slice 34 review must explicitly state that the second binding wraps back to triage"
+    grep -Eiq 'deep-work|FocusQueue|FocusBuild|FocusNotes' "$review_path" \
+        || die "Slice 34 review must identify the deep-work result after the first binding"
+    grep -Eiq 'TriageInbox|TriageDraft|TriageUpdates' "$review_path" \
+        || die "Slice 34 review must identify the triage result after wraparound"
+}
+
+require_review_mentions_slice_35_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-35-starter-ultrawide-template) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-35-starter-config-before.toml	commented starter config
+${LOGS_DIR}/slice-35-starter-config-uncommented.toml	uncommented starter config
+${LOGS_DIR}/slice-35-visible-uncommented-template.txt	visible uncommented template source
+${LOGS_DIR}/slice-35-config-check.log	config check log
+${LOGS_DIR}/slice-35-list-zones.log	list-zones runtime log
+${LOGS_DIR}/slice-35-command-timing.log	command timing log
+${LOGS_DIR}/slice-35-cli.log	aggregate CLI log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-35.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-starter-template-commented-slice-35.png	commented template screenshot
+${SCREENSHOTS_DIR}/02-template-uncommented-slice-35.png	uncommented template screenshot
+${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-35.png	config check and zones screenshot
+${SCREENSHOTS_DIR}/99-after-slice-35.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 35 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 35 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-35-starter-ultrawide-template.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 35 review must cite the Slice 35 event manifest"
+    for event_id in commented-template uncomment-template launch-with-config config-check list-zones result-zones; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 35 review must cite starter-template event: $event_id"
+    done
+    for timing_key in \
+        uncomment-template-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 35 review must cite timing value key: $timing_key"
+    done
+    grep -F '$ winmux config --check ' "$review_path" >/dev/null \
+        || grep -F 'Run: winmux config --check slice-35-starter-config-uncommented.toml' "$review_path" >/dev/null \
+        || die "Slice 35 review must cite the exact config check command"
+    grep -F "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$review_path" >/dev/null \
+        || die "Slice 35 review must cite the exact list-zones command"
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$review_path" >/dev/null \
+        || die "Slice 35 review must cite the starter template marker"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 35 review must identify resulting zone: $zone_name"
+    done
+    grep -Eiq 'commented|not enabled by default|disabled by default|opt-in' "$review_path" \
+        || die "Slice 35 review must state that zones remain opt-in/commented by default"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -3234,6 +3686,8 @@ run_review_lint() {
     require_review_mentions_slice_31_evidence "$review_path"
     require_review_mentions_slice_32_evidence "$review_path"
     require_review_mentions_slice_33_evidence "$review_path"
+    require_review_mentions_slice_34_evidence "$review_path"
+    require_review_mentions_slice_35_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -3581,6 +4035,35 @@ require_slice_32_sample_manifest() {
     require_sample_manifest_label_path "$manifest_path" divider-live-preview "screenshots/05-divider-preview-slice-26.png"
     require_sample_manifest_label_path "$manifest_path" divider-release "screenshots/06-divider-release-slice-26.png"
     require_sample_manifest_label_path "$manifest_path" after-divider-resize "screenshots/07-after-divider-resize-slice-26.png"
+}
+
+require_slice_34_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        zone-mode-scene-ready \
+        before-binding-triage \
+        first-binding-command-start \
+        first-binding-result \
+        second-binding-command-start \
+        wrap-binding-result \
+        inspect-zones \
+        inspect-windows; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    require_sample_manifest_label_path "$manifest_path" zone-mode-scene-ready "screenshots/01-ready-slice-34.png"
+    for label in \
+        before-binding-triage \
+        first-binding-command-start \
+        first-binding-result \
+        second-binding-command-start \
+        wrap-binding-result \
+        inspect-zones \
+        inspect-windows; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
+    done
 }
 
 require_slice_21_sample_manifest() {
@@ -5197,6 +5680,312 @@ require_slice_33_command_timing() {
         "Slice 33 second command must not run before the deep-work result is detected"
     assert_numeric_gt "$wrap_result" "$second_end" \
         "Slice 33 wrap result must be detected after the second command completes"
+}
+
+require_slice_34_zone_mode_scene_proof() {
+    local proof="${RUN_DIR}/slice-34-zone-scene-proof.txt"
+    local done="${LOGS_DIR}/slice-34-zone-scene.done"
+    local scene_before="${LOGS_DIR}/slice-34-scene-before.log"
+    local scene_after="${LOGS_DIR}/slice-34-scene-after.log"
+    local scene_wrap="${LOGS_DIR}/slice-34-scene-wrap.log"
+    local timing_log="${LOGS_DIR}/slice-34-command-timing.log"
+    local command_log="${LOGS_DIR}/slice-34-trigger-binding-alt-tab.log"
+    local wrap_log="${LOGS_DIR}/slice-34-trigger-binding-alt-tab-wrap.log"
+    local windows_before="${LOGS_DIR}/slice-34-windows-before.log"
+    local windows_after="${LOGS_DIR}/slice-34-windows-after.log"
+    local windows_wrap="${LOGS_DIR}/slice-34-windows-wrap.log"
+    local ready_screenshot="${SCREENSHOTS_DIR}/01-ready-slice-34.png"
+    local event_manifest="${LOGS_DIR}/slice-34-zone-mode-scene.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 34"
+    require_file "$scene_before"
+    require_file "$scene_after"
+    require_file "$scene_wrap"
+    require_file "$command_log"
+    require_file "$wrap_log"
+    require_file "$windows_before"
+    require_file "$windows_after"
+    require_file "$windows_wrap"
+    require_file "$ready_screenshot"
+    require_file "$event_manifest"
+    require_slice_34_event_manifest "$event_manifest"
+    require_slice_34_sample_manifest "$sample_manifest"
+
+    grep -F "alt-tab = 'cycle-zone-scene triage deep-work'" "$CONFIG_PATH" >/dev/null \
+        || die "Slice 34 config missing alt-tab scene-cycle binding"
+    if grep -F 'PASS: cycle-zone-scene advanced from triage to deep-work' "$proof" >/dev/null; then
+        die "Slice 34 proof must not use the direct cycle-zone-scene PASS claim"
+    fi
+    grep -F "PASS: trigger-binding --mode main alt-tab invoked alt-tab = 'cycle-zone-scene triage deep-work' and advanced triage -> deep-work -> triage while preserving scene layout and workspace bindings." "$proof" >/dev/null \
+        || die "Slice 34 proof does not contain the expected trigger-binding PASS claim"
+    grep -F '$ winmux trigger-binding --mode main alt-tab' "$command_log" >/dev/null \
+        || die "Slice 34 first command log missing trigger-binding alt-tab command"
+    grep -F '$ winmux trigger-binding --mode main alt-tab' "$wrap_log" >/dev/null \
+        || die "Slice 34 wrap command log missing trigger-binding alt-tab command"
+    grep -F "Using zone scene 'deep-work' on monitor" "$command_log" >/dev/null \
+        || die "Slice 34 first command log missing bound deep-work success output"
+    grep -F "Using zone scene 'triage' on monitor" "$wrap_log" >/dev/null \
+        || die "Slice 34 wrap command log missing bound triage success output"
+
+    grep -F 'zone=left|layout=balanced|' "$scene_before" >/dev/null || die "Slice 34 before scene missing left balanced layout"
+    grep -F 'zone=main|layout=balanced|' "$scene_before" >/dev/null || die "Slice 34 before scene missing main balanced layout"
+    grep -F 'zone=right|layout=balanced|' "$scene_before" >/dev/null || die "Slice 34 before scene missing right balanced layout"
+    grep -F 'zone=left|layout=focus|' "$scene_after" >/dev/null || die "Slice 34 first binding missing left focus layout"
+    grep -F 'zone=main|layout=focus|' "$scene_after" >/dev/null || die "Slice 34 first binding missing main focus layout"
+    grep -F 'zone=right|layout=focus|' "$scene_after" >/dev/null || die "Slice 34 first binding missing right focus layout"
+    grep -F 'zone=left|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing left balanced layout"
+    grep -F 'zone=main|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing main balanced layout"
+    grep -F 'zone=right|layout=balanced|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing right balanced layout"
+
+    grep -F 'workspace=TriageInbox|' "$scene_before" >/dev/null || die "Slice 34 before scene missing TriageInbox"
+    grep -F 'workspace=TriageDraft|' "$scene_before" >/dev/null || die "Slice 34 before scene missing TriageDraft"
+    grep -F 'workspace=TriageUpdates|' "$scene_before" >/dev/null || die "Slice 34 before scene missing TriageUpdates"
+    grep -F 'workspace=FocusQueue|' "$scene_after" >/dev/null || die "Slice 34 first binding missing FocusQueue"
+    grep -F 'workspace=FocusBuild|' "$scene_after" >/dev/null || die "Slice 34 first binding missing FocusBuild"
+    grep -F 'workspace=FocusNotes|' "$scene_after" >/dev/null || die "Slice 34 first binding missing FocusNotes"
+    grep -F 'workspace=TriageInbox|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing TriageInbox"
+    grep -F 'workspace=TriageDraft|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing TriageDraft"
+    grep -F 'workspace=TriageUpdates|' "$scene_wrap" >/dev/null || die "Slice 34 wrap scene missing TriageUpdates"
+
+    local before_left_width before_main_width before_right_width after_left_width after_main_width after_right_width wrap_left_width wrap_main_width wrap_right_width
+    before_left_width="$(monitor_field_for_zone "$scene_before" left width)"
+    before_main_width="$(monitor_field_for_zone "$scene_before" main width)"
+    before_right_width="$(monitor_field_for_zone "$scene_before" right width)"
+    after_left_width="$(monitor_field_for_zone "$scene_after" left width)"
+    after_main_width="$(monitor_field_for_zone "$scene_after" main width)"
+    after_right_width="$(monitor_field_for_zone "$scene_after" right width)"
+    wrap_left_width="$(monitor_field_for_zone "$scene_wrap" left width)"
+    wrap_main_width="$(monitor_field_for_zone "$scene_wrap" main width)"
+    wrap_right_width="$(monitor_field_for_zone "$scene_wrap" right width)"
+    assert_numeric_lt "$after_left_width" "$before_left_width" "Slice 34 left width did not shrink on first binding"
+    assert_numeric_gt "$after_main_width" "$before_main_width" "Slice 34 main width did not grow on first binding"
+    assert_numeric_lt "$after_right_width" "$before_right_width" "Slice 34 right width did not shrink on first binding"
+    assert_numeric_approximately_equal "$wrap_left_width" "$before_left_width" 2 "Slice 34 left width did not wrap back"
+    assert_numeric_approximately_equal "$wrap_main_width" "$before_main_width" 2 "Slice 34 main width did not wrap back"
+    assert_numeric_approximately_equal "$wrap_right_width" "$before_right_width" 2 "Slice 34 right width did not wrap back"
+
+    local title expected_zone zone
+    for title in triage-inbox.rtf triage-draft.rtf triage-updates.rtf; do
+        case "$title" in
+            triage-inbox.rtf) expected_zone=left ;;
+            triage-draft.rtf) expected_zone=main ;;
+            triage-updates.rtf) expected_zone=right ;;
+        esac
+        zone="$(field_for_title "$windows_before" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 34 before zone for $title was ${zone:-missing}, expected $expected_zone"
+        zone="$(field_for_title "$windows_wrap" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 34 wrap zone for $title was ${zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_after" "$title" id)" ] || die "Slice 34 after first binding should not include $title"
+    done
+    for title in focus-queue.rtf focus-build.rtf focus-notes.rtf; do
+        case "$title" in
+            focus-queue.rtf) expected_zone=left ;;
+            focus-build.rtf) expected_zone=main ;;
+            focus-notes.rtf) expected_zone=right ;;
+        esac
+        zone="$(field_for_title "$windows_after" "$title" zone)"
+        [ "$zone" = "$expected_zone" ] || die "Slice 34 first binding zone for $title was ${zone:-missing}, expected $expected_zone"
+        [ -z "$(field_for_title "$windows_before" "$title" id)" ] || die "Slice 34 before binding should not include $title"
+        [ -z "$(field_for_title "$windows_wrap" "$title" id)" ] || die "Slice 34 wrap binding should not include $title"
+    done
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-34-zone-mode-scene.expected-chips.txt" \
+        "${LOGS_DIR}/slice-34-zone-mode-scene.annotations.tsv"
+    require_slice_34_command_timing "$timing_log"
+    grep -F "Config: alt-tab = 'cycle-zone-scene triage deep-work'" "$annotation_plan" >/dev/null \
+        || die "Slice 34 annotations missing cycle binding config chip"
+    local binding_caption_count
+    binding_caption_count="$(/usr/bin/awk '/Run: winmux trigger-binding --mode main alt-tab/ { count += 1 } END { print count + 0 }' "$annotation_plan")"
+    [ "$binding_caption_count" -ge 2 ] \
+        || die "Slice 34 annotations must expose the trigger-binding command twice"
+    grep -F "Action: binding result = deep-work" "$annotation_plan" >/dev/null \
+        || die "Slice 34 annotations missing deep-work binding result chip"
+    grep -F "Action: binding result = triage" "$annotation_plan" >/dev/null \
+        || die "Slice 34 annotations missing triage binding wrap result chip"
+}
+
+require_slice_34_command_timing() {
+    local timing_log="$1"
+    require_file "$timing_log"
+
+    local first_start first_end first_result second_start second_end wrap_result
+    first_start="$(value_from_log first-command-start-offset-seconds "$timing_log")"
+    first_end="$(value_from_log first-command-end-offset-seconds "$timing_log")"
+    first_result="$(value_from_log first-result-detected-offset-seconds "$timing_log")"
+    second_start="$(value_from_log second-command-start-offset-seconds "$timing_log")"
+    second_end="$(value_from_log second-command-end-offset-seconds "$timing_log")"
+    wrap_result="$(value_from_log wrap-result-detected-offset-seconds "$timing_log")"
+    [ -n "$first_start" ] || die "Slice 34 timing log missing first command start offset"
+    [ -n "$first_end" ] || die "Slice 34 timing log missing first command end offset"
+    [ -n "$first_result" ] || die "Slice 34 timing log missing first result detection offset"
+    [ -n "$second_start" ] || die "Slice 34 timing log missing second command start offset"
+    [ -n "$second_end" ] || die "Slice 34 timing log missing second command end offset"
+    [ -n "$wrap_result" ] || die "Slice 34 timing log missing wrap result detection offset"
+
+    require_annotation_chip_index_covers_offset "$annotation_plan" \
+        "Run: winmux trigger-binding --mode main alt-tab" 1 "$first_start" \
+        "Slice 34 first binding command must happen while its command caption is visible"
+    require_annotation_chip_index_covers_offset "$annotation_plan" \
+        "Run: winmux trigger-binding --mode main alt-tab" 2 "$second_start" \
+        "Slice 34 second binding command must happen while its command caption is visible"
+    assert_numeric_gt "$first_result" "$first_end" \
+        "Slice 34 first result must be detected after the first binding completes"
+    assert_numeric_gt "$first_result" "$first_start" \
+        "Slice 34 first result must be detected after the first binding starts"
+    assert_numeric_gt "$wrap_result" "$second_start" \
+        "Slice 34 wrap result must be detected after the second binding starts"
+    assert_numeric_gt "$second_start" "$first_result" \
+        "Slice 34 second binding must not run before the deep-work result is detected"
+    assert_numeric_gt "$wrap_result" "$second_end" \
+        "Slice 34 wrap result must be detected after the second binding completes"
+}
+
+require_slice_35_starter_template_proof() {
+    local proof="${RUN_DIR}/slice-35-starter-ultrawide-template-proof.txt"
+    local done="${LOGS_DIR}/slice-35-starter-ultrawide-template.done"
+    local setup_log="${LOGS_DIR}/slice-35-setup.log"
+    local config_before="${LOGS_DIR}/slice-35-starter-config-before.toml"
+    local config_uncommented="${LOGS_DIR}/slice-35-starter-config-uncommented.toml"
+    local config_check_log="${LOGS_DIR}/slice-35-config-check.log"
+    local list_zones_log="${LOGS_DIR}/slice-35-list-zones.log"
+    local cli_log="${LOGS_DIR}/slice-35-cli.log"
+    local timing_log="${LOGS_DIR}/slice-35-command-timing.log"
+    local visible_commented="${LOGS_DIR}/slice-35-visible-commented-template.txt"
+    local visible_uncommented="${LOGS_DIR}/slice-35-visible-uncommented-template.txt"
+    local visible_result="${LOGS_DIR}/slice-35-visible-result.txt"
+    local event_manifest="${LOGS_DIR}/slice-35-starter-ultrawide-template.event-manifest.tsv"
+    local sample_manifest
+    local uncomment_offset launch_offset config_check_offset list_zones_offset
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 35"
+    require_file "$setup_log"
+    require_file "$config_before"
+    require_file "$config_uncommented"
+    require_file "$config_check_log"
+    require_file "$list_zones_log"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$visible_commented"
+    require_file "$visible_uncommented"
+    require_file "$visible_result"
+    require_file "$event_manifest"
+    require_sample_manifest_paths "$sample_manifest"
+    require_slice_35_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-35.png"
+    require_file "${SCREENSHOTS_DIR}/01-starter-template-commented-slice-35.png"
+    require_file "${SCREENSHOTS_DIR}/02-template-uncommented-slice-35.png"
+    require_file "${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-35.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-35.png"
+
+    grep -F 'PASS: starter config keeps zones commented by default' "$proof" >/dev/null \
+        || die "Slice 35 proof does not contain the expected starter-template PASS claim"
+    grep -F 'Template marker: WINMUX ULTRAWIDE ZONES TEMPLATE' "$setup_log" >/dev/null \
+        || die "Slice 35 setup log missing template marker summary"
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$config_before" >/dev/null \
+        || die "Slice 35 starter config missing template begin marker"
+    grep -F '# [[zones]]' "$config_before" >/dev/null \
+        || die "Slice 35 starter config missing commented zones table"
+    if grep -E '^[[:space:]]*\[\[zones\]\]' "$config_before" >/dev/null; then
+        die "Slice 35 starter config must not activate [[zones]] before uncommenting"
+    fi
+    grep -E '^[[:space:]]*\[\[zones\]\]' "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing active [[zones]]"
+    require_visible_proof_active_table_above_fold \
+        "$visible_uncommented" \
+        '^[[:space:]]*[[][[]zones[]][]]' \
+        12 \
+        "Slice 35 visible uncommented template source"
+    grep -F 'Active TOML excerpt from the uncommented WINMUX ULTRAWIDE ZONES TEMPLATE' "$visible_uncommented" >/dev/null \
+        || die "Slice 35 visible uncommented template source must be a focused active-TOML excerpt"
+    grep -F 'Resulting named columns from the active layout: Reference | Work | Comms' "$visible_uncommented" >/dev/null \
+        || die "Slice 35 visible uncommented template source missing named-column summary"
+    grep -F "tab = ['cycle-zone-layout balanced focus', 'mode main']" "$visible_uncommented" >/dev/null \
+        || die "Slice 35 visible uncommented template source missing layout cycle binding"
+    if grep -F '# [[zones]]' "$visible_uncommented" >/dev/null; then
+        die "Slice 35 visible uncommented template source still shows commented [[zones]]"
+    fi
+    grep -F "tab = ['cycle-zone-layout balanced focus', 'mode main']" "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing layout cycle binding"
+    grep -F "a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']" "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing availability cycle binding"
+    grep -F "c = ['cycle-zone-scene triage deep-work', 'mode main']" "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing scene cycle binding"
+    grep -F "[[zone-affinities]]" "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing zone affinity example"
+    grep -F "[mouse.zone-snap]" "$config_uncommented" >/dev/null \
+        || die "Slice 35 uncommented config missing mouse zone snap example"
+
+    grep -F '$ winmux config --check ' "$config_check_log" >/dev/null \
+        || die "Slice 35 config check log missing exact command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 35 config check log missing Config OK"
+    grep -F "$ winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$cli_log" >/dev/null \
+        || die "Slice 35 CLI log missing exact list-zones command"
+    grep -F 'zone=left|name=Reference|' "$list_zones_log" >/dev/null \
+        || die "Slice 35 list-zones missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$list_zones_log" >/dev/null \
+        || die "Slice 35 list-zones missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$list_zones_log" >/dev/null \
+        || die "Slice 35 list-zones missing Comms/right"
+    grep -F 'workspace=' "$list_zones_log" >/dev/null \
+        || die "Slice 35 list-zones log missing workspace fields"
+
+    for key in \
+        uncomment-template-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds; do
+        [ -n "$(value_from_log "$key" "$timing_log")" ] \
+            || die "Slice 35 timing log missing $key"
+    done
+    uncomment_offset="$(value_from_log uncomment-template-offset-seconds "$timing_log")"
+    launch_offset="$(value_from_log launch-offset-seconds "$timing_log")"
+    config_check_offset="$(value_from_log config-check-offset-seconds "$timing_log")"
+    list_zones_offset="$(value_from_log list-zones-offset-seconds "$timing_log")"
+    /usr/bin/awk \
+        -v uncomment="$uncomment_offset" \
+        -v launch="$launch_offset" \
+        -v config_check="$config_check_offset" \
+        -v list_zones="$list_zones_offset" \
+        'BEGIN { exit(uncomment < launch && launch < config_check && config_check < list_zones ? 0 : 1) }' \
+        || die "Slice 35 timing order must be uncomment -> launch -> config-check -> list-zones"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "$uncomment_offset" \
+        "Slice 35 uncomment action must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp --config-path slice-35-starter-config-uncommented.toml" \
+        "$launch_offset" \
+        "Slice 35 launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --check slice-35-starter-config-uncommented.toml" \
+        "$config_check_offset" \
+        "Slice 35 config check must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "$list_zones_offset" \
+        "Slice 35 list-zones must happen while its command caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-35-starter-ultrawide-template.expected-chips.txt" \
+        "${LOGS_DIR}/slice-35-starter-ultrawide-template.annotations.tsv"
+    for chip in \
+        "Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "Run: winmux config --check slice-35-starter-config-uncommented.toml" \
+        "Run: WinMuxApp --config-path slice-35-starter-config-uncommented.toml" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "Result: Reference | Work | Comms"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 35 annotations missing chip: $chip"
+    done
 }
 
 require_slice_8_window_routing_proof() {
@@ -8354,6 +9143,105 @@ require_slice_33_event_manifest() {
     done
 }
 
+require_slice_34_event_manifest() {
+    local manifest_path="$1"
+    local before_event_id="before-binding-triage"
+    require_event_manifest_paths "$manifest_path"
+
+    if ! event_manifest_value "$manifest_path" "$before_event_id" kind >/dev/null 2>&1; then
+        before_event_id="before-cycle"
+    fi
+
+    require_event_manifest_event "$manifest_path" config-ready context
+    require_event_manifest_event "$manifest_path" "$before_event_id" state
+    require_event_manifest_event "$manifest_path" first-binding-command-start command
+    require_event_manifest_event "$manifest_path" first-binding-result state
+    require_event_manifest_event "$manifest_path" second-binding-command-start command
+    require_event_manifest_event "$manifest_path" wrap-binding-result state
+    require_event_manifest_event "$manifest_path" inspect-zones command
+    require_event_manifest_event "$manifest_path" inspect-windows command
+
+    require_event_sample_label "$manifest_path" config-ready zone-mode-scene-ready
+    require_event_sample_label "$manifest_path" "$before_event_id" before-binding-triage
+    require_event_sample_label "$manifest_path" first-binding-command-start first-binding-command-start
+    require_event_sample_label "$manifest_path" first-binding-result first-binding-result
+    require_event_sample_label "$manifest_path" second-binding-command-start second-binding-command-start
+    require_event_sample_label "$manifest_path" wrap-binding-result wrap-binding-result
+    require_event_sample_label "$manifest_path" inspect-zones inspect-zones
+    require_event_sample_label "$manifest_path" inspect-windows inspect-windows
+
+    require_event_before "$manifest_path" config-ready "$before_event_id" \
+        "Slice 34 event manifest must show config before triage baseline"
+    require_event_before "$manifest_path" "$before_event_id" first-binding-command-start \
+        "Slice 34 event manifest must show triage before first binding command"
+    require_event_before "$manifest_path" first-binding-command-start first-binding-result \
+        "Slice 34 event manifest must show first binding before deep-work result"
+    require_event_before "$manifest_path" first-binding-result second-binding-command-start \
+        "Slice 34 event manifest must show deep-work before second binding command"
+    require_event_before "$manifest_path" second-binding-command-start wrap-binding-result \
+        "Slice 34 event manifest must show second binding before triage wrap result"
+    require_event_before "$manifest_path" wrap-binding-result inspect-zones \
+        "Slice 34 event manifest must show wrapped triage before zone inspection"
+    require_event_before "$manifest_path" inspect-zones inspect-windows \
+        "Slice 34 event manifest must show zone inspection before window inspection"
+
+    local event_id path
+    for event_id in \
+        config-ready \
+        "$before_event_id" \
+        first-binding-command-start \
+        first-binding-result \
+        second-binding-command-start \
+        wrap-binding-result \
+        inspect-zones \
+        inspect-windows; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 34 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_35_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" commented-template context
+    require_event_manifest_event "$manifest_path" uncomment-template action
+    require_event_manifest_event "$manifest_path" config-check command
+    require_event_manifest_event "$manifest_path" launch-with-config command
+    require_event_manifest_event "$manifest_path" list-zones command
+    require_event_manifest_event "$manifest_path" result-zones state
+
+    require_event_sample_label "$manifest_path" commented-template starter-template-commented
+    require_event_sample_label "$manifest_path" uncomment-template uncomment-template
+    require_event_sample_label "$manifest_path" config-check config-check
+    require_event_sample_label "$manifest_path" launch-with-config launch-with-config
+    require_event_sample_label "$manifest_path" list-zones list-zones
+    require_event_sample_label "$manifest_path" result-zones result-zones
+
+    require_event_before "$manifest_path" commented-template uncomment-template \
+        "Slice 35 event manifest must show commented template before uncomment action"
+    require_event_before "$manifest_path" uncomment-template launch-with-config \
+        "Slice 35 event manifest must show uncomment before launch"
+    require_event_before "$manifest_path" launch-with-config config-check \
+        "Slice 35 event manifest must show launch before config check"
+    require_event_before "$manifest_path" config-check list-zones \
+        "Slice 35 event manifest must show config check before list-zones"
+    require_event_before "$manifest_path" list-zones result-zones \
+        "Slice 35 event manifest must show list-zones before final result"
+
+    local event_id path
+    for event_id in \
+        commented-template \
+        uncomment-template \
+        launch-with-config \
+        config-check \
+        list-zones \
+        result-zones; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 35 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -10172,6 +11060,10 @@ if [ "$annotate_recording" = "1" ] || [ -s "$annotation_log" ] || [ -s "$annotat
     fi
     require_caption_tail_manifest "$recording_name" "$duration"
     require_demo_cut_manifest "$recording_name" "$duration"
+    recording_sample_manifest="$(sample_manifest_path)"
+    if [ -s "$recording_sample_manifest" ]; then
+        require_sample_manifest_paths "$recording_sample_manifest"
+    fi
     edge_crop_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
     if [ -s "$edge_crop_manifest" ]; then
         require_edge_crop_manifest "$edge_crop_manifest"
@@ -10218,6 +11110,12 @@ case "$recording_name" in
         ;;
     slice-33-cycle-zone-scene)
         require_slice_33_cycle_zone_scene_proof
+        ;;
+    slice-34-zone-mode-scene)
+        require_slice_34_zone_mode_scene_proof
+        ;;
+    slice-35-starter-ultrawide-template)
+        require_slice_35_starter_template_proof
         ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
@@ -10316,6 +11214,8 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_31_evidence "$review_path"
     require_review_mentions_slice_32_evidence "$review_path"
     require_review_mentions_slice_33_evidence "$review_path"
+    require_review_mentions_slice_34_evidence "$review_path"
+    require_review_mentions_slice_35_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

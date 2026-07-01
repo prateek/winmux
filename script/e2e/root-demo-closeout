@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: root-demo-closeout [--self-test] [--no-log] <root-demo-artifact-dir>
+
+Runs the non-mutating root-demo closeout gate and persists the transcript to
+<root-demo-artifact-dir>/logs/root-demo-closeout.log unless --no-log is used.
+EOF
+}
+
+die() {
+    printf '[winmux-root-demo-closeout] error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_file() {
+    local path="$1"
+    [ -s "$path" ] || die "Missing or empty file: $path"
+}
+
+require_retrospection() {
+    local run_dir="$1"
+    local name="$2"
+    require_file "${run_dir}/retrospectives/${name}.md"
+}
+
+run_gate() {
+    local run_dir="$1"
+
+    [ -d "$run_dir" ] || die "Artifact directory does not exist: $run_dir"
+    require_file "${run_dir}/logs/root-demo-package.log"
+    require_file "${run_dir}/reviews/no-ctx-artifact-review.md"
+    require_file "${run_dir}/reviews/reviewer-packet.md"
+
+    ./script/e2e/verify-root-demo --require-review "$run_dir"
+    printf '[winmux-root-demo-closeout] root-demo review lint PASS\n'
+
+    require_retrospection "$run_dir" process-plan
+    require_retrospection "$run_dir" code-harness
+    require_retrospection "$run_dir" artifact-product
+    printf '[winmux-root-demo-closeout] retrospectives PASS\n'
+
+    ./script/e2e/check-generated-version-clean
+    printf '[winmux-root-demo-closeout] generated version cleanliness PASS\n'
+
+    git diff --check
+    printf '[winmux-root-demo-closeout] git diff --check PASS\n'
+
+    printf 'root_demo_closeout=%s\n' "$run_dir"
+    printf 'result=success\n'
+    printf '[winmux-e2e] root-demo closeout PASS: %s\n' "$run_dir"
+}
+
+run_with_log() {
+    local run_dir="$1"
+    local logs_dir="${run_dir}/logs"
+    local log_path="${logs_dir}/root-demo-closeout.log"
+    local tmp_log
+    local status
+
+    [ -d "$run_dir" ] || die "Artifact directory does not exist: $run_dir"
+    mkdir -p "$logs_dir"
+    tmp_log="$(mktemp "${logs_dir}/root-demo-closeout.XXXXXX")"
+
+    set +e
+    "$0" --no-log "$run_dir" 2>&1 | /usr/bin/tee "$tmp_log"
+    status="${PIPESTATUS[0]}"
+    set -e
+
+    mv "$tmp_log" "$log_path"
+    printf '[winmux-root-demo-closeout] wrote log: %s\n' "$log_path"
+    exit "$status"
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    mkdir -p "${tmp_dir}/retrospectives"
+    printf 'ok\n' >"${tmp_dir}/retrospectives/process-plan.md"
+    printf 'ok\n' >"${tmp_dir}/retrospectives/code-harness.md"
+    printf 'ok\n' >"${tmp_dir}/retrospectives/artifact-product.md"
+
+    require_retrospection "$tmp_dir" process-plan
+    require_retrospection "$tmp_dir" code-harness
+    require_retrospection "$tmp_dir" artifact-product
+
+    rm "${tmp_dir}/retrospectives/code-harness.md"
+    if (require_retrospection "$tmp_dir" code-harness) >/dev/null 2>&1; then
+        die "self-test expected missing retrospection failure"
+    fi
+
+    printf '[winmux-root-demo-closeout] self-test PASS\n'
+}
+
+NO_LOG=0
+RUN_DIR=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --self-test)
+            run_self_test
+            exit 0
+            ;;
+        --no-log)
+            NO_LOG=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            usage >&2
+            die "unknown argument: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "Only one artifact run directory is supported"
+            RUN_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+[ -n "$RUN_DIR" ] || {
+    usage >&2
+    die "missing artifact run directory"
+}
+
+if [ "$NO_LOG" = "1" ]; then
+    run_gate "$RUN_DIR"
+else
+    run_with_log "$RUN_DIR"
+fi

@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: write-visible-proof-excerpt --input <toml> --output <path> \
+    --title <title> --required-table-regex <regex> --max-table-line <n> \
+    [--summary <text>] [--binding-table <toml-table>] [--binding-keys "a b c"] \
+    [--forbid-regex <regex>]
+
+Writes a compact reviewer-facing TOML excerpt and fails if the required active
+table is not visible within the requested line budget.
+EOF
+}
+
+die() {
+    printf '[winmux-visible-proof] error: %s\n' "$*" >&2
+    exit 1
+}
+
+input_path=""
+output_path=""
+title="Active TOML excerpt"
+required_table_regex=""
+max_table_line=""
+summary=""
+binding_table=""
+binding_keys=""
+forbid_regex=""
+self_test=0
+
+write_required_table_block() {
+    local source_path="$1"
+    local pattern="$2"
+    local start_line
+
+    start_line="$(/usr/bin/grep -En "$pattern" "$source_path" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+    [ -n "$start_line" ] || return 1
+    /usr/bin/sed -n "${start_line},\$p" "$source_path" | /usr/bin/awk '
+        NR == 1 {
+            print
+            next
+        }
+        $0 == "" {
+            exit
+        }
+        {
+            print
+        }
+    '
+}
+
+require_binding_key() {
+    local source_path="$1"
+    local key="$2"
+
+    /usr/bin/awk -v key="$key" '
+        $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+            print
+            found = 1
+            exit
+        }
+        END {
+            exit(found ? 0 : 1)
+        }
+    ' "$source_path" || die "missing binding key in source TOML: $key"
+}
+
+write_excerpt() {
+    [ -s "$input_path" ] || die "missing input TOML: $input_path"
+    [ -n "$output_path" ] || die "missing --output"
+    [ -n "$required_table_regex" ] || die "missing --required-table-regex"
+    [ -n "$max_table_line" ] || die "missing --max-table-line"
+    [[ "$max_table_line" =~ ^[0-9]+$ ]] || die "--max-table-line must be numeric: $max_table_line"
+
+    mkdir -p "$(dirname "$output_path")"
+    {
+        printf '# %s\n' "$title"
+        printf '# This compact excerpt is the reviewer-facing proof, not the whole config.\n'
+        printf '\n'
+        if [ -n "$binding_table" ]; then
+            printf '%s\n' "$binding_table"
+            local key
+            for key in $binding_keys; do
+                require_binding_key "$input_path" "$key"
+            done
+            printf '\n'
+        fi
+        write_required_table_block "$input_path" "$required_table_regex"
+        if [ -n "$summary" ]; then
+            printf '\n'
+            printf '# %s\n' "$summary"
+        fi
+    } >"$output_path"
+
+    local table_line
+    table_line="$(/usr/bin/grep -En "$required_table_regex" "$output_path" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+    [ -n "$table_line" ] || die "excerpt missing required active table: $required_table_regex"
+    [ "$table_line" -le "$max_table_line" ] \
+        || die "required table appears too low in excerpt: line ${table_line}, max ${max_table_line}"
+
+    if [ -n "$forbid_regex" ] && /usr/bin/grep -Eq "$forbid_regex" "$output_path"; then
+        die "excerpt contains forbidden pattern: $forbid_regex"
+    fi
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    local source_path="${tmp_dir}/config.toml"
+    local excerpt_path="${tmp_dir}/excerpt.toml"
+    cat >"$source_path" <<'EOF'
+[mode.zone.binding]
+    tab = ['cycle-zone-layout balanced focus', 'mode main']
+    a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+    y = ['cycle-zone-style current urgent calm', 'mode main']
+    c = ['cycle-zone-scene triage deep-work', 'mode main']
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
+
+# [[zones]]
+# monitor = 2
+EOF
+
+    input_path="$source_path"
+    output_path="$excerpt_path"
+    title="Active TOML excerpt from the uncommented template"
+    required_table_regex='^[[:space:]]*\[\[zones\]\]'
+    max_table_line=12
+    summary='Resulting named columns from the active layout: Reference | Work | Comms'
+    binding_table='[mode.zone.binding]'
+    binding_keys='tab a y c'
+    forbid_regex='^[[:space:]]*# ?\[\[zones\]\]'
+    write_excerpt
+
+    /usr/bin/grep -F "[mode.zone.binding]" "$excerpt_path" >/dev/null \
+        || die "self-test excerpt missing binding table"
+    /usr/bin/grep -F 'Reference | Work | Comms' "$excerpt_path" >/dev/null \
+        || die "self-test excerpt missing summary"
+    local active_table_line
+    active_table_line="$(/usr/bin/grep -En '^[[:space:]]*\[\[zones\]\]' "$excerpt_path" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+    [ -n "$active_table_line" ] && [ "$active_table_line" -le 12 ] \
+        || die "self-test excerpt missing active zones table above fold"
+
+    if /bin/bash "$0" \
+        --input "$source_path" \
+        --output "${tmp_dir}/excerpt-too-low.toml" \
+        --title "Active TOML excerpt from the uncommented template" \
+        --required-table-regex '^[[:space:]]*\[\[zones\]\]' \
+        --max-table-line 5 \
+        --binding-table '[mode.zone.binding]' \
+        --binding-keys 'tab a y c' \
+        --forbid-regex '^[[:space:]]*# ?\[\[zones\]\]' \
+        --summary 'Resulting named columns from the active layout: Reference | Work | Comms' \
+        >/dev/null 2>&1; then
+        die "self-test expected line-budget failure"
+    fi
+
+    printf '[winmux-visible-proof] self-test PASS\n'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --input)
+            input_path="$2"
+            shift 2
+            ;;
+        --output)
+            output_path="$2"
+            shift 2
+            ;;
+        --title)
+            title="$2"
+            shift 2
+            ;;
+        --required-table-regex)
+            required_table_regex="$2"
+            shift 2
+            ;;
+        --max-table-line)
+            max_table_line="$2"
+            shift 2
+            ;;
+        --summary)
+            summary="$2"
+            shift 2
+            ;;
+        --binding-table)
+            binding_table="$2"
+            shift 2
+            ;;
+        --binding-keys)
+            binding_keys="$2"
+            shift 2
+            ;;
+        --forbid-regex)
+            forbid_regex="$2"
+            shift 2
+            ;;
+        --self-test)
+            self_test=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+if [ "$self_test" = "1" ]; then
+    run_self_test
+else
+    write_excerpt
+fi

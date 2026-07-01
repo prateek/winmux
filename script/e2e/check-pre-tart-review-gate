@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <run-dir> <slice-id>
+       $(basename "$0") --write-freshness <run-dir> <slice-id>
+       $(basename "$0") --self-test
+
+Fails unless the slice has persisted clean pre-Tart no-context reviewer reports.
+EOF
+}
+
+die() {
+    printf '[winmux-pre-tart-review] error: %s\n' "$*" >&2
+    exit 1
+}
+
+required_reports=(
+    process-plan
+    code-harness
+    artifact-product
+)
+
+required_mentions=()
+
+configure_slice_requirements() {
+    local slice_id="$1"
+
+    required_mentions=()
+    case "$slice_id" in
+        slice-34)
+            required_mentions=(
+                "Slice 34"
+                "docs/plans/columnar-zones.md"
+                "makefile"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/guest/slice-6b-zone-scenes.sh"
+            )
+            ;;
+        slice-35)
+            required_mentions=(
+                "Slice 35"
+                "docs/plans/columnar-zones.md"
+                "README.md"
+                "resources/default-config.toml"
+                "Sources/AppBundleTests/config/ConfigBootstrapTest.swift"
+                "makefile"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/guest/slice-35-starter-ultrawide-template.sh"
+            )
+            ;;
+        *)
+            die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
+            ;;
+    esac
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+sha256_stdin() {
+    /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
+candidate_state_stream() {
+    printf '[head]\n'
+    git rev-parse HEAD 2>/dev/null || printf 'UNKNOWN\n'
+    printf '[status]\n'
+    git status --short
+    printf '[diff]\n'
+    git diff --no-ext-diff --binary
+    printf '[cached-diff]\n'
+    git diff --cached --no-ext-diff --binary
+    printf '[untracked-file-sha256]\n'
+    while IFS= read -r path; do
+        [ -f "$path" ] || continue
+        printf '%s\t%s\n' "$(sha256_file "$path")" "$path"
+    done < <(git ls-files --others --exclude-standard)
+}
+
+candidate_state_sha256() {
+    candidate_state_stream | sha256_stdin
+}
+
+git_status_sha256() {
+    git status --short | sha256_stdin
+}
+
+manifest_value() {
+    local manifest="$1"
+    local key="$2"
+
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2) }' "$manifest"
+}
+
+freshness_manifest_path() {
+    local run_dir="$1"
+    printf '%s/reviews/pre-tart/freshness.env\n' "$run_dir"
+}
+
+write_freshness_manifest() {
+    local run_dir="$1"
+    local slice_id="$2"
+    local report_dir="${run_dir}/reviews/pre-tart"
+    local pre_tart_log="${run_dir}/logs/pre-tart-checks.log"
+    local manifest
+    local head
+    local candidate_hash
+    local status_hash
+    local pre_tart_hash
+
+    configure_slice_requirements "$slice_id"
+    [ -s "$pre_tart_log" ] || die "missing pre-Tart log for freshness manifest: $pre_tart_log"
+
+    manifest="$(freshness_manifest_path "$run_dir")"
+    mkdir -p "$report_dir"
+    head="$(git rev-parse HEAD 2>/dev/null || printf 'UNKNOWN')"
+    candidate_hash="$(candidate_state_sha256)"
+    status_hash="$(git_status_sha256)"
+    pre_tart_hash="$(sha256_file "$pre_tart_log")"
+
+    {
+        printf 'slice_id=%s\n' "$slice_id"
+        printf 'candidate_head=%s\n' "$head"
+        printf 'candidate_state_sha256=%s\n' "$candidate_hash"
+        printf 'git_status_sha256=%s\n' "$status_hash"
+        printf 'pre_tart_log_sha256=%s\n' "$pre_tart_hash"
+        printf 'pre_tart_log_path=logs/pre-tart-checks.log\n'
+    } >"$manifest"
+
+    printf '[winmux-pre-tart-review] wrote freshness manifest: %s\n' "$manifest"
+}
+
+validate_freshness_manifest() {
+    local run_dir="$1"
+    local slice_id="$2"
+    local manifest
+    local pre_tart_log="${run_dir}/logs/pre-tart-checks.log"
+    local manifest_slice
+    local manifest_head
+    local manifest_candidate_hash
+    local manifest_status_hash
+    local manifest_pre_tart_hash
+    local current_head
+    local current_candidate_hash
+    local current_status_hash
+    local current_pre_tart_hash
+
+    manifest="$(freshness_manifest_path "$run_dir")"
+    [ -s "$manifest" ] || die "missing pre-Tart freshness manifest: $manifest"
+    [ -s "$pre_tart_log" ] || die "missing pre-Tart log: $pre_tart_log"
+
+    manifest_slice="$(manifest_value "$manifest" slice_id)"
+    manifest_head="$(manifest_value "$manifest" candidate_head)"
+    manifest_candidate_hash="$(manifest_value "$manifest" candidate_state_sha256)"
+    manifest_status_hash="$(manifest_value "$manifest" git_status_sha256)"
+    manifest_pre_tart_hash="$(manifest_value "$manifest" pre_tart_log_sha256)"
+
+    [ "$manifest_slice" = "$slice_id" ] \
+        || die "freshness manifest slice mismatch: expected ${slice_id}, got ${manifest_slice:-missing}"
+
+    current_head="$(git rev-parse HEAD 2>/dev/null || printf 'UNKNOWN')"
+    current_candidate_hash="$(candidate_state_sha256)"
+    current_status_hash="$(git_status_sha256)"
+    current_pre_tart_hash="$(sha256_file "$pre_tart_log")"
+
+    [ "$manifest_head" = "$current_head" ] \
+        || die "freshness manifest HEAD is stale: expected ${current_head}, got ${manifest_head:-missing}"
+    [ "$manifest_candidate_hash" = "$current_candidate_hash" ] \
+        || die "freshness manifest candidate hash is stale: expected ${current_candidate_hash}, got ${manifest_candidate_hash:-missing}"
+    [ "$manifest_status_hash" = "$current_status_hash" ] \
+        || die "freshness manifest git status hash is stale: expected ${current_status_hash}, got ${manifest_status_hash:-missing}"
+    [ "$manifest_pre_tart_hash" = "$current_pre_tart_hash" ] \
+        || die "freshness manifest pre-Tart log hash is stale: expected ${current_pre_tart_hash}, got ${manifest_pre_tart_hash:-missing}"
+}
+
+validate_gate() {
+    local run_dir="$1"
+    local slice_id="$2"
+    local report_dir="${run_dir}/reviews/pre-tart"
+    local manifest
+    local required_freshness_lines=()
+
+    configure_slice_requirements "$slice_id"
+    validate_freshness_manifest "$run_dir" "$slice_id"
+    manifest="$(freshness_manifest_path "$run_dir")"
+
+    required_freshness_lines=(
+        "candidate_head=$(manifest_value "$manifest" candidate_head)"
+        "candidate_state_sha256=$(manifest_value "$manifest" candidate_state_sha256)"
+        "git_status_sha256=$(manifest_value "$manifest" git_status_sha256)"
+        "pre_tart_log_sha256=$(manifest_value "$manifest" pre_tart_log_sha256)"
+    )
+
+    [ -d "$report_dir" ] || die "missing pre-Tart review directory: $report_dir"
+
+    for report in "${required_reports[@]}"; do
+        local path
+        path="${report_dir}/${report}.md"
+        [ -s "$path" ] || die "missing pre-Tart review report: $path"
+
+        last_non_empty="$(
+            /usr/bin/awk 'NF { line = $0 } END { print line }' "$path"
+        )"
+        [ "$last_non_empty" = "NO ACTIONABLE ISSUES" ] \
+            || die "pre-Tart report must end with NO ACTIONABLE ISSUES: $path"
+
+        if /usr/bin/grep -Eiq '^Verdict:[[:space:]]*BLOCKED\b' "$path"; then
+            die "pre-Tart report is blocked: $path"
+        fi
+        /usr/bin/grep -Eiq '^Verdict:[[:space:]]*CLEAN\b' "$path" \
+            || die "pre-Tart report must declare Verdict: CLEAN: $path"
+
+        for mention in "${required_mentions[@]}"; do
+            /usr/bin/grep -F "$mention" "$path" >/dev/null \
+                || die "pre-Tart report ${path} must mention reviewed file or scope: ${mention}"
+        done
+        for freshness_line in "${required_freshness_lines[@]}"; do
+            /usr/bin/grep -F "$freshness_line" "$path" >/dev/null \
+                || die "pre-Tart report ${path} must cite freshness line: ${freshness_line}"
+        done
+    done
+
+    printf '[winmux-pre-tart-review] clean pre-Tart review gate for %s: %s\n' "$slice_id" "$report_dir"
+}
+
+write_clean_self_test_reports() {
+    local report_dir="$1"
+
+    mkdir -p "$report_dir"
+    for report in "${required_reports[@]}"; do
+        {
+            printf 'Verdict: CLEAN\n\n'
+            printf 'Reviewed scope:\n'
+            for mention in "${required_mentions[@]}"; do
+                printf -- '- %s\n' "$mention"
+            done
+            if [ -n "${WINMUX_PRE_TART_SELF_TEST_FRESHNESS:-}" ]; then
+                printf '\nFreshness:\n'
+                /bin/cat "$WINMUX_PRE_TART_SELF_TEST_FRESHNESS"
+            fi
+            printf '\nNO ACTIONABLE ISSUES\n'
+        } >"${report_dir}/${report}.md"
+    done
+}
+
+run_self_test() {
+    local tmp_dir
+    local run_dir
+    local report_dir
+    local script_path
+
+    tmp_dir="$(mktemp -d)"
+    WINMUX_PRE_TART_SELF_TEST_TMP="$tmp_dir"
+    trap 'rm -rf "${WINMUX_PRE_TART_SELF_TEST_TMP:-}"' EXIT
+    run_dir="${tmp_dir}/run"
+    report_dir="${run_dir}/reviews/pre-tart"
+    script_path="${BASH_SOURCE[0]}"
+
+    configure_slice_requirements slice-34
+    mkdir -p "${run_dir}/logs"
+    printf '[winmux-e2e] git diff --check PASS\n' >"${run_dir}/logs/pre-tart-checks.log"
+    write_freshness_manifest "$run_dir" slice-34 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-34 >/dev/null
+
+    configure_slice_requirements slice-35
+    write_freshness_manifest "$run_dir" slice-35 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-35 >/dev/null
+
+    configure_slice_requirements slice-34
+    write_freshness_manifest "$run_dir" slice-34 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+
+    printf 'Verdict: CLEAN\n\nNO ACTIONABLE ISSUES\n' >"${report_dir}/code-harness.md"
+    if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
+        die "self-test expected missing required mention to fail"
+    fi
+
+    write_clean_self_test_reports "$report_dir"
+    {
+        printf 'Verdict: BLOCKED\n\n'
+        for mention in "${required_mentions[@]}"; do
+            printf -- '- %s\n' "$mention"
+        done
+        printf '\nFreshness:\n'
+        /bin/cat "$WINMUX_PRE_TART_SELF_TEST_FRESHNESS"
+        printf '\nNO ACTIONABLE ISSUES\n'
+    } >"${report_dir}/artifact-product.md"
+    if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
+        die "self-test expected blocked verdict to fail"
+    fi
+
+    write_clean_self_test_reports "$report_dir"
+    {
+        printf 'Verdict: CLEAN\n\n'
+        for mention in "${required_mentions[@]}"; do
+            printf -- '- %s\n' "$mention"
+        done
+        printf '\nFreshness:\n'
+        /bin/cat "$WINMUX_PRE_TART_SELF_TEST_FRESHNESS"
+        printf '\nACTIONABLE ISSUES FOUND\n'
+    } >"${report_dir}/process-plan.md"
+    if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
+        die "self-test expected bad final line to fail"
+    fi
+
+    write_clean_self_test_reports "$report_dir"
+    if bash "$script_path" "$run_dir" slice-99 >/dev/null 2>&1; then
+        die "self-test expected unregistered slice to fail"
+    fi
+
+    write_clean_self_test_reports "$report_dir"
+    printf 'mutated\n' >>"${run_dir}/logs/pre-tart-checks.log"
+    if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
+        die "self-test expected stale pre-Tart log hash to fail"
+    fi
+
+    printf '[winmux-pre-tart-review] self-test PASS\n'
+}
+
+case "${1:-}" in
+    --help)
+        usage
+        exit 0
+        ;;
+    --self-test)
+        [ "$#" -eq 1 ] || {
+            usage
+            exit 64
+        }
+        run_self_test
+        exit 0
+        ;;
+    --write-freshness)
+        [ "$#" -eq 3 ] || {
+            usage
+            exit 64
+        }
+        write_freshness_manifest "$2" "$3"
+        exit 0
+        ;;
+esac
+
+if [ "$#" -ne 2 ]; then
+    usage
+    exit 64
+fi
+
+validate_gate "$1" "$2"

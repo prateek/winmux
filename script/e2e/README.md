@@ -30,6 +30,10 @@ failed review under a different filename before rerunning no-context review.
 
 Every finished recording also gets a filled no-context reviewer packet at `reviews/reviewer-packet.md`, with exact media paths, logs, baselines, product surfaces, and the verifier command. Drag proof packets also list the manifest-declared pickup/path/hover screenshots directly. Give the packet to the reviewer instead of hand-copying paths from the run directory.
 
+Use `script/e2e/record-reviewer-attempt` to append accepted, stalled, superseded, or replaced reviewer attempts to `reviews/reviewer-attempts.tsv`. The reviewer packet lists that ledger, and review lint checks that the packet points at it.
+
+For text-heavy config demos, use `script/e2e/write-visible-proof-excerpt` to generate a compact reviewer-facing excerpt. It enforces that the required active TOML table appears within the configured line budget, which keeps proof text above the fold in screenshots and videos.
+
 `make e2e-smoke` validates the capture pipeline and will still produce a host-visible recording if guest control is unavailable. Product slices must use strict guest control and guest display capture:
 
 ```bash
@@ -86,6 +90,10 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-slice-33` records scene cycling with `script/e2e/configs/zone-scenes.toml` and the reusable zone-scene guest script. The proof starts in the `triage` scene, runs `winmux cycle-zone-scene triage deep-work` to show the `deep-work` scene, then runs the same command again to wrap back to `triage`. The verifier checks both command logs, before/after/wrap scene logs, visible TextEdit documents, caption chips, and the Slice 33 event manifest.
 
+`make e2e-slice-34` records the same scene cycle through the user-facing binding path. The run uses `script/e2e/configs/zone-scenes.toml`, requires persisted clean pre-Tart reviewer reports under `reviews/pre-tart/`, and proves `alt-tab = 'cycle-zone-scene triage deep-work'` by running `winmux trigger-binding --mode main alt-tab` twice. The verifier checks the binding-specific command logs, `slice-34-trigger-binding-alt-tab-wrap.log`, timing offsets for both identical command captions, semantic sample rows, event manifest rows, and triage -> deep-work -> triage live TextEdit state.
+
+`make e2e-slice-35` records the first-run ultrawide starter-template workflow. It uses `resources/default-config.toml` as the staged config, requires persisted clean pre-Tart reviewer reports, shows the `WINMUX ULTRAWIDE ZONES TEMPLATE` block while it is still commented, uncomments only that block into `logs/slice-35-starter-config-uncommented.toml`, launches WinMux with the uncommented config, runs `winmux config --check`, and records `winmux list-zones` showing Reference, Work, and Comms.
+
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
 `make e2e-slice-12` records desktop mouse zone snapping with `script/e2e/configs/zone-mouse-snap.toml`. The setup phase stages visible Reference, Work, and Comms documents, focuses `snap-demo.rtf` in Work, and captures `01-ready-slice-12.png`. The proof first drags the desktop window without Alt to demonstrate no whole-zone snap and no zone move, then resets the same window and drags with Alt held to show a whole Comms-zone overlay and final movement into Comms/right. The pre-Tart gate includes the mouse config parser tests and `WindowZoneSnapPolicyTest`. The verifier checks the `[mouse.zone-snap]` config, negative and positive drag logs, unchanged source window id, whole-zone target semantics, per-beat drag screenshots, semantic sample labels, and exact action/config caption chips.
@@ -104,17 +112,17 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 
 `make e2e-package-root-demo` packages an accepted strict Tart artifact into the
 tracked repo-root `demo-columnar-zones.mp4`. By default it uses the accepted
-Slice 6B recording, fails unless that source artifact has strict guest-capture
-proof and an accepted no-context review, then writes a Slice 7 packet under
-`artifacts/e2e/slice-7-root-demo-<timestamp>/reviews/reviewer-packet.md`.
-The current packager is Slice 6B-compatible: `--source-run-dir` must point at an
-artifact shaped like the accepted Slice 6B zone-scenes run. Refresh package
-evidence without re-encoding the root MP4 with `--refresh-existing`.
+Slice 6B recording. Pass `--source-recording` to package a newer accepted
+recording or `.demo.mov` sidecar from another run. The packager fails unless
+the source artifact has strict guest-capture proof and an accepted no-context
+review, then writes a root-demo packet under
+`artifacts/e2e/<slice-name>-<timestamp>/reviews/reviewer-packet.md`. Refresh
+package evidence without re-encoding the root MP4 with `--refresh-existing`.
 
 Override the source or output with:
 
 ```bash
-make e2e-package-root-demo ARGS="--source-run-dir artifacts/e2e/<run> --output demo-columnar-zones.mp4"
+make e2e-package-root-demo ARGS="--source-run-dir artifacts/e2e/<run> --source-recording recordings/<recording>.mov --slice-name slice-36-root-current-demo --output demo-columnar-zones.mp4"
 ```
 
 Verify an existing root-demo package without generating files:
@@ -123,9 +131,22 @@ Verify an existing root-demo package without generating files:
 make e2e-verify-root-demo-check RUN_DIR=artifacts/e2e/slice-7-root-demo-<timestamp> ARGS=--require-review
 ```
 
+Close out an accepted root-demo package and persist the transcript:
+
+```bash
+make e2e-root-demo-closeout-check RUN_DIR=artifacts/e2e/slice-36-root-current-demo-<timestamp>
+```
+
+The closeout gate runs `verify-root-demo --require-review`, checks that the
+three no-context retrospective reports exist, verifies generated version files
+are clean, runs `git diff --check`, and writes
+`logs/root-demo-closeout.log` inside the artifact.
+
 Product slices set a deterministic VM display with `tart set --display`. The default is `WINMUX_E2E_VM_DISPLAY=3440x1440px`; set it to an empty string only when debugging Tart display behavior. Before the first screenshot, the harness probes guest `screencapture` until it produces a non-empty image, then records the probe log in `logs/guest-capture-ready.log`.
 
-Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `shellcheck` when installed, verifies generated version files are not dirty, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests guest mouse-event log emission and guest transport warm-up/retry summary policy, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear. Product slice targets allocate the run directory before the gate and save this output to `logs/pre-tart-checks.log`, so the accepted artifact includes the exact host-side validation transcript.
+Product slice targets run `make e2e-pre-tart-checks` first. That gate validates shell syntax, checks command metadata consistency across `CmdKind`, generated help, and CLI descriptions, runs `git diff --check` with an explicit PASS marker, runs `shellcheck` when installed, verifies generated version files are not dirty, renders every caption plan through the real annotation pipeline against a tiny local fixture, self-tests guest mouse-event log emission and guest transport warm-up/retry summary policy, self-tests the pre-Tart reviewer gate, and runs the focused parser/topology/listing Swift tests so Tart is not the first place cheap failures appear. Product slice targets allocate the run directory before the gate and save this output to `logs/pre-tart-checks.log`, so the accepted artifact includes the exact host-side validation transcript.
+
+Slices that set `REQUIRE_PRE_TART_REVIEW=1` use a two-phase gate. The first run writes `reviews/pre-tart/freshness.env` after `make e2e-pre-tart-checks`, then stops unless the three reviewer reports already exist and cite the freshness lines. Run the no-context reviewers against that run directory and make each report cite `candidate_head=...`, `candidate_state_sha256=...`, `git_status_sha256=...`, and `pre_tart_log_sha256=...`. The second run validates that the repo candidate and pre-Tart log still match the freshness manifest before Tart starts.
 
 After a run, use the mechanical verifier before spawning the no-context reviewer:
 

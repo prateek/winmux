@@ -70,6 +70,7 @@ edge_crops_dir="${SCREENSHOTS_DIR}/${recording_name}.edge-crops"
 edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
 guest_script_retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
+reviewer_attempts="${REVIEWS_DIR}/reviewer-attempts.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
@@ -161,6 +162,47 @@ else
 fi
 
 mkdir -p "$REVIEWS_DIR"
+
+ensure_reviewer_attempts_ledger() {
+    if [ ! -e "$reviewer_attempts" ]; then
+        printf '# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason\n' >"$reviewer_attempts"
+    fi
+}
+
+has_post_recording_retry() {
+    [ -s "$guest_script_retry_summary" ] || return 1
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            before_recording = $6
+            failures = $4 + 0
+            if (before_recording == "no" && failures > 0) {
+                found = 1
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$guest_script_retry_summary"
+}
+
+guest_retry_summary_block() {
+    [ -s "$guest_script_retry_summary" ] || return 0
+
+    if has_post_recording_retry; then
+        cat <<EOF
+## Guest Retry Summary
+
+Post-recording guest retries are present. Read this before inspecting the
+recording, and cite any failed post-recording row in the review:
+
+\`\`\`tsv
+$(cat "$guest_script_retry_summary")
+\`\`\`
+
+EOF
+    fi
+}
+
+ensure_reviewer_attempts_ledger
 
 drag_screenshot_lines() {
     [ -s "$proof_manifest" ] || return 0
@@ -323,6 +365,32 @@ EOF
 - Inspect `logs/slice-33-scene-before.log`, `logs/slice-33-scene-after.log`, and `logs/slice-33-scene-wrap.log`; require balanced triage before, focus deep-work after the first cycle, and balanced triage after wraparound.
 - Inspect `logs/slice-33-cycle-zone-scene.log` and `logs/slice-33-cycle-zone-scene-wrap.log`; require both to contain the exact command and the expected success output for `deep-work` then `triage`.
 - Confirm the proof uses live TextEdit documents and zone workspaces, not only CLI text, and state clearly whether the video quality is suitable for product-demo use.
+EOF
+            ;;
+        slice-34-zone-mode-scene)
+            cat <<'EOF'
+- Confirm the recording has a readable triage -> deep-work -> triage wraparound sequence driven through the user binding path, not through direct `cycle-zone-scene` commands. The exact visible command must be `winmux trigger-binding --mode main alt-tab`.
+- Sample frames around both `Run: winmux trigger-binding --mode main alt-tab` caption boundaries. Fail if the deep-work documents are visible before the first command caption starts, if triage documents are visible before or at the second command-caption start, or if triage documents are not visible again after the second command result.
+- Confirm captions expose the exact config surface `alt-tab = 'cycle-zone-scene triage deep-work'`, both trigger-binding runs, and the inspection commands `winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'` and `winmux list-windows --workspace visible`.
+- Inspect `logs/slice-34-zone-mode-scene.event-manifest.tsv`; reject if it omits separate first binding, first result, second binding, wrap result, zone inspection, and window inspection events.
+- Inspect the semantic sample manifest and named frames for `zone-mode-scene-ready`, `before-binding-triage`, `first-binding-command-start`, `first-binding-result`, `second-binding-command-start`, `wrap-binding-result`, `inspect-zones`, and `inspect-windows`. Reject if any sample is missing, stale, or only shows final state.
+- Inspect `logs/slice-34-command-timing.log`; cite `first-command-start-offset-seconds`, `first-command-end-offset-seconds`, `first-result-detected-offset-seconds`, `second-command-start-offset-seconds`, `second-command-end-offset-seconds`, and `wrap-result-detected-offset-seconds`. Reject if either trigger-binding offset falls outside the matching command caption window or if a result is detected before its command completes.
+- Inspect `logs/slice-34-scene-before.log`, `logs/slice-34-scene-after.log`, and `logs/slice-34-scene-wrap.log`; require balanced triage before, focus deep-work after the first binding, and balanced triage after wraparound.
+- Inspect `logs/slice-34-trigger-binding-alt-tab.log` and `logs/slice-34-trigger-binding-alt-tab-wrap.log`; require both to contain the exact trigger-binding command and the expected bound scene success output for `deep-work` then `triage`.
+- Confirm the proof uses live TextEdit documents and zone workspaces, not only CLI text, and state clearly whether this is suitable as the current ready-to-use product demo.
+EOF
+            ;;
+        slice-35-starter-ultrawide-template)
+            cat <<'EOF'
+- Confirm the recording shows the starter config template while it is still commented, then a separate on-screen focused active-TOML excerpt with `[[zones]]` in the visible first screenful, then validate/list-zones. Reject final-state-only proof, a screenshot where `02-template-uncommented-slice-35.png` still shows only commented TOML, or a full-file view where active `[[zones]]` could be below the fold.
+- Confirm captions expose the exact user-facing surface: `Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE`, `Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE`, `Run: WinMuxApp --config-path slice-35-starter-config-uncommented.toml`, `Run: winmux config --check slice-35-starter-config-uncommented.toml`, `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`, and `Result: Reference | Work | Comms`.
+- Inspect `logs/slice-35-starter-config-before.toml`; require the template marker, commented `# [[zones]]`, and no active `[[zones]]`.
+- Inspect `logs/slice-35-starter-config-uncommented.toml` and `logs/slice-35-visible-uncommented-template.txt`; require active `[[zones]]`, `balanced` and `focus` layouts, triage/deep-work scenes, availability sets, zone styles, a Comms affinity example, mouse zone-snap config, and the `tab`/`a`/`y`/`c` zone-mode bindings. The visible uncommented source must be a focused excerpt, must put active `[[zones]]` above the fold, and must not still contain `# [[zones]]`.
+- Inspect `logs/slice-35-config-check.log`; require the exact `winmux config --check` command and `Config OK`.
+- Inspect `logs/slice-35-list-zones.log`; require Reference/left, Work/main, and Comms/right.
+- Inspect `logs/slice-35-command-timing.log`; cite the uncomment, launch, config-check, and list-zones offsets, and reject if launch, config-check, or list-zones happens outside the matching caption window.
+- Inspect `screenshots/01-starter-template-commented-slice-35.png`, `02-template-uncommented-slice-35.png`, `03-config-check-and-zones-slice-35.png`, and the contact sheet. The video must be understandable as a first-run config workflow before reading logs.
+- State explicitly that Slice 35 proves the opt-in starter-template path. It does not claim zones are enabled by default, a GUI config editor, or new runtime zone behavior.
 EOF
             ;;
         slice-8-window-routing)
@@ -631,6 +699,7 @@ packet fills the artifact paths and slice-specific checks.
 - verifier command: make e2e-verify-slice-check RUN_DIR=${RUN_DIR} ARGS=--require-review
 - closeout command: make e2e-slice-closeout-check RUN_DIR=${RUN_DIR}
 
+$(guest_retry_summary_block)
 ## Media
 
 - primary recording: ${recording_path}
@@ -654,6 +723,9 @@ $(drag_screenshot_lines)
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
+- reviewer attempt ledger: ${reviewer_attempts} (role, start, finish, status,
+  output path, and replacement reason for stalled or superseded reviewers)
+- reviewer ledger append helper: script/e2e/record-reviewer-attempt ${RUN_DIR} --role <role> --status <status> --output <path> --replacement-reason <reason>
 - guest script retry summary: ${guest_script_retry_summary} (phase, attempts, failures, final result, before-recording status, mutation metadata when present)
 - guest transport summary: ${transport_summary} (attempt statuses and compact failure reasons)
 - annotation plan: ${annotation_plan}
@@ -738,6 +810,9 @@ predicate. Use \`not applicable\` only when the slice truly lacks that predicate
   recording used only to debug capture or overlay issues.
 - Captions must be restrained, legible, and concrete. They must show the WinMux
   config, command, or direct action an end user would perform.
+- For text-heavy config or proof demos, inspect a captioned frame and the proof
+  screenshot. Reject if the caption card covers the active table, command output,
+  measurement row, or other text that the proof depends on.
 - Do not accept post-command app automation, AppleScript cleanup, or hidden-node
   closure as a way to hide visual leftovers unless that cleanup behavior is the
   feature being demonstrated.

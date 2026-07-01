@@ -148,3 +148,85 @@ on-mode-changed = []
     t = ['toggle-zone current', 'mode main']
     space = ['layout floating tiling', 'mode main']
     s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
+    # Uncomment the template below on a large ultrawide display to split monitor 1 into
+    # Reference, Work, and Comms zones. Tune the widths and workspace names to
+    # match your desk.
+    # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
+    # tab = ['cycle-zone-layout balanced focus', 'mode main']
+    # a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
+    # y = ['cycle-zone-style current urgent calm', 'mode main']
+    # c = ['cycle-zone-scene triage deep-work', 'mode main']
+
+# [[zone-styles]]
+# id = 'urgent'
+# color = '#D3455B'
+
+# [[zone-styles]]
+# id = 'calm'
+# color = '#3EA2FF'
+
+# [[zone-layouts]]
+# id = 'balanced'
+# layout = 'columns'
+# default-zone = 'main'
+# columns = [
+#   { id = 'left', name = 'Reference', width = 0.25 },
+#   { id = 'main', name = 'Work', width = 0.50 },
+#   { id = 'right', name = 'Comms', width = 0.25 },
+# ]
+
+# [[zone-layouts]]
+# id = 'focus'
+# layout = 'columns'
+# default-zone = 'main'
+# columns = [
+#   { id = 'left', name = 'Reference', width = 0.18 },
+#   { id = 'main', name = 'Work', width = 0.64 },
+#   { id = 'right', name = 'Comms', width = 0.18 },
+# ]
+
+# [[zones]]
+# monitor = 1
+# layout-preset = 'balanced'
+
+# [[zone-scenes]]
+# id = 'triage'
+# layout-preset = 'balanced'
+# workspaces = [
+#   { zone = 'left', workspace = 'TriageInbox' },
+#   { zone = 'main', workspace = 'TriageDraft' },
+#   { zone = 'right', workspace = 'TriageUpdates' },
+# ]
+
+# [[zone-scenes]]
+# id = 'deep-work'
+# layout-preset = 'focus'
+# workspaces = [
+#   { zone = 'left', workspace = 'FocusQueue' },
+#   { zone = 'main', workspace = 'FocusBuild' },
+#   { zone = 'right', workspace = 'FocusNotes' },
+# ]
+
+# [[zone-availability-sets]]
+# id = 'focus-only'
+# enabled-zones = ['main']
+
+# [[zone-availability-sets]]
+# id = 'communications'
+# enabled-zones = ['main', 'right']
+
+# [[zone-availability-sets]]
+# id = 'full-dashboard'
+# enabled-zones = ['left', 'main', 'right']
+
+# [[zone-affinities]]
+# zone = 'Comms'
+# if.window-title-regex-substring = 'Slack|Messages|Mail'
+# fail-if-noop = false
+
+# [mouse.zone-snap]
+# policy = 'freeform'
+# modifier = 'alt'
+# gesture = 'drag'
+# target = 'zone'
+# END WINMUX ULTRAWIDE ZONES TEMPLATE

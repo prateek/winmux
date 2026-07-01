@@ -34,6 +34,8 @@ Slice:
 - copied config: <artifact-dir>/config/winmux.toml
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
+- reviewer attempt ledger, required when the reviewer packet lists it:
+  <artifact-dir>/reviews/reviewer-attempts.tsv
 - caption tail manifest, required when the reviewer packet lists one:
   <artifact-dir>/logs/<recording>.caption-tail.tsv
 - demo cut manifest, required when the reviewer packet lists one:
@@ -144,6 +146,9 @@ Required checks:
    Use the linked raw phase logs when a compact reason needs confirmation.
    Retry noise before recording is not a hard failure by itself, but missing
    final success or semantic proof failure is.
+   If the reviewer packet lists `reviews/reviewer-attempts.tsv`, inspect it and
+   mention stalled, superseded, failed, or replacement reviewer rows. A header-only
+   ledger is acceptable for a first clean review attempt.
    If annotation is enabled, also verify the annotation log reports success, the
    caption plan exists, and the raw guest capture is preserved under
    `recordings/raw/`.

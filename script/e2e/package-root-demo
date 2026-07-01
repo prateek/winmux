@@ -2,21 +2,24 @@
 set -euo pipefail
 
 SOURCE_RUN_DIR="artifacts/e2e/slice-6b-20260624T034817Z"
+SOURCE_RECORDING_ARG=""
 OUTPUT_VIDEO="demo-columnar-zones.mp4"
 ARTIFACT_DIR=""
+SLICE_NAME="slice-7-root-columnar-demo"
+INTENDED_BEHAVIOR="package an accepted strict Tart columnar-zones recording as a repo-root product demo."
 REFRESH_EXISTING=0
 SELF_TEST=0
 SELF_TEST_TMP_DIR=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--source-run-dir <slice-6b-dir>] [--output <mp4>] [--artifact-dir <dir>] [--refresh-existing]
+Usage: $(basename "$0") [--source-run-dir <dir>] [--source-recording <recording>] [--output <mp4>] [--artifact-dir <dir>] [--slice-name <name>] [--intended-behavior <text>] [--refresh-existing]
        $(basename "$0") --self-test
 
-Packages the accepted Slice 6B strict Tart artifact into a repo-root product
-demo video and writes a Slice 7 review packet with hashes, metadata, and sample
-frames. Use --refresh-existing to rebuild package evidence for an existing root
-MP4 without re-encoding it.
+Packages an accepted strict Tart artifact into a repo-root product demo video
+and writes a review packet with hashes, metadata, and sample frames. Use
+--refresh-existing to rebuild package evidence for an existing root MP4 without
+re-encoding it.
 EOF
 }
 
@@ -46,6 +49,26 @@ file_sha256() {
 
 last_nonempty_line() {
     /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+review_verdict() {
+    local path="$1"
+    local first_line
+    first_line="$(/usr/bin/awk 'NF { print; exit }' "$path")"
+    case "$first_line" in
+        PASS_WITH_NOTES:*|PASS_WITH_NOTES) printf 'PASS_WITH_NOTES\n'; return 0 ;;
+        PASS:*|PASS) printf 'PASS\n'; return 0 ;;
+        FAIL:*|FAIL) printf 'FAIL\n'; return 0 ;;
+    esac
+
+    local last_line
+    last_line="$(last_nonempty_line "$path")"
+    case "$last_line" in
+        PASS_WITH_NOTES) printf 'PASS_WITH_NOTES\n' ;;
+        PASS) printf 'PASS\n' ;;
+        FAIL) printf 'FAIL\n' ;;
+        *) return 1 ;;
+    esac
 }
 
 clamp_sample_time() {
@@ -228,6 +251,11 @@ while [ "$#" -gt 0 ]; do
             SOURCE_RUN_DIR="$2"
             shift 2
             ;;
+        --source-recording)
+            [ "$#" -ge 2 ] || die "Missing value for --source-recording"
+            SOURCE_RECORDING_ARG="$2"
+            shift 2
+            ;;
         --output)
             [ "$#" -ge 2 ] || die "Missing value for --output"
             OUTPUT_VIDEO="$2"
@@ -236,6 +264,16 @@ while [ "$#" -gt 0 ]; do
         --artifact-dir)
             [ "$#" -ge 2 ] || die "Missing value for --artifact-dir"
             ARTIFACT_DIR="$2"
+            shift 2
+            ;;
+        --slice-name)
+            [ "$#" -ge 2 ] || die "Missing value for --slice-name"
+            SLICE_NAME="$2"
+            shift 2
+            ;;
+        --intended-behavior)
+            [ "$#" -ge 2 ] || die "Missing value for --intended-behavior"
+            INTENDED_BEHAVIOR="$2"
             shift 2
             ;;
         --refresh-existing)
@@ -271,15 +309,47 @@ cd "$REPO_ROOT"
 
 [ -d "$SOURCE_RUN_DIR" ] || die "Source artifact directory does not exist: $SOURCE_RUN_DIR"
 SOURCE_RUN_ABS="$(cd "$SOURCE_RUN_DIR" && pwd -P)"
-SOURCE_RECORDING="${SOURCE_RUN_ABS}/recordings/slice-6b-zone-scenes.mov"
 SOURCE_REVIEW="${SOURCE_RUN_ABS}/reviews/no-ctx-artifact-review.md"
 SOURCE_PREFLIGHT="${SOURCE_RUN_ABS}/logs/preflight.log"
-SOURCE_GUEST_CAPTURE="${SOURCE_RUN_ABS}/logs/slice-6b-zone-scenes.guest-screencapture.log"
 SOURCE_REVIEW_PACKET="${SOURCE_RUN_ABS}/reviews/reviewer-packet.md"
-SOURCE_SAMPLES="${SOURCE_RUN_ABS}/screenshots/slice-6b-zone-scenes.samples"
-SOURCE_CONTACT_SHEET="${SOURCE_RUN_ABS}/screenshots/slice-6b-zone-scenes.contact-sheet.jpg"
-SOURCE_PROOF="${SOURCE_RUN_ABS}/slice-6b-zone-scene-proof.txt"
-SOURCE_ANNOTATIONS="${SOURCE_RUN_ABS}/logs/slice-6b-zone-scenes.annotations.tsv"
+
+if [ -n "$SOURCE_RECORDING_ARG" ]; then
+    case "$SOURCE_RECORDING_ARG" in
+        /*) SOURCE_RECORDING="$SOURCE_RECORDING_ARG" ;;
+        *) SOURCE_RECORDING="${SOURCE_RUN_ABS}/${SOURCE_RECORDING_ARG}" ;;
+    esac
+elif [ -f "${SOURCE_RUN_ABS}/recordings/slice-6b-zone-scenes.mov" ]; then
+    SOURCE_RECORDING="${SOURCE_RUN_ABS}/recordings/slice-6b-zone-scenes.mov"
+else
+    demo_recordings=()
+    while IFS= read -r recording_path; do
+        demo_recordings+=("$recording_path")
+    done < <(find "${SOURCE_RUN_ABS}/recordings" -maxdepth 1 -type f -name '*.demo.mov' | sort)
+    if [ "${#demo_recordings[@]}" -eq 1 ]; then
+        SOURCE_RECORDING="${demo_recordings[0]}"
+    else
+        primary_recordings=()
+        while IFS= read -r recording_path; do
+            primary_recordings+=("$recording_path")
+        done < <(find "${SOURCE_RUN_ABS}/recordings" -maxdepth 1 -type f -name '*.mov' ! -path '*/raw/*' ! -name '*.raw.mov' ! -name '*.demo.mov' | sort)
+        [ "${#primary_recordings[@]}" -eq 1 ] || die "Pass --source-recording; could not infer one recording from ${SOURCE_RUN_ABS}/recordings"
+        SOURCE_RECORDING="${primary_recordings[0]}"
+    fi
+fi
+
+source_recording_file="$(basename "$SOURCE_RECORDING")"
+source_recording_stem="${source_recording_file%.mov}"
+source_artifact_stem="${source_recording_stem%.demo}"
+SOURCE_GUEST_CAPTURE="${SOURCE_RUN_ABS}/logs/${source_artifact_stem}.guest-screencapture.log"
+SOURCE_SAMPLES="${SOURCE_RUN_ABS}/screenshots/${source_artifact_stem}.samples"
+SOURCE_CONTACT_SHEET="${SOURCE_RUN_ABS}/screenshots/${source_artifact_stem}.contact-sheet.jpg"
+SOURCE_PROOF="${SOURCE_RUN_ABS}/${source_artifact_stem}-proof.txt"
+if [ ! -s "$SOURCE_PROOF" ] && [ "$source_artifact_stem" = "slice-6b-zone-scenes" ]; then
+    SOURCE_PROOF="${SOURCE_RUN_ABS}/slice-6b-zone-scene-proof.txt"
+fi
+SOURCE_ANNOTATIONS="${SOURCE_RUN_ABS}/logs/${source_artifact_stem}.annotations.tsv"
+SOURCE_SAMPLE_MANIFEST="${SOURCE_RUN_ABS}/logs/${source_artifact_stem}.sample-manifest.tsv"
+SOURCE_EVENT_CONTACT_SHEET="${SOURCE_RUN_ABS}/screenshots/${source_artifact_stem}.event-contact-sheet.jpg"
 
 require_file "$SOURCE_RECORDING"
 require_file "$SOURCE_REVIEW"
@@ -291,9 +361,10 @@ require_file "$SOURCE_PROOF"
 require_file "$SOURCE_ANNOTATIONS"
 [ -d "$SOURCE_SAMPLES" ] || die "Source sample directory is missing: $SOURCE_SAMPLES"
 
-case "$(last_nonempty_line "$SOURCE_REVIEW")" in
+source_review_verdict="$(review_verdict "$SOURCE_REVIEW" || true)"
+case "$source_review_verdict" in
     PASS|PASS_WITH_NOTES) ;;
-    *) die "Source artifact review does not end in PASS or PASS_WITH_NOTES: $SOURCE_REVIEW" ;;
+    *) die "Source artifact review verdict is not PASS or PASS_WITH_NOTES: $SOURCE_REVIEW" ;;
 esac
 grep -F 'next slice allowed: yes' "$SOURCE_REVIEW" >/dev/null \
     || die "Source artifact review does not allow the next slice"
@@ -308,7 +379,7 @@ grep -F 'result=success' "$SOURCE_GUEST_CAPTURE" >/dev/null \
     || die "Source guest screencapture log does not prove successful guest capture"
 
 if [ -z "$ARTIFACT_DIR" ]; then
-    ARTIFACT_DIR="artifacts/e2e/slice-7-root-demo-$(date -u +%Y%m%dT%H%M%SZ)"
+    ARTIFACT_DIR="artifacts/e2e/${SLICE_NAME}-$(date -u +%Y%m%dT%H%M%SZ)"
 fi
 
 ARTIFACT_ABS="${REPO_ROOT}/${ARTIFACT_DIR}"
@@ -317,6 +388,10 @@ SCREENSHOTS_DIR="${ARTIFACT_ABS}/screenshots"
 RECORDINGS_DIR="${ARTIFACT_ABS}/recordings"
 REVIEWS_DIR="${ARTIFACT_ABS}/reviews"
 mkdir -p "$LOGS_DIR" "$SCREENSHOTS_DIR" "$RECORDINGS_DIR" "$REVIEWS_DIR"
+reviewer_attempts="${REVIEWS_DIR}/reviewer-attempts.tsv"
+if [ ! -f "$reviewer_attempts" ]; then
+    printf '# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason\n' >"$reviewer_attempts"
+fi
 
 OUTPUT_ABS="${REPO_ROOT}/${OUTPUT_VIDEO}"
 TMP_OUTPUT="${OUTPUT_ABS}.tmp.mp4"
@@ -382,12 +457,22 @@ require_file "${LOGS_DIR}/root-demo.ffprobe.json"
 
 samples_dir="${SCREENSHOTS_DIR}/demo-columnar-zones.samples"
 contact_sheet="${SCREENSHOTS_DIR}/demo-columnar-zones.contact-sheet.jpg"
+source_sample_manifest_copy="${LOGS_DIR}/root-demo.source-sample-manifest.tsv"
+source_event_contact_sheet_copy="${SCREENSHOTS_DIR}/demo-columnar-zones.source-event-contact-sheet.jpg"
 root_annotation_plan="${LOGS_DIR}/root-demo.annotations.tsv"
 cp "$SOURCE_ANNOTATIONS" "$root_annotation_plan"
 require_file "$root_annotation_plan"
 generate_recording_samples "$OUTPUT_ABS" "$duration" "$samples_dir" "$contact_sheet" "$root_annotation_plan"
+if [ -s "$SOURCE_SAMPLE_MANIFEST" ]; then
+    cp "$SOURCE_SAMPLE_MANIFEST" "$source_sample_manifest_copy"
+fi
+if [ -s "$SOURCE_EVENT_CONTACT_SHEET" ]; then
+    cp "$SOURCE_EVENT_CONTACT_SHEET" "$source_event_contact_sheet_copy"
+fi
 
 source_sha="$(file_sha256 "$SOURCE_RECORDING")"
+source_review_sha="$(file_sha256 "$SOURCE_REVIEW")"
+source_guest_capture_sha="$(file_sha256 "$SOURCE_GUEST_CAPTURE")"
 output_sha="$(file_sha256 "$OUTPUT_ABS")"
 artifact_sha="$(file_sha256 "$artifact_recording")"
 [ "$output_sha" = "$artifact_sha" ] || die "Artifact copy hash does not match root output"
@@ -397,8 +482,17 @@ result=success
 source_run_dir=${SOURCE_RUN_ABS}
 source_recording=${SOURCE_RECORDING}
 source_recording_sha256=${source_sha}
+source_guest_capture=${SOURCE_GUEST_CAPTURE}
+source_guest_capture_sha256=${source_guest_capture_sha}
+source_annotations=${SOURCE_ANNOTATIONS}
+source_contact_sheet=${SOURCE_CONTACT_SHEET}
+source_samples=${SOURCE_SAMPLES}
+source_sample_manifest=${SOURCE_SAMPLE_MANIFEST}
+source_event_contact_sheet=${SOURCE_EVENT_CONTACT_SHEET}
+source_proof=${SOURCE_PROOF}
 source_review=${SOURCE_REVIEW}
-source_review_verdict=$(last_nonempty_line "$SOURCE_REVIEW")
+source_review_sha256=${source_review_sha}
+source_review_verdict=${source_review_verdict}
 source_require_guest_control=$(value_from_log require_guest_control "$SOURCE_PREFLIGHT")
 source_capture_mode=$(value_from_log capture_mode "$SOURCE_PREFLIGHT")
 source_duration=${source_duration}
@@ -433,14 +527,15 @@ cat >"${REVIEWS_DIR}/reviewer-packet.md" <<EOF
 Start the reviewer subagent with \`fork_context=false\`. Do not include chat
 history or implementation explanation. Use
 \`script/e2e/prompts/no-context-artifact-review.md\` as the review policy; this
-packet fills the root demo paths and Slice 7-specific checks.
+packet fills the root demo paths and root-demo-specific checks.
 
 ## Slice
 
-- name: slice-7-root-columnar-demo
-- intended behavior: package the accepted strict Tart Slice 6B zone-scenes recording as a repo-root product demo for columnar zones.
+- name: ${SLICE_NAME}
+- intended behavior: ${INTENDED_BEHAVIOR}
 - artifact directory: ${ARTIFACT_ABS}
 - review output: ${REVIEWS_DIR}/no-ctx-artifact-review.md
+- reviewer attempt ledger: ${reviewer_attempts}
 - package log: ${LOGS_DIR}/root-demo-package.log
 
 ## Root Demo
@@ -452,12 +547,17 @@ packet fills the root demo paths and Slice 7-specific checks.
 - sample frames: ${samples_dir}
 - caption boundary frames: ${samples_dir}/caption-*-boundary-*.png
 - contact sheet: ${contact_sheet}
+- source sample manifest copy: ${source_sample_manifest_copy}
+- source event contact sheet copy: ${source_event_contact_sheet_copy}
 - source accepted Tart artifact: ${SOURCE_RUN_ABS}
 - source primary recording: ${SOURCE_RECORDING}
+- source guest capture log: ${SOURCE_GUEST_CAPTURE}
 - source review: ${SOURCE_REVIEW}
 - source review packet: ${SOURCE_REVIEW_PACKET}
 - source contact sheet: ${SOURCE_CONTACT_SHEET}
 - source sample frames: ${SOURCE_SAMPLES}
+- source sample manifest: ${SOURCE_SAMPLE_MANIFEST}
+- source event contact sheet: ${SOURCE_EVENT_CONTACT_SHEET}
 - source proof: ${SOURCE_PROOF}
 
 ## Baseline And Product Surfaces
@@ -474,13 +574,20 @@ packet fills the root demo paths and Slice 7-specific checks.
 ## Required Checks
 
 - Confirm the root demo is playable, h264/yuv420p-compatible, 3440x1440, and long enough to show the full columnar-zone workflow.
-- Confirm the package log proves the source was the accepted strict guest-captured Tart Slice 6B artifact, with \`require_guest_control=1\`, \`capture_mode=guest\`, and source review verdict \`PASS\` or \`PASS_WITH_NOTES\`.
+- Confirm the package log proves the source was an accepted strict guest-captured Tart artifact, with \`require_guest_control=1\`, \`capture_mode=guest\`, a successful source guest-capture log, and source review verdict \`PASS\` or \`PASS_WITH_NOTES\`.
 - Inspect the root demo directly, not only the source artifact. Use the root demo samples, caption-boundary frames, and contact sheet.
+- Inspect the source sample-manifest copy and source event contact sheet when present, especially for drag/action demos whose strongest proof is semantic rather than evenly spaced.
 - Confirm the demo would make sense on the repo root next to \`demo.mp4\`, \`demo2.mp4\`, and \`demo3.mp4\`: restrained macOS presentation, clean desktop, legible captions, visible live windows, and concrete WinMux config/command chips.
-- Confirm the recording shows triage scene state before \`winmux use-zone-scene deep-work\`, then deep-work state after it.
-- Confirm the demo does not claim sidebar drag UX, app routing rules, freeform layouts, draggable dividers, or a visual editor.
+- Confirm the recording shows the current root-demo behavior named above and does not rely on source logs alone.
+- Confirm the demo does not claim behavior outside the source artifact.
+- Inspect the reviewer attempt ledger. If any reviewer stalled, failed, or was
+  superseded, name that row and explain why the replacement review is still
+  valid.
 
-End the review with exactly one of: PASS, PASS_WITH_NOTES, FAIL.
+First nonblank line: \`PASS: ...\`, \`PASS_WITH_NOTES: ...\`, or \`FAIL: ...\`.
+Final line: \`next slice allowed: yes\` or \`next slice allowed: no\`.
+Do not append a standalone \`PASS\`, \`PASS_WITH_NOTES\`, or \`FAIL\` after
+the final \`next slice allowed\` line.
 EOF
 require_file "${REVIEWS_DIR}/reviewer-packet.md"
 

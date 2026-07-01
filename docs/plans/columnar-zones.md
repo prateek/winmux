@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-33 accepted; pre-slice 34 cleanup pending
+Status: slices 0-36 accepted; pre-slice 37 cleanup complete; Slice 37 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -566,6 +566,9 @@ Compact slice inventory:
 | 31 | Relaunch-safe saved-layout showcase with product-shaped fixture, measurement chips, and demo cut. |
 | 32 | Divider drag plus explicit save/relaunch proof for persisted dragged widths. |
 | 33 | Scene cycling: one repeated command switches triage -> deep-work -> triage. |
+| 34 | Ready-to-use scene binding showcase: `alt-tab` runs scene cycling through `trigger-binding`. |
+| 35 | Starter ultrawide template: first-run config includes a commented, parse-tested zones setup and a Tart demo of uncommenting and validating it. |
+| 36 | Current root demo refresh: package the accepted Slice 32 divider drag plus save/relaunch demo as `demo-columnar-zones.mp4`. |
 
 ### Slice 0: Tart Recording Harness
 
@@ -6396,6 +6399,713 @@ Pre-Slice-34 cleanup:
   reviewers, write their reports under
   `<run-dir>/reviews/pre-tart/{process-plan,code-harness,artifact-product}.md`
   and cite those paths in the slice result or pre-slice checklist.
+
+### Slice 34: Ready-to-Use Scene Binding Showcase
+
+Status: accepted.
+
+Goal: prove the user-facing binding path for whole-layout scene cycling. Slice
+33 proved the direct command. Slice 34 proves the configured shortcut surface:
+`alt-tab = 'cycle-zone-scene triage deep-work'`, invoked through
+`winmux trigger-binding --mode main alt-tab`, advances triage -> deep-work and
+wraps back to triage.
+
+Implementation scope:
+
+- Add `e2e-slice-34` and Tart action `slice-34`.
+- Reuse the parameterized zone-scene guest harness with
+  `WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX=slice-34`.
+- Run the proof action through
+  `WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS='trigger-binding --mode main alt-tab'`.
+- Keep Slice 34 logs, LaunchAgent labels, timing logs, screenshots, captions,
+  and verifier paths unique to `slice-34`; no Slice 33 filenames may satisfy
+  this slice.
+- Add a Slice 34 verifier that requires:
+  `alt-tab = 'cycle-zone-scene triage deep-work'` in the copied config; both
+  command logs to show `$ winmux trigger-binding --mode main alt-tab`; the
+  nested scene command output to report `deep-work` then `triage`; command
+  timing under the matching command captions; and triage/deep-work/triage
+  window and zone logs.
+- Add reviewer-packet checks that reject direct-command-only proof, stale
+  command/result timing, missing binding citation, or final-state-only proof.
+- Add a machine pre-Tart review gate so `make e2e-slice-34` fails before Tart
+  unless all three persisted no-context pre-Tart reports are clean and name the
+  Slice 34 plan, harness, verifier, packet, and guest-script files.
+
+Required fast checks before Tart:
+
+- `bash -n script/e2e/tart-recording-harness script/e2e/verify-artifact
+  script/e2e/write-review-packet script/e2e/guest/slice-6b-zone-scenes.sh`;
+- `git diff --check`;
+- `./script/e2e/tart-recording-harness annotation-preflight`;
+- `./script/e2e/verify-artifact --self-test`;
+- `make e2e-pre-tart-checks`, whose logged transcript must include
+  `git diff --check`.
+
+Required pre-Tart no-context gate:
+
+- Run three no-context reviewers after the fast checks and before Tart.
+- Persist reports under
+  `<run-dir>/reviews/pre-tart/{process-plan,code-harness,artifact-product}.md`.
+- Each reviewer must inspect current Slice 34 plan/code/harness/verifier
+  wiring and end with `NO ACTIONABLE ISSUES`; generic approval, silence, or a
+  review that does not name the Slice 34 files is not a pass.
+- `make e2e-slice-34` must run
+  `script/e2e/check-pre-tart-review-gate <run-dir> slice-34` before the Tart
+  harness starts. A manual Tart invocation that bypasses this gate is not an
+  accepted Slice 34 run.
+
+Required Tart artifact:
+
+- `recordings/slice-34-zone-mode-scene.mov`;
+- `recordings/raw/slice-34-zone-mode-scene.raw.mov`;
+- `logs/slice-34-zone-mode-scene.annotations.tsv`;
+- `logs/slice-34-zone-mode-scene.expected-chips.txt`;
+- `logs/slice-34-zone-mode-scene.event-manifest.tsv`;
+- `logs/slice-34-zone-mode-scene.sample-manifest.tsv`;
+- `logs/slice-34-command-timing.log`;
+- `logs/slice-34-trigger-binding-alt-tab.log`;
+- `logs/slice-34-trigger-binding-alt-tab-wrap.log`;
+- `logs/slice-34-scene-before.log`;
+- `logs/slice-34-scene-after.log`;
+- `logs/slice-34-scene-wrap.log`;
+- `logs/slice-34-windows-before.log`;
+- `logs/slice-34-windows-after.log`;
+- `logs/slice-34-windows-wrap.log`;
+- `screenshots/00-before-slice-34.png`,
+  `01-ready-slice-34.png`, and `99-after-slice-34.png`.
+
+Video contract:
+
+- The video must show triage before the first trigger-binding command.
+- The first mutating command/action caption must be
+  `Run: winmux trigger-binding --mode main alt-tab`.
+- Deep-work documents must appear after the first trigger-binding command, not
+  before it.
+- The same trigger-binding command must appear a second time.
+- Triage documents must appear again after the second trigger-binding command,
+  proving wraparound.
+- Captions must expose both the configured shortcut surface and the exact proof
+  command: `Config: alt-tab = 'cycle-zone-scene triage deep-work'` and
+  `Run: winmux trigger-binding --mode main alt-tab`.
+
+Post-artifact gates:
+
+- Run `make e2e-verify-slice RUN_DIR=<slice-34-run-dir>`.
+- Generate a no-context artifact review packet and run the no-context artifact
+  reviewer.
+- Run `make e2e-review-lint RUN_DIR=<slice-34-run-dir>`.
+- Run `make e2e-verify-slice-check RUN_DIR=<slice-34-run-dir>
+  ARGS=--require-review`.
+- Run three no-context retrospectives over plan/process, code/harness, and
+  artifact/product quality, then carry actionable findings into Pre-Slice-35
+  cleanup before proceeding.
+- Run `make e2e-slice-closeout-check RUN_DIR=<slice-34-run-dir>` only after
+  those retrospectives exist; closeout is the final blocking gate before
+  proceeding.
+
+Slice 34 accepted result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-34-20260630T212647Z`;
+- primary recording:
+  `artifacts/e2e/slice-34-20260630T212647Z/recordings/slice-34-zone-mode-scene.mov`;
+- raw guest recording:
+  `artifacts/e2e/slice-34-20260630T212647Z/recordings/raw/slice-34-zone-mode-scene.raw.mov`;
+- accepted review:
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/no-ctx-artifact-review.md`
+  with verdict `PASS` and `next slice allowed: yes`;
+- reviewer packet:
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/reviewer-packet.md`;
+- proof file:
+  `artifacts/e2e/slice-34-20260630T212647Z/slice-34-zone-scene-proof.txt`;
+- pre-Tart clean reports:
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/pre-tart/process-plan.md`,
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/pre-tart/code-harness.md`,
+  and
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/pre-tart/artifact-product.md`;
+- post-review gate logs:
+  `artifacts/e2e/slice-34-20260630T212647Z/logs/review-lint.log`,
+  `artifacts/e2e/slice-34-20260630T212647Z/logs/post-review-verify.log`,
+  and
+  `artifacts/e2e/slice-34-20260630T212647Z/logs/closeout-check.log`;
+- retrospectives:
+  `artifacts/e2e/slice-34-20260630T212647Z/retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-34-20260630T212647Z/retrospectives/code-harness.md`,
+  and
+  `artifacts/e2e/slice-34-20260630T212647Z/retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- `alt-tab = 'cycle-zone-scene triage deep-work'` in main mode can be invoked
+  through the user-facing binding path with
+  `winmux trigger-binding --mode main alt-tab`;
+- the first binding invocation advances the focused physical monitor from
+  triage to deep-work;
+- the second invocation wraps the same monitor back to triage;
+- both identical trigger-binding command captions occur while their matching
+  pre-result scene is still visible;
+- the deep-work result appears after the first binding command completes, and
+  the triage wrap result appears after the second binding command completes;
+- scene logs, window logs, timing logs, semantic samples, expected caption chips,
+  and the event manifest agree with the 3440x1440 guest recording.
+
+Accepted claims:
+
+- `trigger-binding --mode main alt-tab` runs the configured
+  `cycle-zone-scene triage deep-work` binding rather than relying on a direct
+  `cycle-zone-scene` proof;
+- the Slice 34 artifact names the second command log as
+  `slice-34-trigger-binding-alt-tab-wrap.log`, not as a direct
+  `cycle-zone-scene` log;
+- the verifier rejects the generic direct-command PASS claim for Slice 34 and
+  requires the binding-specific PASS claim;
+- review lint requires semantic sample citations, event ids, exact binding text,
+  exact trigger-binding command text, and the timing-value keys from
+  `logs/slice-34-command-timing.log`;
+- the pre-Tart review gate is executable for Slice 34 and fails before Tart when
+  the three persisted clean pre-Tart reports are absent.
+
+Accepted non-claims:
+
+- no visual shortcut editor or keybinding recorder UI;
+- no sidebar, tab-group, drag, snap, divider, or style-control UX claim;
+- no claim that `Alt-Tab` was pressed through macOS global hotkey capture in the
+  recording; the proof intentionally uses `winmux trigger-binding --mode main
+  alt-tab` as the visible user-facing command path;
+- no persistence or relaunch claim for active scene state;
+- no multi-monitor scene-cycle proof beyond the selected physical monitor.
+
+Slice 34 pre-Tart lineage:
+
+- `artifacts/e2e/slice-34-pre-tart-20260630T210624Z` is a blocked pre-Tart
+  review directory, not a product artifact. It found the missing executable
+  pre-Tart report gate, missing logged `git diff --check` enforcement, stale
+  direct-command proof wording, stale direct-command wrap-log naming, missing
+  Slice 34 semantic sample rows, and weak timing-value review lint.
+- `artifacts/e2e/slice-34-pre-tart-20260630T211859Z` is the clean pre-Tart
+  evidence source. All three pre-Tart reports end with `NO ACTIONABLE ISSUES`,
+  and `script/e2e/check-pre-tart-review-gate
+  artifacts/e2e/slice-34-pre-tart-20260630T211859Z slice-34` passed.
+- The accepted product artifact copies the clean pre-Tart reports under
+  `artifacts/e2e/slice-34-20260630T212647Z/reviews/pre-tart/` and reran the
+  pre-Tart checks before Tart.
+
+Slice 34 accepted notes:
+
+- The accepted Tart run used `TART_HOME=/Volumes/RiftTartVMs/tart`; preflight
+  recorded 1.8 TiB available on `/Volumes/RiftTartVMs`.
+- The accepted artifact has pre-recording SSH retry noise in
+  `guest-artifacts-check`, `warmup-before-privacy`, and `clean-slate`, all with
+  `final_result=success` before product recording. The stateful `slice-34-run`
+  phase has `failures=0`, `final_result=success`, and
+  `mutation_started=yes`.
+- The no-context artifact review passed on the first written review and machine
+  review lint accepted its timing values, semantic sample labels, event ids,
+  command/config citations, and baseline comparisons.
+- The Slice 34 README sync was added after the accepted artifact so future
+  operators can find `make e2e-slice-34` and its binding-path contract from the
+  e2e guide.
+
+Pre-Slice-35 cleanup:
+
+- [x] Finish all three Slice 34 retrospectives and read their findings together.
+- [x] Update this plan with the accepted Slice 34 result, pre-Tart lineage,
+  review/verifier evidence, retrospectives, claims, non-claims, and accepted
+  notes.
+- [x] Record an explicit dirty-baseline inventory for the accepted Slice 34
+  dirty set in `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`, and
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`.
+- [x] Add a `make e2e-slice-34` paragraph to `script/e2e/README.md`.
+- [x] Run and persist successful `make e2e-slice-closeout-check
+  RUN_DIR=artifacts/e2e/slice-34-20260630T212647Z` output to
+  `logs/closeout-check.log`.
+- [x] Before starting Slice 35, either commit the accepted Slice 34 dirty set or
+  explicitly decide to carry the Slice 34 dirty-baseline inventory forward.
+  Current decision: carry the dirty-baseline inventory until the user requests a
+  commit or the next slice boundary requires one.
+
+Non-blocking follow-ups from Slice 34 retrospectives:
+
+- [x] Add an explicit success marker around `git diff --check` in
+  `make e2e-pre-tart-checks` before relying on the transcript text as proof of
+  that command. Verified in
+  `logs/pre-slice-35-cleanup-pre-tart-checks.log`.
+- [x] Add a small self-test mode for `script/e2e/check-pre-tart-review-gate`
+  and wire it into `make e2e-pre-tart-checks`.
+- [x] Harden `script/e2e/check-pre-tart-review-gate` before reusing it for
+  future slices. The gate now writes and validates a freshness manifest, requires
+  reports to cite `candidate_head`, `candidate_state_sha256`,
+  `git_status_sha256`, and `pre_tart_log_sha256`, and requires reviewers to
+  mention both `makefile` and the gate script.
+- For future ready-to-use binding demos, prefer a product-native visible state
+  board or UI surface in addition to caption overlays when feasible.
+
+Pre-Slice-35 optimization review:
+
+- Three no-context optimization reviewers ran after Slice 34 closeout and found
+  actionable cleanup issues before product work:
+  `retrospectives/pre-slice-35-optimization-process-plan.md`,
+  `retrospectives/pre-slice-35-optimization-code-harness.md`, and
+  `retrospectives/pre-slice-35-optimization-artifact-product.md`.
+- Implemented cleanup: `make e2e-pre-tart-checks` emits
+  `[winmux-e2e] git diff --check PASS`, runs
+  `script/e2e/check-pre-tart-review-gate --self-test`, and saved the transcript
+  at `logs/pre-slice-35-cleanup-pre-tart-checks.log`.
+- Implemented cleanup: `make e2e-run-product-slice` supports a two-phase
+  pre-Tart review gate. The first run writes
+  `reviews/pre-tart/freshness.env` after fast checks and stops for reviewers if
+  reports are missing. The second run validates that the repo candidate and
+  pre-Tart log still match the manifest before Tart starts.
+- Implemented cleanup: `make e2e-slice-closeout-check` now emits
+  `[winmux-e2e] slice closeout PASS: <run-dir>` after verifier,
+  generated-version, and retrospection checks.
+- Implemented cleanup: future Slice 34 binding manifests use
+  `before-binding-triage` instead of the direct-command `before-cycle` id. The
+  verifier keeps compatibility for the accepted Slice 34 artifact.
+- Implemented cleanup: refreshed the dirty-baseline files after this hardening.
+  The inventory includes `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`,
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`, and
+  `logs/accepted-dirty-baseline.untracked-sha256.tsv` for
+  `script/e2e/check-pre-tart-review-gate`.
+
+### Slice 35: Starter Ultrawide Template
+
+Status: accepted.
+
+Goal: make columnar zones usable from a fresh WinMux config without sending the
+user on a documentation hunt. A new config should keep zones disabled by default,
+but include a commented `WINMUX ULTRAWIDE ZONES TEMPLATE` that becomes a valid
+three-zone setup when uncommented.
+
+Implementation scope:
+
+- Add the commented starter template to `resources/default-config.toml` so
+  `starterConfigText()` and first-run bootstrap configs include it.
+- Keep the active starter config behavior unchanged: no configured zones,
+  layouts, scenes, availability sets, or named style/layout/scene bindings until
+  the user opts in.
+- The template must include a practical ultrawide setup: `Reference`, `Work`,
+  and `Comms` zones; `balanced` and `focus` layouts; `triage` and `deep-work`
+  scenes; `focus-only`, `communications`, and `full-dashboard` availability
+  sets; `urgent`/`calm` styles; app affinity routing to `Comms`; mouse snap
+  policy defaults; and compact zone-mode bindings for layout, availability,
+  style, and scene cycling.
+- Add fast parser coverage that validates both the inactive starter config and
+  the same starter text with only the marked template uncommented.
+- Add `ConfigBootstrapTest` to the pre-Tart Swift test filter so this starter
+  proof runs before every future product Tart slice.
+- Sync README language so users know the first-run config contains the template.
+
+Required fast checks before Tart:
+
+- `swift test --filter 'ConfigBootstrapTest|ConfigTest.testParseDefaultConfig'`;
+- `git diff --check`;
+- `bash -n script/e2e/check-pre-tart-review-gate script/e2e/tart-recording-harness
+  script/e2e/verify-artifact script/e2e/write-review-packet`;
+- `./script/e2e/check-pre-tart-review-gate --self-test`;
+- `make e2e-pre-tart-checks`, with the transcript saved under the Slice 35 run
+  directory and including `[winmux-e2e] git diff --check PASS`.
+
+Required pre-Tart no-context gate:
+
+- Register Slice 35 in `script/e2e/check-pre-tart-review-gate`.
+- Run three no-context reviewers against the current Slice 35 plan, source,
+  tests, README, makefile, pre-Tart gate, harness, verifier, packet writer, and
+  guest script.
+- Persist reports under
+  `<run-dir>/reviews/pre-tart/{process-plan,code-harness,artifact-product}.md`.
+- Each report must cite the freshness manifest lines, name the Slice 35 files it
+  inspected, and end with `NO ACTIONABLE ISSUES`.
+- Do not start Tart until `script/e2e/check-pre-tart-review-gate <run-dir>
+  slice-35` passes.
+
+Required Tart artifact:
+
+- A strict guest-captured ultrawide recording showing:
+  - the generated/staged starter config with the template still commented;
+  - a visible, demo-quality action that uncomments the marked template;
+  - a visible focused active-TOML excerpt proving the uncommented template is on
+    screen, with active `[[zones]]` above the fold rather than only commented
+    source or a full-file view that could hide the zone table;
+  - WinMux launching from the uncommented config, then `winmux config --check
+    <uncommented-config>` accepting that file through the running server;
+  - `winmux list-zones` or another product command showing the resulting
+    Reference, Work, and Comms zones;
+  - lower-third captions exposing the user actions and exact WinMux commands.
+- Required media/logs:
+  `recordings/slice-35-starter-ultrawide-template.mov`,
+  `recordings/raw/slice-35-starter-ultrawide-template.raw.mov`,
+  `screenshots/00-before-slice-35.png`,
+  `screenshots/01-starter-template-commented-slice-35.png`,
+  `screenshots/02-template-uncommented-slice-35.png`,
+  `screenshots/03-config-check-and-zones-slice-35.png`,
+  `screenshots/99-after-slice-35.png`,
+  `logs/slice-35-starter-config-before.toml`,
+  `logs/slice-35-starter-config-uncommented.toml`,
+  `logs/slice-35-visible-uncommented-template.txt`,
+  `logs/slice-35-config-check.log`,
+  `logs/slice-35-list-zones.log`,
+  annotation sidecars, semantic sample manifests, event manifest, expected chips,
+  and a reviewer packet.
+
+Post-artifact gates:
+
+- Run `make e2e-verify-slice RUN_DIR=<slice-35-run-dir>`.
+- Generate the no-context artifact review packet and run a no-context artifact
+  reviewer against the video, screenshots, commands, and repo/product baseline
+  media.
+- Run `make e2e-review-lint RUN_DIR=<slice-35-run-dir>`.
+- Run `make e2e-verify-slice-check RUN_DIR=<slice-35-run-dir>
+  ARGS=--require-review`.
+- Run three no-context retrospectives over plan/process, code/harness, and
+  artifact/product quality; carry actionable findings into the next pre-slice
+  cleanup.
+- Run `make e2e-slice-closeout-check RUN_DIR=<slice-35-run-dir>` after the
+  retrospectives exist.
+
+Slice 35 accepted result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-35-20260630T225258Z`;
+- primary recording:
+  `artifacts/e2e/slice-35-20260630T225258Z/recordings/slice-35-starter-ultrawide-template.mov`;
+- raw guest recording:
+  `artifacts/e2e/slice-35-20260630T225258Z/recordings/raw/slice-35-starter-ultrawide-template.raw.mov`;
+- accepted review:
+  `artifacts/e2e/slice-35-20260630T225258Z/reviews/no-ctx-artifact-review.md`
+  with verdict `PASS_WITH_NOTES` and `next slice allowed: yes`;
+- reviewer packet:
+  `artifacts/e2e/slice-35-20260630T225258Z/reviews/reviewer-packet.md`;
+- proof file:
+  `artifacts/e2e/slice-35-20260630T225258Z/slice-35-starter-ultrawide-template-proof.txt`;
+- focused active-TOML excerpt:
+  `artifacts/e2e/slice-35-20260630T225258Z/logs/slice-35-visible-uncommented-template.txt`;
+- key screenshots:
+  `screenshots/01-starter-template-commented-slice-35.png`,
+  `screenshots/02-template-uncommented-slice-35.png`, and
+  `screenshots/03-config-check-and-zones-slice-35.png`;
+- pre-Tart clean reports:
+  `artifacts/e2e/slice-35-20260630T225258Z/reviews/pre-tart/process-plan.md`,
+  `artifacts/e2e/slice-35-20260630T225258Z/reviews/pre-tart/code-harness.md`,
+  and
+  `artifacts/e2e/slice-35-20260630T225258Z/reviews/pre-tart/artifact-product.md`;
+- post-review gate logs:
+  `artifacts/e2e/slice-35-20260630T225258Z/logs/review-lint.log`,
+  `artifacts/e2e/slice-35-20260630T225258Z/logs/post-review-verify.log`,
+  and
+  `artifacts/e2e/slice-35-20260630T225258Z/logs/closeout-check.log`;
+- retrospectives:
+  `artifacts/e2e/slice-35-20260630T225258Z/retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-35-20260630T225258Z/retrospectives/code-harness.md`,
+  and
+  `artifacts/e2e/slice-35-20260630T225258Z/retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- a fresh/starter WinMux config includes the commented
+  `WINMUX ULTRAWIDE ZONES TEMPLATE`;
+- zones remain disabled by default until the user edits the config;
+- uncommenting only the marked template produces active TOML with `[[zones]]`,
+  zone-mode bindings, layouts, scenes, availability sets, styles, affinity, and
+  mouse zone-snap examples;
+- the recording shows a focused active-TOML excerpt with `[[zones]]` visible
+  above the fold, not just a full-file view or final-state-only proof;
+- `winmux config --check <uncommented-config>` accepts the uncommented starter
+  config through the running server;
+- `winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`
+  reports Reference/left, Work/main, and Comms/right;
+- captions expose the user-facing config/action/commands for the full workflow:
+  template marker, uncomment action, `WinMuxApp --config-path`, `config --check`,
+  `list-zones`, and the Reference | Work | Comms result.
+
+Slice 35 pre-Tart lineage:
+
+- `artifacts/e2e/slice-35-pre-tart-20260630T223435Z` and
+  `artifacts/e2e/slice-35-pre-tart-20260630T224127Z` are blocked pre-Tart
+  review directories. Artifact-product reviewers correctly rejected the first
+  design because the uncommented template was not visibly shown, then rejected
+  the full-file view because active `[[zones]]` could be below the fold.
+- `artifacts/e2e/slice-35-pre-tart-20260630T224813Z` is the clean pre-Tart
+  evidence source. All three reports end with `NO ACTIONABLE ISSUES`, and
+  `script/e2e/check-pre-tart-review-gate
+  artifacts/e2e/slice-35-pre-tart-20260630T224813Z slice-35` passed.
+- `artifacts/e2e/slice-35-pre-tart-20260630T225103Z` is a stale
+  media-producing attempt with a stale artifact review. It is formally marked
+  superseded by `artifacts/e2e/slice-35-20260630T225258Z` via
+  `reviews/superseded.md` and `logs/run-abort-status.txt`.
+
+Slice 35 accepted notes:
+
+- The accepted Tart run used `TART_HOME=/Volumes/RiftTartVMs/tart`; preflight
+  recorded 1.8 TiB available on `/Volumes/RiftTartVMs`.
+- The accepted artifact has one pre-recording `guest-desktop-check` SSH retry
+  and one post-recording final screenshot SSH retry. Both ended with
+  `final_result=success`; the post-recording retry had `mutation_started=no`,
+  so no re-record was required.
+- The current no-context artifact review was regenerated after reviewer-packet
+  hardening and accepts the refreshed reviewer-attempt ledger with
+  `PASS_WITH_NOTES`.
+- `make e2e-verify-slice`, `make e2e-review-lint`, `make
+  e2e-verify-slice-check ARGS=--require-review`, and `make
+  e2e-slice-closeout-check` passed for the accepted artifact.
+- The refreshed sample manifest uses resolved numeric sample timestamps. The
+  verifier rejects expression timestamps such as `0-0.500` and `8+0.100`
+  instead of accepting them as boundary shorthand.
+
+Slice 35 non-claims:
+
+- no GUI config editor;
+- no claim that zones are enabled for fresh users before they uncomment the
+  template;
+- no new zone runtime behavior beyond proving the starter opt-in path;
+- no replacement for the root product demo.
+
+Pre-Slice-36 cleanup:
+
+- [x] Add a reusable helper for focused visible proof excerpts. It should take
+  an input config plus a marker/table selector, write a compact reviewer-facing
+  excerpt, and enforce that the required active table appears within a small
+  line budget. Implemented as `script/e2e/write-visible-proof-excerpt`.
+- [x] Extend the Slice 35 guest self-test or a shared guest-script self-test to
+  cover `write_visible_uncommented_template`: active `[[zones]]` within the
+  first 12 lines, no `# [[zones]]`, the `tab`/`a`/`y`/`c` bindings, and the
+  Reference/Work/Comms summary. The `make e2e-pre-tart-checks` target now runs
+  the Slice 35 guest self-test.
+- [x] Move the "active TOML above the fold" rule into a reusable verifier helper
+  for future config-demo slices rather than keeping it Slice 35-specific. The
+  verifier now uses `require_visible_proof_active_table_above_fold`.
+- [x] Add a reviewer-attempt ledger under each run directory, for example
+  `reviews/reviewer-attempts.tsv`, recording role, start time, finish time,
+  status, output path, and replacement reason for stalled or superseded
+  reviewers. Implemented via `script/e2e/record-reviewer-attempt` and listed in
+  reviewer packets.
+- [x] Put the guest retry summary near the top of reviewer packets whenever any
+  post-recording retry occurred.
+- [x] Add a caption/proof placement check or guideline for text-heavy demos so
+  proof windows do not sit under the caption anchor.
+- [x] Make `make build` restore tracked generated version sources after the
+  debug binaries are built, so local dogfood builds can embed the current
+  `HEAD` hash without leaving `Sources/Common/gitHashGenerated.swift` dirty.
+
+Pre-Slice-36 cleanup evidence:
+
+- `make build` now snapshots `Sources/Common/gitHashGenerated.swift` and
+  `Sources/Common/versionGenerated.swift`, stamps the debug build, copies
+  `.debug/winmux` and `.debug/WinMuxApp`, and restores the tracked generated
+  sources on exit.
+- `make e2e-pre-tart-checks` passed with the new visible-proof helper,
+  reviewer-attempt helper, Slice 35 guest self-test, annotation preflight, and
+  focused Swift suite.
+- `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-35-20260630T225258Z`
+  passed after regenerating the Slice 35 reviewer packet and replacing the stale
+  no-context review.
+- `make e2e-slice-closeout-check` passed for
+  `RUN_DIR=artifacts/e2e/slice-35-20260630T225258Z` with the refreshed numeric
+  sample manifest and synchronized reviewer-attempt ledger.
+
+### Slice 36: Current Root Demo Refresh
+
+Status: accepted.
+
+Goal: make the repo-root `demo-columnar-zones.mp4` reflect the current
+columnar-zones UX instead of the older Slice 6B-only scene demo. The chosen
+source is the accepted Slice 32 `.demo.mov` sidecar because it shows the
+current visible divider affordance, explicit `save-zone-layout`, app relaunch,
+and restored dragged widths in a clean 3440x1440 Tart-derived recording.
+
+Implementation scope:
+
+- Generalize `script/e2e/package-root-demo` so `--source-recording` can point at
+  a newer accepted recording or `.demo.mov` sidecar, while keeping the old
+  Slice 6B default working.
+- Write source guest-capture, annotation, contact-sheet, sample, proof, and
+  review paths into `logs/root-demo-package.log`.
+- Generalize `script/e2e/verify-root-demo` to read the source guest-capture log
+  from package metadata, with the historical Slice 6B path as a fallback for
+  older accepted artifacts.
+- Keep the root-demo package contract strict: accepted source review,
+  `require_guest_control=1`, `capture_mode=guest`, successful source guest
+  capture, playable H.264/yuv420p root MP4, 3440x1440 resolution, generated
+  samples, caption-boundary frames, contact sheet, and no-context artifact
+  review.
+
+Required package command:
+
+```bash
+./script/e2e/package-root-demo \
+  --source-run-dir artifacts/e2e/slice-32-20260630T181608Z \
+  --source-recording recordings/slice-32-divider-save-relaunch.demo.mov \
+  --slice-name slice-36-root-current-demo \
+  --intended-behavior "package the accepted Slice 32 divider drag plus save/relaunch demo as the current repo-root columnar-zones showcase." \
+  --output demo-columnar-zones.mp4
+```
+
+Accepted artifact:
+
+- artifact directory:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z`;
+- root demo:
+  `demo-columnar-zones.mp4`;
+- artifact copy:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4`;
+- package log:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo-package.log`;
+- reviewer packet:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/reviewer-packet.md`;
+- contact sheet:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg`;
+- sample frames and caption-boundary frames:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples/`;
+- source artifact:
+  `artifacts/e2e/slice-32-20260630T181608Z`;
+- source recording:
+  `artifacts/e2e/slice-32-20260630T181608Z/recordings/slice-32-divider-save-relaunch.demo.mov`.
+
+Accepted mechanical evidence:
+
+- `bash -n script/e2e/package-root-demo script/e2e/verify-root-demo` passed;
+- `shellcheck script/e2e/package-root-demo script/e2e/verify-root-demo`
+  passed;
+- `./script/e2e/package-root-demo --self-test` passed;
+- `make e2e-verify-root-demo-check
+  RUN_DIR=artifacts/e2e/slice-36-root-current-demo-20260701T004813Z` passed;
+- `make e2e-verify-root-demo-check
+  RUN_DIR=artifacts/e2e/slice-36-root-current-demo-20260701T004813Z
+  ARGS=--require-review` passed after the hardened no-context review landed;
+- `make e2e-root-demo-closeout-check
+  RUN_DIR=artifacts/e2e/slice-36-root-current-demo-20260701T004813Z` passed
+  and wrote
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo-closeout.log`;
+- `verify-root-demo --require-review` now verifies the packaged source
+  recording hash, source guest-capture hash, source review hash, and current
+  parsed source review verdict from `logs/root-demo-package.log`;
+- the root package includes copied source semantic proof:
+  `logs/root-demo.source-sample-manifest.tsv` and
+  `screenshots/demo-columnar-zones.source-event-contact-sheet.jpg`;
+- root demo media summary: H.264 High profile, `yuv420p`, 3440x1440,
+  90.000000 seconds, 4,039 frames, SHA-256
+  `1a4dfbfe732cc4f413a3311516fdd0e99f8c3a6178178585b0383cd2faa4ac4e`.
+
+Accepted no-context artifact review:
+
+- accepted review:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md`;
+- verdict: `PASS`, `next slice allowed: yes`;
+- reviewer-attempt ledger:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/reviewer-attempts.tsv`;
+- accepted note: the first accepted review was archived at
+  `reviews/no-ctx-artifact-review.stale-20260701T010931Z.md` after the
+  retrospectives found that it did not cite the reviewer-attempt ledger. The
+  current hardened replacement review cites the ledger's stalled and replacement
+  attempts, names the stale/stalled rows, and passes `verify-root-demo
+  --require-review`.
+
+What the accepted artifact proves:
+
+- the repo-root `demo-columnar-zones.mp4` is now a playable 3440x1440
+  H.264/yuv420p showcase video sourced from an accepted strict guest-captured
+  Tart artifact;
+- the packaged source is the accepted Slice 32 demo sidecar, which shows a
+  Work|Comms divider drag, explicit `winmux save-zone-layout`, WinMux quit and
+  relaunch, `winmux list-zones`, and restored dragged widths;
+- the package verifier and no-context review both compare the root demo against
+  the repo baseline demos and product surfaces.
+
+Accepted non-claims:
+
+- no fresh Tart VM boot for Slice 36; the slice packages an already accepted
+  Tart-derived video and verifies provenance;
+- no claim that `demo-columnar-zones.mp4` covers starter-template onboarding,
+  scene binding, app routing, sidebar drag, or arbitrary visual layout editing;
+- no claim that dragged divider widths save automatically without
+  `winmux save-zone-layout`.
+
+Pre-Slice-37 cleanup:
+
+- [x] Run three no-context retrospectives over Slice 36 plan/process,
+  code/harness, and artifact/product quality:
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/retrospectives/process-plan.md`,
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/retrospectives/code-harness.md`,
+  and
+  `artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/retrospectives/artifact-product.md`.
+- [x] Harden `verify-root-demo --require-review` so an accepted root-demo review
+  must cite the reviewer-attempt ledger whenever non-pass attempt rows exist.
+- [x] Replace the stale Slice 36 root-demo review after the hardened verifier
+  rejected it; record the stalled and replacement reviewer attempts in
+  `reviews/reviewer-attempts.tsv`.
+- [x] Fix the root-demo reviewer packet verdict guidance to require a first-line
+  verdict and final `next slice allowed: yes/no`.
+- [x] Verify source recording, source guest-capture, source review hash, and
+  source review verdict provenance during root-demo verification.
+- [x] Restore documented Slice 6B fallback packaging by accepting the historical
+  `slice-6b-zone-scene-proof.txt` proof filename.
+- [x] Copy source semantic proof into root-demo packages via
+  `logs/root-demo.source-sample-manifest.tsv` and
+  `screenshots/demo-columnar-zones.source-event-contact-sheet.jpg`.
+- [x] Add README guidance for draggable zone dividers and
+  `winmux save-zone-layout`.
+- [x] Add a root-demo closeout target and log. `script/e2e/root-demo-closeout`
+  and `make e2e-root-demo-closeout-check` run root-demo review lint through
+  `verify-root-demo --require-review`, require the three retrospectives, verify
+  generated version cleanliness, run `git diff --check`, and persist
+  `logs/root-demo-closeout.log`.
+- [x] Decide whether the next user-facing slice should package an onboarding
+  companion for the Slice 35 starter-template flow, since the root demo now
+  prioritizes the current divider/save/relaunch UX. Decision: yes; Slice 37 is
+  the onboarding companion, not another replacement of the root demo.
+- [x] Decide whether to commit the accepted Slice 34-36 dirty set before
+  starting another feature-bearing slice. Decision: commit the accepted
+  Slice 34-36 plus root-demo closeout changes before starting Slice 37 Tart
+  work.
+- [x] Re-run the focused host gate after adding the root-demo closeout target.
+  `make e2e-pre-tart-checks` passed with shell checks, helper self-tests,
+  root-demo closeout self-test, guest-script self-tests, annotation preflight,
+  and 183 focused Swift tests.
+
+### Slice 37: Starter Template Onboarding Companion
+
+Status: planned; do not start Tart until the accepted Slice 34-36 and
+root-demo closeout dirty set is committed.
+
+Goal: add a short companion demo that answers "how do I turn this on?" for a
+new ultrawide user. The current root demo proves the mature divider drag,
+`save-zone-layout`, relaunch, and restored widths flow. Slice 37 should show
+the starter-template path from a clean config to visible zones without replacing
+the root showcase video.
+
+User-facing story:
+
+- start from the generated starter config or a fresh config copied into the
+  guest;
+- expose the relevant `resources/default-config.toml` ultrawide starter block
+  on screen with restrained caption chips;
+- show the user action that enables the starter zones;
+- run and show the WinMux commands a user would use next, including
+  `winmux list-zones` and a minimal focus or move command;
+- end with Reference, Work, and Comms zones visible on a clean 3440x1440 Tart
+  desktop.
+
+Required implementation shape:
+
+- reuse the Slice 35 starter-template parser/bootstrap work instead of adding a
+  second starter-template format;
+- record a fresh Tart guest-captured video for the companion artifact;
+- keep the video self-explanatory with visible action and command chips;
+- write a reviewer packet that compares against `demo-columnar-zones.mp4`, the
+  Slice 36 root-demo package, repo root demos, README guidance, and product
+  screenshots;
+- require a no-context artifact review before acceptance;
+- run three no-context retrospectives after the review and fold accepted
+  findings into the next pre-slice cleanup before moving on.
+
+Accepted non-goals:
+
+- do not replace `demo-columnar-zones.mp4`;
+- do not claim every zone command is taught in the onboarding demo;
+- do not add another config DSL for starter templates.
 
 ## Call-Site Audit
 

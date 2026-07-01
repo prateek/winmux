@@ -78,6 +78,66 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(zoneBindingMap["t"], "toggle-zone current; mode main")
         XCTAssertEqual(zoneBindingMap["space"], "layout floating tiling; mode main")
         XCTAssertEqual(zoneBindingMap["s"], "cycle-zone-snap-policy freeform snap-to-zone; mode main")
+        XCTAssertNil(zoneBindingMap["tab"])
+        XCTAssertNil(zoneBindingMap["a"])
+        XCTAssertNil(zoneBindingMap["y"])
+        XCTAssertNil(zoneBindingMap["c"])
+        XCTAssertEqual(parsedConfig.zones.count, 0)
+        XCTAssertEqual(parsedConfig.zoneLayouts.count, 0)
+        XCTAssertEqual(parsedConfig.zoneScenes.count, 0)
+        XCTAssertEqual(parsedConfig.zoneAvailabilitySets.count, 0)
+    }
+
+    func testStarterUltrawideTemplateUncommentsIntoConfiguredZones() {
+        let starter = starterConfigText()
+        XCTAssertTrue(starter.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE"))
+        XCTAssertTrue(starter.contains("# END WINMUX ULTRAWIDE ZONES TEMPLATE"))
+
+        let (parsedConfig, errors) = parseConfig(uncommentUltrawideTemplate(in: starter))
+
+        assertEquals(errors, [])
+        guard errors.isEmpty else { return }
+        XCTAssertEqual(parsedConfig.zoneStyles.map(\.id), ["urgent", "calm"])
+        XCTAssertEqual(parsedConfig.zoneLayouts.map(\.id), ["balanced", "focus"])
+        XCTAssertEqual(parsedConfig.zoneLayouts.map { $0.columns.map(\.id) }, [
+            ["left", "main", "right"],
+            ["left", "main", "right"],
+        ])
+        XCTAssertEqual(parsedConfig.zoneLayouts.map { $0.columns.map(\.width) }, [
+            [0.25, 0.50, 0.25],
+            [0.18, 0.64, 0.18],
+        ])
+        XCTAssertEqual(parsedConfig.zones.count, 1)
+        XCTAssertEqual(parsedConfig.zones[0].layoutPreset, "balanced")
+        XCTAssertEqual(parsedConfig.zoneScenes.map(\.id), ["triage", "deep-work"])
+        XCTAssertEqual(parsedConfig.zoneScenes.map(\.layoutPreset), ["balanced", "focus"])
+        XCTAssertEqual(parsedConfig.zoneScenes[0].workspaces.map(\.zone), ["left", "main", "right"])
+        XCTAssertEqual(parsedConfig.zoneScenes[1].workspaces.compactMap { $0.workspace?.raw }, [
+            "FocusQueue",
+            "FocusBuild",
+            "FocusNotes",
+        ])
+        XCTAssertEqual(parsedConfig.zoneAvailabilitySets, [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
+        ])
+        XCTAssertEqual(parsedConfig.zoneAffinities.count, 1)
+        XCTAssertEqual(parsedConfig.zoneAffinities[0].zone, ZoneSelector("Comms"))
+        XCTAssertNotNil(parsedConfig.zoneAffinities[0].matcher.windowTitleRegexSubstring)
+        XCTAssertFalse(parsedConfig.zoneAffinities[0].failIfNoop)
+        XCTAssertEqual(parsedConfig.mouse.zoneSnap.policy, .freeform)
+        XCTAssertEqual(parsedConfig.mouse.zoneSnap.modifier, .option)
+        XCTAssertEqual(parsedConfig.mouse.zoneSnap.gesture, .drag)
+        XCTAssertEqual(parsedConfig.mouse.zoneSnap.target, .zone)
+
+        let zoneBindingMap = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
+            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
+        } ?? [])
+        XCTAssertEqual(zoneBindingMap["tab"], "cycle-zone-layout balanced focus; mode main")
+        XCTAssertEqual(zoneBindingMap["a"], "cycle-zone-availability focus-only communications full-dashboard; mode main")
+        XCTAssertEqual(zoneBindingMap["y"], "cycle-zone-style current urgent calm; mode main")
+        XCTAssertEqual(zoneBindingMap["c"], "cycle-zone-scene triage deep-work; mode main")
     }
 
     func testEnsureBootstrapConfigCopiesLegacyConfig() throws {
@@ -193,4 +253,31 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(parsedConfig.configVersion, 2)
         XCTAssertEqual(parsedConfig.modes[mainModeId]?.bindings.values.map(\.descriptionWithKeyNotation).sorted(), ["alt-h", "alt-j", "alt-l"])
     }
+}
+
+private func uncommentUltrawideTemplate(in text: String) -> String {
+    var insideTemplate = false
+    return text.components(separatedBy: "\n").map { line in
+        if line.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE") {
+            insideTemplate = true
+            return line
+        }
+        if line.contains("# END WINMUX ULTRAWIDE ZONES TEMPLATE") {
+            insideTemplate = false
+            return line
+        }
+        guard insideTemplate else { return line }
+
+        if line.trimmingCharacters(in: .whitespaces) == "#" {
+            return ""
+        }
+        guard let hashIndex = line.firstIndex(of: "#") else { return line }
+        let prefix = line[..<hashIndex]
+        guard prefix.allSatisfy({ $0 == " " || $0 == "\t" }) else { return line }
+        var suffix = line[line.index(after: hashIndex)...]
+        if suffix.first == " " {
+            suffix = suffix.dropFirst()
+        }
+        return "\(prefix)\(suffix)"
+    }.joined(separator: "\n")
 }

@@ -8,7 +8,9 @@ SLICE_PREFIX="${WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX:-slice-6b}"
 PHASE="${WINMUX_E2E_ZONE_SCENE_PHASE:-${WINMUX_E2E_SLICE6B_PHASE:-proof}}"
 COMMAND_ARGS_TEXT="${WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS:-use-zone-scene deep-work}"
 COMMAND_LOG_BASENAME="${WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME:-${SLICE_PREFIX}-use-zone-scene.log}"
+WRAP_LOG_BASENAME="${WINMUX_E2E_ZONE_SCENE_WRAP_LOG_BASENAME:-${SLICE_PREFIX}-cycle-zone-scene-wrap.log}"
 PROOF_MODE="${WINMUX_E2E_ZONE_SCENE_PROOF_MODE:-single-switch}"
+CYCLING_PASS_CLAIM="${WINMUX_E2E_ZONE_SCENE_CYCLE_WRAP_PASS_CLAIM:-PASS: cycle-zone-scene advanced from triage to deep-work, then wrapped back to triage with the same command while preserving scene layout and workspace bindings.}"
 SEMANTIC_FAILURE_EXIT="${WINMUX_E2E_GUEST_ACTION_SEMANTIC_FAILURE_EXIT:-86}"
 SOURCE_APP="${REPO_DIR}/.debug/WinMuxApp"
 SOURCE_CLI="${REPO_DIR}/.debug/winmux"
@@ -35,7 +37,7 @@ WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-before.log"
 WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-after.log"
 WINDOW_WRAP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-windows-wrap.log"
 SWITCH_LOG="${ARTIFACTS_DIR}/logs/${COMMAND_LOG_BASENAME}"
-WRAP_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cycle-zone-scene-wrap.log"
+WRAP_LOG="${ARTIFACTS_DIR}/logs/${WRAP_LOG_BASENAME}"
 CLI_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli.log"
 WAIT_ERR="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-cli-wait.err"
 ZONE_COUNT_LOG="${ARTIFACTS_DIR}/logs/${SLICE_PREFIX}-zone-count.txt"
@@ -515,7 +517,7 @@ proof_slice() {
             echo 'Windows after wrap command:'
             cat "${WINDOW_WRAP_LOG}"
             echo
-            echo 'PASS: cycle-zone-scene advanced from triage to deep-work, then wrapped back to triage with the same command while preserving scene layout and workspace bindings.'
+            echo "${CYCLING_PASS_CLAIM}"
         else
             echo 'PASS: use-zone-scene switched from triage to deep-work, applied the focus layout, and activated the configured workspace in each zone.'
         fi

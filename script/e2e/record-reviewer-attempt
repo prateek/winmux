@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: record-reviewer-attempt <run-dir> --role <role> --status <status> \
+    --output <path> [--replacement-reason <reason>] \
+    [--started-at <iso8601>] [--finished-at <iso8601>]
+
+Appends one row to <run-dir>/reviews/reviewer-attempts.tsv.
+EOF
+}
+
+die() {
+    printf '[winmux-reviewer-attempt] error: %s\n' "$*" >&2
+    exit 1
+}
+
+ts_now() {
+    /bin/date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+clean_cell() {
+    printf '%s\n' "$1" | /usr/bin/tr '\t\r\n' '   ' | /usr/bin/sed 's/[[:space:]]\{1,\}/ /g; s/^ //; s/ $//'
+}
+
+append_attempt() {
+    local run_dir="$1"
+    local role="$2"
+    local started_at="$3"
+    local finished_at="$4"
+    local status="$5"
+    local output_path="$6"
+    local replacement_reason="$7"
+    local ledger="${run_dir}/reviews/reviewer-attempts.tsv"
+
+    [ -d "$run_dir" ] || die "run directory does not exist: $run_dir"
+    [ -n "$role" ] || die "missing --role"
+    [ -n "$status" ] || die "missing --status"
+    [ -n "$output_path" ] || die "missing --output"
+    mkdir -p "$(dirname "$ledger")"
+    if [ ! -s "$ledger" ]; then
+        printf '# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason\n' >"$ledger"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(clean_cell "$role")" \
+        "$(clean_cell "$started_at")" \
+        "$(clean_cell "$finished_at")" \
+        "$(clean_cell "$status")" \
+        "$(clean_cell "$output_path")" \
+        "$(clean_cell "$replacement_reason")" >>"$ledger"
+    printf 'ledger=%s\n' "$ledger"
+}
+
+run_self_test() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    append_attempt \
+        "$tmp_dir" \
+        "artifact-product" \
+        "2026-06-30T00:00:00Z" \
+        "2026-06-30T00:05:00Z" \
+        "clean" \
+        "reviews/no-ctx-artifact-review.md" \
+        "-" >/dev/null
+
+    /usr/bin/awk -F'\t' '
+        NR == 1 && $0 != "# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason" { exit 1 }
+        NR == 2 && $1 == "artifact-product" && $4 == "clean" && $5 == "reviews/no-ctx-artifact-review.md" { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "${tmp_dir}/reviews/reviewer-attempts.tsv" \
+        || die "self-test ledger row mismatch"
+
+    printf '[winmux-reviewer-attempt] self-test PASS\n'
+}
+
+if [ "${1:-}" = "--self-test" ]; then
+    run_self_test
+    exit 0
+fi
+
+[ "$#" -ge 1 ] || {
+    usage >&2
+    die "missing run directory"
+}
+
+run_dir="$1"
+shift
+role=""
+status=""
+output_path=""
+replacement_reason="-"
+started_at="$(ts_now)"
+finished_at=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --role)
+            role="$2"
+            shift 2
+            ;;
+        --status)
+            status="$2"
+            shift 2
+            ;;
+        --output)
+            output_path="$2"
+            shift 2
+            ;;
+        --replacement-reason)
+            replacement_reason="$2"
+            shift 2
+            ;;
+        --started-at)
+            started_at="$2"
+            shift 2
+            ;;
+        --finished-at)
+            finished_at="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+if [ -z "$finished_at" ]; then
+    finished_at="$(ts_now)"
+fi
+
+append_attempt "$run_dir" "$role" "$started_at" "$finished_at" "$status" "$output_path" "$replacement_reason"

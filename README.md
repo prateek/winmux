@@ -42,6 +42,11 @@ On ultrawide displays, WinMux can split one physical monitor into named column z
 
 See [demo-columnar-zones.mp4](demo-columnar-zones.mp4) for the workflow.
 
+Fresh WinMux configs include the same ultrawide setup as a commented template.
+To try it, open `~/.config/winmux/winmux.toml`, uncomment the
+`WINMUX ULTRAWIDE ZONES TEMPLATE` block, and adjust `monitor`, widths, and
+workspace names for your display.
+
 ```toml
 [[zones]]
 monitor = 1
@@ -71,6 +76,10 @@ s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
 ```
 
 Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. They also accept `current`, `next`, and `prev`, scoped to the focused physical monitor. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
+
+You can drag a divider between adjacent zones to resize the columns at runtime.
+Run `winmux save-zone-layout` after a drag to write the new widths back to the
+active config. The new widths are then restored on the next WinMux launch.
 
 For repeatable setups, define layout presets, scenes, availability sets, and styles:
 

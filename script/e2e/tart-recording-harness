@@ -38,6 +38,12 @@ fi
 if [ "$ACTION" = "slice-33" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
+if [ "$ACTION" = "slice-34" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
+fi
+if [ "$ACTION" = "slice-35" ]; then
+    DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
+fi
 if [ "$ACTION" = "slice-8" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-window-routing.toml"
 fi
@@ -157,7 +163,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -2651,6 +2657,96 @@ write_slice_33_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_34_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label before_label first_label first_result_label second_label wrap_result_label inspect_zones_label inspect_windows_label
+    config_label="$(caption_label_for_chip "$name" "Config: alt-tab = 'cycle-zone-scene triage deep-work'")"
+    before_label="$(caption_label_for_chip "$name" "Action: before scene = triage")"
+    first_label="$(caption_label_for_chip "$name" "Run: winmux trigger-binding --mode main alt-tab")"
+    first_result_label="$(caption_label_for_chip "$name" "Action: binding result = deep-work")"
+    second_label="$(last_caption_label_for_chip "$name" "Run: winmux trigger-binding --mode main alt-tab")"
+    wrap_result_label="$(caption_label_for_chip "$name" "Action: binding result = triage")"
+    inspect_zones_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'")"
+    inspect_windows_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --workspace visible")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" config-ready context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" zone-mode-scene-ready \
+        "screenshots/01-ready-slice-34.png" \
+        "alt-tab scene-cycle binding and triage scene are visible before mutation"
+    append_event_manifest_row "$manifest_path" before-binding-triage state \
+        "$(caption_start_for_label "$name" "$before_label")" "$before_label" before-binding-triage \
+        "screenshots/${name}.samples/${before_label}-boundary-start.png" \
+        "triage documents are visible before the first binding-trigger command"
+    append_event_manifest_row "$manifest_path" first-binding-command-start command \
+        "$(caption_start_for_label "$name" "$first_label")" "$first_label" first-binding-command-start \
+        "screenshots/${name}.samples/${first_label}-boundary-start.png" \
+        "first trigger-binding command caption starts before deep-work result"
+    append_event_manifest_row "$manifest_path" first-binding-result state \
+        "$(caption_start_for_label "$name" "$first_result_label")" "$first_result_label" first-binding-result \
+        "screenshots/${name}.samples/${first_result_label}-boundary-start.png" \
+        "deep-work scene documents are visible after the first binding"
+    append_event_manifest_row "$manifest_path" second-binding-command-start command \
+        "$(caption_start_for_label "$name" "$second_label")" "$second_label" second-binding-command-start \
+        "screenshots/${name}.samples/${second_label}-boundary-start.png" \
+        "second trigger-binding command caption starts before triage wrap result"
+    append_event_manifest_row "$manifest_path" wrap-binding-result state \
+        "$(caption_start_for_label "$name" "$wrap_result_label")" "$wrap_result_label" wrap-binding-result \
+        "screenshots/${name}.samples/${wrap_result_label}-boundary-start.png" \
+        "triage scene documents are visible after binding wraparound"
+    append_event_manifest_row "$manifest_path" inspect-zones command \
+        "$(caption_start_for_label "$name" "$inspect_zones_label")" "$inspect_zones_label" inspect-zones \
+        "screenshots/${name}.samples/${inspect_zones_label}-boundary-start.png" \
+        "list-zones inspection caption is visible after wraparound"
+    append_event_manifest_row "$manifest_path" inspect-windows command \
+        "$(caption_start_for_label "$name" "$inspect_windows_label")" "$inspect_windows_label" inspect-windows \
+        "screenshots/${name}.samples/${inspect_windows_label}-boundary-start.png" \
+        "list-windows inspection caption is visible after wraparound"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
+write_slice_35_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label uncomment_label check_label launch_label list_label result_label
+    config_label="$(caption_label_for_chip "$name" "Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE")"
+    uncomment_label="$(caption_label_for_chip "$name" "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check slice-35-starter-config-uncommented.toml")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp --config-path slice-35-starter-config-uncommented.toml")"
+    list_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'")"
+    result_label="$(caption_label_for_chip "$name" "Result: Reference | Work | Comms")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" commented-template context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" starter-template-commented \
+        "screenshots/01-starter-template-commented-slice-35.png" \
+        "fresh starter config shows the ultrawide template while it is still commented"
+    append_event_manifest_row "$manifest_path" uncomment-template action \
+        "$(caption_start_for_label "$name" "$uncomment_label")" "$uncomment_label" uncomment-template \
+        "screenshots/${name}.samples/${uncomment_label}-boundary-start.png" \
+        "the marked template is uncommented into active TOML"
+    append_event_manifest_row "$manifest_path" launch-with-config command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-with-config \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches with the uncommented starter config"
+    append_event_manifest_row "$manifest_path" config-check command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "winmux config --check validates the uncommented starter config through the running server"
+    append_event_manifest_row "$manifest_path" list-zones command \
+        "$(caption_start_for_label "$name" "$list_label")" "$list_label" list-zones \
+        "screenshots/${name}.samples/${list_label}-boundary-start.png" \
+        "list-zones inspects the resulting zones"
+    append_event_manifest_row "$manifest_path" result-zones state \
+        "$(caption_start_for_label "$name" "$result_label")" "$result_label" result-zones \
+        "screenshots/03-config-check-and-zones-slice-35.png" \
+        "Reference, Work, and Comms zones are visible in the proof output"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -2692,6 +2788,12 @@ write_event_manifest() {
             ;;
         slice-33-cycle-zone-scene)
             write_slice_33_event_manifest "$name"
+            ;;
+        slice-34-zone-mode-scene)
+            write_slice_34_event_manifest "$name"
+            ;;
+        slice-35-starter-ultrawide-template)
+            write_slice_35_event_manifest "$name"
             ;;
         *)
             ;;
@@ -2779,6 +2881,28 @@ CAPTIONS
 50	60	Wrapped to triage	Inbox, Draft, and Updates are visible again after wraparound.	Action: cycle result = triage
 60	66	Inspect zone workspaces	The active workspace in each zone matches the wrapped scene.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
 66	72	Inspect visible windows	Only the triage TextEdit documents are visible after wraparound.	Run: winmux list-windows --workspace visible
+CAPTIONS
+            ;;
+        slice-34-zone-mode-scene)
+            cat >"$captions_path" <<'CAPTIONS'
+0	6	Zone binding ready	The triage scene is visible and main mode binds Alt-Tab to scene cycling.	Config: alt-tab = 'cycle-zone-scene triage deep-work'
+6	15	Before binding = triage	Inbox, Draft, and Updates are still visible before the first binding.	Action: before scene = triage
+15	27	Run Alt-Tab binding	Trigger the user binding instead of calling the scene command directly.	Run: winmux trigger-binding --mode main alt-tab
+27	38	Binding result = deep-work	Focus Queue, Build, and Notes replace the triage workspaces.	Action: binding result = deep-work
+38	50	Run Alt-Tab again	The same binding wraps the focused monitor back to triage.	Run: winmux trigger-binding --mode main alt-tab
+50	60	Binding wrapped to triage	Inbox, Draft, and Updates are visible again after wraparound.	Action: binding result = triage
+60	66	Inspect zone workspaces	The active workspace in each zone matches the wrapped scene.	Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'
+66	72	Inspect visible windows	Only the triage TextEdit documents are visible after wraparound.	Run: winmux list-windows --workspace visible
+CAPTIONS
+            ;;
+        slice-35-starter-ultrawide-template)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Starter config ready	A fresh WinMux config includes the ultrawide zones template, still commented.	Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
+8	17	Uncomment the template	The marked block becomes real TOML for Reference, Work, and Comms.	Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE
+17	30	Launch with zones	WinMux starts from the uncommented starter config.	Run: WinMuxApp --config-path slice-35-starter-config-uncommented.toml
+30	38	Validate the config	Check the uncommented file through the running WinMux server.	Run: winmux config --check slice-35-starter-config-uncommented.toml
+38	50	Inspect zones	The CLI shows Reference, Work, and Comms on monitor 1.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+50	60	Ready to tune	The generated config remains the user-owned starting point.	Result: Reference | Work | Comms
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3125,14 +3249,16 @@ annotation_preflight() {
         slice-29-save-zone-layout \
         slice-31-relaunch-saved-layout \
         slice-32-divider-save-relaunch \
-        slice-33-cycle-zone-scene
+        slice-33-cycle-zone-scene \
+        slice-34-zone-mode-scene \
+        slice-35-starter-ultrawide-template
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -3757,6 +3883,51 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic after-style-urgent screenshot screenshot \
                 "screenshots/07-after-style-urgent-slice-21.png" \
                 "current Work/main zone is styled urgent red"
+            ;;
+        slice-34-zone-mode-scene)
+            local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
+            local config_label before_label first_label first_result_label second_label wrap_result_label inspect_zones_label inspect_windows_label
+            local config_start before_start first_start first_result_start second_start wrap_result_start inspect_zones_start inspect_windows_start
+            config_label="$(event_manifest_field "$event_manifest" config-ready caption-label || caption_label_for_chip "$name" "Config: alt-tab = 'cycle-zone-scene triage deep-work'" || printf 'caption-01\n')"
+            before_label="$(event_manifest_field "$event_manifest" before-binding-triage caption-label || event_manifest_field "$event_manifest" before-cycle caption-label || caption_label_for_chip "$name" "Action: before scene = triage" || printf 'caption-02\n')"
+            first_label="$(event_manifest_field "$event_manifest" first-binding-command-start caption-label || caption_label_for_chip "$name" "Run: winmux trigger-binding --mode main alt-tab" || printf 'caption-03\n')"
+            first_result_label="$(event_manifest_field "$event_manifest" first-binding-result caption-label || caption_label_for_chip "$name" "Action: binding result = deep-work" || printf 'caption-04\n')"
+            second_label="$(event_manifest_field "$event_manifest" second-binding-command-start caption-label || last_caption_label_for_chip "$name" "Run: winmux trigger-binding --mode main alt-tab" || printf 'caption-05\n')"
+            wrap_result_label="$(event_manifest_field "$event_manifest" wrap-binding-result caption-label || caption_label_for_chip "$name" "Action: binding result = triage" || printf 'caption-06\n')"
+            inspect_zones_label="$(event_manifest_field "$event_manifest" inspect-zones caption-label || caption_label_for_chip "$name" "Run: winmux list-zones --format '%{monitor-zone-id}|%{monitor-active-workspace}'" || printf 'caption-07\n')"
+            inspect_windows_label="$(event_manifest_field "$event_manifest" inspect-windows caption-label || caption_label_for_chip "$name" "Run: winmux list-windows --workspace visible" || printf 'caption-08\n')"
+            config_start="$(event_manifest_field "$event_manifest" config-ready seconds || caption_start_for_label "$name" "$config_label" || printf '0.000\n')"
+            before_start="$(event_manifest_field "$event_manifest" before-binding-triage seconds || event_manifest_field "$event_manifest" before-cycle seconds || caption_start_for_label "$name" "$before_label" || printf '8.000\n')"
+            first_start="$(event_manifest_field "$event_manifest" first-binding-command-start seconds || caption_start_for_label "$name" "$first_label" || printf '15.000\n')"
+            first_result_start="$(event_manifest_field "$event_manifest" first-binding-result seconds || caption_start_for_label "$name" "$first_result_label" || printf '29.000\n')"
+            second_start="$(event_manifest_field "$event_manifest" second-binding-command-start seconds || caption_start_for_label "$name" "$second_label" || printf '38.000\n')"
+            wrap_result_start="$(event_manifest_field "$event_manifest" wrap-binding-result seconds || caption_start_for_label "$name" "$wrap_result_label" || printf '52.000\n')"
+            inspect_zones_start="$(event_manifest_field "$event_manifest" inspect-zones seconds || caption_start_for_label "$name" "$inspect_zones_label" || printf '58.000\n')"
+            inspect_windows_start="$(event_manifest_field "$event_manifest" inspect-windows seconds || caption_start_for_label "$name" "$inspect_windows_label" || printf '63.000\n')"
+            append_sample_manifest_row "$manifest_path" semantic zone-mode-scene-ready "$config_label" "$config_start" \
+                "screenshots/01-ready-slice-34.png" \
+                "ready screenshot shows triage documents and the configured alt-tab scene binding before mutation"
+            append_sample_manifest_row "$manifest_path" semantic before-binding-triage "$before_label" "$before_start" \
+                "screenshots/${name}.samples/${before_label}-boundary-start.png" \
+                "before-scene caption starts while triage documents are still visible"
+            append_sample_manifest_row "$manifest_path" semantic first-binding-command-start "$first_label" "$first_start" \
+                "screenshots/${name}.samples/${first_label}-boundary-start.png" \
+                "first trigger-binding command caption starts before deep-work appears"
+            append_sample_manifest_row "$manifest_path" semantic first-binding-result "$first_result_label" "$first_result_start" \
+                "screenshots/${name}.samples/${first_result_label}-boundary-start.png" \
+                "deep-work scene documents are visible after the first binding"
+            append_sample_manifest_row "$manifest_path" semantic second-binding-command-start "$second_label" "$second_start" \
+                "screenshots/${name}.samples/${second_label}-boundary-start.png" \
+                "second trigger-binding command caption starts while deep-work is still visible"
+            append_sample_manifest_row "$manifest_path" semantic wrap-binding-result "$wrap_result_label" "$wrap_result_start" \
+                "screenshots/${name}.samples/${wrap_result_label}-boundary-start.png" \
+                "triage scene documents are visible after binding wraparound"
+            append_sample_manifest_row "$manifest_path" semantic inspect-zones "$inspect_zones_label" "$inspect_zones_start" \
+                "screenshots/${name}.samples/${inspect_zones_label}-boundary-start.png" \
+                "list-zones inspection caption is visible after wraparound"
+            append_sample_manifest_row "$manifest_path" semantic inspect-windows "$inspect_windows_label" "$inspect_windows_start" \
+                "screenshots/${name}.samples/${inspect_windows_label}-boundary-start.png" \
+                "list-windows inspection caption is visible after wraparound"
             ;;
         slice-13-zone-mode-bindings)
             append_sample_manifest_row "$manifest_path" semantic before-focus-next screenshot screenshot \
@@ -4601,28 +4772,46 @@ generate_recording_samples() {
             append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}" "caption-${caption_label}" "$sample_seconds" \
                 "screenshots/${name}.samples/caption-${caption_label}.png" \
                 "caption midpoint sample"
+            local before_seconds
+            before_seconds="$(awk -v start="$start_seconds" 'BEGIN {
+                sample = start - 0.500
+                if (sample < 0) {
+                    sample = 0
+                }
+                printf "%.3f", sample
+            }')"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
-                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start - 0.500 }')" \
+                "$before_seconds" \
                 "${samples_dir}/caption-${caption_label}-boundary-before.png"
-            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-before" "caption-${caption_label}" "$start_seconds-0.500" \
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-before" "caption-${caption_label}" "$before_seconds" \
                 "screenshots/${name}.samples/caption-${caption_label}-boundary-before.png" \
                 "frame before caption start"
+            local start_boundary_seconds
+            start_boundary_seconds="$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
-                "$(awk -v start="$start_seconds" 'BEGIN { printf "%.3f", start + 0.100 }')" \
+                "$start_boundary_seconds" \
                 "${samples_dir}/caption-${caption_label}-boundary-start.png"
-            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-start" "caption-${caption_label}" "$start_seconds+0.100" \
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-start" "caption-${caption_label}" "$start_boundary_seconds" \
                 "screenshots/${name}.samples/caption-${caption_label}-boundary-start.png" \
                 "frame immediately after caption start"
+            local end_boundary_seconds
+            end_boundary_seconds="$(awk -v end="$end_seconds" 'BEGIN {
+                sample = end - 0.100
+                if (sample < 0) {
+                    sample = 0
+                }
+                printf "%.3f", sample
+            }')"
             sample_recording_frame \
                 "$path" \
                 "$duration" \
-                "$(awk -v end="$end_seconds" 'BEGIN { printf "%.3f", end - 0.100 }')" \
+                "$end_boundary_seconds" \
                 "${samples_dir}/caption-${caption_label}-boundary-end.png"
-            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-end" "caption-${caption_label}" "$end_seconds-0.100" \
+            append_sample_manifest_row "$sample_manifest" caption "caption-${caption_label}-boundary-end" "caption-${caption_label}" "$end_boundary_seconds" \
                 "screenshots/${name}.samples/caption-${caption_label}-boundary-end.png" \
                 "frame immediately before caption end"
         done < <(awk -F '\t' '$0 != "" && $1 !~ /^#/ { print $1 "\t" $2 }' "$captions_path")
@@ -5631,6 +5820,70 @@ run_slice_33_cycle_zone_scene() {
         "${LOGS_DIR}/slice-33-run.log"
 }
 
+run_slice_34_zone_mode_scene_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local wrap_log_basename_quoted
+    local pass_claim_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    wrap_log_basename_quoted="$(shell_quote "slice-34-trigger-binding-alt-tab-wrap.log")"
+    pass_claim_quoted="$(shell_quote "PASS: trigger-binding --mode main alt-tab invoked alt-tab = 'cycle-zone-scene triage deep-work' and advanced triage -> deep-work -> triage while preserving scene layout and workspace bindings.")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_ZONE_SCENE_PHASE=setup WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX=slice-34 WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS='trigger-binding --mode main alt-tab' WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME=slice-34-trigger-binding-alt-tab.log WINMUX_E2E_ZONE_SCENE_WRAP_LOG_BASENAME=${wrap_log_basename_quoted} WINMUX_E2E_ZONE_SCENE_CYCLE_WRAP_PASS_CLAIM=${pass_claim_quoted} WINMUX_E2E_ZONE_SCENE_PROOF_MODE=cycle-wrap /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-34-setup.log"
+}
+
+run_slice_34_zone_mode_scene() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-6b-zone-scenes.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local wrap_log_basename_quoted
+    local pass_claim_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    wrap_log_basename_quoted="$(shell_quote "slice-34-trigger-binding-alt-tab-wrap.log")"
+    pass_claim_quoted="$(shell_quote "PASS: trigger-binding --mode main alt-tab invoked alt-tab = 'cycle-zone-scene triage deep-work' and advanced triage -> deep-work -> triage while preserving scene layout and workspace bindings.")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_ZONE_SCENE_PHASE=proof WINMUX_E2E_ZONE_SCENE_SLICE_PREFIX=slice-34 WINMUX_E2E_ZONE_SCENE_COMMAND_ARGS='trigger-binding --mode main alt-tab' WINMUX_E2E_ZONE_SCENE_COMMAND_LOG_BASENAME=slice-34-trigger-binding-alt-tab.log WINMUX_E2E_ZONE_SCENE_WRAP_LOG_BASENAME=${wrap_log_basename_quoted} WINMUX_E2E_ZONE_SCENE_CYCLE_WRAP_PASS_CLAIM=${pass_claim_quoted} WINMUX_E2E_ZONE_SCENE_PROOF_MODE=cycle-wrap /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-34-run.log"
+}
+
+run_slice_35_starter_template_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-35-starter-ultrawide-template.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE35_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-35-setup.log"
+}
+
+run_slice_35_starter_template() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-35-starter-ultrawide-template.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE35_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-35-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -6479,6 +6732,14 @@ slice_33() {
     run_recorded_scenario "slice-33-cycle-zone-scene" "00-before-slice-33" "99-after-slice-33" "run_slice_33_cycle_zone_scene" "run_slice_33_cycle_zone_scene_setup" "01-ready-slice-33"
 }
 
+slice_34() {
+    run_recorded_scenario "slice-34-zone-mode-scene" "00-before-slice-34" "99-after-slice-34" "run_slice_34_zone_mode_scene" "run_slice_34_zone_mode_scene_setup" "01-ready-slice-34"
+}
+
+slice_35() {
+    run_recorded_scenario "slice-35-starter-ultrawide-template" "00-before-slice-35" "99-after-slice-35" "run_slice_35_starter_template" "run_slice_35_starter_template_setup" "01-starter-template-commented-slice-35"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -6627,6 +6888,12 @@ case "$ACTION" in
         ;;
     slice-33)
         slice_33
+        ;;
+    slice-34)
+        slice_34
+        ;;
+    slice-35)
+        slice_35
         ;;
     slice-8)
         slice_8

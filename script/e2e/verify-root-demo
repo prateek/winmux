@@ -37,6 +37,26 @@ last_nonempty_line() {
     /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
 }
 
+review_verdict() {
+    local path="$1"
+    local first_line
+    first_line="$(/usr/bin/awk 'NF { print; exit }' "$path")"
+    case "$first_line" in
+        PASS_WITH_NOTES:*|PASS_WITH_NOTES) printf 'PASS_WITH_NOTES\n'; return 0 ;;
+        PASS:*|PASS) printf 'PASS\n'; return 0 ;;
+        FAIL:*|FAIL) printf 'FAIL\n'; return 0 ;;
+    esac
+
+    local last_line
+    last_line="$(last_nonempty_line "$path")"
+    case "$last_line" in
+        PASS_WITH_NOTES) printf 'PASS_WITH_NOTES\n' ;;
+        PASS) printf 'PASS\n' ;;
+        FAIL) printf 'FAIL\n' ;;
+        *) return 1 ;;
+    esac
+}
+
 stream_value() {
     local path="$1"
     local key="$2"
@@ -106,6 +126,12 @@ artifact_copy="$(value_from_log root_demo_artifact_copy "$PACKAGE_LOG")"
 source_recording="$(value_from_log source_recording "$PACKAGE_LOG")"
 source_review="$(value_from_log source_review "$PACKAGE_LOG")"
 source_run_dir="$(value_from_log source_run_dir "$PACKAGE_LOG")"
+source_guest_capture="$(value_from_log source_guest_capture "$PACKAGE_LOG")"
+source_recording_sha="$(value_from_log source_recording_sha256 "$PACKAGE_LOG")"
+source_review_sha="$(value_from_log source_review_sha256 "$PACKAGE_LOG")"
+source_guest_capture_sha="$(value_from_log source_guest_capture_sha256 "$PACKAGE_LOG")"
+source_sample_manifest="$(value_from_log source_sample_manifest "$PACKAGE_LOG")"
+source_event_contact_sheet="$(value_from_log source_event_contact_sheet "$PACKAGE_LOG")"
 root_sha="$(value_from_log root_demo_sha256 "$PACKAGE_LOG")"
 artifact_sha="$(value_from_log root_demo_artifact_copy_sha256 "$PACKAGE_LOG")"
 
@@ -114,6 +140,11 @@ require_file "$artifact_copy"
 require_file "$source_recording"
 require_file "$source_review"
 [ -d "$source_run_dir" ] || die "Source run directory is missing: $source_run_dir"
+[ -n "$source_recording_sha" ] || die "Package log missing source_recording_sha256"
+[ "$(file_sha256 "$source_recording")" = "$source_recording_sha" ] || die "Source recording hash does not match package log"
+if [ -n "$source_review_sha" ]; then
+    [ "$(file_sha256 "$source_review")" = "$source_review_sha" ] || die "Source review hash does not match package log"
+fi
 [ -n "$root_sha" ] || die "Package log missing root_demo_sha256"
 [ -n "$artifact_sha" ] || die "Package log missing root_demo_artifact_copy_sha256"
 [ "$(file_sha256 "$root_demo")" = "$root_sha" ] || die "Root demo hash does not match package log"
@@ -141,23 +172,44 @@ done
 require_file "$FFPROBE_JSON"
 grep -F '"pix_fmt": "yuv420p"' "$FFPROBE_JSON" >/dev/null || die "ffprobe JSON missing yuv420p"
 
-[ "$(value_from_log source_review_verdict "$PACKAGE_LOG")" = "PASS" ] \
-    || [ "$(value_from_log source_review_verdict "$PACKAGE_LOG")" = "PASS_WITH_NOTES" ] \
+source_review_verdict="$(value_from_log source_review_verdict "$PACKAGE_LOG")"
+[ "$source_review_verdict" = "PASS" ] \
+    || [ "$source_review_verdict" = "PASS_WITH_NOTES" ] \
     || die "Source review verdict is not accepted"
+current_source_review_verdict="$(review_verdict "$source_review" || true)"
+[ "$current_source_review_verdict" = "$source_review_verdict" ] \
+    || die "Current source review verdict does not match package log"
 [ "$(value_from_log source_require_guest_control "$PACKAGE_LOG")" = "1" ] \
     || die "Source require_guest_control is not 1"
 [ "$(value_from_log source_capture_mode "$PACKAGE_LOG")" = "guest" ] \
     || die "Source capture_mode is not guest"
 grep -F 'next slice allowed: yes' "$source_review" >/dev/null || die "Source review does not allow next slice"
 
-source_guest_capture="${source_run_dir}/logs/slice-6b-zone-scenes.guest-screencapture.log"
+if [ -z "$source_guest_capture" ]; then
+    source_guest_capture="${source_run_dir}/logs/slice-6b-zone-scenes.guest-screencapture.log"
+fi
 require_file "$source_guest_capture"
+if [ -n "$source_guest_capture_sha" ]; then
+    [ "$(file_sha256 "$source_guest_capture")" = "$source_guest_capture_sha" ] || die "Source guest capture hash does not match package log"
+fi
 grep -F 'capture_mode=guest' "$source_guest_capture" >/dev/null || die "Source guest capture log missing capture_mode=guest"
 grep -F 'result=success' "$source_guest_capture" >/dev/null || die "Source guest capture log missing result=success"
 
 require_file "$ANNOTATION_PLAN"
 require_file "$CONTACT_SHEET"
 require_file "$REVIEW_PACKET"
+if [ -n "$source_sample_manifest" ]; then
+    require_file "$source_sample_manifest"
+fi
+if [ -n "$source_event_contact_sheet" ]; then
+    require_file "$source_event_contact_sheet"
+fi
+if [ -s "${LOGS_DIR}/root-demo.source-sample-manifest.tsv" ]; then
+    require_file "${LOGS_DIR}/root-demo.source-sample-manifest.tsv"
+fi
+if [ -s "${SCREENSHOTS_DIR}/demo-columnar-zones.source-event-contact-sheet.jpg" ]; then
+    require_file "${SCREENSHOTS_DIR}/demo-columnar-zones.source-event-contact-sheet.jpg"
+fi
 [ -d "$SAMPLES_DIR" ] || die "Sample directory is missing: $SAMPLES_DIR"
 standard_count="$(find "$SAMPLES_DIR" -maxdepth 1 -type f -name 'standard-*.png' | wc -l | tr -d ' ')"
 caption_count="$(find "$SAMPLES_DIR" -maxdepth 1 -type f -name 'caption-[0-9][0-9].png' | wc -l | tr -d ' ')"
@@ -172,10 +224,31 @@ grep -F 'caption boundary frames' "$REVIEW_PACKET" >/dev/null || die "Reviewer p
 if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_file "$REVIEW"
     grep -F 'next slice allowed: yes' "$REVIEW" >/dev/null || die "Review does not allow next slice"
-    case "$(last_nonempty_line "$REVIEW")" in
+    case "$(review_verdict "$REVIEW" || true)" in
         PASS|PASS_WITH_NOTES) ;;
-        *) die "Review does not end in PASS or PASS_WITH_NOTES" ;;
+        *) die "Review verdict is not PASS or PASS_WITH_NOTES" ;;
     esac
+
+    reviewer_attempts="${REVIEWS_DIR}/reviewer-attempts.tsv"
+    if [ -s "$reviewer_attempts" ]; then
+        nonpass_attempt_statuses="$(awk -F '\t' '
+            $0 !~ /^#/ && NF >= 4 && $4 != "pass" && $4 != "pass-with-notes" {
+                if (seen[$4]++ == 0) {
+                    if (statuses != "") statuses = statuses " "
+                    statuses = statuses $4
+                }
+            }
+            END { print statuses }
+        ' "$reviewer_attempts")"
+        if [ -n "$nonpass_attempt_statuses" ]; then
+            grep -E 'reviewer-attempt|reviewer attempt|attempt ledger|ledger' "$REVIEW" >/dev/null \
+                || die "Review does not cite reviewer-attempt ledger despite non-pass attempt rows"
+            for attempt_status in $nonpass_attempt_statuses; do
+                grep -F "$attempt_status" "$REVIEW" >/dev/null \
+                    || die "Review does not mention reviewer attempt status: $attempt_status"
+            done
+        fi
+    fi
 fi
 
 printf 'root_demo=%s\n' "$root_demo"
