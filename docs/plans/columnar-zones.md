@@ -7875,9 +7875,9 @@ agents:
 - [x] Add thin CLI aliases `use-zone-profile` and `cycle-zone-profile` with
   parser, dispatch, help/description metadata, and focused command tests before
   captions claim profile commands.
-- [ ] Add Slice 42-specific harness, verifier, reviewer-packet, prompt, and
+- [x] Add Slice 42-specific harness, verifier, reviewer-packet, prompt, and
   pre-Tart review-gate registration before recording.
-- [ ] Add a Slice 42 guest-script self-test that exercises the command sequence
+- [x] Add a Slice 42 guest-script self-test that exercises the command sequence
   and rejects missing parked-workspace restoration evidence without Tart.
 - [ ] Run three clean no-context pre-Tart reviewer reports against the Slice 42
   candidate after pre-Tart freshness is written and before Tart starts.
