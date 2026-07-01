@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--self-test]
+
+Checks that local CLI validation for zone init and config --check uses the app
+parser before mutating a normal user config.
+
+Environment:
+  WINMUX_CLI_BIN  Path to winmux CLI. Defaults to .build/debug/winmux.
+EOF
+}
+
+die() {
+    printf '[winmux-zone-init-local-validation] error: %s\n' "$*" >&2
+    exit 1
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+require_file_absent_glob() {
+    local pattern="$1"
+    if compgen -G "$pattern" >/dev/null; then
+        die "unexpected file matching pattern: $pattern"
+    fi
+}
+
+write_semantically_invalid_config() {
+    local path="$1"
+    cat >"$path" <<'TOML'
+config-version = 2
+default-root-container-layout = 'not-a-layout'
+
+[mode.main.binding]
+TOML
+}
+
+run_check() {
+    local cli="${WINMUX_CLI_BIN:-.build/debug/winmux}"
+    [ -x "$cli" ] || die "missing executable CLI: $cli; run swift build --target Cli first or set WINMUX_CLI_BIN"
+
+    local tmp_dir config_path before_hash after_hash
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/winmux-zone-init-validation.XXXXXX")"
+    ZONE_INIT_VALIDATION_TMP_DIR="$tmp_dir"
+    trap 'rm -rf "$ZONE_INIT_VALIDATION_TMP_DIR"' EXIT
+    mkdir -p "$tmp_dir/config/winmux" "$tmp_dir/logs"
+    config_path="$tmp_dir/config/winmux/winmux.toml"
+    write_semantically_invalid_config "$config_path"
+
+    before_hash="$(sha256_file "$config_path")"
+    if XDG_CONFIG_HOME="$tmp_dir/config" "$cli" zone init --preset balanced --write >"$tmp_dir/logs/zone-init-invalid.log" 2>&1; then
+        cat "$tmp_dir/logs/zone-init-invalid.log" >&2
+        die "zone init --write accepted an app-parser-invalid config"
+    fi
+    after_hash="$(sha256_file "$config_path")"
+    [ "$before_hash" = "$after_hash" ] \
+        || die "zone init --write mutated an invalid config before rejecting it"
+    require_file_absent_glob "$config_path.backup-*"
+    if grep -F 'BEGIN WINMUX ZONE INIT MANAGED BLOCK' "$config_path" >/dev/null; then
+        die "zone init inserted a managed block into an invalid config"
+    fi
+    grep -F "Can't parse layout 'not-a-layout'" "$tmp_dir/logs/zone-init-invalid.log" >/dev/null \
+        || die "zone init rejection did not cite the app parser layout error"
+
+    if XDG_CONFIG_HOME="$tmp_dir/config" "$cli" config --check "$config_path" >"$tmp_dir/logs/config-check-invalid.log" 2>&1; then
+        cat "$tmp_dir/logs/config-check-invalid.log" >&2
+        die "config --check accepted an app-parser-invalid config"
+    fi
+    grep -F "Can't parse layout 'not-a-layout'" "$tmp_dir/logs/config-check-invalid.log" >/dev/null \
+        || die "config --check rejection did not cite the app parser layout error"
+
+    printf '[winmux-zone-init-local-validation] PASS: script/e2e/check-zone-init-local-validation --self-test\n'
+}
+
+case "${1:-}" in
+    ""|--self-test)
+        run_check
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac

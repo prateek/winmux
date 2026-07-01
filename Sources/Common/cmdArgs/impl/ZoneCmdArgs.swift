@@ -8,6 +8,66 @@ public struct ZoneSelector: Equatable, Sendable, CustomStringConvertible {
     public var description: String { raw }
 }
 
+public enum ZoneCommandAction: String, CaseIterable, Equatable, Sendable {
+    case initialize = "init"
+}
+
+public enum ZoneInitPreset: String, CaseIterable, Equatable, Sendable {
+    case balanced
+    case focusOnly = "focus-only"
+    case commsOpen = "comms-open"
+    case dashboard
+}
+
+public struct ZoneCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .zone,
+        allowInConfig: false,
+        help: zone_help_generated,
+        flags: [
+            "--dry-run": trueBoolFlag(\.dryRun),
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+            "--preset": ArgParser(\.preset, parseZoneInitPresetSubArg),
+            "--replace-existing": trueBoolFlag(\.replaceExisting),
+            "--write": trueBoolFlag(\.write),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.action, parseZoneCommandAction, placeholder: "init")],
+        conflictingOptions: [
+            ["--dry-run", "--write"],
+        ],
+    )
+
+    public init(
+        action: ZoneCommandAction = .initialize,
+        preset: ZoneInitPreset = .balanced,
+        monitor: MonitorDescription? = nil,
+        dryRun: Bool = false,
+        write: Bool = false,
+        replaceExisting: Bool = false,
+    ) {
+        self.commonState = .init([])
+        self.action = .initialized(action)
+        self.preset = preset
+        self.monitor = monitor
+        self.dryRun = dryRun
+        self.write = write
+        self.replaceExisting = replaceExisting
+    }
+
+    public var action: Lateinit<ZoneCommandAction> = .uninitialized
+    public var preset: ZoneInitPreset = .balanced
+    public var monitor: MonitorDescription?
+    public var dryRun: Bool = false
+    public var write: Bool = false
+    public var replaceExisting: Bool = false
+}
+
+func parseZoneCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ZoneCmdArgs> {
+    parseSpecificCmdArgs(ZoneCmdArgs(rawArgs: args), args)
+}
+
 public struct BindNodeToZoneCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -701,6 +761,17 @@ extension ListZonesCmdArgs {
 func parseListZonesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListZonesCmdArgs> {
     parseSpecificCmdArgs(ListZonesCmdArgs(rawArgs: args), args)
         .validateJsonFormat()
+}
+
+private func parseZoneCommandAction(i: PosArgParserInput) -> ParsedCliArgs<ZoneCommandAction> {
+    .init(parseEnum(i.arg, ZoneCommandAction.self), advanceBy: 1)
+}
+
+private func parseZoneInitPresetSubArg(i: SubArgParserInput) -> ParsedCliArgs<ZoneInitPreset> {
+    guard let arg = i.nonFlagArgOrNil() else {
+        return .fail("'\(i.superArg)' must be followed by mandatory preset", advanceBy: 0)
+    }
+    return .init(parseEnum(arg, ZoneInitPreset.self), advanceBy: 1)
 }
 
 private func parseZoneSelector(i: PosArgParserInput) -> ParsedCliArgs<ZoneSelector> {

@@ -642,6 +642,25 @@ EOF
 - State explicitly that Slice 39 proves a staged dogfood install/status path only. It does not claim a public beta package, GUI setup assistant, every permission recovery path, or all commands/key binds/mouse gestures.
 EOF
             ;;
+        slice-40-zone-setup-assistant)
+            cat <<'EOF'
+- Confirm the recording proves the CLI-first setup assistant, not manual template uncommenting. The visible setup command must be `winmux zone init --preset balanced --write`.
+- Inspect `logs/slice-40-user-config-before.toml`; require the normal user config path and no active `[[zones]]` before setup.
+- Inspect `logs/slice-40-zone-init-dry-run.log`, `logs/slice-40-config-before-dry-run.sha256`, and `logs/slice-40-config-after-dry-run.sha256`; require the exact dry-run command, Reference/Work/Comms proposed TOML, `Run with --write`, and unchanged config hash.
+- Inspect `logs/slice-40-zone-init-write.log`, `logs/slice-40-backup-path.txt`, `logs/slice-40-config-backup.toml`, and `logs/slice-40-user-config-after.toml`; require the exact write command, a real backup path, managed block markers, active `[[zones]]`, and Reference/Work/Comms names in the generated TOML.
+- Inspect `logs/slice-40-config-check.log`; require `$ winmux config --check ~/.config/winmux/winmux.toml` and `Config OK`.
+- Inspect `logs/slice-40-setup.log`; require `Staged default config: .../winmux-e2e/bin/default-config.toml` so the raw staged `WinMuxApp` can launch from a normal home working directory.
+- Inspect `logs/winmux-e2e-slice40.plist`; reject any `--config-path` argument or `WINMUX_DEFAULT_CONFIG_PATH` environment variable.
+- Inspect `logs/winmux-startup-trace.log`; require `unix socket server start requested` and `unix socket server started` before accepting `list-zones` readiness.
+- Inspect `logs/slice-40-list-zones.log`; require the exact workspace-bearing format command and Reference/left, Work/main, and Comms/right rows.
+- Inspect `logs/guest-transport-summary.tsv`; require `slice-40-run` to report `mutation_started=yes` and a non-empty `first_mutation_line` before the write mutation.
+- Confirm the pre-Tart log or reviewer reports cite `script/e2e/check-zone-init-local-validation --self-test`, which proves the local CLI rejects an app-parser-invalid config without mutation.
+- Inspect `logs/slice-40-command-timing.log`; cite dry-run, write, config-check, launch, list-zones, and result offsets. Reject if any timed command happens outside its matching caption window.
+- Inspect `logs/slice-40-zone-setup-assistant.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-zone-init-ready-slice-40.png`, `02-zone-init-dry-run-slice-40.png`, `03-zone-init-write-slice-40.png`, `04-zone-init-launched-slice-40.png`, `05-zone-setup-ready-slice-40.png`, and the contact sheet. The video must make the setup assistant readable before logs are read.
+- Compare against the current Slice 36 root demo package, repo root demos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact matches the clean desktop, live app surface, and restrained command-chip style.
+- State explicitly that Slice 40 proves a CLI setup assistant for the balanced preset. It does not prove a GUI setup wizard, zones enabled by default, every monitor size, every preset, all commands/key bindings, or mouse gestures.
+EOF
+            ;;
         slice-8-window-routing)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.

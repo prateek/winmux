@@ -70,6 +70,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case volume
     case workspace
     case workspaceBackAndForth = "workspace-back-and-forth"
+    case zone
 }
 
 func initSubcommands() -> [String: any SubCommandParserProtocol] {
@@ -218,6 +219,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseWorkspaceCmdArgs)
             case .workspaceBackAndForth:
                 result[kind.rawValue] = SubCommandParser(WorkspaceBackAndForthCmdArgs.init)
+            case .zone:
+                result[kind.rawValue] = SubCommandParser(parseZoneCmdArgs)
         }
     }
     return result

@@ -60,9 +60,16 @@ struct Main {
                 exit(1, err: e)
         }
 
+        if let localResult = runPreServerLocalCommandIfAvailable(parsedArgs) {
+            printLocalCliResultAndExit(localResult)
+        }
+
         let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
 
         if let e = await connection.startBlocking().error {
+            if let localResult = runServerUnavailableLocalFallbackIfAvailable(parsedArgs) {
+                printLocalCliResultAndExit(localResult)
+            }
             exit(1, err: "Can't connect to WinMux server. Is WinMux.app running?\n\(e.localizedDescription)")
         }
 

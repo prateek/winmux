@@ -64,6 +64,7 @@ let package = Package(
         .executableTarget(
             name: "Cli",
             dependencies: [
+                .target(name: "AppBundle"),
                 .target(name: "Common"),
             ],
         ),

@@ -243,3 +243,7 @@ let workspace_help_generated = """
     USAGE: workspace [-h|--help] [--auto-back-and-forth] [--fail-if-noop] <workspace-name>
        OR: workspace [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
     """
+let zone_help_generated = """
+    USAGE: zone [-h|--help] init [--dry-run|--write] [--replace-existing] [--preset <preset>]
+                [--monitor <monitor-pattern>]
+    """

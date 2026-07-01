@@ -260,6 +260,25 @@ Slice-specific checks:
   that infer permissions from captions only, dense unreadable status boards, or
   claims about a public beta, GUI setup assistant, every permission recovery
   path, or full command/key/mouse coverage.
+- Slice 40 must prove the CLI-first setup assistant from a normal user config
+  with no active `[[zones]]`. The proof must show
+  `winmux zone init --dry-run --preset balanced`, unchanged config hashes after
+  dry-run, `winmux zone init --preset balanced --write`, a real backup path, the
+  managed TOML block with Reference/Work/Comms, `winmux config --check
+  ~/.config/winmux/winmux.toml`, normal `WinMuxApp` launch with no
+  `--config-path` and no `WINMUX_DEFAULT_CONFIG_PATH`, a staged
+  `default-config.toml` beside the raw staged `WinMuxApp`,
+  `logs/winmux-startup-trace.log` proving `unix socket server started`, and
+  `winmux list-zones` with workspace-bearing Reference/left, Work/main, and
+  Comms/right rows. Reject manual template-uncommenting proof, README guidance
+  that still treats uncommenting as the first path, missing pre-Tart proof from
+  `script/e2e/check-zone-init-local-validation --self-test`, missing
+  `mutation_started=yes` and `first_mutation_line` for `slice-40-run` in
+  `logs/guest-transport-summary.tsv`, missing startup trace, final-state-only
+  proof, missing backup evidence, dry-run proof without hash comparison, hidden
+  command text, or claims about a GUI setup wizard, zones enabled by default,
+  every preset, every monitor size, all commands/key bindings, or mouse
+  gestures.
 - Slice 18 must show `[[zone-affinities]]` plus a target zone and matcher, not
   generic `[[on-window-detected]]`. The proof must show focused Work/main with
   no `affinity-comms.rtf`, then the user action

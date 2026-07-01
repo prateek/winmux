@@ -3194,6 +3194,40 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 39 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-40-zone-setup-assistant" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-40-setup.log" \
+            "${LOGS_DIR}/winmux-startup-trace.log" \
+            "${LOGS_DIR}/winmux-e2e-slice40.plist" \
+            "${LOGS_DIR}/slice-40-user-config-before.toml" \
+            "${LOGS_DIR}/slice-40-zone-init-dry-run.log" \
+            "${LOGS_DIR}/slice-40-config-before-dry-run.sha256" \
+            "${LOGS_DIR}/slice-40-config-after-dry-run.sha256" \
+            "${LOGS_DIR}/slice-40-zone-init-write.log" \
+            "${LOGS_DIR}/slice-40-backup-path.txt" \
+            "${LOGS_DIR}/slice-40-config-backup.toml" \
+            "${LOGS_DIR}/slice-40-user-config-after.toml" \
+            "${LOGS_DIR}/slice-40-config-check.log" \
+            "${LOGS_DIR}/slice-40-list-zones.log" \
+            "${LOGS_DIR}/slice-40-cli.log" \
+            "${LOGS_DIR}/slice-40-command-timing.log" \
+            "${LOGS_DIR}/slice-40-visible-dry-run.txt" \
+            "${LOGS_DIR}/slice-40-visible-write.txt" \
+            "${LOGS_DIR}/slice-40-visible-result.txt" \
+            "${LOGS_DIR}/slice-40-zone-setup-assistant.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-40.png" \
+            "${SCREENSHOTS_DIR}/01-zone-init-ready-slice-40.png" \
+            "${SCREENSHOTS_DIR}/02-zone-init-dry-run-slice-40.png" \
+            "${SCREENSHOTS_DIR}/03-zone-init-write-slice-40.png" \
+            "${SCREENSHOTS_DIR}/04-zone-init-launched-slice-40.png" \
+            "${SCREENSHOTS_DIR}/05-zone-setup-ready-slice-40.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-40.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 40 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -4053,6 +4087,39 @@ require_slice_39_launch_plist_shape() {
     esac
 }
 
+require_slice_40_launch_plist_shape() {
+    local launch_plist="$1"
+    local launch_arg_count
+    local launch_arg0
+    local launch_working_directory
+
+    if grep -F -- '--config-path' "$launch_plist" >/dev/null; then
+        die "Slice 40 LaunchAgent must not pass --config-path"
+    fi
+    if grep -F 'WINMUX_DEFAULT_CONFIG_PATH' "$launch_plist" >/dev/null; then
+        die "Slice 40 LaunchAgent must not set WINMUX_DEFAULT_CONFIG_PATH"
+    fi
+
+    launch_arg_count="$(
+        { /usr/libexec/PlistBuddy -c 'Print :ProgramArguments' "$launch_plist" 2>/dev/null || true; } \
+            | /usr/bin/awk '/^    / { count++ } END { print count + 0 }'
+    )"
+    [ "$launch_arg_count" = "1" ] \
+        || die "Slice 40 LaunchAgent ProgramArguments must contain exactly one item, got ${launch_arg_count:-missing}"
+
+    launch_arg0="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$launch_plist" 2>/dev/null || true)"
+    case "$launch_arg0" in
+        */winmux-e2e/bin/WinMuxApp) ;;
+        *) die "Slice 40 LaunchAgent ProgramArguments must launch staged WinMuxApp, got ${launch_arg0:-missing}" ;;
+    esac
+
+    launch_working_directory="$(/usr/libexec/PlistBuddy -c 'Print :WorkingDirectory' "$launch_plist" 2>/dev/null || true)"
+    case "$launch_working_directory" in
+        /Users/*) ;;
+        *) die "Slice 40 LaunchAgent WorkingDirectory must be a normal user home, got ${launch_working_directory:-missing}" ;;
+    esac
+}
+
 require_slice_39_review_nonclaims() {
     local review_path="$1"
     review_has_slice_38_nonclaim "$review_path" '(public beta|beta package|release package|release-ready|ready for release|notarized|signed distribution|distribution)' \
@@ -4063,6 +4130,18 @@ require_slice_39_review_nonclaims() {
         || die "Slice 39 review must explicitly state that the artifact does not prove every permission recovery path"
     review_has_slice_38_nonclaim "$review_path" '(every command|all commands|full command|complete command|every key|all key|full key|mouse gesture|all gesture)' \
         || die "Slice 39 review must explicitly state that the artifact does not prove all commands, key binds, or mouse gestures"
+}
+
+require_slice_40_review_nonclaims() {
+    local review_path="$1"
+    review_has_slice_38_nonclaim "$review_path" '(gui setup|setup wizard|gui onboarding|config editor)' \
+        || die "Slice 40 review must explicitly state that the artifact does not prove a GUI setup wizard/editor"
+    review_has_slice_38_nonclaim "$review_path" '(enabled by default|default-enable|default enabled|zones by default)' \
+        || die "Slice 40 review must explicitly state that zones are not enabled by default"
+    review_has_slice_38_nonclaim "$review_path" '(every monitor|all monitor|every size|all size|every preset|all preset)' \
+        || die "Slice 40 review must explicitly state that it does not prove every monitor size or preset"
+    review_has_slice_38_nonclaim "$review_path" '(every command|all commands|full command|complete command|every key|all key|mouse gesture|all gesture)' \
+        || die "Slice 40 review must explicitly state that it does not prove all commands, key binds, or mouse gestures"
 }
 
 require_review_mentions_slice_38_evidence() {
@@ -4319,6 +4398,125 @@ EOF
     done
 }
 
+require_review_mentions_slice_40_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-40-zone-setup-assistant) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-40-setup.log	setup log
+${LOGS_DIR}/winmux-startup-trace.log	startup trace
+${LOGS_DIR}/winmux-e2e-slice40.plist	LaunchAgent plist
+${LOGS_DIR}/slice-40-user-config-before.toml	normal config before setup
+${LOGS_DIR}/slice-40-zone-init-dry-run.log	zone init dry-run log
+${LOGS_DIR}/slice-40-config-before-dry-run.sha256	config hash before dry-run
+${LOGS_DIR}/slice-40-config-after-dry-run.sha256	config hash after dry-run
+${LOGS_DIR}/slice-40-zone-init-write.log	zone init write log
+${LOGS_DIR}/slice-40-backup-path.txt	backup path log
+${LOGS_DIR}/slice-40-config-backup.toml	backup config copy
+${LOGS_DIR}/slice-40-user-config-after.toml	generated normal config
+${LOGS_DIR}/slice-40-config-check.log	config check log
+${LOGS_DIR}/slice-40-list-zones.log	list-zones runtime log
+${LOGS_DIR}/slice-40-command-timing.log	command timing log
+${LOGS_DIR}/slice-40-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-40-visible-dry-run.txt	visible dry-run text
+${LOGS_DIR}/slice-40-visible-write.txt	visible write text
+${LOGS_DIR}/slice-40-visible-result.txt	visible result text
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-40.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-zone-init-ready-slice-40.png	setup-ready screenshot
+${SCREENSHOTS_DIR}/02-zone-init-dry-run-slice-40.png	dry-run screenshot
+${SCREENSHOTS_DIR}/03-zone-init-write-slice-40.png	write screenshot
+${SCREENSHOTS_DIR}/04-zone-init-launched-slice-40.png	normal launch screenshot
+${SCREENSHOTS_DIR}/05-zone-setup-ready-slice-40.png	final setup-ready screenshot
+${SCREENSHOTS_DIR}/99-after-slice-40.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 40 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 40 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-40-zone-setup-assistant.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 40 review must cite the Slice 40 event manifest"
+    for event_id in \
+        setup-clean-config \
+        dry-run \
+        write-setup \
+        config-check \
+        launch-normal \
+        list-zones \
+        result-ready; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 40 review must cite setup event: $event_id"
+    done
+    for timing_key in \
+        dry-run-offset-seconds \
+        write-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds \
+        result-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 40 review must cite timing value key: $timing_key"
+    done
+    local normal_config_tilde
+    normal_config_tilde=$'\x7e/.config/winmux/winmux.toml'
+    for exact in \
+        "$normal_config_tilde" \
+        '$ winmux zone init --dry-run --preset balanced' \
+        '$ winmux zone init --preset balanced --write' \
+        '$ winmux config --check ~/.config/winmux/winmux.toml' \
+        "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'" \
+        'Backup:' \
+        'Staged default config:' \
+        'unix socket server started' \
+        'BEGIN WINMUX ZONE INIT MANAGED BLOCK' \
+        'WINMUX_DEFAULT_CONFIG_PATH' \
+        '--config-path'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 40 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'hash.*unchanged|unchanged.*hash|before.*after.*hash|after.*before.*hash' "$review_path" \
+        || die "Slice 40 review must state that dry-run leaves the config hash unchanged"
+    grep -Eiq 'without .*--config-path|no .*--config-path|does not .*--config-path' "$review_path" \
+        || die "Slice 40 review must state that WinMuxApp launches without --config-path"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 40 review must identify resulting zone: $zone_name"
+    done
+    require_slice_40_review_nonclaims "$review_path"
+    for baseline in \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md'; do
+        grep -F "$baseline" "$review_path" >/dev/null \
+            || die "Slice 40 review must cite current Slice 36 root-demo baseline: $baseline"
+    done
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -4367,7 +4565,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -5152,6 +5350,33 @@ require_slice_39_sample_manifest() {
         config-check \
         list-zones \
         focus-comms; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
+    done
+}
+
+require_slice_40_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        setup-clean-config \
+        dry-run \
+        write-setup \
+        config-check \
+        launch-normal \
+        list-zones \
+        result-ready; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    require_sample_manifest_label_path "$manifest_path" setup-clean-config "screenshots/01-zone-init-ready-slice-40.png"
+    require_sample_manifest_label_path "$manifest_path" result-ready "screenshots/05-zone-setup-ready-slice-40.png"
+    for label in \
+        dry-run \
+        write-setup \
+        config-check \
+        launch-normal \
+        list-zones; do
         require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
     done
 }
@@ -7638,6 +7863,214 @@ require_slice_39_dogfood_install_permissions_proof() {
         "Result: dogfood install path is ready"; do
         grep -F "$chip" "$annotation_plan" >/dev/null \
             || die "Slice 39 annotations missing chip: $chip"
+    done
+}
+
+require_slice_40_zone_setup_assistant_proof() {
+    local proof="${RUN_DIR}/slice-40-zone-setup-assistant-proof.txt"
+    local done="${LOGS_DIR}/slice-40-zone-setup-assistant.done"
+    local setup_log="${LOGS_DIR}/slice-40-setup.log"
+    local config_before="${LOGS_DIR}/slice-40-user-config-before.toml"
+    local config_after="${LOGS_DIR}/slice-40-user-config-after.toml"
+    local dry_run_log="${LOGS_DIR}/slice-40-zone-init-dry-run.log"
+    local write_log="${LOGS_DIR}/slice-40-zone-init-write.log"
+    local before_hash="${LOGS_DIR}/slice-40-config-before-dry-run.sha256"
+    local after_hash="${LOGS_DIR}/slice-40-config-after-dry-run.sha256"
+    local backup_path_log="${LOGS_DIR}/slice-40-backup-path.txt"
+    local backup_copy="${LOGS_DIR}/slice-40-config-backup.toml"
+    local launch_plist="${LOGS_DIR}/winmux-e2e-slice40.plist"
+    local startup_trace="${LOGS_DIR}/winmux-startup-trace.log"
+    local config_check_log="${LOGS_DIR}/slice-40-config-check.log"
+    local list_zones_log="${LOGS_DIR}/slice-40-list-zones.log"
+    local cli_log="${LOGS_DIR}/slice-40-cli.log"
+    local timing_log="${LOGS_DIR}/slice-40-command-timing.log"
+    local visible_ready="${LOGS_DIR}/slice-40-visible-ready.txt"
+    local visible_dry_run="${LOGS_DIR}/slice-40-visible-dry-run.txt"
+    local visible_write="${LOGS_DIR}/slice-40-visible-write.txt"
+    local visible_result="${LOGS_DIR}/slice-40-visible-result.txt"
+    local event_manifest="${LOGS_DIR}/slice-40-zone-setup-assistant.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 40"
+    require_file "$setup_log"
+    require_file "$config_before"
+    require_file "$config_after"
+    require_file "$dry_run_log"
+    require_file "$write_log"
+    require_file "$before_hash"
+    require_file "$after_hash"
+    require_file "$backup_path_log"
+    require_file "$backup_copy"
+    require_file "$launch_plist"
+    require_file "$startup_trace"
+    require_file "$config_check_log"
+    require_file "$list_zones_log"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$visible_ready"
+    require_file "$visible_dry_run"
+    require_file "$visible_write"
+    require_file "$visible_result"
+    require_file "$event_manifest"
+    require_slice_40_sample_manifest "$sample_manifest"
+    require_slice_40_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    local mutation_started first_mutation_line
+    mutation_started="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-40-run mutation_started || true)"
+    first_mutation_line="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-40-run first_mutation_line || true)"
+    [ "$mutation_started" = "yes" ] \
+        || die "Slice 40 transport summary must report mutation_started=yes for slice-40-run"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 40 transport summary must report first_mutation_line for slice-40-run"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/01-zone-init-ready-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/02-zone-init-dry-run-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/03-zone-init-write-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/04-zone-init-launched-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/05-zone-setup-ready-slice-40.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-40.png"
+
+    grep -F 'PASS: zone init writes normal user config before WinMux launches' "$proof" >/dev/null \
+        || die "Slice 40 proof does not contain the expected zone-init PASS claim"
+    grep -F 'User config: ' "$setup_log" >/dev/null \
+        || die "Slice 40 setup log missing normal user config path"
+    grep -F 'Initial config: no active [[zones]]' "$setup_log" >/dev/null \
+        || die "Slice 40 setup log missing no-active-zones claim"
+    grep -F 'Staged default config: ' "$setup_log" >/dev/null \
+        || die "Slice 40 setup log missing staged default config path"
+    case "$(/usr/bin/awk -F': ' '/^Staged default config: / { print $2; exit }' "$setup_log")" in
+        */winmux-e2e/bin/default-config.toml) ;;
+        *) die "Slice 40 staged default config must live beside the raw staged WinMuxApp executable" ;;
+    esac
+    if grep -E '^[[:space:]]*\[\[zones\]\]' "$config_before" >/dev/null; then
+        die "Slice 40 config-before must not contain active [[zones]]"
+    fi
+    cmp -s "$before_hash" "$after_hash" \
+        || die "Slice 40 dry-run changed the config hash"
+
+    grep -F '$ winmux zone init --dry-run --preset balanced' "$dry_run_log" >/dev/null \
+        || die "Slice 40 dry-run log missing exact command"
+    for exact in \
+        'Dry run: would append balanced zones' \
+        'Mode: dry-run' \
+        'Preset: balanced' \
+        'Reference' \
+        'Work' \
+        'Comms' \
+        'Run with --write to update the config.'; do
+        grep -F "$exact" "$dry_run_log" >/dev/null \
+            || die "Slice 40 dry-run log missing: $exact"
+    done
+
+    grep -F '$ winmux zone init --preset balanced --write' "$write_log" >/dev/null \
+        || die "Slice 40 write log missing exact command"
+    for exact in \
+        'Wrote balanced zones' \
+        'Mode: write' \
+        'Preset: balanced' \
+        'Backup:' \
+        'BEGIN WINMUX ZONE INIT MANAGED BLOCK' \
+        'END WINMUX ZONE INIT MANAGED BLOCK' \
+        'Reference' \
+        'Work' \
+        'Comms'; do
+        grep -F "$exact" "$write_log" >/dev/null \
+            || die "Slice 40 write log missing: $exact"
+    done
+    [ -n "$(/usr/bin/awk 'NF { print; exit }' "$backup_path_log")" ] \
+        || die "Slice 40 backup path log is empty"
+    cmp -s "$config_before" "$backup_copy" \
+        || die "Slice 40 backup copy must match the pre-setup config"
+    grep -E '^[[:space:]]*\[\[zones\]\]' "$config_after" >/dev/null \
+        || die "Slice 40 generated config missing active [[zones]]"
+    for exact in \
+        'BEGIN WINMUX ZONE INIT MANAGED BLOCK' \
+        'END WINMUX ZONE INIT MANAGED BLOCK' \
+        'name = "Reference"' \
+        'name = "Work"' \
+        'name = "Comms"'; do
+        grep -F "$exact" "$config_after" >/dev/null \
+            || die "Slice 40 generated config missing: $exact"
+    done
+
+    grep -F '$ winmux config --check ~/.config/winmux/winmux.toml' "$config_check_log" >/dev/null \
+        || die "Slice 40 config check log missing exact normal-path command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 40 config check log missing Config OK"
+    require_slice_40_launch_plist_shape "$launch_plist"
+    grep -F 'unix socket server start requested' "$startup_trace" >/dev/null \
+        || die "Slice 40 startup trace missing socket start request"
+    grep -F 'unix socket server started' "$startup_trace" >/dev/null \
+        || die "Slice 40 startup trace missing socket server started proof"
+    grep -F "$ winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'" "$list_zones_log" >/dev/null \
+        || die "Slice 40 list-zones log missing exact workspace-bearing command"
+    grep -F 'zone=left|name=Reference|workspace=' "$list_zones_log" >/dev/null \
+        || die "Slice 40 list-zones missing Reference/left"
+    grep -F 'zone=main|name=Work|workspace=' "$list_zones_log" >/dev/null \
+        || die "Slice 40 list-zones missing Work/main"
+    grep -F 'zone=right|name=Comms|workspace=' "$list_zones_log" >/dev/null \
+        || die "Slice 40 list-zones missing Comms/right"
+    grep -F '$ winmux zone init --preset balanced --write' "$cli_log" >/dev/null \
+        || die "Slice 40 aggregate CLI log missing write command"
+    grep -F 'Slice 40 dry-run: preview only' "$visible_dry_run" >/dev/null \
+        || die "Slice 40 visible dry-run text missing title"
+    grep -F 'Slice 40 write: backup plus managed TOML' "$visible_write" >/dev/null \
+        || die "Slice 40 visible write text missing title"
+    grep -F 'Slice 40 result: winmux zone init created Reference | Work | Comms' "$visible_result" >/dev/null \
+        || die "Slice 40 visible result missing final result title"
+
+    local timing_key
+    for timing_key in \
+        dry-run-offset-seconds \
+        write-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds \
+        result-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 40 timing log missing $timing_key"
+    done
+
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux zone init --dry-run --preset balanced" \
+        "$(value_from_log dry-run-offset-seconds "$timing_log")" \
+        "Slice 40 dry-run must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux zone init --preset balanced --write" \
+        "$(value_from_log write-offset-seconds "$timing_log")" \
+        "Slice 40 write must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "$(value_from_log config-check-offset-seconds "$timing_log")" \
+        "Slice 40 config check must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp" \
+        "$(value_from_log launch-offset-seconds "$timing_log")" \
+        "Slice 40 launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format zone|name|workspace" \
+        "$(value_from_log list-zones-offset-seconds "$timing_log")" \
+        "Slice 40 list-zones must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: winmux zone init created Reference | Work | Comms" \
+        "$(value_from_log result-offset-seconds "$timing_log")" \
+        "Slice 40 final result must happen while its result caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-40-zone-setup-assistant.expected-chips.txt" \
+        "${LOGS_DIR}/slice-40-zone-setup-assistant.annotations.tsv"
+    for chip in \
+        "Config: ~/.config/winmux/winmux.toml has no active [[zones]]" \
+        "Run: winmux zone init --dry-run --preset balanced" \
+        "Run: winmux zone init --preset balanced --write" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "Run: WinMuxApp" \
+        "Run: winmux list-zones --format zone|name|workspace" \
+        "Result: winmux zone init created Reference | Work | Comms"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 40 annotations missing chip: $chip"
     done
 }
 
@@ -11076,6 +11509,53 @@ require_slice_39_event_manifest() {
     done
 }
 
+require_slice_40_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" setup-clean-config context
+    require_event_manifest_event "$manifest_path" dry-run command
+    require_event_manifest_event "$manifest_path" write-setup command
+    require_event_manifest_event "$manifest_path" config-check command
+    require_event_manifest_event "$manifest_path" launch-normal command
+    require_event_manifest_event "$manifest_path" list-zones command
+    require_event_manifest_event "$manifest_path" result-ready state
+
+    require_event_sample_label "$manifest_path" setup-clean-config setup-clean-config
+    require_event_sample_label "$manifest_path" dry-run dry-run
+    require_event_sample_label "$manifest_path" write-setup write-setup
+    require_event_sample_label "$manifest_path" config-check config-check
+    require_event_sample_label "$manifest_path" launch-normal launch-normal
+    require_event_sample_label "$manifest_path" list-zones list-zones
+    require_event_sample_label "$manifest_path" result-ready result-ready
+
+    require_event_before "$manifest_path" setup-clean-config dry-run \
+        "Slice 40 event manifest must show clean config before dry-run"
+    require_event_before "$manifest_path" dry-run write-setup \
+        "Slice 40 event manifest must show dry-run before write"
+    require_event_before "$manifest_path" write-setup config-check \
+        "Slice 40 event manifest must show write before config check"
+    require_event_before "$manifest_path" config-check launch-normal \
+        "Slice 40 event manifest must show config check before normal launch"
+    require_event_before "$manifest_path" launch-normal list-zones \
+        "Slice 40 event manifest must show normal launch before list-zones"
+    require_event_before "$manifest_path" list-zones result-ready \
+        "Slice 40 event manifest must show list-zones before final result"
+
+    local event_id path
+    for event_id in \
+        setup-clean-config \
+        dry-run \
+        write-setup \
+        config-check \
+        launch-normal \
+        list-zones \
+        result-ready; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 40 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -12960,6 +13440,9 @@ case "$recording_name" in
     slice-39-dogfood-install-permissions)
         require_slice_39_dogfood_install_permissions_proof
         ;;
+    slice-40-zone-setup-assistant)
+        require_slice_40_zone_setup_assistant_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -13065,6 +13548,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_37_evidence "$review_path"
     require_review_mentions_slice_38_evidence "$review_path"
     require_review_mentions_slice_39_evidence "$review_path"
+    require_review_mentions_slice_40_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

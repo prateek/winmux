@@ -83,6 +83,7 @@ extension Command {
                  is UseZoneLayoutCommand,
                  is UseZoneSceneCommand,
                  is VolumeCommand,
+                 is ZoneCommand,
                  is WorkspaceBackAndForthCommand,
                  is WorkspaceCommand:
                 true

@@ -97,6 +97,23 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: resolved.path))
     }
 
+    func testDefaultConfigUrlResolvesNextToStagedExecutable() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appending(path: "WinMuxTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let binDir = tempDir.appending(path: "bin", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let executable = binDir.appending(path: "WinMuxApp")
+        let config = binDir.appending(path: "default-config.toml")
+        try Data().write(to: executable)
+        try starterConfigText().write(to: config, atomically: true, encoding: .utf8)
+
+        let resolved = getDefaultConfigUrlNextToExecutable(executablePath: executable.path)
+
+        XCTAssertEqual(resolved?.path, config.path)
+    }
+
     func testStarterUltrawideTemplateUncommentsIntoConfiguredZones() {
         let starter = starterConfigText()
         XCTAssertTrue(starter.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE"))

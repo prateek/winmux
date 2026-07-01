@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-39 accepted; Slices 40-51 planned
+Status: slices 0-40 accepted; Slices 41-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -7524,7 +7524,51 @@ Non-claims:
 
 ### Slice 40: Zone Setup Assistant
 
-Status: planned.
+Status: accepted.
+
+Accepted artifact: `artifacts/e2e/slice-40-pre-tart-20260701T130717Z`.
+
+Primary media:
+
+- `recordings/slice-40-zone-setup-assistant.mov`
+- `recordings/raw/slice-40-zone-setup-assistant.raw.mov`
+
+Accepted review and gates:
+
+- `reviews/no-ctx-artifact-review.md`: `PASS_WITH_NOTES` with
+  `next slice allowed: yes`;
+- `logs/review-lint.log`: review lint passed after the replacement review cited
+  the aggregate CLI log;
+- `logs/post-review-verify.log`: post-review artifact verification passed with
+  `--require-review`;
+- `logs/closeout-check.log`: closeout passed with sibling-artifact checking and
+  all three retrospectives present.
+
+Accepted evidence:
+
+- the artifact starts from a clean desktop and a normal user config with no
+  active `[[zones]]`;
+- `winmux zone init --dry-run --preset balanced` previews Reference, Work, and
+  Comms without changing the config hash;
+- `winmux zone init --preset balanced --write` writes a managed block and
+  preserves a backup;
+- `winmux config --check ~/.config/winmux/winmux.toml` passes;
+- the installed app launches normally from `/Applications/WinMux.app`, without
+  `--config-path` or `WINMUX_DEFAULT_CONFIG_PATH`;
+- startup trace includes the socket start path, and `list-zones` reports
+  Reference, Work, and Comms with workspaces.
+
+Superseded artifact: `artifacts/e2e/slice-40-pre-tart-20260701T121930Z` is
+marked superseded by `reviews/superseded.md`. It reached the mutation marker but
+failed before completing the storyboard because the app was not serving the
+WinMux socket; the accepted `130717Z` run stages `default-config.toml`, launches
+normally, and records the startup trace.
+
+Retrospectives:
+
+- `retrospectives/process-plan.md`
+- `retrospectives/code-harness.md`
+- `retrospectives/artifact-product.md`
 
 Pre-Slice-40 cleanup from Slice 39 retrospectives:
 
@@ -7593,11 +7637,36 @@ Non-claims:
 
 - Slice 40 does not require a GUI setup wizard;
 - Slice 40 does not tune every possible monitor size;
-- Slice 40 does not replace the default template.
+- Slice 40 does not replace the default template;
+- Slice 40 does not prove every setup preset beyond the balanced starter path;
+- Slice 40 does not prove all key bindings, mouse gestures, or cross-zone
+  movement.
 
 ### Slice 41: Beta-Hardened App and Window Affinities
 
 Status: planned.
+
+Pre-Slice-41 cleanup from Slice 40 retrospectives:
+
+- [ ] Keep the accepted Slice 40 baseline isolated: commit this Slice 40
+  source, harness, and plan update before starting Slice 41 pre-Tart freshness.
+- [ ] Define the Slice 41 storyboard, verifier contract, and reviewer packet
+  before recording. It must prove live app/window routing after launch, after
+  reload, and after relaunch; it must also show match/no-match explanations and
+  hidden or disabled zone target behavior.
+- [ ] Carry the reviewer-ledger lesson forward: for command-board or routing
+  slices, the packet and citation checklist must name any aggregate CLI or
+  routing log that post-review verification requires.
+- [ ] Keep `zone init` preset coverage honest: either add all-preset validation
+  tests before advertising every preset as supported, or keep public claims
+  scoped to the balanced first-run setup path.
+- [ ] Fix generated review skeleton ready-screenshot handling when the next
+  packet-generator change touches that area; Slice 40 had
+  `screenshots/01-zone-init-ready-slice-40.png`, but the skeleton said the ready
+  screenshot was not present.
+- [ ] For dense proof-board videos, include native-scale crops or top-safe
+  result boards so reviewers can audit the visible text without relying on tiny
+  contact-sheet text.
 
 Goal: make automatic routing to zones dependable enough for dogfood and early
 beta users.

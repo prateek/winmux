@@ -40,12 +40,21 @@ Monitors can not be attached to the same workspace at the same time. They can be
 ### Columnar Zones
 On ultrawide displays, WinMux can split one physical monitor into named column zones. Each zone acts like its own workspace viewport, so Reference, Work, and Comms can stay visible at the same time without turning the whole display into one huge tiling surface.
 
-See [demo-columnar-zones.mp4](demo-columnar-zones.mp4) for the workflow.
+See [demo-columnar-zones.mp4](demo-columnar-zones.mp4) for an
+already-configured zones workflow with runtime divider controls. First-run setup
+uses the CLI commands below.
 
-Fresh WinMux configs include the same ultrawide setup as a commented template.
-To try it, open `~/.config/winmux/winmux.toml`, uncomment the
-`WINMUX ULTRAWIDE ZONES TEMPLATE` block, and adjust `monitor`, widths, and
-workspace names for your display.
+For a first setup, let WinMux write the starter zones and keep a backup:
+
+```bash
+winmux zone init --dry-run --preset balanced
+winmux zone init --preset balanced --write
+winmux config --check ~/.config/winmux/winmux.toml
+winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'
+```
+
+Fresh WinMux configs still include the same ultrawide setup as a commented
+template if you prefer to hand-tune the TOML before enabling it.
 
 ```toml
 [[zones]]

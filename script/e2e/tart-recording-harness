@@ -41,7 +41,7 @@ fi
 if [ "$ACTION" = "slice-34" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
-if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ]; then
+if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ] || [ "$ACTION" = "slice-40" ]; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
 if [ "$ACTION" = "slice-8" ]; then
@@ -163,7 +163,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -542,7 +542,7 @@ warmup_policy_self_test() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40)
             printf '%s\n' "$1"
             ;;
         *)
@@ -3006,6 +3006,51 @@ write_slice_39_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_40_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label dry_run_label write_label check_label launch_label list_label result_label
+    config_label="$(caption_label_for_chip "$name" "Config: ~/.config/winmux/winmux.toml has no active [[zones]]")"
+    dry_run_label="$(caption_label_for_chip "$name" "Run: winmux zone init --dry-run --preset balanced")"
+    write_label="$(caption_label_for_chip "$name" "Run: winmux zone init --preset balanced --write")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check ~/.config/winmux/winmux.toml")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp")"
+    list_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format zone|name|workspace")"
+    result_label="$(caption_label_for_chip "$name" "Result: winmux zone init created Reference | Work | Comms")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" setup-clean-config context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" setup-clean-config \
+        "screenshots/01-zone-init-ready-slice-40.png" \
+        "normal user config exists with no active zones before the setup assistant runs"
+    append_event_manifest_row "$manifest_path" dry-run command \
+        "$(caption_start_for_label "$name" "$dry_run_label")" "$dry_run_label" dry-run \
+        "screenshots/${name}.samples/${dry_run_label}-boundary-start.png" \
+        "dry-run prints the balanced Reference, Work, and Comms TOML without writing"
+    append_event_manifest_row "$manifest_path" write-setup command \
+        "$(caption_start_for_label "$name" "$write_label")" "$write_label" write-setup \
+        "screenshots/${name}.samples/${write_label}-boundary-start.png" \
+        "write prints the backup path and managed TOML block"
+    append_event_manifest_row "$manifest_path" config-check command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "config --check validates the generated normal user config"
+    append_event_manifest_row "$manifest_path" launch-normal command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-normal \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches normally with no config-path override"
+    append_event_manifest_row "$manifest_path" list-zones command \
+        "$(caption_start_for_label "$name" "$list_label")" "$list_label" list-zones \
+        "screenshots/${name}.samples/${list_label}-boundary-start.png" \
+        "list-zones shows Reference, Work, and Comms with active workspaces"
+    append_event_manifest_row "$manifest_path" result-ready state \
+        "$(caption_start_for_label "$name" "$result_label")" "$result_label" result-ready \
+        "screenshots/05-zone-setup-ready-slice-40.png" \
+        "the final board names the setup command and resulting zones"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3062,6 +3107,9 @@ write_event_manifest() {
             ;;
         slice-39-dogfood-install-permissions)
             write_slice_39_event_manifest "$name"
+            ;;
+        slice-40-zone-setup-assistant)
+            write_slice_40_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3212,6 +3260,17 @@ CAPTIONS
 72	84	Relaunch installed app	Restart the installed app and prove it comes back clean.	Action: relaunch WinMux from /Applications/WinMux.app
 84	96	Focus Comms	Run a cross-zone command after relaunch.	Run: winmux focus-zone Comms
 96	108	Ready to dogfood	The installed app path, permissions, config path, and zones are ready.	Result: dogfood install path is ready
+CAPTIONS
+            ;;
+        slice-40-zone-setup-assistant)
+            cat >"$captions_path" <<'CAPTIONS'
+0	10	Clean config	Normal user config exists, but zones are not active yet.	Config: ~/.config/winmux/winmux.toml has no active [[zones]]
+10	24	Dry-run setup	Preview the balanced ultrawide columns before writing anything.	Run: winmux zone init --dry-run --preset balanced
+24	40	Write setup	Generate the managed block and preserve the previous file as a backup.	Run: winmux zone init --preset balanced --write
+40	52	Validate config	Check the generated normal user config before launching WinMux.	Run: winmux config --check ~/.config/winmux/winmux.toml
+52	66	Launch normally	WinMux starts from the default user config path with no override.	Run: WinMuxApp
+66	82	Inspect zones	Reference, Work, and Comms are now live zone viewports.	Run: winmux list-zones --format zone|name|workspace
+82	108	Ready to use	The setup command created a usable starter layout.	Result: winmux zone init created Reference | Work | Comms
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3563,14 +3622,15 @@ annotation_preflight() {
         slice-35-starter-ultrawide-template \
         slice-37-starter-onboarding \
         slice-38-user-readiness \
-        slice-39-dogfood-install-permissions
+        slice-39-dogfood-install-permissions \
+        slice-40-zone-setup-assistant
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4359,6 +4419,29 @@ write_semantic_sample_manifest() {
                 "screenshots/05-dogfood-ready-slice-39.png" \
                 "final board stays readable and summarizes doctor, zone, and focus proof"
             ;;
+        slice-40-zone-setup-assistant)
+            append_sample_manifest_row "$manifest_path" semantic setup-clean-config screenshot screenshot \
+                "screenshots/01-zone-init-ready-slice-40.png" \
+                "ready board shows normal user config with no active zones before zone init runs"
+            append_sample_manifest_row "$manifest_path" semantic dry-run caption-02 10.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "dry-run command caption starts before the proposed balanced TOML is written"
+            append_sample_manifest_row "$manifest_path" semantic write-setup caption-03 24.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "write command caption starts before backup path and managed block proof"
+            append_sample_manifest_row "$manifest_path" semantic config-check caption-04 40.100 \
+                "screenshots/${name}.samples/caption-04-boundary-start.png" \
+                "config-check caption starts before generated config validation"
+            append_sample_manifest_row "$manifest_path" semantic launch-normal caption-05 52.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "normal launch caption starts before WinMuxApp is launched without overrides"
+            append_sample_manifest_row "$manifest_path" semantic list-zones caption-06 66.100 \
+                "screenshots/${name}.samples/caption-06-boundary-start.png" \
+                "list-zones caption starts before Reference, Work, and Comms inspection"
+            append_sample_manifest_row "$manifest_path" semantic result-ready screenshot screenshot \
+                "screenshots/05-zone-setup-ready-slice-40.png" \
+                "final board names winmux zone init and the resulting Reference, Work, and Comms zones"
+            ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
                 "screenshots/02-before-style-slice-19.png" \
@@ -4569,11 +4652,13 @@ write_transport_summary_row() {
         fi
     fi
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
         "$(log_attempt_statuses "$log_path")" \
         "$(compact_failure_reason "$log_path" first)" \
-        "$(compact_failure_reason "$log_path" last)" >>"$summary_path"
+        "$(compact_failure_reason "$log_path" last)" \
+        "$(log_mutation_started "$log_path")" \
+        "$(first_mutation_line "$log_path")" >>"$summary_path"
 }
 
 transport_summary_has_log_path() {
@@ -4591,8 +4676,8 @@ append_guest_retry_rows_to_transport_summary() {
     local retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
     [ -s "$retry_summary" ] || return 0
 
-    local phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason _mutation_started _first_mutation_line
-    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason _mutation_started _first_mutation_line; do
+    local phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason mutation_started first_mutation_line
+    while IFS=$'\t' read -r phase relative_log_path attempts failures final_result before_recording attempt_statuses first_failure_reason last_failure_reason mutation_started first_mutation_line; do
         case "${phase:-}" in
             ""|\#*) continue ;;
         esac
@@ -4604,9 +4689,12 @@ append_guest_retry_rows_to_transport_summary() {
         [ -n "${attempt_statuses:-}" ] || attempt_statuses="$(log_attempt_statuses "$retry_log_path")"
         [ -n "${first_failure_reason:-}" ] || first_failure_reason="$(compact_failure_reason "$retry_log_path" first)"
         [ -n "${last_failure_reason:-}" ] || last_failure_reason="$(compact_failure_reason "$retry_log_path" last)"
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        [ -n "${mutation_started:-}" ] || mutation_started="$(log_mutation_started "$retry_log_path")"
+        [ -n "${first_mutation_line:-}" ] || first_mutation_line="$(first_mutation_line "$retry_log_path")"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$phase" "$relative_log_path" "$attempts" "$failures" "$final_result" "$before_recording" \
-            "$attempt_statuses" "$first_failure_reason" "$last_failure_reason" >>"$summary_path"
+            "$attempt_statuses" "$first_failure_reason" "$last_failure_reason" \
+            "$mutation_started" "$first_mutation_line" >>"$summary_path"
     done <"$retry_summary"
 }
 
@@ -4614,7 +4702,7 @@ write_guest_transport_summary() {
     local name="$1"
     local summary_path="${LOGS_DIR}/guest-transport-summary.tsv"
     : >"$summary_path"
-    printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\n' >>"$summary_path"
+    printf '# phase\tlog\tattempts\tfailures\tfinal_result\tbefore_recording\tattempt_statuses\tfirst_failure_reason\tlast_failure_reason\tmutation_started\tfirst_mutation_line\n' >>"$summary_path"
     write_transport_summary_row "$summary_path" guest-control "${LOGS_DIR}/guest-control-check.log" yes
     write_transport_summary_row "$summary_path" warmup-before-privacy "${LOGS_DIR}/guest-control-warmup-before-privacy.log" yes
     write_transport_summary_row "$summary_path" privacy-setup "${LOGS_DIR}/guest-privacy-setup.log" yes
@@ -6312,6 +6400,34 @@ run_slice_39_dogfood_install_permissions() {
         "${LOGS_DIR}/slice-39-run.log"
 }
 
+run_slice_40_zone_setup_assistant_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-40-zone-setup-assistant.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE40_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-40-setup.log"
+}
+
+run_slice_40_zone_setup_assistant() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-40-zone-setup-assistant.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE40_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-40-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -7181,6 +7297,10 @@ slice_39() {
     run_recorded_scenario "slice-39-dogfood-install-permissions" "00-before-slice-39" "99-after-slice-39" "run_slice_39_dogfood_install_permissions" "run_slice_39_dogfood_install_permissions_setup" "01-dogfood-install-status-slice-39"
 }
 
+slice_40() {
+    run_recorded_scenario "slice-40-zone-setup-assistant" "00-before-slice-40" "99-after-slice-40" "run_slice_40_zone_setup_assistant" "run_slice_40_zone_setup_assistant_setup" "01-zone-init-ready-slice-40"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -7347,6 +7467,9 @@ case "$ACTION" in
         ;;
     slice-39)
         slice_39
+        ;;
+    slice-40)
+        slice_40
         ;;
     slice-8)
         slice_8

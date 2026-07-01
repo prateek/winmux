@@ -53,6 +53,15 @@ final class ZoneCommandTest: XCTestCase {
             SaveZoneLayoutCmdArgs(monitor: .sequenceNumber(1), layoutId: "balanced", dryRun: true),
         )
         testParseCommandSucc(
+            "zone init --dry-run --preset balanced",
+            ZoneCmdArgs(action: .initialize, preset: .balanced, dryRun: true),
+        )
+        testParseCommandSucc(
+            "zone init --write --replace-existing --preset comms-open --monitor 1",
+            ZoneCmdArgs(action: .initialize, preset: .commsOpen, monitor: .sequenceNumber(1), write: true, replaceExisting: true),
+        )
+        testParseCommandFail("zone init --dry-run --write", msg: "ERROR: Conflicting options: --dry-run, --write")
+        testParseCommandSucc(
             "config --check /tmp/winmux-exported-zone-layout.toml",
             ConfigCmdArgs(commonState: .init([])).copy(\.configPathToCheck, "/tmp/winmux-exported-zone-layout.toml"),
         )
@@ -825,6 +834,118 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertTrue(save.stderr.joined(separator: "\n").contains("missing active runtime zone ids: right"))
             XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
             XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
+    }
+
+    func testZoneInitDryRunDoesNotWriteConfigOrBackup() async throws {
+        configureNoZonesOnUltrawide()
+        let originalText = zoneInitBaseConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let result = try await parseCommand("zone init --dry-run --preset balanced").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            XCTAssertEqual(result.stdout.first, "Dry run: would append balanced zones to \(url.path)")
+            XCTAssertTrue(result.stdout.contains("Mode: dry-run"))
+            XCTAssertTrue(result.stdout.contains("Preset: balanced"))
+            XCTAssertTrue(result.stdout.contains("Selected monitor: monitor 1 Main 3440x1440 aspect 2.388889"))
+            let rendered = result.stdout.joined(separator: "\n")
+            XCTAssertTrue(rendered.contains("[[zones]]"))
+            XCTAssertTrue(rendered.contains(#"{ id = "left", name = "Reference", width = 0.25 },"#))
+            XCTAssertTrue(rendered.contains(#"{ id = "main", name = "Work", width = 0.5 },"#))
+            XCTAssertTrue(rendered.contains(#"{ id = "right", name = "Comms", width = 0.25 },"#))
+            XCTAssertTrue(result.stdout.contains("Run with --write to update the config."))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
+    }
+
+    func testZoneInitWritesConfigAndBackup() async throws {
+        configureNoZonesOnUltrawide()
+        let originalText = zoneInitBaseConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let result = try await parseCommand("zone init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            XCTAssertEqual(result.stdout.first, "Wrote balanced zones to \(url.path)")
+            XCTAssertTrue(result.stdout.contains("Mode: write"))
+            XCTAssertTrue(result.stdout.contains("Preset: balanced"))
+            XCTAssertTrue(result.stdout.contains { $0.hasPrefix("Backup: \(url.path).backup-") })
+            XCTAssertTrue(result.stdout.joined(separator: "\n").contains(zoneInitManagedBlockBegin))
+
+            let backups = try zoneLayoutBackupUrls(for: url)
+            XCTAssertEqual(backups.count, 1)
+            XCTAssertEqual(try String(contentsOf: backups.singleOrNil().orDie(), encoding: .utf8), originalText)
+
+            let updatedText = try String(contentsOf: url, encoding: .utf8)
+            let (parsed, errors) = parseConfig(updatedText)
+            assertEquals(errors, [])
+            let zones = parsed.zones.singleOrNil().orDie()
+            XCTAssertEqual(zones.monitor, .sequenceNumber(1))
+            XCTAssertEqual(zones.defaultZone, "main")
+            XCTAssertEqual(zones.columns.map(\.id), ["left", "main", "right"])
+            XCTAssertEqual(zones.columns.map(\.name), ["Reference", "Work", "Comms"])
+            XCTAssertEqual(zones.columns.map(\.width), [0.25, 0.50, 0.25])
+        }
+    }
+
+    func testZoneInitWriteIsIdempotent() async throws {
+        configureNoZonesOnUltrawide()
+
+        try await withTemporaryConfig(zoneInitBaseConfigText()) { url in
+            let first = try await parseCommand("zone init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(first.exitCode, 0)
+            let firstText = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url).count, 1)
+
+            let second = try await parseCommand("zone init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(second.exitCode, 0, second.stderr.joined(separator: "\n"))
+            XCTAssertEqual(second.stdout.first, "Zone init already configured in \(url.path)")
+            XCTAssertTrue(second.stdout.contains("No changes needed."))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), firstText)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url).count, 1)
+        }
+    }
+
+    func testZoneInitRejectsUnmanagedActiveZonesWithoutMutation() async throws {
+        configureNoZonesOnUltrawide()
+        let originalText = inlineZoneConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let result = try await parseCommand("zone init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 1)
+            XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Config already has active [[zones]]"))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
+            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
+    }
+
+    func testZoneInitReplaceExistingManagedBlock() async throws {
+        configureNoZonesOnUltrawide()
+
+        try await withTemporaryConfig(zoneInitBaseConfigText()) { url in
+            let first = try await parseCommand("zone init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(first.exitCode, 0)
+
+            let blocked = try await parseCommand("zone init --preset focus-only --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(blocked.exitCode, 1)
+            XCTAssertTrue(blocked.stderr.joined(separator: "\n").contains("--replace-existing"))
+
+            let replaced = try await parseCommand("zone init --preset focus-only --write --replace-existing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(replaced.exitCode, 0, replaced.stderr.joined(separator: "\n"))
+            XCTAssertEqual(replaced.stdout.first, "Wrote focus-only zones to \(url.path)")
+
+            let backups = try zoneLayoutBackupUrls(for: url)
+            XCTAssertEqual(backups.count, 2)
+            let updatedText = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertEqual(updatedText.components(separatedBy: zoneInitManagedBlockBegin).count - 1, 1)
+
+            let (parsed, errors) = parseConfig(updatedText)
+            assertEquals(errors, [])
+            XCTAssertEqual(parsed.zones.singleOrNil().orDie().columns.map(\.width), [0.15, 0.70, 0.15])
         }
     }
 
@@ -2612,6 +2733,21 @@ private func configureNoZones() {
 }
 
 @MainActor
+private func configureNoZonesOnUltrawide() {
+    let main = TestMonitor(
+        monitorAppKitNsScreenScreensId: 1,
+        name: "Main",
+        rect: Rect(topLeftX: 0, topLeftY: 0, width: 3440, height: 1440),
+        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 3440, height: 1440),
+        isMain: true,
+    )
+    setMonitorsForTests([main])
+    config.gaps = .zero
+    config.workspaceSidebar.enabled = false
+    config.zones = []
+}
+
+@MainActor
 private func withTemporaryConfig(_ text: String, _ body: (URL) async throws -> Void) async throws {
     let previousConfigUrl = configUrl
     let directory = FileManager.default.temporaryDirectory
@@ -2636,6 +2772,16 @@ private func zoneLayoutBackupUrls(for url: URL) throws -> [URL] {
     )
     .filter { $0.lastPathComponent.hasPrefix(prefix) }
     .sorted { $0.lastPathComponent < $1.lastPathComponent }
+}
+
+private func zoneInitBaseConfigText() -> String {
+    """
+    # user config stays intact
+    enable-normalization-flatten-containers = false
+
+    [mode.main.binding]
+    alt-slash = 'layout tiles horizontal vertical'
+    """
 }
 
 private func zoneLayoutPresetConfigText(missingRightColumnInBalanced: Bool = false) -> String {

@@ -105,6 +105,32 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-39-dogfood-install-permissions.sh"
             )
             ;;
+        slice-40)
+            required_mentions=(
+                "Slice 40"
+                "docs/plans/columnar-zones.md"
+                "README.md"
+                "Package.swift"
+                "Sources/Common/cmdArgs/impl/ZoneCmdArgs.swift"
+                "Sources/Common/zoneInit/ZoneInitConfig.swift"
+                "Sources/Cli/_main.swift"
+                "Sources/Cli/LocalConfigCommands.swift"
+                "Sources/AppBundle/config/Config.swift"
+                "Sources/AppBundle/command/impl/ZoneCommand.swift"
+                "Sources/AppBundle/config/ZoneInitConfigEdits.swift"
+                "Sources/AppBundleTests/command/ZoneCommandTest.swift"
+                "Sources/AppBundleTests/config/ConfigBootstrapTest.swift"
+                "makefile"
+                "script/e2e/check-zone-init-local-validation"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/slice-40-zone-setup-assistant.sh"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -339,6 +365,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-39 >/dev/null
+
+    configure_slice_requirements slice-40
+    write_freshness_manifest "$run_dir" slice-40 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-40 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

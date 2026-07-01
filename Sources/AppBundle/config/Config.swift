@@ -19,6 +19,24 @@ func getDefaultConfigUrlFromProject(startingAt explicitStartUrl: URL? = nil) -> 
     return dieT("Can't find resources/default-config.toml from \(starts.map(\.path).joined(separator: ", "))")
 }
 
+func getDefaultConfigUrlNextToExecutable(executablePath: String? = CommandLine.arguments.first) -> URL? {
+    guard let executablePath, !executablePath.isEmpty else { return nil }
+
+    var executableUrl = URL(filePath: executablePath)
+    var isDirectory = ObjCBool(false)
+    if FileManager.default.fileExists(atPath: executableUrl.path, isDirectory: &isDirectory),
+       !isDirectory.boolValue
+    {
+        executableUrl.deleteLastPathComponent()
+    }
+
+    let candidates = [
+        executableUrl.appending(component: "default-config.toml"),
+        executableUrl.deletingLastPathComponent().appending(path: "Resources/default-config.toml"),
+    ]
+    return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+}
+
 private func findDefaultConfigUrlFromProject(startingAt startUrl: URL) -> URL? {
     var url = startUrl
     var isDirectory = ObjCBool(false)
@@ -45,6 +63,8 @@ var defaultConfigUrl: URL {
         return URL(filePath: path)
     } else {
         return Bundle.main.url(forResource: "default-config", withExtension: "toml")
+            // Useful for staged raw executables used by the Tart harness.
+            ?? getDefaultConfigUrlNextToExecutable()
             // Useful for debug builds that are not app bundles
             ?? getDefaultConfigUrlFromProject()
     }

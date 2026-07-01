@@ -72,6 +72,7 @@ extension CmdArgs {
             case let args as VolumeCmdArgs: VolumeCommand(args: args)
             case let args as WorkspaceCmdArgs: WorkspaceCommand(args: args)
             case let args as WorkspaceBackAndForthCmdArgs: WorkspaceBackAndForthCommand(args: args)
+            case let args as ZoneCmdArgs: ZoneCommand(args: args)
             default: die("No command implementation for \(Self.info.kind.rawValue)")
         }
         check(command.info == Self.info)

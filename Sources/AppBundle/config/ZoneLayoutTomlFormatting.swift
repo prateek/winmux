@@ -26,3 +26,19 @@ func formatTomlFloat(_ value: Double) -> String {
     }
     return text == "-0.0" ? "0.0" : text
 }
+
+func tomlBasicString(_ value: String) -> String {
+    var result = "\""
+    for scalar in value.unicodeScalars {
+        switch scalar {
+            case "\"": result += "\\\""
+            case "\\": result += "\\\\"
+            case "\n": result += "\\n"
+            case "\t": result += "\\t"
+            case "\r": result += "\\r"
+            default: result.unicodeScalars.append(scalar)
+        }
+    }
+    result += "\""
+    return result
+}
