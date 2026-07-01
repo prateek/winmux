@@ -7644,7 +7644,7 @@ Non-claims:
 
 ### Slice 41: Beta-Hardened App and Window Affinities
 
-Status: planned.
+Status: accepted.
 
 Pre-Slice-41 cleanup from Slice 40 retrospectives:
 
@@ -7661,10 +7661,12 @@ Pre-Slice-41 cleanup from Slice 40 retrospectives:
   tests before advertising every preset as supported, or keep public claims
   scoped to the balanced first-run setup path. Slice 41 keeps setup claims scoped
   to the accepted balanced path and does not expand setup-preset docs.
-- [ ] Fix generated review skeleton ready-screenshot handling when the next
+- [x] Fix generated review skeleton ready-screenshot handling when the next
   packet-generator change touches that area; Slice 40 had
   `screenshots/01-zone-init-ready-slice-40.png`, but the skeleton said the ready
-  screenshot was not present.
+  screenshot was not present. `script/e2e/write-review-packet` now recognizes
+  `01-*-ready-*.png`, and the Slice 41 skeleton cites
+  `01-affinity-ready-slice-41.png`.
 - [x] For dense proof-board videos, include native-scale crops or top-safe
   result boards so reviewers can audit the visible text without relying on tiny
   contact-sheet text. Slice 41 verifier/reviewer contract requires native-scale
@@ -7698,6 +7700,9 @@ Required Slice 41 storyboard:
 - show a config excerpt with at least three `[[zone-affinities]]` rules:
   bundle id to Comms, app-name regex to Reference, and title regex plus
   workspace constraint to Work;
+- include `[[zone-bindings]]` for the balanced zones and visibly run
+  `winmux apply-zone-bindings` before claiming the title-plus-workspace route,
+  so the artifact proves the Work zone is actually on workspace `work`;
 - include one no-match rule and one disabled-zone target so the diagnostic
   surface explains both non-routing cases;
 - open or simulate representative windows in a visible sequence: browser or
@@ -7711,8 +7716,9 @@ Required Slice 41 storyboard:
   next newly detected matching window follows the reloaded rule;
 - relaunch the installed app and prove the same config still routes newly
   detected windows after restart;
-- finish with `list-windows --workspace visible` and `list-zones` output showing
-  routed windows and active zones.
+- finish with `list-windows --all` and `list-zones` output so routed
+  representative windows remain auditable even after relaunch resets active
+  zone workspaces.
 
 Required verifier/reviewer contract:
 
@@ -7722,6 +7728,10 @@ Required verifier/reviewer contract:
 - require an aggregate routing log that includes every user-visible command,
   every opened representative window, every `debug-windows` or inspection call,
   and each reload/relaunch boundary;
+- require `slice-41-apply-zone-bindings.log` plus
+  `slice-41-after-apply-zone-bindings-zones.log` proving
+  `Reference=reference`, `Work=work`, and `Comms=comms` before the
+  title-plus-workspace Work route;
 - require native-scale crops or top-safe boards for dense diagnostic output;
 - require explicit checks that a disabled-zone affinity does not silently claim
   success and that the diagnostic output names the target as disabled;
@@ -7739,16 +7749,108 @@ Current Slice 41 implementation progress:
 - [x] Add focused in-process tests for matched affinity inspection, no-match
   field explanations, disabled target inspection, and disabled-target fallthrough
   to the next generic callback.
-- [ ] Add Slice 41 Tart harness, verifier checks, reviewer packet checklist,
-  and no-context pre-Tart reviews.
-- [ ] Record, review, lint, verify, close out, and run the three retrospective
+- [x] Add Slice 41 Tart harness, verifier checks, and reviewer packet checklist
+  for the normal-config affinity proof.
+- [x] Add focused local validation for the Slice 41 config, affinity
+  diagnostics, guest self-test, annotation plan, and pre-Tart gate.
+- [x] Run no-context pre-Tart reviews for Slice 41 and persist clean reviewer
+  reports before recording.
+- [x] Record, review, lint, verify, close out, and run the three retrospective
   subagents for the Slice 41 product artifact.
+
+Accepted artifact: `artifacts/e2e/slice-41-20260701T173400Z`.
+
+Primary media:
+
+- `recordings/slice-41-zone-affinity-beta.mov`
+- `recordings/raw/slice-41-zone-affinity-beta.raw.mov`
+- `screenshots/06-final-affinity-proof-slice-41.png`
+- `screenshots/slice-41-zone-affinity-beta.contact-sheet.jpg`
+- `screenshots/slice-41-zone-affinity-beta.event-contact-sheet.jpg`
+
+Accepted review and gates:
+
+- `reviews/no-ctx-artifact-review.md`: `PASS` with
+  `next slice allowed: yes`;
+- `logs/review-lint.log`: review lint passed;
+- `logs/post-review-verify.log`: post-review verification passed with
+  `--require-review`;
+- `logs/closeout-check.log`: closeout passed with sibling-artifact checking,
+  generated-version cleanliness, and all three retrospectives present.
+
+Retrospectives:
+
+- `retrospectives/process-plan.md`
+- `retrospectives/code-harness.md`
+- `retrospectives/artifact-product.md`
+
+Accepted evidence:
+
+- WinMux launches from the normal user config path, without `--config-path` or
+  `WINMUX_DEFAULT_CONFIG_PATH`;
+- `[[zone-affinities]]` routes newly detected representative windows by bundle
+  id, app-name regex, title regex, and workspace;
+- `winmux apply-zone-bindings` runs before the title-plus-workspace route, and
+  the binding snapshot proves `Reference=reference`, `Work=work`, and
+  `Comms=comms`;
+- `debug-windows` exposes `WinMux.zone-affinities` for matched, no-match,
+  disabled target, reload, and relaunch cases;
+- the proof uses per-beat window logs for placement, then a final unfiltered
+  `winmux list-windows --all` plus `winmux list-zones` board as an
+  all-workspaces audit;
+- `logs/slice-41-final-visual-ready.log` proves the final board was visible
+  before `screenshots/06-final-affinity-proof-slice-41.png`;
+- `logs/guest-transport-summary.tsv` has no unknown status for required
+  successful guest-control phases.
+
+Superseded Slice 41 attempts and lessons:
+
+- `slice-41-20260701T154932Z`: stale workspace setup used
+  `$ winmux workspace work`; the accepted proof uses `apply-zone-bindings`;
+- `slice-41-20260701T160825Z`: final visible-window audit was too narrow after
+  relaunch changed visible workspaces;
+- `slice-41-20260701T162103Z`: invalid `list-windows --workspace all`;
+- `slice-41-20260701T163119Z`: invalid `list-windows --all --app-bundle-id`;
+- `slice-41-20260701T164437Z`: final assertions rechecked early per-beat zone
+  placement after later workspace/relaunch effects;
+- `slice-41-20260701T165518Z`: no-context review failed because
+  `screenshots/06-final-affinity-proof-slice-41.png` showed the earlier ready
+  board, not the final `list-windows --all` / `list-zones` board. It is marked
+  superseded by the accepted artifact.
+
+Pre-Slice-42 cleanup from Slice 41 retrospectives:
+
+- [x] Add `slice-41-apply-zone-bindings.log` and
+  `slice-41-after-apply-zone-bindings-zones.log` to Slice 41 review freshness
+  dependencies.
+- [x] Fix capture-ready transport summaries so a successful required phase does
+  not report `attempt_statuses=unknown`; add a verifier self-test that rejects
+  that state.
+- [x] Persist Slice 41 `review-lint`, `post-review-verify`, and
+  `closeout-check` logs.
+- [x] Record all three Slice 41 retrospectives and fold their blocking findings
+  into this checklist.
+- [x] Update this plan with the accepted Slice 41 artifact, review verdict,
+  failed-attempt lineage, closeout evidence, retrospectives, accepted claims,
+  and non-claims.
+- [x] Isolate the accepted Slice 41 source, harness, prompt, test, and plan
+  changes in this closeout commit before starting Slice 42 pre-Tart freshness.
+- [ ] Before Slice 42 recording, lock the final audit command shape in the plan
+  and pre-Tart/reviewer contract: state whether the final audit is visible-only
+  or all-workspaces, list the exact command, and identify which per-beat logs
+  prove placement before any later reload/workspace side effects.
+- [ ] For the next dense final-board slice, use the Slice 41 pattern: write the
+  board, wait for the expected board title into a readiness log, then capture
+  the manifest-listed screenshot.
 
 Non-claims:
 
 - Slice 41 does not add ML or historical app placement;
+- Slice 41 does not rebind already-open windows automatically;
+- Slice 41 does not prove durable tab-group identity;
 - Slice 41 does not require persistence for runtime tab-group bindings unless
-  the rule is expressed in config.
+  the rule is expressed in config;
+- Slice 41 does not prove every real app bundle users may configure.
 
 ### Slice 42: Zone Availability and Profile Workflows
 

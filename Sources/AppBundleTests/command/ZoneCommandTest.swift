@@ -450,6 +450,81 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(targetWindow.nodeWorkspace === reference)
     }
 
+    func testZoneAffinityEvaluationReportsMatchedRuleAndEnabledTarget() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let targetWindow = TestWindow.new(id: 59, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
+        configureRouteCommsAffinity()
+
+        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
+            .evaluate(index: 0, window: targetWindow)
+
+        XCTAssertTrue(evaluation.matched)
+        XCTAssertEqual(evaluation.zone, "Comms")
+        XCTAssertTrue(evaluation.matcher.matchedTerms.contains { $0.contains("window-title-regex-substring matched title 'mail-inbox.rtf'") })
+        XCTAssertEqual(evaluation.target, .enabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
+        XCTAssertFalse(evaluation.checkFurtherCallbacks)
+        XCTAssertFalse(evaluation.focusFollowsWindow)
+        XCTAssertFalse(evaluation.failIfNoop)
+    }
+
+    func testZoneAffinityEvaluationExplainsNoMatchFields() async throws {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let targetWindow = TestWindow.new(id: 60, parent: work.rootTilingContainer, title: "notes.rtf")
+        var errors: [String] = []
+        config.zoneAffinities = [
+            ZoneAffinityConfig(
+                matcher: WindowDetectedCallbackMatcher(
+                    appId: "com.apple.mail",
+                    appNameRegexSubstring: parseCaseInsensitiveRegex("Mail").getOrNil(appendErrorTo: &errors),
+                    windowTitleRegexSubstring: parseCaseInsensitiveRegex("Inbox").getOrNil(appendErrorTo: &errors),
+                    workspace: "comms",
+                ),
+                zone: ZoneSelector("Comms"),
+            ),
+        ]
+        XCTAssertEqual(errors, [])
+
+        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
+            .evaluate(index: 0, window: targetWindow)
+
+        XCTAssertFalse(evaluation.matched)
+        XCTAssertTrue(evaluation.matcher.failedTerms.contains("app-id expected 'com.apple.mail' but got 'bobko.WinMux.test-app'"))
+        XCTAssertTrue(evaluation.matcher.failedTerms.contains("app-name-regex-substring did not match app name 'bobko.WinMux.test-app'"))
+        XCTAssertTrue(evaluation.matcher.failedTerms.contains("window-title-regex-substring did not match title 'notes.rtf'"))
+        XCTAssertTrue(evaluation.matcher.failedTerms.contains("workspace expected 'comms' but got 'work'"))
+        XCTAssertEqual(evaluation.target, .enabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
+    }
+
+    func testZoneAffinityDisabledTargetFallsThroughAndInspectionNamesHiddenZone() async throws {
+        let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        let targetWindow = TestWindow.new(id: 61, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
+        configureRouteCommsAffinity()
+        configureRouteReferenceCallback()
+
+        let disabled = try await DisableZoneCommand(args: DisableZoneCmdArgs(zone: ZoneSelector("Comms")))
+            .run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disabled.exitCode, 0)
+        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
+            .evaluate(index: 0, window: targetWindow)
+
+        XCTAssertTrue(evaluation.matched)
+        XCTAssertEqual(evaluation.target, .disabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
+
+        try await tryOnWindowDetected(targetWindow)
+
+        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
+    }
+
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")

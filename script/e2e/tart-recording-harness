@@ -44,6 +44,9 @@ fi
 if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ] || [ "$ACTION" = "slice-40" ]; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
+if [ "$ACTION" = "slice-41" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-affinities-beta.toml"
+fi
 if [ "$ACTION" = "slice-8" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-window-routing.toml"
 fi
@@ -163,7 +166,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -542,7 +545,7 @@ warmup_policy_self_test() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41)
             printf '%s\n' "$1"
             ;;
         *)
@@ -877,7 +880,12 @@ guest_script_retry() {
         local status=0
         {
             printf 'attempt=%s\n' "$attempt"
-            guest_script "$script"
+            if guest_script "$script"; then
+                echo probe_result=success
+            else
+                echo probe_result=failure
+                false
+            fi
         } >>"$log_path" 2>&1 || status=$?
         if [ "$status" -eq 0 ]; then
             {
@@ -3051,6 +3059,66 @@ write_slice_40_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_41_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local ready_label launch_label path_label comms_label reference_work_label nomatch_label disabled_label reload_label relaunch_label final_label
+    ready_label="$(caption_label_for_chip "$name" "Config: [[zone-affinities]] app-id | app-name | title+workspace")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp")"
+    path_label="$(caption_label_for_chip "$name" "Run: winmux config --config-path")"
+    comms_label="$(caption_label_for_chip "$name" "Run: open -a TextEdit slice41-mail-comms.rtf")"
+    reference_work_label="$(caption_label_for_chip "$name" "Run: winmux apply-zone-bindings; open Reference and Work windows")"
+    nomatch_label="$(caption_label_for_chip "$name" "Run: open no-match and debug failed terms")"
+    disabled_label="$(caption_label_for_chip "$name" "Run: winmux disable-zone Comms; open disabled target")"
+    reload_label="$(caption_label_for_chip "$name" "Run: winmux reload-config; open reload route")"
+    relaunch_label="$(caption_label_for_chip "$name" "Action: relaunch WinMuxApp; open relaunch route")"
+    final_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --all; winmux list-zones")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" affinity-config context \
+        "$(caption_start_for_label "$name" "$ready_label")" "$ready_label" affinity-config \
+        "screenshots/01-affinity-ready-slice-41.png" \
+        "ready board shows the normal user config and the app-id, app-name, title+workspace, no-match, and disabled-target affinity rules"
+    append_event_manifest_row "$manifest_path" launch-normal command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-normal \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches from the normal app path with no config override"
+    append_event_manifest_row "$manifest_path" config-path command \
+        "$(caption_start_for_label "$name" "$path_label")" "$path_label" config-path \
+        "screenshots/${name}.samples/${path_label}-boundary-start.png" \
+        "config --config-path reports ~/.config/winmux/winmux.toml"
+    append_event_manifest_row "$manifest_path" app-id-route command \
+        "$(caption_start_for_label "$name" "$comms_label")" "$comms_label" app-id-route \
+        "screenshots/03-routed-comms-slice-41.png" \
+        "slice41-mail-comms.rtf routes to Comms/right and debug-windows reports an enabled target"
+    append_event_manifest_row "$manifest_path" app-name-workspace-routes command \
+        "$(caption_start_for_label "$name" "$reference_work_label")" "$reference_work_label" app-name-workspace-routes \
+        "screenshots/${name}.samples/${reference_work_label}-boundary-start.png" \
+        "Reference and Work representative windows exercise app-name regex and title+workspace matchers after apply-zone-bindings puts the Work zone on workspace=work"
+    append_event_manifest_row "$manifest_path" no-match-diagnostics command \
+        "$(caption_start_for_label "$name" "$nomatch_label")" "$nomatch_label" no-match-diagnostics \
+        "screenshots/${name}.samples/${nomatch_label}-boundary-start.png" \
+        "debug-windows shows failed-terms for a window that stays put"
+    append_event_manifest_row "$manifest_path" disabled-target command \
+        "$(caption_start_for_label "$name" "$disabled_label")" "$disabled_label" disabled-target \
+        "screenshots/04-diagnostics-slice-41.png" \
+        "disabled Comms target is named as disabled and does not silently claim success"
+    append_event_manifest_row "$manifest_path" reload-route command \
+        "$(caption_start_for_label "$name" "$reload_label")" "$reload_label" reload-route \
+        "screenshots/${name}.samples/${reload_label}-boundary-start.png" \
+        "reload-config swaps the affinity config and the next matching window follows it"
+    append_event_manifest_row "$manifest_path" relaunch-route action \
+        "$(caption_start_for_label "$name" "$relaunch_label")" "$relaunch_label" relaunch-route \
+        "screenshots/05-after-relaunch-slice-41.png" \
+        "after app relaunch, a new matching window routes to Comms/right"
+    append_event_manifest_row "$manifest_path" final-inspection command \
+        "$(caption_start_for_label "$name" "$final_label")" "$final_label" final-inspection \
+        "screenshots/06-final-affinity-proof-slice-41.png" \
+        "final list-windows and list-zones output shows routed windows and active zones"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3110,6 +3178,9 @@ write_event_manifest() {
             ;;
         slice-40-zone-setup-assistant)
             write_slice_40_event_manifest "$name"
+            ;;
+        slice-41-zone-affinity-beta)
+            write_slice_41_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3271,6 +3342,20 @@ CAPTIONS
 52	66	Launch normally	WinMux starts from the default user config path with no override.	Run: WinMuxApp
 66	82	Inspect zones	Reference, Work, and Comms are now live zone viewports.	Run: winmux list-zones --format zone|name|workspace
 82	108	Ready to use	The setup command created a usable starter layout.	Result: winmux zone init created Reference | Work | Comms
+CAPTIONS
+            ;;
+        slice-41-zone-affinity-beta)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Affinity config	The normal user config binds representative windows to Reference, Work, and Comms.	Config: [[zone-affinities]] app-id | app-name | title+workspace
+8	18	Launch normally	WinMux starts from the user config path with no override.	Run: WinMuxApp
+18	28	Confirm config source	The CLI reports the normal editable config path.	Run: winmux config --config-path
+28	44	App-id route	Open a TextEdit mail window; the app-id rule sends it to Comms.	Run: open -a TextEdit slice41-mail-comms.rtf
+44	56	App-name and workspace routes	Apply the configured zone workspaces, then open Reference and Work examples.	Run: winmux apply-zone-bindings; open Reference and Work windows
+56	72	No-match diagnostics	Open a window that should stay put, then inspect failed matcher terms.	Run: open no-match and debug failed terms
+72	88	Disabled target	Disable Comms, open a Comms-targeted window, then inspect the disabled target.	Run: winmux disable-zone Comms; open disabled target
+88	106	Reloaded affinity	Swap the normal user config, reload, and route the next matching window.	Run: winmux reload-config; open reload route
+106	124	Relaunch proof	Restart WinMux and prove the same normal config still routes new windows.	Action: relaunch WinMuxApp; open relaunch route
+124	144	Final inspection	List all windows and zones so routed examples remain auditable after relaunch changes active workspaces.	Run: winmux list-windows --all; winmux list-zones
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3623,14 +3708,15 @@ annotation_preflight() {
         slice-37-starter-onboarding \
         slice-38-user-readiness \
         slice-39-dogfood-install-permissions \
-        slice-40-zone-setup-assistant
+        slice-40-zone-setup-assistant \
+        slice-41-zone-affinity-beta
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4442,6 +4528,38 @@ write_semantic_sample_manifest() {
                 "screenshots/05-zone-setup-ready-slice-40.png" \
                 "final board names winmux zone init and the resulting Reference, Work, and Comms zones"
             ;;
+        slice-41-zone-affinity-beta)
+            append_sample_manifest_row "$manifest_path" semantic affinity-config screenshot screenshot \
+                "screenshots/01-affinity-ready-slice-41.png" \
+                "ready board shows normal config and the app-id, app-name, title+workspace, no-match, and disabled-target affinity rules"
+            append_sample_manifest_row "$manifest_path" semantic launch-normal caption-02 8.100 \
+                "screenshots/${name}.samples/caption-02-boundary-start.png" \
+                "launch caption starts before WinMuxApp starts with no config override"
+            append_sample_manifest_row "$manifest_path" semantic config-path caption-03 18.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "config-path caption starts before the CLI reports the normal user config"
+            append_sample_manifest_row "$manifest_path" semantic app-id-route screenshot screenshot \
+                "screenshots/03-routed-comms-slice-41.png" \
+                "slice41-mail-comms.rtf is visible in Comms/right after the app-id affinity route"
+            append_sample_manifest_row "$manifest_path" semantic app-name-workspace-routes caption-05 44.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "apply-zone-bindings caption starts before app-name and workspace examples open"
+            append_sample_manifest_row "$manifest_path" semantic no-match-diagnostics caption-06 56.100 \
+                "screenshots/${name}.samples/caption-06-boundary-start.png" \
+                "no-match debug caption starts before failed matcher terms are collected"
+            append_sample_manifest_row "$manifest_path" semantic disabled-target screenshot screenshot \
+                "screenshots/04-diagnostics-slice-41.png" \
+                "diagnostics board names disabled Comms target and no silent success"
+            append_sample_manifest_row "$manifest_path" semantic reload-route caption-08 88.100 \
+                "screenshots/${name}.samples/caption-08-boundary-start.png" \
+                "reload-config caption starts before the reloaded affinity window opens"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-route screenshot screenshot \
+                "screenshots/05-after-relaunch-slice-41.png" \
+                "post-relaunch screenshot shows the app restarted and relaunch route proof is underway"
+            append_sample_manifest_row "$manifest_path" semantic final-inspection screenshot screenshot \
+                "screenshots/06-final-affinity-proof-slice-41.png" \
+                "final board shows list-windows and list-zones evidence for routed windows"
+            ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
                 "screenshots/02-before-style-slice-19.png" \
@@ -4528,6 +4646,12 @@ log_attempt_statuses() {
             sub(/^[^=]*=/, "", value)
             if (seen_attempt) {
                 status = value
+            }
+            next
+        }
+        /^capture_probe_done$/ {
+            if (seen_attempt && status == "") {
+                status = "success"
             }
             next
         }
@@ -6428,6 +6552,34 @@ run_slice_40_zone_setup_assistant() {
         "${LOGS_DIR}/slice-40-run.log"
 }
 
+run_slice_41_zone_affinity_beta_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-41-zone-affinity-beta.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE41_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-41-setup.log"
+}
+
+run_slice_41_zone_affinity_beta() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-41-zone-affinity-beta.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE41_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-41-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -7301,6 +7453,10 @@ slice_40() {
     run_recorded_scenario "slice-40-zone-setup-assistant" "00-before-slice-40" "99-after-slice-40" "run_slice_40_zone_setup_assistant" "run_slice_40_zone_setup_assistant_setup" "01-zone-init-ready-slice-40"
 }
 
+slice_41() {
+    run_recorded_scenario "slice-41-zone-affinity-beta" "00-before-slice-41" "99-after-slice-41" "run_slice_41_zone_affinity_beta" "run_slice_41_zone_affinity_beta_setup" "01-affinity-ready-slice-41"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -7470,6 +7626,9 @@ case "$ACTION" in
         ;;
     slice-40)
         slice_40
+        ;;
+    slice-41)
+        slice_41
         ;;
     slice-8)
         slice_8

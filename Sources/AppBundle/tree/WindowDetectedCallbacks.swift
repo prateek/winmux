@@ -20,7 +20,9 @@ private func onWindowDetected(_ window: Window) async throws {
         appBundleId: window.app.rawAppBundleId,
         appName: window.app.name,
     ))
-    for affinity in config.zoneAffinities where try await affinity.matches(window) {
+    for (index, affinity) in config.zoneAffinities.enumerated() {
+        let evaluation = try await affinity.evaluate(index: index, window: window)
+        guard evaluation.matched else { continue }
         let commandResult = try await MoveNodeToZoneCommand(args: affinity.commandArgs).run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
         if commandResult.exitCode == 0 && !affinity.checkFurtherCallbacks {
             return
@@ -57,21 +59,6 @@ extension ZoneAffinityConfig {
 extension WindowDetectedCallbackMatcher {
     @MainActor
     func matches(_ window: Window) async throws -> Bool {
-        if let startupMatcher = duringWinMuxStartup, startupMatcher != isStartup {
-            return false
-        }
-        if let regex = windowTitleRegexSubstring, !(try await window.title).contains(regex) {
-            return false
-        }
-        if let appId, appId != window.app.rawAppBundleId {
-            return false
-        }
-        if let regex = appNameRegexSubstring, !(window.app.name ?? "").contains(regex) {
-            return false
-        }
-        if let workspace, workspace != window.nodeWorkspace?.name {
-            return false
-        }
-        return true
+        try await evaluate(window).matched
     }
 }

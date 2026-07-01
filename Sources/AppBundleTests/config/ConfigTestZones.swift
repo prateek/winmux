@@ -185,6 +185,45 @@ extension ConfigTest {
         XCTAssertFalse(parsed.workspaceSidebar.enabled)
     }
 
+    func testParseZoneAffinitiesBetaE2EConfig() throws {
+        var fixtureUrl = getDefaultConfigUrlFromProject()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.deleteLastPathComponent()
+        fixtureUrl.append(path: "script/e2e/configs/zone-affinities-beta.toml")
+
+        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
+
+        assertEquals(errors, [])
+        assertEquals(parsed.zoneBindings, [
+            ZoneBindingConfig(
+                zone: "left",
+                workspace: WorkspaceName.parse("reference").getOrDie(),
+            ),
+            ZoneBindingConfig(
+                zone: "main",
+                workspace: WorkspaceName.parse("work").getOrDie(),
+            ),
+            ZoneBindingConfig(
+                zone: "right",
+                workspace: WorkspaceName.parse("comms").getOrDie(),
+            ),
+        ])
+        assertEquals(parsed.zoneAffinities.count, 5)
+        XCTAssertEqual(parsed.zoneAffinities.map(\.zone), [
+            ZoneSelector("Comms"),
+            ZoneSelector("Reference"),
+            ZoneSelector("Work"),
+            ZoneSelector("Reference"),
+            ZoneSelector("Comms"),
+        ])
+        XCTAssertEqual(parsed.zoneAffinities[0].matcher.appId, "com.apple.TextEdit")
+        XCTAssertNotNil(parsed.zoneAffinities[1].matcher.appNameRegexSubstring)
+        XCTAssertNotNil(parsed.zoneAffinities[2].matcher.windowTitleRegexSubstring)
+        XCTAssertEqual(parsed.zoneAffinities[2].matcher.workspace, "work")
+        XCTAssertEqual(parsed.zoneAffinities[3].matcher.appId, "com.apple.mail")
+        XCTAssertFalse(parsed.workspaceSidebar.enabled)
+    }
+
     func testParseZoneStyles() {
         let (parsed, errors) = parseConfig(
             """

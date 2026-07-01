@@ -1463,6 +1463,15 @@ EOF
     if ( require_transport_summary_phase "$transport_summary_bad_reason" warmup-before-privacy success yes ) >/dev/null 2>&1; then
         die "Transport summary self-test expected missing compact failure reasons to fail"
     fi
+    printf 'attempt=1\ncapture_probe_start\ncapture_probe_done\n' \
+        >"${transport_logs_dir}/capture-ready.log"
+    cat >"${tmp_dir}/transport-capture-ready-unknown.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason
+capture-ready	logs/capture-ready.log	1	0	success	yes	unknown	-	-
+EOF
+    if ( require_transport_summary_phase "${tmp_dir}/transport-capture-ready-unknown.tsv" capture-ready success yes ) >/dev/null 2>&1; then
+        die "Transport summary self-test expected unknown successful attempt status to fail"
+    fi
     cat >"$transport_summary_legacy" <<'EOF'
 # phase	log	attempts	failures	final_result	before_recording
 warmup-before-privacy	logs/warmup.log	2	1	success	yes
@@ -3228,6 +3237,50 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 40 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-41-zone-affinity-beta" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-41-setup.log" \
+            "${LOGS_DIR}/winmux-startup-trace.log" \
+            "${LOGS_DIR}/winmux-e2e-slice41.plist" \
+            "${LOGS_DIR}/slice-41-user-config-initial.toml" \
+            "${LOGS_DIR}/slice-41-user-config-reloaded.toml" \
+            "${LOGS_DIR}/slice-41-config-path.log" \
+            "${LOGS_DIR}/slice-41-routing.log" \
+            "${LOGS_DIR}/slice-41-command-timing.log" \
+            "${LOGS_DIR}/slice-41-apply-zone-bindings.log" \
+            "${LOGS_DIR}/slice-41-after-apply-zone-bindings-zones.log" \
+            "${LOGS_DIR}/slice-41-after-comms.log" \
+            "${LOGS_DIR}/slice-41-after-reference.log" \
+            "${LOGS_DIR}/slice-41-after-work.log" \
+            "${LOGS_DIR}/slice-41-after-no-match.log" \
+            "${LOGS_DIR}/slice-41-after-disabled.log" \
+            "${LOGS_DIR}/slice-41-after-reload.log" \
+            "${LOGS_DIR}/slice-41-after-relaunch.log" \
+            "${LOGS_DIR}/slice-41-final-visual-ready.log" \
+            "${LOGS_DIR}/slice-41-final-windows.log" \
+            "${LOGS_DIR}/slice-41-final-zones.log" \
+            "${LOGS_DIR}/slice-41-debug-comms.log" \
+            "${LOGS_DIR}/slice-41-debug-work.log" \
+            "${LOGS_DIR}/slice-41-debug-no-match.log" \
+            "${LOGS_DIR}/slice-41-debug-disabled.log" \
+            "${LOGS_DIR}/slice-41-debug-reload.log" \
+            "${LOGS_DIR}/slice-41-debug-relaunch.log" \
+            "${LOGS_DIR}/slice-41-reload-config.log" \
+            "${LOGS_DIR}/slice-41-relaunch.log" \
+            "${LOGS_DIR}/slice-41-zone-affinity-beta.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-41.png" \
+            "${SCREENSHOTS_DIR}/01-affinity-ready-slice-41.png" \
+            "${SCREENSHOTS_DIR}/03-routed-comms-slice-41.png" \
+            "${SCREENSHOTS_DIR}/04-diagnostics-slice-41.png" \
+            "${SCREENSHOTS_DIR}/05-after-relaunch-slice-41.png" \
+            "${SCREENSHOTS_DIR}/06-final-affinity-proof-slice-41.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-41.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 41 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -4517,6 +4570,155 @@ EOF
     done
 }
 
+require_review_mentions_slice_41_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-41-zone-affinity-beta) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-41-setup.log	setup log
+${LOGS_DIR}/winmux-startup-trace.log	startup trace
+${LOGS_DIR}/winmux-e2e-slice41.plist	LaunchAgent plist
+${LOGS_DIR}/slice-41-user-config-initial.toml	initial normal config
+${LOGS_DIR}/slice-41-user-config-reloaded.toml	reloaded normal config
+${LOGS_DIR}/slice-41-config-path.log	config path log
+${LOGS_DIR}/slice-41-routing.log	aggregate routing log
+${LOGS_DIR}/slice-41-command-timing.log	command timing log
+${LOGS_DIR}/slice-41-apply-zone-bindings.log	apply zone bindings command log
+${LOGS_DIR}/slice-41-after-apply-zone-bindings-zones.log	zone workspace bindings snapshot
+${LOGS_DIR}/slice-41-after-comms.log	Comms routed window log
+${LOGS_DIR}/slice-41-after-reference.log	Reference routed window log
+${LOGS_DIR}/slice-41-after-work.log	Work routed window log
+${LOGS_DIR}/slice-41-after-no-match.log	no-match window log
+${LOGS_DIR}/slice-41-after-disabled.log	disabled-target window log
+${LOGS_DIR}/slice-41-after-reload.log	reload routed window log
+${LOGS_DIR}/slice-41-after-relaunch.log	relaunch routed window log
+${LOGS_DIR}/slice-41-final-visual-ready.log	final visual screenshot readiness log
+${LOGS_DIR}/slice-41-final-windows.log	final windows log
+${LOGS_DIR}/slice-41-final-zones.log	final zones log
+${LOGS_DIR}/slice-41-debug-comms.log	matched debug log
+${LOGS_DIR}/slice-41-debug-work.log	Work title+workspace debug log
+${LOGS_DIR}/slice-41-debug-no-match.log	no-match debug log
+${LOGS_DIR}/slice-41-debug-disabled.log	disabled-target debug log
+${LOGS_DIR}/slice-41-debug-reload.log	reload debug log
+${LOGS_DIR}/slice-41-debug-relaunch.log	relaunch debug log
+${LOGS_DIR}/slice-41-reload-config.log	reload command log
+${LOGS_DIR}/slice-41-relaunch.log	relaunch command log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-41.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-affinity-ready-slice-41.png	affinity config ready screenshot
+${SCREENSHOTS_DIR}/03-routed-comms-slice-41.png	Comms routed screenshot
+${SCREENSHOTS_DIR}/04-diagnostics-slice-41.png	diagnostics screenshot
+${SCREENSHOTS_DIR}/05-after-relaunch-slice-41.png	after relaunch screenshot
+${SCREENSHOTS_DIR}/06-final-affinity-proof-slice-41.png	final proof screenshot
+${SCREENSHOTS_DIR}/99-after-slice-41.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 41 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 41 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-41-zone-affinity-beta.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 41 review must cite the Slice 41 event manifest"
+    for event_id in \
+        affinity-config \
+        launch-normal \
+        config-path \
+        app-id-route \
+        app-name-workspace-routes \
+        no-match-diagnostics \
+        disabled-target \
+        reload-route \
+        relaunch-route \
+        final-inspection; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 41 review must cite affinity event: $event_id"
+    done
+    for timing_key in \
+        launch-offset-seconds \
+        config-path-offset-seconds \
+        open-comms-offset-seconds \
+        open-reference-work-offset-seconds \
+        no-match-offset-seconds \
+        disabled-offset-seconds \
+        reload-offset-seconds \
+        relaunch-offset-seconds \
+        final-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 41 review must cite timing value key: $timing_key"
+    done
+    local normal_config_tilde
+    normal_config_tilde=$'\x7e/.config/winmux/winmux.toml'
+    for exact in \
+        "$normal_config_tilde" \
+        '[[zone-affinities]]' \
+        "if.app-id = 'com.apple.TextEdit'" \
+        "if.app-name-regex-substring = 'TextEdit'" \
+        "if.workspace = 'work'" \
+        '$ winmux config --config-path' \
+        '$ winmux debug-windows --window-id' \
+        '[[zone-bindings]]' \
+        '$ winmux apply-zone-bindings' \
+        'zone=left|name=Reference|workspace=reference' \
+        'zone=main|name=Work|workspace=work' \
+        'zone=right|name=Comms|workspace=comms' \
+        '$ winmux disable-zone Comms' \
+        '$ winmux reload-config' \
+        'WinMux.zone-affinities' \
+        "window-title-regex-substring matched title 'slice41-work-editor.rtf'" \
+        "workspace matched 'work'" \
+        'failed-terms' \
+        'target zone is hidden' \
+        'stopped=yes' \
+        'WINMUX_DEFAULT_CONFIG_PATH' \
+        '--config-path'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 41 review must cite exact evidence text: $exact"
+    done
+    grep -E '"state"[[:space:]]*:[[:space:]]*"disabled"|target state .*disabled|state=disabled' "$review_path" >/dev/null \
+        || die "Slice 41 review must cite disabled target state evidence"
+    grep -Eiq 'without .*--config-path|no .*--config-path|does not .*--config-path' "$review_path" \
+        || die "Slice 41 review must state that WinMuxApp launches without --config-path"
+    grep -Eiq 'manual .*move-node-to-zone.*no|no .*manual .*move-node-to-zone|without .*move-node-to-zone' "$review_path" \
+        || die "Slice 41 review must state that automatic routing proof used no manual move-node-to-zone"
+    grep -Eiq 'reload.*before.*relaunch|relaunch.*after.*reload|not .*reload-only|not .*reload only' "$review_path" \
+        || die "Slice 41 review must distinguish reload proof from relaunch proof"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 41 review must identify resulting zone: $zone_name"
+    done
+    for baseline in \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md'; do
+        grep -F "$baseline" "$review_path" >/dev/null \
+            || die "Slice 41 review must cite current Slice 36 root-demo baseline: $baseline"
+    done
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -4565,7 +4767,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -4866,6 +5068,8 @@ run_review_lint() {
     require_review_mentions_slice_37_evidence "$review_path"
     require_review_mentions_slice_38_evidence "$review_path"
     require_review_mentions_slice_39_evidence "$review_path"
+    require_review_mentions_slice_40_evidence "$review_path"
+    require_review_mentions_slice_41_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -5381,6 +5585,39 @@ require_slice_40_sample_manifest() {
     done
 }
 
+require_slice_41_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        affinity-config \
+        launch-normal \
+        config-path \
+        app-id-route \
+        app-name-workspace-routes \
+        no-match-diagnostics \
+        disabled-target \
+        reload-route \
+        relaunch-route \
+        final-inspection; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    require_sample_manifest_label_path "$manifest_path" affinity-config "screenshots/01-affinity-ready-slice-41.png"
+    require_sample_manifest_label_path "$manifest_path" app-id-route "screenshots/03-routed-comms-slice-41.png"
+    require_sample_manifest_label_path "$manifest_path" disabled-target "screenshots/04-diagnostics-slice-41.png"
+    require_sample_manifest_label_path "$manifest_path" relaunch-route "screenshots/05-after-relaunch-slice-41.png"
+    require_sample_manifest_label_path "$manifest_path" final-inspection "screenshots/06-final-affinity-proof-slice-41.png"
+    for label in \
+        launch-normal \
+        config-path \
+        app-name-workspace-routes \
+        no-match-diagnostics \
+        reload-route; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
+    done
+}
+
 transport_summary_value() {
     local path="$1"
     local phase="$2"
@@ -5465,6 +5702,8 @@ require_transport_summary_phase() {
     if [[ "$attempts" =~ ^[0-9]+$ ]] && [ "$attempts" -gt 0 ] && [ -n "$attempt_statuses" ]; then
         [ "$attempt_statuses" != "-" ] \
             || die "Guest transport summary missing per-attempt statuses for phase: $phase"
+        [ "$attempt_statuses" != "unknown" ] \
+            || die "Guest transport summary has unknown per-attempt status for successful required phase: $phase"
     fi
     if [[ "$failures" =~ ^[0-9]+$ ]] && [ "$failures" -gt 0 ] \
         && { [ -n "$first_failure_reason" ] || [ -n "$last_failure_reason" ]; }; then
@@ -8071,6 +8310,313 @@ require_slice_40_zone_setup_assistant_proof() {
         "Result: winmux zone init created Reference | Work | Comms"; do
         grep -F "$chip" "$annotation_plan" >/dev/null \
             || die "Slice 40 annotations missing chip: $chip"
+    done
+}
+
+require_slice_41_zone_affinity_beta_proof() {
+    local proof="${RUN_DIR}/slice-41-zone-affinity-beta-proof.txt"
+    local done="${LOGS_DIR}/slice-41-zone-affinity-beta.done"
+    local setup_log="${LOGS_DIR}/slice-41-setup.log"
+    local config_initial="${LOGS_DIR}/slice-41-user-config-initial.toml"
+    local config_reloaded="${LOGS_DIR}/slice-41-user-config-reloaded.toml"
+    local launch_plist="${LOGS_DIR}/winmux-e2e-slice41.plist"
+    local startup_trace="${LOGS_DIR}/winmux-startup-trace.log"
+    local config_path_log="${LOGS_DIR}/slice-41-config-path.log"
+    local routing_log="${LOGS_DIR}/slice-41-routing.log"
+    local cli_log="${LOGS_DIR}/slice-41-cli.log"
+    local timing_log="${LOGS_DIR}/slice-41-command-timing.log"
+    local after_comms="${LOGS_DIR}/slice-41-after-comms.log"
+    local after_reference="${LOGS_DIR}/slice-41-after-reference.log"
+    local after_work="${LOGS_DIR}/slice-41-after-work.log"
+    local after_no_match="${LOGS_DIR}/slice-41-after-no-match.log"
+    local after_disabled="${LOGS_DIR}/slice-41-after-disabled.log"
+    local after_reload="${LOGS_DIR}/slice-41-after-reload.log"
+    local after_relaunch="${LOGS_DIR}/slice-41-after-relaunch.log"
+    local final_visual_ready="${LOGS_DIR}/slice-41-final-visual-ready.log"
+    local final_windows="${LOGS_DIR}/slice-41-final-windows.log"
+    local final_zones="${LOGS_DIR}/slice-41-final-zones.log"
+    local debug_comms="${LOGS_DIR}/slice-41-debug-comms.log"
+    local debug_work="${LOGS_DIR}/slice-41-debug-work.log"
+    local debug_no_match="${LOGS_DIR}/slice-41-debug-no-match.log"
+    local debug_disabled="${LOGS_DIR}/slice-41-debug-disabled.log"
+    local debug_reload="${LOGS_DIR}/slice-41-debug-reload.log"
+    local debug_relaunch="${LOGS_DIR}/slice-41-debug-relaunch.log"
+    local reload_log="${LOGS_DIR}/slice-41-reload-config.log"
+    local relaunch_log="${LOGS_DIR}/slice-41-relaunch.log"
+    local apply_bindings_log="${LOGS_DIR}/slice-41-apply-zone-bindings.log"
+    local zones_after_bindings="${LOGS_DIR}/slice-41-after-apply-zone-bindings-zones.log"
+    local event_manifest="${LOGS_DIR}/slice-41-zone-affinity-beta.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 41"
+    require_file "$setup_log"
+    require_file "$config_initial"
+    require_file "$config_reloaded"
+    require_file "$launch_plist"
+    require_file "$startup_trace"
+    require_file "$config_path_log"
+    require_file "$routing_log"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$after_comms"
+    require_file "$after_reference"
+    require_file "$after_work"
+    require_file "$after_no_match"
+    require_file "$after_disabled"
+    require_file "$after_reload"
+    require_file "$after_relaunch"
+    require_file "$final_visual_ready"
+    require_file "$final_windows"
+    require_file "$final_zones"
+    require_file "$debug_comms"
+    require_file "$debug_work"
+    require_file "$debug_no_match"
+    require_file "$debug_disabled"
+    require_file "$debug_reload"
+    require_file "$debug_relaunch"
+    require_file "$reload_log"
+    require_file "$relaunch_log"
+    require_file "$apply_bindings_log"
+    require_file "$zones_after_bindings"
+    require_file "$event_manifest"
+    require_slice_41_sample_manifest "$sample_manifest"
+    require_slice_41_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+
+    local mutation_started first_mutation_line
+    mutation_started="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-41-run mutation_started || true)"
+    first_mutation_line="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-41-run first_mutation_line || true)"
+    [ "$mutation_started" = "yes" ] \
+        || die "Slice 41 transport summary must report mutation_started=yes for slice-41-run"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 41 transport summary must report first_mutation_line for slice-41-run"
+
+    for screenshot in \
+        "${SCREENSHOTS_DIR}/00-before-slice-41.png" \
+        "${SCREENSHOTS_DIR}/01-affinity-ready-slice-41.png" \
+        "${SCREENSHOTS_DIR}/02-normal-launch-slice-41.png" \
+        "${SCREENSHOTS_DIR}/03-routed-comms-slice-41.png" \
+        "${SCREENSHOTS_DIR}/04-diagnostics-slice-41.png" \
+        "${SCREENSHOTS_DIR}/05-after-relaunch-slice-41.png" \
+        "${SCREENSHOTS_DIR}/06-final-affinity-proof-slice-41.png" \
+        "${SCREENSHOTS_DIR}/99-after-slice-41.png"; do
+        require_file "$screenshot"
+    done
+
+    grep -F 'PASS: zone-affinities routed representative windows' "$proof" >/dev/null \
+        || die "Slice 41 proof missing expected PASS claim"
+    grep -F 'manual-move-node-to-zone-during-proof=no' "$proof" >/dev/null \
+        || die "Slice 41 proof must explicitly deny manual move-node-to-zone during proof"
+    grep -F 'non-claim=no ML placement' "$proof" >/dev/null \
+        || die "Slice 41 proof missing non-claims"
+    grep -F 'Launch: normal app path; no --config-path; no WINMUX_DEFAULT_CONFIG_PATH' "$setup_log" >/dev/null \
+        || die "Slice 41 setup log missing normal launch claim"
+    require_slice_40_launch_plist_shape "$launch_plist"
+    grep -F 'unix socket server start requested' "$startup_trace" >/dev/null \
+        || die "Slice 41 startup trace missing socket start request"
+    grep -F 'unix socket server started' "$startup_trace" >/dev/null \
+        || die "Slice 41 startup trace missing socket server started proof"
+
+    for expected in \
+        '[[zones]]' \
+        '[[zone-bindings]]' \
+        '[[zone-affinities]]' \
+        "workspace = 'work'" \
+        "if.app-id = 'com.apple.TextEdit'" \
+        "if.app-name-regex-substring = 'TextEdit'" \
+        "if.window-title-regex-substring = 'slice41-mail'" \
+        "if.workspace = 'work'" \
+        "if.app-id = 'com.apple.mail'" \
+        "if.window-title-regex-substring = 'slice41-disabled'"; do
+        grep -F "$expected" "$config_initial" >/dev/null \
+            || die "Slice 41 initial config missing: $expected"
+    done
+    grep -F "if.window-title-regex-substring = 'slice41-reload'" "$config_reloaded" >/dev/null \
+        || die "Slice 41 reloaded config missing reload affinity"
+    grep -F "if.window-title-regex-substring = 'slice41-relaunch'" "$config_reloaded" >/dev/null \
+        || die "Slice 41 reloaded config missing relaunch affinity"
+    grep -F '[[zone-bindings]]' "$config_reloaded" >/dev/null \
+        || die "Slice 41 reloaded config must keep workspace bindings"
+
+    grep -F '$ winmux config --config-path' "$config_path_log" >/dev/null \
+        || die "Slice 41 config-path log missing exact command"
+    grep -F '/.config/winmux/winmux.toml' "$config_path_log" >/dev/null \
+        || die "Slice 41 config-path log missing normal user config path"
+
+    local proof_phase_log
+    for proof_phase_log in "$routing_log" "$cli_log" "$reload_log" "$relaunch_log"; do
+        grep -F '$ winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 41 automatic affinity proof must not include a manual move-node-to-zone command: $proof_phase_log"
+        grep -F 'Run: winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 41 automatic affinity proof must not annotate a manual move-node-to-zone command: $proof_phase_log"
+    done
+    for expected in \
+        '$ open -a TextEdit slice41-mail-comms.rtf' \
+        '$ open -a TextEdit slice41-reference-browser.rtf' \
+        '$ winmux apply-zone-bindings' \
+        '$ open -a TextEdit slice41-work-editor.rtf' \
+        '$ open -a TextEdit slice41-nomatch.rtf' \
+        '$ winmux disable-zone Comms' \
+        '$ open -a TextEdit slice41-disabled-comms.rtf' \
+        '$ winmux reload-config' \
+        '$ open -a TextEdit slice41-reload-reference.rtf' \
+        '$ launchctl bootout/kickstart WinMuxApp' \
+        '$ open -a TextEdit slice41-relaunch-comms.rtf'; do
+        grep -F "$expected" "$routing_log" "$reload_log" "$relaunch_log" >/dev/null \
+            || die "Slice 41 routing evidence missing: $expected"
+    done
+    grep -F '$ winmux apply-zone-bindings' "$apply_bindings_log" >/dev/null \
+        || die "Slice 41 apply bindings log missing exact command"
+    grep -F 'zone=left|name=Reference|workspace=reference|' "$zones_after_bindings" >/dev/null \
+        || die "Slice 41 binding snapshot missing Reference/left workspace=reference"
+    grep -F 'zone=main|name=Work|workspace=work|' "$zones_after_bindings" >/dev/null \
+        || die "Slice 41 binding snapshot missing Work/main workspace=work"
+    grep -F 'zone=right|name=Comms|workspace=comms|' "$zones_after_bindings" >/dev/null \
+        || die "Slice 41 binding snapshot missing Comms/right workspace=comms"
+
+    local comms_zone reference_zone work_zone disabled_zone reload_zone relaunch_zone no_match_id
+    comms_zone="$(field_for_title "$after_comms" 'slice41-mail-comms.rtf' zone)"
+    reference_zone="$(field_for_title "$after_reference" 'slice41-reference-browser.rtf' zone)"
+    work_zone="$(field_for_title "$after_work" 'slice41-work-editor.rtf' zone)"
+    disabled_zone="$(field_for_title "$after_disabled" 'slice41-disabled-comms.rtf' zone)"
+    reload_zone="$(field_for_title "$after_reload" 'slice41-reload-reference.rtf' zone)"
+    relaunch_zone="$(field_for_title "$after_relaunch" 'slice41-relaunch-comms.rtf' zone)"
+    no_match_id="$(field_for_title "$after_no_match" 'slice41-nomatch.rtf' id)"
+    [ "$comms_zone" = right ] || die "Slice 41 app-id route did not land in Comms/right: ${comms_zone:-missing}"
+    [ "$reference_zone" = left ] || die "Slice 41 app-name route did not land in Reference/left: ${reference_zone:-missing}"
+    [ "$work_zone" = main ] || die "Slice 41 workspace route did not land in Work/main: ${work_zone:-missing}"
+    [ -n "$no_match_id" ] || die "Slice 41 no-match window missing from window log"
+    [ -n "$disabled_zone" ] || die "Slice 41 disabled-target window missing from window log"
+    [ "$disabled_zone" != right ] || die "Slice 41 disabled-target window must not land in Comms/right"
+    [ "$reload_zone" = left ] || die "Slice 41 reload route did not land in Reference/left: ${reload_zone:-missing}"
+    [ "$relaunch_zone" = right ] || die "Slice 41 relaunch route did not land in Comms/right: ${relaunch_zone:-missing}"
+    [ -n "$(field_for_title "$final_visual_ready" 'slice-41-affinity-final.rtf' id)" ] \
+        || die "Slice 41 final proof window must be visible before 06-final-affinity-proof screenshot"
+
+    for debug_log in "$debug_comms" "$debug_work" "$debug_no_match" "$debug_disabled" "$debug_reload" "$debug_relaunch"; do
+        grep -F 'WinMux.zone-affinities' "$debug_log" >/dev/null \
+            || die "Slice 41 debug log missing WinMux.zone-affinities: $debug_log"
+    done
+    grep -E '"matched"[[:space:]]*:[[:space:]]*true' "$debug_comms" >/dev/null \
+        || die "Slice 41 matched debug log must include matched=true"
+    grep -E '"state"[[:space:]]*:[[:space:]]*"enabled"' "$debug_comms" >/dev/null \
+        || die "Slice 41 matched debug log must include enabled target"
+    grep -F '"zone" : "Work"' "$debug_work" >/dev/null \
+        || die "Slice 41 Work debug log must identify the Work affinity"
+    grep -E '"matched"[[:space:]]*:[[:space:]]*true' "$debug_work" >/dev/null \
+        || die "Slice 41 Work debug log must include matched=true"
+    grep -F "window-title-regex-substring matched title 'slice41-work-editor.rtf'" "$debug_work" >/dev/null \
+        || die "Slice 41 Work debug log missing title matcher success"
+    grep -F "workspace matched 'work'" "$debug_work" >/dev/null \
+        || die "Slice 41 Work debug log missing workspace matcher success"
+    grep -F "workspace expected 'work'" "$debug_work" >/dev/null \
+        && die "Slice 41 Work debug log still reports workspace mismatch"
+    grep -F '"failed-terms"' "$debug_no_match" >/dev/null \
+        || die "Slice 41 no-match debug log missing failed-terms"
+    grep -F "app-id expected 'com.apple.mail'" "$debug_no_match" >/dev/null \
+        || die "Slice 41 no-match debug log missing app-id failure"
+    grep -E '"state"[[:space:]]*:[[:space:]]*"disabled"' "$debug_disabled" >/dev/null \
+        || die "Slice 41 disabled debug log missing disabled target state"
+    grep -F 'target zone is hidden' "$debug_disabled" >/dev/null \
+        || die "Slice 41 disabled debug log missing hidden-zone reason"
+    grep -E '"matched"[[:space:]]*:[[:space:]]*true' "$debug_reload" >/dev/null \
+        || die "Slice 41 reload debug log must include matched=true"
+    grep -E '"matched"[[:space:]]*:[[:space:]]*true' "$debug_relaunch" >/dev/null \
+        || die "Slice 41 relaunch debug log must include matched=true"
+
+    grep -F '$ winmux reload-config' "$reload_log" >/dev/null \
+        || die "Slice 41 reload log missing reload-config command"
+    grep -F 'stopped=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 41 relaunch log must prove the app was stopped before restart"
+    grep -F 'reload-config' "$relaunch_log" >/dev/null \
+        && die "Slice 41 relaunch proof must not use reload-config"
+    grep -F 'zone=left|name=Reference|' "$final_zones" >/dev/null \
+        || die "Slice 41 final zones missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$final_zones" >/dev/null \
+        || die "Slice 41 final zones missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$final_zones" >/dev/null \
+        || die "Slice 41 final zones missing Comms/right"
+    for title in \
+        'slice41-mail-comms.rtf' \
+        'slice41-reference-browser.rtf' \
+        'slice41-work-editor.rtf' \
+        'slice41-disabled-comms.rtf' \
+        'slice41-reload-reference.rtf' \
+        'slice41-relaunch-comms.rtf'; do
+        grep -F "$title" "$final_windows" >/dev/null \
+            || die "Slice 41 final all-workspaces audit missing representative window: $title"
+    done
+
+    local timing_key
+    for timing_key in \
+        launch-offset-seconds \
+        config-path-offset-seconds \
+        open-comms-offset-seconds \
+        open-reference-work-offset-seconds \
+        no-match-offset-seconds \
+        disabled-offset-seconds \
+        reload-offset-seconds \
+        relaunch-offset-seconds \
+        final-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 41 timing log missing $timing_key"
+    done
+
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp" \
+        "$(value_from_log launch-offset-seconds "$timing_log")" \
+        "Slice 41 launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --config-path" \
+        "$(value_from_log config-path-offset-seconds "$timing_log")" \
+        "Slice 41 config-path proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: open -a TextEdit slice41-mail-comms.rtf" \
+        "$(value_from_log open-comms-offset-seconds "$timing_log")" \
+        "Slice 41 app-id route must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux apply-zone-bindings; open Reference and Work windows" \
+        "$(value_from_log open-reference-work-offset-seconds "$timing_log")" \
+        "Slice 41 app-name/workspace routes must happen while their command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: open no-match and debug failed terms" \
+        "$(value_from_log no-match-offset-seconds "$timing_log")" \
+        "Slice 41 no-match diagnostics must happen while their command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux disable-zone Comms; open disabled target" \
+        "$(value_from_log disabled-offset-seconds "$timing_log")" \
+        "Slice 41 disabled target proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux reload-config; open reload route" \
+        "$(value_from_log reload-offset-seconds "$timing_log")" \
+        "Slice 41 reload proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: relaunch WinMuxApp; open relaunch route" \
+        "$(value_from_log relaunch-offset-seconds "$timing_log")" \
+        "Slice 41 relaunch proof must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-windows --all; winmux list-zones" \
+        "$(value_from_log final-offset-seconds "$timing_log")" \
+        "Slice 41 final inspection must happen while its command caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-41-zone-affinity-beta.expected-chips.txt" \
+        "${LOGS_DIR}/slice-41-zone-affinity-beta.annotations.tsv"
+    for chip in \
+        "Config: [[zone-affinities]] app-id | app-name | title+workspace" \
+        "Run: WinMuxApp" \
+        "Run: winmux config --config-path" \
+        "Run: open -a TextEdit slice41-mail-comms.rtf" \
+        "Run: winmux apply-zone-bindings; open Reference and Work windows" \
+        "Run: open no-match and debug failed terms" \
+        "Run: winmux disable-zone Comms; open disabled target" \
+        "Run: winmux reload-config; open reload route" \
+        "Action: relaunch WinMuxApp; open relaunch route" \
+        "Run: winmux list-windows --all; winmux list-zones"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 41 annotations missing chip: $chip"
     done
 }
 
@@ -11556,6 +12102,68 @@ require_slice_40_event_manifest() {
     done
 }
 
+require_slice_41_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" affinity-config context
+    require_event_manifest_event "$manifest_path" launch-normal command
+    require_event_manifest_event "$manifest_path" config-path command
+    require_event_manifest_event "$manifest_path" app-id-route command
+    require_event_manifest_event "$manifest_path" app-name-workspace-routes command
+    require_event_manifest_event "$manifest_path" no-match-diagnostics command
+    require_event_manifest_event "$manifest_path" disabled-target command
+    require_event_manifest_event "$manifest_path" reload-route command
+    require_event_manifest_event "$manifest_path" relaunch-route action
+    require_event_manifest_event "$manifest_path" final-inspection command
+
+    require_event_sample_label "$manifest_path" affinity-config affinity-config
+    require_event_sample_label "$manifest_path" launch-normal launch-normal
+    require_event_sample_label "$manifest_path" config-path config-path
+    require_event_sample_label "$manifest_path" app-id-route app-id-route
+    require_event_sample_label "$manifest_path" app-name-workspace-routes app-name-workspace-routes
+    require_event_sample_label "$manifest_path" no-match-diagnostics no-match-diagnostics
+    require_event_sample_label "$manifest_path" disabled-target disabled-target
+    require_event_sample_label "$manifest_path" reload-route reload-route
+    require_event_sample_label "$manifest_path" relaunch-route relaunch-route
+    require_event_sample_label "$manifest_path" final-inspection final-inspection
+
+    require_event_before "$manifest_path" affinity-config launch-normal \
+        "Slice 41 event manifest must show config before normal launch"
+    require_event_before "$manifest_path" launch-normal config-path \
+        "Slice 41 event manifest must show launch before config-path inspection"
+    require_event_before "$manifest_path" config-path app-id-route \
+        "Slice 41 event manifest must show config-path before app-id routing"
+    require_event_before "$manifest_path" app-id-route app-name-workspace-routes \
+        "Slice 41 event manifest must show app-id route before app-name/workspace examples"
+    require_event_before "$manifest_path" app-name-workspace-routes no-match-diagnostics \
+        "Slice 41 event manifest must show successful routes before no-match diagnostics"
+    require_event_before "$manifest_path" no-match-diagnostics disabled-target \
+        "Slice 41 event manifest must show no-match before disabled-target proof"
+    require_event_before "$manifest_path" disabled-target reload-route \
+        "Slice 41 event manifest must show disabled target before reload proof"
+    require_event_before "$manifest_path" reload-route relaunch-route \
+        "Slice 41 event manifest must show reload proof before relaunch proof"
+    require_event_before "$manifest_path" relaunch-route final-inspection \
+        "Slice 41 event manifest must show relaunch proof before final inspection"
+
+    local event_id path
+    for event_id in \
+        affinity-config \
+        launch-normal \
+        config-path \
+        app-id-route \
+        app-name-workspace-routes \
+        no-match-diagnostics \
+        disabled-target \
+        reload-route \
+        relaunch-route \
+        final-inspection; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 41 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -13443,6 +14051,9 @@ case "$recording_name" in
     slice-40-zone-setup-assistant)
         require_slice_40_zone_setup_assistant_proof
         ;;
+    slice-41-zone-affinity-beta)
+        require_slice_41_zone_affinity_beta_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -13549,6 +14160,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_38_evidence "$review_path"
     require_review_mentions_slice_39_evidence "$review_path"
     require_review_mentions_slice_40_evidence "$review_path"
+    require_review_mentions_slice_41_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

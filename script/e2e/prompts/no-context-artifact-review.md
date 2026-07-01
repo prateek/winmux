@@ -652,6 +652,32 @@ Slice-specific checks:
   live-board content, angle-bracket placeholders in command text, missing
   stale-membership action, no comparison against the root demos/product
   surfaces, or any claim that runtime node bindings survive relaunch.
+- Slice 41 must show automatic `[[zone-affinities]]` routing from the normal
+  user config path, not a one-off config override. Inspect the primary
+  annotated recording first, then the raw recording, contact sheet, semantic
+  sample manifest, event manifest, caption-boundary frames, and logs. Require
+  `[[zone-bindings]]` in the config, the command chip
+  `Run: winmux apply-zone-bindings; open Reference and Work windows`,
+  `logs/slice-41-apply-zone-bindings.log`, and
+  `logs/slice-41-after-apply-zone-bindings-zones.log` proving
+  `Reference=reference`, `Work=work`, and `Comms=comms` before the Work
+  title+workspace route is claimed. Reject any artifact that still uses
+  `$ winmux workspace work`, launches with `--config-path` or
+  `WINMUX_DEFAULT_CONFIG_PATH`, lacks `slice-41-debug-work.log`, omits
+  `workspace matched 'work'`, reports `workspace expected 'work'`, uses manual
+  `move-node-to-zone` during proof, hides the command chips, or proves only the
+  final state after routing has already happened. Require final inspection to
+  use `winmux list-windows --all` plus `winmux list-zones`, because
+  relaunch can change active zone workspaces while prior routed windows still
+  need to remain auditable. Reject `winmux list-windows --all` if it is
+  combined with filtering flags such as `--app-bundle-id`, `--pid`,
+  `--workspace`, `--monitor`, or `--focused`; that alias is only valid for the
+  unfiltered final audit. Do not accept a review that treats the final audit as
+  the only proof of earlier app-id, app-name, workspace, no-match, disabled, or
+  reload route placement; those zone claims must come from the per-beat logs
+  captured when each window opens. Require reviewers to cite the exact media and
+  logs they inspected for the app-id, app-name, workspace, no-match, disabled
+  target, reload, and relaunch beats.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

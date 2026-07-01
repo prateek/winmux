@@ -1,0 +1,55 @@
+config-version = 2
+auto-reload-config = false
+persistent-workspaces = []
+
+[[zones]]
+monitor = 1
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.25 },
+  { id = 'main', name = 'Work', width = 0.50 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zone-bindings]]
+zone = 'left'
+workspace = 'reference'
+
+[[zone-bindings]]
+zone = 'main'
+workspace = 'work'
+
+[[zone-bindings]]
+zone = 'right'
+workspace = 'comms'
+
+[[zone-affinities]]
+zone = 'Comms'
+if.app-id = 'com.apple.TextEdit'
+if.window-title-regex-substring = 'slice41-mail'
+fail-if-noop = true
+
+[[zone-affinities]]
+zone = 'Reference'
+if.app-name-regex-substring = 'TextEdit'
+if.window-title-regex-substring = 'slice41-reference'
+fail-if-noop = true
+
+[[zone-affinities]]
+zone = 'Work'
+if.window-title-regex-substring = 'slice41-work'
+if.workspace = 'work'
+
+[[zone-affinities]]
+zone = 'Reference'
+if.app-id = 'com.apple.mail'
+if.window-title-regex-substring = 'slice41-nomatch'
+
+[[zone-affinities]]
+zone = 'Comms'
+if.window-title-regex-substring = 'slice41-disabled'
+fail-if-noop = true
+
+[workspace-sidebar]
+enabled = false

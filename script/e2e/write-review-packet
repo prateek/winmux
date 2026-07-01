@@ -60,7 +60,7 @@ recording_name="$(basename "$recording_path" .mov)"
 raw_recording_path="${RECORDINGS_DIR}/raw/${recording_name}.raw.mov"
 demo_recording_path="${RECORDINGS_DIR}/${recording_name}.demo.mov"
 before_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '00-before-*.png' | sort | head -1)"
-ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '01-ready-*.png' | sort | head -1)"
+ready_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f \( -name '01-ready-*.png' -o -name '01-*-ready-*.png' \) | sort | head -1)"
 after_screenshot="$(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f -name '99-after-*.png' | sort | head -1)"
 contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
 contact_sheet_manifest="${LOGS_DIR}/${recording_name}.contact-sheet-manifest.tsv"
@@ -659,6 +659,27 @@ EOF
 - Inspect `logs/slice-40-zone-setup-assistant.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-zone-init-ready-slice-40.png`, `02-zone-init-dry-run-slice-40.png`, `03-zone-init-write-slice-40.png`, `04-zone-init-launched-slice-40.png`, `05-zone-setup-ready-slice-40.png`, and the contact sheet. The video must make the setup assistant readable before logs are read.
 - Compare against the current Slice 36 root demo package, repo root demos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact matches the clean desktop, live app surface, and restrained command-chip style.
 - State explicitly that Slice 40 proves a CLI setup assistant for the balanced preset. It does not prove a GUI setup wizard, zones enabled by default, every monitor size, every preset, all commands/key bindings, or mouse gestures.
+EOF
+            ;;
+        slice-41-zone-affinity-beta)
+            cat <<'EOF'
+- Confirm the recording proves automatic `[[zone-affinities]]` routing from the normal user config path. Reject any proof that launches WinMux with `--config-path` or `WINMUX_DEFAULT_CONFIG_PATH`.
+- Inspect `logs/slice-41-user-config-initial.toml`; require active `[[zones]]`, `[[zone-bindings]]` for `reference`, `work`, and `comms`, plus affinity rules using `if.app-id`, `if.app-name-regex-substring`, `if.window-title-regex-substring`, and `if.workspace`.
+- Inspect `logs/winmux-e2e-slice41.plist`; reject any config override. Inspect `logs/slice-41-config-path.log`; require `$ winmux config --config-path` and `~/.config/winmux/winmux.toml`.
+- Inspect `logs/slice-41-routing.log`; require every opened representative window, `$ winmux apply-zone-bindings`, every `debug-windows` call, `winmux reload-config`, and the relaunch boundary. Reject if proof-phase logs include `$ winmux move-node-to-zone` or `Run: winmux move-node-to-zone`.
+- Inspect `logs/slice-41-apply-zone-bindings.log` and `logs/slice-41-after-apply-zone-bindings-zones.log`; require `zone=left|name=Reference|workspace=reference`, `zone=main|name=Work|workspace=work`, and `zone=right|name=Comms|workspace=comms` before the Reference and Work windows open.
+- Inspect `logs/slice-41-after-comms.log`, `logs/slice-41-after-reference.log`, and `logs/slice-41-after-work.log`; require `slice41-mail-comms.rtf` in Comms/right, `slice41-reference-browser.rtf` in Reference/left, and `slice41-work-editor.rtf` in Work/main.
+- Inspect `logs/slice-41-debug-comms.log`; require `WinMux.zone-affinities`, `matched`, and enabled target output.
+- Inspect `logs/slice-41-debug-work.log`; require `WinMux.zone-affinities`, `"zone" : "Work"`, matched output, `window-title-regex-substring matched title 'slice41-work-editor.rtf'`, and `workspace matched 'work'`. Reject if it still contains `workspace expected 'work'`.
+- Inspect `logs/slice-41-debug-no-match.log`; require `failed-terms` explaining why `slice41-nomatch.rtf` did not route.
+- Inspect `logs/slice-41-debug-disabled.log` and `logs/slice-41-after-disabled.log`; require target state `disabled`, the hidden-zone reason, and proof that `slice41-disabled-comms.rtf` did not land in Comms/right.
+- Inspect `logs/slice-41-reload-config.log`, `logs/slice-41-user-config-reloaded.toml`, `logs/slice-41-after-reload.log`, and `logs/slice-41-debug-reload.log`; require `$ winmux reload-config` and `slice41-reload-reference.rtf` in Reference/left after the config swap.
+- Inspect `logs/slice-41-relaunch.log`, `logs/slice-41-after-relaunch.log`, and `logs/slice-41-debug-relaunch.log`; require `stopped=yes`, normal relaunch, and `slice41-relaunch-comms.rtf` in Comms/right after restart. Reject reload-only relaunch proof.
+- Inspect `logs/slice-41-final-visual-ready.log` and `screenshots/06-final-affinity-proof-slice-41.png`; require `slice-41-affinity-final.rtf` to be visible before the screenshot and the screenshot to show the final `list-windows --all` / `list-zones` board, not only the earlier ready board.
+- Inspect `logs/slice-41-final-windows.log` as an all-workspaces audit, not a visible-workspaces-only audit; earlier per-beat logs prove each routed window in-zone when it appears, while final inspection keeps hidden pre-relaunch workspaces auditable.
+- Inspect `logs/slice-41-command-timing.log`, `logs/slice-41-zone-affinity-beta.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-affinity-ready-slice-41.png`, `03-routed-comms-slice-41.png`, `04-diagnostics-slice-41.png`, `05-after-relaunch-slice-41.png`, `06-final-affinity-proof-slice-41.png`, and the contact sheet. The video must make actions and command chips legible before logs are read.
+- Compare against the current Slice 36 root demo package, repo root demos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, and restrained command-chip style used in accepted Slice 36-40 artifacts.
+- State explicitly that Slice 41 proves deterministic app/window affinity routing, match/no-match/disabled diagnostics, reload, and relaunch for newly detected representative windows. It does not prove ML placement, automatic rebinding of already-open windows, durable tab-group identity, or every real app bundle a user may configure.
 EOF
             ;;
         slice-8-window-routing)
