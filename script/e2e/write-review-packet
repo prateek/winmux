@@ -570,6 +570,21 @@ EOF
 - State explicitly that Slice 38 proves normal config path readiness for existing command surfaces. It does not claim GUI setup, every command/key binding, release packaging, or persistence after a real save.
 EOF
             ;;
+        slice-39-dogfood-install-permissions)
+            cat <<'EOF'
+- Confirm the recording proves a dogfood install path, not another debug-bin launch. The visible app path must be `/Applications/WinMux.app`, and `logs/winmux-e2e-slice39.plist` must launch `/Applications/WinMux.app/Contents/MacOS/WinMuxApp` with no `--config-path` and no `WINMUX_DEFAULT_CONFIG_PATH`.
+- Confirm permissions were prepared before recording. Reject any visible System Settings pane, permission prompt, sshd prompt, stale setup window, or unexplained extra app window after capture begins.
+- Confirm captions expose the exact user-facing surface: `Action: install WinMux.app to /Applications`, `Action: prepare Accessibility | Screen Recording | Automation before recording`, `Run: WinMuxApp from /Applications/WinMux.app`, `Run: winmux doctor`, `Run: winmux config --config-path`, `Run: winmux config --check ~/.config/winmux/winmux.toml`, `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`, `Action: relaunch WinMux from /Applications/WinMux.app`, `Run: winmux focus-zone Comms`, and `Result: dogfood install path is ready`.
+- Inspect `logs/slice-39-install.log`; require `/Applications/WinMux.app`, `/Applications/WinMux.app/Contents/MacOS/WinMuxApp`, `/Applications/WinMux.app/Contents/Resources/default-config.toml`, `com.zimengxiong.winmux`, checksums, and `install=result=success`.
+- Inspect `logs/slice-39-permissions.log` and `logs/guest-privacy-setup.log`; require Accessibility, Screen Recording, Automation, Input Monitoring, recovery commands, the installed app executable TCC row, and the bundle id `com.zimengxiong.winmux`.
+- Inspect `logs/slice-39-doctor.log` and `logs/slice-39-visible-doctor-status.txt`; require the visible doctor surface to include the `Install:` section, `app path: /Applications/WinMux.app`, the normal config path, `accessibility: granted`, `screen recording: granted`, `automation: macOS-managed`, `input monitoring: macOS-managed`, and `automation reset: tccutil reset AppleEvents com.zimengxiong.winmux`.
+- Inspect `logs/slice-39-config-path.log`, `logs/slice-39-config-check.log`, `logs/slice-39-list-zones.log`, `logs/slice-39-relaunch.log`, and `logs/slice-39-focus-zone-comms.log`; require the normal user path, `Config OK`, Reference/left, Work/main, Comms/right, relaunch success, and exact focus command success.
+- Inspect `logs/slice-39-command-timing.log`; cite launch, doctor, config-path, config-check, list-zones, relaunch, focus-zone, and result offsets. Reject if any timed command happens outside its matching caption window.
+- Inspect `logs/slice-39-dogfood-install-permissions.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-dogfood-install-status-slice-39.png`, `02-installed-app-launched-slice-39.png`, `03-doctor-status-slice-39.png`, `04-after-relaunch-slice-39.png`, `05-dogfood-ready-slice-39.png`, and the contact sheet. The video should stay less dense than Slice 38 while still making the install and permission status readable.
+- Compare against the current Slice 36 root demo package, repo root demos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact matches the clean desktop, live app surface, and restrained command-chip style.
+- State explicitly that Slice 39 proves a staged dogfood install/status path only. It does not claim a public beta package, GUI setup assistant, every permission recovery path, or all commands/key binds/mouse gestures.
+EOF
+            ;;
         slice-8-window-routing)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.

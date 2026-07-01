@@ -592,6 +592,55 @@ EOF
         die "Sample manifest self-test expected out-of-window caption timestamp rejection"
     fi
 
+    local two_caption_annotation_plan="$annotation_plan"
+    annotation_plan="${tmp_dir}/slice-39-annotations.tsv"
+    cat >"$annotation_plan" <<'EOF'
+0	8	Install dogfood app	Subtitle	Action: install WinMux.app to /Applications
+8	18	Prepare permissions	Subtitle	Action: prepare Accessibility | Screen Recording | Automation before recording
+18	30	Launch installed app	Subtitle	Run: WinMuxApp from /Applications/WinMux.app
+30	42	Check status	Subtitle	Run: winmux doctor
+42	50	Confirm config source	Subtitle	Run: winmux config --config-path
+50	60	Validate the config	Subtitle	Run: winmux config --check ~/.config/winmux/winmux.toml
+60	72	Inspect zones	Subtitle	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+72	84	Relaunch installed app	Subtitle	Action: relaunch WinMux from /Applications/WinMux.app
+84	96	Focus Comms	Subtitle	Run: winmux focus-zone Comms
+96	108	Ready to dogfood	Subtitle	Result: dogfood install path is ready
+EOF
+    mkdir -p "${tmp_dir}/screenshots/slice-39-dogfood-install-permissions.samples"
+    local slice_39_fixture
+    for slice_39_fixture in \
+        screenshots/01-dogfood-install-status-slice-39.png \
+        screenshots/03-doctor-status-slice-39.png \
+        screenshots/04-after-relaunch-slice-39.png \
+        screenshots/05-dogfood-ready-slice-39.png \
+        screenshots/slice-39-dogfood-install-permissions.samples/caption-03-boundary-start.png \
+        screenshots/slice-39-dogfood-install-permissions.samples/caption-05-boundary-start.png \
+        screenshots/slice-39-dogfood-install-permissions.samples/caption-06-boundary-start.png \
+        screenshots/slice-39-dogfood-install-permissions.samples/caption-07-boundary-start.png \
+        screenshots/slice-39-dogfood-install-permissions.samples/caption-09-boundary-start.png; do
+        printf 'slice 39 fixture\n' >"${tmp_dir}/${slice_39_fixture}"
+    done
+    local slice_39_sample_manifest="${tmp_dir}/slice-39-sample-manifest.tsv"
+    cat >"$slice_39_sample_manifest" <<'EOF'
+semantic	install-app	screenshot	screenshot	screenshots/01-dogfood-install-status-slice-39.png	install path visible
+semantic	prepare-permissions	screenshot	screenshot	screenshots/01-dogfood-install-status-slice-39.png	permissions prepared
+semantic	launch-installed	caption-03	18.100	screenshots/slice-39-dogfood-install-permissions.samples/caption-03-boundary-start.png	launch caption visible
+semantic	doctor-status	screenshot	screenshot	screenshots/03-doctor-status-slice-39.png	doctor status visible
+semantic	config-path	caption-05	42.100	screenshots/slice-39-dogfood-install-permissions.samples/caption-05-boundary-start.png	config path caption visible
+semantic	config-check	caption-06	50.100	screenshots/slice-39-dogfood-install-permissions.samples/caption-06-boundary-start.png	config check caption visible
+semantic	list-zones	caption-07	60.100	screenshots/slice-39-dogfood-install-permissions.samples/caption-07-boundary-start.png	list zones caption visible
+semantic	relaunch-installed	screenshot	screenshot	screenshots/04-after-relaunch-slice-39.png	relaunch visible
+semantic	focus-comms	caption-09	84.100	screenshots/slice-39-dogfood-install-permissions.samples/caption-09-boundary-start.png	focus caption visible
+semantic	result-ready	screenshot	screenshot	screenshots/05-dogfood-ready-slice-39.png	result visible
+EOF
+    require_slice_39_sample_manifest "$slice_39_sample_manifest"
+    local slice_39_missing_doctor_manifest="${tmp_dir}/slice-39-missing-doctor-sample-manifest.tsv"
+    /usr/bin/grep -v $'semantic\tdoctor-status\t' "$slice_39_sample_manifest" >"$slice_39_missing_doctor_manifest"
+    if ( require_slice_39_sample_manifest "$slice_39_missing_doctor_manifest" ) >/dev/null 2>&1; then
+        die "Slice 39 sample manifest self-test expected missing doctor-status semantic row rejection"
+    fi
+    annotation_plan="$two_caption_annotation_plan"
+
     printf 'event media\n' >"${tmp_dir}/event.png"
     local event_manifest="${tmp_dir}/events.tsv"
     cat >"$event_manifest" <<'EOF'
@@ -1013,6 +1062,34 @@ EOF
         die "Slice 38 nonclaim self-test expected positive release claim rejection"
     fi
 
+    local slice_39_nonclaim_review="${tmp_dir}/slice-39-nonclaim-review.md"
+    local slice_39_positive_beta_review="${tmp_dir}/slice-39-positive-beta-review.md"
+    cat >"$slice_39_nonclaim_review" <<'EOF'
+PASS: Slice 39 non-claims are explicit
+
+The artifact does not prove a public beta package or release-ready distribution.
+The artifact does not prove a GUI setup assistant.
+The artifact does not prove every permission recovery path.
+The artifact does not claim all commands, key binds, or mouse gestures.
+
+next slice allowed: yes
+EOF
+    cat >"$slice_39_positive_beta_review" <<'EOF'
+PASS: Slice 39 false beta claim
+
+The artifact proves a public beta package and release-ready distribution.
+The artifact does not prove a GUI setup assistant.
+The artifact does not prove every permission recovery path.
+The artifact does not claim all commands, key binds, or mouse gestures.
+
+next slice allowed: yes
+EOF
+    require_slice_39_review_nonclaims "$slice_39_nonclaim_review" \
+        || die "Slice 39 nonclaim self-test expected explicit non-claims to pass"
+    if ( require_slice_39_review_nonclaims "$slice_39_positive_beta_review" ) >/dev/null 2>&1; then
+        die "Slice 39 nonclaim self-test expected positive beta/release claim rejection"
+    fi
+
     local slice_38_setup_log="${tmp_dir}/slice-38-setup.log"
     local slice_38_good_plist="${tmp_dir}/slice-38-good.plist"
     local slice_38_bad_arg_plist="${tmp_dir}/slice-38-bad-arg.plist"
@@ -1072,6 +1149,41 @@ EOF
 EOF
     if ( require_slice_38_launch_plist_shape "$slice_38_bad_workdir_plist" "$slice_38_setup_log" ) >/dev/null 2>&1; then
         die "Slice 38 LaunchAgent self-test expected WorkingDirectory mismatch rejection"
+    fi
+
+    local slice_39_good_plist="${tmp_dir}/slice-39-good.plist"
+    local slice_39_bad_arg_plist="${tmp_dir}/slice-39-bad-arg.plist"
+    cat >"$slice_39_good_plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/WinMux.app/Contents/MacOS/WinMuxApp</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/admin</string>
+</dict>
+</plist>
+EOF
+    require_slice_39_launch_plist_shape "$slice_39_good_plist"
+    cat >"$slice_39_bad_arg_plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/admin/winmux-e2e/bin/WinMuxApp</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/admin</string>
+</dict>
+</plist>
+EOF
+    if ( require_slice_39_launch_plist_shape "$slice_39_bad_arg_plist" ) >/dev/null 2>&1; then
+        die "Slice 39 LaunchAgent self-test expected non-installed path rejection"
     fi
 
     local baseline_root="${tmp_dir}/repo"
@@ -3050,6 +3162,38 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 38 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-39-dogfood-install-permissions" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-39-setup.log" \
+            "${LOGS_DIR}/winmux-e2e-slice39.plist" \
+            "${LOGS_DIR}/slice-39-install.log" \
+            "${LOGS_DIR}/slice-39-permissions.log" \
+            "${LOGS_DIR}/slice-39-user-config-before.toml" \
+            "${LOGS_DIR}/slice-39-user-config-uncommented.toml" \
+            "${LOGS_DIR}/slice-39-doctor.log" \
+            "${LOGS_DIR}/slice-39-config-path.log" \
+            "${LOGS_DIR}/slice-39-config-check.log" \
+            "${LOGS_DIR}/slice-39-list-zones.log" \
+            "${LOGS_DIR}/slice-39-relaunch.log" \
+            "${LOGS_DIR}/slice-39-focus-zone-comms.log" \
+            "${LOGS_DIR}/slice-39-cli.log" \
+            "${LOGS_DIR}/slice-39-command-timing.log" \
+            "${LOGS_DIR}/slice-39-visible-doctor-status.txt" \
+            "${LOGS_DIR}/slice-39-dogfood-install-permissions.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-39.png" \
+            "${SCREENSHOTS_DIR}/01-dogfood-install-status-slice-39.png" \
+            "${SCREENSHOTS_DIR}/02-installed-app-launched-slice-39.png" \
+            "${SCREENSHOTS_DIR}/03-doctor-status-slice-39.png" \
+            "${SCREENSHOTS_DIR}/04-after-relaunch-slice-39.png" \
+            "${SCREENSHOTS_DIR}/05-dogfood-ready-slice-39.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-39.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 39 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -3878,6 +4022,49 @@ require_slice_38_launch_plist_shape() {
         || die "Slice 38 LaunchAgent WorkingDirectory mismatch: expected ${expected_working_directory}, got ${launch_working_directory:-missing}"
 }
 
+require_slice_39_launch_plist_shape() {
+    local launch_plist="$1"
+    local launch_arg_count
+    local launch_arg0
+    local launch_working_directory
+
+    if grep -F -- '--config-path' "$launch_plist" >/dev/null; then
+        die "Slice 39 LaunchAgent must not pass --config-path"
+    fi
+    if grep -F 'WINMUX_DEFAULT_CONFIG_PATH' "$launch_plist" >/dev/null; then
+        die "Slice 39 LaunchAgent must not set WINMUX_DEFAULT_CONFIG_PATH"
+    fi
+
+    launch_arg_count="$(
+        { /usr/libexec/PlistBuddy -c 'Print :ProgramArguments' "$launch_plist" 2>/dev/null || true; } \
+            | /usr/bin/awk '/^    / { count++ } END { print count + 0 }'
+    )"
+    [ "$launch_arg_count" = "1" ] \
+        || die "Slice 39 LaunchAgent ProgramArguments must contain exactly one item, got ${launch_arg_count:-missing}"
+
+    launch_arg0="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$launch_plist" 2>/dev/null || true)"
+    [ "$launch_arg0" = "/Applications/WinMux.app/Contents/MacOS/WinMuxApp" ] \
+        || die "Slice 39 LaunchAgent ProgramArguments must launch /Applications/WinMux.app, got ${launch_arg0:-missing}"
+
+    launch_working_directory="$(/usr/libexec/PlistBuddy -c 'Print :WorkingDirectory' "$launch_plist" 2>/dev/null || true)"
+    case "$launch_working_directory" in
+        /Users/*) ;;
+        *) die "Slice 39 LaunchAgent WorkingDirectory must be a normal user home, got ${launch_working_directory:-missing}" ;;
+    esac
+}
+
+require_slice_39_review_nonclaims() {
+    local review_path="$1"
+    review_has_slice_38_nonclaim "$review_path" '(public beta|beta package|release package|release-ready|ready for release|notarized|signed distribution|distribution)' \
+        || die "Slice 39 review must explicitly state that the artifact does not prove a public beta or release-ready distribution"
+    review_has_slice_38_nonclaim "$review_path" '(gui setup|setup assistant|gui onboarding|config editor)' \
+        || die "Slice 39 review must explicitly state that the artifact does not prove GUI setup/onboarding"
+    review_has_slice_38_nonclaim "$review_path" '(every permission|all permission|permission recovery|recovery path|all recovery|every recovery)' \
+        || die "Slice 39 review must explicitly state that the artifact does not prove every permission recovery path"
+    review_has_slice_38_nonclaim "$review_path" '(every command|all commands|full command|complete command|every key|all key|full key|mouse gesture|all gesture)' \
+        || die "Slice 39 review must explicitly state that the artifact does not prove all commands, key binds, or mouse gestures"
+}
+
 require_review_mentions_slice_38_evidence() {
     local review_path="$1"
     case "$recording_name" in
@@ -4009,6 +4196,129 @@ EOF
     done
 }
 
+require_review_mentions_slice_39_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-39-dogfood-install-permissions) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/winmux-e2e-slice39.plist	LaunchAgent plist
+${LOGS_DIR}/slice-39-install.log	installed app provenance log
+${LOGS_DIR}/slice-39-permissions.log	permission status and recovery log
+${LOGS_DIR}/slice-39-doctor.log	doctor status output
+${LOGS_DIR}/slice-39-config-path.log	config path log
+${LOGS_DIR}/slice-39-config-check.log	config check log
+${LOGS_DIR}/slice-39-list-zones.log	list-zones runtime log
+${LOGS_DIR}/slice-39-relaunch.log	relaunch log
+${LOGS_DIR}/slice-39-focus-zone-comms.log	focus-zone Comms log
+${LOGS_DIR}/slice-39-command-timing.log	command timing log
+${LOGS_DIR}/slice-39-cli.log	aggregate CLI log
+${LOGS_DIR}/slice-39-visible-doctor-status.txt	visible doctor status text
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-39.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-dogfood-install-status-slice-39.png	dogfood install status screenshot
+${SCREENSHOTS_DIR}/02-installed-app-launched-slice-39.png	installed app launched screenshot
+${SCREENSHOTS_DIR}/03-doctor-status-slice-39.png	doctor status screenshot
+${SCREENSHOTS_DIR}/04-after-relaunch-slice-39.png	after relaunch screenshot
+${SCREENSHOTS_DIR}/05-dogfood-ready-slice-39.png	final dogfood-ready screenshot
+${SCREENSHOTS_DIR}/99-after-slice-39.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 39 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 39 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-39-dogfood-install-permissions.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 39 review must cite the Slice 39 event manifest"
+    for event_id in \
+        install-app \
+        prepare-permissions \
+        launch-installed \
+        doctor-status \
+        config-path \
+        config-check \
+        list-zones \
+        relaunch-installed \
+        focus-comms \
+        result-ready; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 39 review must cite dogfood event: $event_id"
+    done
+    for timing_key in \
+        launch-offset-seconds \
+        doctor-offset-seconds \
+        config-path-offset-seconds \
+        config-check-offset-seconds \
+        list-zones-offset-seconds \
+        relaunch-offset-seconds \
+        focus-zone-offset-seconds \
+        result-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 39 review must cite timing value key: $timing_key"
+    done
+    local normal_config_tilde
+    normal_config_tilde=$'\x7e/.config/winmux/winmux.toml'
+    for exact in \
+        '/Applications/WinMux.app' \
+        '/Applications/WinMux.app/Contents/MacOS/WinMuxApp' \
+        'com.zimengxiong.winmux' \
+        'accessibility: granted' \
+        'screen recording: granted' \
+        'automation: macOS-managed' \
+        'automation reset: tccutil reset AppleEvents com.zimengxiong.winmux' \
+        "$normal_config_tilde" \
+        '$ winmux doctor' \
+        '$ winmux config --config-path' \
+        '$ winmux config --check ~/.config/winmux/winmux.toml' \
+        "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        '$ winmux focus-zone Comms' \
+        'relaunch=result=success' \
+        'WINMUX_DEFAULT_CONFIG_PATH'; do
+        grep -F "$exact" "$review_path" >/dev/null \
+            || die "Slice 39 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'without .*--config-path|no .*--config-path|does not .*--config-path' "$review_path" \
+        || die "Slice 39 review must state that installed WinMux launches without --config-path"
+    grep -Eiq 'permission.*before recording|before recording.*permission|no .*permission prompt|without .*permission prompt' "$review_path" \
+        || die "Slice 39 review must state that permissions were prepared before recording and no prompt appeared"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 39 review must identify resulting zone: $zone_name"
+    done
+    require_slice_39_review_nonclaims "$review_path"
+    for baseline in \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md'; do
+        grep -F "$baseline" "$review_path" >/dev/null \
+            || die "Slice 39 review must cite current Slice 36 root-demo baseline: $baseline"
+    done
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -4057,7 +4367,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -4357,6 +4667,7 @@ run_review_lint() {
     require_review_mentions_slice_35_evidence "$review_path"
     require_review_mentions_slice_37_evidence "$review_path"
     require_review_mentions_slice_38_evidence "$review_path"
+    require_review_mentions_slice_39_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -4809,6 +5120,39 @@ require_slice_18_sample_manifest() {
         after-affinity-routing \
         inspect-affinity-windows; do
         require_sample_manifest_label "$manifest_path" "$label"
+    done
+}
+
+require_slice_39_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        install-app \
+        prepare-permissions \
+        launch-installed \
+        doctor-status \
+        config-path \
+        config-check \
+        list-zones \
+        relaunch-installed \
+        focus-comms \
+        result-ready; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    require_sample_manifest_label_path "$manifest_path" install-app "screenshots/01-dogfood-install-status-slice-39.png"
+    require_sample_manifest_label_path "$manifest_path" prepare-permissions "screenshots/01-dogfood-install-status-slice-39.png"
+    require_sample_manifest_label_path "$manifest_path" doctor-status "screenshots/03-doctor-status-slice-39.png"
+    require_sample_manifest_label_path "$manifest_path" relaunch-installed "screenshots/04-after-relaunch-slice-39.png"
+    require_sample_manifest_label_path "$manifest_path" result-ready "screenshots/05-dogfood-ready-slice-39.png"
+    for label in \
+        launch-installed \
+        config-path \
+        config-check \
+        list-zones \
+        focus-comms; do
+        require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
     done
 }
 
@@ -7055,6 +7399,245 @@ require_slice_38_user_readiness_proof() {
         "Result: normal config path is ready for Reference | Work | Comms"; do
         grep -F "$chip" "$annotation_plan" >/dev/null \
             || die "Slice 38 annotations missing chip: $chip"
+    done
+}
+
+require_slice_39_dogfood_install_permissions_proof() {
+    local proof="${RUN_DIR}/slice-39-dogfood-install-permissions-proof.txt"
+    local done="${LOGS_DIR}/slice-39-dogfood-install-permissions.done"
+    local setup_log="${LOGS_DIR}/slice-39-setup.log"
+    local install_log="${LOGS_DIR}/slice-39-install.log"
+    local permissions_log="${LOGS_DIR}/slice-39-permissions.log"
+    local config_before="${LOGS_DIR}/slice-39-user-config-before.toml"
+    local config_uncommented="${LOGS_DIR}/slice-39-user-config-uncommented.toml"
+    local launch_plist="${LOGS_DIR}/winmux-e2e-slice39.plist"
+    local doctor_log="${LOGS_DIR}/slice-39-doctor.log"
+    local config_path_log="${LOGS_DIR}/slice-39-config-path.log"
+    local config_check_log="${LOGS_DIR}/slice-39-config-check.log"
+    local list_zones_log="${LOGS_DIR}/slice-39-list-zones.log"
+    local relaunch_log="${LOGS_DIR}/slice-39-relaunch.log"
+    local focus_zone_log="${LOGS_DIR}/slice-39-focus-zone-comms.log"
+    local cli_log="${LOGS_DIR}/slice-39-cli.log"
+    local timing_log="${LOGS_DIR}/slice-39-command-timing.log"
+    local visible_install_status="${LOGS_DIR}/slice-39-visible-install-status.txt"
+    local visible_doctor_status="${LOGS_DIR}/slice-39-visible-doctor-status.txt"
+    local visible_result="${LOGS_DIR}/slice-39-visible-result.txt"
+    local event_manifest="${LOGS_DIR}/slice-39-dogfood-install-permissions.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 39"
+    require_file "$setup_log"
+    require_file "$install_log"
+    require_file "$permissions_log"
+    require_file "$config_before"
+    require_file "$config_uncommented"
+    require_file "$launch_plist"
+    require_file "$doctor_log"
+    require_file "$config_path_log"
+    require_file "$config_check_log"
+    require_file "$list_zones_log"
+    require_file "$relaunch_log"
+    require_file "$focus_zone_log"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$visible_install_status"
+    require_file "$visible_doctor_status"
+    require_file "$visible_result"
+    require_file "$event_manifest"
+    require_slice_39_sample_manifest "$sample_manifest"
+    require_slice_39_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/01-dogfood-install-status-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/02-installed-app-launched-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/03-doctor-status-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/04-after-relaunch-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/05-dogfood-ready-slice-39.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-39.png"
+
+    grep -F 'PASS: WinMux launched from /Applications/WinMux.app' "$proof" >/dev/null \
+        || die "Slice 39 proof does not contain the expected installed-app PASS claim"
+    grep -F 'installed-app=/Applications/WinMux.app' "$proof" >/dev/null \
+        || die "Slice 39 proof missing installed app path"
+    grep -F 'install_path=/Applications/WinMux.app' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing /Applications app path"
+    grep -F 'app_executable=/Applications/WinMux.app/Contents/MacOS/WinMuxApp' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing installed executable path"
+    grep -F 'app_default_config_source=' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing bundled default config source"
+    grep -F 'resources/default-config.toml' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing default-config source path"
+    grep -F 'app_default_config_resource=/Applications/WinMux.app/Contents/Resources/default-config.toml' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing bundled default config resource path"
+    grep -F 'bundle_identifier=com.zimengxiong.winmux' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing bundle identifier"
+    grep -F 'install=result=success' "$install_log" >/dev/null \
+        || die "Slice 39 install log missing success marker"
+
+    require_slice_39_launch_plist_shape "$launch_plist"
+
+    grep -F 'Installed app: /Applications/WinMux.app' "$setup_log" >/dev/null \
+        || die "Slice 39 setup log missing installed app path"
+    grep -F 'User config: ' "$setup_log" >/dev/null \
+        || die "Slice 39 setup log missing normal user config path"
+    grep -F 'Permissions: prepared before recording' "$setup_log" >/dev/null \
+        || die "Slice 39 setup log missing pre-recording permission summary"
+
+    for exact in \
+        'required_permissions=Accessibility Screen Recording Automation Input Monitoring' \
+        'accessibility=prepared-before-recording' \
+        'screen_recording=prepared-before-recording' \
+        'automation=prepared-before-recording' \
+        'input_monitoring=prepared-before-recording' \
+        'recovery_accessibility=tccutil reset Accessibility com.zimengxiong.winmux' \
+        'recovery_screen_recording=tccutil reset ScreenCapture com.zimengxiong.winmux' \
+        'recovery_automation=tccutil reset AppleEvents com.zimengxiong.winmux' \
+        'recovery_input_monitoring=tccutil reset ListenEvent com.zimengxiong.winmux' \
+        'permissions=result=success'; do
+        grep -F "$exact" "$permissions_log" >/dev/null \
+            || die "Slice 39 permission log missing: $exact"
+    done
+    grep -F '/Applications/WinMux.app/Contents/MacOS/WinMuxApp' "${LOGS_DIR}/guest-privacy-setup.log" >/dev/null \
+        || die "Slice 39 guest privacy setup missing installed app executable TCC row"
+    grep -F 'com.zimengxiong.winmux' "${LOGS_DIR}/guest-privacy-setup.log" >/dev/null \
+        || die "Slice 39 guest privacy setup missing bundle-id TCC row"
+
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$config_before" >/dev/null \
+        || die "Slice 39 normal config missing template begin marker"
+    grep -F '# [[zones]]' "$config_before" >/dev/null \
+        || die "Slice 39 normal config missing commented zones table"
+    if grep -E '^[[:space:]]*\[\[zones\]\]' "$config_before" >/dev/null; then
+        die "Slice 39 normal config must not activate [[zones]] before uncommenting"
+    fi
+    grep -E '^[[:space:]]*\[\[zones\]\]' "$config_uncommented" >/dev/null \
+        || die "Slice 39 uncommented normal config missing active [[zones]]"
+
+    grep -F 'Install:' "$doctor_log" >/dev/null \
+        || die "Slice 39 doctor log missing Install section"
+    grep -F '  app path: /Applications/WinMux.app' "$doctor_log" >/dev/null \
+        || die "Slice 39 doctor log missing installed app bundle path"
+    grep -F '  config path: ' "$doctor_log" >/dev/null \
+        || die "Slice 39 doctor log missing config path"
+    grep -F '/.config/winmux/winmux.toml' "$doctor_log" >/dev/null \
+        || die "Slice 39 doctor log missing normal config path"
+    for exact in \
+        'accessibility: granted' \
+        'screen recording: granted' \
+        'automation: macOS-managed' \
+        'input monitoring: macOS-managed' \
+        'automation reset: tccutil reset AppleEvents com.zimengxiong.winmux'; do
+        grep -F "$exact" "$doctor_log" >/dev/null \
+            || die "Slice 39 doctor log missing: $exact"
+    done
+
+    grep -F '$ winmux config --config-path' "$config_path_log" >/dev/null \
+        || die "Slice 39 config path log missing exact command"
+    local runtime_config_path
+    runtime_config_path="$(/usr/bin/awk 'NR > 1 && $0 !~ /^\$/ { print; exit }' "$config_path_log")"
+    [[ "$runtime_config_path" == */.config/winmux/winmux.toml ]] \
+        || die "Slice 39 runtime config path is not the normal user path: ${runtime_config_path:-missing}"
+    grep -F '$ winmux config --check ~/.config/winmux/winmux.toml' "$config_check_log" >/dev/null \
+        || die "Slice 39 config check log missing exact normal-path command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 39 config check log missing Config OK"
+    grep -F "$runtime_config_path" "$config_check_log" >/dev/null \
+        || die "Slice 39 config check log does not cite runtime config path"
+    grep -F "$ winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$list_zones_log" >/dev/null \
+        || die "Slice 39 list-zones log missing exact command"
+    grep -F 'zone=left|name=Reference|' "$list_zones_log" >/dev/null \
+        || die "Slice 39 list-zones missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$list_zones_log" >/dev/null \
+        || die "Slice 39 list-zones missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$list_zones_log" >/dev/null \
+        || die "Slice 39 list-zones missing Comms/right"
+    grep -F '$ launchctl kickstart -k gui/' "$relaunch_log" >/dev/null \
+        || die "Slice 39 relaunch log missing launchctl command"
+    grep -F 'relaunch=result=success' "$relaunch_log" >/dev/null \
+        || die "Slice 39 relaunch log missing success marker"
+    grep -F '$ winmux focus-zone Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 39 focus-zone log missing exact command"
+    grep -F 'focus-zone=Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 39 focus-zone log missing success marker"
+    grep -F '$ winmux doctor' "$cli_log" >/dev/null \
+        || die "Slice 39 CLI log missing doctor command"
+    grep -F 'WinMux dogfood install' "$visible_install_status" >/dev/null \
+        || die "Slice 39 visible install status missing title"
+    grep -F 'Status surface: winmux doctor' "$visible_install_status" >/dev/null \
+        || die "Slice 39 visible install status missing doctor surface"
+    grep -F 'Slice 39 status: winmux doctor' "$visible_doctor_status" >/dev/null \
+        || die "Slice 39 visible doctor status missing title"
+    grep -F 'app path: /Applications/WinMux.app' "$visible_doctor_status" >/dev/null \
+        || die "Slice 39 visible doctor status missing installed app path"
+    grep -F 'automation reset: tccutil reset AppleEvents com.zimengxiong.winmux' "$visible_doctor_status" >/dev/null \
+        || die "Slice 39 visible doctor status missing recovery command"
+    grep -F 'Slice 39 result: dogfood install path works' "$visible_result" >/dev/null \
+        || die "Slice 39 visible result missing final result title"
+
+    local timing_key
+    for timing_key in \
+        launch-offset-seconds \
+        doctor-offset-seconds \
+        config-path-offset-seconds \
+        config-check-offset-seconds \
+        list-zones-offset-seconds \
+        relaunch-offset-seconds \
+        focus-zone-offset-seconds \
+        result-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 39 timing log missing $timing_key"
+    done
+
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp from /Applications/WinMux.app" \
+        "$(value_from_log launch-offset-seconds "$timing_log")" \
+        "Slice 39 installed launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux doctor" \
+        "$(value_from_log doctor-offset-seconds "$timing_log")" \
+        "Slice 39 doctor proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --config-path" \
+        "$(value_from_log config-path-offset-seconds "$timing_log")" \
+        "Slice 39 config-path proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "$(value_from_log config-check-offset-seconds "$timing_log")" \
+        "Slice 39 config check must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "$(value_from_log list-zones-offset-seconds "$timing_log")" \
+        "Slice 39 list-zones must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: relaunch WinMux from /Applications/WinMux.app" \
+        "$(value_from_log relaunch-offset-seconds "$timing_log")" \
+        "Slice 39 relaunch must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux focus-zone Comms" \
+        "$(value_from_log focus-zone-offset-seconds "$timing_log")" \
+        "Slice 39 focus-zone must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: dogfood install path is ready" \
+        "$(value_from_log result-offset-seconds "$timing_log")" \
+        "Slice 39 final result must happen while its result caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-39-dogfood-install-permissions.expected-chips.txt" \
+        "${LOGS_DIR}/slice-39-dogfood-install-permissions.annotations.tsv"
+    for chip in \
+        "Action: install WinMux.app to /Applications" \
+        "Action: prepare Accessibility | Screen Recording | Automation before recording" \
+        "Run: WinMuxApp from /Applications/WinMux.app" \
+        "Run: winmux doctor" \
+        "Run: winmux config --config-path" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "Action: relaunch WinMux from /Applications/WinMux.app" \
+        "Run: winmux focus-zone Comms" \
+        "Result: dogfood install path is ready"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 39 annotations missing chip: $chip"
     done
 }
 
@@ -10431,6 +11014,68 @@ require_slice_38_event_manifest() {
     done
 }
 
+require_slice_39_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" install-app action
+    require_event_manifest_event "$manifest_path" prepare-permissions action
+    require_event_manifest_event "$manifest_path" launch-installed command
+    require_event_manifest_event "$manifest_path" doctor-status command
+    require_event_manifest_event "$manifest_path" config-path command
+    require_event_manifest_event "$manifest_path" config-check command
+    require_event_manifest_event "$manifest_path" list-zones command
+    require_event_manifest_event "$manifest_path" relaunch-installed action
+    require_event_manifest_event "$manifest_path" focus-comms command
+    require_event_manifest_event "$manifest_path" result-ready state
+
+    require_event_sample_label "$manifest_path" install-app install-app
+    require_event_sample_label "$manifest_path" prepare-permissions prepare-permissions
+    require_event_sample_label "$manifest_path" launch-installed launch-installed
+    require_event_sample_label "$manifest_path" doctor-status doctor-status
+    require_event_sample_label "$manifest_path" config-path config-path
+    require_event_sample_label "$manifest_path" config-check config-check
+    require_event_sample_label "$manifest_path" list-zones list-zones
+    require_event_sample_label "$manifest_path" relaunch-installed relaunch-installed
+    require_event_sample_label "$manifest_path" focus-comms focus-comms
+    require_event_sample_label "$manifest_path" result-ready result-ready
+
+    require_event_before "$manifest_path" install-app prepare-permissions \
+        "Slice 39 event manifest must show install before permission preparation"
+    require_event_before "$manifest_path" prepare-permissions launch-installed \
+        "Slice 39 event manifest must show permissions before installed launch"
+    require_event_before "$manifest_path" launch-installed doctor-status \
+        "Slice 39 event manifest must show installed launch before doctor"
+    require_event_before "$manifest_path" doctor-status config-path \
+        "Slice 39 event manifest must show doctor before config-path proof"
+    require_event_before "$manifest_path" config-path config-check \
+        "Slice 39 event manifest must show config-path proof before config check"
+    require_event_before "$manifest_path" config-check list-zones \
+        "Slice 39 event manifest must show config check before list-zones"
+    require_event_before "$manifest_path" list-zones relaunch-installed \
+        "Slice 39 event manifest must show list-zones before relaunch"
+    require_event_before "$manifest_path" relaunch-installed focus-comms \
+        "Slice 39 event manifest must show relaunch before focus-zone"
+    require_event_before "$manifest_path" focus-comms result-ready \
+        "Slice 39 event manifest must show focus-zone before final result"
+
+    local event_id path
+    for event_id in \
+        install-app \
+        prepare-permissions \
+        launch-installed \
+        doctor-status \
+        config-path \
+        config-check \
+        list-zones \
+        relaunch-installed \
+        focus-comms \
+        result-ready; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 39 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -12312,6 +12957,9 @@ case "$recording_name" in
     slice-38-user-readiness)
         require_slice_38_user_readiness_proof
         ;;
+    slice-39-dogfood-install-permissions)
+        require_slice_39_dogfood_install_permissions_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -12416,6 +13064,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_35_evidence "$review_path"
     require_review_mentions_slice_37_evidence "$review_path"
     require_review_mentions_slice_38_evidence "$review_path"
+    require_review_mentions_slice_39_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

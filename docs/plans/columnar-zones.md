@@ -7346,7 +7346,7 @@ Non-claims:
 
 ### Slice 39: Real Dogfood Install and Permissions
 
-Status: planned after Slice 38 closes.
+Status: accepted via `artifacts/e2e/slice-39-pre-tart-20260701T093003Z`.
 
 Pre-Slice-39 cleanup from Slice 38 retrospectives:
 
@@ -7360,12 +7360,69 @@ Pre-Slice-39 cleanup from Slice 38 retrospectives:
 - [x] Verify the prior Slice 37 accepted baseline path is
   `artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`, not the stale
   non-existent `artifacts/e2e/slice-37-20260701T034141Z`.
-- [ ] Before the Slice 39 Tart run, either commit the accepted Slice 37/38 dirty
-  source set or explicitly carry it forward with a new pre-Tart freshness
-  manifest and dirty-baseline inventory.
-- [ ] Keep the Slice 39 visual proof less dense than Slice 38's final board:
-  isolate permissions/install status into a dedicated visible board or
-  `doctor`/status surface before recording.
+- [x] Commit the accepted Slice 37/38 dirty source set before Slice 39.
+  Completed by `d91d2819 Close Slice 38 readiness artifact`; the Slice 39
+  freshness manifest must start from that clean commit plus the Slice 39 scaffold
+  diff.
+- [x] Run three no-context pre-slice cleanup reviewers before implementation.
+  `artifacts/e2e/pre-slice-39-20260701T084006Z/retrospectives/process-plan.md`,
+  `code-harness.md`, and `artifact-product.md` all returned `BLOCKED`; their
+  accepted findings are the Slice 39 scaffold checklist below.
+- [x] Add the Slice 39 source scaffold before Tart: `make e2e-slice-39`,
+  `script/e2e/guest/slice-39-dogfood-install-permissions.sh`, annotation/event
+  manifests, pre-Tart gate requirements, reviewer packet instructions, and
+  verifier/review-lint checks.
+- [x] Keep the Slice 39 visual proof less dense than Slice 38's final board by
+  using a dedicated install/permission status board, `winmux doctor`, and a
+  compact final result board instead of packing all command output into one
+  frame.
+- [x] Extend `winmux doctor` to expose install path, executable path, normal
+  config path, Accessibility, Screen Recording, Automation/Input Monitoring
+  status guidance, and TCC reset commands.
+- [x] Run `make e2e-pre-tart-checks` after the scaffold. It passed with shell
+  syntax checks, command metadata, `git diff --check`, shellcheck, helper
+  self-tests, Slice 39 guest self-test, annotation preflight, warmup policy
+  self-test, and 184 focused Swift tests.
+- [x] Treat the first Slice 39 pre-Tart artifact/product review as a hard stop.
+  `artifacts/e2e/slice-39-pre-tart-20260701T090112Z/reviews/pre-tart/artifact-product.md`
+  returned `BLOCKED` because Slice 39 lacked required semantic sample rows and
+  `doctor-status` pointed at a screenshot captured before the doctor output was
+  visibly rendered.
+- [x] Harden the scaffold after that review: add a visible doctor status
+  document before `screenshots/03-doctor-status-slice-39.png`, add exact Slice
+  39 semantic sample rows for every proof beat, add
+  `require_slice_39_sample_manifest`, and update the review packet/prompt to
+  reject doctor-status proof that exists only in logs.
+- [x] Re-run `make e2e-pre-tart-checks` after the hardening in
+  `artifacts/e2e/slice-39-pre-tart-20260701T091349Z/logs/pre-tart-checks.log`;
+  it passed shell syntax, command metadata, `git diff --check`, shellcheck,
+  helper self-tests, Slice 39 guest self-test, annotation preflight, warmup
+  policy self-test, generated-version cleanliness, and 184 focused Swift tests.
+- [x] Treat the second fresh pre-Tart review pass as another hard stop.
+  `process-plan.md` blocked on direct `script/e2e/tart-recording-harness
+  slice-39` bypassing the Makefile pre-Tart review gate, and `code-harness.md`
+  blocked on the staged `.app` missing
+  `Contents/Resources/default-config.toml`.
+- [x] Harden both issues before recording: `script/e2e/tart-recording-harness`
+  now runs `script/e2e/check-pre-tart-review-gate` before any VM preflight for
+  pre-Tart-gated product slices, with `pre-tart-gate-self-test` in
+  `make e2e-pre-tart-checks`; Slice 39 also copies
+  `resources/default-config.toml` into the staged app bundle and the verifier
+  requires the installed resource path in `logs/slice-39-install.log`.
+- [x] Re-run `make e2e-pre-tart-checks` after the direct-gate and bundle-resource
+  hardening in
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z/logs/pre-tart-checks.log`;
+  it passed the direct recorder gate self-test, Slice 39 bundle-resource
+  self-test, annotation preflight, warmup policy self-test, generated-version
+  cleanliness, and 184 focused Swift tests.
+- [x] Generate fresh clean pre-Tart no-context reports under the Slice 39 run
+  directory. Each report must end with `NO ACTIONABLE ISSUES`, cite the Slice 39
+  freshness manifest, and mention every registered Slice 39 source/review
+  surface before Tart starts. Completed in
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z/reviews/pre-tart/`;
+  `script/e2e/check-pre-tart-review-gate
+  artifacts/e2e/slice-39-pre-tart-20260701T093003Z slice-39` passed before the
+  Tart VM started.
 
 Goal: prove WinMux can be installed and launched through the normal dogfood path
 on a clean macOS desktop, with required privacy permissions accepted before the
@@ -7386,18 +7443,112 @@ Required scope:
   command succeeding after relaunch.
 
 Required artifact: a fresh strict guest-captured Tart video with polished action
-captions, plus no-context artifact review, review lint, post-review verifier,
-closeout, and three retrospectives.
+captions. The video must visibly expose the user commands/actions:
+
+- `Action: install WinMux.app to /Applications`;
+- `Action: prepare Accessibility | Screen Recording | Automation before recording`;
+- `Run: WinMuxApp from /Applications/WinMux.app`;
+- `Run: winmux doctor`;
+- `Run: winmux config --config-path`;
+- `Run: winmux config --check ~/.config/winmux/winmux.toml`;
+- `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`;
+- `Action: relaunch WinMux from /Applications/WinMux.app`;
+- `Run: winmux focus-zone Comms`;
+- `Result: dogfood install path is ready`.
+
+Accepted result:
+
+- artifact directory:
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z`;
+- recording: `recordings/slice-39-dogfood-install-permissions.mov`;
+- raw recording:
+  `recordings/raw/slice-39-dogfood-install-permissions.raw.mov`;
+- media metadata: 3440x1440 H.264, `108.000000s`, 4,717 frames;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md` (`PASS_WITH_NOTES: Slice 39 proves the
+  staged dogfood install/status path for /Applications/WinMux.app,
+  pre-recording permissions, winmux doctor, the normal config path,
+  installed-app relaunch, and winmux focus-zone Comms after relaunch.`,
+  `next slice allowed: yes`);
+- reviewer attempt ledger: `reviews/reviewer-attempts.tsv` records two stalled
+  `artifact-product` attempts followed by the accepted image-attached
+  `pass_with_notes` review;
+- review lint log: `logs/review-lint.log`;
+- post-review verifier log: `logs/post-review-verify.log`;
+- closeout log: `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- closeout command:
+  `make e2e-slice-closeout-check
+  RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-39-pre-tart-20260701T093003Z`
+  passed after the three retrospectives were written.
+
+What the accepted artifact proves:
+
+- the staged dogfood app bundle is installed at `/Applications/WinMux.app`;
+- the LaunchAgent runs
+  `/Applications/WinMux.app/Contents/MacOS/WinMuxApp` without `--config-path`
+  or `WINMUX_DEFAULT_CONFIG_PATH`;
+- the staged bundle includes `Contents/Resources/default-config.toml`;
+- Accessibility, Screen Recording, Automation, and Input Monitoring are prepared
+  before recording, with no permission prompts after capture begins;
+- `winmux doctor` visibly reports the installed app identity, normal config
+  path, permission status, and TCC reset commands;
+- `winmux config --config-path`, `winmux config --check`, and `winmux
+  list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`
+  run against the normal user config path;
+- the installed app relaunches from `/Applications/WinMux.app`;
+- `winmux focus-zone Comms` succeeds after relaunch.
+
+Accepted retrospective findings:
+
+- the Slice 39 harness and artifact contract fixed both blocked pre-Tart
+  attempts before recording;
+- future long, text-heavy artifact reviews should start with the reviewer packet
+  plus key contact sheets and semantic screenshots, since two text-only
+  artifact-product review attempts stalled before the image-attached review
+  passed;
+- closeout should persist `logs/review-lint.log`, `logs/post-review-verify.log`,
+  and `logs/closeout-check.log` for every product slice;
+- the Slice 39 contract is duplicated across several shell/verifier/reviewer
+  surfaces, so future slices should prefer a small registry or generated review
+  skeleton when extending this pattern.
 
 Non-claims:
 
 - Slice 39 does not create the public beta package;
 - Slice 39 does not add a setup assistant;
 - Slice 39 does not prove every permission recovery path.
+- Slice 39 does not prove all command, key-binding, or mouse-gesture coverage.
 
 ### Slice 40: Zone Setup Assistant
 
 Status: planned.
+
+Pre-Slice-40 cleanup from Slice 39 retrospectives:
+
+- [x] Persist Slice 39 review lint in
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z/logs/review-lint.log`.
+- [x] Persist Slice 39 post-review verifier output in
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z/logs/post-review-verify.log`.
+- [x] Persist Slice 39 closeout output in
+  `artifacts/e2e/slice-39-pre-tart-20260701T093003Z/logs/closeout-check.log`.
+- [x] Record all three Slice 39 retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- [x] Update this plan with the accepted Slice 39 artifact, review verdict,
+  persisted gate logs, closeout command, accepted findings, and non-claims.
+- [ ] Before implementing Slice 40, add a small slice-contract registry or
+  generated review skeleton spike if it can be done without delaying the setup
+  assistant; otherwise record an explicit deferral and keep the existing
+  verifier/reviewer packet self-tests strict.
+- [ ] For the Slice 40 pre-Tart storyboard, identify which frames prove setup
+  assistant behavior visually, and treat Slice 39 install/status proof as
+  baseline context only.
+- [ ] Launch the first Slice 40 artifact-product reviewer with the reviewer
+  packet plus key contact sheets and semantic screenshots instead of waiting for
+  a stalled text-only review path.
 
 Goal: make first-time ultrawide setup possible without hand-editing the large
 starter TOML block.

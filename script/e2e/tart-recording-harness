@@ -41,7 +41,7 @@ fi
 if [ "$ACTION" = "slice-34" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
-if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ]; then
+if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ]; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
 if [ "$ACTION" = "slice-8" ]; then
@@ -163,7 +163,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -538,6 +538,74 @@ warmup_policy_self_test() {
     assert_guest_retry_policy_result "ordinary failures exhaust attempts" failure 5 5 86 1 1 1 1 1
     retry_summary_fields_self_test
     log "Warm-up policy self-test passed"
+}
+
+pre_tart_review_slice_for_action() {
+    case "$1" in
+        slice-34|slice-35|slice-37|slice-38|slice-39)
+            printf '%s\n' "$1"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+require_pre_tart_review_gate_for_action() {
+    local slice_id
+    local gate_log="${LOGS_DIR}/pre-tart-review-gate.log"
+
+    if ! slice_id="$(pre_tart_review_slice_for_action "$ACTION")"; then
+        return 0
+    fi
+
+    mkdir -p "$LOGS_DIR"
+    log "Checking pre-Tart no-context review gate for ${slice_id}"
+    if (cd "$REPO_ROOT" && "${SCRIPT_DIR}/check-pre-tart-review-gate" "$RUN_DIR" "$slice_id") >"$gate_log" 2>&1; then
+        cat "$gate_log"
+        return 0
+    fi
+
+    cat "$gate_log" >&2 || true
+    write_run_abort_status "pre-tart-review-gate" 1 failure "$gate_log" \
+        "pre-Tart no-context review gate failed for ${slice_id}"
+    return 1
+}
+
+pre_tart_gate_self_test() {
+    local tmp_dir
+    local log_path
+
+    tmp_dir="$(mktemp -d)"
+    log_path="${tmp_dir}/direct-slice-39.log"
+    if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
+        WINMUX_E2E_RUN_DIR="${tmp_dir}/run" \
+        WINMUX_E2E_SLICE=slice-39 \
+        "${SCRIPT_DIR}/tart-recording-harness" slice-39 >"$log_path" 2>&1; then
+        cat "$log_path" >&2
+        rm -rf "$tmp_dir"
+        die "Pre-Tart gate self-test expected direct slice-39 recording to fail without reviewer reports"
+    fi
+
+    if ! grep -F 'missing pre-Tart freshness manifest' "$log_path" >/dev/null; then
+        cat "$log_path" >&2
+        rm -rf "$tmp_dir"
+        die "Pre-Tart gate self-test did not fail through the review gate"
+    fi
+    grep -F 'phase=pre-tart-review-gate' "${tmp_dir}/run/logs/run-abort-status.txt" >/dev/null \
+        || {
+            cat "$log_path" >&2
+            rm -rf "$tmp_dir"
+            die "Pre-Tart gate self-test missing abort status"
+        }
+    if grep -F 'TART_HOME must be set' "$log_path" >/dev/null; then
+        cat "$log_path" >&2
+        rm -rf "$tmp_dir"
+        die "Pre-Tart gate self-test reached Tart preflight before the review gate"
+    fi
+
+    rm -rf "$tmp_dir"
+    log "Pre-Tart gate self-test passed"
 }
 
 vm_exists() {
@@ -981,8 +1049,11 @@ prepare_guest_privacy_permissions() {
     guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
     local script
     # shellcheck disable=SC2016 # This script runs inside the guest.
-    script="set -euo pipefail
+script="set -euo pipefail
 GUEST_REPO_DIR=${guest_repo_quoted}
+INSTALLED_WINMUX_APP='/Applications/WinMux.app/Contents/MacOS/WinMuxApp'
+USER_INSTALLED_WINMUX_APP=\"\$HOME/Applications/WinMux.app/Contents/MacOS/WinMuxApp\"
+WINMUX_BUNDLE_ID='com.zimengxiong.winmux'
 
 sql_quote() {
     printf '%s' \"\$1\" | /usr/bin/sed \"s/'/''/g\"
@@ -1040,6 +1111,9 @@ dump_relevant_tcc() {
                 '\${GUEST_REPO_DIR}/.debug/winmux',
                 '\${HOME}/winmux-e2e/bin/WinMuxApp',
                 '\${HOME}/winmux-e2e/bin/winmux',
+                '\${INSTALLED_WINMUX_APP}',
+                '\${USER_INSTALLED_WINMUX_APP}',
+                '\${WINMUX_BUNDLE_ID}',
                 'com.apple.sshd-session'
             )
         )
@@ -1064,13 +1138,16 @@ for db in \"\$user_db\"; do
     grant_client_set \"\$db\" \"\${GUEST_REPO_DIR}/.debug/winmux\" 1
     grant_client_set \"\$db\" \"\$HOME/winmux-e2e/bin/WinMuxApp\" 1
     grant_client_set \"\$db\" \"\$HOME/winmux-e2e/bin/winmux\" 1
+    grant_client_set \"\$db\" \"\$INSTALLED_WINMUX_APP\" 1
+    grant_client_set \"\$db\" \"\$USER_INSTALLED_WINMUX_APP\" 1
     grant_client_set \"\$db\" com.apple.sshd-session 0
+    grant_client_set \"\$db\" \"\$WINMUX_BUNDLE_ID\" 0
 done
 
 if /usr/bin/sudo -n /bin/test -f \"\$system_db\"; then
     tmp_sql=\"\$(/usr/bin/mktemp /tmp/winmux-tcc.XXXXXX.sql)\"
     /bin/cp \"\$user_db\" /tmp/winmux-user-tcc-copy.db >/dev/null 2>&1 || true
-    for client in /usr/libexec/sshd-keygen-wrapper /usr/bin/osascript /usr/sbin/screencapture \"\${GUEST_REPO_DIR}/.debug/WinMuxApp\" \"\${GUEST_REPO_DIR}/.debug/winmux\" \"\$HOME/winmux-e2e/bin/WinMuxApp\" \"\$HOME/winmux-e2e/bin/winmux\"; do
+    for client in /usr/libexec/sshd-keygen-wrapper /usr/bin/osascript /usr/sbin/screencapture \"\${GUEST_REPO_DIR}/.debug/WinMuxApp\" \"\${GUEST_REPO_DIR}/.debug/winmux\" \"\$HOME/winmux-e2e/bin/WinMuxApp\" \"\$HOME/winmux-e2e/bin/winmux\" \"\$INSTALLED_WINMUX_APP\" \"\$USER_INSTALLED_WINMUX_APP\"; do
         for service in kTCCServiceScreenCapture kTCCServiceAudioCapture kTCCServiceAccessibility kTCCServicePostEvent kTCCServiceListenEvent kTCCServiceAppleEvents; do
             client_sql=\"\$(sql_quote \"\$client\")\"
             service_sql=\"\$(sql_quote \"\$service\")\"
@@ -1078,9 +1155,13 @@ if /usr/bin/sudo -n /bin/test -f \"\$system_db\"; then
             printf \"insert or replace into access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified, pid, pid_version, boot_uuid, last_reminded) values ('%s', '%s', 1, 2, 4, 1, null, null, 0, 'UNUSED', null, 0, %s, null, null, 'UNUSED', %s);\\n\" \"\$service_sql\" \"\$client_sql\" \"\$now\" \"\$now\" >>\"\$tmp_sql\"
         done
     done
-    for service in kTCCServiceScreenCapture kTCCServiceAudioCapture kTCCServiceAccessibility kTCCServicePostEvent kTCCServiceListenEvent kTCCServiceAppleEvents; do
-        now=\"\$(/bin/date +%s)\"
-        printf \"insert or replace into access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified, pid, pid_version, boot_uuid, last_reminded) values ('%s', 'com.apple.sshd-session', 0, 2, 4, 1, null, null, 0, 'UNUSED', null, 0, %s, null, null, 'UNUSED', %s);\\n\" \"\$service\" \"\$now\" \"\$now\" >>\"\$tmp_sql\"
+    for client in com.apple.sshd-session \"\$WINMUX_BUNDLE_ID\"; do
+        for service in kTCCServiceScreenCapture kTCCServiceAudioCapture kTCCServiceAccessibility kTCCServicePostEvent kTCCServiceListenEvent kTCCServiceAppleEvents; do
+            client_sql=\"\$(sql_quote \"\$client\")\"
+            service_sql=\"\$(sql_quote \"\$service\")\"
+            now=\"\$(/bin/date +%s)\"
+            printf \"insert or replace into access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified, pid, pid_version, boot_uuid, last_reminded) values ('%s', '%s', 0, 2, 4, 1, null, null, 0, 'UNUSED', null, 0, %s, null, null, 'UNUSED', %s);\\n\" \"\$service_sql\" \"\$client_sql\" \"\$now\" \"\$now\" >>\"\$tmp_sql\"
+        done
     done
     if /usr/bin/sudo -n /usr/bin/sqlite3 \"\$system_db\" <\"\$tmp_sql\"; then
         echo system_db_update=success
@@ -1118,6 +1199,9 @@ if /usr/bin/sudo -n /bin/test -f \"\$system_db\"; then
                 '\${GUEST_REPO_DIR}/.debug/winmux',
                 '\${HOME}/winmux-e2e/bin/WinMuxApp',
                 '\${HOME}/winmux-e2e/bin/winmux',
+                '\${INSTALLED_WINMUX_APP}',
+                '\${USER_INSTALLED_WINMUX_APP}',
+                '\${WINMUX_BUNDLE_ID}',
                 'com.apple.sshd-session'
             )
         )
@@ -2862,6 +2946,66 @@ write_slice_38_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_39_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local install_label permissions_label launch_label doctor_label path_label check_label list_label relaunch_label focus_label result_label
+    install_label="$(caption_label_for_chip "$name" "Action: install WinMux.app to /Applications")"
+    permissions_label="$(caption_label_for_chip "$name" "Action: prepare Accessibility | Screen Recording | Automation before recording")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp from /Applications/WinMux.app")"
+    doctor_label="$(caption_label_for_chip "$name" "Run: winmux doctor")"
+    path_label="$(caption_label_for_chip "$name" "Run: winmux config --config-path")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check ~/.config/winmux/winmux.toml")"
+    list_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'")"
+    relaunch_label="$(caption_label_for_chip "$name" "Action: relaunch WinMux from /Applications/WinMux.app")"
+    focus_label="$(caption_label_for_chip "$name" "Run: winmux focus-zone Comms")"
+    result_label="$(caption_label_for_chip "$name" "Result: dogfood install path is ready")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" install-app action \
+        "$(caption_start_for_label "$name" "$install_label")" "$install_label" install-app \
+        "screenshots/01-dogfood-install-status-slice-39.png" \
+        "the status board shows the staged dogfood app bundle path and normal user config path before recording actions begin"
+    append_event_manifest_row "$manifest_path" prepare-permissions action \
+        "$(caption_start_for_label "$name" "$permissions_label")" "$permissions_label" prepare-permissions \
+        "screenshots/01-dogfood-install-status-slice-39.png" \
+        "Accessibility, Screen Recording, Automation, and Input Monitoring are prepared before capture"
+    append_event_manifest_row "$manifest_path" launch-installed command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-installed \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches from /Applications/WinMux.app without a config-path override"
+    append_event_manifest_row "$manifest_path" doctor-status command \
+        "$(caption_start_for_label "$name" "$doctor_label")" "$doctor_label" doctor-status \
+        "screenshots/03-doctor-status-slice-39.png" \
+        "winmux doctor reports installed app identity, normal config path, permission status, and reset commands"
+    append_event_manifest_row "$manifest_path" config-path command \
+        "$(caption_start_for_label "$name" "$path_label")" "$path_label" config-path \
+        "screenshots/${name}.samples/${path_label}-boundary-start.png" \
+        "winmux config --config-path reports ~/.config/winmux/winmux.toml"
+    append_event_manifest_row "$manifest_path" config-check command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "winmux config --check validates the normal user config"
+    append_event_manifest_row "$manifest_path" list-zones command \
+        "$(caption_start_for_label "$name" "$list_label")" "$list_label" list-zones \
+        "screenshots/${name}.samples/${list_label}-boundary-start.png" \
+        "list-zones shows Reference, Work, and Comms from the installed app session"
+    append_event_manifest_row "$manifest_path" relaunch-installed action \
+        "$(caption_start_for_label "$name" "$relaunch_label")" "$relaunch_label" relaunch-installed \
+        "screenshots/04-after-relaunch-slice-39.png" \
+        "the installed app relaunches cleanly with the same LaunchAgent path"
+    append_event_manifest_row "$manifest_path" focus-comms command \
+        "$(caption_start_for_label "$name" "$focus_label")" "$focus_label" focus-comms \
+        "screenshots/${name}.samples/${focus_label}-boundary-start.png" \
+        "focus-zone Comms succeeds after relaunch"
+    append_event_manifest_row "$manifest_path" result-ready state \
+        "$(caption_start_for_label "$name" "$result_label")" "$result_label" result-ready \
+        "screenshots/05-dogfood-ready-slice-39.png" \
+        "the final board stays readable and shows the dogfood install path is ready"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -2915,6 +3059,9 @@ write_event_manifest() {
             ;;
         slice-38-user-readiness)
             write_slice_38_event_manifest "$name"
+            ;;
+        slice-39-dogfood-install-permissions)
+            write_slice_39_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3051,6 +3198,20 @@ CAPTIONS
 90	100	Resize Work	Grow the Work zone with a user-facing runtime command.	Run: winmux resize-zone Work width +10%
 100	110	Preview saving	Show the save output without mutating the config.	Run: winmux save-zone-layout --dry-run
 110	120	Ready to use	The normal config path now supports navigation, movement, resize, and dry-run save.	Result: normal config path is ready for Reference | Work | Comms
+CAPTIONS
+            ;;
+        slice-39-dogfood-install-permissions)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Install dogfood app	The proof uses the staged app bundle path a user would launch.	Action: install WinMux.app to /Applications
+8	18	Prepare permissions	Permissions are handled before capture so no prompts or setup windows appear.	Action: prepare Accessibility | Screen Recording | Automation before recording
+18	30	Launch installed app	WinMux starts from the installed app bundle, with no config-path override.	Run: WinMuxApp from /Applications/WinMux.app
+30	42	Check status	Run the user-facing status command for app identity and permissions.	Run: winmux doctor
+42	50	Confirm config source	The CLI reports the normal editable config path.	Run: winmux config --config-path
+50	60	Validate the config	Check the same normal user config through the running server.	Run: winmux config --check ~/.config/winmux/winmux.toml
+60	72	Inspect zones	The CLI shows Reference, Work, and Comms on monitor 1.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+72	84	Relaunch installed app	Restart the installed app and prove it comes back clean.	Action: relaunch WinMux from /Applications/WinMux.app
+84	96	Focus Comms	Run a cross-zone command after relaunch.	Run: winmux focus-zone Comms
+96	108	Ready to dogfood	The installed app path, permissions, config path, and zones are ready.	Result: dogfood install path is ready
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3401,14 +3562,15 @@ annotation_preflight() {
         slice-34-zone-mode-scene \
         slice-35-starter-ultrawide-template \
         slice-37-starter-onboarding \
-        slice-38-user-readiness
+        slice-38-user-readiness \
+        slice-39-dogfood-install-permissions
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4164,6 +4326,38 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic inspect-affinity-windows caption-05 38.100 \
                 "screenshots/${name}.samples/caption-05-boundary-start.png" \
                 "list-windows inspection caption names the right/main zone proof"
+            ;;
+        slice-39-dogfood-install-permissions)
+            append_sample_manifest_row "$manifest_path" semantic install-app screenshot screenshot \
+                "screenshots/01-dogfood-install-status-slice-39.png" \
+                "setup status board shows the installed app path, CLI path, normal config path, and pre-recording permission list"
+            append_sample_manifest_row "$manifest_path" semantic prepare-permissions screenshot screenshot \
+                "screenshots/01-dogfood-install-status-slice-39.png" \
+                "same status board states Accessibility, Screen Recording, Automation, and Input Monitoring were prepared before recording"
+            append_sample_manifest_row "$manifest_path" semantic launch-installed caption-03 18.100 \
+                "screenshots/${name}.samples/caption-03-boundary-start.png" \
+                "installed-app launch caption starts before the LaunchAgent proof proceeds"
+            append_sample_manifest_row "$manifest_path" semantic doctor-status screenshot screenshot \
+                "screenshots/03-doctor-status-slice-39.png" \
+                "visible doctor document shows installed app identity, normal config path, permissions, and recovery commands"
+            append_sample_manifest_row "$manifest_path" semantic config-path caption-05 42.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "config-path command caption starts inside the normal user config proof window"
+            append_sample_manifest_row "$manifest_path" semantic config-check caption-06 50.100 \
+                "screenshots/${name}.samples/caption-06-boundary-start.png" \
+                "config-check command caption starts before validation of ~/.config/winmux/winmux.toml"
+            append_sample_manifest_row "$manifest_path" semantic list-zones caption-07 60.100 \
+                "screenshots/${name}.samples/caption-07-boundary-start.png" \
+                "list-zones command caption starts before Reference, Work, and Comms are inspected"
+            append_sample_manifest_row "$manifest_path" semantic relaunch-installed screenshot screenshot \
+                "screenshots/04-after-relaunch-slice-39.png" \
+                "post-relaunch screenshot proves the installed app came back from /Applications"
+            append_sample_manifest_row "$manifest_path" semantic focus-comms caption-09 84.100 \
+                "screenshots/${name}.samples/caption-09-boundary-start.png" \
+                "focus-zone Comms caption starts after relaunch, before the cross-zone command succeeds"
+            append_sample_manifest_row "$manifest_path" semantic result-ready screenshot screenshot \
+                "screenshots/05-dogfood-ready-slice-39.png" \
+                "final board stays readable and summarizes doctor, zone, and focus proof"
             ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
@@ -6090,6 +6284,34 @@ run_slice_38_user_readiness() {
         "${LOGS_DIR}/slice-38-run.log"
 }
 
+run_slice_39_dogfood_install_permissions_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-39-dogfood-install-permissions.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE39_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-39-setup.log"
+}
+
+run_slice_39_dogfood_install_permissions() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-39-dogfood-install-permissions.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE39_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-39-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -6812,6 +7034,7 @@ run_recorded_scenario() {
     local setup_fn="${5:-}"
     local ready_name="${6:-}"
 
+    require_pre_tart_review_gate_for_action
     RUN_PHASE="preflight"
     trap recorded_scenario_exit EXIT
     preflight
@@ -6954,6 +7177,10 @@ slice_38() {
     run_recorded_scenario "slice-38-user-readiness" "00-before-slice-38" "99-after-slice-38" "run_slice_38_user_readiness" "run_slice_38_user_readiness_setup" "01-user-config-template-slice-38"
 }
 
+slice_39() {
+    run_recorded_scenario "slice-39-dogfood-install-permissions" "00-before-slice-39" "99-after-slice-39" "run_slice_39_dogfood_install_permissions" "run_slice_39_dogfood_install_permissions_setup" "01-dogfood-install-status-slice-39"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -7067,6 +7294,9 @@ case "$ACTION" in
     abort-status-self-test)
         abort_status_self_test
         ;;
+    pre-tart-gate-self-test)
+        pre_tart_gate_self_test
+        ;;
     refresh-annotation-artifact)
         refresh_annotation_artifact
         ;;
@@ -7114,6 +7344,9 @@ case "$ACTION" in
         ;;
     slice-38)
         slice_38
+        ;;
+    slice-39)
+        slice_39
         ;;
     slice-8)
         slice_8

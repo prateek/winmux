@@ -248,6 +248,18 @@ Slice-specific checks:
   then `route-comms.rtf` in the Comms/right zone. Reject any artifact where the
   recorded proof uses a manual `move-node-to-zone` command to move the routed
   window, or where the routed window is visible before the open-action caption.
+- Slice 39 must prove the staged dogfood app identity and permission/status
+  surface. The proof must show `/Applications/WinMux.app`, run
+  `winmux doctor`, show the normal config path, relaunch the installed app, and
+  run `winmux focus-zone Comms` after relaunch. Inspect the LaunchAgent plist,
+  install log, permission log, TCC setup log, doctor log, visible doctor status
+  text, event manifest, timing log, semantic samples, and screenshots. Reject
+  debug-bin launches, missing installed-app TCC rows, a doctor-status sample
+  where the video/screenshot does not visibly show the doctor/status surface,
+  permission prompts or System Settings windows after capture begins, reviews
+  that infer permissions from captions only, dense unreadable status boards, or
+  claims about a public beta, GUI setup assistant, every permission recovery
+  path, or full command/key/mouse coverage.
 - Slice 18 must show `[[zone-affinities]]` plus a target zone and matcher, not
   generic `[[on-window-detected]]`. The proof must show focused Work/main with
   no `affinity-comms.rtf`, then the user action

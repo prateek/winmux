@@ -9,9 +9,24 @@ struct DoctorCommand: Command {
         io.out("WinMux doctor — git \(gitShortHash)")
         io.out("")
 
+        io.out("Install:")
+        io.out("  app path: \(Bundle.main.bundlePath)")
+        io.out("  executable: \(Bundle.main.executablePath ?? "unknown")")
+        io.out("  config path: \(configUrl.absoluteURL.path)")
+        io.out("")
+
         io.out("Permissions:")
-        io.out("  accessibility: \(AXIsProcessTrusted() ? "granted" : "MISSING (required)")")
-        io.out("  screen capture: \(CGPreflightScreenCaptureAccess() ? "granted" : "missing (tab previews / radius estimation degraded)")")
+        io.out("  accessibility: \(permissionStatus(AXIsProcessTrusted(), missing: "MISSING (required)"))")
+        io.out("  screen recording: \(permissionStatus(CGPreflightScreenCaptureAccess(), missing: "missing (tab previews / radius estimation degraded)"))")
+        io.out("  automation: macOS-managed; use System Settings > Privacy & Security > Automation when Apple Events are blocked")
+        io.out("  input monitoring: macOS-managed; needed for global mouse/keyboard capture")
+        io.out("")
+
+        io.out("Permission recovery:")
+        io.out("  accessibility reset: tccutil reset Accessibility com.zimengxiong.winmux")
+        io.out("  screen recording reset: tccutil reset ScreenCapture com.zimengxiong.winmux")
+        io.out("  automation reset: tccutil reset AppleEvents com.zimengxiong.winmux")
+        io.out("  input monitoring reset: tccutil reset ListenEvent com.zimengxiong.winmux")
         io.out("")
 
         io.out("Monitors (system window corner radius: \(systemWindowCornerRadius())pt):")
@@ -43,5 +58,9 @@ struct DoctorCommand: Command {
             io.out("  \(String(format: "%7.1f", row.ms))ms  \(row.name) (\(windows) ax windows)\(flag)")
         }
         return true
+    }
+
+    private func permissionStatus(_ granted: Bool, missing: String) -> String {
+        granted ? "granted" : missing
     }
 }
