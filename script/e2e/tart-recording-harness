@@ -47,6 +47,9 @@ fi
 if [ "$ACTION" = "slice-41" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-affinities-beta.toml"
 fi
+if [ "$ACTION" = "slice-42" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-availability-profiles.toml"
+fi
 if [ "$ACTION" = "slice-8" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-window-routing.toml"
 fi
@@ -166,7 +169,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -545,7 +548,7 @@ warmup_policy_self_test() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42)
             printf '%s\n' "$1"
             ;;
         *)
@@ -3119,6 +3122,56 @@ write_slice_41_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_42_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local ready_label hide_label restore_label focus_label comms_label dashboard_label final_zones_label final_windows_label
+    ready_label="$(caption_label_for_chip "$name" "Config: [[zone-availability-sets]] as zone profiles")"
+    hide_label="$(caption_label_for_chip "$name" "Run: winmux toggle-zone Comms")"
+    restore_label="$(last_caption_label_for_chip "$name" "Run: winmux toggle-zone Comms")"
+    focus_label="$(caption_label_for_chip "$name" "Run: winmux use-zone-profile focus-only")"
+    comms_label="$(caption_label_for_chip "$name" "Run: winmux use-zone-profile communications")"
+    dashboard_label="$(caption_label_for_chip "$name" "Run: winmux use-zone-profile full-dashboard")"
+    final_zones_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format")"
+    final_windows_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --all --format")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" profile-config context \
+        "$(caption_start_for_label "$name" "$ready_label")" "$ready_label" profile-config \
+        "screenshots/02-profile-map-ready-slice-42.png" \
+        "profile board maps focus-only, communications, and full-dashboard to [[zone-availability-sets]] ids"
+    append_event_manifest_row "$manifest_path" zone-toggle-hidden command \
+        "$(caption_start_for_label "$name" "$hide_label")" "$hide_label" zone-toggle-hidden \
+        "screenshots/03-comms-hidden-parked-slice-42.png" \
+        "toggle-zone Comms hides the Comms zone and the parked proof board names the hidden window"
+    append_event_manifest_row "$manifest_path" zone-toggle-restored command \
+        "$(caption_start_for_label "$name" "$restore_label")" "$restore_label" zone-toggle-restored \
+        "screenshots/04-comms-restored-slice-42.png" \
+        "the same Comms window returns after the restore toggle"
+    append_event_manifest_row "$manifest_path" focus-only-profile command \
+        "$(caption_start_for_label "$name" "$focus_label")" "$focus_label" focus-only-profile \
+        "screenshots/05-profile-focus-only-slice-42.png" \
+        "use-zone-profile focus-only leaves only Work/main enabled"
+    append_event_manifest_row "$manifest_path" communications-profile command \
+        "$(caption_start_for_label "$name" "$comms_label")" "$comms_label" communications-profile \
+        "screenshots/06-profile-communications-slice-42.png" \
+        "use-zone-profile communications restores Work/main and Comms/right while Reference stays hidden"
+    append_event_manifest_row "$manifest_path" full-dashboard-profile command \
+        "$(caption_start_for_label "$name" "$dashboard_label")" "$dashboard_label" full-dashboard-profile \
+        "screenshots/${name}.samples/${dashboard_label}-boundary-start.png" \
+        "use-zone-profile full-dashboard restores Reference, Work, and Comms"
+    append_event_manifest_row "$manifest_path" final-audit command \
+        "$(caption_start_for_label "$name" "$final_zones_label")" "$final_zones_label" final-audit \
+        "screenshots/06-final-availability-proof-slice-42.png" \
+        "final audit board shows the exact formatted list-zones command and output"
+    append_event_manifest_row "$manifest_path" final-windows-audit command \
+        "$(caption_start_for_label "$name" "$final_windows_label")" "$final_windows_label" final-windows-audit \
+        "screenshots/06-final-availability-proof-slice-42.png" \
+        "final audit board shows the exact formatted list-windows --all command and output"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3181,6 +3234,9 @@ write_event_manifest() {
             ;;
         slice-41-zone-affinity-beta)
             write_slice_41_event_manifest "$name"
+            ;;
+        slice-42-zone-availability-profiles)
+            write_slice_42_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3356,6 +3412,19 @@ CAPTIONS
 88	106	Reloaded affinity	Swap the normal user config, reload, and route the next matching window.	Run: winmux reload-config; open reload route
 106	124	Relaunch proof	Restart WinMux and prove the same normal config still routes new windows.	Action: relaunch WinMuxApp; open relaunch route
 124	144	Final inspection	List all windows and zones so routed examples remain auditable after relaunch changes active workspaces.	Run: winmux list-windows --all; winmux list-zones
+CAPTIONS
+            ;;
+        slice-42-zone-availability-profiles)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Profile map	The config defines named availability sets and exposes them as zone profiles.	Config: [[zone-availability-sets]] as zone profiles
+8	16	Ready state	Reference, Work, and Comms are visible before any availability command runs.	Result: Reference | Work | Comms visible
+16	32	Hide Comms	Run the zone-level toggle and park the Comms workspace without losing its window id.	Run: winmux toggle-zone Comms
+32	48	Restore Comms	Run the same zone-level toggle again and prove the Comms window returns to the right zone.	Run: winmux toggle-zone Comms
+48	66	Focus only	Switch the whole monitor to the focus-only profile.	Run: winmux use-zone-profile focus-only
+66	84	Communications	Switch directly to the communications profile.	Run: winmux use-zone-profile communications
+84	104	Full dashboard	Restore every zone through the full-dashboard profile.	Run: winmux use-zone-profile full-dashboard
+104	116	Final zones audit	Show the exact formatted zone inspection command as a legible sequence.	Run: winmux list-zones --format	Config: zone=%{monitor-zone-id}|name=%{monitor-zone-name}	Config: enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}	Config: workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}	Config: physical=%{monitor-physical-id}
+116	132	Final windows audit	Show the exact formatted all-windows inspection command as a legible sequence.	Run: winmux list-windows --all --format	Config: %{window-id}|%{window-title}|zone=%{monitor-zone-id}	Config: workspace=%{workspace}|monitor=%{monitor-name}
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3709,14 +3778,15 @@ annotation_preflight() {
         slice-38-user-readiness \
         slice-39-dogfood-install-permissions \
         slice-40-zone-setup-assistant \
-        slice-41-zone-affinity-beta
+        slice-41-zone-affinity-beta \
+        slice-42-zone-availability-profiles
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4559,6 +4629,32 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic final-inspection screenshot screenshot \
                 "screenshots/06-final-affinity-proof-slice-41.png" \
                 "final board shows list-windows and list-zones evidence for routed windows"
+            ;;
+        slice-42-zone-availability-profiles)
+            append_sample_manifest_row "$manifest_path" semantic profile-config screenshot screenshot \
+                "screenshots/02-profile-map-ready-slice-42.png" \
+                "ready board maps focus-only, communications, and full-dashboard to named zone availability sets"
+            append_sample_manifest_row "$manifest_path" semantic zone-toggle-hidden screenshot screenshot \
+                "screenshots/03-comms-hidden-parked-slice-42.png" \
+                "Comms is hidden after toggle-zone and the parked proof board names the hidden Comms window"
+            append_sample_manifest_row "$manifest_path" semantic zone-toggle-restored screenshot screenshot \
+                "screenshots/04-comms-restored-slice-42.png" \
+                "the same Comms window is visible again in Comms/right after the restore toggle"
+            append_sample_manifest_row "$manifest_path" semantic focus-only-profile screenshot screenshot \
+                "screenshots/05-profile-focus-only-slice-42.png" \
+                "focus-only profile leaves only Work/main enabled and marks active profile focus-only"
+            append_sample_manifest_row "$manifest_path" semantic communications-profile screenshot screenshot \
+                "screenshots/06-profile-communications-slice-42.png" \
+                "communications profile restores Work/main plus Comms/right while Reference remains hidden"
+            append_sample_manifest_row "$manifest_path" semantic full-dashboard-profile caption-07 84.100 \
+                "screenshots/${name}.samples/caption-07-boundary-start.png" \
+                "full-dashboard command caption starts before all zones are restored"
+            append_sample_manifest_row "$manifest_path" semantic final-audit screenshot screenshot \
+                "screenshots/06-final-availability-proof-slice-42.png" \
+                "final audit board shows the exact formatted list-zones command"
+            append_sample_manifest_row "$manifest_path" semantic final-windows-audit screenshot screenshot \
+                "screenshots/06-final-availability-proof-slice-42.png" \
+                "final audit board shows the exact formatted list-windows --all command"
             ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
@@ -6580,6 +6676,34 @@ run_slice_41_zone_affinity_beta() {
         "${LOGS_DIR}/slice-41-run.log"
 }
 
+run_slice_42_zone_availability_profiles_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-42-zone-availability-profiles.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE42_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-42-setup.log"
+}
+
+run_slice_42_zone_availability_profiles() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-42-zone-availability-profiles.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE42_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-42-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -7457,6 +7581,10 @@ slice_41() {
     run_recorded_scenario "slice-41-zone-affinity-beta" "00-before-slice-41" "99-after-slice-41" "run_slice_41_zone_affinity_beta" "run_slice_41_zone_affinity_beta_setup" "01-affinity-ready-slice-41"
 }
 
+slice_42() {
+    run_recorded_scenario "slice-42-zone-availability-profiles" "00-before-slice-42" "99-after-slice-42" "run_slice_42_zone_availability_profiles" "run_slice_42_zone_availability_profiles_setup" "01-ready-slice-42"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -7629,6 +7757,9 @@ case "$ACTION" in
         ;;
     slice-41)
         slice_41
+        ;;
+    slice-42)
+        slice_42
         ;;
     slice-8)
         slice_8

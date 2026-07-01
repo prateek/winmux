@@ -74,8 +74,16 @@ final class ZoneCommandTest: XCTestCase {
             UseZoneAvailabilityCmdArgs(availabilitySetId: "focus-only", monitor: .sequenceNumber(1)),
         )
         testParseCommandSucc(
+            "use-zone-profile --monitor 1 focus-only",
+            UseZoneProfileCmdArgs(profileId: "focus-only", monitor: .sequenceNumber(1)),
+        )
+        testParseCommandSucc(
             "cycle-zone-availability focus-only communications",
             CycleZoneAvailabilityCmdArgs(availabilitySetIds: ["focus-only", "communications"]),
+        )
+        testParseCommandSucc(
+            "cycle-zone-profile focus-only communications",
+            CycleZoneProfileCmdArgs(profileIds: ["focus-only", "communications"]),
         )
         testParseCommandSucc(
             "set-zone-style --monitor 1 Comms urgent",
@@ -1774,6 +1782,34 @@ final class ZoneCommandTest: XCTestCase {
             "main|true|communications||work",
             "right|true|communications|urgent|comms",
         ])
+    }
+
+    func testZoneProfileAliasesApplyAvailabilitySets() async throws {
+        _ = configureThreeZones()
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let useProfile = try await parseCommand("use-zone-profile focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(useProfile.exitCode, 0)
+        XCTAssertEqual(useProfile.stdout, ["Using zone profile 'focus-only' on monitor 1"])
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["main"])
+        XCTAssertEqual(zoneStateByZoneId()["main"]?.availabilitySetId, "focus-only")
+
+        let cycleProfile = try await parseCommand("cycle-zone-profile focus-only communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(cycleProfile.exitCode, 0)
+        XCTAssertEqual(cycleProfile.stdout, ["Using zone profile 'communications' on monitor 1"])
+        XCTAssertEqual(Set(zoneStateByZoneId().keys), ["main", "right"])
+        XCTAssertEqual(zoneStateByZoneId()["main"]?.availabilitySetId, "communications")
+        XCTAssertEqual(zoneStateByZoneId()["right"]?.availabilitySetId, "communications")
+
+        let missing = try await parseCommand("use-zone-profile missing").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(missing.exitCode, 1)
+        XCTAssertTrue(missing.stderr.joined(separator: "\n").contains("Unknown zone availability set 'missing'"))
     }
 
     func testAvailabilitySetsClearCurrentToggleRestoreMemory() async throws {

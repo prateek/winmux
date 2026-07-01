@@ -127,6 +127,17 @@ TOML block, validates the generated config, launches `WinMuxApp` without
 `--config-path` or `WINMUX_DEFAULT_CONFIG_PATH`, then lists Reference, Work, and
 Comms with active workspaces.
 
+`make e2e-slice-42` records zone availability profiles with
+`script/e2e/configs/zone-availability-profiles.toml` and
+`script/e2e/guest/slice-42-zone-availability-profiles.sh`. The proof shows the
+`[[zone-availability-sets]]` profile map, runs `winmux toggle-zone Comms`, then
+uses `winmux use-zone-profile focus-only`,
+`winmux use-zone-profile communications`, and `winmux use-zone-profile
+full-dashboard`. The verifier checks per-beat visible window logs, zone logs,
+parked all-windows proof, profile command captions, event/timing manifests,
+exact final `list-zones --format ...` and `list-windows --all --format ...`
+captions, and the no-context review.
+
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
 `make e2e-slice-12` records desktop mouse zone snapping with `script/e2e/configs/zone-mouse-snap.toml`. The setup phase stages visible Reference, Work, and Comms documents, focuses `snap-demo.rtf` in Work, and captures `01-ready-slice-12.png`. The proof first drags the desktop window without Alt to demonstrate no whole-zone snap and no zone move, then resets the same window and drags with Alt held to show a whole Comms-zone overlay and final movement into Comms/right. The pre-Tart gate includes the mouse config parser tests and `WindowZoneSnapPolicyTest`. The verifier checks the `[mouse.zone-snap]` config, negative and positive drag logs, unchanged source window id, whole-zone target semantics, per-beat drag screenshots, semantic sample labels, and exact action/config caption chips.

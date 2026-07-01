@@ -47,22 +47,28 @@ struct UseZoneAvailabilityCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        let targetPhysicalMonitor: Monitor
-        if let monitorDescription = args.monitor {
-            guard let monitor = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) else {
-                return io.err("Can't resolve monitor selector for use-zone-availability")
-            }
-            targetPhysicalMonitor = monitor
-        } else {
-            targetPhysicalMonitor = focus.workspace.workspaceMonitor.physicalMonitor
-        }
+        runZoneAvailabilitySetCommand(
+            commandName: "use-zone-availability",
+            outputNoun: "zone availability",
+            setId: args.availabilitySetId.val,
+            monitor: args.monitor,
+            io: io,
+        )
+    }
+}
 
-        switch useZoneAvailabilitySet(args.availabilitySetId.val, for: targetPhysicalMonitor) {
-            case .success(let change):
-                return io.out("Using zone availability '\(change.setId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
-            case .failure(let message):
-                return io.err(message)
-        }
+struct UseZoneProfileCommand: Command {
+    let args: UseZoneProfileCmdArgs
+    /*conforms*/ let shouldResetClosedWindowsCache = false
+
+    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+        runZoneAvailabilitySetCommand(
+            commandName: "use-zone-profile",
+            outputNoun: "zone profile",
+            setId: args.profileId.val,
+            monitor: args.monitor,
+            io: io,
+        )
     }
 }
 
@@ -71,23 +77,86 @@ struct CycleZoneAvailabilityCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        let targetPhysicalMonitor: Monitor
-        if let monitorDescription = args.monitor {
-            guard let monitor = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) else {
-                return io.err("Can't resolve monitor selector for cycle-zone-availability")
-            }
-            targetPhysicalMonitor = monitor
-        } else {
-            targetPhysicalMonitor = focus.workspace.workspaceMonitor.physicalMonitor
-        }
-
-        switch cycleZoneAvailability(args.availabilitySetIds.val, for: targetPhysicalMonitor) {
-            case .success(let change):
-                return io.out("Using zone availability '\(change.setId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
-            case .failure(let message):
-                return io.err(message)
-        }
+        runCycleZoneAvailabilityCommand(
+            commandName: "cycle-zone-availability",
+            outputNoun: "zone availability",
+            setIds: args.availabilitySetIds.val,
+            monitor: args.monitor,
+            io: io,
+        )
     }
+}
+
+struct CycleZoneProfileCommand: Command {
+    let args: CycleZoneProfileCmdArgs
+    /*conforms*/ let shouldResetClosedWindowsCache = false
+
+    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+        runCycleZoneAvailabilityCommand(
+            commandName: "cycle-zone-profile",
+            outputNoun: "zone profile",
+            setIds: args.profileIds.val,
+            monitor: args.monitor,
+            io: io,
+        )
+    }
+}
+
+@MainActor
+private func runZoneAvailabilitySetCommand(
+    commandName: String,
+    outputNoun: String,
+    setId: String,
+    monitor: MonitorDescription?,
+    io: CmdIo,
+) -> Bool {
+    guard let targetPhysicalMonitor = resolveTargetPhysicalMonitor(monitor, commandName: commandName, io: io) else {
+        return false
+    }
+
+    switch useZoneAvailabilitySet(setId, for: targetPhysicalMonitor) {
+        case .success(let change):
+            return io.out("Using \(outputNoun) '\(change.setId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
+        case .failure(let message):
+            return io.err(message)
+    }
+}
+
+@MainActor
+private func runCycleZoneAvailabilityCommand(
+    commandName: String,
+    outputNoun: String,
+    setIds: [String],
+    monitor: MonitorDescription?,
+    io: CmdIo,
+) -> Bool {
+    guard let targetPhysicalMonitor = resolveTargetPhysicalMonitor(monitor, commandName: commandName, io: io) else {
+        return false
+    }
+
+    switch cycleZoneAvailability(setIds, for: targetPhysicalMonitor) {
+        case .success(let change):
+            return io.out("Using \(outputNoun) '\(change.setId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
+        case .failure(let message):
+            return io.err(message)
+    }
+}
+
+@MainActor
+private func resolveTargetPhysicalMonitor(
+    _ monitorDescription: MonitorDescription?,
+    commandName: String,
+    io: CmdIo,
+) -> Monitor? {
+    if let monitorDescription {
+        guard let monitor = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) else {
+            _ = io.err("Can't resolve monitor selector for \(commandName)")
+            return nil
+        }
+        return monitor
+    }
+
+    return focus.workspace.workspaceMonitor.physicalMonitor
 }
 
 @MainActor

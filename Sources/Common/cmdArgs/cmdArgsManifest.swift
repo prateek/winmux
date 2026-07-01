@@ -11,6 +11,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case config
     case cycleZoneAvailability = "cycle-zone-availability"
     case cycleZoneLayout = "cycle-zone-layout"
+    case cycleZoneProfile = "cycle-zone-profile"
     case cycleZoneScene = "cycle-zone-scene"
     case cycleZoneSnapPolicy = "cycle-zone-snap-policy"
     case cycleZoneStyle = "cycle-zone-style"
@@ -66,6 +67,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case unbindNodeZoneBinding = "unbind-node-zone-binding"
     case useZoneAvailability = "use-zone-availability"
     case useZoneLayout = "use-zone-layout"
+    case useZoneProfile = "use-zone-profile"
     case useZoneScene = "use-zone-scene"
     case volume
     case workspace
@@ -97,6 +99,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneAvailabilityCmdArgs)
             case .cycleZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneLayoutCmdArgs)
+            case .cycleZoneProfile:
+                result[kind.rawValue] = SubCommandParser(parseCycleZoneProfileCmdArgs)
             case .cycleZoneScene:
                 result[kind.rawValue] = SubCommandParser(parseCycleZoneSceneCmdArgs)
             case .cycleZoneSnapPolicy:
@@ -211,6 +215,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseUseZoneAvailabilityCmdArgs)
             case .useZoneLayout:
                 result[kind.rawValue] = SubCommandParser(parseUseZoneLayoutCmdArgs)
+            case .useZoneProfile:
+                result[kind.rawValue] = SubCommandParser(parseUseZoneProfileCmdArgs)
             case .useZoneScene:
                 result[kind.rawValue] = SubCommandParser(parseUseZoneSceneCmdArgs)
             case .volume:

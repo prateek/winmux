@@ -3281,6 +3281,49 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 41 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-42-zone-availability-profiles" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-42-setup.log" \
+            "${LOGS_DIR}/slice-42-profile-config.toml" \
+            "${LOGS_DIR}/slice-42-windows-ready.log" \
+            "${LOGS_DIR}/slice-42-zones-ready.log" \
+            "${LOGS_DIR}/slice-42-toggle-comms.log" \
+            "${LOGS_DIR}/slice-42-windows-after-toggle-hidden.log" \
+            "${LOGS_DIR}/slice-42-zones-after-toggle-hidden.log" \
+            "${LOGS_DIR}/slice-42-parked-after-toggle.tsv" \
+            "${LOGS_DIR}/slice-42-restore-comms.log" \
+            "${LOGS_DIR}/slice-42-windows-after-toggle-restored.log" \
+            "${LOGS_DIR}/slice-42-zones-after-toggle-restored.log" \
+            "${LOGS_DIR}/slice-42-use-focus-only.log" \
+            "${LOGS_DIR}/slice-42-windows-after-profile-focus-only.log" \
+            "${LOGS_DIR}/slice-42-zones-after-profile-focus-only.log" \
+            "${LOGS_DIR}/slice-42-parked-after-focus-only.tsv" \
+            "${LOGS_DIR}/slice-42-use-communications.log" \
+            "${LOGS_DIR}/slice-42-windows-after-profile-communications.log" \
+            "${LOGS_DIR}/slice-42-zones-after-profile-communications.log" \
+            "${LOGS_DIR}/slice-42-use-full-dashboard.log" \
+            "${LOGS_DIR}/slice-42-windows-after-profile-full-dashboard.log" \
+            "${LOGS_DIR}/slice-42-zones-after-profile-full-dashboard.log" \
+            "${LOGS_DIR}/slice-42-final-visual-ready.log" \
+            "${LOGS_DIR}/slice-42-final-windows-all.log" \
+            "${LOGS_DIR}/slice-42-final-zones.log" \
+            "${LOGS_DIR}/slice-42-command-timing.log" \
+            "${LOGS_DIR}/slice-42-cli.log" \
+            "${LOGS_DIR}/slice-42-zone-availability-profiles.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-42.png" \
+            "${SCREENSHOTS_DIR}/02-profile-map-ready-slice-42.png" \
+            "${SCREENSHOTS_DIR}/03-comms-hidden-parked-slice-42.png" \
+            "${SCREENSHOTS_DIR}/04-comms-restored-slice-42.png" \
+            "${SCREENSHOTS_DIR}/05-profile-focus-only-slice-42.png" \
+            "${SCREENSHOTS_DIR}/06-profile-communications-slice-42.png" \
+            "${SCREENSHOTS_DIR}/06-final-availability-proof-slice-42.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-42.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 42 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -4719,6 +4762,122 @@ EOF
     done
 }
 
+require_review_mentions_slice_42_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-42-zone-availability-profiles) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-42-setup.log	setup log
+${LOGS_DIR}/slice-42-profile-config.toml	profile config
+${LOGS_DIR}/slice-42-windows-ready.log	ready visible windows log
+${LOGS_DIR}/slice-42-zones-ready.log	ready zones log
+${LOGS_DIR}/slice-42-toggle-comms.log	Comms hide command log
+${LOGS_DIR}/slice-42-windows-after-toggle-hidden.log	hidden visible windows log
+${LOGS_DIR}/slice-42-zones-after-toggle-hidden.log	hidden zones log
+${LOGS_DIR}/slice-42-parked-after-toggle.tsv	parked all-windows proof
+${LOGS_DIR}/slice-42-restore-comms.log	Comms restore command log
+${LOGS_DIR}/slice-42-windows-after-toggle-restored.log	restored windows log
+${LOGS_DIR}/slice-42-zones-after-toggle-restored.log	restored zones log
+${LOGS_DIR}/slice-42-use-focus-only.log	focus-only profile command log
+${LOGS_DIR}/slice-42-windows-after-profile-focus-only.log	focus-only windows log
+${LOGS_DIR}/slice-42-zones-after-profile-focus-only.log	focus-only zones log
+${LOGS_DIR}/slice-42-parked-after-focus-only.tsv	focus-only parked proof
+${LOGS_DIR}/slice-42-use-communications.log	communications profile command log
+${LOGS_DIR}/slice-42-windows-after-profile-communications.log	communications windows log
+${LOGS_DIR}/slice-42-zones-after-profile-communications.log	communications zones log
+${LOGS_DIR}/slice-42-use-full-dashboard.log	full-dashboard command log
+${LOGS_DIR}/slice-42-windows-after-profile-full-dashboard.log	full-dashboard windows log
+${LOGS_DIR}/slice-42-zones-after-profile-full-dashboard.log	full-dashboard zones log
+${LOGS_DIR}/slice-42-final-visual-ready.log	final visual readiness log
+${LOGS_DIR}/slice-42-final-windows-all.log	final list-windows --all log
+${LOGS_DIR}/slice-42-final-zones.log	final list-zones log
+${LOGS_DIR}/slice-42-command-timing.log	command timing log
+${LOGS_DIR}/slice-42-cli.log	aggregate CLI log
+${SCREENSHOTS_DIR}/00-before-slice-42.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/02-profile-map-ready-slice-42.png	profile map screenshot
+${SCREENSHOTS_DIR}/03-comms-hidden-parked-slice-42.png	Comms hidden parked screenshot
+${SCREENSHOTS_DIR}/04-comms-restored-slice-42.png	Comms restored screenshot
+${SCREENSHOTS_DIR}/05-profile-focus-only-slice-42.png	focus-only profile screenshot
+${SCREENSHOTS_DIR}/06-profile-communications-slice-42.png	communications profile screenshot
+${SCREENSHOTS_DIR}/06-final-availability-proof-slice-42.png	final availability audit screenshot
+${SCREENSHOTS_DIR}/99-after-slice-42.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 42 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 42 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-42-zone-availability-profiles.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 42 review must cite the Slice 42 event manifest"
+    for event_id in \
+        profile-config \
+        zone-toggle-hidden \
+        zone-toggle-restored \
+        focus-only-profile \
+        communications-profile \
+        full-dashboard-profile \
+        final-audit \
+        final-windows-audit; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 42 review must cite availability event: $event_id"
+    done
+    for timing_key in \
+        toggle-comms-offset-seconds \
+        restore-comms-offset-seconds \
+        focus-only-offset-seconds \
+        communications-offset-seconds \
+        full-dashboard-offset-seconds \
+        final-audit-offset-seconds \
+        final-zones-audit-offset-seconds \
+        final-windows-audit-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 42 review must cite timing value key: $timing_key"
+    done
+    for exact in \
+        '[[zone-availability-sets]]' \
+        "alt-c = 'toggle-zone Comms'" \
+        "alt-f = 'use-zone-profile focus-only'" \
+        "alt-m = 'use-zone-profile communications'" \
+        "alt-a = 'cycle-zone-profile focus-only communications full-dashboard'" \
+        '$ winmux toggle-zone Comms' \
+        '$ winmux use-zone-profile focus-only' \
+        '$ winmux use-zone-profile communications' \
+        '$ winmux use-zone-profile full-dashboard' \
+        "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'" \
+        "winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'" \
+        'zone=right|name=Comms|enabled=false' \
+        'availability=focus-only' \
+        'availability=communications' \
+        'availability=full-dashboard' \
+        'manual-move-node-to-zone-during-proof=no' \
+        'Slice 42 availability final audit'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 42 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'parked|same.*window id|window id.*same' "$review_path" \
+        || die "Slice 42 review must discuss parked workspace/window-id restoration"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -4767,7 +4926,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -5070,6 +5229,7 @@ run_review_lint() {
     require_review_mentions_slice_39_evidence "$review_path"
     require_review_mentions_slice_40_evidence "$review_path"
     require_review_mentions_slice_41_evidence "$review_path"
+    require_review_mentions_slice_42_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -5616,6 +5776,32 @@ require_slice_41_sample_manifest() {
         reload-route; do
         require_sample_manifest_label_path_kind "$manifest_path" "$label" sample-start
     done
+}
+
+require_slice_42_sample_manifest() {
+    local manifest_path="$1"
+    require_sample_manifest_paths "$manifest_path"
+    local label
+    for label in \
+        profile-config \
+        zone-toggle-hidden \
+        zone-toggle-restored \
+        focus-only-profile \
+        communications-profile \
+        full-dashboard-profile \
+        final-audit \
+        final-windows-audit; do
+        require_sample_manifest_label "$manifest_path" "$label"
+    done
+
+    require_sample_manifest_label_path "$manifest_path" profile-config "screenshots/02-profile-map-ready-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" zone-toggle-hidden "screenshots/03-comms-hidden-parked-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" zone-toggle-restored "screenshots/04-comms-restored-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" focus-only-profile "screenshots/05-profile-focus-only-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" communications-profile "screenshots/06-profile-communications-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" final-audit "screenshots/06-final-availability-proof-slice-42.png"
+    require_sample_manifest_label_path "$manifest_path" final-windows-audit "screenshots/06-final-availability-proof-slice-42.png"
+    require_sample_manifest_label_path_kind "$manifest_path" full-dashboard-profile sample-start
 }
 
 transport_summary_value() {
@@ -8617,6 +8803,266 @@ require_slice_41_zone_affinity_beta_proof() {
         "Run: winmux list-windows --all; winmux list-zones"; do
         grep -F "$chip" "$annotation_plan" >/dev/null \
             || die "Slice 41 annotations missing chip: $chip"
+    done
+}
+
+require_slice_42_zone_availability_profiles_proof() {
+    local proof="${RUN_DIR}/slice-42-zone-availability-profiles-proof.txt"
+    local done="${LOGS_DIR}/slice-42-zone-availability-profiles.done"
+    local setup_log="${LOGS_DIR}/slice-42-setup.log"
+    local config_copy="${LOGS_DIR}/slice-42-profile-config.toml"
+    local ready_windows="${LOGS_DIR}/slice-42-windows-ready.log"
+    local ready_zones="${LOGS_DIR}/slice-42-zones-ready.log"
+    local toggle_log="${LOGS_DIR}/slice-42-toggle-comms.log"
+    local hidden_windows="${LOGS_DIR}/slice-42-windows-after-toggle-hidden.log"
+    local hidden_zones="${LOGS_DIR}/slice-42-zones-after-toggle-hidden.log"
+    local parked_toggle="${LOGS_DIR}/slice-42-parked-after-toggle.tsv"
+    local restore_log="${LOGS_DIR}/slice-42-restore-comms.log"
+    local restored_windows="${LOGS_DIR}/slice-42-windows-after-toggle-restored.log"
+    local restored_zones="${LOGS_DIR}/slice-42-zones-after-toggle-restored.log"
+    local focus_log="${LOGS_DIR}/slice-42-use-focus-only.log"
+    local focus_windows="${LOGS_DIR}/slice-42-windows-after-profile-focus-only.log"
+    local focus_zones="${LOGS_DIR}/slice-42-zones-after-profile-focus-only.log"
+    local parked_focus="${LOGS_DIR}/slice-42-parked-after-focus-only.tsv"
+    local communications_log="${LOGS_DIR}/slice-42-use-communications.log"
+    local communications_windows="${LOGS_DIR}/slice-42-windows-after-profile-communications.log"
+    local communications_zones="${LOGS_DIR}/slice-42-zones-after-profile-communications.log"
+    local dashboard_log="${LOGS_DIR}/slice-42-use-full-dashboard.log"
+    local dashboard_windows="${LOGS_DIR}/slice-42-windows-after-profile-full-dashboard.log"
+    local dashboard_zones="${LOGS_DIR}/slice-42-zones-after-profile-full-dashboard.log"
+    local final_visual_ready="${LOGS_DIR}/slice-42-final-visual-ready.log"
+    local final_windows="${LOGS_DIR}/slice-42-final-windows-all.log"
+    local final_zones="${LOGS_DIR}/slice-42-final-zones.log"
+    local visible_final="${LOGS_DIR}/slice-42-visible-final.txt"
+    local timing_log="${LOGS_DIR}/slice-42-command-timing.log"
+    local cli_log="${LOGS_DIR}/slice-42-cli.log"
+    local state_file="${LOGS_DIR}/slice-42-window-ids.env"
+    local event_manifest="${LOGS_DIR}/slice-42-zone-availability-profiles.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 42"
+    for path in \
+        "$setup_log" "$config_copy" "$ready_windows" "$ready_zones" \
+        "$toggle_log" "$hidden_windows" "$hidden_zones" "$parked_toggle" \
+        "$restore_log" "$restored_windows" "$restored_zones" \
+        "$focus_log" "$focus_windows" "$focus_zones" "$parked_focus" \
+        "$communications_log" "$communications_windows" "$communications_zones" \
+        "$dashboard_log" "$dashboard_windows" "$dashboard_zones" \
+        "$final_visual_ready" "$final_windows" "$final_zones" "$visible_final" \
+        "$timing_log" "$cli_log" "$state_file" "$event_manifest"; do
+        require_file "$path"
+    done
+    require_slice_42_sample_manifest "$sample_manifest"
+    require_slice_42_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+
+    local mutation_started first_mutation_line
+    mutation_started="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-42-run mutation_started || true)"
+    first_mutation_line="$(transport_summary_value "${LOGS_DIR}/guest-transport-summary.tsv" slice-42-run first_mutation_line || true)"
+    [ "$mutation_started" = "yes" ] \
+        || die "Slice 42 transport summary must report mutation_started=yes for slice-42-run"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 42 transport summary must report first_mutation_line for slice-42-run"
+
+    for screenshot in \
+        "${SCREENSHOTS_DIR}/00-before-slice-42.png" \
+        "${SCREENSHOTS_DIR}/01-ready-slice-42.png" \
+        "${SCREENSHOTS_DIR}/02-profile-map-ready-slice-42.png" \
+        "${SCREENSHOTS_DIR}/03-comms-hidden-parked-slice-42.png" \
+        "${SCREENSHOTS_DIR}/04-comms-restored-slice-42.png" \
+        "${SCREENSHOTS_DIR}/05-profile-focus-only-slice-42.png" \
+        "${SCREENSHOTS_DIR}/06-profile-communications-slice-42.png" \
+        "${SCREENSHOTS_DIR}/06-final-availability-proof-slice-42.png" \
+        "${SCREENSHOTS_DIR}/99-after-slice-42.png"; do
+        require_file "$screenshot"
+    done
+
+    grep -F 'PASS: zone toggle, restore, focus-only, communications, and full-dashboard profile beats all preserved parked workspaces.' "$proof" >/dev/null \
+        || die "Slice 42 proof missing expected PASS claim"
+    grep -F 'manual-move-node-to-zone-during-proof=no' "$proof" >/dev/null \
+        || die "Slice 42 proof must explicitly deny manual move-node-to-zone during proof"
+    grep -F 'non-claim=no visual profile editor; no scene replacement' "$proof" >/dev/null \
+        || die "Slice 42 proof missing non-claims"
+
+    for expected in \
+        '[[zone-availability-sets]]' \
+        "id = 'focus-only'" \
+        "id = 'communications'" \
+        "id = 'full-dashboard'" \
+        "alt-c = 'toggle-zone Comms'" \
+        "alt-f = 'use-zone-profile focus-only'" \
+        "alt-m = 'use-zone-profile communications'" \
+        "alt-a = 'cycle-zone-profile focus-only communications full-dashboard'" \
+        "alt-d = 'use-zone-profile full-dashboard'"; do
+        grep -F "$expected" "$config_copy" >/dev/null \
+            || die "Slice 42 config copy missing: $expected"
+    done
+
+    for proof_phase_log in "$toggle_log" "$restore_log" "$focus_log" "$communications_log" "$dashboard_log" "$cli_log"; do
+        grep -F '$ winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 42 proof phase must not include manual move-node-to-zone: $proof_phase_log"
+        grep -F 'Run: winmux move-node-to-zone' "$proof_phase_log" >/dev/null \
+            && die "Slice 42 proof phase must not annotate manual move-node-to-zone: $proof_phase_log"
+    done
+
+    grep -F '$ winmux toggle-zone Comms' "$toggle_log" >/dev/null \
+        || die "Slice 42 hide log missing exact toggle command"
+    grep -F '$ winmux toggle-zone Comms' "$restore_log" >/dev/null \
+        || die "Slice 42 restore log missing exact toggle command"
+    grep -F '$ winmux use-zone-profile focus-only' "$focus_log" >/dev/null \
+        || die "Slice 42 focus-only log missing exact profile command"
+    grep -F '$ winmux use-zone-profile communications' "$communications_log" >/dev/null \
+        || die "Slice 42 communications log missing exact profile command"
+    grep -F '$ winmux use-zone-profile full-dashboard' "$dashboard_log" >/dev/null \
+        || die "Slice 42 full-dashboard log missing exact profile command"
+
+    local reference_id work_id comms_id
+    reference_id="$(value_from_log REFERENCE_ID "$state_file")"
+    work_id="$(value_from_log WORK_ID "$state_file")"
+    comms_id="$(value_from_log COMMS_ID "$state_file")"
+    [ -n "$reference_id" ] || die "Slice 42 state file missing REFERENCE_ID"
+    [ -n "$work_id" ] || die "Slice 42 state file missing WORK_ID"
+    [ -n "$comms_id" ] || die "Slice 42 state file missing COMMS_ID"
+
+    [ "$(field_for_title "$ready_windows" 'slice42-reference-profile-board.rtf' id)" = "$reference_id" ] \
+        || die "Slice 42 ready Reference window id changed"
+    [ "$(field_for_title "$ready_windows" 'slice42-work-main.rtf' id)" = "$work_id" ] \
+        || die "Slice 42 ready Work window id changed"
+    [ "$(field_for_title "$ready_windows" 'slice42-comms-chat.rtf' id)" = "$comms_id" ] \
+        || die "Slice 42 ready Comms window id changed"
+    [ "$(field_for_title "$ready_windows" 'slice42-reference-profile-board.rtf' zone)" = left ] \
+        || die "Slice 42 Reference should start in left"
+    [ "$(field_for_title "$ready_windows" 'slice42-work-main.rtf' zone)" = main ] \
+        || die "Slice 42 Work should start in main"
+    [ "$(field_for_title "$ready_windows" 'slice42-comms-chat.rtf' zone)" = right ] \
+        || die "Slice 42 Comms should start in right"
+
+    [ -z "$(field_for_title "$hidden_windows" 'slice42-comms-chat.rtf' id)" ] \
+        || die "Slice 42 visible hidden log still contains Comms"
+    [ "$(field_for_title "$parked_toggle" 'slice42-comms-chat.rtf' id)" = "$comms_id" ] \
+        || die "Slice 42 parked toggle log must preserve the Comms window id"
+    [ "$(field_for_title "$restored_windows" 'slice42-comms-chat.rtf' id)" = "$comms_id" ] \
+        || die "Slice 42 restored log must preserve the Comms window id"
+    [ "$(field_for_title "$restored_windows" 'slice42-comms-chat.rtf' zone)" = right ] \
+        || die "Slice 42 restored Comms should return to right"
+
+    [ -z "$(field_for_title "$focus_windows" 'slice42-reference-profile-board.rtf' id)" ] \
+        || die "Slice 42 focus-only visible log still contains Reference"
+    [ -z "$(field_for_title "$focus_windows" 'slice42-comms-chat.rtf' id)" ] \
+        || die "Slice 42 focus-only visible log still contains Comms"
+    [ "$(field_for_title "$parked_focus" 'slice42-reference-profile-board.rtf' id)" = "$reference_id" ] \
+        || die "Slice 42 focus-only parked proof must preserve the Reference window id"
+    [ "$(field_for_title "$parked_focus" 'slice42-comms-chat.rtf' id)" = "$comms_id" ] \
+        || die "Slice 42 focus-only parked proof must preserve the Comms window id"
+    [ "$(field_for_title "$communications_windows" 'slice42-comms-chat.rtf' zone)" = right ] \
+        || die "Slice 42 communications profile should restore Comms/right"
+    [ -z "$(field_for_title "$communications_windows" 'slice42-reference-profile-board.rtf' id)" ] \
+        || die "Slice 42 communications profile should keep Reference hidden"
+    [ "$(field_for_title "$dashboard_windows" 'slice42-reference-profile-board.rtf' zone)" = left ] \
+        || die "Slice 42 full-dashboard should restore Reference/left"
+    [ "$(field_for_title "$dashboard_windows" 'slice42-work-main.rtf' zone)" = main ] \
+        || die "Slice 42 full-dashboard should keep Work/main"
+    [ "$(field_for_title "$dashboard_windows" 'slice42-comms-chat.rtf' zone)" = right ] \
+        || die "Slice 42 full-dashboard should restore Comms/right"
+
+    [ "$(zone_log_value "$ready_zones" left enabled)" = true ] || die "Slice 42 ready left zone must be enabled"
+    [ "$(zone_log_value "$ready_zones" main enabled)" = true ] || die "Slice 42 ready main zone must be enabled"
+    [ "$(zone_log_value "$ready_zones" right enabled)" = true ] || die "Slice 42 ready right zone must be enabled"
+    [ "$(zone_log_value "$hidden_zones" right enabled)" = false ] || die "Slice 42 hidden right zone must be disabled"
+    [ "$(zone_log_value "$restored_zones" right enabled)" = true ] || die "Slice 42 restored right zone must be enabled"
+    [ "$(zone_log_value "$focus_zones" left enabled)" = false ] || die "Slice 42 focus-only left zone must be disabled"
+    [ "$(zone_log_value "$focus_zones" main enabled)" = true ] || die "Slice 42 focus-only main zone must be enabled"
+    [ "$(zone_log_value "$focus_zones" right enabled)" = false ] || die "Slice 42 focus-only right zone must be disabled"
+    [ "$(zone_log_value "$focus_zones" main availability)" = focus-only ] || die "Slice 42 focus-only active availability missing"
+    [ "$(zone_log_value "$communications_zones" left enabled)" = false ] || die "Slice 42 communications left zone must remain disabled"
+    [ "$(zone_log_value "$communications_zones" right enabled)" = true ] || die "Slice 42 communications right zone must be enabled"
+    [ "$(zone_log_value "$communications_zones" main availability)" = communications ] || die "Slice 42 communications active availability missing"
+    [ "$(zone_log_value "$dashboard_zones" left enabled)" = true ] || die "Slice 42 full-dashboard left zone must be enabled"
+    [ "$(zone_log_value "$dashboard_zones" main enabled)" = true ] || die "Slice 42 full-dashboard main zone must be enabled"
+    [ "$(zone_log_value "$dashboard_zones" right enabled)" = true ] || die "Slice 42 full-dashboard right zone must be enabled"
+    [ "$(zone_log_value "$dashboard_zones" main availability)" = full-dashboard ] || die "Slice 42 full-dashboard active availability missing"
+
+    [ -n "$(field_for_title "$final_visual_ready" 'slice-42-availability-final-audit.rtf' id)" ] \
+        || die "Slice 42 final proof window must be visible before final screenshot"
+    for title in \
+        'slice42-reference-profile-board.rtf' \
+        'slice42-work-main.rtf' \
+        'slice42-comms-chat.rtf'; do
+        grep -F "$title" "$final_windows" >/dev/null \
+            || die "Slice 42 final all-workspaces audit missing window: $title"
+    done
+    grep -F 'Slice 42 availability final audit' "$visible_final" >/dev/null \
+        || die "Slice 42 final visible board text missing final audit title"
+    grep -F "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'" "$visible_final" >/dev/null \
+        || die "Slice 42 final board missing exact list-zones command"
+    grep -F "winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'" "$visible_final" >/dev/null \
+        || die "Slice 42 final board missing exact list-windows --all command"
+    grep -F "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'" "$final_zones" >/dev/null \
+        || die "Slice 42 final zones log missing exact list-zones command header"
+    grep -F "winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'" "$final_windows" >/dev/null \
+        || die "Slice 42 final windows log missing exact list-windows --all command header"
+
+    for timing_key in \
+        toggle-comms-offset-seconds \
+        restore-comms-offset-seconds \
+        focus-only-offset-seconds \
+        communications-offset-seconds \
+        full-dashboard-offset-seconds \
+        final-audit-offset-seconds \
+        final-zones-audit-offset-seconds \
+        final-windows-audit-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 42 timing log missing $timing_key"
+    done
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux toggle-zone Comms" \
+        "$(value_from_log toggle-comms-offset-seconds "$timing_log")" \
+        "Slice 42 hide toggle must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux use-zone-profile focus-only" \
+        "$(value_from_log focus-only-offset-seconds "$timing_log")" \
+        "Slice 42 focus-only command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux use-zone-profile communications" \
+        "$(value_from_log communications-offset-seconds "$timing_log")" \
+        "Slice 42 communications command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux use-zone-profile full-dashboard" \
+        "$(value_from_log full-dashboard-offset-seconds "$timing_log")" \
+        "Slice 42 full-dashboard command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format" \
+        "$(value_from_log final-zones-audit-offset-seconds "$timing_log")" \
+        "Slice 42 final zone audit must happen while its command caption sequence is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-windows --all --format" \
+        "$(value_from_log final-windows-audit-offset-seconds "$timing_log")" \
+        "Slice 42 final all-windows audit must happen while its command caption sequence is visible"
+
+    local restore_offset
+    restore_offset="$(value_from_log restore-comms-offset-seconds "$timing_log")"
+    /usr/bin/awk -F'\t' -v offset="$restore_offset" '$5 == "Run: winmux toggle-zone Comms" && offset >= ($1 + 0) && offset <= ($2 + 0) { found = 1 } END { exit(found ? 0 : 1) }' "$annotation_plan" \
+        || die "Slice 42 restore toggle must happen while a toggle-zone caption is visible"
+
+    for chip in \
+        "Config: [[zone-availability-sets]] as zone profiles" \
+        "Result: Reference | Work | Comms visible" \
+        "Run: winmux toggle-zone Comms" \
+        "Run: winmux use-zone-profile focus-only" \
+        "Run: winmux use-zone-profile communications" \
+        "Run: winmux use-zone-profile full-dashboard" \
+        "Run: winmux list-zones --format" \
+        "Config: zone=%{monitor-zone-id}|name=%{monitor-zone-name}" \
+        "Config: enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}" \
+        "Config: workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}" \
+        "Config: physical=%{monitor-physical-id}" \
+        "Run: winmux list-windows --all --format" \
+        "Config: %{window-id}|%{window-title}|zone=%{monitor-zone-id}" \
+        "Config: workspace=%{workspace}|monitor=%{monitor-name}"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 42 annotations missing chip: $chip"
     done
 }
 
@@ -12164,6 +12610,58 @@ require_slice_41_event_manifest() {
     done
 }
 
+require_slice_42_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" profile-config context
+    require_event_manifest_event "$manifest_path" zone-toggle-hidden command
+    require_event_manifest_event "$manifest_path" zone-toggle-restored command
+    require_event_manifest_event "$manifest_path" focus-only-profile command
+    require_event_manifest_event "$manifest_path" communications-profile command
+    require_event_manifest_event "$manifest_path" full-dashboard-profile command
+    require_event_manifest_event "$manifest_path" final-audit command
+    require_event_manifest_event "$manifest_path" final-windows-audit command
+
+    require_event_sample_label "$manifest_path" profile-config profile-config
+    require_event_sample_label "$manifest_path" zone-toggle-hidden zone-toggle-hidden
+    require_event_sample_label "$manifest_path" zone-toggle-restored zone-toggle-restored
+    require_event_sample_label "$manifest_path" focus-only-profile focus-only-profile
+    require_event_sample_label "$manifest_path" communications-profile communications-profile
+    require_event_sample_label "$manifest_path" full-dashboard-profile full-dashboard-profile
+    require_event_sample_label "$manifest_path" final-audit final-audit
+    require_event_sample_label "$manifest_path" final-windows-audit final-windows-audit
+
+    require_event_before "$manifest_path" profile-config zone-toggle-hidden \
+        "Slice 42 event manifest must show profile config before hiding Comms"
+    require_event_before "$manifest_path" zone-toggle-hidden zone-toggle-restored \
+        "Slice 42 event manifest must show hide before restore"
+    require_event_before "$manifest_path" zone-toggle-restored focus-only-profile \
+        "Slice 42 event manifest must show restore before focus-only profile"
+    require_event_before "$manifest_path" focus-only-profile communications-profile \
+        "Slice 42 event manifest must show focus-only before communications profile"
+    require_event_before "$manifest_path" communications-profile full-dashboard-profile \
+        "Slice 42 event manifest must show communications before full-dashboard"
+    require_event_before "$manifest_path" full-dashboard-profile final-audit \
+        "Slice 42 event manifest must show full-dashboard before final audit"
+    require_event_before "$manifest_path" final-audit final-windows-audit \
+        "Slice 42 event manifest must show final zones audit before final windows audit"
+
+    local event_id path
+    for event_id in \
+        profile-config \
+        zone-toggle-hidden \
+        zone-toggle-restored \
+        focus-only-profile \
+        communications-profile \
+        full-dashboard-profile \
+        final-audit \
+        final-windows-audit; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 42 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -14054,6 +14552,9 @@ case "$recording_name" in
     slice-41-zone-affinity-beta)
         require_slice_41_zone_affinity_beta_proof
         ;;
+    slice-42-zone-availability-profiles)
+        require_slice_42_zone_availability_profiles_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -14161,6 +14662,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_39_evidence "$review_path"
     require_review_mentions_slice_40_evidence "$review_path"
     require_review_mentions_slice_41_evidence "$review_path"
+    require_review_mentions_slice_42_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

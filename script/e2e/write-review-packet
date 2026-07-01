@@ -682,6 +682,26 @@ EOF
 - State explicitly that Slice 41 proves deterministic app/window affinity routing, match/no-match/disabled diagnostics, reload, and relaunch for newly detected representative windows. It does not prove ML placement, automatic rebinding of already-open windows, durable tab-group identity, or every real app bundle a user may configure.
 EOF
             ;;
+        slice-42-zone-availability-profiles)
+            cat <<'EOF'
+- Inspect the annotated recording first. Use the raw recording only to debug capture issues, then inspect the contact sheet, semantic sample manifest, event manifest, caption-boundary frames, edge crops, and logs.
+- Confirm the visible profile map shows `[[zone-availability-sets]]` and the exact bindings `alt-c = 'toggle-zone Comms'`, `alt-f = 'use-zone-profile focus-only'`, `alt-m = 'use-zone-profile communications'`, `alt-a = 'cycle-zone-profile focus-only communications full-dashboard'`, and `alt-d = 'use-zone-profile full-dashboard'` before profile commands are demonstrated.
+- Confirm captions expose the exact user-facing commands: `$ winmux toggle-zone Comms`, `$ winmux use-zone-profile focus-only`, `$ winmux use-zone-profile communications`, and `$ winmux use-zone-profile full-dashboard`. For the two long final audit commands, require the ordered segmented command-caption sequences beginning with `Run: winmux list-zones --format` and `Run: winmux list-windows --all --format`; the final board and logs must still show the full exact commands.
+- Inspect `logs/slice-42-profile-config.toml`; require `id = 'focus-only'`, `id = 'communications'`, `id = 'full-dashboard'`, and the exact profile bindings above. Reject profile-wording captions if the config still only exposes `use-zone-availability` / `cycle-zone-availability`.
+- Inspect `logs/slice-42-windows-ready.log` and `logs/slice-42-zones-ready.log`; require Reference/left, Work/main, and Comms/right visible and enabled before any hide/profile command.
+- Inspect `logs/slice-42-toggle-comms.log`, `logs/slice-42-windows-after-toggle-hidden.log`, `logs/slice-42-zones-after-toggle-hidden.log`, `logs/slice-42-parked-after-toggle.tsv`, and `screenshots/03-comms-hidden-parked-slice-42.png`; require `$ winmux toggle-zone Comms`, `zone=right|name=Comms|enabled=false`, no visible `slice42-comms-chat.rtf`, and a parked all-windows row preserving the same Comms window id.
+- Inspect `logs/slice-42-restore-comms.log`, `logs/slice-42-windows-after-toggle-restored.log`, `logs/slice-42-zones-after-toggle-restored.log`, and `screenshots/04-comms-restored-slice-42.png`; require the same Comms workspace/window id to return to Comms/right after the restore command.
+- Inspect `logs/slice-42-use-focus-only.log`, `logs/slice-42-windows-after-profile-focus-only.log`, `logs/slice-42-zones-after-profile-focus-only.log`, `logs/slice-42-parked-after-focus-only.tsv`, and `screenshots/05-profile-focus-only-slice-42.png`; require `$ winmux use-zone-profile focus-only`, `availability=focus-only`, Work/main visible, Reference and Comms hidden, and parked rows preserving the same Reference and Comms window ids.
+- Inspect `logs/slice-42-use-communications.log`, `logs/slice-42-windows-after-profile-communications.log`, `logs/slice-42-zones-after-profile-communications.log`, and `screenshots/06-profile-communications-slice-42.png`; require `$ winmux use-zone-profile communications`, `availability=communications`, Comms/right restored, and Reference/left still hidden.
+- Inspect `logs/slice-42-use-full-dashboard.log`, `logs/slice-42-windows-after-profile-full-dashboard.log`, and `logs/slice-42-zones-after-profile-full-dashboard.log`; require `$ winmux use-zone-profile full-dashboard`, `availability=full-dashboard`, and Reference/left, Work/main, and Comms/right restored.
+- Inspect `logs/slice-42-final-visual-ready.log`, `logs/slice-42-final-windows-all.log`, `logs/slice-42-final-zones.log`, `logs/slice-42-visible-final.txt`, and `screenshots/06-final-availability-proof-slice-42.png`; require the final board title `Slice 42 availability final audit`, the exact `winmux list-zones --format ...` command, the exact unfiltered `winmux list-windows --all --format ...` command, and matching ordered segmented command-caption chips for both commands.
+- Inspect `logs/slice-42-command-timing.log`; cite `toggle-comms-offset-seconds`, `restore-comms-offset-seconds`, `focus-only-offset-seconds`, `communications-offset-seconds`, `full-dashboard-offset-seconds`, `final-zones-audit-offset-seconds`, and `final-windows-audit-offset-seconds`, and reject if any command happens outside its matching caption chip.
+- Inspect `logs/slice-42-zone-availability-profiles.event-manifest.tsv`; require `profile-config`, `zone-toggle-hidden`, `zone-toggle-restored`, `focus-only-profile`, `communications-profile`, `full-dashboard-profile`, `final-audit`, and `final-windows-audit` in order with concrete media paths.
+- Reject proof-phase `move-node-to-zone`, manual workspace reassignment, hidden cleanup, final-state-only proof, logs-only proof, stale final screenshots, unreadable command captions, or any review that does not cite `manual-move-node-to-zone-during-proof=no`.
+- Compare against accepted Slice 36-41 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, and restrained command-chip style used in the accepted demos.
+- State explicitly that Slice 42 proves zone-level hide/restore plus whole-layout profile switching through zone-profile aliases while preserving parked workspace/window ids. It does not prove scene replacement or a visual profile editor.
+EOF
+            ;;
         slice-8-window-routing)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.
@@ -1054,6 +1074,31 @@ $(drag_screenshot_lines)
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.contact-sheet.jpg
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.samples
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/logs/root-demo.ffprobe.json
+- ${REPO_ROOT}/artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/recordings/slice-37-starter-onboarding.mov
+- ${REPO_ROOT}/artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/screenshots/slice-37-starter-onboarding.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/screenshots/slice-37-starter-onboarding.event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/screenshots/03-config-check-and-zones-slice-37.png
+- ${REPO_ROOT}/artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/reviews/no-ctx-artifact-review.md
+- ${REPO_ROOT}/artifacts/e2e/slice-38-pre-tart-20260701T075713Z/recordings/slice-38-user-readiness.mov
+- ${REPO_ROOT}/artifacts/e2e/slice-38-pre-tart-20260701T075713Z/screenshots/slice-38-user-readiness.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-38-pre-tart-20260701T075713Z/screenshots/slice-38-user-readiness.event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-38-pre-tart-20260701T075713Z/screenshots/05-normal-user-ready-slice-38.png
+- ${REPO_ROOT}/artifacts/e2e/slice-38-pre-tart-20260701T075713Z/reviews/no-ctx-artifact-review.md
+- ${REPO_ROOT}/artifacts/e2e/slice-39-pre-tart-20260701T093003Z/recordings/slice-39-dogfood-install-permissions.mov
+- ${REPO_ROOT}/artifacts/e2e/slice-39-pre-tart-20260701T093003Z/screenshots/slice-39-dogfood-install-permissions.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-39-pre-tart-20260701T093003Z/screenshots/slice-39-dogfood-install-permissions.event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-39-pre-tart-20260701T093003Z/screenshots/05-dogfood-ready-slice-39.png
+- ${REPO_ROOT}/artifacts/e2e/slice-39-pre-tart-20260701T093003Z/reviews/no-ctx-artifact-review.md
+- ${REPO_ROOT}/artifacts/e2e/slice-40-pre-tart-20260701T130717Z/recordings/slice-40-zone-setup-assistant.mov
+- ${REPO_ROOT}/artifacts/e2e/slice-40-pre-tart-20260701T130717Z/screenshots/slice-40-zone-setup-assistant.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-40-pre-tart-20260701T130717Z/screenshots/slice-40-zone-setup-assistant.event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-40-pre-tart-20260701T130717Z/screenshots/05-zone-setup-ready-slice-40.png
+- ${REPO_ROOT}/artifacts/e2e/slice-40-pre-tart-20260701T130717Z/reviews/no-ctx-artifact-review.md
+- ${REPO_ROOT}/artifacts/e2e/slice-41-20260701T173400Z/recordings/slice-41-zone-affinity-beta.mov
+- ${REPO_ROOT}/artifacts/e2e/slice-41-20260701T173400Z/screenshots/slice-41-zone-affinity-beta.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-41-20260701T173400Z/screenshots/slice-41-zone-affinity-beta.event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-41-20260701T173400Z/screenshots/06-final-affinity-proof-slice-41.png
+- ${REPO_ROOT}/artifacts/e2e/slice-41-20260701T173400Z/reviews/no-ctx-artifact-review.md
 - ${REPO_ROOT}/resources/screenshots/winmux-overview.png
 - ${REPO_ROOT}/resources/screenshots/tab-groups.png
 - ${REPO_ROOT}/README.md

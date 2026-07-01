@@ -678,6 +678,42 @@ Slice-specific checks:
   captured when each window opens. Require reviewers to cite the exact media and
   logs they inspected for the app-id, app-name, workspace, no-match, disabled
   target, reload, and relaunch beats.
+- Slice 42 must show zone availability profiles from user-facing profile aliases,
+  not only the older availability command names. Inspect the primary annotated
+  recording first, then the raw recording, contact sheet, semantic sample
+  manifest, event manifest, caption-boundary frames, edge crops, and logs.
+  Require visible `[[zone-availability-sets]]` config plus exact evidence text:
+  `alt-c = 'toggle-zone Comms'`, `alt-f = 'use-zone-profile focus-only'`,
+  `alt-m = 'use-zone-profile communications'`,
+  `alt-a = 'cycle-zone-profile focus-only communications full-dashboard'`,
+  `$ winmux toggle-zone Comms`, `$ winmux use-zone-profile focus-only`,
+  `$ winmux use-zone-profile communications`,
+  `$ winmux use-zone-profile full-dashboard`,
+  the ordered segmented command-caption sequence beginning with
+  `Run: winmux list-zones --format`, the ordered segmented command-caption
+  sequence beginning with `Run: winmux list-windows --all --format`, the full
+  exact `winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'`
+  command in the final board/logs, the full exact
+  `winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'`
+  command in the final board/logs,
+  `zone=right|name=Comms|enabled=false`, `availability=focus-only`,
+  `availability=communications`, `availability=full-dashboard`,
+  `manual-move-node-to-zone-during-proof=no`, and
+  `Slice 42 availability final audit`. Require event ids `profile-config`,
+  `zone-toggle-hidden`, `zone-toggle-restored`, `focus-only-profile`,
+  `communications-profile`, `full-dashboard-profile`, `final-audit`, and
+  `final-windows-audit`, plus timing keys `toggle-comms-offset-seconds`,
+  `restore-comms-offset-seconds`, `focus-only-offset-seconds`,
+  `communications-offset-seconds`, `full-dashboard-offset-seconds`,
+  `final-zones-audit-offset-seconds`, and
+  `final-windows-audit-offset-seconds`. Reject
+  final-state-only proof, logs-only proof, generic or unreadable command
+  captions, missing any final-audit command fragment, missing parked-workspace
+  proof, proof-phase `move-node-to-zone`, or any review that does not discuss
+  the same parked window id returning after hide/restore and focus-only profile
+  changes. Require reviewers to compare against accepted
+  Slice 36-41 artifacts and the repo root/product media before allowing the next
+  slice.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

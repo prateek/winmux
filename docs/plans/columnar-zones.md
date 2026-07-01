@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-41 accepted; Slices 42-51 planned
+Status: slices 0-42 accepted; Slices 43-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -7859,7 +7859,7 @@ Non-claims:
 
 ### Slice 42: Zone Availability and Profile Workflows
 
-Status: planned.
+Status: accepted.
 
 Pre-Slice-42 cleanup from Slice 41 retrospectives and no-context optimization
 agents:
@@ -7879,8 +7879,10 @@ agents:
   pre-Tart review-gate registration before recording.
 - [x] Add a Slice 42 guest-script self-test that exercises the command sequence
   and rejects missing parked-workspace restoration evidence without Tart.
-- [ ] Run three clean no-context pre-Tart reviewer reports against the Slice 42
+- [x] Run three clean no-context pre-Tart reviewer reports against the Slice 42
   candidate after pre-Tart freshness is written and before Tart starts.
+  Accepted reports live under
+  `artifacts/e2e/slice-42-pre-tart-20260701T210703Z/reviews/pre-tart/`.
 
 Goal: turn zone-level and whole-layout visibility into a clear daily workflow:
 for example, Comms available, Mail hidden, Focus Only, and Full Dashboard.
@@ -7918,9 +7920,8 @@ Required Slice 42 storyboard:
   hidden zone, and prove the same Comms workspace/window returns to Comms/right;
 - run `winmux use-zone-profile focus-only` and show Reference plus Comms hidden
   while Work/main remains available;
-- run `winmux cycle-zone-profile focus-only communications full-dashboard` or
-  `winmux use-zone-profile communications` and show Comms/right restored while
-  Reference/left remains hidden;
+- run `winmux use-zone-profile communications` and show Comms/right restored
+  while Reference/left remains hidden;
 - run `winmux use-zone-profile full-dashboard` and show all zones restored with
   the same Reference, Work, and Comms workspaces;
 - finish with a top-safe final board titled
@@ -7932,6 +7933,10 @@ Required final audit commands:
 
 - `winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'`;
 - `winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'`.
+
+Both final audit commands must appear as ordered segmented command-caption
+sequences, with every format fragment visible and legible, not only as text
+inside the final board.
 
 Per-beat logs, not the final audit alone, must prove placement and parking:
 
@@ -7967,9 +7972,84 @@ Non-claims:
 - Slice 42 does not replace scenes;
 - Slice 42 does not add a visual profile editor.
 
+Accepted Slice 42 result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-42-pre-tart-20260701T210703Z`;
+- recording:
+  `recordings/slice-42-zone-availability-profiles.mov`;
+- raw guest capture:
+  `recordings/raw/slice-42-zone-availability-profiles.raw.mov`;
+- contact sheets:
+  `screenshots/slice-42-zone-availability-profiles.contact-sheet.jpg` and
+  `screenshots/slice-42-zone-availability-profiles.event-contact-sheet.jpg`;
+- final screenshot:
+  `screenshots/06-final-availability-proof-slice-42.png`;
+- pre-Tart gate:
+  `reviews/pre-tart/freshness.env`, `process-plan.md`, `code-harness.md`,
+  and `artifact-product.md`, accepted by `check-pre-tart-review-gate`;
+- artifact review:
+  `reviews/no-ctx-artifact-review.md`, first line
+  `PASS: Slice 42 proves zone-level hide/restore plus whole-layout profile switching through zone-profile aliases while preserving parked workspace/window ids.`
+  and final line `next slice allowed: yes`;
+- persisted verifier logs:
+  `logs/review-lint.log`, `logs/post-review-verify.log`, and
+  `logs/closeout-check.log`;
+- closeout command:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-42-pre-tart-20260701T210703Z`,
+  passed;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+Claims:
+
+- `toggle-zone Comms` hides and restores the Comms zone while preserving the
+  same parked workspace/window id;
+- `use-zone-profile focus-only`, `communications`, and `full-dashboard` apply
+  named `[[zone-availability-sets]]` as ergonomic profile aliases;
+- final `list-zones` and `list-windows --all` audits are visible as segmented
+  command captions and stored logs.
+
+Superseded Slice 42 attempts:
+
+- `artifacts/e2e/slice-42-pre-tart-20260701T194151Z`: pre-Tart-only, no
+  product media or accepted review;
+- `artifacts/e2e/slice-42-pre-tart-20260701T195314Z`: pre-Tart-only, no
+  product media or accepted review;
+- `artifacts/e2e/slice-42-pre-tart-20260701T200032Z`: pre-Tart-only, no
+  product media or accepted review;
+- `artifacts/e2e/slice-42-pre-tart-20260701T200802Z`: pre-Tart-only, no
+  product media or accepted review;
+- `artifacts/e2e/slice-42-pre-tart-20260701T203131Z`: failed annotation
+  preflight because a final audit caption chip was too long; the accepted run
+  splits the command into ordered caption fragments;
+- `artifacts/e2e/slice-42-pre-tart-20260701T204550Z`: pre-Tart-only and stale
+  after later source changes, no product media or accepted review.
+
 ### Slice 43: Mouse Gesture Configurability
 
 Status: planned.
+
+Pre-Slice-43 cleanup from Slice 42 retrospectives:
+
+- [x] Persist Slice 42 review lint, post-review verifier, and closeout logs.
+- [x] Read all three Slice 42 retrospectives and fold accepted blockers into
+  this checklist.
+- [x] Record Slice 42 accepted artifact, review verdict, claims, non-claims,
+  closeout status, and superseded-attempt lineage in this plan.
+- [x] Isolate the accepted Slice 42 source, generated files, harness, prompt,
+  config, guest script, and plan updates in this closeout commit before starting
+  Slice 43 pre-Tart freshness.
+- [ ] Resolve command metadata provenance before the next command-heavy slice:
+  either restore the real source/generator for generated command help and
+  descriptions, or change the headers/docs so they match the maintained-source
+  policy.
+- [ ] Add focused alias parity tests for monitor-scoped `use-zone-profile` /
+  `cycle-zone-profile` and restore-memory clearing, or explicitly defer them in
+  the Slice 43 notes before pre-Tart freshness.
+- [ ] Add a cheap duplicate-command-line lint for visible proof boards, or
+  document the crop/excerpt requirement before the next text-heavy proof board.
 
 Goal: make mouse-driven zone snapping ergonomic and configurable, especially for
 one-handed workflows.

@@ -589,6 +589,33 @@ func parseCycleZoneAvailabilityCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZo
     parseSpecificCmdArgs(CycleZoneAvailabilityCmdArgs(rawArgs: args), args)
 }
 
+public struct CycleZoneProfileCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .cycleZoneProfile,
+        allowInConfig: true,
+        help: cycle_zone_profile_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.profileIds, parseZoneAvailabilitySetIds, placeholder: "<profile-id>...")],
+    )
+
+    public init(profileIds: [String], monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.profileIds = .initialized(profileIds)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var profileIds: Lateinit<[String]> = .uninitialized
+}
+
+func parseCycleZoneProfileCmdArgs(_ args: StrArrSlice) -> ParsedCmd<CycleZoneProfileCmdArgs> {
+    parseSpecificCmdArgs(CycleZoneProfileCmdArgs(rawArgs: args), args)
+}
+
 public struct UseZoneAvailabilityCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
@@ -614,6 +641,33 @@ public struct UseZoneAvailabilityCmdArgs: CmdArgs {
 
 func parseUseZoneAvailabilityCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneAvailabilityCmdArgs> {
     parseSpecificCmdArgs(UseZoneAvailabilityCmdArgs(rawArgs: args), args)
+}
+
+public struct UseZoneProfileCmdArgs: CmdArgs {
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    fileprivate init(rawArgs: StrArrSlice) { self.commonState = .init(rawArgs) }
+    public static let parser: CmdParser<Self> = .init(
+        kind: .useZoneProfile,
+        allowInConfig: true,
+        help: use_zone_profile_help_generated,
+        flags: [
+            "--monitor": ArgParser(\.monitor, parseMonitorDescriptionSubArg),
+        ],
+        posArgs: [newMandatoryPosArgParser(\.profileId, parseZoneAvailabilitySetId, placeholder: "<profile-id>")],
+    )
+
+    public init(profileId: String, monitor: MonitorDescription? = nil) {
+        self.commonState = .init([])
+        self.profileId = .initialized(profileId)
+        self.monitor = monitor
+    }
+
+    public var monitor: MonitorDescription?
+    public var profileId: Lateinit<String> = .uninitialized
+}
+
+func parseUseZoneProfileCmdArgs(_ args: StrArrSlice) -> ParsedCmd<UseZoneProfileCmdArgs> {
+    parseSpecificCmdArgs(UseZoneProfileCmdArgs(rawArgs: args), args)
 }
 
 public struct UseZoneLayoutCmdArgs: CmdArgs {

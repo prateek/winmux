@@ -32,6 +32,9 @@ let cycle_zone_availability_help_generated = """
 let cycle_zone_layout_help_generated = """
     USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
     """
+let cycle_zone_profile_help_generated = """
+    USAGE: cycle-zone-profile [-h|--help] [--monitor <monitor-pattern>] <profile-id>...
+    """
 let cycle_zone_scene_help_generated = """
     USAGE: cycle-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>...
     """
@@ -227,6 +230,9 @@ let use_zone_availability_help_generated = """
     """
 let use_zone_layout_help_generated = """
     USAGE: use-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
+    """
+let use_zone_profile_help_generated = """
+    USAGE: use-zone-profile [-h|--help] [--monitor <monitor-pattern>] <profile-id>
     """
 let use_zone_scene_help_generated = """
     USAGE: use-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>

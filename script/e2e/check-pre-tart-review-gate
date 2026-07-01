@@ -151,6 +151,31 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-41-zone-affinity-beta.sh"
             )
             ;;
+        slice-42)
+            required_mentions=(
+                "Slice 42"
+                "docs/plans/columnar-zones.md"
+                "Sources/AppBundle/command/Command.swift"
+                "Sources/AppBundle/command/cmdManifest.swift"
+                "Sources/AppBundle/command/impl/ZoneAvailabilityCommand.swift"
+                "Sources/AppBundleTests/command/ZoneCommandTest.swift"
+                "Sources/AppBundleTests/config/ConfigTestZones.swift"
+                "Sources/Cli/subcommandDescriptionsGenerated.swift"
+                "Sources/Common/cmdArgs/cmdArgsManifest.swift"
+                "Sources/Common/cmdArgs/impl/ZoneCmdArgs.swift"
+                "Sources/Common/cmdHelpGenerated.swift"
+                "makefile"
+                "script/e2e/README.md"
+                "script/e2e/configs/zone-availability-profiles.toml"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/slice-42-zone-availability-profiles.sh"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -397,6 +422,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-41 >/dev/null
+
+    configure_slice_requirements slice-42
+    write_freshness_manifest "$run_dir" slice-42 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-42 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null
