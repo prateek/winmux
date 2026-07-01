@@ -7835,13 +7835,18 @@ Pre-Slice-42 cleanup from Slice 41 retrospectives:
   and non-claims.
 - [x] Isolate the accepted Slice 41 source, harness, prompt, test, and plan
   changes in this closeout commit before starting Slice 42 pre-Tart freshness.
-- [ ] Before Slice 42 recording, lock the final audit command shape in the plan
+- [x] Before Slice 42 recording, lock the final audit command shape in the plan
   and pre-Tart/reviewer contract: state whether the final audit is visible-only
   or all-workspaces, list the exact command, and identify which per-beat logs
-  prove placement before any later reload/workspace side effects.
-- [ ] For the next dense final-board slice, use the Slice 41 pattern: write the
+  prove placement before any later reload/workspace side effects. Slice 42 uses
+  the contract below: per-beat visible-window logs prove each hide/restore
+  transition before later profile changes; the final audit is all-workspaces
+  with exact `list-zones` and `list-windows --all` commands.
+- [x] For the next dense final-board slice, use the Slice 41 pattern: write the
   board, wait for the expected board title into a readiness log, then capture
-  the manifest-listed screenshot.
+  the manifest-listed screenshot. Slice 42 requires
+  `logs/slice-42-final-visual-ready.log` before
+  `screenshots/06-final-availability-proof-slice-42.png`.
 
 Non-claims:
 
@@ -7855,6 +7860,27 @@ Non-claims:
 ### Slice 42: Zone Availability and Profile Workflows
 
 Status: planned.
+
+Pre-Slice-42 cleanup from Slice 41 retrospectives and no-context optimization
+agents:
+
+- [x] Run the required three no-context pre-slice optimization agents and
+  persist their reports under
+  `artifacts/e2e/slice-42-pre-slice-cleanup/reviews/process-plan.md`,
+  `code-harness.md`, and `artifact-product.md`.
+- [x] Decide the profile vocabulary before recording. Slice 42 treats a "zone
+  profile" as the ergonomic command alias for a named
+  `[[zone-availability-sets]]` entry, not a second state model. The underlying
+  source of truth remains `disabledZoneIds` plus `activeAvailabilitySetId`.
+- [x] Add thin CLI aliases `use-zone-profile` and `cycle-zone-profile` with
+  parser, dispatch, help/description metadata, and focused command tests before
+  captions claim profile commands.
+- [ ] Add Slice 42-specific harness, verifier, reviewer-packet, prompt, and
+  pre-Tart review-gate registration before recording.
+- [ ] Add a Slice 42 guest-script self-test that exercises the command sequence
+  and rejects missing parked-workspace restoration evidence without Tart.
+- [ ] Run three clean no-context pre-Tart reviewer reports against the Slice 42
+  candidate after pre-Tart freshness is written and before Tart starts.
 
 Goal: turn zone-level and whole-layout visibility into a clear daily workflow:
 for example, Comms available, Mail hidden, Focus Only, and Full Dashboard.
@@ -7874,6 +7900,67 @@ Required scope:
 Required artifact: a fresh Tart video toggling one zone, switching a whole
 layout profile, restoring the hidden zone, and proving the parked workspace
 comes back.
+
+Required Slice 42 storyboard:
+
+- start from the accepted Slice 40 normal setup path or an equivalent normal
+  user config with Reference, Work, and Comms zones and three availability
+  profiles: `focus-only`, `communications`, and `full-dashboard`;
+- show a visible config/profile board that maps profiles to
+  `[[zone-availability-sets]]` ids before commands run;
+- start with Reference, Work, and Comms visible and live labeled documents in
+  each zone;
+- run `winmux toggle-zone Comms` or `winmux disable-zone Comms` as the
+  zone-level toggle beat, then show Comms hidden, Work expanded, and the Comms
+  workspace/window absent from visible windows but still identified in a
+  parked-workspace proof board;
+- run `winmux enable-zone Comms` or `winmux toggle-zone Comms` to restore the
+  hidden zone, and prove the same Comms workspace/window returns to Comms/right;
+- run `winmux use-zone-profile focus-only` and show Reference plus Comms hidden
+  while Work/main remains available;
+- run `winmux cycle-zone-profile focus-only communications full-dashboard` or
+  `winmux use-zone-profile communications` and show Comms/right restored while
+  Reference/left remains hidden;
+- run `winmux use-zone-profile full-dashboard` and show all zones restored with
+  the same Reference, Work, and Comms workspaces;
+- finish with a top-safe final board titled
+  `Slice 42 availability final audit`, write
+  `logs/slice-42-final-visual-ready.log` after that title is visible, then
+  capture `screenshots/06-final-availability-proof-slice-42.png`.
+
+Required final audit commands:
+
+- `winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}|physical=%{monitor-physical-id}'`;
+- `winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'`.
+
+Per-beat logs, not the final audit alone, must prove placement and parking:
+
+- ready: all three zones enabled, labeled documents visible, and profile ids
+  empty;
+- zone-level hidden: Comms disabled, Work expanded, Comms document absent from
+  `--workspace visible`, and the parked Comms workspace/window identified;
+- zone-level restored: the same Comms workspace/window visible in Comms/right;
+- focus-only profile: only Work/main enabled, active profile `focus-only`;
+- communications profile: Work/main and Comms/right enabled, active profile
+  `communications`, Reference still hidden;
+- full-dashboard profile: all three zones restored with active profile
+  `full-dashboard`.
+
+Required verifier/reviewer contract:
+
+- reject final-state-only proof, logs-only proof, stale final screenshots, hidden
+  commands, hidden profile config, or command captions that use profile wording
+  without exact `use-zone-profile` / `cycle-zone-profile` CLI evidence;
+- reject proof that uses `move-node-to-zone`, manual workspace reassignment, or
+  cleanup commands to manufacture the parked-workspace return;
+- require semantic samples and event-manifest rows for ready, zone-toggle
+  command, zone-toggle result, explicit restore, focus-only profile command,
+  communications/full-dashboard profile commands, and final audit;
+- require the no-context reviewer to compare Slice 42 against accepted Slice
+  36-41 artifacts and repo-root/product media, and to name the exact media
+  frames or native-scale crops used for each state transition;
+- require final edge/corner crops that prove no setup windows, permission
+  prompts, Terminal clutter, or occluded proof text remain visible.
 
 Non-claims:
 
