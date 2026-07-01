@@ -41,7 +41,7 @@ fi
 if [ "$ACTION" = "slice-34" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
-if [ "$ACTION" = "slice-35" ]; then
+if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ]; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
 if [ "$ACTION" = "slice-8" ]; then
@@ -163,7 +163,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -2747,6 +2747,121 @@ write_slice_35_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_37_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label uncomment_label check_label launch_label list_label focus_label result_label
+    config_label="$(caption_label_for_chip "$name" "Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE")"
+    uncomment_label="$(caption_label_for_chip "$name" "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check slice-37-starter-config-uncommented.toml")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml")"
+    list_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'")"
+    focus_label="$(caption_label_for_chip "$name" "Run: winmux focus-zone Comms")"
+    result_label="$(caption_label_for_chip "$name" "Result: Reference | Work | Comms ready")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" commented-template context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" starter-template-commented \
+        "screenshots/01-starter-template-commented-slice-37.png" \
+        "fresh starter config shows the ultrawide template while it is still commented"
+    append_event_manifest_row "$manifest_path" uncomment-template action \
+        "$(caption_start_for_label "$name" "$uncomment_label")" "$uncomment_label" uncomment-template \
+        "screenshots/${name}.samples/${uncomment_label}-boundary-start.png" \
+        "the marked template is uncommented into active TOML"
+    append_event_manifest_row "$manifest_path" launch-with-config command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-with-config \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches with the uncommented starter config"
+    append_event_manifest_row "$manifest_path" config-check command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "winmux config --check validates the uncommented starter config"
+    append_event_manifest_row "$manifest_path" list-zones command \
+        "$(caption_start_for_label "$name" "$list_label")" "$list_label" list-zones \
+        "screenshots/${name}.samples/${list_label}-boundary-start.png" \
+        "list-zones shows the resulting Reference, Work, and Comms zones"
+    append_event_manifest_row "$manifest_path" focus-comms command \
+        "$(caption_start_for_label "$name" "$focus_label")" "$focus_label" focus-comms \
+        "screenshots/${name}.samples/${focus_label}-boundary-start.png" \
+        "focus-zone Comms is the next user-facing command after onboarding"
+    append_event_manifest_row "$manifest_path" result-zones state \
+        "$(caption_start_for_label "$name" "$result_label")" "$result_label" result-zones \
+        "screenshots/03-config-check-and-zones-slice-37.png" \
+        "Reference, Work, and Comms zones are ready for normal use"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
+write_slice_38_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label uncomment_label launch_label path_label check_label list_label focus_label open_label move_label resize_label dry_run_label result_label
+    config_label="$(caption_label_for_chip "$name" "Config: ~/.config/winmux/winmux.toml")"
+    uncomment_label="$(caption_label_for_chip "$name" "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE")"
+    launch_label="$(caption_label_for_chip "$name" "Run: WinMuxApp")"
+    path_label="$(caption_label_for_chip "$name" "Run: winmux config --config-path")"
+    check_label="$(caption_label_for_chip "$name" "Run: winmux config --check ~/.config/winmux/winmux.toml")"
+    list_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'")"
+    focus_label="$(caption_label_for_chip "$name" "Run: winmux focus-zone Comms")"
+    open_label="$(caption_label_for_chip "$name" "Action: open TextEdit readiness-move.rtf in Comms")"
+    move_label="$(caption_label_for_chip "$name" "Run: winmux move-node-to-zone --focus-follows-window Work")"
+    resize_label="$(caption_label_for_chip "$name" "Run: winmux resize-zone Work width +10%")"
+    dry_run_label="$(caption_label_for_chip "$name" "Run: winmux save-zone-layout --dry-run")"
+    result_label="$(caption_label_for_chip "$name" "Result: normal config path is ready for Reference | Work | Comms")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" normal-user-config context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" normal-user-config \
+        "screenshots/01-user-config-template-slice-38.png" \
+        "the editable config lives at ~/.config/winmux/winmux.toml and still has the ultrawide template commented"
+    append_event_manifest_row "$manifest_path" uncomment-template action \
+        "$(caption_start_for_label "$name" "$uncomment_label")" "$uncomment_label" uncomment-template \
+        "screenshots/${name}.samples/${uncomment_label}-boundary-start.png" \
+        "the marked template is uncommented in the normal user config"
+    append_event_manifest_row "$manifest_path" launch-normal command \
+        "$(caption_start_for_label "$name" "$launch_label")" "$launch_label" launch-normal \
+        "screenshots/${name}.samples/${launch_label}-boundary-start.png" \
+        "WinMux launches without --config-path"
+    append_event_manifest_row "$manifest_path" config-path command \
+        "$(caption_start_for_label "$name" "$path_label")" "$path_label" config-path \
+        "screenshots/${name}.samples/${path_label}-boundary-start.png" \
+        "winmux config --config-path reports ~/.config/winmux/winmux.toml"
+    append_event_manifest_row "$manifest_path" config-check command \
+        "$(caption_start_for_label "$name" "$check_label")" "$check_label" config-check \
+        "screenshots/${name}.samples/${check_label}-boundary-start.png" \
+        "winmux config --check validates the normal user config"
+    append_event_manifest_row "$manifest_path" list-zones command \
+        "$(caption_start_for_label "$name" "$list_label")" "$list_label" list-zones \
+        "screenshots/${name}.samples/${list_label}-boundary-start.png" \
+        "list-zones shows Reference, Work, and Comms"
+    append_event_manifest_row "$manifest_path" focus-comms command \
+        "$(caption_start_for_label "$name" "$focus_label")" "$focus_label" focus-comms \
+        "screenshots/${name}.samples/${focus_label}-boundary-start.png" \
+        "focus-zone Comms selects the communications zone"
+    append_event_manifest_row "$manifest_path" open-move-window action \
+        "$(caption_start_for_label "$name" "$open_label")" "$open_label" open-move-window \
+        "screenshots/03-before-move-slice-38.png" \
+        "readiness-move.rtf opens in Comms before the move command"
+    append_event_manifest_row "$manifest_path" move-to-work command \
+        "$(caption_start_for_label "$name" "$move_label")" "$move_label" move-to-work \
+        "screenshots/${name}.samples/${move_label}-boundary-start.png" \
+        "the focused TextEdit window moves from Comms to Work"
+    append_event_manifest_row "$manifest_path" resize-work command \
+        "$(caption_start_for_label "$name" "$resize_label")" "$resize_label" resize-work \
+        "screenshots/${name}.samples/${resize_label}-boundary-start.png" \
+        "Work grows after resize-zone Work width +10%"
+    append_event_manifest_row "$manifest_path" save-dry-run command \
+        "$(caption_start_for_label "$name" "$dry_run_label")" "$dry_run_label" save-dry-run \
+        "screenshots/${name}.samples/${dry_run_label}-boundary-start.png" \
+        "save-zone-layout --dry-run reports the pending save without changing the config hash"
+    append_event_manifest_row "$manifest_path" result-ready state \
+        "$(caption_start_for_label "$name" "$result_label")" "$result_label" result-ready \
+        "screenshots/05-normal-user-ready-slice-38.png" \
+        "the final proof shows the normal config path and the user-facing zone commands"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -2794,6 +2909,12 @@ write_event_manifest() {
             ;;
         slice-35-starter-ultrawide-template)
             write_slice_35_event_manifest "$name"
+            ;;
+        slice-37-starter-onboarding)
+            write_slice_37_event_manifest "$name"
+            ;;
+        slice-38-user-readiness)
+            write_slice_38_event_manifest "$name"
             ;;
         *)
             ;;
@@ -2903,6 +3024,33 @@ CAPTIONS
 30	38	Validate the config	Check the uncommented file through the running WinMux server.	Run: winmux config --check slice-35-starter-config-uncommented.toml
 38	50	Inspect zones	The CLI shows Reference, Work, and Comms on monitor 1.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
 50	60	Ready to tune	The generated config remains the user-owned starting point.	Result: Reference | Work | Comms
+CAPTIONS
+            ;;
+        slice-37-starter-onboarding)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Starter config ready	A fresh WinMux config includes the ultrawide zones template, still commented.	Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
+8	17	Uncomment the template	The marked block becomes real TOML for Reference, Work, and Comms.	Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE
+17	30	Launch with zones	WinMux starts from the uncommented starter config.	Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml
+30	38	Validate the config	Check the uncommented file through the running WinMux server.	Run: winmux config --check slice-37-starter-config-uncommented.toml
+38	48	Inspect zones	The CLI shows Reference, Work, and Comms on monitor 1.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+48	60	Focus Comms	Run the next command a user would try after enabling the zones.	Run: winmux focus-zone Comms
+60	72	Ready to use	Reference, Work, and Comms are available on the ultrawide display.	Result: Reference | Work | Comms ready
+CAPTIONS
+            ;;
+        slice-38-user-readiness)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Normal config path	The editable config is the user path WinMux creates and reads by default.	Config: ~/.config/winmux/winmux.toml
+8	18	Uncomment the template	The marked block becomes real TOML in the normal user config.	Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE
+18	30	Launch normally	WinMux starts without a config-path override.	Run: WinMuxApp
+30	39	Confirm config source	The CLI reports the active editable config path.	Run: winmux config --config-path
+39	48	Validate the file	Check the same normal user config through the running server.	Run: winmux config --check ~/.config/winmux/winmux.toml
+48	58	Inspect zones	The CLI shows Reference, Work, and Comms on monitor 1.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+58	68	Focus Comms	Run the first cross-zone navigation command.	Run: winmux focus-zone Comms
+68	78	Create a movable window	A TextEdit document opens in the focused Comms zone.	Action: open TextEdit readiness-move.rtf in Comms
+78	90	Move to Work	Send the focused window across zones and follow it.	Run: winmux move-node-to-zone --focus-follows-window Work
+90	100	Resize Work	Grow the Work zone with a user-facing runtime command.	Run: winmux resize-zone Work width +10%
+100	110	Preview saving	Show the save output without mutating the config.	Run: winmux save-zone-layout --dry-run
+110	120	Ready to use	The normal config path now supports navigation, movement, resize, and dry-run save.	Result: normal config path is ready for Reference | Work | Comms
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3251,14 +3399,16 @@ annotation_preflight() {
         slice-32-divider-save-relaunch \
         slice-33-cycle-zone-scene \
         slice-34-zone-mode-scene \
-        slice-35-starter-ultrawide-template
+        slice-35-starter-ultrawide-template \
+        slice-37-starter-onboarding \
+        slice-38-user-readiness
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -5884,6 +6034,62 @@ run_slice_35_starter_template() {
         "${LOGS_DIR}/slice-35-run.log"
 }
 
+run_slice_37_starter_onboarding_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-37-starter-onboarding.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE37_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-37-setup.log"
+}
+
+run_slice_37_starter_onboarding() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-37-starter-onboarding.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE37_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-37-run.log"
+}
+
+run_slice_38_user_readiness_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-38-user-readiness.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE38_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-38-setup.log"
+}
+
+run_slice_38_user_readiness() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-38-user-readiness.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE38_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-38-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -6740,6 +6946,14 @@ slice_35() {
     run_recorded_scenario "slice-35-starter-ultrawide-template" "00-before-slice-35" "99-after-slice-35" "run_slice_35_starter_template" "run_slice_35_starter_template_setup" "01-starter-template-commented-slice-35"
 }
 
+slice_37() {
+    run_recorded_scenario "slice-37-starter-onboarding" "00-before-slice-37" "99-after-slice-37" "run_slice_37_starter_onboarding" "run_slice_37_starter_onboarding_setup" "01-starter-template-commented-slice-37"
+}
+
+slice_38() {
+    run_recorded_scenario "slice-38-user-readiness" "00-before-slice-38" "99-after-slice-38" "run_slice_38_user_readiness" "run_slice_38_user_readiness_setup" "01-user-config-template-slice-38"
+}
+
 slice_8() {
     run_recorded_scenario "slice-8-window-routing" "00-before-slice-8" "99-after-slice-8" "run_slice_8_window_routing" "run_slice_8_window_routing_setup" "01-ready-slice-8"
 }
@@ -6894,6 +7108,12 @@ case "$ACTION" in
         ;;
     slice-35)
         slice_35
+        ;;
+    slice-37)
+        slice_37
+        ;;
+    slice-38)
+        slice_38
         ;;
     slice-8)
         slice_8

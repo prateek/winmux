@@ -30,9 +30,11 @@ failed review under a different filename before rerunning no-context review.
 
 Every finished recording also gets a filled no-context reviewer packet at `reviews/reviewer-packet.md`, with exact media paths, logs, baselines, product surfaces, and the verifier command. Drag proof packets also list the manifest-declared pickup/path/hover screenshots directly. Give the packet to the reviewer instead of hand-copying paths from the run directory.
 
-Use `script/e2e/record-reviewer-attempt` to append accepted, stalled, superseded, or replaced reviewer attempts to `reviews/reviewer-attempts.tsv`. The reviewer packet lists that ledger, and review lint checks that the packet points at it.
+Use `script/e2e/record-reviewer-attempt` to append accepted, stalled, superseded, or replaced reviewer attempts to `reviews/reviewer-attempts.tsv`. The reviewer packet lists that ledger, and review lint requires no-context reviews to cite non-pass attempt rows by role, status, output path, and replacement reason. New packets also write `reviews/reviewer-citation-checklist.tsv`, a TSV inventory of the paths, event ids, timing keys, expected chips, retry rows, reviewer attempts, and baselines the reviewer must account for.
 
 For text-heavy config demos, use `script/e2e/write-visible-proof-excerpt` to generate a compact reviewer-facing excerpt. It enforces that the required active TOML table appears within the configured line budget, which keeps proof text above the fold in screenshots and videos.
+
+For timed-caption guest scripts, source `script/e2e/guest/recording-timing-helpers.sh` and use `sleep_until_recording_offset <start> <end> <label>` before visible user actions or commands. The helper fails with the semantic-failure exit when the action has already missed its caption window, which keeps timing drift out of Tart recordings.
 
 `make e2e-smoke` validates the capture pipeline and will still produce a host-visible recording if guest control is unavailable. Product slices must use strict guest control and guest display capture:
 
@@ -93,6 +95,22 @@ The default control backend is SSH with the standard Tart image credentials, `ad
 `make e2e-slice-34` records the same scene cycle through the user-facing binding path. The run uses `script/e2e/configs/zone-scenes.toml`, requires persisted clean pre-Tart reviewer reports under `reviews/pre-tart/`, and proves `alt-tab = 'cycle-zone-scene triage deep-work'` by running `winmux trigger-binding --mode main alt-tab` twice. The verifier checks the binding-specific command logs, `slice-34-trigger-binding-alt-tab-wrap.log`, timing offsets for both identical command captions, semantic sample rows, event manifest rows, and triage -> deep-work -> triage live TextEdit state.
 
 `make e2e-slice-35` records the first-run ultrawide starter-template workflow. It uses `resources/default-config.toml` as the staged config, requires persisted clean pre-Tart reviewer reports, shows the `WINMUX ULTRAWIDE ZONES TEMPLATE` block while it is still commented, uncomments only that block into `logs/slice-35-starter-config-uncommented.toml`, launches WinMux with the uncommented config, runs `winmux config --check`, and records `winmux list-zones` showing Reference, Work, and Comms.
+
+`make e2e-slice-37` records the starter-template onboarding companion. It uses
+the same generated config path as Slice 35, requires persisted clean pre-Tart
+reviewer reports, shows the commented template, uncomments it, launches WinMux,
+validates the config, runs `winmux list-zones`, then runs
+`winmux focus-zone Comms` as the first useful command after zones are enabled.
+The artifact is a fresh Tart guest-captured companion video; it does not replace
+the repo-root `demo-columnar-zones.mp4`.
+
+`make e2e-slice-38` records normal-user readiness. It copies the starter config
+to `~/.config/winmux/winmux.toml`, uncomments the ultrawide template there,
+launches `WinMuxApp` without `--config-path`, proves the runtime config path
+with `winmux config --config-path`, then runs `config --check`, `list-zones`,
+`focus-zone Comms`, `move-node-to-zone --focus-follows-window Work`,
+`resize-zone Work width +10%`, and `save-zone-layout --dry-run`. The verifier
+requires the dry run to leave the normal config hash unchanged.
 
 `make e2e-slice-11c` records named zone availability sets with `script/e2e/configs/zone-availability-sets.toml`. The setup phase stages visible `Reference`, `Work`, and `Comms` documents with the sidebar enabled and captures `01-ready-slice-11c.png`. The proof records `winmux set-zone-style Comms urgent`, `winmux use-zone-availability focus-only`, and `winmux use-zone-availability communications`. The verifier checks that focus-only hides Reference and Comms while Work expands, communications restores Comms/right while Reference stays hidden, the same Comms workspace/window returns, the urgent style persists across hide/restore, semantic sample labels cover each command boundary, and `logs/slice-11c-zone-availability-sets.color-sentinel.tsv` proves the Comms swatch before hide, during restore, and after restore.
 
@@ -249,7 +267,7 @@ Before guest capture, the harness prepares the disposable guest:
 - hides desktop widgets and stops notification agents so banners do not appear in the recording;
 - logs the privacy setup and clean-slate state under `logs/guest-privacy-setup.log` and `logs/guest-clean-slate.log`.
 
-Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` inside the guest. Debug bare-executable launches also pass `WINMUX_DEFAULT_CONFIG_PATH` so SwiftUI settings initialization can parse the staged config before the app reloads `--config-path`. `WINMUX_E2E_STARTUP_TRACE` writes startup milestones to `logs/winmux-startup-trace.log`.
+Slice scenarios stage `WinMuxApp` and `winmux` under `$HOME/winmux-e2e/bin` inside the guest. Most debug bare-executable launches pass `WINMUX_DEFAULT_CONFIG_PATH` so SwiftUI settings initialization can parse the staged config before the app reloads `--config-path`. Slice 38 is the exception: it sets the LaunchAgent working directory to the shared repo and proves normal startup without `--config-path` or `WINMUX_DEFAULT_CONFIG_PATH`. `WINMUX_E2E_STARTUP_TRACE` writes startup milestones to `logs/winmux-startup-trace.log`.
 
 Guest action retry logs include `failure_count` and `final_result` so reviewers can distinguish transient transport or TCC setup retries from semantic proof failures. On final guest action failure, the harness writes `logs/run-abort-status.txt` with phase, exit code, primary log, whether recording had started, and whether setup had completed. Host-side generated-version failures use `logs/host-build-generated-clean.log` as their primary abort log. Guest script retry summaries also record `mutation_started` and `first_mutation_line`, so reviewers can tell whether a failed post-recording attempt touched product state before a retry or re-record. The harness warms guest transport before privacy setup and again before recording; the warm-up requires three successful probes with at least two consecutive successes, which filters transient SSH misses without failing a clean VM before the proof starts. Each run writes `logs/guest-transport-summary.tsv` with phase, log path, attempt count, failure count, final result, whether the phase happened before recording, compact per-attempt statuses, and compact first/last failure reasons. The summary links the raw phase log for the full failure detail.
 

@@ -71,6 +71,7 @@ edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
 guest_script_retry_summary="${LOGS_DIR}/guest-script-retry-summary.tsv"
 reviewer_attempts="${REVIEWS_DIR}/reviewer-attempts.tsv"
+reviewer_citation_checklist="${REVIEWS_DIR}/reviewer-citation-checklist.tsv"
 boundary_samples_glob="${samples_dir}/caption-*-boundary-*.png"
 annotation_plan="${LOGS_DIR}/${recording_name}.annotations.tsv"
 annotation_log="${LOGS_DIR}/${recording_name}.annotation.log"
@@ -249,6 +250,154 @@ semantic_sample_checklist_lines() {
     ' "$sample_manifest"
 }
 
+clean_checklist_cell() {
+    printf '%s\n' "$1" | /usr/bin/tr '\t\r\n' '   ' | /usr/bin/sed 's/[[:space:]]\{1,\}/ /g; s/^ //; s/ $//'
+}
+
+add_citation_checklist_row() {
+    local kind="$1"
+    local label="$2"
+    local path="$3"
+    local required_citation="$4"
+    printf '%s\t%s\t%s\t%s\n' \
+        "$(clean_checklist_cell "$kind")" \
+        "$(clean_checklist_cell "$label")" \
+        "$(clean_checklist_cell "$path")" \
+        "$(clean_checklist_cell "$required_citation")" >>"$reviewer_citation_checklist"
+}
+
+add_file_citation_row_if_present() {
+    local kind="$1"
+    local label="$2"
+    local path="$3"
+    [ -s "$path" ] || return 0
+    add_citation_checklist_row "$kind" "$label" "$path" "cite exact artifact path"
+}
+
+add_baseline_citation_row() {
+    local path="$1"
+    add_citation_checklist_row "baseline" "$(basename "$path")" "$path" "compare against baseline/product surface"
+}
+
+write_reviewer_citation_checklist() {
+    printf '# kind\tlabel\tpath\trequired_citation\n' >"$reviewer_citation_checklist"
+
+    add_file_citation_row_if_present media primary-recording "$recording_path"
+    add_file_citation_row_if_present media raw-recording "$raw_recording_path"
+    add_file_citation_row_if_present media contact-sheet "$contact_sheet"
+    add_file_citation_row_if_present media event-contact-sheet "$event_contact_sheet"
+    add_file_citation_row_if_present media before-screenshot "$before_screenshot"
+    add_file_citation_row_if_present media ready-screenshot "$ready_screenshot"
+    add_file_citation_row_if_present media after-screenshot "$after_screenshot"
+    add_file_citation_row_if_present manifest sample-manifest "$sample_manifest"
+    add_file_citation_row_if_present manifest event-manifest "$event_manifest"
+    add_file_citation_row_if_present manifest expected-chips "$expected_chips"
+    add_file_citation_row_if_present manifest edge-crops "$edge_crops_manifest"
+    add_file_citation_row_if_present manifest proof-manifest "$proof_manifest"
+    add_file_citation_row_if_present manifest color-sentinel "$color_sentinel"
+    add_file_citation_row_if_present manifest overlay-sentinel "$overlay_sentinel"
+    add_file_citation_row_if_present log guest-retry-summary "$guest_script_retry_summary"
+    add_file_citation_row_if_present log guest-transport-summary "$transport_summary"
+    add_file_citation_row_if_present log clean-slate "${LOGS_DIR}/guest-clean-slate.log"
+    add_file_citation_row_if_present log privacy-setup "${LOGS_DIR}/guest-privacy-setup.log"
+    add_file_citation_row_if_present log reviewer-attempt-ledger "$reviewer_attempts"
+
+    if [ -s "$sample_manifest" ]; then
+        /usr/bin/awk -F'\t' '
+            $1 == "semantic" {
+                printf("semantic-sample\t%s\t%s\tcite label and exact sample path\n", $2, $5)
+            }
+        ' "$sample_manifest" >>"$reviewer_citation_checklist"
+    fi
+
+    if [ -s "$event_manifest" ]; then
+        /usr/bin/awk -F'\t' '
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                printf("event\t%s\t%s\tcite event id, caption label, path, and expected state\n", $1, $6)
+            }
+        ' "$event_manifest" >>"$reviewer_citation_checklist"
+    fi
+
+    if [ -s "$expected_chips" ]; then
+        # shellcheck disable=SC2094
+        while IFS= read -r chip; do
+            [ -n "$chip" ] || continue
+            add_citation_checklist_row "expected-chip" "$chip" "$expected_chips" "cite exact caption chip"
+        done <"$expected_chips"
+    fi
+
+    # shellcheck disable=SC2094
+    while IFS= read -r timing_log; do
+        [ -s "$timing_log" ] || continue
+        while IFS='=' read -r key _value; do
+            [ -n "$key" ] || continue
+            add_citation_checklist_row "timing" "$key" "$timing_log" "cite timing key and value"
+        done <"$timing_log"
+    done < <(find "$LOGS_DIR" -maxdepth 1 -type f -name '*command-timing.log' | sort)
+
+    if [ -s "$edge_crops_manifest" ]; then
+        /usr/bin/awk -F'\t' '
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                printf("edge-crop\t%s\t%s\tcite exact edge crop path\n", $1, $2)
+            }
+        ' "$edge_crops_manifest" >>"$reviewer_citation_checklist"
+    fi
+
+    if [ -s "$guest_script_retry_summary" ]; then
+        /usr/bin/awk -F'\t' '
+            NR == 1 {
+                for (i = 1; i <= NF; i++) {
+                    key = $i
+                    sub(/^# /, "", key)
+                    column[key] = i
+                }
+                next
+            }
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                phase = $column["phase"]
+                failures = $(column["failures"]) + 0
+                before_recording = $(column["before_recording"])
+                if (before_recording == "no" && failures > 0) {
+                    printf("post-recording-retry\t%s\t%s\tcite phase, log, before_recording, attempt statuses, final result, and mutation decision\n", phase, $(column["log"]))
+                }
+            }
+        ' "$guest_script_retry_summary" >>"$reviewer_citation_checklist"
+    fi
+
+    if [ -s "$reviewer_attempts" ]; then
+        /usr/bin/awk -F'\t' '
+            NR == 1 { next }
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                status = tolower($4)
+                if (status != "clean" && status != "pass" && status != "passed" && status != "success" && status != "accepted") {
+                    printf("reviewer-attempt\t%s:%s\t%s\tcite ledger path, role, status, output path, and replacement reason\n", $1, $4, $5)
+                }
+            }
+        ' "$reviewer_attempts" >>"$reviewer_citation_checklist"
+    fi
+
+    add_baseline_citation_row "${REPO_ROOT}/demo.mp4"
+    add_baseline_citation_row "${REPO_ROOT}/demo2.mp4"
+    add_baseline_citation_row "${REPO_ROOT}/demo3.mp4"
+    add_baseline_citation_row "${REPO_ROOT}/demo-columnar-zones.mp4"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv"
+    add_baseline_citation_row "${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md"
+    add_baseline_citation_row "${REPO_ROOT}/resources/screenshots/winmux-overview.png"
+    add_baseline_citation_row "${REPO_ROOT}/resources/screenshots/tab-groups.png"
+    add_baseline_citation_row "${REPO_ROOT}/README.md"
+    add_baseline_citation_row "https://github.com/zimengxiong/winmux"
+    add_baseline_citation_row "https://macoswm.com/wm/winmux"
+}
+
 slice_specific_checks() {
     case "$recording_name" in
         slice-2-config-zones)
@@ -391,6 +540,34 @@ EOF
 - Inspect `logs/slice-35-command-timing.log`; cite the uncomment, launch, config-check, and list-zones offsets, and reject if launch, config-check, or list-zones happens outside the matching caption window.
 - Inspect `screenshots/01-starter-template-commented-slice-35.png`, `02-template-uncommented-slice-35.png`, `03-config-check-and-zones-slice-35.png`, and the contact sheet. The video must be understandable as a first-run config workflow before reading logs.
 - State explicitly that Slice 35 proves the opt-in starter-template path. It does not claim zones are enabled by default, a GUI config editor, or new runtime zone behavior.
+EOF
+            ;;
+        slice-37-starter-onboarding)
+            cat <<'EOF'
+- Confirm the recording works as an onboarding companion: it starts from the generated starter config, shows the `WINMUX ULTRAWIDE ZONES TEMPLATE` while it is still commented, shows a focused active-TOML excerpt with `[[zones]]` visible after uncommenting, then validates and uses the zones.
+- Confirm captions expose the exact user-facing surface: `Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE`, `Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE`, `Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml`, `Run: winmux config --check slice-37-starter-config-uncommented.toml`, `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`, `Run: winmux focus-zone Comms`, and `Result: Reference | Work | Comms ready`.
+- Inspect `logs/slice-37-starter-config-before.toml`; require the template marker, commented `# [[zones]]`, and no active `[[zones]]`.
+- Inspect `logs/slice-37-starter-config-uncommented.toml` and `logs/slice-37-visible-uncommented-template.txt`; require active `[[zones]]` above the fold, Reference/Work/Comms naming, and no remaining commented `# [[zones]]` in the visible active excerpt.
+- Inspect `logs/slice-37-config-check.log`, `logs/slice-37-list-zones.log`, and `logs/slice-37-focus-zone-comms.log`; require `Config OK`, Reference/left, Work/main, Comms/right, and the exact `$ winmux focus-zone Comms` command with `result=success`.
+- Inspect `logs/slice-37-command-timing.log`; cite the uncomment, launch, config-check, list-zones, and focus-zone offsets, and reject if any command happens outside its matching caption window.
+- Inspect `logs/slice-37-starter-onboarding.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-starter-template-commented-slice-37.png`, `02-template-uncommented-slice-37.png`, `03-config-check-and-zones-slice-37.png`, and the contact sheet. The video must make the first-run workflow understandable before logs are read.
+- Compare the companion against `demo-columnar-zones.mp4`, the Slice 36 root-demo package, repo root demos, README guidance, and product screenshots. It should complement the root divider/save/relaunch showcase, not replace it.
+- State explicitly that Slice 37 proves the opt-in starter onboarding path and the first useful command after enabling zones. It does not claim zones are enabled by default, a GUI config editor, or full command coverage.
+EOF
+            ;;
+        slice-38-user-readiness)
+            cat <<'EOF'
+- Confirm the recording proves the normal user path: `~/.config/winmux/winmux.toml` is the edited config, `WinMuxApp` launches without `--config-path`, and `winmux config --config-path` reports the same normal user config path.
+- Inspect `logs/winmux-e2e-slice38.plist`; reject if `ProgramArguments` contains `--config-path` or if `EnvironmentVariables` contains `WINMUX_DEFAULT_CONFIG_PATH`.
+- Confirm captions expose the exact user-facing surface: `Config: ~/.config/winmux/winmux.toml`, `Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE`, `Run: WinMuxApp`, `Run: winmux config --config-path`, `Run: winmux config --check ~/.config/winmux/winmux.toml`, `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`, `Run: winmux focus-zone Comms`, `Action: open TextEdit readiness-move.rtf in Comms`, `Run: winmux move-node-to-zone --focus-follows-window Work`, `Run: winmux resize-zone Work width +10%`, `Run: winmux save-zone-layout --dry-run`, and `Result: normal config path is ready for Reference | Work | Comms`.
+- Inspect `logs/slice-38-user-config-before.toml`; require the template marker, commented `# [[zones]]`, and no active `[[zones]]`. Inspect `logs/slice-38-user-config-uncommented.toml` and `logs/slice-38-visible-uncommented-template.txt`; require active `[[zones]]` above the fold and no remaining commented `# [[zones]]` in the visible active excerpt.
+- Inspect `logs/slice-38-config-path.log`, `logs/slice-38-config-check.log`, `logs/slice-38-list-zones.log`, and `logs/slice-38-focus-zone-comms.log`; require the normal user path, `Config OK`, Reference/left, Work/main, Comms/right, and exact focus command success.
+- Inspect `logs/slice-38-window-before-move.log`, `logs/slice-38-move-node-to-zone.log`, and `logs/slice-38-window-after-move.log`; require the same `readiness-move.rtf` window id to move from Comms/right to Work/main, with a workspace change.
+- Inspect `logs/slice-38-zones-before-resize.log`, `logs/slice-38-resize-zone.log`, and `logs/slice-38-zones-resized.log`; require Work/main effective width to grow after `resize-zone Work width +10%`.
+- Inspect `logs/slice-38-save-zone-layout-dry-run.log`, `logs/slice-38-config-before-dry-run.sha256`, and `logs/slice-38-config-after-dry-run.sha256`; require dry-run output for the balanced layout, the normal user config path, and equal before/after hashes.
+- Inspect `logs/slice-38-command-timing.log`; cite every command offset and reject if any offset falls outside its matching caption window.
+- Inspect `logs/slice-38-user-readiness.event-manifest.tsv`, the semantic sample manifest, `screenshots/01-user-config-template-slice-38.png`, `02-user-config-uncommented-slice-38.png`, `03-before-move-slice-38.png`, `04-after-move-slice-38.png`, `05-normal-user-ready-slice-38.png`, and the contact sheet. The video must make the normal path, cross-zone move, resize, and dry-run save understandable before logs are read.
+- State explicitly that Slice 38 proves normal config path readiness for existing command surfaces. It does not claim GUI setup, every command/key binding, release packaging, or persistence after a real save.
 EOF
             ;;
         slice-8-window-routing)
@@ -681,6 +858,8 @@ EOF
     esac
 }
 
+write_reviewer_citation_checklist
+
 {
     cat <<EOF
 # No-Context Artifact Review Packet
@@ -723,6 +902,7 @@ $(drag_screenshot_lines)
 - copied config: ${CONFIG_PATH}
 - proof file: ${proof_file:-not present}
 - visible geometry board / measurement proof: ${visible_geometry_board}
+- reviewer citation checklist: ${reviewer_citation_checklist}
 - reviewer attempt ledger: ${reviewer_attempts} (role, start, finish, status,
   output path, and replacement reason for stalled or superseded reviewers)
 - reviewer ledger append helper: script/e2e/record-reviewer-attempt ${RUN_DIR} --role <role> --status <status> --output <path> --replacement-reason <reason>
@@ -750,6 +930,13 @@ $(drag_screenshot_lines)
 - ${REPO_ROOT}/demo2.mp4
 - ${REPO_ROOT}/demo3.mp4
 - ${REPO_ROOT}/demo-columnar-zones.mp4
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv
+- ${REPO_ROOT}/artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.contact-sheet.jpg
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.samples
 - ${REPO_ROOT}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/logs/root-demo.ffprobe.json

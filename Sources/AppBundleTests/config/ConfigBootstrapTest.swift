@@ -88,6 +88,15 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(parsedConfig.zoneAvailabilitySets.count, 0)
     }
 
+    func testDefaultConfigUrlResolvesFromProjectWorkingDirectory() {
+        let projectRoot = URL(filePath: FileManager.default.currentDirectoryPath)
+        let resolved = getDefaultConfigUrlFromProject(startingAt: projectRoot)
+
+        XCTAssertEqual(resolved.lastPathComponent, "default-config.toml")
+        XCTAssertTrue(resolved.path.hasSuffix("resources/default-config.toml"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: resolved.path))
+    }
+
     func testStarterUltrawideTemplateUncommentsIntoConfiguredZones() {
         let starter = starterConfigText()
         XCTAssertTrue(starter.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE"))

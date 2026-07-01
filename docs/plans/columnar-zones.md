@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-37 accepted; Slice 38 source and pre-Tart gate ready for Tart recording; Slices 39-51 planned
+Status: slices 0-38 accepted; Slices 39-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -7216,8 +7216,7 @@ Pre-Slice-38 cleanup from Slice 37 retrospectives:
 
 ### Slice 38: Normal User Readiness Walkthrough
 
-Status: source implementation added; clean pre-Tart gate passed; Tart recording
-is pending.
+Status: accepted via `artifacts/e2e/slice-38-pre-tart-20260701T075713Z`.
 
 Carry decision: proceed with the dirty Slice 37 and pre-Slice-38 source set as
 the Slice 38 candidate instead of committing before recording. This is scoped to
@@ -7225,7 +7224,7 @@ the Tart proof only: the pre-Tart freshness manifest must hash the full dirty
 state, the three no-context reviewers must cite that hash, and the accepted
 artifact must keep the dirty-baseline logs before closeout.
 
-Blocked pre-Tart review catch-up:
+Attempt lineage and accepted artifact:
 
 - `artifacts/e2e/slice-38-pre-tart-20260701T061609Z` is a blocked pre-Tart
   review run. The process and artifact/product reviewers correctly blocked on
@@ -7234,12 +7233,17 @@ Blocked pre-Tart review catch-up:
   `WinMuxApp` ProgramArguments entry or matching repo WorkingDirectory, and the
   main `--require-review` closeout path did not call the Slice 38 evidence
   review checks. This run is superseded by the cleanup below.
-- `artifacts/e2e/slice-38-pre-tart-20260701T062429Z` is the clean pre-Tart
-  gate for the current Slice 38 candidate. The process-plan, code-harness, and
-  artifact-product reviewers passed, and
+- `artifacts/e2e/slice-38-pre-tart-20260701T074119Z` reached product media, but
+  was replaced after the post-recording verifier found the aggregate
+  `slice-38-cli.log` omitted the exact `winmux list-zones --format
+  'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'` command header. It is
+  formally marked superseded by `075713Z` in `reviews/superseded.md` and
+  `logs/run-abort-status.txt`.
+- `artifacts/e2e/slice-38-pre-tart-20260701T075713Z` is the accepted run. Its
+  pre-Tart freshness manifest hashes the carried dirty candidate, and
   `script/e2e/check-pre-tart-review-gate
-  artifacts/e2e/slice-38-pre-tart-20260701T062429Z slice-38` accepted the
-  freshness, reviewer, and verifier evidence before Tart recording.
+  artifacts/e2e/slice-38-pre-tart-20260701T075713Z slice-38` passed after all
+  three no-context pre-Tart reports were clean.
 
 Goal: prove the shortest normal path from a fresh WinMux config to usable
 ultrawide zones. Slice 37 uses an explicit `--config-path` companion config so
@@ -7283,13 +7287,39 @@ Required implementation shape:
 - [x] Require a visible live window move, not only `list-zones`.
 - [x] Require a dry-run save proof and forbid a config hash change during the
   run.
-- require `reviews/reviewer-citation-checklist.tsv` in the reviewer packet for
+- [x] Require `reviews/reviewer-citation-checklist.tsv` in the reviewer packet for
   the Slice 38 run;
-- require three clean no-context pre-Tart reviewer reports before recording;
-- require a no-context artifact review after recording and before Slice 39 or
+- [x] Require three clean no-context pre-Tart reviewer reports before recording;
+- [x] Require a no-context artifact review after recording and before Slice 39 or
   any later slice starts;
-- after the artifact review, run three no-context retrospectives and fold their
+- [x] After the artifact review, run three no-context retrospectives and fold their
   accepted findings into pre-Slice-39 cleanup.
+
+Accepted result:
+
+- artifact directory: `artifacts/e2e/slice-38-pre-tart-20260701T075713Z`;
+- recording: `recordings/slice-38-user-readiness.mov`;
+- raw recording: `recordings/raw/slice-38-user-readiness.raw.mov`;
+- media metadata: 3440x1440 H.264, `119.983333s`, 5,217 frames;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md` (`PASS: Slice 38 proves normal config path
+  readiness for the current columnar-zone command surfaces.`,
+  `next slice allowed: yes`);
+- review lint log: `logs/review-lint.log`;
+- post-review verifier log: `logs/post-review-verify.log`;
+- closeout log: `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`;
+- dirty-baseline inventory:
+  `logs/accepted-dirty-baseline.status.txt`,
+  `logs/accepted-dirty-baseline.diffstat.txt`,
+  `logs/accepted-dirty-baseline.cached-diffstat.txt`, and
+  `logs/accepted-dirty-baseline.untracked-sha256.tsv`;
+- closeout command:
+  `make e2e-slice-closeout-check
+  RUN_DIR=/Users/prateek/orca/workspaces/winmux/codex-columns/artifacts/e2e/slice-38-pre-tart-20260701T075713Z`
+  passed after `074119Z` was marked superseded.
 
 Expected caption chips:
 
@@ -7317,6 +7347,25 @@ Non-claims:
 ### Slice 39: Real Dogfood Install and Permissions
 
 Status: planned after Slice 38 closes.
+
+Pre-Slice-39 cleanup from Slice 38 retrospectives:
+
+- [x] Correct the Slice 38 accepted artifact path in this plan to
+  `artifacts/e2e/slice-38-pre-tart-20260701T075713Z`.
+- [x] Mark the replaced media-producing attempt
+  `artifacts/e2e/slice-38-pre-tart-20260701T074119Z` superseded by `075713Z`.
+- [x] Persist the accepted dirty-baseline inventory in the `075713Z` artifact.
+- [x] Persist `review-lint`, post-review verifier, and closeout logs in the
+  accepted artifact.
+- [x] Verify the prior Slice 37 accepted baseline path is
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`, not the stale
+  non-existent `artifacts/e2e/slice-37-20260701T034141Z`.
+- [ ] Before the Slice 39 Tart run, either commit the accepted Slice 37/38 dirty
+  source set or explicitly carry it forward with a new pre-Tart freshness
+  manifest and dirty-baseline inventory.
+- [ ] Keep the Slice 39 visual proof less dense than Slice 38's final board:
+  isolate permissions/install status into a dedicated visible board or
+  `doctor`/status surface before recording.
 
 Goal: prove WinMux can be installed and launched through the normal dogfood path
 on a clean macOS desktop, with required privacy permissions accepted before the

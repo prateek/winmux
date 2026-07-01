@@ -56,6 +56,39 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-35-starter-ultrawide-template.sh"
             )
             ;;
+        slice-37)
+            required_mentions=(
+                "Slice 37"
+                "docs/plans/columnar-zones.md"
+                "README.md"
+                "resources/default-config.toml"
+                "Sources/AppBundleTests/config/ConfigBootstrapTest.swift"
+                "makefile"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/slice-37-starter-onboarding.sh"
+            )
+            ;;
+        slice-38)
+            required_mentions=(
+                "Slice 38"
+                "docs/plans/columnar-zones.md"
+                "README.md"
+                "resources/default-config.toml"
+                "Sources/AppBundle/config/Config.swift"
+                "Sources/AppBundleTests/config/ConfigBootstrapTest.swift"
+                "makefile"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/slice-38-user-readiness.sh"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -278,6 +311,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-35 >/dev/null
+
+    configure_slice_requirements slice-38
+    write_freshness_manifest "$run_dir" slice-38 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-38 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

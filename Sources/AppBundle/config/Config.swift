@@ -3,14 +3,39 @@ import Common
 import HotKey
 import OrderedCollections
 
-func getDefaultConfigUrlFromProject() -> URL {
-    var url = URL(filePath: #filePath)
-    check(FileManager.default.fileExists(atPath: url.path))
-    while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
+func getDefaultConfigUrlFromProject(startingAt explicitStartUrl: URL? = nil) -> URL {
+    let starts = [
+        explicitStartUrl,
+        URL(filePath: #filePath),
+        URL(filePath: FileManager.default.currentDirectoryPath),
+    ].compactMap { $0 }
+
+    for start in starts {
+        if let url = findDefaultConfigUrlFromProject(startingAt: start) {
+            return url
+        }
+    }
+
+    return dieT("Can't find resources/default-config.toml from \(starts.map(\.path).joined(separator: ", "))")
+}
+
+private func findDefaultConfigUrlFromProject(startingAt startUrl: URL) -> URL? {
+    var url = startUrl
+    var isDirectory = ObjCBool(false)
+    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue {
         url.deleteLastPathComponent()
     }
-    let projectRoot: URL = url
-    return projectRoot.appending(component: "resources/default-config.toml")
+
+    while url.path != url.deletingLastPathComponent().path {
+        let configUrl = url.appending(component: "resources/default-config.toml")
+        if FileManager.default.fileExists(atPath: url.appending(component: ".git").path),
+           FileManager.default.fileExists(atPath: configUrl.path)
+        {
+            return configUrl
+        }
+        url.deleteLastPathComponent()
+    }
+    return nil
 }
 
 var defaultConfigUrl: URL {

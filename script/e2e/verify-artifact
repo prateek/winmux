@@ -949,6 +949,131 @@ EOF
     require_review_mentions_target_semantics "$cited_target_semantics_review" "$target_semantics_manifest" \
         || die "Review target-semantics self-test expected semantics/path citation to pass"
 
+    local slice_37_nonclaim_review="${tmp_dir}/slice-37-nonclaim-review.md"
+    local slice_37_positive_gui_review="${tmp_dir}/slice-37-positive-gui-review.md"
+    local slice_37_positive_full_command_review="${tmp_dir}/slice-37-positive-full-command-review.md"
+    cat >"$slice_37_nonclaim_review" <<'EOF'
+PASS: Slice 37 non-claims are explicit
+
+The artifact does not prove a GUI config editor.
+The artifact does not claim full command coverage or every zone command.
+
+next slice allowed: yes
+EOF
+    cat >"$slice_37_positive_gui_review" <<'EOF'
+PASS: Slice 37 false GUI claim
+
+The artifact proves a GUI config editor.
+The artifact does not claim full command coverage or every zone command.
+
+next slice allowed: yes
+EOF
+    cat >"$slice_37_positive_full_command_review" <<'EOF'
+PASS: Slice 37 false full-command claim
+
+The artifact does not prove a GUI config editor.
+The artifact proves full command coverage and every zone command.
+
+next slice allowed: yes
+EOF
+    require_slice_37_review_nonclaims "$slice_37_nonclaim_review" \
+        || die "Slice 37 nonclaim self-test expected explicit non-claims to pass"
+    if ( require_slice_37_review_nonclaims "$slice_37_positive_gui_review" ) >/dev/null 2>&1; then
+        die "Slice 37 nonclaim self-test expected positive GUI config editor claim rejection"
+    fi
+    if ( require_slice_37_review_nonclaims "$slice_37_positive_full_command_review" ) >/dev/null 2>&1; then
+        die "Slice 37 nonclaim self-test expected positive full-command coverage claim rejection"
+    fi
+
+    local slice_38_nonclaim_review="${tmp_dir}/slice-38-nonclaim-review.md"
+    local slice_38_positive_release_review="${tmp_dir}/slice-38-positive-release-review.md"
+    cat >"$slice_38_nonclaim_review" <<'EOF'
+PASS: Slice 38 non-claims are explicit
+
+The artifact does not prove GUI setup or a config editor.
+The artifact does not claim every command or complete key binding coverage.
+The artifact does not prove release packaging or ready for release status.
+The artifact does not prove persistence after a real save.
+
+next slice allowed: yes
+EOF
+    cat >"$slice_38_positive_release_review" <<'EOF'
+PASS: Slice 38 false release claim
+
+The artifact does not prove GUI setup or a config editor.
+The artifact does not claim every command or complete key binding coverage.
+The artifact proves release packaging and ready for release status.
+The artifact does not prove persistence after a real save.
+
+next slice allowed: yes
+EOF
+    require_slice_38_review_nonclaims "$slice_38_nonclaim_review" \
+        || die "Slice 38 nonclaim self-test expected explicit non-claims to pass"
+    if ( require_slice_38_review_nonclaims "$slice_38_positive_release_review" ) >/dev/null 2>&1; then
+        die "Slice 38 nonclaim self-test expected positive release claim rejection"
+    fi
+
+    local slice_38_setup_log="${tmp_dir}/slice-38-setup.log"
+    local slice_38_good_plist="${tmp_dir}/slice-38-good.plist"
+    local slice_38_bad_arg_plist="${tmp_dir}/slice-38-bad-arg.plist"
+    local slice_38_bad_workdir_plist="${tmp_dir}/slice-38-bad-workdir.plist"
+    cat >"$slice_38_setup_log" <<'EOF'
+WinMux Slice 38: normal user readiness
+User config: /Users/admin/.config/winmux/winmux.toml
+Repo working directory: /Volumes/My Shared Files/repo
+Launch command: WinMuxApp
+EOF
+    cat >"$slice_38_good_plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/admin/winmux-e2e/bin/WinMuxApp</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Volumes/My Shared Files/repo</string>
+</dict>
+</plist>
+EOF
+    require_slice_38_launch_plist_shape "$slice_38_good_plist" "$slice_38_setup_log"
+    cat >"$slice_38_bad_arg_plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/admin/winmux-e2e/bin/WinMuxApp</string>
+        <string>--config-path</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Volumes/My Shared Files/repo</string>
+</dict>
+</plist>
+EOF
+    if ( require_slice_38_launch_plist_shape "$slice_38_bad_arg_plist" "$slice_38_setup_log" ) >/dev/null 2>&1; then
+        die "Slice 38 LaunchAgent self-test expected extra argument rejection"
+    fi
+    cat >"$slice_38_bad_workdir_plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/admin/winmux-e2e/bin/WinMuxApp</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/tmp/not-the-repo</string>
+</dict>
+</plist>
+EOF
+    if ( require_slice_38_launch_plist_shape "$slice_38_bad_workdir_plist" "$slice_38_setup_log" ) >/dev/null 2>&1; then
+        die "Slice 38 LaunchAgent self-test expected WorkingDirectory mismatch rejection"
+    fi
+
     local baseline_root="${tmp_dir}/repo"
     mkdir -p \
         "${baseline_root}/artifacts/e2e/slice-7-root-demo-20260624T042021Z/screenshots/demo-columnar-zones.samples" \
@@ -1152,6 +1277,50 @@ EOF
         || die "Review retry self-test expected mutated post-recording retry citation to pass"
     require_review_mentions_post_recording_retries "$cited_retry_review" "$reordered_retry_summary" \
         || die "Review retry self-test expected reordered header summary to pass"
+
+    local reviewer_attempts="${tmp_dir}/reviewer-attempts.tsv"
+    local missing_attempt_review="${tmp_dir}/missing-reviewer-attempt-review.md"
+    local missing_attempt_output_review="${tmp_dir}/missing-reviewer-attempt-output-review.md"
+    local cited_attempt_review="${tmp_dir}/cited-reviewer-attempt-review.md"
+    cat >"$reviewer_attempts" <<'EOF'
+# role	started_at	finished_at	status	output_path	replacement_reason
+no-context-artifact-review	2026-07-01T05:18:25Z	2026-07-01T05:18:25Z	stalled	artifacts/e2e/slice-37/reviews/no-ctx-artifact-review.md	reviewer timed out repeatedly without writing a report
+artifact-product	2026-07-01T05:20:00Z	2026-07-01T05:20:30Z	clean	artifacts/e2e/slice-37/reviews/artifact-product.md	-
+EOF
+    cat >"$missing_attempt_review" <<'EOF'
+PASS: missing reviewer attempt citation
+
+The artifact review passed.
+
+next slice allowed: yes
+EOF
+    cat >"$missing_attempt_output_review" <<'EOF'
+PASS: partial reviewer attempt citation
+
+The review cites `reviewer-attempts.tsv`, role `no-context-artifact-review`,
+status `stalled`, and replacement reason `reviewer timed out repeatedly without
+writing a report`.
+
+next slice allowed: yes
+EOF
+    cat >"$cited_attempt_review" <<'EOF'
+PASS: cited reviewer attempt
+
+The review cites `reviewer-attempts.tsv`, role `no-context-artifact-review`,
+status `stalled`, output path
+`artifacts/e2e/slice-37/reviews/no-ctx-artifact-review.md`, and replacement
+reason `reviewer timed out repeatedly without writing a report`.
+
+next slice allowed: yes
+EOF
+    if ( RUN_DIR="$tmp_dir" require_review_mentions_reviewer_attempts "$missing_attempt_review" "$reviewer_attempts" ) >/dev/null 2>&1; then
+        die "Review attempt self-test expected missing reviewer-attempt ledger citation to fail"
+    fi
+    if ( RUN_DIR="$tmp_dir" require_review_mentions_reviewer_attempts "$missing_attempt_output_review" "$reviewer_attempts" ) >/dev/null 2>&1; then
+        die "Review attempt self-test expected missing reviewer-attempt output path to fail"
+    fi
+    RUN_DIR="$tmp_dir" require_review_mentions_reviewer_attempts "$cited_attempt_review" "$reviewer_attempts" \
+        || die "Review attempt self-test expected reviewer-attempt citation to pass"
 
     local no_context_review="${tmp_dir}/no-context-review.md"
     local missing_no_context_review="${tmp_dir}/missing-no-context-review.md"
@@ -1945,6 +2114,7 @@ ensure_review_packet() {
             || die "Review packet missing guest script retry summary path"
     fi
     local reviewer_attempts="${RUN_DIR}/reviews/reviewer-attempts.tsv"
+    local reviewer_citation_checklist="${RUN_DIR}/reviews/reviewer-citation-checklist.tsv"
     if [ -s "$reviewer_attempts" ]; then
         /usr/bin/awk -F'\t' 'NR == 1 { exit($0 == "# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason" ? 0 : 1) }' "$reviewer_attempts" \
             || die "Reviewer attempt ledger has unexpected header: $reviewer_attempts"
@@ -1953,6 +2123,13 @@ ensure_review_packet() {
             "${absolute_run_dir}/reviews/reviewer-attempts.tsv" \
             "${relative_run_dir}/reviews/reviewer-attempts.tsv" \
             || die "Review packet missing reviewer attempt ledger path"
+    fi
+    if [ -s "$reviewer_citation_checklist" ]; then
+        review_packet_contains_any "$packet_path" \
+            "$reviewer_citation_checklist" \
+            "${absolute_run_dir}/reviews/reviewer-citation-checklist.tsv" \
+            "${relative_run_dir}/reviews/reviewer-citation-checklist.tsv" \
+            || die "Review packet missing reviewer citation checklist path"
     fi
     review_packet_contains_any "$packet_path" \
         "${RUN_DIR}/reviews/no-ctx-artifact-review.md" \
@@ -2663,6 +2840,11 @@ require_review_freshness() {
         [ "$review_path" -nt "$dependency" ] \
             || die "Review is stale relative to artifact dependency: $dependency"
     done
+    dependency="${RUN_DIR}/reviews/reviewer-citation-checklist.tsv"
+    if [ -s "$dependency" ]; then
+        [ "$review_path" -nt "$dependency" ] \
+            || die "Review is stale relative to artifact dependency: $dependency"
+    fi
 
     if [ "${recording_name:-}" = "slice-31-relaunch-saved-layout" ]; then
         for dependency in \
@@ -2806,6 +2988,66 @@ require_review_freshness() {
             [ -s "$dependency" ] || continue
             [ "$review_path" -nt "$dependency" ] \
                 || die "Review is stale relative to Slice 35 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-37-starter-onboarding" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-37-setup.log" \
+            "${LOGS_DIR}/slice-37-starter-config-before.toml" \
+            "${LOGS_DIR}/slice-37-starter-config-uncommented.toml" \
+            "${LOGS_DIR}/slice-37-visible-uncommented-template.txt" \
+            "${LOGS_DIR}/slice-37-config-check.log" \
+            "${LOGS_DIR}/slice-37-list-zones.log" \
+            "${LOGS_DIR}/slice-37-focus-zone-comms.log" \
+            "${LOGS_DIR}/slice-37-cli.log" \
+            "${LOGS_DIR}/slice-37-command-timing.log" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-37.png" \
+            "${SCREENSHOTS_DIR}/01-starter-template-commented-slice-37.png" \
+            "${SCREENSHOTS_DIR}/02-template-uncommented-slice-37.png" \
+            "${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-37.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-37.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 37 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-38-user-readiness" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-38-setup.log" \
+            "${LOGS_DIR}/winmux-e2e-slice38.plist" \
+            "${LOGS_DIR}/slice-38-user-config-before.toml" \
+            "${LOGS_DIR}/slice-38-user-config-uncommented.toml" \
+            "${LOGS_DIR}/slice-38-visible-uncommented-template.txt" \
+            "${LOGS_DIR}/slice-38-config-path.log" \
+            "${LOGS_DIR}/slice-38-config-check.log" \
+            "${LOGS_DIR}/slice-38-list-zones.log" \
+            "${LOGS_DIR}/slice-38-focus-zone-comms.log" \
+            "${LOGS_DIR}/slice-38-window-before-move.log" \
+            "${LOGS_DIR}/slice-38-move-node-to-zone.log" \
+            "${LOGS_DIR}/slice-38-window-after-move.log" \
+            "${LOGS_DIR}/slice-38-zones-before-resize.log" \
+            "${LOGS_DIR}/slice-38-resize-zone.log" \
+            "${LOGS_DIR}/slice-38-zones-resized.log" \
+            "${LOGS_DIR}/slice-38-save-zone-layout-dry-run.log" \
+            "${LOGS_DIR}/slice-38-config-before-dry-run.sha256" \
+            "${LOGS_DIR}/slice-38-config-after-dry-run.sha256" \
+            "${LOGS_DIR}/slice-38-cli.log" \
+            "${LOGS_DIR}/slice-38-command-timing.log" \
+            "${LOGS_DIR}/slice-38-user-readiness.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-privacy-setup.log" \
+            "${LOGS_DIR}/guest-clean-slate.log" \
+            "${SCREENSHOTS_DIR}/00-before-slice-38.png" \
+            "${SCREENSHOTS_DIR}/01-user-config-template-slice-38.png" \
+            "${SCREENSHOTS_DIR}/02-user-config-uncommented-slice-38.png" \
+            "${SCREENSHOTS_DIR}/03-before-move-slice-38.png" \
+            "${SCREENSHOTS_DIR}/04-after-move-slice-38.png" \
+            "${SCREENSHOTS_DIR}/05-normal-user-ready-slice-38.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-38.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 38 evidence dependency: $dependency"
         done
     fi
 }
@@ -3395,6 +3637,378 @@ EOF
         || die "Slice 35 review must state that zones remain opt-in/commented by default"
 }
 
+review_has_slice_37_gui_config_editor_nonclaim() {
+    local review_path="$1"
+    /usr/bin/awk '
+        function has_subject(line) {
+            return line ~ /(gui config editor|config editor)/
+        }
+        function has_nonclaim(line) {
+            return has_subject(line) && line ~ /(does not|doesn.t|cannot|can.t|not prove|not proved|not proven|not demonstrate|not demonstrated|not show|not shown|not claim|not claimed|not cover|not covered|no gui|no config editor|without .*gui|without .*config editor|non-claim|nonclaim|outside scope|out of scope)/
+        }
+        function has_positive_claim(line) {
+            return has_subject(line) && line ~ /(proves?|proved|demonstrates?|demonstrated|shows?|showed|covers?|covered|validates?|validated|confirms?|confirmed|implements?|implemented|supports?|supported|full support|complete support)/
+        }
+        {
+            line = tolower($0)
+            if (has_nonclaim(line)) {
+                found_nonclaim = 1
+            }
+            if (has_positive_claim(line) && !has_nonclaim(line)) {
+                found_positive = 1
+            }
+        }
+        END {
+            exit (found_nonclaim && !found_positive) ? 0 : 1
+        }
+    ' "$review_path"
+}
+
+review_has_slice_37_full_command_coverage_nonclaim() {
+    local review_path="$1"
+    /usr/bin/awk '
+        function has_subject(line) {
+            return line ~ /(full command coverage|full zone command coverage|complete command coverage|complete zone command coverage|every zone command|all zone commands)/
+        }
+        function has_nonclaim(line) {
+            return has_subject(line) && line ~ /(does not|doesn.t|cannot|can.t|not prove|not proved|not proven|not demonstrate|not demonstrated|not show|not shown|not claim|not claimed|not cover|not covered|no full|no complete|without .*full|without .*complete|non-claim|nonclaim|outside scope|out of scope)/
+        }
+        function has_positive_claim(line) {
+            return has_subject(line) && line ~ /(proves?|proved|demonstrates?|demonstrated|shows?|showed|covers?|covered|validates?|validated|confirms?|confirmed|implements?|implemented|supports?|supported|full support|complete support)/
+        }
+        {
+            line = tolower($0)
+            if (has_nonclaim(line)) {
+                found_nonclaim = 1
+            }
+            if (has_positive_claim(line) && !has_nonclaim(line)) {
+                found_positive = 1
+            }
+        }
+        END {
+            exit (found_nonclaim && !found_positive) ? 0 : 1
+        }
+    ' "$review_path"
+}
+
+require_slice_37_review_nonclaims() {
+    local review_path="$1"
+    review_has_slice_37_gui_config_editor_nonclaim "$review_path" \
+        || die "Slice 37 review must explicitly state that the artifact does not prove a GUI config editor"
+    review_has_slice_37_full_command_coverage_nonclaim "$review_path" \
+        || die "Slice 37 review must explicitly state that the artifact does not prove full zone command coverage"
+}
+
+require_review_mentions_slice_37_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-37-starter-onboarding) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-37-starter-config-before.toml	commented starter config
+${LOGS_DIR}/slice-37-starter-config-uncommented.toml	uncommented starter config
+${LOGS_DIR}/slice-37-visible-uncommented-template.txt	visible uncommented template source
+${LOGS_DIR}/slice-37-config-check.log	config check log
+${LOGS_DIR}/slice-37-list-zones.log	list-zones runtime log
+${LOGS_DIR}/slice-37-focus-zone-comms.log	focus-zone Comms log
+${LOGS_DIR}/slice-37-command-timing.log	command timing log
+${LOGS_DIR}/slice-37-cli.log	aggregate CLI log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-37.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-starter-template-commented-slice-37.png	commented template screenshot
+${SCREENSHOTS_DIR}/02-template-uncommented-slice-37.png	uncommented template screenshot
+${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-37.png	config check, zones, and focus screenshot
+${SCREENSHOTS_DIR}/99-after-slice-37.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 37 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 37 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-37-starter-onboarding.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 37 review must cite the Slice 37 event manifest"
+    for event_id in commented-template uncomment-template launch-with-config config-check list-zones focus-comms result-zones; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 37 review must cite onboarding event: $event_id"
+    done
+    for timing_key in \
+        uncomment-template-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds \
+        focus-zone-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 37 review must cite timing value key: $timing_key"
+    done
+    grep -F '$ winmux config --check ' "$review_path" >/dev/null \
+        || grep -F 'Run: winmux config --check slice-37-starter-config-uncommented.toml' "$review_path" >/dev/null \
+        || die "Slice 37 review must cite the exact config check command"
+    grep -F "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$review_path" >/dev/null \
+        || die "Slice 37 review must cite the exact list-zones command"
+    grep -F 'winmux focus-zone Comms' "$review_path" >/dev/null \
+        || die "Slice 37 review must cite the exact focus-zone command"
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$review_path" >/dev/null \
+        || die "Slice 37 review must cite the starter template marker"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 37 review must identify resulting zone: $zone_name"
+    done
+    grep -Eiq 'onboarding|turn this on|first-run|starter' "$review_path" \
+        || die "Slice 37 review must frame the artifact as starter onboarding"
+    grep -Eiq 'commented|not enabled by default|disabled by default|opt-in' "$review_path" \
+        || die "Slice 37 review must state that zones remain opt-in/commented by default"
+    require_slice_37_review_nonclaims "$review_path"
+    for baseline in \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md'; do
+        grep -F "$baseline" "$review_path" >/dev/null \
+            || die "Slice 37 review must cite current Slice 36 root-demo baseline: $baseline"
+    done
+}
+
+review_has_slice_38_nonclaim() {
+    local review_path="$1"
+    local subject_regex="$2"
+    /usr/bin/awk -v subject_regex="$subject_regex" '
+        function has_subject(line) {
+            return line ~ subject_regex
+        }
+        function has_nonclaim(line) {
+            return has_subject(line) && line ~ /(does not|doesn.t|cannot|can.t|not prove|not proved|not proven|not demonstrate|not demonstrated|not show|not shown|not claim|not claimed|not cover|not covered|no |without |non-claim|nonclaim|outside scope|out of scope)/
+        }
+        function has_positive_claim(line) {
+            return has_subject(line) && line ~ /(proves?|proved|demonstrates?|demonstrated|shows?|showed|covers?|covered|validates?|validated|confirms?|confirmed|implements?|implemented|supports?|supported|full support|complete support|ready for release|release-ready)/
+        }
+        {
+            line = tolower($0)
+            if (has_nonclaim(line)) {
+                found_nonclaim = 1
+            }
+            if (has_positive_claim(line) && !has_nonclaim(line)) {
+                found_positive = 1
+            }
+        }
+        END {
+            exit (found_nonclaim && !found_positive) ? 0 : 1
+        }
+    ' "$review_path"
+}
+
+require_slice_38_review_nonclaims() {
+    local review_path="$1"
+    review_has_slice_38_nonclaim "$review_path" '(gui setup|gui config|config editor)' \
+        || die "Slice 38 review must explicitly state that the artifact does not prove GUI setup/config editing"
+    review_has_slice_38_nonclaim "$review_path" '(every command|all commands|full command|complete command|every key|all key|full key|complete key)' \
+        || die "Slice 38 review must explicitly state that the artifact does not prove every command/key binding"
+    review_has_slice_38_nonclaim "$review_path" '(release packaging|release-ready|ready for release|shipping|install)' \
+        || die "Slice 38 review must explicitly state that the artifact does not prove release packaging"
+    review_has_slice_38_nonclaim "$review_path" '(real save|saved persistence|relaunch persistence|after a real save|actual save)' \
+        || die "Slice 38 review must explicitly state that the artifact does not prove persistence after a real save"
+}
+
+slice_38_setup_log_value() {
+    local setup_log="$1"
+    local key="$2"
+    /usr/bin/awk -F': ' -v key="$key" '
+        $1 == key {
+            print substr($0, index($0, ": ") + 2)
+            exit
+        }
+    ' "$setup_log"
+}
+
+require_slice_38_launch_plist_shape() {
+    local launch_plist="$1"
+    local setup_log="$2"
+    local launch_arg_count
+    local launch_arg0
+    local launch_working_directory
+    local expected_working_directory
+
+    if grep -F -- '--config-path' "$launch_plist" >/dev/null; then
+        die "Slice 38 LaunchAgent must not pass --config-path"
+    fi
+    if grep -F 'WINMUX_DEFAULT_CONFIG_PATH' "$launch_plist" >/dev/null; then
+        die "Slice 38 LaunchAgent must not set WINMUX_DEFAULT_CONFIG_PATH"
+    fi
+
+    launch_arg_count="$(
+        { /usr/libexec/PlistBuddy -c 'Print :ProgramArguments' "$launch_plist" 2>/dev/null || true; } \
+            | /usr/bin/awk '/^    / { count++ } END { print count + 0 }'
+    )"
+    [ "$launch_arg_count" = "1" ] \
+        || die "Slice 38 LaunchAgent ProgramArguments must contain exactly one item, got ${launch_arg_count:-missing}"
+
+    launch_arg0="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$launch_plist" 2>/dev/null || true)"
+    case "$launch_arg0" in
+        */winmux-e2e/bin/WinMuxApp) ;;
+        *) die "Slice 38 LaunchAgent ProgramArguments must launch staged WinMuxApp, got ${launch_arg0:-missing}" ;;
+    esac
+
+    launch_working_directory="$(/usr/libexec/PlistBuddy -c 'Print :WorkingDirectory' "$launch_plist" 2>/dev/null || true)"
+    expected_working_directory="$(slice_38_setup_log_value "$setup_log" "Repo working directory")"
+    [ -n "$expected_working_directory" ] \
+        || die "Slice 38 setup log missing comparable repo working directory"
+    [ "$launch_working_directory" = "$expected_working_directory" ] \
+        || die "Slice 38 LaunchAgent WorkingDirectory mismatch: expected ${expected_working_directory}, got ${launch_working_directory:-missing}"
+}
+
+require_review_mentions_slice_38_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-38-user-readiness) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/winmux-e2e-slice38.plist	LaunchAgent plist
+${LOGS_DIR}/slice-38-user-config-before.toml	commented normal user config
+${LOGS_DIR}/slice-38-user-config-uncommented.toml	uncommented normal user config
+${LOGS_DIR}/slice-38-visible-uncommented-template.txt	visible uncommented normal config source
+${LOGS_DIR}/slice-38-config-path.log	config path log
+${LOGS_DIR}/slice-38-config-check.log	config check log
+${LOGS_DIR}/slice-38-list-zones.log	list-zones runtime log
+${LOGS_DIR}/slice-38-focus-zone-comms.log	focus-zone Comms log
+${LOGS_DIR}/slice-38-window-before-move.log	window before move log
+${LOGS_DIR}/slice-38-move-node-to-zone.log	move-node-to-zone log
+${LOGS_DIR}/slice-38-window-after-move.log	window after move log
+${LOGS_DIR}/slice-38-zones-before-resize.log	zones before resize log
+${LOGS_DIR}/slice-38-resize-zone.log	resize-zone log
+${LOGS_DIR}/slice-38-zones-resized.log	zones resized log
+${LOGS_DIR}/slice-38-save-zone-layout-dry-run.log	save-zone-layout dry-run log
+${LOGS_DIR}/slice-38-config-before-dry-run.sha256	config hash before dry-run
+${LOGS_DIR}/slice-38-config-after-dry-run.sha256	config hash after dry-run
+${LOGS_DIR}/slice-38-command-timing.log	command timing log
+${LOGS_DIR}/slice-38-cli.log	aggregate CLI log
+${LOGS_DIR}/guest-privacy-setup.log	guest privacy setup log
+${LOGS_DIR}/guest-clean-slate.log	guest clean slate log
+${SCREENSHOTS_DIR}/00-before-slice-38.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-user-config-template-slice-38.png	commented normal user config screenshot
+${SCREENSHOTS_DIR}/02-user-config-uncommented-slice-38.png	uncommented normal user config screenshot
+${SCREENSHOTS_DIR}/03-before-move-slice-38.png	before cross-zone move screenshot
+${SCREENSHOTS_DIR}/04-after-move-slice-38.png	after cross-zone move screenshot
+${SCREENSHOTS_DIR}/05-normal-user-ready-slice-38.png	final normal readiness screenshot
+${SCREENSHOTS_DIR}/99-after-slice-38.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 38 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 38 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    grep -F 'slice-38-user-readiness.event-manifest.tsv' "$review_path" >/dev/null \
+        || die "Slice 38 review must cite the Slice 38 event manifest"
+    for event_id in \
+        normal-user-config \
+        uncomment-template \
+        launch-normal \
+        config-path \
+        config-check \
+        list-zones \
+        focus-comms \
+        open-move-window \
+        move-to-work \
+        resize-work \
+        save-dry-run \
+        result-ready; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 38 review must cite readiness event: $event_id"
+    done
+    for timing_key in \
+        uncomment-template-offset-seconds \
+        launch-offset-seconds \
+        config-path-offset-seconds \
+        config-check-offset-seconds \
+        list-zones-offset-seconds \
+        focus-zone-offset-seconds \
+        open-move-window-offset-seconds \
+        move-node-offset-seconds \
+        resize-zone-offset-seconds \
+        dry-run-offset-seconds \
+        result-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 38 review must cite timing value key: $timing_key"
+    done
+    local normal_config_tilde
+    normal_config_tilde=$'\x7e/.config/winmux/winmux.toml'
+    for exact in \
+        "$normal_config_tilde" \
+        '$ winmux config --config-path' \
+        '$ winmux config --check ~/.config/winmux/winmux.toml' \
+        "winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        '$ winmux focus-zone Comms' \
+        '$ winmux move-node-to-zone --focus-follows-window Work' \
+        '$ winmux resize-zone Work width +10%' \
+        '$ winmux save-zone-layout --dry-run' \
+        'readiness-move.rtf' \
+        'Dry run: would save' \
+        'WINMUX_DEFAULT_CONFIG_PATH'; do
+        grep -F "$exact" "$review_path" >/dev/null \
+            || die "Slice 38 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'without .*--config-path|no .*--config-path|does not .*--config-path' "$review_path" \
+        || die "Slice 38 review must state that WinMuxApp launches without --config-path"
+    grep -Eiq 'hash.*unchanged|unchanged.*hash|before.*after.*hash|after.*before.*hash' "$review_path" \
+        || die "Slice 38 review must state that dry-run leaves the config hash unchanged"
+    for zone_name in Reference Work Comms; do
+        grep -F "$zone_name" "$review_path" >/dev/null \
+            || die "Slice 38 review must identify resulting zone: $zone_name"
+    done
+    require_slice_38_review_nonclaims "$review_path"
+    for baseline in \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.samples' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.source-event-contact-sheet.jpg' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.ffprobe.json' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/logs/root-demo.source-sample-manifest.tsv' \
+        'artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/reviews/no-ctx-artifact-review.md'; do
+        grep -F "$baseline" "$review_path" >/dev/null \
+            || die "Slice 38 review must cite current Slice 36 root-demo baseline: $baseline"
+    done
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -3443,7 +4057,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -3469,6 +4083,7 @@ require_review_mentions_packet_baselines() {
             if (value ~ /^https?:\/\// ||
                 value ~ /\/demo[^\/]*\.mp4$/ ||
                 value ~ /\/artifacts\/e2e\/slice-7-root-demo-/ ||
+                value ~ /\/artifacts\/e2e\/slice-36-root-current-demo-/ ||
                 value ~ /\/resources\/screenshots\// ||
                 value ~ /\/README\.md$/) {
                 print value
@@ -3639,6 +4254,55 @@ require_review_mentions_post_recording_retries() {
     done < <(transport_summary_phases "$summary_path")
 }
 
+reviewer_attempt_status_requires_citation() {
+    local status
+    status="$(printf '%s\n' "$1" | /usr/bin/tr '[:upper:]' '[:lower:]')"
+    case "$status" in
+        clean|pass|passed|success|accepted) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+require_review_mentions_reviewer_attempts() {
+    local review_path="$1"
+    local ledger_path="$2"
+    [ -s "$ledger_path" ] || return 0
+
+    /usr/bin/awk -F'\t' 'NR == 1 { exit($0 == "# role\tstarted_at\tfinished_at\tstatus\toutput_path\treplacement_reason" ? 0 : 1) }' "$ledger_path" \
+        || die "Reviewer attempt ledger has unexpected header: $ledger_path"
+
+    local ledger_relative="${ledger_path#"$RUN_DIR"/}"
+    local role _started_at _finished_at status output_path replacement_reason
+    local require_any=0
+    # shellcheck disable=SC2094
+    while IFS=$'\t' read -r role _started_at _finished_at status output_path replacement_reason; do
+        case "${role:-}" in
+            ""|\#*) continue ;;
+        esac
+        if ! reviewer_attempt_status_requires_citation "$status"; then
+            continue
+        fi
+        require_any=1
+        grep -F "$ledger_path" "$review_path" >/dev/null \
+            || grep -F "$ledger_relative" "$review_path" >/dev/null \
+            || die "Review must cite reviewer attempt ledger path: $ledger_relative"
+        grep -F "$role" "$review_path" >/dev/null \
+            || die "Review must cite reviewer attempt role: $role"
+        grep -F "$status" "$review_path" >/dev/null \
+            || die "Review must cite reviewer attempt status for ${role}: $status"
+        if [ -n "${output_path:-}" ] && [ "$output_path" != "-" ]; then
+            grep -F "$output_path" "$review_path" >/dev/null \
+                || die "Review must cite reviewer attempt output path for ${role}: $output_path"
+        fi
+        if [ -n "${replacement_reason:-}" ] && [ "$replacement_reason" != "-" ]; then
+            grep -F "$replacement_reason" "$review_path" >/dev/null \
+                || die "Review must cite reviewer attempt replacement reason for ${role}: $replacement_reason"
+        fi
+    done <"$ledger_path"
+
+    [ "$require_any" = "1" ] || return 0
+}
+
 review_is_accepted() {
     local review_path="$1"
     [ -s "$review_path" ] || return 1
@@ -3683,11 +4347,16 @@ run_review_lint() {
     if requires_post_recording_retry_review; then
         require_review_mentions_post_recording_retries "$review_path" "${LOGS_DIR}/guest-script-retry-summary.tsv"
     fi
+    if requires_current_artifact_contract; then
+        require_review_mentions_reviewer_attempts "$review_path" "${RUN_DIR}/reviews/reviewer-attempts.tsv"
+    fi
     require_review_mentions_slice_31_evidence "$review_path"
     require_review_mentions_slice_32_evidence "$review_path"
     require_review_mentions_slice_33_evidence "$review_path"
     require_review_mentions_slice_34_evidence "$review_path"
     require_review_mentions_slice_35_evidence "$review_path"
+    require_review_mentions_slice_37_evidence "$review_path"
+    require_review_mentions_slice_38_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -5985,6 +6654,407 @@ require_slice_35_starter_template_proof() {
         "Result: Reference | Work | Comms"; do
         grep -F "$chip" "$annotation_plan" >/dev/null \
             || die "Slice 35 annotations missing chip: $chip"
+    done
+}
+
+require_slice_37_starter_onboarding_proof() {
+    local proof="${RUN_DIR}/slice-37-starter-onboarding-proof.txt"
+    local done="${LOGS_DIR}/slice-37-starter-onboarding.done"
+    local setup_log="${LOGS_DIR}/slice-37-setup.log"
+    local config_before="${LOGS_DIR}/slice-37-starter-config-before.toml"
+    local config_uncommented="${LOGS_DIR}/slice-37-starter-config-uncommented.toml"
+    local config_check_log="${LOGS_DIR}/slice-37-config-check.log"
+    local list_zones_log="${LOGS_DIR}/slice-37-list-zones.log"
+    local focus_zone_log="${LOGS_DIR}/slice-37-focus-zone-comms.log"
+    local cli_log="${LOGS_DIR}/slice-37-cli.log"
+    local timing_log="${LOGS_DIR}/slice-37-command-timing.log"
+    local visible_commented="${LOGS_DIR}/slice-37-visible-commented-template.txt"
+    local visible_uncommented="${LOGS_DIR}/slice-37-visible-uncommented-template.txt"
+    local visible_result="${LOGS_DIR}/slice-37-visible-result.txt"
+    local event_manifest="${LOGS_DIR}/slice-37-starter-onboarding.event-manifest.tsv"
+    local sample_manifest
+    local uncomment_offset launch_offset config_check_offset list_zones_offset focus_zone_offset
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 37"
+    require_file "$setup_log"
+    require_file "$config_before"
+    require_file "$config_uncommented"
+    require_file "$config_check_log"
+    require_file "$list_zones_log"
+    require_file "$focus_zone_log"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$visible_commented"
+    require_file "$visible_uncommented"
+    require_file "$visible_result"
+    require_file "$event_manifest"
+    require_sample_manifest_paths "$sample_manifest"
+    require_slice_37_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-37.png"
+    require_file "${SCREENSHOTS_DIR}/01-starter-template-commented-slice-37.png"
+    require_file "${SCREENSHOTS_DIR}/02-template-uncommented-slice-37.png"
+    require_file "${SCREENSHOTS_DIR}/03-config-check-and-zones-slice-37.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-37.png"
+
+    grep -F 'PASS: starter config keeps zones commented by default' "$proof" >/dev/null \
+        || die "Slice 37 proof does not contain the expected starter-template PASS claim"
+    grep -F 'focus-zone Comms' "$proof" >/dev/null \
+        || die "Slice 37 proof does not mention the onboarding focus-zone command"
+    grep -F 'Commands: uncomment template; winmux config --check; winmux list-zones; winmux focus-zone Comms' "$setup_log" >/dev/null \
+        || die "Slice 37 setup log missing command summary"
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$config_before" >/dev/null \
+        || die "Slice 37 starter config missing template begin marker"
+    grep -F '# [[zones]]' "$config_before" >/dev/null \
+        || die "Slice 37 starter config missing commented zones table"
+    if grep -E '^[[:space:]]*\[\[zones\]\]' "$config_before" >/dev/null; then
+        die "Slice 37 starter config must not activate [[zones]] before uncommenting"
+    fi
+    grep -E '^[[:space:]]*\[\[zones\]\]' "$config_uncommented" >/dev/null \
+        || die "Slice 37 uncommented config missing active [[zones]]"
+    require_visible_proof_active_table_above_fold \
+        "$visible_uncommented" \
+        '^[[:space:]]*[[][[]zones[]][]]' \
+        12 \
+        "Slice 37 visible uncommented template source"
+    grep -F 'Active TOML excerpt from the uncommented WINMUX ULTRAWIDE ZONES TEMPLATE' "$visible_uncommented" >/dev/null \
+        || die "Slice 37 visible uncommented template source must be a focused active-TOML excerpt"
+    grep -F 'Resulting named columns from the active layout: Reference | Work | Comms' "$visible_uncommented" >/dev/null \
+        || die "Slice 37 visible uncommented template source missing named-column summary"
+    if grep -F '# [[zones]]' "$visible_uncommented" >/dev/null; then
+        die "Slice 37 visible uncommented template source still shows commented [[zones]]"
+    fi
+
+    grep -F '$ winmux config --check ' "$config_check_log" >/dev/null \
+        || die "Slice 37 config check log missing exact command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 37 config check log missing Config OK"
+    grep -F "$ winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$cli_log" >/dev/null \
+        || die "Slice 37 CLI log missing exact list-zones command"
+    grep -F '$ winmux focus-zone Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 37 focus-zone log missing exact command"
+    grep -F 'focus-zone=Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 37 focus-zone log missing success marker"
+    grep -F 'zone=left|name=Reference|' "$list_zones_log" >/dev/null \
+        || die "Slice 37 list-zones missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$list_zones_log" >/dev/null \
+        || die "Slice 37 list-zones missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$list_zones_log" >/dev/null \
+        || die "Slice 37 list-zones missing Comms/right"
+    grep -F 'workspace=' "$list_zones_log" >/dev/null \
+        || die "Slice 37 list-zones log missing workspace fields"
+
+    for key in \
+        uncomment-template-offset-seconds \
+        config-check-offset-seconds \
+        launch-offset-seconds \
+        list-zones-offset-seconds \
+        focus-zone-offset-seconds; do
+        [ -n "$(value_from_log "$key" "$timing_log")" ] \
+            || die "Slice 37 timing log missing $key"
+    done
+    uncomment_offset="$(value_from_log uncomment-template-offset-seconds "$timing_log")"
+    launch_offset="$(value_from_log launch-offset-seconds "$timing_log")"
+    config_check_offset="$(value_from_log config-check-offset-seconds "$timing_log")"
+    list_zones_offset="$(value_from_log list-zones-offset-seconds "$timing_log")"
+    focus_zone_offset="$(value_from_log focus-zone-offset-seconds "$timing_log")"
+    /usr/bin/awk \
+        -v uncomment="$uncomment_offset" \
+        -v launch="$launch_offset" \
+        -v config_check="$config_check_offset" \
+        -v list_zones="$list_zones_offset" \
+        -v focus_zone="$focus_zone_offset" \
+        'BEGIN { exit(uncomment < launch && launch < config_check && config_check < list_zones && list_zones < focus_zone ? 0 : 1) }' \
+        || die "Slice 37 timing order must be uncomment -> launch -> config-check -> list-zones -> focus-zone"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "$uncomment_offset" \
+        "Slice 37 uncomment action must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml" \
+        "$launch_offset" \
+        "Slice 37 launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --check slice-37-starter-config-uncommented.toml" \
+        "$config_check_offset" \
+        "Slice 37 config check must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "$list_zones_offset" \
+        "Slice 37 list-zones must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux focus-zone Comms" \
+        "$focus_zone_offset" \
+        "Slice 37 focus-zone must happen while its command caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-37-starter-onboarding.expected-chips.txt" \
+        "${LOGS_DIR}/slice-37-starter-onboarding.annotations.tsv"
+    for chip in \
+        "Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "Run: winmux config --check slice-37-starter-config-uncommented.toml" \
+        "Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "Run: winmux focus-zone Comms" \
+        "Result: Reference | Work | Comms ready"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 37 annotations missing chip: $chip"
+    done
+}
+
+require_slice_38_user_readiness_proof() {
+    local proof="${RUN_DIR}/slice-38-user-readiness-proof.txt"
+    local done="${LOGS_DIR}/slice-38-user-readiness.done"
+    local setup_log="${LOGS_DIR}/slice-38-setup.log"
+    local config_before="${LOGS_DIR}/slice-38-user-config-before.toml"
+    local config_uncommented="${LOGS_DIR}/slice-38-user-config-uncommented.toml"
+    local launch_plist="${LOGS_DIR}/winmux-e2e-slice38.plist"
+    local config_path_log="${LOGS_DIR}/slice-38-config-path.log"
+    local config_check_log="${LOGS_DIR}/slice-38-config-check.log"
+    local list_zones_log="${LOGS_DIR}/slice-38-list-zones.log"
+    local focus_zone_log="${LOGS_DIR}/slice-38-focus-zone-comms.log"
+    local window_before="${LOGS_DIR}/slice-38-window-before-move.log"
+    local move_log="${LOGS_DIR}/slice-38-move-node-to-zone.log"
+    local window_after="${LOGS_DIR}/slice-38-window-after-move.log"
+    local zones_before_resize="${LOGS_DIR}/slice-38-zones-before-resize.log"
+    local resize_log="${LOGS_DIR}/slice-38-resize-zone.log"
+    local zones_resized="${LOGS_DIR}/slice-38-zones-resized.log"
+    local dry_run_log="${LOGS_DIR}/slice-38-save-zone-layout-dry-run.log"
+    local config_sha_before="${LOGS_DIR}/slice-38-config-before-dry-run.sha256"
+    local config_sha_after="${LOGS_DIR}/slice-38-config-after-dry-run.sha256"
+    local cli_log="${LOGS_DIR}/slice-38-cli.log"
+    local timing_log="${LOGS_DIR}/slice-38-command-timing.log"
+    local visible_commented="${LOGS_DIR}/slice-38-visible-commented-template.txt"
+    local visible_uncommented="${LOGS_DIR}/slice-38-visible-uncommented-template.txt"
+    local visible_result="${LOGS_DIR}/slice-38-visible-result.txt"
+    local event_manifest="${LOGS_DIR}/slice-38-user-readiness.event-manifest.tsv"
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 38"
+    require_file "$setup_log"
+    require_file "$config_before"
+    require_file "$config_uncommented"
+    require_file "$launch_plist"
+    require_file "$config_path_log"
+    require_file "$config_check_log"
+    require_file "$list_zones_log"
+    require_file "$focus_zone_log"
+    require_file "$window_before"
+    require_file "$move_log"
+    require_file "$window_after"
+    require_file "$zones_before_resize"
+    require_file "$resize_log"
+    require_file "$zones_resized"
+    require_file "$dry_run_log"
+    require_file "$config_sha_before"
+    require_file "$config_sha_after"
+    require_file "$cli_log"
+    require_file "$timing_log"
+    require_file "$visible_commented"
+    require_file "$visible_uncommented"
+    require_file "$visible_result"
+    require_file "$event_manifest"
+    require_sample_manifest_paths "$sample_manifest"
+    require_slice_38_event_manifest "$event_manifest"
+    require_guest_transport_summary "${LOGS_DIR}/guest-transport-summary.tsv"
+    require_file "${SCREENSHOTS_DIR}/00-before-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/01-user-config-template-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/02-user-config-uncommented-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/03-before-move-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/04-after-move-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/05-normal-user-ready-slice-38.png"
+    require_file "${SCREENSHOTS_DIR}/99-after-slice-38.png"
+
+    grep -F 'PASS: WinMux launched without --config-path' "$proof" >/dev/null \
+        || die "Slice 38 proof does not contain the expected normal-launch PASS claim"
+    grep -F 'User config: ' "$setup_log" >/dev/null \
+        || die "Slice 38 setup log missing normal user config path"
+    grep -F 'Repo working directory: ' "$setup_log" >/dev/null \
+        || die "Slice 38 setup log missing repo working directory"
+    grep -F 'Launch command: WinMuxApp' "$setup_log" >/dev/null \
+        || die "Slice 38 setup log missing normal launch command"
+    grep -F 'winmux move-node-to-zone --focus-follows-window Work' "$setup_log" >/dev/null \
+        || die "Slice 38 setup log missing cross-zone move command summary"
+
+    require_slice_38_launch_plist_shape "$launch_plist" "$setup_log"
+
+    grep -F '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE' "$config_before" >/dev/null \
+        || die "Slice 38 normal config missing template begin marker"
+    grep -F '# [[zones]]' "$config_before" >/dev/null \
+        || die "Slice 38 normal config missing commented zones table"
+    if grep -E '^[[:space:]]*\[\[zones\]\]' "$config_before" >/dev/null; then
+        die "Slice 38 normal config must not activate [[zones]] before uncommenting"
+    fi
+    grep -E '^[[:space:]]*\[\[zones\]\]' "$config_uncommented" >/dev/null \
+        || die "Slice 38 uncommented normal config missing active [[zones]]"
+    grep -F "tab = ['cycle-zone-layout balanced focus', 'mode main']" "$config_uncommented" >/dev/null \
+        || die "Slice 38 uncommented normal config missing layout cycle binding"
+    require_visible_proof_active_table_above_fold \
+        "$visible_uncommented" \
+        '^[[:space:]]*[[][[]zones[]][]]' \
+        12 \
+        "Slice 38 visible uncommented normal config source"
+    grep -F 'Active TOML excerpt from ~/.config/winmux/winmux.toml' "$visible_uncommented" >/dev/null \
+        || die "Slice 38 visible uncommented source must identify the normal config path"
+    grep -F 'Runtime config path: ~/.config/winmux/winmux.toml; zones: Reference | Work | Comms' "$visible_uncommented" >/dev/null \
+        || die "Slice 38 visible uncommented source missing normal path summary"
+    if grep -F '# [[zones]]' "$visible_uncommented" >/dev/null; then
+        die "Slice 38 visible uncommented source still shows commented [[zones]]"
+    fi
+
+    grep -F '$ winmux config --config-path' "$config_path_log" >/dev/null \
+        || die "Slice 38 config path log missing exact command"
+    local runtime_config_path
+    runtime_config_path="$(/usr/bin/awk 'NR > 1 && $0 !~ /^\$/ { print; exit }' "$config_path_log")"
+    [[ "$runtime_config_path" == */.config/winmux/winmux.toml ]] \
+        || die "Slice 38 runtime config path is not the normal user path: ${runtime_config_path:-missing}"
+    grep -F '$ winmux config --check ~/.config/winmux/winmux.toml' "$config_check_log" >/dev/null \
+        || die "Slice 38 config check log missing exact normal-path command"
+    grep -F 'Config OK:' "$config_check_log" >/dev/null \
+        || die "Slice 38 config check log missing Config OK"
+    grep -F "$runtime_config_path" "$config_check_log" >/dev/null \
+        || die "Slice 38 config check log does not cite runtime config path"
+    grep -F "$ winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" "$cli_log" >/dev/null \
+        || die "Slice 38 CLI log missing exact list-zones command"
+    grep -F '$ winmux focus-zone Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 38 focus-zone log missing exact command"
+    grep -F 'focus-zone=Comms' "$focus_zone_log" >/dev/null \
+        || die "Slice 38 focus-zone log missing success marker"
+    grep -F 'zone=left|name=Reference|' "$list_zones_log" >/dev/null \
+        || die "Slice 38 list-zones missing Reference/left"
+    grep -F 'zone=main|name=Work|' "$list_zones_log" >/dev/null \
+        || die "Slice 38 list-zones missing Work/main"
+    grep -F 'zone=right|name=Comms|' "$list_zones_log" >/dev/null \
+        || die "Slice 38 list-zones missing Comms/right"
+
+    local before_id after_id before_zone after_zone before_workspace after_workspace
+    before_id="$(value_from_log window-id-before "$move_log")"
+    after_id="$(value_from_log window-id-after "$move_log")"
+    before_zone="$(value_from_log before-zone "$move_log")"
+    after_zone="$(value_from_log after-zone "$move_log")"
+    before_workspace="$(value_from_log before-workspace "$move_log")"
+    after_workspace="$(value_from_log after-workspace "$move_log")"
+    [ -n "$before_id" ] && [ -n "$after_id" ] \
+        || die "Slice 38 move log missing before/after window ids"
+    [ "$before_id" = "$after_id" ] \
+        || die "Slice 38 move changed the window id"
+    [ "$before_zone" = right ] \
+        || die "Slice 38 move must start in Comms/right, got ${before_zone:-missing}"
+    [ "$after_zone" = main ] \
+        || die "Slice 38 move must land in Work/main, got ${after_zone:-missing}"
+    [ "$before_workspace" != "$after_workspace" ] \
+        || die "Slice 38 move must change workspaces"
+    [ "$(field_for_title "$window_before" readiness-move.rtf zone)" = right ] \
+        || die "Slice 38 before window log must show readiness-move.rtf in Comms/right"
+    [ "$(field_for_title "$window_after" readiness-move.rtf zone)" = main ] \
+        || die "Slice 38 after window log must show readiness-move.rtf in Work/main"
+    grep -F '$ winmux move-node-to-zone --focus-follows-window Work' "$move_log" >/dev/null \
+        || die "Slice 38 move log missing exact command"
+
+    local before_main resized_main
+    before_main="$(/usr/bin/awk -F'|' '$1 == "zone=main" { for (i = 1; i <= NF; i++) if (index($i, "effective=") == 1) { print substr($i, 11); exit } }' "$zones_before_resize")"
+    resized_main="$(/usr/bin/awk -F'|' '$1 == "zone=main" { for (i = 1; i <= NF; i++) if (index($i, "effective=") == 1) { print substr($i, 11); exit } }' "$zones_resized")"
+    [ -n "$before_main" ] && [ -n "$resized_main" ] \
+        || die "Slice 38 resize logs missing Work/main effective widths"
+    /usr/bin/awk -v before="$before_main" -v after="$resized_main" 'BEGIN { exit(after > before ? 0 : 1) }' \
+        || die "Slice 38 Work/main width did not grow after resize: ${before_main} -> ${resized_main}"
+    grep -F '$ winmux resize-zone Work width +10%' "$resize_log" >/dev/null \
+        || die "Slice 38 resize log missing exact command"
+
+    grep -F '$ winmux save-zone-layout --dry-run' "$dry_run_log" >/dev/null \
+        || die "Slice 38 dry-run log missing exact command"
+    grep -F "Dry run: would save zone layout 'balanced'" "$dry_run_log" >/dev/null \
+        || die "Slice 38 dry-run log missing balanced layout target"
+    grep -F "$runtime_config_path" "$dry_run_log" >/dev/null \
+        || die "Slice 38 dry-run log does not cite normal user config path"
+    [ "$(cat "$config_sha_before")" = "$(cat "$config_sha_after")" ] \
+        || die "Slice 38 dry-run changed the normal user config hash"
+
+    local timing_key
+    for timing_key in \
+        uncomment-template-offset-seconds \
+        launch-offset-seconds \
+        config-path-offset-seconds \
+        config-check-offset-seconds \
+        list-zones-offset-seconds \
+        focus-zone-offset-seconds \
+        open-move-window-offset-seconds \
+        move-node-offset-seconds \
+        resize-zone-offset-seconds \
+        dry-run-offset-seconds \
+        result-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 38 timing log missing $timing_key"
+    done
+
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "$(value_from_log uncomment-template-offset-seconds "$timing_log")" \
+        "Slice 38 uncomment action must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: WinMuxApp" \
+        "$(value_from_log launch-offset-seconds "$timing_log")" \
+        "Slice 38 launch must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --config-path" \
+        "$(value_from_log config-path-offset-seconds "$timing_log")" \
+        "Slice 38 config-path proof must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "$(value_from_log config-check-offset-seconds "$timing_log")" \
+        "Slice 38 config check must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "$(value_from_log list-zones-offset-seconds "$timing_log")" \
+        "Slice 38 list-zones must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux focus-zone Comms" \
+        "$(value_from_log focus-zone-offset-seconds "$timing_log")" \
+        "Slice 38 focus-zone must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: open TextEdit readiness-move.rtf in Comms" \
+        "$(value_from_log open-move-window-offset-seconds "$timing_log")" \
+        "Slice 38 open-window action must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux move-node-to-zone --focus-follows-window Work" \
+        "$(value_from_log move-node-offset-seconds "$timing_log")" \
+        "Slice 38 move command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux resize-zone Work width +10%" \
+        "$(value_from_log resize-zone-offset-seconds "$timing_log")" \
+        "Slice 38 resize command must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux save-zone-layout --dry-run" \
+        "$(value_from_log dry-run-offset-seconds "$timing_log")" \
+        "Slice 38 save dry-run must happen while its command caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: normal config path is ready for Reference | Work | Comms" \
+        "$(value_from_log result-offset-seconds "$timing_log")" \
+        "Slice 38 final result must happen while its result caption is visible"
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/slice-38-user-readiness.expected-chips.txt" \
+        "${LOGS_DIR}/slice-38-user-readiness.annotations.tsv"
+    for chip in \
+        "Config: ~/.config/winmux/winmux.toml" \
+        "Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE" \
+        "Run: WinMuxApp" \
+        "Run: winmux config --config-path" \
+        "Run: winmux config --check ~/.config/winmux/winmux.toml" \
+        "Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'" \
+        "Run: winmux focus-zone Comms" \
+        "Action: open TextEdit readiness-move.rtf in Comms" \
+        "Run: winmux move-node-to-zone --focus-follows-window Work" \
+        "Run: winmux resize-zone Work width +10%" \
+        "Run: winmux save-zone-layout --dry-run" \
+        "Result: normal config path is ready for Reference | Work | Comms"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 38 annotations missing chip: $chip"
     done
 }
 
@@ -9242,6 +10312,125 @@ require_slice_35_event_manifest() {
     done
 }
 
+require_slice_37_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" commented-template context
+    require_event_manifest_event "$manifest_path" uncomment-template action
+    require_event_manifest_event "$manifest_path" config-check command
+    require_event_manifest_event "$manifest_path" launch-with-config command
+    require_event_manifest_event "$manifest_path" list-zones command
+    require_event_manifest_event "$manifest_path" focus-comms command
+    require_event_manifest_event "$manifest_path" result-zones state
+
+    require_event_sample_label "$manifest_path" commented-template starter-template-commented
+    require_event_sample_label "$manifest_path" uncomment-template uncomment-template
+    require_event_sample_label "$manifest_path" config-check config-check
+    require_event_sample_label "$manifest_path" launch-with-config launch-with-config
+    require_event_sample_label "$manifest_path" list-zones list-zones
+    require_event_sample_label "$manifest_path" focus-comms focus-comms
+    require_event_sample_label "$manifest_path" result-zones result-zones
+
+    require_event_before "$manifest_path" commented-template uncomment-template \
+        "Slice 37 event manifest must show commented template before uncomment action"
+    require_event_before "$manifest_path" uncomment-template launch-with-config \
+        "Slice 37 event manifest must show uncomment before launch"
+    require_event_before "$manifest_path" launch-with-config config-check \
+        "Slice 37 event manifest must show launch before config check"
+    require_event_before "$manifest_path" config-check list-zones \
+        "Slice 37 event manifest must show config check before list-zones"
+    require_event_before "$manifest_path" list-zones focus-comms \
+        "Slice 37 event manifest must show list-zones before focus-zone"
+    require_event_before "$manifest_path" focus-comms result-zones \
+        "Slice 37 event manifest must show focus-zone before final result"
+
+    local event_id path
+    for event_id in \
+        commented-template \
+        uncomment-template \
+        launch-with-config \
+        config-check \
+        list-zones \
+        focus-comms \
+        result-zones; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 37 event ${event_id} must cite concrete media"
+    done
+}
+
+require_slice_38_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" normal-user-config context
+    require_event_manifest_event "$manifest_path" uncomment-template action
+    require_event_manifest_event "$manifest_path" launch-normal command
+    require_event_manifest_event "$manifest_path" config-path command
+    require_event_manifest_event "$manifest_path" config-check command
+    require_event_manifest_event "$manifest_path" list-zones command
+    require_event_manifest_event "$manifest_path" focus-comms command
+    require_event_manifest_event "$manifest_path" open-move-window action
+    require_event_manifest_event "$manifest_path" move-to-work command
+    require_event_manifest_event "$manifest_path" resize-work command
+    require_event_manifest_event "$manifest_path" save-dry-run command
+    require_event_manifest_event "$manifest_path" result-ready state
+
+    require_event_sample_label "$manifest_path" normal-user-config normal-user-config
+    require_event_sample_label "$manifest_path" uncomment-template uncomment-template
+    require_event_sample_label "$manifest_path" launch-normal launch-normal
+    require_event_sample_label "$manifest_path" config-path config-path
+    require_event_sample_label "$manifest_path" config-check config-check
+    require_event_sample_label "$manifest_path" list-zones list-zones
+    require_event_sample_label "$manifest_path" focus-comms focus-comms
+    require_event_sample_label "$manifest_path" open-move-window open-move-window
+    require_event_sample_label "$manifest_path" move-to-work move-to-work
+    require_event_sample_label "$manifest_path" resize-work resize-work
+    require_event_sample_label "$manifest_path" save-dry-run save-dry-run
+    require_event_sample_label "$manifest_path" result-ready result-ready
+
+    require_event_before "$manifest_path" normal-user-config uncomment-template \
+        "Slice 38 event manifest must show normal config before uncomment action"
+    require_event_before "$manifest_path" uncomment-template launch-normal \
+        "Slice 38 event manifest must show uncomment before normal launch"
+    require_event_before "$manifest_path" launch-normal config-path \
+        "Slice 38 event manifest must show launch before config-path proof"
+    require_event_before "$manifest_path" config-path config-check \
+        "Slice 38 event manifest must show config-path proof before config check"
+    require_event_before "$manifest_path" config-check list-zones \
+        "Slice 38 event manifest must show config check before list-zones"
+    require_event_before "$manifest_path" list-zones focus-comms \
+        "Slice 38 event manifest must show list-zones before focus-zone"
+    require_event_before "$manifest_path" focus-comms open-move-window \
+        "Slice 38 event manifest must show focus-zone before opening the movable window"
+    require_event_before "$manifest_path" open-move-window move-to-work \
+        "Slice 38 event manifest must show the movable window before move-node-to-zone"
+    require_event_before "$manifest_path" move-to-work resize-work \
+        "Slice 38 event manifest must show cross-zone move before resize"
+    require_event_before "$manifest_path" resize-work save-dry-run \
+        "Slice 38 event manifest must show resize before save dry-run"
+    require_event_before "$manifest_path" save-dry-run result-ready \
+        "Slice 38 event manifest must show dry-run before final result"
+
+    local event_id path
+    for event_id in \
+        normal-user-config \
+        uncomment-template \
+        launch-normal \
+        config-path \
+        config-check \
+        list-zones \
+        focus-comms \
+        open-move-window \
+        move-to-work \
+        resize-work \
+        save-dry-run \
+        result-ready; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 38 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -11117,6 +12306,12 @@ case "$recording_name" in
     slice-35-starter-ultrawide-template)
         require_slice_35_starter_template_proof
         ;;
+    slice-37-starter-onboarding)
+        require_slice_37_starter_onboarding_proof
+        ;;
+    slice-38-user-readiness)
+        require_slice_38_user_readiness_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -11211,11 +12406,16 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     if requires_post_recording_retry_review; then
         require_review_mentions_post_recording_retries "$review_path" "${LOGS_DIR}/guest-script-retry-summary.tsv"
     fi
+    if requires_current_artifact_contract; then
+        require_review_mentions_reviewer_attempts "$review_path" "${RUN_DIR}/reviews/reviewer-attempts.tsv"
+    fi
     require_review_mentions_slice_31_evidence "$review_path"
     require_review_mentions_slice_32_evidence "$review_path"
     require_review_mentions_slice_33_evidence "$review_path"
     require_review_mentions_slice_34_evidence "$review_path"
     require_review_mentions_slice_35_evidence "$review_path"
+    require_review_mentions_slice_37_evidence "$review_path"
+    require_review_mentions_slice_38_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

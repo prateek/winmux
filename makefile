@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-review-lint e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-root-demo-closeout-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 e2e-slice-17 e2e-slice-18 e2e-slice-19 e2e-slice-20 e2e-slice-21 e2e-slice-22 e2e-slice-23 e2e-slice-24 e2e-slice-25 e2e-slice-26 e2e-slice-27 e2e-slice-28 e2e-slice-29 e2e-slice-31 e2e-slice-32 e2e-slice-33 e2e-slice-34 e2e-slice-35 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-review-lint e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-root-demo-closeout-check e2e-package-root-demo e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 e2e-slice-17 e2e-slice-18 e2e-slice-19 e2e-slice-20 e2e-slice-21 e2e-slice-22 e2e-slice-23 e2e-slice-24 e2e-slice-25 e2e-slice-26 e2e-slice-27 e2e-slice-28 e2e-slice-29 e2e-slice-31 e2e-slice-32 e2e-slice-33 e2e-slice-34 e2e-slice-35 e2e-slice-37 e2e-slice-38 release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -120,10 +120,11 @@ e2e-pre-tart-checks:
 		bash -n script/e2e/check-pre-tart-review-gate && \
 		bash -n script/e2e/verify-artifact && \
 	bash -n "$${guest_scripts[@]}" && \
+		echo "[winmux-e2e] bash syntax checks PASS" && \
 		python3 ./script/check-command-metadata && \
 		git diff --check && \
 		echo "[winmux-e2e] git diff --check PASS" && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/verify-artifact "$${guest_scripts[@]}"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/verify-artifact "$${guest_scripts[@]}" && echo "[winmux-e2e] shellcheck PASS"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	./script/e2e/check-generated-version-clean && \
 	./script/e2e/record-reviewer-attempt --self-test && \
 	./script/e2e/write-visible-proof-excerpt --self-test && \
@@ -133,6 +134,7 @@ e2e-pre-tart-checks:
 	./script/e2e/check-pre-tart-review-gate --self-test && \
 	./script/e2e/tart-recording-harness abort-status-self-test && \
 	mouse_event_tmp="$$(mktemp -d)" && trap '"'"'rm -rf "$$mouse_event_tmp"'"'"' EXIT && \
+	ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_RECORDING_TIMING_HELPERS_PHASE=self-test ./script/e2e/guest/recording-timing-helpers.sh && \
 	ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_ZONE_WINDOW_HELPERS_PHASE=self-test ./script/e2e/guest/zone-window-helpers.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_MOUSE_SNAP_PHASE=self-test ./script/e2e/guest/slice-12-mouse-zone-snap.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE26_PHASE=self-test ./script/e2e/guest/slice-26-zone-divider-drag.sh && \
@@ -141,6 +143,8 @@ e2e-pre-tart-checks:
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE31_PHASE=self-test ./script/e2e/guest/slice-31-relaunch-saved-layout.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE32_PHASE=self-test /bin/bash ./script/e2e/guest/slice-32-divider-save-relaunch.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE35_PHASE=self-test /bin/bash ./script/e2e/guest/slice-35-starter-ultrawide-template.sh && \
+	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE37_PHASE=self-test /bin/bash ./script/e2e/guest/slice-37-starter-onboarding.sh && \
+	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE38_PHASE=self-test /bin/bash ./script/e2e/guest/slice-38-user-readiness.sh && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
 	swift test --filter '"'"'AppBundleUtilTest|ConfigBootstrapTest|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneRelaunchSavedLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \
@@ -315,6 +319,12 @@ e2e-slice-34:
 
 e2e-slice-35:
 	$(MAKE) e2e-run-product-slice SLICE=slice-35 ACTION=slice-35 RECORD_SECONDS=60 REQUIRE_PRE_TART_REVIEW=1
+
+e2e-slice-37:
+	$(MAKE) e2e-run-product-slice SLICE=slice-37 ACTION=slice-37 RECORD_SECONDS=72 REQUIRE_PRE_TART_REVIEW=1
+
+e2e-slice-38:
+	$(MAKE) e2e-run-product-slice SLICE=slice-38 ACTION=slice-38 RECORD_SECONDS=120 REQUIRE_PRE_TART_REVIEW=1
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"
