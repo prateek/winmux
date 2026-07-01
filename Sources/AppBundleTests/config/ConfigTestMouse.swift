@@ -106,6 +106,21 @@ extension ConfigTest {
         XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
     }
 
+    func testParseMouseGestureConfigurabilityE2EConfig() throws {
+        let toml = try String(
+            contentsOf: projectRoot.appending(component: "script/e2e/configs/mouse-gesture-configurability.toml"),
+            encoding: .utf8,
+        )
+
+        let (parsed, errors) = parseConfig(toml)
+
+        assertEquals(errors, [])
+        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+    }
+
     func testParseWindowSlotSnapE2EConfig() throws {
         let toml = try String(
             contentsOf: projectRoot.appending(component: "script/e2e/configs/window-slot-snap.toml"),

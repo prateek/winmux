@@ -837,6 +837,24 @@ EOF
 - Reject logs-only proof, final-state-only proof, a missing demo cut, stale or unlisted sidecar artifacts, missing visible input/result cues, missing semantic contact-sheet panels, any Alt-key positive activation, unclear overlay/no-overlay contrast, any target that looks like a window or slot inside a zone, or any claim about new runtime behavior beyond Slice 24.
 EOF
             ;;
+        slice-43-mouse-gesture-configurability)
+            cat <<'EOF'
+- Confirm the recording is a fresh Slice 43 artifact named `slice-43-mouse-gesture-configurability`, not reused Slice 24 or Slice 25 media. It must show two separate desktop drags of `snap-demo.rtf`: first ordinary/no-secondary-button, then after reset with the secondary mouse button held.
+- Confirm captions expose the user-facing WinMux surface and actions: `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'`, `Action: drag snap-demo.rtf with no secondary button`, `Run: winmux list-windows --monitor all`, `Action: reset snap-demo.rtf to Work/main tiling`, `Action: hold secondary button while dragging snap-demo.rtf`, `Input: secondary button held`, `Action: target = whole Comms zone`, and `Action: release on Comms zone`.
+- Confirm the ordinary branch has visible source pickup and hover/path over Comms, but no whole-zone snap overlay and no product snap label. Inspect `logs/slice-43-windows-after-freeform.log` and require the same source id to have `zone=right` and `layout=floating`.
+- Confirm the reset beat returns the same window to Work/main and non-floating layout before the secondary-button snap. Reject proof where the second drag starts from an already-floating source.
+- Confirm the secondary-button branch visibly shows source pickup, pointer/path, a product-labeled whole Comms zone overlay/highlight, release/drop, and final placement of the same window id into Comms/right.
+- Inspect `screenshots/07-snap-hover-comms-slice-43.png`, the full video around the secondary-button hover, the semantic contact sheet, and the event contact sheet. The actual product overlay must visibly read `Whole zone: Comms`.
+- Inspect `logs/slice-43-mouse-gesture-configurability.overlay-sentinel.tsv`. Confirm it names `target-semantics` as `whole-zone`, includes ordinary and secondary-button target-zone crop paths, includes `target-label` equal to `WHOLE ZONE TARGET: COMMS` with a readable labeled crop path, and reports `overlay-rmse-normalized` at or above its minimum.
+- Inspect `logs/slice-43-mouse-gesture-configurability.event-manifest.tsv`; reject if it omits separate config-ready, float-drag start/hover/release/post-state, reset, snap pickup/path/first-affordance/hover/release/post-state events.
+- Inspect `logs/slice-43-mouse-gesture-configurability.mouse-events.tsv` and require `snap-secondary-button-down`, `snap-secondary-button-held`, and `snap-secondary-button-up` in order around snap pickup, first affordance, and release.
+- Confirm the proof manifest includes `drag-policy	gesture	secondary-button-drag`, `drag-policy	proof-mode	secondary-button`, `drag-policy	activation-input	secondary-button`, `drag-policy	input-state-evidence	secondary-button-events`, `drag-policy	positive-proof	secondary-button-whole-zone-snap`, `drag-policy	negative-proof	no-secondary-button-floats-no-snap`, and `visual-floor	product-overlay-label	Whole zone: Comms`.
+- Treat any `configured-modifier	alt` proof-manifest field as config compatibility only. Reject proof that presents Alt as the positive activation for this secondary-button slice.
+- State whether each branch targets a whole zone or a window/slot inside a zone. For Slice 43, the ordinary branch is floating/freeform placement with no snap target, and the secondary-button branch targets the whole Comms zone.
+- Name the exact media file used for each beat: ordinary pickup, ordinary no-overlay hover, floating post-state, reset-before-snap, secondary-button pickup, secondary-button path, product-labeled whole-zone hover/overlay, release/final placement, input-state cue, and overlay sentinel crops.
+- Reject logs-only proof, final-state-only proof, reused media, missing drag affordances, missing visible input cue, any Alt-key positive activation, command captions that appear after visual changes, unclear overlay/no-overlay contrast, any product-label claim based only on logs or harness annotations, any target that looks like a window or slot inside a zone, or any claim about persistence, slot snapping, or a visual settings UI.
+EOF
+            ;;
         slice-26-zone-divider-drag)
             cat <<'EOF'
 - Confirm the recording shows a zone-divider interaction, not a desktop window drag, not a sidebar drag, and not a mouse snap overlay proof.

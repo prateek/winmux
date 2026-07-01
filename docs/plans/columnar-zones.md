@@ -8029,7 +8029,7 @@ Superseded Slice 42 attempts:
 
 ### Slice 43: Mouse Gesture Configurability
 
-Status: planned.
+Status: accepted via `artifacts/e2e/slice-43-pre-tart-20260701T223610Z`.
 
 Pre-Slice-43 cleanup from Slice 42 retrospectives:
 
@@ -8070,6 +8070,106 @@ Required scope:
 Required artifact: a fresh Tart drag video with per-beat proof frames,
 captions, and manifest rows for freeform no-op and gesture-held snap.
 
+Implementation checklist:
+
+- [x] Add `script/e2e/configs/mouse-gesture-configurability.toml` as the
+  Slice 43 fixture with `policy = 'float-unless-snap'`,
+  `gesture = 'secondary-button-drag'`, and `target = 'zone'`.
+- [x] Add a focused config parser test for the Slice 43 fixture.
+- [x] Register `make e2e-slice-43` with the mandatory pre-Tart review gate.
+- [x] Add a fresh Slice 43 recording name,
+  `slice-43-mouse-gesture-configurability`, instead of reusing Slice 24 or
+  Slice 25 media.
+- [x] Add Slice 43 event-manifest rows so pickup, path, hover target, release,
+  and final placement are all reviewer-visible.
+- [x] Extend artifact verification to require the secondary-button input
+  evidence, overlay sentinel, semantic samples, timing alignment, and exact
+  user-action captions for Slice 43.
+- [x] Harden the Slice 43 verifier so secondary-button activation and
+  `secondary-button-events` evidence are mandatory, and the annotated video must
+  include `Input: secondary button held`.
+- [x] Add Slice 43-specific reviewer-packet guidance so no-context artifact
+  review must inspect the fresh media, secondary-button input events,
+  whole-zone target semantics, and every pickup/path/hover/release/post-state
+  beat before accepting the artifact.
+- [x] Run focused local checks for the new config, harness, annotation
+  preflight, and verifier self-test.
+- [x] Run three clean no-context pre-Tart reviewers before any Tart recording.
+- [x] Record the fresh Tart video and run artifact review, review lint,
+  post-review verifier, closeout, and retrospectives.
+
+Accepted result:
+
+- artifact directory:
+  `artifacts/e2e/slice-43-pre-tart-20260701T223610Z`;
+- recording:
+  `recordings/slice-43-mouse-gesture-configurability.mov`;
+- raw guest capture:
+  `recordings/raw/slice-43-mouse-gesture-configurability.raw.mov`;
+- demo cut:
+  `recordings/slice-43-mouse-gesture-configurability.demo.mov`;
+- contact sheets:
+  `screenshots/slice-43-mouse-gesture-configurability.contact-sheet.jpg` and
+  `screenshots/slice-43-mouse-gesture-configurability.event-contact-sheet.jpg`;
+- primary drag proof frames:
+  `screenshots/02-freeform-pickup-slice-43.png`,
+  `screenshots/03-freeform-hover-no-overlay-slice-43.png`,
+  `screenshots/05-snap-pickup-slice-43.png`,
+  `screenshots/06-snap-path-slice-43.png`, and
+  `screenshots/07-snap-hover-comms-slice-43.png`;
+- pre-Tart gate:
+  `reviews/pre-tart/freshness.env`, `process-plan.md`, `code-harness.md`,
+  and `artifact-product.md`, accepted by `check-pre-tart-review-gate`;
+- artifact review:
+  `reviews/no-ctx-artifact-review.md`, first line
+  `PASS_WITH_NOTES: Slice 43 visually proves the configured secondary-button mouse gesture policy, with one nonblocking sidecar note about the snap-release sample path.`
+  and final line `next slice allowed: yes`;
+- persisted verifier logs:
+  `logs/review-lint.log`, `logs/post-review-verify.log`, and
+  `logs/closeout-check.log`;
+- closeout command:
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-43-pre-tart-20260701T223610Z`,
+  passed;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+Claims:
+
+- ordinary/no-secondary drag of `snap-demo.rtf` visibly picks up and hovers over
+  Comms without a whole-zone snap overlay, then leaves the same window id
+  floating in Comms/right;
+- reset returns the same source window to Work/main tiling before the positive
+  gesture proof;
+- secondary-button-held drag visibly picks up, travels toward Comms, shows the
+  product label `Whole zone: Comms`, releases on the whole Comms zone, and ends
+  with the same window id placed in Comms/right;
+- `mouse-events.tsv` proves `snap-secondary-button-down`,
+  `snap-secondary-button-held`, and `snap-secondary-button-up` around the snap
+  pickup, target affordance, release, and post-state;
+- the artifact exposes the user-facing config/action captions, including
+  `Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'`
+  and `Input: secondary button held`.
+
+Accepted sidecar note:
+
+- The accepted review is `PASS_WITH_NOTES` because `snap-release` has correct
+  event timing in the full/raw recording and event manifests, but the generated
+  reviewer-facing sample path
+  `screenshots/slice-43-mouse-gesture-configurability.samples/caption-07-boundary-start.png`
+  starts after the target overlay has cleared. This does not invalidate Slice
+  43 because the video and hover/release timing prove the behavior, but it is a
+  blocking pre-Slice-44 cleanup item for all future drag/overlay proofs.
+
+Superseded Slice 43 attempts:
+
+- `artifacts/e2e/slice-43-pre-tart-20260701T221322Z`: pre-Tart-only, no
+  accepted product media or artifact review;
+- `artifacts/e2e/slice-43-pre-tart-20260701T221455Z`: pre-Tart-only and stale
+  after later source changes, no accepted product media or artifact review;
+- `artifacts/e2e/slice-43-pre-tart-20260701T222830Z`: pre-Tart-only and stale
+  after verifier hardening, no accepted product media or artifact review.
+
 Non-claims:
 
 - Slice 43 does not introduce window-slot snap polish;
@@ -8078,6 +8178,27 @@ Non-claims:
 ### Slice 44: Drag Overlay and Snap Semantics Polish
 
 Status: planned.
+
+Pre-Slice-44 cleanup from Slice 43 retrospectives:
+
+- [ ] Fix release-sidecar generation before any Slice 44 Tart recording:
+  drag release rows must point at an event-time release frame that still shows
+  the active target preview, not a later caption-boundary sample after the
+  overlay has cleared.
+- [ ] Harden `verify-artifact` so future drag artifacts fail when an event row
+  such as `snap-release` reuses a sample path whose canonical sample timestamp
+  does not match the event timing, unless the manifest declares an explicit
+  alias/source-label model.
+- [ ] Add a verifier self-test fixture for the Slice 43 regression: an event
+  row at release time pointing to a later `caption-*-boundary-start.png` sample
+  must fail.
+- [ ] Update the Slice 44 reviewer packet/checklist so every drag branch has
+  separate required citations for hover target, release-on-active-target, and
+  post-drop final placement.
+- [ ] Treat overlay sentinel crops as corroboration only; the primary product
+  frame must visibly show the target label or target semantics.
+- [ ] Keep the Slice 43 closeout evidence and `PASS_WITH_NOTES` sidecar note in
+  the plan before starting Slice 44 pre-Tart freshness.
 
 Goal: make drag affordances understandable from the video without reading logs:
 what is being dragged, what target will receive it, and whether the target is a

@@ -5459,6 +5459,10 @@ require_slice_25_sample_manifest() {
     require_slice_22_sample_manifest "$1"
 }
 
+require_slice_43_sample_manifest() {
+    require_slice_22_sample_manifest "$1"
+}
+
 require_slice_27_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -11846,6 +11850,10 @@ require_slice_25_event_manifest() {
     require_mouse_drag_event_manifest slice-25 "$1"
 }
 
+require_slice_43_event_manifest() {
+    require_mouse_drag_event_manifest slice-43 "$1"
+}
+
 require_slice_27_event_manifest() {
     require_mouse_drag_event_manifest slice-27 "$1"
 }
@@ -12934,7 +12942,7 @@ require_float_unless_snap_proof() {
     local snap_action_chip="Action: hold Alt while dragging snap-demo.rtf"
     local float_description="no-Alt"
     local snap_description="Alt"
-    if [ "$slice_prefix" = "slice-24" ] || [ "$slice_prefix" = "slice-25" ]; then
+    if [ "$slice_prefix" = "slice-24" ] || [ "$slice_prefix" = "slice-25" ] || [ "$slice_prefix" = "slice-43" ]; then
         expected_pass="PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
         expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', configured-modifier = 'alt', gesture = 'secondary-button-drag', activation-input = 'secondary-button', target = 'zone'"
         expected_config_chip="Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'"
@@ -12963,6 +12971,8 @@ require_float_unless_snap_proof() {
         require_slice_23_sample_manifest "$sample_manifest"
     elif [ "$slice_prefix" = "slice-25" ]; then
         require_slice_25_sample_manifest "$sample_manifest"
+    elif [ "$slice_prefix" = "slice-43" ]; then
+        require_slice_43_sample_manifest "$sample_manifest"
     elif [ "$slice_prefix" = "slice-24" ]; then
         require_slice_24_sample_manifest "$sample_manifest"
     else
@@ -13151,6 +13161,18 @@ require_slice_25_mouse_demo_contract_proof() {
     grep -F 'Result: same window id in Comms/right' "$annotation_plan" >/dev/null \
         || die "Slice 25 annotations missing final command result cue"
     require_slice_25_event_manifest "$(event_manifest_path)"
+}
+
+require_slice_43_mouse_gesture_configurability_proof() {
+    require_float_unless_snap_proof slice-43 "Slice 43" slice-43-mouse-gesture-configurability 1
+    [ "$(manifest_value "$proof_manifest" drag-policy activation-input)" = secondary-button ] \
+        || die "Slice 43 proof manifest must require activation-input=secondary-button"
+    [ "$(manifest_value "$proof_manifest" drag-policy input-state-evidence)" = secondary-button-events ] \
+        || die "Slice 43 proof manifest must require secondary-button-events input evidence"
+    require_secondary_button_input_evidence "$proof_manifest" "Slice 43"
+    grep -F 'Input: secondary button held' "$annotation_plan" >/dev/null \
+        || die "Slice 43 annotations missing visible secondary-button input cue"
+    require_slice_43_event_manifest "$(event_manifest_path)"
 }
 
 require_slice_27_window_slot_snap_proof() {
@@ -14611,6 +14633,9 @@ case "$recording_name" in
         ;;
     slice-25-mouse-demo-contract)
         require_slice_25_mouse_demo_contract_proof
+        ;;
+    slice-43-mouse-gesture-configurability)
+        require_slice_43_mouse_gesture_configurability_proof
         ;;
     slice-26-zone-divider-drag)
         require_slice_26_zone_divider_drag_proof
