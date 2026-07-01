@@ -89,6 +89,7 @@ SNAP_RELEASE_NAME=""
 configure_profile_screenshot_names() {
     case "$SNAP_TARGET_PROFILE" in
         whole-zone)
+            SNAP_RELEASE_NAME="08-snap-release-${SLICE_PREFIX}.png"
             ;;
         window-slot)
             FREEFORM_PICKUP_NAME="02-ordinary-pickup-${SLICE_PREFIX}.png"

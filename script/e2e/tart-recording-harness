@@ -4120,12 +4120,13 @@ write_semantic_sample_manifest() {
                 "same source window is placed in Comms/right after release"
             ;;
         slice-20-zone-snap-policy-switch)
-            local set_caption_label set_caption_start release_caption_label release_caption_start cycle_caption_label cycle_caption_start
+            local set_caption_label set_caption_start release_caption_label release_caption_start release_path cycle_caption_label cycle_caption_start
             local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
             set_caption_label="$(event_manifest_field "$event_manifest" set-command-start caption-label || caption_label_for_chip "$name" "Run: winmux set-zone-snap-policy snap-to-zone" || printf 'caption-04\n')"
             set_caption_start="$(event_manifest_field "$event_manifest" set-command-start seconds || caption_start_for_label "$name" "$set_caption_label" || printf 'caption-boundary-start\n')"
             release_caption_label="$(event_manifest_field "$event_manifest" snap-release caption-label || caption_label_for_chip "$name" "Action: release on Comms zone" || printf 'caption-08\n')"
             release_caption_start="$(event_manifest_field "$event_manifest" snap-release seconds || caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
+            release_path="$(event_manifest_field "$event_manifest" snap-release path || printf 'screenshots/%s.samples/%s-boundary-start.png\n' "$name" "$release_caption_label")"
             cycle_caption_label="$(event_manifest_field "$event_manifest" cycle-command-start caption-label || caption_label_for_chip "$name" "Run: winmux cycle-zone-snap-policy freeform snap-to-zone" || printf 'caption-10\n')"
             cycle_caption_start="$(event_manifest_field "$event_manifest" cycle-command-start seconds || caption_start_for_label "$name" "$cycle_caption_label" || printf 'caption-boundary-start\n')"
             append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
@@ -4150,8 +4151,8 @@ write_semantic_sample_manifest() {
                 "screenshots/07-snap-hover-comms-slice-20.png" \
                 "whole Comms zone overlay is visible before release"
             append_sample_manifest_row "$manifest_path" semantic snap-release "$release_caption_label" "$release_caption_start" \
-                "screenshots/${name}.samples/${release_caption_label}-boundary-start.png" \
-                "release caption starts while the whole-zone target is still visible"
+                "$release_path" \
+                "release-boundary frame still shows the active whole-zone target before post-drop placement"
             append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
                 "screenshots/99-after-slice-20.png" \
                 "same source window is placed in Comms/right after runtime policy switch"
@@ -4160,7 +4161,7 @@ write_semantic_sample_manifest() {
                 "cycle-zone-snap-policy command appears after final placement"
             ;;
         slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability)
-            local float_caption_label float_caption_start release_caption_label release_caption_start
+            local float_caption_label float_caption_start release_caption_label release_caption_start release_path
             local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
             local sample_slice_prefix="slice-22"
             local freeform_pickup_description="desktop window pickup under float-unless-snap with no Alt held"
@@ -4193,6 +4194,7 @@ write_semantic_sample_manifest() {
             float_caption_start="$(event_manifest_field "$event_manifest" float-post-state seconds || caption_start_for_label "$name" "$float_caption_label" || printf 'caption-boundary-start\n')"
             release_caption_label="$(event_manifest_field "$event_manifest" snap-release caption-label || caption_label_for_chip "$name" "Action: release on Comms zone" || printf 'caption-07\n')"
             release_caption_start="$(event_manifest_field "$event_manifest" snap-release seconds || caption_start_for_label "$name" "$release_caption_label" || printf 'caption-boundary-start\n')"
+            release_path="$(event_manifest_field "$event_manifest" snap-release path || printf 'screenshots/%s.samples/%s-boundary-start.png\n' "$name" "$release_caption_label")"
             append_sample_manifest_row "$manifest_path" semantic freeform-pickup screenshot screenshot \
                 "screenshots/02-freeform-pickup-${sample_slice_prefix}.png" \
                 "$freeform_pickup_description"
@@ -4215,8 +4217,8 @@ write_semantic_sample_manifest() {
                 "screenshots/07-snap-hover-comms-${sample_slice_prefix}.png" \
                 "$snap_hover_description"
             append_sample_manifest_row "$manifest_path" semantic snap-release "$release_caption_label" "$release_caption_start" \
-                "screenshots/${name}.samples/${release_caption_label}-boundary-start.png" \
-                "release caption starts while the whole-zone target is still visible"
+                "$release_path" \
+                "release-boundary frame still shows the active whole-zone target before post-drop placement"
             append_sample_manifest_row "$manifest_path" semantic snap-final-placement screenshot screenshot \
                 "screenshots/99-after-${sample_slice_prefix}.png" \
                 "$snap_final_description"

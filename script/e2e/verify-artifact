@@ -868,6 +868,28 @@ EOF
     if ( require_drag_proof_manifest "$drag_proof_manifest" ) >/dev/null 2>&1; then
         die "Drag proof self-test expected release event path mismatch rejection"
     fi
+    mkdir -p "${SCREENSHOTS_DIR}/${recording_name}.samples"
+    printf 'sample\n' >"${SCREENSHOTS_DIR}/${recording_name}.samples/caption-07-boundary-start.png"
+    local release_alias_sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
+    cat >"$mouse_event_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-start	drag	11.111	caption-02	freeform-pickup	-	freeform drag starts
+snap-drag-start	drag	18.222	caption-05	snap-pickup	-	snap drag starts
+snap-first-affordance	overlay	20.333	caption-07	snap-hover-comms	-	whole-zone overlay visible
+snap-release	drag	20.900	caption-07	snap-release	screenshots/self-test-mouse.samples/caption-07-boundary-start.png	snap release
+EOF
+    cat >"$release_alias_sample_manifest" <<'EOF'
+caption	caption-07-boundary-start	caption-07	35.100	screenshots/self-test-mouse.samples/caption-07-boundary-start.png	frame immediately after caption start
+semantic	snap-release	caption-07	20.900	screenshots/self-test-mouse.samples/caption-07-boundary-start.png	release alias incorrectly reuses later caption frame
+EOF
+    if ( require_event_sample_path_timestamp_alignment "$mouse_event_manifest" "$release_alias_sample_manifest" snap-release ) >/dev/null 2>&1; then
+        die "Drag release sample-alignment self-test expected stale caption sample rejection"
+    fi
+    cat >"$release_alias_sample_manifest" <<'EOF'
+caption	caption-07-boundary-start	caption-07	20.900	screenshots/self-test-mouse.samples/caption-07-boundary-start.png	frame at release event time
+semantic	snap-release	caption-07	20.900	screenshots/self-test-mouse.samples/caption-07-boundary-start.png	release alias matches canonical sample frame
+EOF
+    require_event_sample_path_timestamp_alignment "$mouse_event_manifest" "$release_alias_sample_manifest" snap-release
     local secondary_input_proof="${tmp_dir}/secondary-input-proof.tsv"
     cat >"$secondary_input_proof" <<'EOF'
 drag-policy	configured-modifier	alt
@@ -2524,6 +2546,22 @@ require_event_sample_label() {
         || die "Event manifest ${event_id} sample label mismatch: expected ${expected_label}, got ${actual_label}"
 }
 
+is_accepted_legacy_whole_zone_release_artifact() {
+    case "$(basename "${RUN_DIR:-}")" in
+        slice-20-20260627T195858Z|\
+        slice-22-20260627T221503Z|\
+        slice-23-20260628T052231Z|\
+        slice-24-20260628T061218Z|\
+        slice-25-20260628T070737Z|\
+        slice-43-pre-tart-20260701T223610Z)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 require_event_path_kind() {
     local manifest_path="$1"
     local slice="$2"
@@ -2543,6 +2581,16 @@ require_event_path_kind() {
                 screenshots/*) expected_path="$expanded_path" ;;
                 *) expected_path="screenshots/${expanded_path}" ;;
             esac
+            if [ "$event_id" = "snap-release" ] \
+                && [[ "$expected_path" == screenshots/08-snap-release-* ]] \
+                && is_accepted_legacy_whole_zone_release_artifact; then
+                case "$actual_path" in
+                    screenshots/*.samples/*boundary-start.png)
+                        log "historical exception: accepted pre-release-sidecar artifact uses caption boundary sample for snap-release"
+                        return 0
+                        ;;
+                esac
+            fi
             [ "$actual_path" = "$expected_path" ] \
                 || die "Event manifest ${event_id} path-kind=screenshot mismatch: expected ${expected_path}, got ${actual_path}"
             ;;
@@ -2620,6 +2668,49 @@ require_event_manifest_matches_mouse_event_log() {
         [ "$actual_seconds" = "$expected_seconds" ] \
             || die "Event ${event_id} seconds must come from mouse event log: manifest=${actual_seconds} mouse-events=${expected_seconds}"
     done
+}
+
+sample_manifest_canonical_seconds_for_path() {
+    local manifest_path="$1"
+    local relative_path="$2"
+    /usr/bin/awk -F'\t' -v relative_path="$relative_path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == "caption" && $5 == relative_path {
+            print $4
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest_path"
+}
+
+require_event_sample_path_timestamp_alignment() {
+    local manifest_path="$1"
+    local sample_manifest_file="$2"
+    local event_id="$3"
+    local event_path event_seconds sample_seconds
+
+    event_path="$(event_manifest_value "$manifest_path" "$event_id" path || true)"
+    [ -n "$event_path" ] || return 0
+    [ "$event_path" != "-" ] || return 0
+    case "$event_path" in
+        screenshots/*.samples/*) ;;
+        *) return 0 ;;
+    esac
+
+    require_file "$sample_manifest_file"
+    event_seconds="$(require_event_manifest_value "$manifest_path" "$event_id" seconds)"
+    sample_seconds="$(sample_manifest_canonical_seconds_for_path "$sample_manifest_file" "$event_path")" \
+        || die "Event manifest ${event_id} cites sample frame ${event_path}, but the sample manifest has no canonical caption row for that path"
+    assert_numeric_approximately_equal "$event_seconds" "$sample_seconds" 0.500 \
+        "Event manifest ${event_id} sample frame timestamp must match canonical sample timestamp"
+}
+
+requires_drag_release_sample_alignment() {
+    case "${recording_name:-}" in
+        slice-4[4-9]-*|slice-[5-9][0-9]-*) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 mouse_event_log_value() {
@@ -2719,7 +2810,7 @@ require_mouse_snap_affordance_event_paths() {
         *) die "Mouse snap target affordance must cite hover/affordance media, got: $target_path" ;;
     esac
     case "$release_path" in
-        screenshots/*.samples/*boundary-start.png|screenshots/07-snap-hover-comms-*.png|screenshots/08-slot-release-*.png) ;;
+        screenshots/*.samples/*boundary-start.png|screenshots/07-snap-hover-comms-*.png|screenshots/08-snap-release-*.png|screenshots/08-slot-release-*.png) ;;
         *) die "Mouse snap release must cite a release-boundary or target sample frame, got: $release_path" ;;
     esac
 }
@@ -11826,6 +11917,9 @@ require_mouse_drag_event_manifest() {
     [ "$row_count" -gt 0 ] || die "Mouse drag event spec has no rows for $slice"
     if [ "${#mouse_event_ids[@]}" -gt 0 ]; then
         require_event_manifest_matches_mouse_events "$manifest_path" "${mouse_event_ids[@]}"
+    fi
+    if requires_drag_release_sample_alignment; then
+        require_event_sample_path_timestamp_alignment "$manifest_path" "$(sample_manifest_path)" snap-release
     fi
     require_mouse_snap_affordance_event_paths "$manifest_path"
 }

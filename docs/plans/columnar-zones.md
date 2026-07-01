@@ -8181,23 +8181,28 @@ Status: planned.
 
 Pre-Slice-44 cleanup from Slice 43 retrospectives:
 
-- [ ] Fix release-sidecar generation before any Slice 44 Tart recording:
+- [x] Fix release-sidecar generation before any Slice 44 Tart recording:
   drag release rows must point at an event-time release frame that still shows
   the active target preview, not a later caption-boundary sample after the
-  overlay has cleared.
-- [ ] Harden `verify-artifact` so future drag artifacts fail when an event row
+  overlay has cleared. `slice-12-mouse-zone-snap.sh` now captures
+  `08-snap-release-*.png` for whole-zone snap branches, and
+  `mouse-drag-events.tsv` expects that frame for fresh whole-zone drag runs.
+- [x] Harden `verify-artifact` so future drag artifacts fail when an event row
   such as `snap-release` reuses a sample path whose canonical sample timestamp
   does not match the event timing, unless the manifest declares an explicit
-  alias/source-label model.
-- [ ] Add a verifier self-test fixture for the Slice 43 regression: an event
+  alias/source-label model. The guard is active for Slice 44+ drag artifacts;
+  named accepted pre-sidecar artifacts retain a logged historical exception.
+- [x] Add a verifier self-test fixture for the Slice 43 regression: an event
   row at release time pointing to a later `caption-*-boundary-start.png` sample
   must fail.
 - [ ] Update the Slice 44 reviewer packet/checklist so every drag branch has
   separate required citations for hover target, release-on-active-target, and
-  post-drop final placement.
+  post-drop final placement. The Slice 43 reviewer wording has been corrected as
+  carry-forward guidance, but the Slice 44-specific packet branch still must be
+  added with the Slice 44 harness.
 - [ ] Treat overlay sentinel crops as corroboration only; the primary product
   frame must visibly show the target label or target semantics.
-- [ ] Keep the Slice 43 closeout evidence and `PASS_WITH_NOTES` sidecar note in
+- [x] Keep the Slice 43 closeout evidence and `PASS_WITH_NOTES` sidecar note in
   the plan before starting Slice 44 pre-Tart freshness.
 
 Goal: make drag affordances understandable from the video without reading logs:
