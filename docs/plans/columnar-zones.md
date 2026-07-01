@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-36 accepted; pre-slice 37 cleanup complete; Slice 37 planned
+Status: slices 0-37 accepted; Slice 38 source and pre-Tart gate ready for Tart recording; Slices 39-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -7067,8 +7067,8 @@ Pre-Slice-37 cleanup:
 
 ### Slice 37: Starter Template Onboarding Companion
 
-Status: planned; do not start Tart until the accepted Slice 34-36 and
-root-demo closeout dirty set is committed.
+Status: accepted via
+`artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`.
 
 Goal: add a short companion demo that answers "how do I turn this on?" for a
 new ultrawide user. The current root demo proves the mature divider drag,
@@ -7092,8 +7092,42 @@ Required implementation shape:
 
 - reuse the Slice 35 starter-template parser/bootstrap work instead of adding a
   second starter-template format;
+- record through `make e2e-slice-37`, which runs
+  `script/e2e/guest/slice-37-starter-onboarding.sh` in a Tart guest and uses
+  `resources/default-config.toml` as the staged starter config;
+- require deterministic host checks before Tart. The first focused pass after
+  wiring Slice 37 completed `make e2e-pre-tart-checks` with shell syntax,
+  shellcheck, generated-version cleanliness, helper self-tests, guest-script
+  self-tests, annotation preflight, and 183 focused Swift tests;
+- require three clean no-context pre-Tart reviewer reports under
+  `reviews/pre-tart/` before the Tart recording starts. The reviewers must cite
+  the Slice 37 plan, README, default config, guest script, make target,
+  pre-Tart review gate, recorder, verifier, and reviewer packet. A stale
+  pre-Tart run, `artifacts/e2e/slice-37-starter-onboarding-20260701T042559Z`,
+  is rejected because its process reviewer correctly found that this plan
+  overclaimed the gate state before the current reports passed. A recorded
+  Tart run, `artifacts/e2e/slice-37-starter-onboarding-20260701T043138Z`,
+  is also rejected because `focus-zone-offset-seconds=49` landed before the
+  `Run: winmux focus-zone Comms` caption window. A later pre-Tart run,
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T044347Z`, is rejected
+  before Tart because its process reviewer correctly found the timing contract
+  still ambiguous. The current contract must keep `list-zones` in the
+  `38-48` caption window and start `Run: winmux focus-zone Comms` at `48` so
+  an observed `focus-zone-offset-seconds=49` is valid;
 - record a fresh Tart guest-captured video for the companion artifact;
 - keep the video self-explanatory with visible action and command chips;
+- make the visible caption chips expose the exact user commands and actions:
+  `Config: # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE`,
+  `Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE`,
+  `Run: WinMuxApp --config-path slice-37-starter-config-uncommented.toml`,
+  `Run: winmux config --check slice-37-starter-config-uncommented.toml`,
+  `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`,
+  `Run: winmux focus-zone Comms`, and
+  `Result: Reference | Work | Comms ready`;
+- verify the artifact with `script/e2e/verify-artifact` requirements for the
+  commented template, uncommented TOML excerpt, config-check log, list-zones
+  log, focus-zone log, command timing, event manifest, semantic samples,
+  screenshots, and caption chips;
 - write a reviewer packet that compares against `demo-columnar-zones.mp4`, the
   Slice 36 root-demo package, repo root demos, README guidance, and product
   screenshots;
@@ -7101,11 +7135,552 @@ Required implementation shape:
 - run three no-context retrospectives after the review and fold accepted
   findings into the next pre-slice cleanup before moving on.
 
+Accepted artifact:
+
+- accepted run:
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`;
+- recording:
+  `recordings/slice-37-starter-onboarding.mov`;
+- raw recording:
+  `recordings/raw/slice-37-starter-onboarding.raw.mov`;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md`, first line `PASS: Slice 37 proves the
+  opt-in starter onboarding path for ultrawide zones and the first useful
+  command after enabling them.`, final line `next slice allowed: yes`;
+- post-review gate logs:
+  `logs/review-lint.log` and `logs/post-review-verify.log`;
+- `make e2e-verify-slice RUN_DIR=artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`
+  passed with a 3440x1440 H.264 recording, 71.983333 seconds, 3155 frames;
+- `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z`
+  passed;
+- `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z ARGS=--require-review`
+  passed;
+- command timing accepted:
+  `focus-zone-offset-seconds=51` in `logs/slice-37-command-timing.log`, inside
+  the `48 60` `Run: winmux focus-zone Comms` caption in
+  `logs/slice-37-starter-onboarding.annotations.tsv`;
+- accepted claims: starter config is opt-in/commented by default, the marked
+  template uncomments into active TOML, `WinMuxApp --config-path` launches that
+  config, `winmux config --check`, `winmux list-zones`, and
+  `winmux focus-zone Comms` work against Reference, Work, and Comms zones;
+- accepted non-claims: Slice 37 does not replace `demo-columnar-zones.mp4`,
+  does not claim zones are enabled by default, does not claim a GUI config
+  editor, and does not claim full command coverage;
+- reviewer-attempt ledger: `reviews/reviewer-attempts.tsv` records one stalled
+  `no-context-artifact-review` attempt, replaced because it timed out without
+  writing a report;
+- superseded recorded attempts:
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T020144Z` and
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T043138Z`, both marked
+  superseded by `045012Z` because their focus-zone command landed outside the
+  then-current caption window;
+- blocked pre-Tart timing attempt:
+  `artifacts/e2e/slice-37-starter-onboarding-20260701T044347Z`, whose
+  process-plan reviewer blocked before Tart because the focus timing contract
+  was still ambiguous;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
 Accepted non-goals:
 
 - do not replace `demo-columnar-zones.mp4`;
 - do not claim every zone command is taught in the onboarding demo;
 - do not add another config DSL for starter templates.
+
+Pre-Slice-38 cleanup from Slice 37 retrospectives:
+
+- [x] Add a reusable guest timing helper,
+  `script/e2e/guest/recording-timing-helpers.sh`, with
+  `sleep_until_recording_offset <start> <end> <label>` for timed-caption guest
+  scripts. It fails with the semantic failure exit if the command is already
+  past its caption window and has a self-test in `make e2e-pre-tart-checks`.
+- [x] Replace raw sleeps around action-sensitive Slice 37 command captions with
+  the timing helper. Future timed-caption scripts should use the same helper
+  whenever they record command offsets in `logs/*command-timing.log`.
+- [x] Add reviewer-attempt ledger citation lint to `script/e2e/verify-artifact`
+  for product slices when `reviews/reviewer-attempts.tsv` has stalled, failed,
+  superseded, or replaced rows. The final review must cite the ledger path,
+  role, status, output path, and replacement reason.
+- [x] Have `script/e2e/write-review-packet` generate
+  `reviews/reviewer-citation-checklist.tsv` from paths, event ids, timing keys,
+  expected chips, edge crops, retry rows, reviewer attempts, and baseline
+  citations so reviewers can repair citation omissions in one pass.
+- [x] Validate the cleanup with focused shell syntax, shellcheck,
+  `verify-artifact --self-test`, Slice 37 guest self-test, review lint against
+  the accepted Slice 37 run, and the pre-Tart check suite.
+- [x] Keep the Slice 37 product polish note non-blocking: text-heavy onboarding
+  demos should keep both event contact sheets and full-size semantic
+  screenshots; future product-facing cuts can consider ending with less dense
+  final proof once the before/after relationship is established.
+
+### Slice 38: Normal User Readiness Walkthrough
+
+Status: source implementation added; clean pre-Tart gate passed; Tart recording
+is pending.
+
+Carry decision: proceed with the dirty Slice 37 and pre-Slice-38 source set as
+the Slice 38 candidate instead of committing before recording. This is scoped to
+the Tart proof only: the pre-Tart freshness manifest must hash the full dirty
+state, the three no-context reviewers must cite that hash, and the accepted
+artifact must keep the dirty-baseline logs before closeout.
+
+Blocked pre-Tart review catch-up:
+
+- `artifacts/e2e/slice-38-pre-tart-20260701T061609Z` is a blocked pre-Tart
+  review run. The process and artifact/product reviewers correctly blocked on
+  the missing carry decision. The code-harness reviewer also found two verifier
+  gaps: the Slice 38 LaunchAgent plist proof did not require an exact staged
+  `WinMuxApp` ProgramArguments entry or matching repo WorkingDirectory, and the
+  main `--require-review` closeout path did not call the Slice 38 evidence
+  review checks. This run is superseded by the cleanup below.
+- `artifacts/e2e/slice-38-pre-tart-20260701T062429Z` is the clean pre-Tart
+  gate for the current Slice 38 candidate. The process-plan, code-harness, and
+  artifact-product reviewers passed, and
+  `script/e2e/check-pre-tart-review-gate
+  artifacts/e2e/slice-38-pre-tart-20260701T062429Z slice-38` accepted the
+  freshness, reviewer, and verifier evidence before Tart recording.
+
+Goal: prove the shortest normal path from a fresh WinMux config to usable
+ultrawide zones. Slice 37 uses an explicit `--config-path` companion config so
+the onboarding artifact can stay isolated. Slice 38 should use the normal user
+config path, `~/.config/winmux/winmux.toml`, and show that the README/default
+config instructions work without a harness-only launch mode.
+
+User-facing story:
+
+- start from a clean Tart desktop and a fresh generated WinMux config;
+- expose the `WINMUX ULTRAWIDE ZONES TEMPLATE` block as the user sees it in
+  `~/.config/winmux/winmux.toml`;
+- uncomment the block in place;
+- launch WinMux normally, without `--config-path` or
+  `WINMUX_DEFAULT_CONFIG_PATH`;
+- run `winmux config --config-path` to prove the server is using
+  `~/.config/winmux/winmux.toml`;
+- run `winmux config --check ~/.config/winmux/winmux.toml`. The CLI talks to
+  the running server, so this happens after launch in the proof;
+- run `winmux list-zones`, `winmux focus-zone Comms`, and
+  `winmux move-node-to-zone --focus-follows-window Work` against live windows;
+- resize the Work zone with `winmux resize-zone Work width +10%`, then run
+  `winmux save-zone-layout --dry-run` so the user sees the saved-layout surface
+  without rewriting the config during the proof;
+- end with Reference, Work, and Comms visible on the ultrawide display and the
+  final caption stating exactly what the user can try next.
+
+Required implementation shape:
+
+- [x] Add `script/e2e/guest/slice-38-user-readiness.sh`.
+- [x] Add `make e2e-slice-38`, a Slice 38 recorder action, annotation plan,
+  event manifest, verifier branch, reviewer-packet checks, and README harness
+  entry.
+- [x] Use `script/e2e/guest/recording-timing-helpers.sh` for every visible
+  command caption that also writes a command timing row.
+- [x] Use the normal config path in the guest. The verifier rejects
+  `WinMuxApp --config-path` and `WINMUX_DEFAULT_CONFIG_PATH` in the Slice 38
+  LaunchAgent proof.
+- [x] Harden debug `WinMuxApp` default-config lookup so the Tart bare executable
+  can launch from the repo working directory without `WINMUX_DEFAULT_CONFIG_PATH`.
+- [x] Require a visible live window move, not only `list-zones`.
+- [x] Require a dry-run save proof and forbid a config hash change during the
+  run.
+- require `reviews/reviewer-citation-checklist.tsv` in the reviewer packet for
+  the Slice 38 run;
+- require three clean no-context pre-Tart reviewer reports before recording;
+- require a no-context artifact review after recording and before Slice 39 or
+  any later slice starts;
+- after the artifact review, run three no-context retrospectives and fold their
+  accepted findings into pre-Slice-39 cleanup.
+
+Expected caption chips:
+
+- `Config: ~/.config/winmux/winmux.toml`;
+- `Action: uncomment WINMUX ULTRAWIDE ZONES TEMPLATE`;
+- `Run: WinMuxApp`;
+- `Run: winmux config --config-path`;
+- `Run: winmux config --check ~/.config/winmux/winmux.toml`;
+- `Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'`;
+- `Run: winmux focus-zone Comms`;
+- `Action: open TextEdit readiness-move.rtf in Comms`;
+- `Run: winmux move-node-to-zone --focus-follows-window Work`;
+- `Run: winmux resize-zone Work width +10%`;
+- `Run: winmux save-zone-layout --dry-run`;
+- `Result: normal config path is ready for Reference | Work | Comms`.
+
+Non-claims:
+
+- Slice 38 does not prove a GUI setup flow;
+- Slice 38 does not prove every zone command;
+- Slice 38 does not replace the root `demo-columnar-zones.mp4`;
+- Slice 38 does not claim the feature is release-ready until its Tart artifact,
+  review lint, closeout, and three retrospectives pass.
+
+### Slice 39: Real Dogfood Install and Permissions
+
+Status: planned after Slice 38 closes.
+
+Goal: prove WinMux can be installed and launched through the normal dogfood path
+on a clean macOS desktop, with required privacy permissions accepted before the
+recorded proof begins.
+
+Required scope:
+
+- package or stage the app the same way a dogfood user would run it, rather than
+  relying on harness-only `.debug` launch assumptions;
+- prove Accessibility, Screen Recording, Automation, and any required helper
+  permissions are requested, granted, and recoverable through a documented
+  `doctor` or status surface;
+- launch WinMux from the packaged app path and show that it reads the normal
+  user config path;
+- reject recordings that show permission prompts, setup windows, sshd prompts,
+  or stale app windows after capture begins;
+- end with WinMux running, zones visible, and at least one live focus or move
+  command succeeding after relaunch.
+
+Required artifact: a fresh strict guest-captured Tart video with polished action
+captions, plus no-context artifact review, review lint, post-review verifier,
+closeout, and three retrospectives.
+
+Non-claims:
+
+- Slice 39 does not create the public beta package;
+- Slice 39 does not add a setup assistant;
+- Slice 39 does not prove every permission recovery path.
+
+### Slice 40: Zone Setup Assistant
+
+Status: planned.
+
+Goal: make first-time ultrawide setup possible without hand-editing the large
+starter TOML block.
+
+Required scope:
+
+- add a CLI-first setup flow such as `winmux zone init`;
+- detect physical monitor geometry and propose zone layouts that fit the active
+  ultrawide display;
+- support dry-run, backup, overwrite confirmation, and idempotent reruns;
+- offer a small preset set: balanced columns, focus-only, comms-open, and
+  dashboard;
+- write or update `~/.config/winmux/winmux.toml` without destroying unrelated
+  user config;
+- make generated config pass `winmux config --check` and show the resulting
+  zones through `winmux list-zones`.
+
+Required artifact: a fresh Tart video starting from no zone config, running the
+setup assistant, launching WinMux, and showing Reference, Work, and Comms.
+
+Non-claims:
+
+- Slice 40 does not require a GUI setup wizard;
+- Slice 40 does not tune every possible monitor size;
+- Slice 40 does not replace the default template.
+
+### Slice 41: Beta-Hardened App and Window Affinities
+
+Status: planned.
+
+Goal: make automatic routing to zones dependable enough for dogfood and early
+beta users.
+
+Required scope:
+
+- audit current `on-window-detected`, `ZoneBinding`, and runtime binding
+  behavior against the entity model;
+- support bundle id, app name, title regex, workspace, and zone targets with
+  clear precedence;
+- make failure and noop behavior explicit, including hidden or disabled zone
+  targets;
+- add reload and relaunch proof so Slack, Messages, Mail, browser, editor, and
+  terminal windows route consistently;
+- expose inspection output that explains why a window did or did not match a
+  rule.
+
+Required artifact: a fresh Tart video with multiple apps or representative test
+windows being routed into zones after launch and after config reload.
+
+Non-claims:
+
+- Slice 41 does not add ML or historical app placement;
+- Slice 41 does not require persistence for runtime tab-group bindings unless
+  the rule is expressed in config.
+
+### Slice 42: Zone Availability and Profile Workflows
+
+Status: planned.
+
+Goal: turn zone-level and whole-layout visibility into a clear daily workflow:
+for example, Comms available, Mail hidden, Focus Only, and Full Dashboard.
+
+Required scope:
+
+- consolidate `toggle-zone`, `use-zone-availability`,
+  `cycle-zone-availability`, and scene behavior into documented profile
+  patterns;
+- provide ergonomic commands or aliases for switching the focused monitor
+  between named availability profiles;
+- preserve parked workspaces and restore focus predictably when zones hide and
+  reappear;
+- show zone-level toggles and whole-layout profile toggles in one scenario;
+- make hidden-zone state visible in inspection output and demo captions.
+
+Required artifact: a fresh Tart video toggling one zone, switching a whole
+layout profile, restoring the hidden zone, and proving the parked workspace
+comes back.
+
+Non-claims:
+
+- Slice 42 does not replace scenes;
+- Slice 42 does not add a visual profile editor.
+
+### Slice 43: Mouse Gesture Configurability
+
+Status: planned.
+
+Goal: make mouse-driven zone snapping ergonomic and configurable, especially for
+one-handed workflows.
+
+Required scope:
+
+- expose the configured gesture trigger in user-facing config and inspection
+  output;
+- support freeform drag by default with snap only while the configured modifier,
+  button, or gesture is active;
+- prove that dragging in freeform mode leaves the window floating where the user
+  dropped it;
+- prove that the same drag with the configured gesture snaps to the intended
+  zone;
+- keep the gesture handler routed through the same command or move logic used by
+  keyboard workflows.
+
+Required artifact: a fresh Tart drag video with per-beat proof frames,
+captions, and manifest rows for freeform no-op and gesture-held snap.
+
+Non-claims:
+
+- Slice 43 does not introduce window-slot snap polish;
+- Slice 43 does not require every mouse device to expose the same extra buttons.
+
+### Slice 44: Drag Overlay and Snap Semantics Polish
+
+Status: planned.
+
+Goal: make drag affordances understandable from the video without reading logs:
+what is being dragged, what target will receive it, and whether the target is a
+whole zone or a position inside a zone.
+
+Required scope:
+
+- improve overlay labels, hover states, target previews, and cancel behavior;
+- make whole-zone targets visually distinct from window-slot targets;
+- tune threshold and release behavior so the final placement matches the visible
+  preview;
+- reject final-placement-only videos; the proof must show pickup, path, hover,
+  snap preview, release, and post-release state;
+- add verifier checks for target semantics, overlay frames, and distinct
+  in-drag screenshots.
+
+Required artifact: a fresh Tart drag video showing at least one whole-zone snap
+and one window-slot snap or explicit slot-noop, with reviewer-visible target
+semantics.
+
+Non-claims:
+
+- Slice 44 does not change the core layout model;
+- Slice 44 does not require animation polish beyond clear product affordances.
+
+### Slice 45: Multi-Monitor, Hotplug, and Sleep/Wake Hardening
+
+Status: planned.
+
+Goal: make zones survive realistic external-monitor use.
+
+Required scope:
+
+- handle ultrawide disconnect/reconnect, display id churn, resolution changes,
+  clamshell transitions, and laptop-plus-external layouts;
+- keep physical monitor identity separate from zone viewport identity;
+- prevent windows from being stranded offscreen when a zone or display
+  disappears;
+- restore zone layout and workspace assignment when the ultrawide returns;
+- add diagnostics that show the before and after monitor topology.
+
+Required artifact: a Tart or real-machine recording that simulates or performs a
+display topology change and proves windows remain recoverable. If Tart cannot
+exercise the hardware transition, the slice must pair a deterministic harness
+test with a real-machine video artifact and no-context review.
+
+Non-claims:
+
+- Slice 45 does not support arbitrary overlapping rectangle layouts;
+- Slice 45 does not promise identical display ids across macOS hardware events.
+
+### Slice 46: Persistence, Rollback, and Config Doctor
+
+Status: planned.
+
+Goal: make saving and repairing zone layouts safe enough for beta testers.
+
+Required scope:
+
+- promote dry-run save proof into a real save path with backups;
+- add restore or rollback behavior for failed writes and bad generated config;
+- add `winmux config doctor` or an equivalent command that checks zones, layout
+  sums, unknown references, hidden-zone parked workspaces, styles, scenes, and
+  affinity targets;
+- verify that relaunch uses the saved layout and that a bad save can be
+  recovered without deleting user config;
+- keep all persisted changes auditable in logs and captions.
+
+Required artifact: a fresh Tart video saving a runtime layout, relaunching into
+it, detecting a deliberately bad config, and restoring a known-good backup.
+
+Non-claims:
+
+- Slice 46 does not add cloud sync or profile sharing;
+- Slice 46 does not auto-save every drag unless explicitly configured.
+
+### Slice 47: Product UI and Zone Chrome Polish
+
+Status: planned.
+
+Goal: make current zone state readable in normal use without turning WinMux into
+a heavy dashboard.
+
+Required scope:
+
+- improve visible current-zone, disabled-zone, active-profile, and active-style
+  indicators;
+- keep sidebar and overlay styling aligned with existing WinMux demos and
+  screenshots;
+- ensure labels fit on mobile-size screenshots and ultrawide captures without
+  overlap or clipped text;
+- prove style cycling changes only chrome, not layout or workspace assignment;
+- keep the feature usable from commands and config even if visual chrome is
+  disabled.
+
+Required artifact: a fresh Tart video showing focused-zone changes, disabled
+zone state, a profile switch, and a style cycle in the same clean desktop.
+
+Non-claims:
+
+- Slice 47 does not build a full GUI editor;
+- Slice 47 does not add decorative product marketing screens.
+
+### Slice 48: Support Bundle and Diagnostics
+
+Status: planned.
+
+Goal: give dogfooders and beta testers a way to report zone bugs with enough
+evidence to debug them.
+
+Required scope:
+
+- add a support bundle command for zones, for example
+  `winmux doctor zones --support-bundle`;
+- collect redacted config, monitor topology, zone runtime overlay, active
+  workspaces, permission status, relevant logs, command failures, and recent
+  window-routing decisions;
+- redact local usernames, window titles when requested, paths outside the
+  config/log scope, and app-specific sensitive fields;
+- make the bundle inspectable and small enough to attach to an issue;
+- include verifier coverage for redaction and required fields.
+
+Required artifact: a fresh Tart video generating a bundle after a zone workflow,
+plus stored bundle contents and a no-context review that checks redaction and
+debug value.
+
+Non-claims:
+
+- Slice 48 does not upload diagnostics automatically;
+- Slice 48 does not collect private app contents.
+
+### Slice 49: Ultrawide Zones Documentation
+
+Status: planned.
+
+Goal: turn the accepted demos and command surface into docs a dogfood user can
+follow without reading this plan.
+
+Required scope:
+
+- rewrite the README quickstart around the shortest ultrawide-zones path;
+- add `docs/ultrawide-zones.md` covering install, permissions, setup,
+  starter config, keyboard commands, mouse gestures, profiles, app affinities,
+  persistence, troubleshooting, and disabling zones;
+- add sample configs for balanced, focus-only, comms-open, dashboard, and app
+  affinity setups;
+- link accepted Slice 36, 37, 38, and later demo artifacts by path and describe
+  what each proves;
+- include known limitations and a beta support-bundle section.
+
+Required artifact: a documentation-only slice artifact with the reviewed docs
+snapshot, snapshot hash, referenced accepted media, verifier commands, and a
+no-context docs/product review. Reuse already accepted Tart-derived media unless
+the docs introduce a new workflow that lacks video proof.
+
+Non-claims:
+
+- Slice 49 does not create new product behavior;
+- Slice 49 does not replace the plan as the implementation source of truth.
+
+### Slice 50: Beta Packaging and Release Candidate
+
+Status: planned.
+
+Goal: produce a reproducible beta package that installs and launches outside the
+development harness.
+
+Required scope:
+
+- build the app and CLI from a clean checkout with version metadata;
+- package the app, CLI, default config resources, docs links, and any required
+  helper files;
+- sign and notarize if the repo's current release path supports it; otherwise
+  document the unsigned beta install path and the exact macOS warnings testers
+  will see;
+- verify a downloaded or copied package on a clean guest uses the normal config
+  path and passes the Slice 39 permission/status checks;
+- write release notes that name supported workflows and known limitations.
+
+Required artifact: a packaging-slice artifact with source provenance, package
+hashes, install proof, launch proof, media samples, and no-context review. If
+the package reuses an accepted Tart recording for product behavior, the artifact
+must still verify package provenance and media hashes.
+
+Non-claims:
+
+- Slice 50 does not imply App Store readiness;
+- Slice 50 does not start external beta until Slice 51 passes.
+
+### Slice 51: Beta Acceptance and Dogfood Soak
+
+Status: planned.
+
+Goal: decide whether this fork is ready for daily dogfood and a small beta.
+
+Required scope:
+
+- run one clean acceptance path from fresh install through permissions, setup,
+  normal launch, app/window routing, keyboard movement, mouse snapping, profile
+  toggle, save, relaunch, support-bundle generation, and uninstall or disable;
+- run the same path against the beta package, not a local debug binary;
+- dogfood on the actual ultrawide for several working days and log blockers as
+  issues or plan follow-ups;
+- classify remaining work as dogfood blocker, beta blocker, known limitation, or
+  later enhancement;
+- update README, docs, release notes, and this plan with the accepted beta
+  status.
+
+Required artifact: a beta-readiness artifact with a fresh acceptance recording
+or a reviewed set of recordings, support bundle, package hashes, dogfood notes,
+issue links or local issue records, no-context artifact review, review lint,
+post-review verifier, closeout, and retrospectives.
+
+Non-claims:
+
+- Slice 51 does not mean broad public release;
+- Slice 51 does not accept untriaged crashes, permission failures, or config
+  corruption as known limitations.
 
 ## Call-Site Audit
 
@@ -7208,3 +7783,9 @@ Do not let the implementing agent self-certify artifacts. The no-context review 
 6. Sidebar shows zones without per-zone inset bugs and has a Tart video plus no-context artifact review.
 7. A root-level demo video shows the columnar zone workflow end to end and passes no-context artifact review against the repo/product baselines.
 8. Scenes and visual editing are designed on top of the stable model, with per-slice videos and no-context artifact reviews if they are split out.
+9. Normal-user readiness proves the default config path and live commands without harness-only launch arguments.
+10. Dogfood install and permissions prove a packaged app can launch cleanly on a fresh desktop.
+11. Setup assistant, affinity routing, profiles, mouse gestures, drag overlays, hotplug handling, persistence, UI polish, and diagnostics are beta-hardened through Slices 40-48.
+12. Documentation and sample configs are reviewed as their own artifact-producing slice.
+13. A reproducible beta package is built, installed, launched, and reviewed with stored provenance.
+14. Beta acceptance covers fresh install through support-bundle generation and records dogfood blockers before external testers use the fork.
