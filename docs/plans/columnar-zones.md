@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-45 accepted; Slice 46 implementation/pre-Tart validation in progress; Slices 47-51 planned
+Status: slices 0-46 accepted; Slices 47-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -8647,8 +8647,7 @@ Pre-Slice-46 cleanup from Slice 45 retrospectives:
 
 ### Slice 46: Persistence, Rollback, and Config Doctor
 
-Status: implementation and local pre-Tart validation complete; Tart recording,
-no-context artifact review, retrospectives, and closeout still pending.
+Status: accepted via `artifacts/e2e/slice-46-pre-tart-20260702T045535Z`.
 
 Goal: make saving and repairing zone layouts safe enough for beta testers.
 
@@ -8697,6 +8696,61 @@ Local validation passed:
 - `./script/e2e/tart-recording-harness annotation-preflight`;
 - `WINMUX_E2E_ALLOW_INTERNAL_DISK=1 make e2e-pre-tart-checks`.
 
+Accepted Slice 46 result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-46-pre-tart-20260702T045535Z`;
+- recording:
+  `recordings/slice-46-persistence-rollback-doctor.mov`;
+- raw recording:
+  `recordings/raw/slice-46-persistence-rollback-doctor.raw.mov`;
+- media metadata from verifier: H.264, 3440x1440, 119.883333s, 5241 frames;
+- contact sheet:
+  `screenshots/slice-46-persistence-rollback-doctor.contact-sheet.jpg`;
+- event contact sheet:
+  `screenshots/slice-46-persistence-rollback-doctor.event-contact-sheet.jpg`;
+- pre-Tart gate:
+  `logs/pre-tart-checks.log`,
+  `reviews/pre-tart/process-plan.md`,
+  `reviews/pre-tart/code-harness.md`,
+  `reviews/pre-tart/artifact-product.md`, accepted by
+  `script/e2e/check-pre-tart-review-gate`;
+- accepted no-context artifact review:
+  `reviews/no-ctx-artifact-review.md`;
+- review lint:
+  `logs/review-lint.log`;
+- post-review verifier:
+  `logs/post-review-verify.log`;
+- closeout check:
+  `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`,
+  `retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- `winmux save-zone-layout` persists the resized 20/60/20 zone layout;
+- relaunch loads the saved layout after the app is stopped and started;
+- `winmux doctor` reports a deliberately bad config with
+  `Column widths must sum to 1.0`;
+- `winmux config --restore-backup <path>` validates a known-good backup,
+  preserves the bad file as a rollback copy, and restores the saved layout;
+- the final relaunch loads the restored 20/60/20 layout with Reference, Work,
+  and Comms windows still anchored to their zones;
+- the recording has no post-recording guest retry, and sibling Slice 46 media
+  artifacts are either accepted or marked superseded.
+
+Superseded Slice 46 attempts:
+
+- `artifacts/e2e/slice-46-pre-tart-20260702T040018Z` is superseded by the
+  accepted run. Its no-context artifact review failed because restore/final
+  frames still showed stale bad-config TextEdit proof.
+- `artifacts/e2e/slice-46-pre-tart-20260702T044607Z` is superseded by the
+  accepted run. Its recorded guest run failed after mutation when Apple
+  Events/TCC denied the TextEdit board assertion; the accepted run replaces that
+  with CLI-backed phase-specific proof-board validation.
+
 Non-claims:
 
 - Slice 46 does not add cloud sync or profile sharing;
@@ -8723,6 +8777,25 @@ Required scope:
 
 Required artifact: a fresh Tart video showing focused-zone changes, disabled
 zone state, a profile switch, and a style cycle in the same clean desktop.
+
+Pre-slice cleanup:
+
+- [x] Commit the accepted Slice 46 source, harness, artifact metadata, and plan
+  closeout boundary before starting Slice 47 code or harness work.
+- [ ] Before the first Slice 47 Tart run, write a checked Slice 47 artifact
+  contract that names the exact beats: focused-zone indicator, disabled-zone
+  state, active-profile switch, active-style cycle, and final audit.
+- [ ] Require Slice 47 event/sample rows and reviewer-packet checks for
+  before/action/after visual chrome, including caption-boundary frames before
+  each chrome change.
+- [ ] Add verifier checks that chrome changes do not move windows, change
+  layout widths, or change workspace assignment unless the beat explicitly
+  claims a profile or availability change.
+- [ ] Add visual stale-state checks: final screenshots must not show the
+  previous profile/style indicator, hidden zones must be visually distinct from
+  focused/current zones, and labels must fit without clipping or overlap.
+- [ ] Register Slice 47 in the pre-Tart review gate and make target before the
+  first product recording.
 
 Non-claims:
 

@@ -1,0 +1,86 @@
+# kind	id	required-artifact	expected
+event	original-layout	screenshots/02-original-layout-slice-46.png	original 25/50/25 layout with Reference, Work, Comms windows visible
+event	saved-layout	screenshots/03-saved-layout-slice-46.png	save-zone-layout writes 20/60/20 runtime widths and records backup
+event	relaunch-saved-layout	screenshots/04-relaunch-saved-layout-slice-46.png	fresh WinMux relaunch reads saved 20/60/20 layout without another resize
+event	bad-config-doctor	screenshots/05-bad-config-doctor-slice-46.png	bad generated config is visible and doctor reports config status ERROR
+event	restore-backup	screenshots/06-restore-backup-slice-46.png	config --restore-backup restores the saved-good backup and creates rollback copy of bad config
+event	final-restored-layout	screenshots/07-final-restored-layout-slice-46.png	final relaunch reads restored saved layout and no config was deleted
+proof	command:save	logs/slice-46-save-zone-layout.log	exact winmux save-zone-layout command and backup path
+proof	command:doctor	logs/slice-46-doctor-bad-config.log	exact winmux doctor command with Config doctor status ERROR
+proof	command:restore	logs/slice-46-restore-backup.log	exact winmux config --restore-backup command with Restored config OK
+proof	safety:save-backup-matches-original	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	save backup sha equals original config sha
+proof	safety:bad-config-not-deleted	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	rollback backup sha equals bad config sha
+proof	relaunch:saved-layout-loaded	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	saved layout survives relaunch as configured 20/60/20 widths
+proof	relaunch:saved-stopped	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	WinMux stopped before saved-layout relaunch
+proof	relaunch:saved-launched	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	WinMux launched before saved-layout inspection
+proof	restore:restored-layout-loaded	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	restored saved layout survives final relaunch
+proof	restore:restored-stopped	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	WinMux stopped before restored-layout relaunch
+proof	restore:restored-launched	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	WinMux launched before restored-layout inspection
+proof	doctor:zone-references-checked	logs/slice-46-persistence-rollback-doctor.proof-manifest.tsv	doctor success/failure reports parser-backed zone checks
+artifact	relaunch-log	logs/slice-46-relaunch.log	relaunch log must prove stop/start boundaries
+artifact	bad-config-board	logs/slice-46-bad-config-board-source.txt	visible bad-config board source includes real doctor output and bad TOML
+artifact	restore-board	logs/slice-46-restore-board-source.txt	visible restore board source includes real restore and doctor output
+artifact	final-board	logs/slice-46-final-board-source.txt	visible final board source includes restored layout result
+artifact	windows-after-save	logs/slice-46-windows-after-save.log	Reference Work Comms anchors remain in zones after save
+artifact	windows-relaunch-saved	logs/slice-46-windows-relaunch-saved.log	Reference Work Comms anchors remain in zones after saved relaunch
+artifact	windows-bad-config	logs/slice-46-windows-bad-config.log	Reference Work Comms anchors remain in zones during bad-config doctor
+artifact	windows-after-restore	logs/slice-46-windows-after-restore.log	Reference Work Comms anchors remain in zones after restore
+artifact	windows-final-restored	logs/slice-46-windows-final-restored.log	Reference Work Comms anchors remain in zones at final restored result
+artifact	expected-chips	logs/slice-46-persistence-rollback-doctor.expected-chips.txt	expected caption chips are derived from annotation TSV
+retry	no-post-recording-retry	logs/guest-script-retry-summary.tsv	no guest action retries after recording starts; discard and rerun instead
+source-check	caption:config	script/e2e/tart-recording-harness	Config: [[zone-layouts]] balanced = 25 | 50 | 25
+source-check	caption:list-zones	script/e2e/tart-recording-harness	Run: winmux list-zones --format zone|configured|effective
+source-check	caption:resize	script/e2e/tart-recording-harness	Run: winmux resize-zone Work width +10%
+source-check	caption:save	script/e2e/tart-recording-harness	Run: winmux save-zone-layout
+source-check	caption:relaunch	script/e2e/tart-recording-harness	Action: relaunch WinMux
+source-check	caption:doctor	script/e2e/tart-recording-harness	Run: winmux doctor
+source-check	caption:doctor-result	script/e2e/tart-recording-harness	Result: Config doctor reports ERROR
+source-check	caption:restore	script/e2e/tart-recording-harness	Run: winmux config --restore-backup slice-46-good-saved-backup.toml
+source-check	caption:restore-result	script/e2e/tart-recording-harness	Result: Restored config OK
+source-check	caption:final-widths	script/e2e/tart-recording-harness	Result: Reference 20% | Work 60% | Comms 20%
+source-check	caption:no-retry	script/e2e/tart-recording-harness	Result: no post-recording guest retries
+source-check	harness:event-manifest	script/e2e/tart-recording-harness	write_slice_46_event_manifest
+source-check	harness:no-recording-retry	script/e2e/tart-recording-harness	require_no_post_recording_guest_retry_failures
+source-check	harness:single-recorded-attempt	script/e2e/tart-recording-harness	max_attempts=1
+source-check	guest:relaunch-log	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	slice-46-relaunch.log
+source-check	guest:bad-config-board	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	slice-46-bad-config-board-source.txt
+source-check	guest:restore-board	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	slice-46-restore-board-source.txt
+source-check	guest:board-window-reload	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	close_existing_audit_board
+source-check	guest:visible-board-assert	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	assert_visible_audit_board
+source-check	guest:anchor-assert	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	assert_anchor_windows_in_expected_zones
+source-check	guest:semantic-stop-fail	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	CLI still responded after bootout
+source-check	guest:saved-stopped	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	saved-stopped
+source-check	guest:restored-stopped	script/e2e/guest/slice-46-persistence-rollback-doctor.sh	restored-stopped
+source-check	verifier:proof	script/e2e/verify-artifact	require_slice_46_persistence_rollback_doctor_proof
+source-check	verifier:expected-chips	script/e2e/verify-artifact	require_expected_caption_chips_exact
+source-check	verifier:event-manifest	script/e2e/verify-artifact	require_slice_46_event_manifest
+source-check	verifier:no-retry	script/e2e/verify-artifact	require_no_slice_46_post_recording_retries
+source-check	verifier:relaunch-log	script/e2e/verify-artifact	slice-46-relaunch.log
+source-check	verifier:saved-stopped	script/e2e/verify-artifact	saved-stopped=yes
+source-check	verifier:saved-launched	script/e2e/verify-artifact	saved-launched=yes
+source-check	verifier:restored-stopped	script/e2e/verify-artifact	restored-stopped=yes
+source-check	verifier:restored-launched	script/e2e/verify-artifact	restored-launched=yes
+source-check	verifier:bad-config-board	script/e2e/verify-artifact	slice-46-bad-config-board-source.txt
+source-check	verifier:restore-board	script/e2e/verify-artifact	slice-46-restore-board-source.txt
+source-check	verifier:anchor-reference	script/e2e/verify-artifact	slice46-reference.rtf|zone=left
+source-check	verifier:anchor-work	script/e2e/verify-artifact	slice46-work.rtf|zone=main
+source-check	verifier:anchor-comms	script/e2e/verify-artifact	slice46-comms.rtf|zone=right
+source-check	verifier:bad-config	script/e2e/verify-artifact	Column widths must sum to 1.0
+source-check	verifier:final-widths	script/e2e/verify-artifact	Reference 20% | Work 60% | Comms 20%
+source-check	reviewer:caption-config	script/e2e/write-review-packet	Config: [[zone-layouts]] balanced = 25 | 50 | 25
+source-check	reviewer:caption-save	script/e2e/write-review-packet	Run: winmux save-zone-layout
+source-check	reviewer:caption-relaunch	script/e2e/write-review-packet	Action: relaunch WinMux
+source-check	reviewer:caption-doctor	script/e2e/write-review-packet	Run: winmux doctor
+source-check	reviewer:caption-restore	script/e2e/write-review-packet	Run: winmux config --restore-backup slice-46-good-saved-backup.toml
+source-check	reviewer:relaunch-log	script/e2e/write-review-packet	logs/slice-46-relaunch.log
+source-check	reviewer:bad-config-board	script/e2e/write-review-packet	logs/slice-46-bad-config-board-source.txt
+source-check	reviewer:restore-board	script/e2e/write-review-packet	logs/slice-46-restore-board-source.txt
+source-check	reviewer:stale-board-reject	script/e2e/write-review-packet	Reject stale TextEdit proof
+source-check	reviewer:phase-board-titles	script/e2e/write-review-packet	slice46-proof-final-restored-layout.rtf
+source-check	verifier:stale-board-review-lint	script/e2e/verify-artifact	must not still show Slice 46 bad config doctor
+source-check	reviewer:anchor-logs	script/e2e/write-review-packet	logs/slice-46-windows-final-restored.log
+source-check	reviewer:saved-stopped	script/e2e/write-review-packet	saved-stopped=yes
+source-check	reviewer:saved-launched	script/e2e/write-review-packet	saved-launched=yes
+source-check	reviewer:restored-stopped	script/e2e/write-review-packet	restored-stopped=yes
+source-check	reviewer:restored-launched	script/e2e/write-review-packet	restored-launched=yes
+source-check	reviewer:no-retry	script/e2e/write-review-packet	Result: no post-recording guest retries

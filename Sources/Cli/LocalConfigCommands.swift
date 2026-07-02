@@ -37,8 +37,14 @@ func runPreServerLocalCommandIfAvailable(_ parsedArgs: any CmdArgs) -> LocalCliR
 @MainActor
 func runServerUnavailableLocalFallbackIfAvailable(_ parsedArgs: any CmdArgs) -> LocalCliResult? {
     guard let args = parsedArgs as? ConfigCmdArgs else { return nil }
-    guard case .check(let path) = args.mode else { return nil }
-    return runLocalConfigCheck(path: path)
+    switch args.mode {
+        case .check(let path):
+            return runLocalConfigCheck(path: path)
+        case .restoreBackup(let path):
+            return runLocalConfigRestoreBackup(path: path)
+        default:
+            return nil
+    }
 }
 
 @MainActor
@@ -140,6 +146,20 @@ private func runLocalConfigCheck(path: String) -> LocalCliResult {
         }
     } catch {
         return .err("Can't check config file '\(path)': \(error.localizedDescription)")
+    }
+}
+
+@MainActor
+private func runLocalConfigRestoreBackup(path: String) -> LocalCliResult {
+    switch restoreConfigFromBackup(
+        targetUrl: localGeneratedConfigUrl(),
+        backupUrl: URL(filePath: path),
+        validateConfig: validateConfigWithAppParser,
+    ) {
+        case .success(let result):
+            return .out(renderConfigRestoreBackupOutput(result))
+        case .failure(let message):
+            return .err(message)
     }
 }
 

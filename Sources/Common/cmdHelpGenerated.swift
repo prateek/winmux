@@ -26,6 +26,7 @@ let config_help_generated = """
        OR: config [-h|--help] --all-keys
        OR: config [-h|--help] --config-path
        OR: config [-h|--help] --check <path>
+       OR: config [-h|--help] --restore-backup <path>
     """
 let cycle_zone_availability_help_generated = """
     USAGE: cycle-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>...

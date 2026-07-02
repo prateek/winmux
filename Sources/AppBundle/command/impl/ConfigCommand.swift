@@ -26,6 +26,8 @@ struct ConfigCommand: Command {
                 return io.out(configUrl.absoluteURL.path)
             case .check(let path):
                 return checkConfig(path: path, io: io)
+            case .restoreBackup(let path):
+                return restoreBackup(path: path, io: io)
         }
     }
 }
@@ -43,6 +45,19 @@ struct ConfigCommand: Command {
         return io.err(errors.map(\.description).joined(separator: "\n"))
     }
     return io.out("Config OK: \(url.path)")
+}
+
+@MainActor private func restoreBackup(path: String, io: CmdIo) -> Bool {
+    switch restoreConfigFromBackup(
+        targetUrl: configUrl,
+        backupUrl: URL(filePath: path),
+        validateConfig: validateConfigWithAppParser,
+    ) {
+        case .success(let result):
+            return io.out(renderConfigRestoreBackupOutput(result))
+        case .failure(let message):
+            return io.err(message)
+    }
 }
 
 extension String {

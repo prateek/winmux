@@ -12,6 +12,7 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
             "--config-path": trueBoolFlag(\.configPath),
             "--check": singleValueSubArgParser(\.configPathToCheck, "<path>") { $0 },
             "--get": singleValueSubArgParser(\.keyNameToGet, "<name>") { $0 },
+            "--restore-backup": singleValueSubArgParser(\.backupPathToRestore, "<path>") { $0 },
         ],
         posArgs: [],
     )
@@ -23,6 +24,7 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
     public var configPath: Bool = false
     public var configPathToCheck: String? = nil
     public var keyNameToGet: String? = nil
+    public var backupPathToRestore: String? = nil
 
     public init(
         commonState: CmdArgsCommonState,
@@ -33,6 +35,7 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
         configPath: Bool = false,
         configPathToCheck: String? = nil,
         keyNameToGet: String? = nil,
+        backupPathToRestore: String? = nil,
     ) {
         self.commonState = commonState
         self.json = json
@@ -42,12 +45,13 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
         self.configPath = configPath
         self.configPathToCheck = configPathToCheck
         self.keyNameToGet = keyNameToGet
+        self.backupPathToRestore = backupPathToRestore
     }
 }
 
 extension ConfigCmdArgs {
     public enum Mode {
-        case getKey(key: String), majorKeys, allKeys, configPath, check(path: String)
+        case getKey(key: String), majorKeys, allKeys, configPath, check(path: String), restoreBackup(path: String)
     }
 
     public var mode: Mode {
@@ -56,6 +60,7 @@ extension ConfigCmdArgs {
         if allKeys { return .allKeys }
         if configPath { return .configPath }
         if let configPathToCheck { return .check(path: configPathToCheck) }
+        if let backupPathToRestore { return .restoreBackup(path: backupPathToRestore) }
         die("At least one mode must be specified")
     }
 }
@@ -69,9 +74,10 @@ func parseConfigCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ConfigCmdArgs> {
             if raw.allKeys { conflicting.insert("--all-keys") }
             if raw.configPath { conflicting.insert("--config-path") }
             if raw.configPathToCheck != nil { conflicting.insert("--check") }
+            if raw.backupPathToRestore != nil { conflicting.insert("--restore-backup") }
             return switch conflicting.count {
                 case 1: .cmd(raw)
-                case 0: .failure("Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path|--check)")
+                case 0: .failure("Mandatory flag is not specified (--get|--major-keys|--all-keys|--config-path|--check|--restore-backup)")
                 default: .failure("Conflicting flags are specified: \(conflicting.joined(separator: ", "))")
             }
         }

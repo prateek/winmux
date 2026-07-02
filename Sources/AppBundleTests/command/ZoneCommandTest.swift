@@ -66,6 +66,10 @@ final class ZoneCommandTest: XCTestCase {
             ConfigCmdArgs(commonState: .init([])).copy(\.configPathToCheck, "/tmp/winmux-exported-zone-layout.toml"),
         )
         testParseCommandSucc(
+            "config --restore-backup /tmp/winmux.toml.backup-20260702T010203Z",
+            ConfigCmdArgs(commonState: .init([])).copy(\.backupPathToRestore, "/tmp/winmux.toml.backup-20260702T010203Z"),
+        )
+        testParseCommandSucc(
             "cycle-zone-layout balanced focus",
             CycleZoneLayoutCmdArgs(layoutIds: ["balanced", "focus"]),
         )
@@ -917,6 +921,60 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertTrue(save.stderr.joined(separator: "\n").contains("missing active runtime zone ids: right"))
             XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
             XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+        }
+    }
+
+    func testConfigRestoreBackupRestoresValidBackupAndBacksUpBadCurrentConfig() async throws {
+        let badCurrentText = """
+            [[zones]]
+                monitor = 1
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 0.2 },
+                ]
+            """
+        let restoredText = zoneLayoutPresetConfigText()
+
+        try await withTemporaryConfig(badCurrentText) { url in
+            let backup = url.deletingLastPathComponent().appending(component: "winmux.toml.backup-good")
+            try restoredText.write(to: backup, atomically: true, encoding: .utf8)
+
+            let result = try await parseCommand("config --restore-backup \(backup.path)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            XCTAssertEqual(result.stdout[0], "Restored config from backup: \(backup.path)")
+            XCTAssertEqual(result.stdout[1], "Config path: \(url.path)")
+            XCTAssertTrue(result.stdout.contains { $0.hasPrefix("Previous config backup: \(url.path).rollback-") })
+            XCTAssertEqual(result.stdout.last, "Restored config OK")
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), restoredText)
+
+            let rollbacks = try configRestoreRollbackUrls(for: url)
+            XCTAssertEqual(rollbacks.count, 1)
+            XCTAssertEqual(try String(contentsOf: rollbacks.singleOrNil().orDie(), encoding: .utf8), badCurrentText)
+        }
+    }
+
+    func testConfigRestoreBackupRejectsInvalidBackupWithoutMutation() async throws {
+        let originalText = zoneLayoutPresetConfigText()
+
+        try await withTemporaryConfig(originalText) { url in
+            let backup = url.deletingLastPathComponent().appending(component: "bad-backup.toml")
+            try """
+                [[zone-layouts]]
+                    id = 'bad'
+                    layout = 'columns'
+                    columns = [
+                        { id = 'main', width = 0.2 },
+                    ]
+                """.write(to: backup, atomically: true, encoding: .utf8)
+
+            let result = try await parseCommand("config --restore-backup \(backup.path)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 1)
+            XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Backup config is not valid; refusing to restore"))
+            XCTAssertTrue(result.stderr.joined(separator: "\n").contains("zone-layouts[0].columns: Column widths must sum to 1.0"))
+            XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
+            XCTAssertEqual(try configRestoreRollbackUrls(for: url), [])
         }
     }
 
@@ -2946,6 +3004,17 @@ private func withTemporaryConfig(_ text: String, _ body: (URL) async throws -> V
 private func zoneLayoutBackupUrls(for url: URL) throws -> [URL] {
     let directory = url.deletingLastPathComponent()
     let prefix = "\(url.lastPathComponent).backup-"
+    return try FileManager.default.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: nil,
+    )
+    .filter { $0.lastPathComponent.hasPrefix(prefix) }
+    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+}
+
+private func configRestoreRollbackUrls(for url: URL) throws -> [URL] {
+    let directory = url.deletingLastPathComponent()
+    let prefix = "\(url.lastPathComponent).rollback-"
     return try FileManager.default.contentsOfDirectory(
         at: directory,
         includingPropertiesForKeys: nil,

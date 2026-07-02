@@ -331,6 +331,106 @@ extension ConfigTest {
         )
     }
 
+    func testRenderConfigDoctorLinesForValidZonesConfig() {
+        let lines = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: """
+            [[zone-styles]]
+                id = 'urgent'
+                color = '#D3455B'
+
+            [[zone-layouts]]
+                id = 'balanced'
+                layout = 'columns'
+                columns = [
+                    { id = 'left', width = 0.25 },
+                    { id = 'main', width = 0.50 },
+                    { id = 'right', width = 0.25 },
+                ]
+
+            [[zone-scenes]]
+                id = 'triage'
+                layout-preset = 'balanced'
+                workspaces = [
+                    { zone = 'left', workspace = 'Reference' },
+                ]
+
+            [[zone-bindings]]
+                zone = 'right'
+                workspace = 'Comms'
+
+            [[zone-availability-sets]]
+                id = 'focus-only'
+                enabled-zones = ['main']
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'balanced'
+            """,
+            runtimeOverlays: [:],
+        )
+
+        XCTAssertEqual(lines, [
+            "Config doctor:",
+            "  config path: /tmp/winmux.toml",
+            "  config status: OK",
+            "  zones: inline=1 inline-columns=0 layouts=1 layout-columns=3 styles=1 scenes=1 bindings=1 affinities=0 availability-sets=1",
+            "  zone layout sums: OK",
+            "  zone references: OK",
+            "  runtime overlays: none",
+        ])
+    }
+
+    func testRenderConfigDoctorLinesForInvalidZonesConfig() {
+        let lines = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: """
+            [[zone-layouts]]
+                id = 'bad'
+                layout = 'columns'
+                columns = [
+                    { id = 'main', width = 0.2 },
+                ]
+            """,
+            runtimeOverlays: [:],
+        )
+
+        XCTAssertEqual(lines.prefix(4), [
+            "Config doctor:",
+            "  config path: /tmp/winmux.toml",
+            "  config status: ERROR",
+            "  parse errors:",
+        ])
+        XCTAssertTrue(lines.contains("    zone-layouts[0].columns: Column widths must sum to 1.0"))
+    }
+
+    func testRenderConfigDoctorLinesIncludesRuntimeOverlayState() {
+        var overlay = ZoneRuntimeOverlay()
+        overlay.activeLayoutId = "balanced"
+        overlay.activeSceneId = "triage"
+        overlay.activeAvailabilitySetId = "focus-only"
+        overlay.zoneSnapPolicyOverride = .snapToZone
+        overlay.disabledZoneIds = ["right", "left"]
+        overlay.parkedWorkspaceByZoneId = ["right": WorkspaceId("workspace-right")]
+        overlay.widthOverridesByLayoutIdentity = ["balanced": ["main": 0.7, "left": 0.3]]
+        overlay.styleOverridesByZoneId = ["right": "urgent"]
+        overlay.currentToggleRestoreZoneId = "right"
+
+        let lines = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: "",
+            runtimeOverlays: ["physical:0,0": overlay],
+        )
+
+        XCTAssertTrue(lines.contains("  runtime overlays:"))
+        XCTAssertTrue(lines.contains("    physical:0,0: active-layout=balanced active-scene=triage active-availability=focus-only snap-policy=snap-to-zone"))
+        XCTAssertTrue(lines.contains("      disabled=left,right"))
+        XCTAssertTrue(lines.contains("      parked=right:workspace-right"))
+        XCTAssertTrue(lines.contains("      width-overrides=balanced[left=0.3000,main=0.7000]"))
+        XCTAssertTrue(lines.contains("      styles=right:urgent"))
+        XCTAssertTrue(lines.contains("      toggle-restore-zone=right"))
+    }
+
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """

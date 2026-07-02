@@ -15,6 +15,25 @@ struct DoctorCommand: Command {
         io.out("  config path: \(configUrl.absoluteURL.path)")
         io.out("")
 
+        let configText: String?
+        let configReadError: String?
+        do {
+            configText = try String(contentsOf: configUrl, encoding: .utf8)
+            configReadError = nil
+        } catch {
+            configText = nil
+            configReadError = error.localizedDescription
+        }
+        for line in renderConfigDoctorLines(
+            configPath: configUrl.absoluteURL.path,
+            configText: configText,
+            readError: configReadError,
+            runtimeOverlays: zoneRuntimeOverlaysSnapshot(),
+        ) {
+            io.out(line)
+        }
+        io.out("")
+
         io.out("Permissions:")
         io.out("  accessibility: \(permissionStatus(AXIsProcessTrusted(), missing: "MISSING (required)"))")
         io.out("  screen recording: \(permissionStatus(CGPreflightScreenCaptureAccess(), missing: "missing (tab previews / radius estimation degraded)"))")

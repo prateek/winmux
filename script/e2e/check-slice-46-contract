@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CONTRACT="${1:-${SCRIPT_DIR}/specs/slice-46-persistence-rollback-doctor.tsv}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+die() {
+    printf '[winmux-e2e] Slice 46 contract error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_row() {
+    local kind="$1"
+    local id="$2"
+    /usr/bin/awk -F'\t' -v kind="$kind" -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == kind && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing ${kind}/${id}"
+}
+
+require_artifact_path() {
+    local path="$1"
+    /usr/bin/awk -F'\t' -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $3 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing artifact path ${path}"
+}
+
+require_source_check() {
+    local id="$1"
+    /usr/bin/awk -F'\t' -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == "source-check" && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing source-check/${id}"
+}
+
+validate_source_checks() {
+    while IFS=$'\t' read -r kind id source_path expected extra; do
+        [ "${kind:-}" = "source-check" ] || continue
+        [ -z "${extra:-}" ] || die "source-check/${id} has too many TSV fields"
+        [ -n "${id:-}" ] || die "source-check row missing id"
+        [ -n "${source_path:-}" ] || die "source-check/${id} missing source path"
+        [ -n "${expected:-}" ] || die "source-check/${id} missing expected text"
+
+        local source_file
+        case "$source_path" in
+            /*) source_file="$source_path" ;;
+            *) source_file="${REPO_ROOT}/${source_path}" ;;
+        esac
+        [ -s "$source_file" ] || die "source-check/${id} missing source file: ${source_path}"
+        /usr/bin/grep -F -- "$expected" "$source_file" >/dev/null \
+            || die "source-check/${id} did not find expected text in ${source_path}: ${expected}"
+    done <"$CONTRACT"
+}
+
+[ -s "$CONTRACT" ] || die "missing contract file: $CONTRACT"
+
+for id in \
+    original-layout \
+    saved-layout \
+    relaunch-saved-layout \
+    bad-config-doctor \
+    restore-backup \
+    final-restored-layout; do
+    require_row event "$id"
+done
+
+for id in \
+    command:save \
+    command:doctor \
+    command:restore \
+    safety:save-backup-matches-original \
+    safety:bad-config-not-deleted \
+    relaunch:saved-layout-loaded \
+    relaunch:saved-stopped \
+    relaunch:saved-launched \
+    restore:restored-layout-loaded \
+    restore:restored-stopped \
+    restore:restored-launched \
+    doctor:zone-references-checked; do
+    require_row proof "$id"
+done
+
+require_row retry no-post-recording-retry
+require_row artifact relaunch-log
+require_row artifact bad-config-board
+require_row artifact restore-board
+require_row artifact final-board
+require_row artifact windows-after-save
+require_row artifact windows-relaunch-saved
+require_row artifact windows-bad-config
+require_row artifact windows-after-restore
+require_row artifact windows-final-restored
+require_row artifact expected-chips
+require_artifact_path screenshots/05-bad-config-doctor-slice-46.png
+require_artifact_path logs/slice-46-restore-backup.log
+require_artifact_path logs/slice-46-relaunch.log
+require_artifact_path logs/guest-script-retry-summary.tsv
+
+for id in \
+    caption:config \
+    caption:list-zones \
+    caption:resize \
+    caption:save \
+    caption:relaunch \
+    caption:doctor \
+    caption:doctor-result \
+    caption:restore \
+    caption:restore-result \
+    caption:final-widths \
+    caption:no-retry \
+    harness:event-manifest \
+    harness:no-recording-retry \
+    harness:single-recorded-attempt \
+    guest:relaunch-log \
+    guest:bad-config-board \
+    guest:restore-board \
+    guest:board-window-reload \
+    guest:visible-board-assert \
+    guest:anchor-assert \
+    guest:semantic-stop-fail \
+    guest:saved-stopped \
+    guest:restored-stopped \
+    verifier:proof \
+    verifier:expected-chips \
+    verifier:event-manifest \
+    verifier:no-retry \
+    verifier:relaunch-log \
+    verifier:saved-stopped \
+    verifier:saved-launched \
+    verifier:restored-stopped \
+    verifier:restored-launched \
+    verifier:bad-config-board \
+    verifier:restore-board \
+    verifier:anchor-reference \
+    verifier:anchor-work \
+    verifier:anchor-comms \
+    verifier:bad-config \
+    verifier:final-widths \
+    reviewer:caption-config \
+    reviewer:caption-save \
+    reviewer:caption-relaunch \
+    reviewer:caption-doctor \
+    reviewer:caption-restore \
+    reviewer:relaunch-log \
+    reviewer:bad-config-board \
+    reviewer:restore-board \
+    reviewer:stale-board-reject \
+    reviewer:phase-board-titles \
+    verifier:stale-board-review-lint \
+    reviewer:anchor-logs \
+    reviewer:saved-stopped \
+    reviewer:saved-launched \
+    reviewer:restored-stopped \
+    reviewer:restored-launched \
+    reviewer:no-retry; do
+    require_source_check "$id"
+done
+
+validate_source_checks
+
+printf 'result=success\n'

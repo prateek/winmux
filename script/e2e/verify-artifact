@@ -3747,6 +3747,34 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 45 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-46-persistence-rollback-doctor" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-46-setup.log" \
+            "${LOGS_DIR}/slice-46-save-zone-layout.log" \
+            "${LOGS_DIR}/slice-46-doctor-bad-config.log" \
+            "${LOGS_DIR}/slice-46-restore-backup.log" \
+            "${LOGS_DIR}/slice-46-doctor-restored-config.log" \
+            "${LOGS_DIR}/slice-46-config-check-bad.log" \
+            "${LOGS_DIR}/slice-46-config-check-restored.log" \
+            "${LOGS_DIR}/slice-46-zones-final-restored.log" \
+            "${LOGS_DIR}/slice-46-command-timing.log" \
+            "${LOGS_DIR}/slice-46-persistence-rollback-doctor.event-manifest.tsv" \
+            "${LOGS_DIR}/slice-46-persistence-rollback-doctor.proof-manifest.tsv" \
+            "${LOGS_DIR}/guest-script-retry-summary.tsv" \
+            "${SCREENSHOTS_DIR}/00-before-slice-46.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-46.png" \
+            "${SCREENSHOTS_DIR}/02-original-layout-slice-46.png" \
+            "${SCREENSHOTS_DIR}/03-saved-layout-slice-46.png" \
+            "${SCREENSHOTS_DIR}/04-relaunch-saved-layout-slice-46.png" \
+            "${SCREENSHOTS_DIR}/05-bad-config-doctor-slice-46.png" \
+            "${SCREENSHOTS_DIR}/06-restore-backup-slice-46.png" \
+            "${SCREENSHOTS_DIR}/07-final-restored-layout-slice-46.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-46.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 46 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -5400,6 +5428,139 @@ EOF
         || die "Slice 45 review must identify the real hardware supplement boundary"
 }
 
+require_review_mentions_slice_46_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-46-persistence-rollback-doctor) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.proof-manifest.tsv	proof manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/guest-script-retry-summary.tsv	retry summary
+${LOGS_DIR}/slice-46-setup.log	setup log
+${LOGS_DIR}/slice-46-save-zone-layout.log	save command log
+${LOGS_DIR}/slice-46-doctor-bad-config.log	bad config doctor log
+${LOGS_DIR}/slice-46-bad-config-board-source.txt	bad config visible board source
+${LOGS_DIR}/slice-46-restore-backup.log	restore backup log
+${LOGS_DIR}/slice-46-doctor-restored-config.log	restored doctor log
+${LOGS_DIR}/slice-46-restore-board-source.txt	restore visible board source
+${LOGS_DIR}/slice-46-final-board-source.txt	final visible board source
+${LOGS_DIR}/slice-46-config-check-bad.log	bad config check log
+${LOGS_DIR}/slice-46-config-check-restored.log	restored config check log
+${LOGS_DIR}/slice-46-windows-original.log	original anchor windows log
+${LOGS_DIR}/slice-46-windows-after-save.log	after-save anchor windows log
+${LOGS_DIR}/slice-46-windows-relaunch-saved.log	relaunch-saved anchor windows log
+${LOGS_DIR}/slice-46-windows-bad-config.log	bad-config anchor windows log
+${LOGS_DIR}/slice-46-windows-after-restore.log	after-restore anchor windows log
+${LOGS_DIR}/slice-46-windows-final-restored.log	final anchor windows log
+${LOGS_DIR}/slice-46-zones-final-restored.log	final zones log
+${LOGS_DIR}/slice-46-command-timing.log	command timing log
+${LOGS_DIR}/slice-46-config-original.toml	original config copy
+${LOGS_DIR}/slice-46-config-after-save.toml	saved config copy
+${LOGS_DIR}/slice-46-good-saved-backup.toml	saved-good restore backup
+${LOGS_DIR}/slice-46-config-bad.toml	bad generated config copy
+${LOGS_DIR}/slice-46-config-rollback-bad.toml	rollback bad config copy
+${LOGS_DIR}/slice-46-config-final-restored.toml	final restored config copy
+${SCREENSHOTS_DIR}/00-before-slice-46.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-46.png	ready screenshot
+${SCREENSHOTS_DIR}/02-original-layout-slice-46.png	original layout screenshot
+${SCREENSHOTS_DIR}/03-saved-layout-slice-46.png	saved layout screenshot
+${SCREENSHOTS_DIR}/04-relaunch-saved-layout-slice-46.png	relaunch saved layout screenshot
+${SCREENSHOTS_DIR}/05-bad-config-doctor-slice-46.png	bad config doctor screenshot
+${SCREENSHOTS_DIR}/06-restore-backup-slice-46.png	restore backup screenshot
+${SCREENSHOTS_DIR}/07-final-restored-layout-slice-46.png	final restored layout screenshot
+${SCREENSHOTS_DIR}/99-after-slice-46.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 46 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 46 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    for event_id in \
+        original-layout \
+        saved-layout \
+        relaunch-saved-layout \
+        bad-config-doctor \
+        restore-backup \
+        final-restored-layout; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 46 review must cite event: $event_id"
+    done
+    for timing_key in \
+        original-layout-offset-seconds \
+        save-command-offset-seconds \
+        relaunch-saved-offset-seconds \
+        bad-config-doctor-offset-seconds \
+        restore-backup-offset-seconds \
+        final-restored-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 46 review must cite timing value key: $timing_key"
+    done
+    for exact in \
+        '$ winmux save-zone-layout' \
+        '$ winmux doctor' \
+        '$ winmux config --restore-backup ' \
+        'stale TextEdit proof' \
+        'slice46-proof-bad-config-doctor.rtf' \
+        'slice46-proof-restore-backup.rtf' \
+        'slice46-proof-final-restored-layout.rtf' \
+        '06-restore-backup-slice-46.png' \
+        '07-final-restored-layout-slice-46.png' \
+        '99-after-slice-46.png' \
+        'must not still show Slice 46 bad config doctor' \
+        'must not still show config status: ERROR' \
+        'must not still show Column widths must sum to 1.0' \
+        'Restored config OK' \
+        'Previous config backup:' \
+        'config status: ERROR' \
+        'Column widths must sum to 1.0' \
+        'width = 0.10' \
+        'config status: OK' \
+        'zone references: OK' \
+        'slice46-reference.rtf' \
+        'slice46-work.rtf' \
+        'slice46-comms.rtf' \
+        'zone=left' \
+        'zone=main' \
+        'zone=right' \
+        'safety	save-backup-matches-original	yes' \
+        'safety	bad-config-not-deleted	yes' \
+        'relaunch	saved-layout-loaded	yes' \
+        'relaunch	saved-stopped	yes' \
+        'relaunch	saved-launched	yes' \
+        'restore	restored-layout-loaded	yes' \
+        'restore	restored-stopped	yes' \
+        'restore	restored-launched	yes' \
+        'Reference 20% | Work 60% | Comms 20%'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 46 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'rollback|bad config.*preserved|not deleted' "$review_path" \
+        || die "Slice 46 review must discuss rollback preservation of the bad config"
+    grep -Eiq 'no post-recording.*retr(y|ies)|discard.*rerun|single.*attempt' "$review_path" \
+        || die "Slice 46 review must discuss the no-post-recording-retry policy"
+    grep -Eiq 'restore.*final.*(not stale|fresh|stale TextEdit proof|bad config doctor)' "$review_path" \
+        || die "Slice 46 review must explicitly compare restore/final screenshots for stale TextEdit proof"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -5448,7 +5609,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -5753,6 +5914,7 @@ run_review_lint() {
     require_review_mentions_slice_41_evidence "$review_path"
     require_review_mentions_slice_42_evidence "$review_path"
     require_review_mentions_slice_45_evidence "$review_path"
+    require_review_mentions_slice_46_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -9765,6 +9927,324 @@ require_slice_45_display_topology_recovery_proof() {
 
     require_slice_45_event_manifest "$(event_manifest_path)"
     require_slice_45_topology_event_manifest "$topology_manifest"
+}
+
+require_no_slice_46_post_recording_retries() {
+    local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    require_file "$summary_path"
+
+    local attempts failures final_result before_recording
+    attempts="$(transport_summary_value "$summary_path" slice-46-run attempts)"
+    failures="$(transport_summary_value "$summary_path" slice-46-run failures)"
+    final_result="$(transport_summary_value "$summary_path" slice-46-run final_result)"
+    before_recording="$(transport_summary_value "$summary_path" slice-46-run before_recording)"
+    [ "$attempts" = "1" ] \
+        || die "Slice 46 post-recording scenario must run once and be discarded on failure; attempts=${attempts}"
+    [ "$failures" = "0" ] \
+        || die "Slice 46 post-recording scenario had failures; discard and rerun artifact"
+    [ "$final_result" = "success" ] \
+        || die "Slice 46 post-recording scenario did not succeed cleanly: ${final_result}"
+    [ "$before_recording" = "no" ] \
+        || die "Slice 46 run row must be after recording started, got before_recording=${before_recording}"
+
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            failures = $4 + 0
+            before_recording = $6
+            if (before_recording == "no" && failures > 0) {
+                printf("post-recording retry failure row: %s\n", $0) > "/dev/stderr"
+                bad = 1
+            }
+        }
+        END { exit(bad ? 1 : 0) }
+    ' "$summary_path" || die "Slice 46 artifact contains post-recording failures/retries"
+}
+
+require_slice_46_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+    require_event_manifest_event "$manifest_path" original-layout context
+    require_event_manifest_event "$manifest_path" saved-layout action
+    require_event_manifest_event "$manifest_path" relaunch-saved-layout relaunch
+    require_event_manifest_event "$manifest_path" bad-config-doctor diagnostic
+    require_event_manifest_event "$manifest_path" restore-backup recovery
+    require_event_manifest_event "$manifest_path" final-restored-layout result
+    require_event_before "$manifest_path" original-layout saved-layout \
+        "Slice 46 original layout must precede save"
+    require_event_before "$manifest_path" saved-layout relaunch-saved-layout \
+        "Slice 46 save must precede saved-layout relaunch"
+    require_event_before "$manifest_path" relaunch-saved-layout bad-config-doctor \
+        "Slice 46 saved-layout relaunch must precede bad config doctor"
+    require_event_before "$manifest_path" bad-config-doctor restore-backup \
+        "Slice 46 bad config doctor must precede restore"
+    require_event_before "$manifest_path" restore-backup final-restored-layout \
+        "Slice 46 restore must precede final restored layout"
+
+    local event_id expected_path
+    for event_id in \
+        original-layout:screenshots/02-original-layout-slice-46.png \
+        saved-layout:screenshots/03-saved-layout-slice-46.png \
+        relaunch-saved-layout:screenshots/04-relaunch-saved-layout-slice-46.png \
+        bad-config-doctor:screenshots/05-bad-config-doctor-slice-46.png \
+        restore-backup:screenshots/06-restore-backup-slice-46.png \
+        final-restored-layout:screenshots/07-final-restored-layout-slice-46.png; do
+        expected_path="${event_id#*:}"
+        event_id="${event_id%%:*}"
+        [ "$(require_event_manifest_value "$manifest_path" "$event_id" path)" = "$expected_path" ] \
+            || die "Slice 46 event manifest path mismatch for ${event_id}"
+    done
+}
+
+require_slice_46_persistence_rollback_doctor_proof() {
+    local proof="${RUN_DIR}/slice-46-persistence-rollback-doctor-proof.txt"
+    local done="${LOGS_DIR}/slice-46-persistence-rollback-doctor.done"
+    local setup_log="${LOGS_DIR}/slice-46-setup.log"
+    local save_log="${LOGS_DIR}/slice-46-save-zone-layout.log"
+    local relaunch_log="${LOGS_DIR}/slice-46-relaunch.log"
+    local doctor_bad_log="${LOGS_DIR}/slice-46-doctor-bad-config.log"
+    local bad_config_board="${LOGS_DIR}/slice-46-bad-config-board-source.txt"
+    local doctor_restored_log="${LOGS_DIR}/slice-46-doctor-restored-config.log"
+    local restore_board="${LOGS_DIR}/slice-46-restore-board-source.txt"
+    local final_board="${LOGS_DIR}/slice-46-final-board-source.txt"
+    local restore_log="${LOGS_DIR}/slice-46-restore-backup.log"
+    local config_check_bad="${LOGS_DIR}/slice-46-config-check-bad.log"
+    local config_check_restored="${LOGS_DIR}/slice-46-config-check-restored.log"
+    local windows_original="${LOGS_DIR}/slice-46-windows-original.log"
+    local windows_after_save="${LOGS_DIR}/slice-46-windows-after-save.log"
+    local windows_relaunch_saved="${LOGS_DIR}/slice-46-windows-relaunch-saved.log"
+    local windows_bad_config="${LOGS_DIR}/slice-46-windows-bad-config.log"
+    local windows_after_restore="${LOGS_DIR}/slice-46-windows-after-restore.log"
+    local windows_final_restored="${LOGS_DIR}/slice-46-windows-final-restored.log"
+    local final_zones="${LOGS_DIR}/slice-46-zones-final-restored.log"
+    local timing_log="${LOGS_DIR}/slice-46-command-timing.log"
+    local measurements="${LOGS_DIR}/slice-46-persistence-rollback-doctor.measurements.tsv"
+    local event_manifest
+    event_manifest="$(event_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 46"
+    require_file "$setup_log"
+    require_file "$save_log"
+    require_file "$relaunch_log"
+    require_file "$doctor_bad_log"
+    require_file "$bad_config_board"
+    require_file "$doctor_restored_log"
+    require_file "$restore_board"
+    require_file "$final_board"
+    require_file "$restore_log"
+    require_file "$config_check_bad"
+    require_file "$config_check_restored"
+    require_file "$windows_original"
+    require_file "$windows_after_save"
+    require_file "$windows_relaunch_saved"
+    require_file "$windows_bad_config"
+    require_file "$windows_after_restore"
+    require_file "$windows_final_restored"
+    require_file "$final_zones"
+    require_file "$timing_log"
+    require_file "$measurements"
+    require_file "$proof_manifest"
+    require_file "${LOGS_DIR}/slice-46-config-original.toml"
+    require_file "${LOGS_DIR}/slice-46-config-after-save.toml"
+    require_file "${LOGS_DIR}/slice-46-good-saved-backup.toml"
+    require_file "${LOGS_DIR}/slice-46-config-bad.toml"
+    require_file "${LOGS_DIR}/slice-46-config-rollback-bad.toml"
+    require_file "${LOGS_DIR}/slice-46-config-final-restored.toml"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/02-original-layout-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/03-saved-layout-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/04-relaunch-saved-layout-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/05-bad-config-doctor-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/06-restore-backup-slice-46.png"
+    require_file "${SCREENSHOTS_DIR}/07-final-restored-layout-slice-46.png"
+
+    grep -F 'PASS: save-zone-layout writes a saved 20/60/20 layout' "$proof" >/dev/null \
+        || die "Slice 46 proof missing persistence/rollback PASS claim"
+    grep -F '$ winmux save-zone-layout' "$save_log" >/dev/null \
+        || die "Slice 46 save log missing exact save command"
+    grep -F 'Backup:' "$save_log" >/dev/null \
+        || die "Slice 46 save log missing backup path"
+    grep -F 'saved-stopped=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 46 relaunch log must prove WinMux stopped before saved-layout relaunch"
+    grep -F 'saved-launched=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 46 relaunch log must prove WinMux launched for saved-layout proof"
+    grep -F 'restored-stopped=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 46 relaunch log must prove WinMux stopped before restored-layout relaunch"
+    grep -F 'restored-launched=yes' "$relaunch_log" >/dev/null \
+        || die "Slice 46 relaunch log must prove WinMux launched for restored-layout proof"
+    grep -F 'unknown-cli-still-responded' "$relaunch_log" >/dev/null \
+        && die "Slice 46 relaunch log shows the old process may still have been serving CLI requests"
+    grep -F '$ winmux doctor' "$doctor_bad_log" >/dev/null \
+        || die "Slice 46 bad doctor log missing exact doctor command"
+    grep -F '  config status: ERROR' "$doctor_bad_log" >/dev/null \
+        || die "Slice 46 doctor must report config status ERROR for bad config"
+    grep -F 'Column widths must sum to 1.0' "$doctor_bad_log" >/dev/null \
+        || die "Slice 46 doctor must cite the bad width sum"
+    grep -F 'Config doctor:' "$bad_config_board" >/dev/null \
+        || die "Slice 46 bad-config visible board source missing Config doctor heading"
+    grep -F '  config status: ERROR' "$bad_config_board" >/dev/null \
+        || die "Slice 46 bad-config visible board source missing config status ERROR"
+    grep -F 'Column widths must sum to 1.0' "$bad_config_board" >/dev/null \
+        || die "Slice 46 bad-config visible board source missing bad width sum"
+    grep -F 'width = 0.10' "$bad_config_board" >/dev/null \
+        || die "Slice 46 bad-config visible board source missing invalid TOML width excerpt"
+    grep -F 'expected-failure=yes' "$config_check_bad" >/dev/null \
+        || die "Slice 46 bad config check did not record expected failure"
+    grep -F '$ winmux config --restore-backup ' "$restore_log" >/dev/null \
+        || die "Slice 46 restore log missing exact restore command"
+    grep -F 'Previous config backup:' "$restore_log" >/dev/null \
+        || die "Slice 46 restore log missing rollback backup path"
+    grep -F 'Restored config OK' "$restore_log" >/dev/null \
+        || die "Slice 46 restore log missing success line"
+    grep -F 'Config OK:' "$config_check_restored" >/dev/null \
+        || die "Slice 46 restored config check did not pass"
+    grep -F '  config status: OK' "$doctor_restored_log" >/dev/null \
+        || die "Slice 46 restored doctor did not report OK"
+    grep -F '  zone references: OK' "$doctor_restored_log" >/dev/null \
+        || die "Slice 46 restored doctor did not report zone references OK"
+    grep -F 'Previous config backup:' "$restore_board" >/dev/null \
+        || die "Slice 46 restore visible board source missing rollback backup path"
+    grep -F 'Restored config OK' "$restore_board" >/dev/null \
+        || die "Slice 46 restore visible board source missing restore success"
+    grep -F '  config status: OK' "$restore_board" >/dev/null \
+        || die "Slice 46 restore visible board source missing restored doctor OK"
+    grep -F '  zone references: OK' "$restore_board" >/dev/null \
+        || die "Slice 46 restore visible board source missing zone references OK"
+    grep -F 'Final relaunch loads saved 20/60/20 layout' "$final_board" >/dev/null \
+        || die "Slice 46 final visible board source missing final restored layout summary"
+
+    local anchor_log
+    for anchor_log in \
+        "$windows_original" \
+        "$windows_after_save" \
+        "$windows_relaunch_saved" \
+        "$windows_bad_config" \
+        "$windows_after_restore" \
+        "$windows_final_restored"; do
+        grep -F '|slice46-reference.rtf|zone=left|' "$anchor_log" >/dev/null \
+            || die "Slice 46 anchor log missing Reference in left zone: ${anchor_log}"
+        grep -F '|slice46-work.rtf|zone=main|' "$anchor_log" >/dev/null \
+            || die "Slice 46 anchor log missing Work in main zone: ${anchor_log}"
+        grep -F '|slice46-comms.rtf|zone=right|' "$anchor_log" >/dev/null \
+            || die "Slice 46 anchor log missing Comms in right zone: ${anchor_log}"
+    done
+
+    [ "$(manifest_value "$proof_manifest" target layout-id)" = balanced ] \
+        || die "Slice 46 proof manifest target layout-id must be balanced"
+    [ "$(manifest_value "$proof_manifest" command save)" = 'winmux save-zone-layout' ] \
+        || die "Slice 46 proof manifest save command mismatch"
+    [ "$(manifest_value "$proof_manifest" command doctor)" = 'winmux doctor' ] \
+        || die "Slice 46 proof manifest doctor command mismatch"
+    [ "$(manifest_value "$proof_manifest" safety save-backup-matches-original)" = yes ] \
+        || die "Slice 46 save backup must match original"
+    [ "$(manifest_value "$proof_manifest" safety bad-config-not-deleted)" = yes ] \
+        || die "Slice 46 bad config must be preserved as rollback backup"
+    [ "$(manifest_value "$proof_manifest" relaunch saved-layout-loaded)" = yes ] \
+        || die "Slice 46 saved relaunch must load saved layout"
+    [ "$(manifest_value "$proof_manifest" relaunch saved-stopped)" = yes ] \
+        || die "Slice 46 proof manifest must prove saved-layout relaunch stopped WinMux first"
+    [ "$(manifest_value "$proof_manifest" relaunch saved-launched)" = yes ] \
+        || die "Slice 46 proof manifest must prove saved-layout relaunch launched WinMux"
+    [ "$(manifest_value "$proof_manifest" restore restored-layout-loaded)" = yes ] \
+        || die "Slice 46 restore must load restored layout"
+    [ "$(manifest_value "$proof_manifest" restore restored-stopped)" = yes ] \
+        || die "Slice 46 proof manifest must prove restored-layout relaunch stopped WinMux first"
+    [ "$(manifest_value "$proof_manifest" restore restored-launched)" = yes ] \
+        || die "Slice 46 proof manifest must prove restored-layout relaunch launched WinMux"
+    [ "$(manifest_value "$proof_manifest" doctor bad-config-status)" = ERROR ] \
+        || die "Slice 46 proof manifest must record doctor ERROR for bad config"
+    [ "$(manifest_value "$proof_manifest" doctor restored-config-status)" = OK ] \
+        || die "Slice 46 proof manifest must record doctor OK after restore"
+    [ "$(manifest_value "$proof_manifest" doctor zone-references-checked)" = yes ] \
+        || die "Slice 46 proof manifest must record zone reference checks"
+
+    local original_sha after_save_sha save_backup_sha good_saved_sha bad_sha rollback_bad_sha after_restore_sha final_sha
+    original_sha="$(manifest_value "$proof_manifest" hash config-original)"
+    after_save_sha="$(manifest_value "$proof_manifest" hash config-after-save)"
+    save_backup_sha="$(manifest_value "$proof_manifest" hash config-save-backup)"
+    good_saved_sha="$(manifest_value "$proof_manifest" hash config-good-saved)"
+    bad_sha="$(manifest_value "$proof_manifest" hash config-bad)"
+    rollback_bad_sha="$(manifest_value "$proof_manifest" hash config-rollback-bad)"
+    after_restore_sha="$(manifest_value "$proof_manifest" hash config-after-restore)"
+    final_sha="$(manifest_value "$proof_manifest" hash config-final)"
+    [ -n "$original_sha" ] && [ -n "$after_save_sha" ] && [ -n "$save_backup_sha" ] \
+        || die "Slice 46 proof manifest missing save hashes"
+    [ "$after_save_sha" != "$original_sha" ] \
+        || die "Slice 46 saved config hash must differ from original"
+    [ "$save_backup_sha" = "$original_sha" ] \
+        || die "Slice 46 save backup hash must equal original hash"
+    [ "$rollback_bad_sha" = "$bad_sha" ] \
+        || die "Slice 46 rollback backup hash must equal bad config hash"
+    [ "$after_restore_sha" = "$good_saved_sha" ] \
+        || die "Slice 46 restored hash must equal saved-good backup hash"
+    [ "$final_sha" = "$good_saved_sha" ] \
+        || die "Slice 46 final relaunch hash must equal saved-good backup hash"
+
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-original left)" 0.25 0.000001 \
+        "Slice 46 original Reference width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-original main)" 0.5 0.000001 \
+        "Slice 46 original Work width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-original right)" 0.25 0.000001 \
+        "Slice 46 original Comms width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-saved left)" 0.2 0.000001 \
+        "Slice 46 saved Reference width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-saved main)" 0.6 0.000001 \
+        "Slice 46 saved Work width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-saved right)" 0.2 0.000001 \
+        "Slice 46 saved Comms width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-final-restored left)" 0.2 0.000001 \
+        "Slice 46 final Reference width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-final-restored main)" 0.6 0.000001 \
+        "Slice 46 final Work width"
+    assert_numeric_approximately_equal "$(require_manifest_value "$proof_manifest" width-final-restored right)" 0.2 0.000001 \
+        "Slice 46 final Comms width"
+
+    grep -F 'zone=left|name=Reference' "$final_zones" >/dev/null \
+        || die "Slice 46 final zones log missing Reference"
+    grep -F 'zone=main|name=Work' "$final_zones" >/dev/null \
+        || die "Slice 46 final zones log missing Work"
+    grep -F 'zone=right|name=Comms' "$final_zones" >/dev/null \
+        || die "Slice 46 final zones log missing Comms"
+    grep -E 'zone=main\|name=Work\|.*configured=0\.6\|effective=0\.6\|override=(none)?\|override-state=configured' "$final_zones" >/dev/null \
+        || die "Slice 46 final zones log must show Work configured/effective 0.6 without runtime override"
+
+    local timing_key
+    for timing_key in \
+        original-layout-offset-seconds \
+        save-command-offset-seconds \
+        relaunch-saved-offset-seconds \
+        bad-config-doctor-offset-seconds \
+        restore-backup-offset-seconds \
+        final-restored-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 46 timing log missing ${timing_key}"
+    done
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux save-zone-layout" \
+        "$(value_from_log save-command-offset-seconds "$timing_log")" \
+        "Slice 46 save command must happen while save caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux doctor" \
+        "$(value_from_log bad-config-doctor-offset-seconds "$timing_log")" \
+        "Slice 46 doctor command must happen while doctor caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux config --restore-backup slice-46-good-saved-backup.toml" \
+        "$(value_from_log restore-backup-offset-seconds "$timing_log")" \
+        "Slice 46 restore command must happen while restore caption is visible"
+
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+    require_sample_manifest_label_path "$sample_manifest" original-layout "screenshots/02-original-layout-slice-46.png"
+    require_sample_manifest_label_path "$sample_manifest" saved-layout "screenshots/03-saved-layout-slice-46.png"
+    require_sample_manifest_label_path "$sample_manifest" relaunch-saved-layout "screenshots/04-relaunch-saved-layout-slice-46.png"
+    require_sample_manifest_label_path "$sample_manifest" bad-config-doctor "screenshots/05-bad-config-doctor-slice-46.png"
+    require_sample_manifest_label_path "$sample_manifest" restore-backup "screenshots/06-restore-backup-slice-46.png"
+    require_sample_manifest_label_path "$sample_manifest" final-restored-layout "screenshots/07-final-restored-layout-slice-46.png"
+
+    require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
+    require_slice_46_event_manifest "$event_manifest"
+    require_no_slice_46_post_recording_retries
 }
 
 require_slice_8_window_routing_proof() {
@@ -15400,6 +15880,9 @@ case "$recording_name" in
         ;;
     slice-45-display-topology-recovery)
         require_slice_45_display_topology_recovery_proof
+        ;;
+    slice-46-persistence-rollback-doctor)
+        require_slice_46_persistence_rollback_doctor_proof
         ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
