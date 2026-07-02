@@ -9432,6 +9432,58 @@ Non-claims:
 - Slice 51 does not accept untriaged crashes, permission failures, or config
   corruption as known limitations.
 
+### Slice 52: Sparkle Auto-Update Channel
+
+Status: planned; do not start before Slice 51 is accepted.
+
+Goal: let installed dogfood/beta builds update themselves from the fork's
+GitHub releases, removing the per-version Gatekeeper and manual-upgrade
+friction while keeping Homebrew-cask installs coherent.
+
+Decisions already made:
+
+- Use Sparkle 2 via SwiftPM, the same mechanism Ghostty ships. Do not build a
+  custom updater.
+- Keep the self-signed "WinMux Dogfood Signing" identity from
+  `script/setup-signing`; Sparkle-installed updates preserve the signing
+  identity, so TCC grants continue to survive upgrades.
+- Update security comes from Sparkle's EdDSA signature, not Apple
+  notarization. Generate the EdDSA keypair once on the build machine and store
+  it beside the signing keychain material under the winmux-signing config
+  directory; embed only the public key as `SUPublicEDKey`.
+- Serve the appcast from a stable URL by attaching `appcast.xml` to a rolling
+  `updater` release tag on the fork, the way AgentsView serves `latest.json`.
+  `script/dogfood-release` must regenerate and upload the appcast with
+  Sparkle's `generate_appcast` for every release it cuts.
+- Mark the tap cask `auto_updates true` in the same change that ships the
+  first Sparkle-enabled release, so `brew upgrade` and Sparkle stop competing.
+
+Required scope:
+
+- add Sparkle to the app with `SUFeedURL`, `SUPublicEDKey`, and a
+  user-visible check-for-updates entry point;
+- gate all appcast network checks behind config that defaults off in the e2e
+  harness lanes, so support-bundle and package proofs keep their
+  no-automatic-upload claims honest;
+- extend `script/dogfood-release` to sign artifacts with EdDSA, regenerate the
+  appcast, and publish it to the rolling `updater` tag;
+- disclose the appcast check in release notes and the support-bundle
+  non-claims;
+- prove one real in-place update: install version N on a clean guest, publish
+  version N+1, and record the app updating itself and relaunching without
+  losing TCC grants or zone state.
+
+Required artifact: a Tart recording of the in-app update path from install
+through relaunch, appcast and EdDSA provenance in the run logs, package
+hashes for both versions, and a no-context artifact review.
+
+Non-claims:
+
+- Slice 52 does not notarize the app or change the Gatekeeper status of first
+  installs;
+- Slice 52 does not replace the Homebrew cask as the first-install path;
+- Slice 52 does not add update channels beyond a single dogfood feed.
+
 ## Call-Site Audit
 
 The first implementation should touch these seams deliberately:
@@ -9539,3 +9591,4 @@ Do not let the implementing agent self-certify artifacts. The no-context review 
 12. Documentation and sample configs are reviewed as their own artifact-producing slice.
 13. A reproducible beta package is built, installed, launched, and reviewed with stored provenance.
 14. Beta acceptance covers fresh install through support-bundle generation and records dogfood blockers before external testers use the fork.
+15. Installed builds self-update through a Sparkle appcast published by the dogfood release script, proven by an in-place update recording.
