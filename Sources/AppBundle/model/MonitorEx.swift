@@ -35,6 +35,11 @@ extension Monitor {
     }
 
     @MainActor
+    var physicalMonitorStableIdentity: String {
+        MonitorViewportId(physicalMonitor).stableIdentity
+    }
+
+    @MainActor
     func hasSameWorkspaceViewport(as other: Monitor) -> Bool {
         MonitorViewportId(self).hasSameStableIdentity(as: MonitorViewportId(other))
     }

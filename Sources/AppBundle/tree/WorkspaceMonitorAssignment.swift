@@ -256,5 +256,8 @@ func isValidAssignment(workspace: Workspace, screen: CGPoint) -> Bool {
 @MainActor
 func isValidAssignment(workspaceName: String, screen: CGPoint) -> Bool {
     guard let forceAssigned = resolvedForceAssignedPhysicalMonitor(forWorkspaceName: workspaceName) else { return true }
-    return forceAssigned.rect.topLeftCorner == screen.monitorApproximation.physicalMonitor.rect.topLeftCorner
+    guard let physicalMonitor = sortedPhysicalMonitors.first(where: { $0.rect.contains(screen) }) else {
+        return false
+    }
+    return forceAssigned.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
 }

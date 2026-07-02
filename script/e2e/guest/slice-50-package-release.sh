@@ -90,6 +90,10 @@ require_host_value() {
     printf '%s\n' "$value"
 }
 
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
 rtf_escape_line() {
     /usr/bin/sed -e 's/\\/\\\\/g' -e 's/{/\\{/g' -e 's/}/\\}/g'
 }
@@ -159,6 +163,7 @@ write_release_notes() {
     local package_path="$1"
     local codesign_status="$2"
     local demo_contact_sheet_path="$3"
+    local docs_links_path="$4"
     mkdir -p "$(dirname "${RELEASE_NOTES}")"
     {
         echo 'WinMux Slice 50 beta package notes'
@@ -177,6 +182,8 @@ write_release_notes() {
         echo 'Known limitations: this package is for internal package validation, has no automatic support upload, and reuses accepted product media for the wider feature tour.'
         echo
         echo "Demo evidence poster: ${demo_contact_sheet_path}"
+        echo
+        echo "Docs links: ${docs_links_path}"
         echo
         echo 'Slice 50 does not start external beta and does not imply App Store readiness.'
     } >"${RELEASE_NOTES}"
@@ -310,11 +317,13 @@ launch_winmux_installed() {
 }
 
 install_from_package() {
-    local package_rel app_rel cli_rel version codesign_status demo_contact_sheet_path
-    local extract_dir extracted_app extracted_cli
+    local package_rel app_rel cli_rel docs_links_rel docs_links_sha version codesign_status demo_contact_sheet_path
+    local extract_dir extracted_app extracted_cli extracted_docs_links
     package_rel="$(require_host_value package_path)"
     app_rel="$(require_host_value app_path)"
     cli_rel="$(require_host_value cli_path)"
+    docs_links_rel="$(require_host_value docs_links_path)"
+    docs_links_sha="$(require_host_value docs_links_sha256)"
     version="$(require_host_value version)"
     codesign_status="$(require_host_value codesign_status)"
     demo_contact_sheet_path="$(require_host_value demo_contact_sheet_path)"
@@ -322,6 +331,9 @@ install_from_package() {
     test -s "${ARTIFACTS_DIR}/${package_rel}" || semantic_fail "missing package zip: ${package_rel}"
     test -d "${ARTIFACTS_DIR}/${app_rel}" || semantic_fail "missing packaged app copy: ${app_rel}"
     test -x "${ARTIFACTS_DIR}/${cli_rel}" || semantic_fail "missing packaged CLI copy: ${cli_rel}"
+    test -s "${ARTIFACTS_DIR}/${docs_links_rel}" || semantic_fail "missing packaged docs links copy: ${docs_links_rel}"
+    [ "$(sha256_file "${ARTIFACTS_DIR}/${docs_links_rel}")" = "${docs_links_sha}" ] \
+        || semantic_fail 'staged docs links hash mismatch'
 
     extract_dir="/tmp/winmux-slice50-package"
     rm -rf "${extract_dir}"
@@ -329,8 +341,12 @@ install_from_package() {
     /usr/bin/ditto -x -k "${ARTIFACTS_DIR}/${package_rel}" "${extract_dir}"
     extracted_app="$(find "${extract_dir}" -path '*/WinMux.app' -type d | head -1)"
     extracted_cli="$(find "${extract_dir}" -path '*/bin/winmux' -type f | head -1)"
+    extracted_docs_links="$(find "${extract_dir}" -path '*/docs/package-docs-links.md' -type f | head -1)"
     [ -n "${extracted_app}" ] || semantic_fail 'package zip did not contain WinMux.app'
     [ -n "${extracted_cli}" ] || semantic_fail 'package zip did not contain bin/winmux'
+    [ -n "${extracted_docs_links}" ] || semantic_fail 'package zip did not contain docs/package-docs-links.md'
+    [ "$(sha256_file "${extracted_docs_links}")" = "${docs_links_sha}" ] \
+        || semantic_fail 'package zip docs links hash mismatch'
 
     if [ "${APPLICATIONS_DIR}" = "/Applications" ]; then
         /usr/bin/sudo -n /bin/rm -rf "${APP_BUNDLE}"
@@ -356,13 +372,15 @@ install_from_package() {
         echo "package_path=${package_rel}"
         echo "packaged_app_path=${app_rel}"
         echo "packaged_cli_path=${cli_rel}"
+        echo "packaged_docs_links_path=${docs_links_rel}"
         echo "package_extract_app_path=${extracted_app}"
+        echo "package_extract_docs_links_path=${extracted_docs_links}"
         echo "installed_app_path=${APP_BUNDLE}"
         echo 'installed_app_exists=true'
         echo "installed_cli_path=${CLI}"
     } >"${INSTALL_PROOF}"
 
-    write_release_notes "${package_rel}" "${codesign_status}" "${demo_contact_sheet_path}"
+    write_release_notes "${package_rel}" "${codesign_status}" "${demo_contact_sheet_path}" "${docs_links_rel}"
     write_visible_status_doc "${package_rel}" "${version}"
 }
 
@@ -540,7 +558,7 @@ self_test_slice() {
     package_rel="package/WinMux-${version}.zip"
     demo_contact_sheet="${ARTIFACTS_DIR}/demo-columnar-zones.contact-sheet.jpg"
     mkdir -p "${ARTIFACTS_DIR}/package" "${ARTIFACTS_DIR}/bin" "${ARTIFACTS_DIR}/logs" "${ARTIFACTS_DIR}/docs" \
-        "${package_dir}/WinMux.app/Contents/MacOS" "${package_dir}/WinMux.app/Contents/Resources" "${package_dir}/bin" \
+        "${package_dir}/WinMux.app/Contents/MacOS" "${package_dir}/WinMux.app/Contents/Resources" "${package_dir}/bin" "${package_dir}/docs" \
         "${DOC_DIR}" "${USER_CONFIG_DIR}" "${SCREENSHOTS_DIR}"
     printf '# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE\n# [[zones]]\n# name = "Reference"\n# END WINMUX ULTRAWIDE ZONES TEMPLATE\n' \
         >"${package_dir}/WinMux.app/Contents/Resources/default-config.toml"
@@ -552,9 +570,19 @@ case "$1 $2" in
     *) echo ok ;;
 esac
 CLI
+    cat >"${package_dir}/docs/package-docs-links.md" <<'EOF'
+# WinMux Beta Package Docs Links
+
+- README: README.md
+- Ultrawide zones guide: docs/ultrawide-zones.md
+- Parse-checked ultrawide sample configs: docs/samples/
+- Project repository: https://github.com/zimengxiong/winmux
+- Product listing: https://macoswm.com/wm/winmux
+EOF
     chmod +x "${package_dir}/WinMux.app/Contents/MacOS/WinMuxApp" "${package_dir}/bin/winmux"
     /usr/bin/ditto "${package_dir}/WinMux.app" "${package_app}"
     /bin/cp "${package_dir}/bin/winmux" "${package_cli}"
+    /bin/cp "${package_dir}/docs/package-docs-links.md" "${ARTIFACTS_DIR}/docs/package-docs-links.md"
     /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${package_dir}" "${package_zip}"
     printf 'contact sheet\n' >"${demo_contact_sheet}"
     printf 'kind=package\nslice=50\n' >"${PACKAGE_MANIFEST}"
@@ -570,6 +598,8 @@ app_path=package/WinMux.app
 app_sha256=self-test
 cli_path=bin/winmux
 cli_sha256=self-test
+docs_links_path=docs/package-docs-links.md
+docs_links_sha256=$(/usr/bin/shasum -a 256 "${ARTIFACTS_DIR}/docs/package-docs-links.md" | /usr/bin/awk '{ print $1 }')
 codesign_status=unsigned
 notarization_status=not-notarized
 release_notes_path=docs/release-notes.md
@@ -593,6 +623,8 @@ EOF
         || semantic_fail 'self-test missing PUBLISH=0 provenance'
     grep -F 'xattr -dr com.apple.quarantine' "${RELEASE_NOTES}" >/dev/null \
         || semantic_fail 'self-test missing quarantine release-note wording'
+    grep -F 'Docs links: docs/package-docs-links.md' "${RELEASE_NOTES}" >/dev/null \
+        || semantic_fail 'self-test missing docs links release-note wording'
     grep -E '^[[:space:]]*\[\[zones\]\]' "${USER_CONFIG}" >/dev/null \
         || semantic_fail 'self-test did not activate zones in normal config'
     printf 'result=success\n'

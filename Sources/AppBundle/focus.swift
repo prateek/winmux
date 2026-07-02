@@ -22,6 +22,7 @@ struct LiveFocus: WinMuxAny, Equatable {
             windowId: windowOrNil?.windowId,
             workspaceName: workspace.name,
             monitorViewportStableIdentity: workspace.workspaceMonitor.workspaceViewportStableIdentity,
+            monitorPhysicalStableIdentity: workspace.workspaceMonitor.physicalMonitorStableIdentity,
         )
     }
 }
@@ -33,8 +34,8 @@ struct LiveFocus: WinMuxAny, Equatable {
 struct FrozenFocus: WinMuxAny, Equatable, Sendable {
     let windowId: UInt32?
     let workspaceName: String
-    // Monitor viewport identity is only retained for 'on-focused-monitor-changed'.
     let monitorViewportStableIdentity: String
+    let monitorPhysicalStableIdentity: String
 
     @MainActor var liveOrNil: LiveFocus? { // Important: don't access focus.monitorId here. monitorId is not part of the focus. Always prefer workspace
         let window: Window? = windowId.flatMap { Window.get(byId: $0) }
@@ -52,7 +53,12 @@ struct FrozenFocus: WinMuxAny, Equatable, Sendable {
 
     func replacingWorkspaceName(_ oldName: String, with newName: String) -> FrozenFocus {
         workspaceName == oldName
-            ? FrozenFocus(windowId: windowId, workspaceName: newName, monitorViewportStableIdentity: monitorViewportStableIdentity)
+            ? FrozenFocus(
+                windowId: windowId,
+                workspaceName: newName,
+                monitorViewportStableIdentity: monitorViewportStableIdentity,
+                monitorPhysicalStableIdentity: monitorPhysicalStableIdentity,
+            )
             : self
     }
 }
@@ -97,7 +103,12 @@ func debugDescribe(_ snapshot: RefreshSessionFocusSnapshot?) -> String {
 
 @MainActor private var _focus: FrozenFocus = {
     let monitor = mainMonitor
-    return FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorViewportStableIdentity: monitor.workspaceViewportStableIdentity)
+    return FrozenFocus(
+        windowId: nil,
+        workspaceName: monitor.activeWorkspace.name,
+        monitorViewportStableIdentity: monitor.workspaceViewportStableIdentity,
+        monitorPhysicalStableIdentity: monitor.physicalMonitorStableIdentity,
+    )
 }()
 
 @MainActor
@@ -214,7 +225,7 @@ extension Workspace {
         _prevFocusedWorkspaceName = _lastKnownFocus.workspaceName
         hasFocusedWorkspaceChanged = true
     }
-    if frozenFocus.monitorViewportStableIdentity != _lastKnownFocus.monitorViewportStableIdentity {
+    if frozenFocus.monitorPhysicalStableIdentity != _lastKnownFocus.monitorPhysicalStableIdentity {
         hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus

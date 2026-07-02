@@ -12,7 +12,10 @@ struct MoveWorkspaceToMonitorCommand: Command {
 
         switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
             case .success(let targetMonitor):
-                if targetMonitor.hasSameWorkspaceViewport(as: prevMonitor) {
+                if args.target.val.resolvesPhysicalMonitorSelector
+                    ? targetMonitor.hasSamePhysicalMonitor(as: prevMonitor)
+                    : targetMonitor.hasSameWorkspaceViewport(as: prevMonitor)
+                {
                     return true
                 }
                 if activateWorkspaceOnMonitorPreservingSourceViewport(focusedWorkspace, targetMonitor: targetMonitor) {
@@ -25,5 +28,12 @@ struct MoveWorkspaceToMonitorCommand: Command {
             case .failure(let msg):
                 return io.err(msg)
         }
+    }
+}
+
+private extension MonitorTarget {
+    var resolvesPhysicalMonitorSelector: Bool {
+        if case .patterns = self { return true }
+        return false
     }
 }

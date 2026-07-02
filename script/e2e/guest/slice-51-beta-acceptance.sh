@@ -44,6 +44,14 @@ LIST_ZONES_LOG="${ARTIFACTS_DIR}/logs/slice-51-list-zones.log"
 LIST_WINDOWS_LOG="${ARTIFACTS_DIR}/logs/slice-51-list-windows.log"
 ROUTING_KEYBOARD_LOG="${ARTIFACTS_DIR}/logs/slice-51-routing-keyboard.log"
 MOUSE_SNAP_LOG="${ARTIFACTS_DIR}/logs/slice-51-mouse-snap.log"
+WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-setup.log"
+WINDOW_BEFORE_ROUTING_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-before-routing.log"
+WINDOW_AFTER_ROUTING_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-after-routing.log"
+WINDOW_BEFORE_MOUSE_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-before-mouse.log"
+WINDOW_AFTER_FREEFORM_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-after-freeform.log"
+WINDOW_RESET_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-after-reset.log"
+WINDOW_AFTER_SNAP_LOG="${ARTIFACTS_DIR}/logs/slice-51-windows-after-snap.log"
+MOUSE_EVENTS_LOG="${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.mouse-events.tsv"
 PROFILE_LAYOUT_LOG="${ARTIFACTS_DIR}/logs/slice-51-profile-layout.log"
 SAVE_RELAUNCH_LOG="${ARTIFACTS_DIR}/logs/slice-51-save-relaunch.log"
 SUPPORT_COMMAND_LOG="${ARTIFACTS_DIR}/logs/slice-51-support-bundle-command.log"
@@ -64,6 +72,7 @@ PROOF="${ARTIFACTS_DIR}/slice-51-beta-acceptance-proof.txt"
 DONE="${ARTIFACTS_DIR}/logs/${RECORDING_NAME}.done"
 SCREENSHOTS_DIR="${ARTIFACTS_DIR}/screenshots"
 DOC_DIR="${HOME}/winmux-e2e/beta-acceptance-docs"
+DEMO_DOC_DIR="${HOME}/winmux-e2e/beta-acceptance-demo"
 PROVENANCE_DOC="${DOC_DIR}/package-provenance.rtf"
 INSTALL_DOC="${DOC_DIR}/fresh-install.rtf"
 SETUP_DOC="${DOC_DIR}/permissions-setup.rtf"
@@ -74,6 +83,17 @@ PROFILE_DOC="${DOC_DIR}/profile-layout.rtf"
 SAVE_DOC="${DOC_DIR}/save-relaunch.rtf"
 SUPPORT_DOC="${DOC_DIR}/support-bundle.rtf"
 FINAL_DOC="${DOC_DIR}/beta-acceptance-final.rtf"
+REFERENCE_WINDOW_DOC="${DEMO_DOC_DIR}/reference-beta.rtf"
+ROUTING_WINDOW_DOC="${DEMO_DOC_DIR}/route-beta.rtf"
+SNAP_WINDOW_DOC="${DEMO_DOC_DIR}/snap-demo.rtf"
+COMMS_WINDOW_DOC="${DEMO_DOC_DIR}/comms-beta.rtf"
+MOUSE_FREEFORM_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/07a-freeform-pickup-slice-51.png"
+MOUSE_FREEFORM_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/07b-freeform-hover-slice-51.png"
+MOUSE_RESET_SCREENSHOT="${SCREENSHOTS_DIR}/07c-reset-before-snap-slice-51.png"
+MOUSE_SNAP_PICKUP_SCREENSHOT="${SCREENSHOTS_DIR}/07d-snap-pickup-slice-51.png"
+MOUSE_SNAP_PATH_SCREENSHOT="${SCREENSHOTS_DIR}/07e-snap-path-slice-51.png"
+MOUSE_SNAP_HOVER_SCREENSHOT="${SCREENSHOTS_DIR}/07f-snap-hover-comms-slice-51.png"
+MOUSE_SNAP_RELEASE_SCREENSHOT="${SCREENSHOTS_DIR}/07g-snap-release-slice-51.png"
 
 uid="$(/usr/bin/id -u)"
 mutation_marked=0
@@ -140,6 +160,99 @@ write_text_doc() {
 capture_guest_screenshot() {
     local name="$1"
     /usr/sbin/screencapture -x -D "${GUEST_DISPLAY_ID}" "${SCREENSHOTS_DIR}/${name}.png"
+}
+
+awk_int() {
+    /usr/bin/awk "BEGIN { printf \"%d\\n\", ($*) }"
+}
+
+write_demo_doc() {
+    local path="$1"
+    local title="$2"
+    local zone_name="$3"
+    local detail="$4"
+    cat >"${path}" <<RTF
+{\rtf1\ansi\deff0{\fonttbl{\f0 Helvetica;}{\f1 Menlo;}}\viewkind4\uc1\margl540\margr540\pard\ql\f0\fs82\b ${title}\b0\par\f1\fs34 zone: ${zone_name}\par ${detail}\par}
+RTF
+}
+
+refresh_window_log() {
+    local path="$1"
+    "${CLI}" list-windows --workspace visible --app-bundle-id com.apple.TextEdit \
+        --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|layout=%{window-layout}|monitor=%{monitor-name}|left=%{window-left}|top=%{window-top}|width=%{window-width}|height=%{window-height}' \
+        >"${path}" 2>>"${WAIT_ERR}"
+}
+
+field_for_title() {
+    local path="$1"
+    local title="$2"
+    local key="$3"
+    /usr/bin/awk -F'|' -v title="${title}" -v key="${key}" '$2 == title {
+        if (key == "id") { print $1; exit }
+        for (i = 3; i <= NF; i++) {
+            if (index($i, key "=") == 1) {
+                print substr($i, length(key) + 2)
+                exit
+            }
+        }
+    }' "${path}"
+}
+
+window_id_for_title() {
+    field_for_title "$1" "$2" id
+}
+
+zone_for_title() {
+    field_for_title "$1" "$2" zone
+}
+
+workspace_for_title() {
+    field_for_title "$1" "$2" workspace
+}
+
+window_rect_field_for_title() {
+    field_for_title "$1" "$2" "$3"
+}
+
+assert_window_zone() {
+    local path="$1"
+    local title="$2"
+    local expected_zone="$3"
+    local actual_zone
+    actual_zone="$(zone_for_title "${path}" "${title}")"
+    if [ "${actual_zone}" != "${expected_zone}" ]; then
+        cat "${path}" >&2 || true
+        semantic_fail "Expected ${title} in zone ${expected_zone}, got ${actual_zone:-missing}"
+    fi
+}
+
+wait_for_textedit_windows() {
+    local expected_count="$1"
+    local count
+    for _ in $(seq 1 60); do
+        if refresh_window_log "${WINDOW_SETUP_LOG}"; then
+            count="$(wc -l <"${WINDOW_SETUP_LOG}" | tr -d ' ')"
+            if [ "${count}" -ge "${expected_count}" ]; then
+                return 0
+            fi
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+zone_field() {
+    local path="$1"
+    local zone_id="$2"
+    local key="$3"
+    /usr/bin/awk -F'|' -v zone="zone=${zone_id}" -v key="${key}" '$1 == zone {
+        for (i = 1; i <= NF; i++) {
+            if (index($i, key "=") == 1) {
+                print substr($i, length(key) + 2)
+                exit
+            }
+        }
+    }' "${path}"
 }
 
 copy_runtime_logs() {
@@ -469,6 +582,7 @@ install_from_package() {
     mkdir -p "${USER_CONFIG_DIR}"
     /bin/cp "${APP_DEFAULT_CONFIG}" "${USER_CONFIG}"
     uncomment_template_in_place "${USER_CONFIG}"
+    /usr/bin/perl -0pi -e "s/policy = 'freeform'/policy = 'snap-on-modifier'/" "${USER_CONFIG}"
 
     {
         echo 'install_result=success'
@@ -518,11 +632,17 @@ setup_slice() {
     rm -f \
         "${PACKAGE_PROVENANCE}" "${INSTALL_PROOF}" "${LAUNCH_PROOF}" "${BETA_PROOF}" "${SETUP_LOG}" "${TIMING_LOG}" \
         "${CLI_LOG}" "${WAIT_ERR}" "${DOCTOR_LOG}" "${CONFIG_CHECK_LOG}" "${LIST_ZONES_LOG}" "${LIST_WINDOWS_LOG}" \
-        "${ROUTING_KEYBOARD_LOG}" "${MOUSE_SNAP_LOG}" "${PROFILE_LAYOUT_LOG}" "${SAVE_RELAUNCH_LOG}" \
+        "${ROUTING_KEYBOARD_LOG}" "${MOUSE_SNAP_LOG}" "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_ROUTING_LOG}" \
+        "${WINDOW_AFTER_ROUTING_LOG}" "${WINDOW_BEFORE_MOUSE_LOG}" "${WINDOW_AFTER_FREEFORM_LOG}" \
+        "${WINDOW_RESET_LOG}" "${WINDOW_AFTER_SNAP_LOG}" "${MOUSE_EVENTS_LOG}" \
+        "${PROFILE_LAYOUT_LOG}" "${SAVE_RELAUNCH_LOG}" \
         "${SUPPORT_COMMAND_LOG}" "${SUPPORT_SCHEMA_LOG}" "${DISABLE_LOG}" "${DONE}" "${PROOF}" \
         "${APP_LOG}" "${APP_LOG_LOCAL}" "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" "${LAUNCH_STATUS}" \
-        "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}"
-    rm -rf "${DOC_DIR}" "${SUPPORT_BUNDLE}"
+        "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}" \
+        "${MOUSE_FREEFORM_PICKUP_SCREENSHOT}" "${MOUSE_FREEFORM_HOVER_SCREENSHOT}" "${MOUSE_RESET_SCREENSHOT}" \
+        "${MOUSE_SNAP_PICKUP_SCREENSHOT}" "${MOUSE_SNAP_PATH_SCREENSHOT}" "${MOUSE_SNAP_HOVER_SCREENSHOT}" \
+        "${MOUSE_SNAP_RELEASE_SCREENSHOT}"
+    rm -rf "${DOC_DIR}" "${DEMO_DOC_DIR}" "${SUPPORT_BUNDLE}"
     mkdir -p "${DOC_DIR}" "${SCREENSHOTS_DIR}" "${ARTIFACTS_DIR}/logs" "${ARTIFACTS_DIR}/docs" "${USER_CONFIG_DIR}"
 
     test -s "${HOST_PROVENANCE}"
@@ -574,35 +694,298 @@ write_list_zones_log() {
         || semantic_fail 'Comms zone missing'
 }
 
-run_routing_keyboard() {
+move_window_to_zone() {
+    local id="$1"
+    local title="$2"
+    local zone_name="$3"
+    local expected_zone="$4"
     {
+        echo "$ winmux move-node-to-zone --window-id ${id} ${zone_name}"
+        "${CLI}" move-node-to-zone --window-id "${id}" "${zone_name}"
+    } | tee -a "${CLI_LOG}"
+    refresh_window_log "${WINDOW_SETUP_LOG}"
+    assert_window_zone "${WINDOW_SETUP_LOG}" "${title}" "${expected_zone}"
+}
+
+prepare_live_demo_windows() {
+    /usr/bin/killall TextEdit >/dev/null 2>&1 || true
+    sleep 1
+    mkdir -p "${DEMO_DOC_DIR}"
+    write_demo_doc "${REFERENCE_WINDOW_DOC}" 'REFERENCE' 'Reference' 'Beta acceptance live window. It stays in the left zone as the control.'
+    write_demo_doc "${ROUTING_WINDOW_DOC}" 'ROUTE ME' 'Work' 'This window starts in Work, then move-node-to-zone sends it to Comms.'
+    write_demo_doc "${SNAP_WINDOW_DOC}" 'SNAP DEMO' 'Work' 'Drag without Alt first; reset; then hold Alt and snap to the whole Comms zone.'
+    write_demo_doc "${COMMS_WINDOW_DOC}" 'COMMS' 'Comms' 'Target zone for routing and mouse snap.'
+
+    /usr/bin/open -a TextEdit "${REFERENCE_WINDOW_DOC}" "${ROUTING_WINDOW_DOC}" "${SNAP_WINDOW_DOC}" "${COMMS_WINDOW_DOC}"
+    if ! wait_for_textedit_windows 4; then
+        cat "${WINDOW_SETUP_LOG}" >&2 || true
+        semantic_fail 'Slice 51 live TextEdit windows did not appear'
+    fi
+
+    REFERENCE_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'reference-beta.rtf')"
+    ROUTING_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'route-beta.rtf')"
+    SNAP_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'snap-demo.rtf')"
+    COMMS_ID="$(window_id_for_title "${WINDOW_SETUP_LOG}" 'comms-beta.rtf')"
+    [ -n "${REFERENCE_ID}" ] && [ -n "${ROUTING_ID}" ] && [ -n "${SNAP_ID}" ] && [ -n "${COMMS_ID}" ] \
+        || semantic_fail 'Could not resolve Slice 51 live TextEdit window ids'
+
+    move_window_to_zone "${REFERENCE_ID}" 'reference-beta.rtf' Reference left
+    move_window_to_zone "${ROUTING_ID}" 'route-beta.rtf' Work main
+    move_window_to_zone "${SNAP_ID}" 'snap-demo.rtf' Work main
+    move_window_to_zone "${COMMS_ID}" 'comms-beta.rtf' Comms right
+    "${CLI}" focus --window-id "${SNAP_ID}" >/dev/null 2>>"${WAIT_ERR}" || true
+    refresh_window_log "${WINDOW_BEFORE_ROUTING_LOG}"
+    assert_window_zone "${WINDOW_BEFORE_ROUTING_LOG}" 'reference-beta.rtf' left
+    assert_window_zone "${WINDOW_BEFORE_ROUTING_LOG}" 'route-beta.rtf' main
+    assert_window_zone "${WINDOW_BEFORE_ROUTING_LOG}" 'snap-demo.rtf' main
+    assert_window_zone "${WINDOW_BEFORE_ROUTING_LOG}" 'comms-beta.rtf' right
+}
+
+run_routing_keyboard() {
+    if [ -z "${ROUTING_ID:-}" ] || [ -z "${SNAP_ID:-}" ]; then
+        prepare_live_demo_windows
+    fi
+    {
+        echo "$ winmux move-node-to-zone --window-id ${ROUTING_ID} Comms"
+        "${CLI}" move-node-to-zone --window-id "${ROUTING_ID}" Comms
         echo '$ winmux focus-zone Work'
         "${CLI}" focus-zone Work
+        echo "$ winmux focus --window-id ${SNAP_ID}"
+        "${CLI}" focus --window-id "${SNAP_ID}"
         echo '$ winmux focus-zone Comms'
         "${CLI}" focus-zone Comms
         echo '$ winmux focus-zone Work'
         "${CLI}" focus-zone Work
+        echo "$ winmux focus --window-id ${SNAP_ID}"
+        "${CLI}" focus --window-id "${SNAP_ID}"
         echo '$ winmux list-zones --format keyboard audit'
         "${CLI}" list-zones \
             --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|enabled=%{monitor-zone-enabled}|workspace=%{monitor-active-workspace}'
         echo '$ winmux list-windows --all --format routing audit'
         "${CLI}" list-windows --all \
-            --format 'id=%{window-id}|title=%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}' || true
+            --format 'id=%{window-id}|title=%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|left=%{window-left}|top=%{window-top}|width=%{window-width}|height=%{window-height}' || true
     } >"${ROUTING_KEYBOARD_LOG}" 2>>"${WAIT_ERR}"
     cat "${ROUTING_KEYBOARD_LOG}" | tee -a "${CLI_LOG}"
-    /bin/cp "${ROUTING_KEYBOARD_LOG}" "${LIST_WINDOWS_LOG}" || true
+    refresh_window_log "${WINDOW_AFTER_ROUTING_LOG}"
+    assert_window_zone "${WINDOW_AFTER_ROUTING_LOG}" 'route-beta.rtf' right
+    assert_window_zone "${WINDOW_AFTER_ROUTING_LOG}" 'snap-demo.rtf' main
+    /bin/cp "${WINDOW_AFTER_ROUTING_LOG}" "${LIST_WINDOWS_LOG}" || true
     write_routing_doc
 }
 
+drag_window_jxa() {
+    local source_x="$1"
+    local source_y="$2"
+    local target_x="$3"
+    local target_y="$4"
+    local with_alt="$5"
+    local pickup_path="$6"
+    local path_path="$7"
+    local hover_path="$8"
+    local branch="$9"
+    local scenario_start_ms="${10}"
+    local release_path="${11:-}"
+    /usr/bin/osascript -l JavaScript <<JXA
+ObjC.import('ApplicationServices')
+
+const app = Application.currentApplication()
+app.includeStandardAdditions = true
+const branch = '${branch}'
+const scenarioStartMs = Number('${scenario_start_ms}')
+const mouseEventsLog = '${MOUSE_EVENTS_LOG}'
+const releasePath = '${release_path}'
+
+function shellQuote(value) {
+  return "'" + String(value).replace(/'/g, "'\"'\"'") + "'"
+}
+
+function postLeftMouse(type, x, y, withAlt) {
+  const event = $.CGEventCreateMouseEvent(null, type, $.CGPointMake(Number(x), Number(y)), $.kCGMouseButtonLeft)
+  if (withAlt) {
+    $.CGEventSetFlags(event, $.kCGEventFlagMaskAlternate)
+  }
+  $.CGEventPost($.kCGHIDEventTap, event)
+}
+
+function postOption(down) {
+  const event = $.CGEventCreateKeyboardEvent(null, 58, down)
+  if (down) {
+    $.CGEventSetFlags(event, $.kCGEventFlagMaskAlternate)
+  }
+  $.CGEventPost($.kCGHIDEventTap, event)
+}
+
+function dragTo(x1, y1, x2, y2, steps, stepDelay, withAlt) {
+  for (let i = 1; i <= steps; i++) {
+    const t = i / Number(steps)
+    const x = Number(x1) + ((Number(x2) - Number(x1)) * t)
+    const y = Number(y1) + ((Number(y2) - Number(y1)) * t)
+    postLeftMouse($.kCGEventLeftMouseDragged, x, y, withAlt)
+    delay(stepDelay)
+  }
+}
+
+function capture(path) {
+  delay(0.35)
+  app.doShellScript('/usr/sbin/screencapture -x -D ${GUEST_DISPLAY_ID} ' + shellQuote(path))
+}
+
+function emit(eventId, kind, note) {
+  const offset = ((Date.now() - scenarioStartMs) / 1000).toFixed(3)
+  const line = [eventId, kind, offset, note].join('\t')
+  app.doShellScript("/usr/bin/printf '%s\\n' " + shellQuote(line) + " >> " + shellQuote(mouseEventsLog))
+}
+
+const sx = Number('${source_x}')
+const sy = Number('${source_y}')
+const tx = Number('${target_x}')
+const ty = Number('${target_y}')
+const useAlt = '${with_alt}' === '1'
+const pickupX = sx + ((tx - sx) * 0.10)
+const pickupY = sy + 12
+const pathX = sx + ((tx - sx) * 0.58)
+const pathY = sy + ((ty - sy) * 0.58)
+
+postLeftMouse($.kCGEventMouseMoved, sx, sy, useAlt)
+delay(0.8)
+if (useAlt) {
+  postOption(true)
+  delay(0.35)
+}
+postLeftMouse($.kCGEventLeftMouseDown, sx, sy, useAlt)
+delay(0.25)
+dragTo(sx, sy, pickupX, pickupY, 10, 0.06, useAlt)
+capture('${pickup_path}')
+emit(branch + '-drag-start', 'drag', useAlt ? 'Alt-held pickup' : 'no-modifier pickup')
+dragTo(pickupX, pickupY, pathX, pathY, 24, 0.07, useAlt)
+if ('${path_path}' !== '') {
+  capture('${path_path}')
+  emit(branch + '-drag-path', 'drag', 'path screenshot captured')
+}
+dragTo(pathX, pathY, tx, ty, 24, 0.08, useAlt)
+delay(1.5)
+capture('${hover_path}')
+emit(branch + '-drag-hover', useAlt ? 'overlay' : 'drag', useAlt ? 'whole Comms zone target hover' : 'no snap overlay hover')
+delay(1.5)
+if (releasePath !== '') {
+  capture(releasePath)
+}
+postLeftMouse($.kCGEventLeftMouseUp, tx, ty, useAlt)
+emit(branch === 'snap' ? 'snap-release' : 'freeform-drag-release', 'drag', useAlt ? 'released on whole Comms zone' : 'released without snap')
+if (useAlt) {
+  delay(0.3)
+  postOption(false)
+}
+JXA
+}
+
+reset_snap_window_to_work() {
+    move_window_to_zone "${SNAP_ID}" 'snap-demo.rtf' Work main
+    "${CLI}" focus --window-id "${SNAP_ID}" >/dev/null 2>>"${WAIT_ERR}" || true
+    refresh_window_log "${WINDOW_RESET_LOG}"
+    assert_window_zone "${WINDOW_RESET_LOG}" 'snap-demo.rtf' main
+}
+
 run_mouse_snap() {
+    local source_left source_top source_width main_left main_top main_width right_left right_top right_width right_height
+    local source_x source_y target_x target_y scenario_start_ms before_id before_workspace freeform_id freeform_zone snap_id snap_zone snap_workspace
+    if [ -z "${SNAP_ID:-}" ]; then
+        prepare_live_demo_windows
+    fi
+    write_list_zones_log >/dev/null
+    refresh_window_log "${WINDOW_BEFORE_MOUSE_LOG}"
+    assert_window_zone "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf' main
+    before_id="$(window_id_for_title "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf')"
+    before_workspace="$(workspace_for_title "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf')"
+    source_left="$(window_rect_field_for_title "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf' left)"
+    source_top="$(window_rect_field_for_title "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf' top)"
+    source_width="$(window_rect_field_for_title "${WINDOW_BEFORE_MOUSE_LOG}" 'snap-demo.rtf' width)"
+    main_left="$(zone_field "${LIST_ZONES_LOG}" main left)"
+    main_top="$(zone_field "${LIST_ZONES_LOG}" main top)"
+    main_width="$(zone_field "${LIST_ZONES_LOG}" main width)"
+    right_left="$(zone_field "${LIST_ZONES_LOG}" right left)"
+    right_top="$(zone_field "${LIST_ZONES_LOG}" right top)"
+    right_width="$(zone_field "${LIST_ZONES_LOG}" right width)"
+    right_height="$(zone_field "${LIST_ZONES_LOG}" right height)"
+    [ -n "${source_left}" ] && [ -n "${source_top}" ] && [ -n "${source_width}" ] \
+        || semantic_fail 'Missing snap-demo.rtf source geometry'
+    [ -n "${main_left}" ] && [ -n "${main_top}" ] && [ -n "${main_width}" ] \
+        && [ -n "${right_left}" ] && [ -n "${right_top}" ] && [ -n "${right_width}" ] && [ -n "${right_height}" ] \
+        || semantic_fail 'Missing Slice 51 zone geometry'
+
+    source_x="$(awk_int "${source_left} + (${source_width} * 0.50)")"
+    source_y="$(awk_int "${source_top} + 32")"
+    target_x="$(awk_int "${right_left} + (${right_width} * 0.50)")"
+    target_y="$(awk_int "${right_top} + (${right_height} * 0.38)")"
+
+    : >"${MOUSE_EVENTS_LOG}"
+    printf '# event-id\tkind\toffset-seconds\tnote\n' >>"${MOUSE_EVENTS_LOG}"
+    scenario_start_ms="$(/bin/date +%s)000"
+    drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 0 \
+        "${MOUSE_FREEFORM_PICKUP_SCREENSHOT}" "" "${MOUSE_FREEFORM_HOVER_SCREENSHOT}" \
+        freeform "${scenario_start_ms}"
+    sleep 2
+    refresh_window_log "${WINDOW_AFTER_FREEFORM_LOG}"
+    freeform_id="$(window_id_for_title "${WINDOW_AFTER_FREEFORM_LOG}" 'snap-demo.rtf')"
+    freeform_zone="$(zone_for_title "${WINDOW_AFTER_FREEFORM_LOG}" 'snap-demo.rtf')"
+    [ "${freeform_id}" = "${before_id}" ] || semantic_fail "Freeform drag changed snap window id: ${before_id} -> ${freeform_id:-missing}"
+    [ "${freeform_zone}" = "main" ] || semantic_fail "Freeform drag should keep snap-demo.rtf assigned to Work/main, got ${freeform_zone:-missing}"
+
+    reset_snap_window_to_work
+    capture_guest_screenshot '07c-reset-before-snap-slice-51'
+    source_left="$(window_rect_field_for_title "${WINDOW_RESET_LOG}" 'snap-demo.rtf' left)"
+    source_top="$(window_rect_field_for_title "${WINDOW_RESET_LOG}" 'snap-demo.rtf' top)"
+    source_width="$(window_rect_field_for_title "${WINDOW_RESET_LOG}" 'snap-demo.rtf' width)"
+    source_x="$(awk_int "${source_left} + (${source_width} * 0.50)")"
+    source_y="$(awk_int "${source_top} + 32")"
+    drag_window_jxa "${source_x}" "${source_y}" "${target_x}" "${target_y}" 1 \
+        "${MOUSE_SNAP_PICKUP_SCREENSHOT}" "${MOUSE_SNAP_PATH_SCREENSHOT}" "${MOUSE_SNAP_HOVER_SCREENSHOT}" \
+        snap "${scenario_start_ms}" "${MOUSE_SNAP_RELEASE_SCREENSHOT}"
+    sleep 4
+    for _ in $(seq 1 30); do
+        refresh_window_log "${WINDOW_AFTER_SNAP_LOG}"
+        if [ "$(zone_for_title "${WINDOW_AFTER_SNAP_LOG}" 'snap-demo.rtf')" = "right" ]; then
+            break
+        fi
+        sleep 1
+    done
+    snap_id="$(window_id_for_title "${WINDOW_AFTER_SNAP_LOG}" 'snap-demo.rtf')"
+    snap_zone="$(zone_for_title "${WINDOW_AFTER_SNAP_LOG}" 'snap-demo.rtf')"
+    snap_workspace="$(workspace_for_title "${WINDOW_AFTER_SNAP_LOG}" 'snap-demo.rtf')"
+    [ "${snap_id}" = "${before_id}" ] || semantic_fail "Alt snap changed snap window id: ${before_id} -> ${snap_id:-missing}"
+    [ "${snap_zone}" = "right" ] || semantic_fail "Alt snap should move snap-demo.rtf to Comms/right, got ${snap_zone:-missing}"
+
+    for screenshot in \
+        "${MOUSE_FREEFORM_PICKUP_SCREENSHOT}" \
+        "${MOUSE_FREEFORM_HOVER_SCREENSHOT}" \
+        "${MOUSE_RESET_SCREENSHOT}" \
+        "${MOUSE_SNAP_PICKUP_SCREENSHOT}" \
+        "${MOUSE_SNAP_PATH_SCREENSHOT}" \
+        "${MOUSE_SNAP_HOVER_SCREENSHOT}" \
+        "${MOUSE_SNAP_RELEASE_SCREENSHOT}"; do
+        test -s "${screenshot}" || semantic_fail "missing mouse snap screenshot: ${screenshot}"
+    done
+
     {
-        echo 'mouse-snap-policy=starter whole-zone target'
+        echo 'mouse-snap-policy=snap-on-modifier'
+        echo 'mouse-snap-modifier=alt'
+        echo 'mouse-snap-target=whole-zone'
+        echo 'mouse-snap-not-target=window-slot'
+        echo "source-window-id=${before_id}"
+        echo "source-before-workspace=${before_workspace}"
         echo 'freeform-drag=observed no snap without modifier'
-        echo 'modifier-drag=Option snap targets Comms zone'
-        echo 'snap-target=zone'
+        echo "freeform-after-zone=${freeform_zone}"
+        echo 'modifier-drag=Alt snap targets Comms zone'
+        echo "snap-after-zone=${snap_zone}"
+        echo "snap-after-workspace=${snap_workspace}"
+        echo "freeform-pickup=screenshots/07a-freeform-pickup-slice-51.png"
+        echo "freeform-hover=screenshots/07b-freeform-hover-slice-51.png"
+        echo "snap-hover=screenshots/07f-snap-hover-comms-slice-51.png"
+        echo "snap-release=screenshots/07g-snap-release-slice-51.png"
         echo 'snap-non-claim=not a window-slot snap proof'
     } >"${MOUSE_SNAP_LOG}"
     cat "${MOUSE_SNAP_LOG}" | tee -a "${CLI_LOG}"
+    capture_guest_screenshot '07-mouse-snap-slice-51'
     write_mouse_doc
 }
 
@@ -742,20 +1125,19 @@ run_proof() {
     /usr/bin/open -a TextEdit "${LAUNCH_DOC}"
     sleep 2
     capture_guest_screenshot '05-normal-launch-slice-51'
+    /usr/bin/killall TextEdit >/dev/null 2>&1 || true
+    sleep 1
 
     sleep_until_recording_offset 68 90 "Run: winmux move-node-to-zone Comms"
     echo "routing-keyboard-offset-seconds=${SECONDS}" >>"${TIMING_LOG}"
     run_routing_keyboard
-    /usr/bin/open -a TextEdit "${ROUTING_DOC}"
     sleep 2
     capture_guest_screenshot '06-routing-keyboard-slice-51'
 
     sleep_until_recording_offset 90 110 "Action: hold Option and snap to Comms"
     echo "mouse-snap-offset-seconds=${SECONDS}" >>"${TIMING_LOG}"
     run_mouse_snap
-    /usr/bin/open -a TextEdit "${MOUSE_DOC}"
     sleep 2
-    capture_guest_screenshot '07-mouse-snap-slice-51'
 
     sleep_until_recording_offset 110 130 "Run: winmux use-zone-profile communications"
     echo "profile-layout-offset-seconds=${SECONDS}" >>"${TIMING_LOG}"
@@ -783,6 +1165,8 @@ run_proof() {
     run_disable_or_uninstall
     write_beta_docs
     write_final_doc
+    /usr/bin/killall TextEdit >/dev/null 2>&1 || true
+    sleep 1
     /usr/bin/open -a TextEdit "${FINAL_DOC}"
     sleep 2
     capture_guest_screenshot '11-final-beta-acceptance-slice-51'
@@ -811,8 +1195,12 @@ write_self_test_fixture() {
     package_cli="${ARTIFACTS_DIR}/bin/winmux"
     package_rel="package/WinMux-${version}.zip"
     mkdir -p "${ARTIFACTS_DIR}/package" "${ARTIFACTS_DIR}/bin" "${ARTIFACTS_DIR}/logs" "${ARTIFACTS_DIR}/docs" "${ARTIFACTS_DIR}/screenshots" \
-        "${ARTIFACTS_DIR}/reviews" "${ARTIFACTS_DIR}/retrospectives" "${package_dir}/WinMux.app/Contents/MacOS" \
+        "${ARTIFACTS_DIR}/reviews" "${ARTIFACTS_DIR}/retrospectives" "${ARTIFACTS_DIR}/recordings/raw" \
+        "${ARTIFACTS_DIR}/screenshots/slice-51-beta-acceptance.samples" "${package_dir}/WinMux.app/Contents/MacOS" \
         "${package_dir}/WinMux.app/Contents/Resources" "${package_dir}/bin" "${ARTIFACTS_DIR}/logs/slice-51-zone-support-bundle"
+    ffmpeg -v error -y -f lavfi -i 'color=c=0x102030:s=100x80' -frames:v 1 "${ARTIFACTS_DIR}/template.png"
+    ffmpeg -v error -y -f lavfi -i 'color=c=0x304050:s=100x80' -frames:v 1 "${ARTIFACTS_DIR}/template.jpg"
+    ffmpeg -v error -y -f lavfi -i 'testsrc=duration=1:size=100x80:rate=10' -pix_fmt yuv420p "${ARTIFACTS_DIR}/template.mov"
     printf 'default config\n' >"${package_dir}/WinMux.app/Contents/Resources/default-config.toml"
     printf '#!/usr/bin/env bash\nexit 0\n' >"${package_dir}/WinMux.app/Contents/MacOS/WinMuxApp"
     printf '#!/usr/bin/env bash\nexit 0\n' >"${package_dir}/bin/winmux"
@@ -825,6 +1213,13 @@ write_self_test_fixture() {
     cli_sha="$(sha256_path "${package_cli}")"
 
     printf 'kind=beta-acceptance\nslice=51\n' >"${BETA_MANIFEST}"
+    cat >"${ARTIFACTS_DIR}/logs/preflight.log" <<'EOF'
+vm_display=100x80px
+record_seconds=1
+capture_mode=guest
+require_guest_control=1
+annotate_recording=1
+EOF
     cat >"${HOST_PROVENANCE}" <<EOF
 source_commit=self-test
 git_status_sha256=self-test
@@ -853,6 +1248,35 @@ known limitations: unsigned internal build
 later enhancements: settings UI
 EOF
     printf 'README updated\nrelease notes updated\n' >"${BETA_READINESS_DOCS}"
+    cat >"${WINDOW_BEFORE_ROUTING_LOG}" <<'EOF'
+1|route-beta.rtf|zone=main|workspace=Work|layout=tiling|monitor=Main / Work|left=300|top=0|width=600|height=800
+EOF
+    cat >"${WINDOW_AFTER_ROUTING_LOG}" <<'EOF'
+1|route-beta.rtf|zone=right|workspace=Comms|layout=tiling|monitor=Main / Comms|left=900|top=0|width=300|height=800
+EOF
+    cat >"${ROUTING_KEYBOARD_LOG}" <<'EOF'
+$ winmux move-node-to-zone --window-id 1 Comms
+route-beta.rtf moved from Work/main to Comms/right
+EOF
+    cat >"${WINDOW_AFTER_FREEFORM_LOG}" <<'EOF'
+2|snap-demo.rtf|zone=main|workspace=Work|layout=floating|monitor=Main / Work|left=500|top=40|width=600|height=800
+EOF
+    cat >"${WINDOW_AFTER_SNAP_LOG}" <<'EOF'
+2|snap-demo.rtf|zone=right|workspace=Comms|layout=tiling|monitor=Main / Comms|left=900|top=0|width=300|height=800
+EOF
+    cat >"${MOUSE_SNAP_LOG}" <<'EOF'
+freeform-after-zone=main
+snap-after-zone=right
+EOF
+    cat >"${MOUSE_EVENTS_LOG}" <<'EOF'
+# event-id	kind	offset-seconds	note
+freeform-drag-start	drag	1.0	no modifier pickup
+freeform-drag-hover	drag	2.0	no modifier hover
+freeform-drag-release	drag	3.0	no modifier release
+snap-drag-start	drag	4.0	Alt-held pickup
+snap-drag-hover	overlay	5.0	whole Comms zone target
+snap-release	drag	6.0	release on whole Comms zone
+EOF
     for screenshot in \
         02-package-provenance-slice-51 \
         03-fresh-install-slice-51 \
@@ -864,8 +1288,90 @@ EOF
         09-save-relaunch-slice-51 \
         10-support-bundle-slice-51 \
         11-final-beta-acceptance-slice-51; do
-        printf 'png\n' >"${SCREENSHOTS_DIR}/${screenshot}.png"
+        /bin/cp "${ARTIFACTS_DIR}/template.png" "${SCREENSHOTS_DIR}/${screenshot}.png"
     done
+    for screenshot in \
+        07a-freeform-pickup-slice-51 \
+        07b-freeform-hover-slice-51 \
+        07c-reset-before-snap-slice-51 \
+        07d-snap-pickup-slice-51 \
+        07e-snap-path-slice-51 \
+        07f-snap-hover-comms-slice-51 \
+        07g-snap-release-slice-51; do
+        /bin/cp "${ARTIFACTS_DIR}/template.png" "${SCREENSHOTS_DIR}/${screenshot}.png"
+    done
+    /bin/cp "${ARTIFACTS_DIR}/template.jpg" "${SCREENSHOTS_DIR}/slice-51-beta-acceptance.contact-sheet.jpg"
+    /bin/cp "${ARTIFACTS_DIR}/template.jpg" "${SCREENSHOTS_DIR}/slice-51-beta-acceptance.event-contact-sheet.jpg"
+    /bin/cp "${ARTIFACTS_DIR}/template.mov" "${ARTIFACTS_DIR}/recordings/slice-51-beta-acceptance.mov"
+    /bin/cp "${ARTIFACTS_DIR}/template.mov" "${ARTIFACTS_DIR}/recordings/raw/slice-51-beta-acceptance.raw.mov"
+    for sample in caption-01 caption-02 caption-03 caption-04 caption-05 caption-06 caption-07 caption-08 caption-09 caption-10; do
+        /bin/cp "${ARTIFACTS_DIR}/template.png" "${SCREENSHOTS_DIR}/slice-51-beta-acceptance.samples/${sample}.png"
+        /bin/cp "${ARTIFACTS_DIR}/template.png" "${SCREENSHOTS_DIR}/slice-51-beta-acceptance.samples/${sample}-boundary-start.png"
+    done
+    printf 'result=success\n' >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.annotation.log"
+    cat >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.annotations.tsv" <<'EOF'
+0	16	Package provenance	Start from the beta package and show hashes before any acceptance action.	Run: make beta-package VERSION=0.51.0-self-test PUBLISH=0
+48	68	Normal launch	Launch the packaged app with the normal config path.	Run: open /Applications/WinMux.app
+68	90	Routing and keyboard	Route a window and move it across zones with key-bindable commands.	Run: winmux move-node-to-zone --window-id ROUTE_ID Comms	Run: winmux focus-zone Work
+90	110	Mouse snap	Show freeform drag first, then modifier-held zone snap.	Action: drag snap-demo without Option	Result: no snap	Action: hold Option and snap snap-demo to Comms
+110	130	Profiles and sizing	Toggle zone availability and resize the working layout.	Run: winmux use-zone-profile communications	Run: winmux resize-zone Work width +10%
+130	148	Save and relaunch	Persist the layout, quit, relaunch, and inspect restored widths.	Run: winmux save-zone-layout	Action: relaunch WinMux
+148	164	Support bundle	Generate the attachable diagnostics bundle from the packaged CLI.	Run: winmux doctor zones --support-bundle
+EOF
+    cat >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.expected-chips.txt" <<'EOF'
+Run: make beta-package VERSION=0.51.0-self-test PUBLISH=0
+Run: open /Applications/WinMux.app
+Run: winmux move-node-to-zone --window-id ROUTE_ID Comms
+Run: winmux focus-zone Work
+Action: drag snap-demo without Option
+Result: no snap
+Action: hold Option and snap snap-demo to Comms
+Run: winmux use-zone-profile communications
+Run: winmux resize-zone Work width +10%
+Run: winmux save-zone-layout
+Run: winmux doctor zones --support-bundle
+EOF
+    printf 'result=success\n' >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.caption-tail.tsv"
+    printf 'result=success\n' >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.demo-cut.tsv"
+    cat >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.event-manifest.tsv" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+package-provenance	context	4.100	caption-01	package-provenance	screenshots/02-package-provenance-slice-51.png	provenance visible
+fresh-install	action	18.100	caption-02	fresh-install	screenshots/03-fresh-install-slice-51.png	fresh install visible
+permissions-setup	action	34.100	caption-03	permissions-setup	screenshots/04-permissions-setup-slice-51.png	permissions visible
+normal-launch	action	50.100	caption-04	normal-launch	screenshots/05-normal-launch-slice-51.png	normal launch visible
+routing-keyboard	action	70.100	caption-05	routing-keyboard	screenshots/06-routing-keyboard-slice-51.png	routing visible
+mouse-snap	action	92.100	caption-06	mouse-snap	screenshots/07-mouse-snap-slice-51.png	mouse visible
+profile-layout	action	112.100	caption-07	profile-layout	screenshots/08-profile-layout-slice-51.png	profile visible
+save-relaunch	relaunch	132.100	caption-08	save-relaunch	screenshots/09-save-relaunch-slice-51.png	save visible
+support-bundle	diagnostic	150.100	caption-09	support-bundle	screenshots/10-support-bundle-slice-51.png	support visible
+disable-close	result	166.100	caption-10	disable-close	screenshots/11-final-beta-acceptance-slice-51.png	final visible
+freeform-drag-start	drag	93.100	caption-06	freeform-drag-start	screenshots/07a-freeform-pickup-slice-51.png	freeform pickup
+freeform-drag-hover	drag	96.100	caption-06	freeform-drag-hover	screenshots/07b-freeform-hover-slice-51.png	freeform hover
+freeform-drag-release	drag	99.100	caption-06	freeform-drag-release	screenshots/07c-reset-before-snap-slice-51.png	freeform release
+snap-drag-start	drag	101.100	caption-06	snap-drag-start	screenshots/07d-snap-pickup-slice-51.png	snap pickup
+snap-drag-path	drag	103.100	caption-06	snap-drag-path	screenshots/07e-snap-path-slice-51.png	snap path
+snap-drag-hover	overlay	105.100	caption-06	snap-drag-hover	screenshots/07f-snap-hover-comms-slice-51.png	snap hover
+snap-release	drag	108.100	caption-06	snap-release	screenshots/07g-snap-release-slice-51.png	snap release
+EOF
+    cat >"${ARTIFACTS_DIR}/logs/slice-51-beta-acceptance.sample-manifest.tsv" <<'EOF'
+semantic	package-provenance	screenshot	screenshot	screenshots/02-package-provenance-slice-51.png	provenance visible
+semantic	fresh-install	screenshot	screenshot	screenshots/03-fresh-install-slice-51.png	fresh install visible
+semantic	permissions-setup	screenshot	screenshot	screenshots/04-permissions-setup-slice-51.png	permissions visible
+semantic	normal-launch	screenshot	screenshot	screenshots/05-normal-launch-slice-51.png	normal launch visible
+semantic	routing-keyboard	screenshot	screenshot	screenshots/06-routing-keyboard-slice-51.png	routing visible
+semantic	mouse-snap	screenshot	screenshot	screenshots/07-mouse-snap-slice-51.png	mouse visible
+semantic	profile-layout	screenshot	screenshot	screenshots/08-profile-layout-slice-51.png	profile visible
+semantic	save-relaunch	screenshot	screenshot	screenshots/09-save-relaunch-slice-51.png	save visible
+semantic	support-bundle	screenshot	screenshot	screenshots/10-support-bundle-slice-51.png	support visible
+semantic	disable-close	screenshot	screenshot	screenshots/11-final-beta-acceptance-slice-51.png	final visible
+semantic	freeform-drag-start	screenshot	screenshot	screenshots/07a-freeform-pickup-slice-51.png	freeform pickup
+semantic	freeform-drag-hover	screenshot	screenshot	screenshots/07b-freeform-hover-slice-51.png	freeform hover
+semantic	freeform-drag-release	screenshot	screenshot	screenshots/07c-reset-before-snap-slice-51.png	freeform release
+semantic	snap-drag-start	screenshot	screenshot	screenshots/07d-snap-pickup-slice-51.png	snap pickup
+semantic	snap-drag-path	screenshot	screenshot	screenshots/07e-snap-path-slice-51.png	snap path
+semantic	snap-drag-hover	screenshot	screenshot	screenshots/07f-snap-hover-comms-slice-51.png	snap hover
+semantic	snap-release	screenshot	screenshot	screenshots/07g-snap-release-slice-51.png	snap release
+EOF
     write_beta_proof
     cat >"${ARTIFACTS_DIR}/logs/guest-script-retry-summary.tsv" <<'EOF'
 # phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
@@ -876,7 +1382,7 @@ EOF
 
 self_test_slice() {
     write_self_test_fixture
-    "${REPO_DIR}/script/e2e/check-slice-51-beta-acceptance" "${ARTIFACTS_DIR}" >/dev/null
+    WINMUX_E2E_SLICE51_SELF_TEST_CONTRACT=1 "${REPO_DIR}/script/e2e/check-slice-51-beta-acceptance" "${ARTIFACTS_DIR}" >/dev/null
     printf '[winmux-e2e] Slice 51 guest harness self-test PASS\n'
 }
 

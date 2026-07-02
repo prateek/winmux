@@ -128,6 +128,14 @@ private final class ZoneDividerHitPanel: NSPanelHud {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
+    override func sendEvent(_ event: NSEvent) {
+        guard zoneDividerHitPanelHandlesEvent(type: event.type, buttonNumber: event.buttonNumber) else {
+            forwardUnhandledEventBelow(event)
+            return
+        }
+        super.sendEvent(event)
+    }
+
     override func mouseDown(with event: NSEvent) {
         Task { @MainActor in
             _ = ZoneDividerDragController.shared.handleMouseDown(
@@ -158,6 +166,13 @@ private final class ZoneDividerHitPanel: NSPanelHud {
             y: workspaceRect.topLeftY + workspaceRect.height - event.locationInWindow.y,
         )
     }
+
+    private func forwardUnhandledEventBelow(_ event: NSEvent) {
+        guard let cgEvent = event.cgEvent else { return }
+        ignoresMouseEvents = true
+        defer { ignoresMouseEvents = false }
+        cgEvent.post(tap: .cghidEventTap)
+    }
 }
 
 private final class ZoneDividerHitView: NSView {
@@ -182,7 +197,7 @@ private final class ZoneDividerHitView: NSView {
 
 func zoneDividerChromeHitBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
     guard state != .committed else { return 0 }
-    return zoneDividerVisibleBandWidth(for: state)
+    return 32
 }
 
 func zoneDividerVisibleBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
@@ -192,4 +207,8 @@ func zoneDividerVisibleBandWidth(for state: ZoneDividerOverlayState) -> CGFloat 
         case .dragging, .committed:
             14
     }
+}
+
+func zoneDividerHitPanelHandlesEvent(type: NSEvent.EventType, buttonNumber: Int) -> Bool {
+    buttonNumber == 0 && [NSEvent.EventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].contains(type)
 }

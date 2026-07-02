@@ -87,7 +87,7 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil?.windowId, 3)
     }
 
-    func testFocusedMonitorChangedHookFiresAcrossZonesOnSamePhysicalMonitor() async throws {
+    func testFocusedMonitorChangedHookDoesNotFireAcrossZonesOnSamePhysicalMonitor() async throws {
         let main = TestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -124,6 +124,40 @@ final class FocusCommandTest: XCTestCase {
 
         XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(rightWorkspace))
         XCTAssertTrue(rightWorkspace.focusWorkspace())
+        checkOnFocusChangedCallbacks()
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(focusedMonitorChangedHookRuns, 0)
+    }
+
+    func testFocusedMonitorChangedHookFiresAcrossPhysicalMonitors() async throws {
+        let main = TestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        let secondary = TestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "Secondary",
+            rect: Rect(topLeftX: 1200, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 1200, topLeftY: 0, width: 1200, height: 800),
+            isMain: false,
+        )
+        setMonitorsForTests([main, secondary])
+        let mainWorkspace = Workspace.get(byName: "main-focus")
+        let secondaryWorkspace = Workspace.get(byName: "secondary-focus")
+        XCTAssertTrue(main.setActiveWorkspace(mainWorkspace))
+        XCTAssertTrue(mainWorkspace.focusWorkspace())
+        checkOnFocusChangedCallbacks()
+
+        focusedMonitorChangedHookRuns = 0
+        config.onFocusedMonitorChanged = [RecordingFocusedMonitorChangedCommand()]
+        TrayMenuModel.shared.isEnabled = true
+
+        XCTAssertTrue(secondary.setActiveWorkspace(secondaryWorkspace))
+        XCTAssertTrue(secondaryWorkspace.focusWorkspace())
         checkOnFocusChangedCallbacks()
 
         for _ in 0 ..< 20 where focusedMonitorChangedHookRuns == 0 {

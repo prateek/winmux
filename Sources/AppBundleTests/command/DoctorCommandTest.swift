@@ -95,6 +95,78 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
+    func testZoneSupportBundleRedactsSensitiveAssignmentsAfterCommentApostrophe() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig(extraConfigText: """
+
+        # user's affinity rules should not poison later redaction
+        reviewer-api-token = "apostrophe-comment-secret"
+        """) { outputDirectory in
+            let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            let configText = try String(contentsOf: outputDirectory.appending(component: "config-redacted.toml"), encoding: .utf8)
+            XCTAssertFalse(configText.contains("apostrophe-comment-secret"))
+            XCTAssertTrue(configText.contains(#"reviewer-api-token = "<redacted>""#))
+        }
+    }
+
+    func testZoneSupportBundleRedactsTrailingCommentsOnSensitiveAssignments() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig(extraConfigText: """
+
+        deploy-token = "new-secret-token" # old token: xyz-secret-999
+        """) { outputDirectory in
+            let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            let configText = try String(contentsOf: outputDirectory.appending(component: "config-redacted.toml"), encoding: .utf8)
+            XCTAssertFalse(configText.contains("new-secret-token"))
+            XCTAssertFalse(configText.contains("xyz-secret-999"))
+            XCTAssertTrue(configText.contains(#"deploy-token = "<redacted>""#))
+        }
+    }
+
+    func testZoneSupportBundleRedactsSensitiveAssignmentsInsideInlineComments() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig(extraConfigText: """
+
+        exec-on-workspace-change = [] # api-token = "inline-comment-secret"
+        """) { outputDirectory in
+            let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            let configText = try String(contentsOf: outputDirectory.appending(component: "config-redacted.toml"), encoding: .utf8)
+            XCTAssertFalse(configText.contains("inline-comment-secret"))
+            XCTAssertTrue(configText.contains(#"exec-on-workspace-change = [] # api-token = "<redacted>""#))
+        }
+    }
+
+    func testZoneSupportBundleRedactsNonSensitiveKeyParseErrorValues() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig(extraConfigText: """
+
+        [workspace-to-monitor-force-assignment]
+        research = "Dell U38("
+        """) { outputDirectory in
+            let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            let doctorText = try String(contentsOf: outputDirectory.appending(component: "config-doctor.txt"), encoding: .utf8)
+            XCTAssertTrue(doctorText.contains("config status: ERROR"))
+            XCTAssertFalse(doctorText.contains("Dell U38("))
+            XCTAssertTrue(doctorText.contains("Can't parse <redacted-config-value> regex"))
+        }
+    }
+
     func testZoneSupportBundleResolvesRelativeAndTildeOutputPathsFromClient() async throws {
         configureSupportBundleZones()
 

@@ -279,17 +279,21 @@ func workspaceIsAvailableForMonitor(_ workspace: Workspace, monitor: Monitor) ->
 
 @MainActor
 func repairInvalidVisibleWorkspaceAssignments() {
-    let invalidVisibleWorkspaces = winMuxWorkspaceState.monitorViewportsById.compactMap { viewportId, viewport -> Workspace? in
+    let invalidVisibleAssignments = winMuxWorkspaceState.monitorViewportsById.compactMap { viewportId, viewport -> (MonitorViewportId, Workspace)? in
         guard let workspaceId = viewport.activeWorkspaceId,
               let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
               !isValidAssignment(workspace: workspace, screen: viewportId.topLeftCorner)
         else {
             return nil
         }
-        return workspace
+        return (viewportId, workspace)
     }
 
-    for workspace in invalidVisibleWorkspaces {
+    for (viewportId, workspace) in invalidVisibleAssignments {
+        clearActiveWorkspace(workspace.id, from: viewportId)
+    }
+
+    for (_, workspace) in invalidVisibleAssignments {
         if let forceAssignedMonitor = workspace.forceAssignedMonitor {
             _ = activateWorkspaceOnMonitorPreservingSourceViewport(workspace, targetMonitor: forceAssignedMonitor)
         }
@@ -302,11 +306,16 @@ func repairInvalidVisibleWorkspaceAssignments() {
         else {
             continue
         }
-        var viewport = viewport
-        viewport.activeWorkspaceId = nil
-        if viewport.previousWorkspaceId == workspaceId {
-            viewport.previousWorkspaceId = nil
-        }
-        winMuxWorkspaceState.monitorViewportsById[viewportId] = viewport
+        clearActiveWorkspace(workspaceId, from: viewportId)
     }
+}
+
+@MainActor
+private func clearActiveWorkspace(_ workspaceId: WorkspaceId, from viewportId: MonitorViewportId) {
+    guard var viewport = winMuxWorkspaceState.monitorViewportsById[viewportId] else { return }
+    viewport.activeWorkspaceId = nil
+    if viewport.previousWorkspaceId == workspaceId {
+        viewport.previousWorkspaceId = nil
+    }
+    winMuxWorkspaceState.monitorViewportsById[viewportId] = viewport
 }

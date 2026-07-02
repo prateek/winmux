@@ -40,6 +40,7 @@ open class Window: TreeNode, Hashable {
     func nativeFocus() { die("Not implemented") }
     func getAxRect() async throws -> Rect? { die("Not implemented") }
     func getCenter() async throws -> CGPoint? { try await getAxRect()?.center }
+    @MainActor func currentFrameForHitTesting() -> Rect? { nil }
 
     func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) { die("Not implemented") }
 }

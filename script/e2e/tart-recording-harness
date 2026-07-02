@@ -3579,7 +3579,14 @@ fresh-install	action	18.100	caption-02	fresh-install	screenshots/03-fresh-instal
 permissions-setup	action	34.100	caption-03	permissions-setup	screenshots/04-permissions-setup-slice-51.png	permissions and setup status are visible before normal launch
 normal-launch	action	50.100	caption-04	normal-launch	screenshots/05-normal-launch-slice-51.png	WinMux launches from the packaged app path with no debug binary
 routing-keyboard	action	70.100	caption-05	routing-keyboard	screenshots/06-routing-keyboard-slice-51.png	routing and keyboard cross-zone movement are visible with exact commands
-mouse-snap	action	92.100	caption-06	mouse-snap	screenshots/07-mouse-snap-slice-51.png	mouse snap affordance shows freeform versus snap modifier behavior
+freeform-drag-start	drag	93.100	caption-06	freeform-drag-start	screenshots/07a-freeform-pickup-slice-51.png	no-modifier pickup starts from snap-demo in Work/main
+freeform-drag-hover	drag	96.100	caption-06	freeform-drag-hover	screenshots/07b-freeform-hover-slice-51.png	no-modifier hover keeps snap-demo freeform in Work/main
+freeform-drag-release	drag	99.100	caption-06	freeform-drag-release	screenshots/07c-reset-before-snap-slice-51.png	freeform branch is reset before the snap branch starts
+snap-drag-start	drag	101.100	caption-06	snap-drag-start	screenshots/07d-snap-pickup-slice-51.png	Option-held pickup starts from the same snap-demo window
+snap-drag-path	drag	103.100	caption-06	snap-drag-path	screenshots/07e-snap-path-slice-51.png	Option-held drag travels toward Comms/right
+snap-drag-hover	overlay	105.100	caption-06	snap-drag-hover	screenshots/07f-snap-hover-comms-slice-51.png	whole-zone Comms target is visible before release
+snap-release	drag	108.100	caption-06	snap-release	screenshots/07g-snap-release-slice-51.png	release moves snap-demo into Comms/right
+mouse-snap	action	109.100	caption-06	mouse-snap	screenshots/07-mouse-snap-slice-51.png	mouse snap affordance shows freeform versus modifier-held whole-zone snap
 profile-layout	action	112.100	caption-07	profile-layout	screenshots/08-profile-layout-slice-51.png	profile toggle and layout sizing commands visibly change zone availability
 save-relaunch	relaunch	132.100	caption-08	save-relaunch	screenshots/09-save-relaunch-slice-51.png	save-zone-layout and fresh relaunch preserve the accepted layout
 support-bundle	diagnostic	150.100	caption-09	support-bundle	screenshots/10-support-bundle-slice-51.png	support bundle command creates a schema-validated diagnostics directory
@@ -3735,8 +3742,8 @@ write_slice_51_annotation_plan() {
 16	32	Fresh install	Install WinMux.app and the CLI into the clean guest path.	Run: install beta package to /Applications
 32	48	Permissions and setup	Confirm permissions, write starter config, and validate it.	Run: winmux config --check ~/.config/winmux/winmux.toml
 48	68	Normal launch	Launch the packaged app with the normal config path.	Run: open /Applications/WinMux.app
-68	90	Routing and keyboard	Route a window and move it across zones with key-bindable commands.	Run: winmux move-node-to-zone Comms	Run: winmux focus-zone Work
-90	110	Mouse snap	Show freeform drag first, then modifier-held zone snap.	Action: drag without modifier	Result: no snap	Action: hold Option and snap to Comms
+68	90	Routing and keyboard	Route a window and move it across zones with key-bindable commands.	Run: winmux move-node-to-zone --window-id ROUTE_ID Comms	Run: winmux focus-zone Work
+90	110	Mouse snap	Show freeform drag first, then modifier-held zone snap.	Action: drag snap-demo without Option	Result: no snap	Action: hold Option and snap snap-demo to Comms
 110	130	Profiles and sizing	Toggle zone availability and resize the working layout.	Run: winmux use-zone-profile communications	Run: winmux resize-zone Work width +10%
 130	148	Save and relaunch	Persist the layout, quit, relaunch, and inspect restored widths.	Run: winmux save-zone-layout	Action: relaunch WinMux
 148	164	Support bundle	Generate the attachable diagnostics bundle from the packaged CLI.	Run: winmux doctor zones --support-bundle
@@ -5383,9 +5390,30 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic routing-keyboard screenshot screenshot \
                 "screenshots/06-routing-keyboard-slice-51.png" \
                 "routing and keyboard screenshot shows exact cross-zone commands"
+            append_sample_manifest_row "$manifest_path" semantic freeform-drag-start screenshot screenshot \
+                "screenshots/07a-freeform-pickup-slice-51.png" \
+                "no-modifier drag pickup starts from snap-demo in Work/main"
+            append_sample_manifest_row "$manifest_path" semantic freeform-drag-hover screenshot screenshot \
+                "screenshots/07b-freeform-hover-slice-51.png" \
+                "no-modifier drag hover does not show a snap target and remains a freeform proof"
+            append_sample_manifest_row "$manifest_path" semantic freeform-drag-release screenshot screenshot \
+                "screenshots/07c-reset-before-snap-slice-51.png" \
+                "freeform branch is reset to Work/main before the modifier snap branch starts"
+            append_sample_manifest_row "$manifest_path" semantic snap-drag-start screenshot screenshot \
+                "screenshots/07d-snap-pickup-slice-51.png" \
+                "Option-held pickup starts from the same snap-demo window"
+            append_sample_manifest_row "$manifest_path" semantic snap-drag-path screenshot screenshot \
+                "screenshots/07e-snap-path-slice-51.png" \
+                "Option-held drag path moves toward the whole Comms zone target"
+            append_sample_manifest_row "$manifest_path" semantic snap-drag-hover screenshot screenshot \
+                "screenshots/07f-snap-hover-comms-slice-51.png" \
+                "whole-zone Comms snap target is visible before release"
+            append_sample_manifest_row "$manifest_path" semantic snap-release screenshot screenshot \
+                "screenshots/07g-snap-release-slice-51.png" \
+                "release moves snap-demo into Comms/right instead of a window slot"
             append_sample_manifest_row "$manifest_path" semantic mouse-snap screenshot screenshot \
                 "screenshots/07-mouse-snap-slice-51.png" \
-                "mouse snap screenshot distinguishes freeform drag from modifier-held zone snap"
+                "mouse snap summary screenshot distinguishes freeform drag from modifier-held whole-zone snap"
             append_sample_manifest_row "$manifest_path" semantic profile-layout screenshot screenshot \
                 "screenshots/08-profile-layout-slice-51.png" \
                 "profile and layout screenshot shows profile toggle plus zone sizing command"

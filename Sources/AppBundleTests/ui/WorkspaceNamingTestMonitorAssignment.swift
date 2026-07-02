@@ -137,6 +137,38 @@ extension WorkspaceNamingTest {
         XCTAssertEqual(workspace.preferredMonitorPointForTesting, secondary.rect.topLeftCorner)
     }
 
+    func testForceAssignmentRepairTreatsDisconnectedViewportPointAsInvalid() {
+        let main = WorkspaceNamingTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            isMain: true,
+        )
+        let secondary = WorkspaceNamingTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "Secondary",
+            rect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([main, secondary])
+        let workspace = Workspace.get(byName: "forced-from-disconnected-display")
+        _ = TestWindow.new(id: 215, parent: workspace.rootTilingContainer)
+        config.workspaceToMonitorForceAssignment[workspace.name] = [.sequenceNumber(2)]
+        let staleViewportId = MonitorViewportId(topLeftCorner: CGPoint(x: 5000, y: 0))
+        winMuxWorkspaceState.monitorViewportsById[staleViewportId] = MonitorViewport(
+            id: staleViewportId,
+            activeWorkspaceId: workspace.id,
+            previousWorkspaceId: nil,
+        )
+
+        repairInvalidVisibleWorkspaceAssignments()
+
+        XCTAssertTrue(secondary.defaultWorkspaceViewport.activeWorkspace === workspace)
+        XCTAssertNil(winMuxWorkspaceState.monitorViewportsById[staleViewportId]?.activeWorkspaceId)
+    }
+
     func testMonitorViewportFallbackIgnoresEmptyWorkspaceForcedToAnotherMonitor() {
         let main = WorkspaceNamingTestMonitor(
             monitorAppKitNsScreenScreensId: 1,

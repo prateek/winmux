@@ -384,40 +384,69 @@ private struct ZoneSupportBundleRedactor {
         else {
             return redacted
         }
-        let quotedValuesRedacted = redactQuotedConfigValues(in: redacted)
-        let parseValueRedacted = replaceMatches(
-            in: quotedValuesRedacted,
-            pattern: #"(?i)(can't parse\s+).+?(\s+regex)"#,
-            replacement: #"$1<redacted-config-value>$2"#,
-        )
-        guard isSensitiveConfigKey(parseValueRedacted) else { return parseValueRedacted }
+        let parseValueRedacted = redactConfigParseErrorValues(in: redacted)
+        let quotedValuesRedacted = redactQuotedConfigValues(in: parseValueRedacted)
+        guard isSensitiveConfigKey(quotedValuesRedacted) else { return quotedValuesRedacted }
         return replaceMatches(
-            in: parseValueRedacted,
+            in: quotedValuesRedacted,
             pattern: #"(?i)((?:window-title|app-id|app-name|bundle-id|password|secret|token|credential|api-key|apikey)[^:\n]*:\s*).+"#,
             replacement: #"$1<redacted-config-value>"#,
         )
     }
 
+    private func redactConfigParseErrorValues(in value: String) -> String {
+        let parseValueRedacted = replaceMatches(
+            in: value,
+            pattern: #"(?i)(can't parse\s+).+?(\s+regex)"#,
+            replacement: #"$1<redacted-config-value>$2"#,
+        )
+        return replaceMatches(in: parseValueRedacted, pattern: #"(?i)(cannot parse\s+).+?(\s+regex)"#, replacement: #"$1<redacted-config-value>$2"#)
+    }
+
     private func redactSensitiveConfigAssignments(in text: String) -> String {
-        let assignments = sensitiveConfigValueRanges(in: text)
         var result = text
-        for range in assignments.reversed() {
-            result = (result as NSString).replacingCharacters(in: range, with: #""<redacted>""#)
+        let assignments = sensitiveConfigValueIndexRanges(in: text)
+            .sorted { $0.lowerBound > $1.lowerBound }
+        for range in assignments {
+            result.replaceSubrange(range, with: #""<redacted>""#)
         }
         return result
     }
 
-    private func sensitiveConfigValueRanges(in text: String) -> [NSRange] {
-        var ranges: [NSRange] = []
-        var index = text.startIndex
-        while index < text.endIndex {
-            if text[index] == "=",
-               !isInsideConfigString(index, in: text),
-               let keyRange = configAssignmentKeyRange(endingAt: index, in: text),
-               isSensitiveConfigKey(String(text[keyRange])),
-               let valueRange = configAssignmentValueRange(startingAfter: index, in: text)
+    private func sensitiveConfigValueIndexRanges(in text: String) -> [Range<String.Index>] {
+        sensitiveConfigValueIndexRanges(
+            in: text,
+            within: text.startIndex ..< text.endIndex,
+            treatsHashAsComment: true,
+        )
+    }
+
+    private func sensitiveConfigValueIndexRanges(
+        in text: String,
+        within bounds: Range<String.Index>,
+        treatsHashAsComment: Bool,
+    ) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var index = bounds.lowerBound
+        while index < bounds.upperBound {
+            let char = text[index]
+            if treatsHashAsComment, char == "#" {
+                let commentEnd = lineEnd(startingAt: index, in: text, upperBound: bounds.upperBound)
+                let commentBodyStart = text.index(after: index)
+                ranges += sensitiveConfigValueIndexRanges(
+                    in: text,
+                    within: commentBodyStart ..< commentEnd,
+                    treatsHashAsComment: false,
+                )
+                index = commentEnd
+            } else if char == "\"" || char == "'" {
+                index = configStringEnd(startingAt: index, in: text, upperBound: bounds.upperBound)
+            } else if char == "=",
+                      let keyRange = configAssignmentKeyRange(endingAt: index, in: text, lowerBound: bounds.lowerBound),
+                      isSensitiveConfigKey(String(text[keyRange])),
+                      let valueRange = configAssignmentValueRange(startingAfter: index, in: text, upperBound: bounds.upperBound)
             {
-                ranges.append(NSRange(valueRange, in: text))
+                ranges.append(valueRange)
                 index = valueRange.upperBound
             } else {
                 index = text.index(after: index)
@@ -429,9 +458,10 @@ private struct ZoneSupportBundleRedactor {
     private func configAssignmentKeyRange(
         endingAt equalsIndex: String.Index,
         in text: String,
+        lowerBound: String.Index,
     ) -> Range<String.Index>? {
         var start = equalsIndex
-        while start > text.startIndex {
+        while start > lowerBound {
             let previous = text.index(before: start)
             if "\n,#{[".contains(text[previous]) {
                 break
@@ -563,19 +593,20 @@ private struct ZoneSupportBundleRedactor {
     private func configAssignmentValueRange(
         startingAfter equalsIndex: String.Index,
         in text: String,
+        upperBound: String.Index,
     ) -> Range<String.Index>? {
         var start = text.index(after: equalsIndex)
-        while start < text.endIndex, text[start].isWhitespace, text[start] != "\n" {
+        while start < upperBound, text[start].isWhitespace, text[start] != "\n" {
             start = text.index(after: start)
         }
-        guard start < text.endIndex else { return nil }
+        guard start < upperBound else { return nil }
         var index = start
         var squareDepth = 0
         var braceDepth = 0
-        while index < text.endIndex {
+        while index < upperBound {
             let char = text[index]
             if char == "\"" || char == "'" {
-                index = configStringEnd(startingAt: index, in: text)
+                index = configStringEnd(startingAt: index, in: text, upperBound: upperBound)
                 continue
             }
             switch char {
@@ -603,34 +634,64 @@ private struct ZoneSupportBundleRedactor {
                     }
                 case ",", "#":
                     if squareDepth == 0 && braceDepth == 0 {
-                        return start ..< index
+                        return sensitiveConfigValueRangeWithTrailingComment(
+                            start: start,
+                            end: index,
+                            in: text,
+                            upperBound: upperBound,
+                        )
                     }
                 case "\n":
                     if squareDepth == 0 && braceDepth == 0 {
-                        return start ..< index
+                        return sensitiveConfigValueRangeWithTrailingComment(
+                            start: start,
+                            end: index,
+                            in: text,
+                            upperBound: upperBound,
+                        )
                     }
                 default:
                     break
             }
             index = text.index(after: index)
         }
-        return start ..< text.endIndex
+        return sensitiveConfigValueRangeWithTrailingComment(start: start, end: upperBound, in: text, upperBound: upperBound)
     }
 
-    private func configStringEnd(startingAt start: String.Index, in text: String) -> String.Index {
+    private func sensitiveConfigValueRangeWithTrailingComment(
+        start: String.Index,
+        end: String.Index,
+        in text: String,
+        upperBound: String.Index,
+    ) -> Range<String.Index> {
+        var cursor = end
+        while cursor < upperBound, text[cursor].isWhitespace, text[cursor] != "\n" {
+            cursor = text.index(after: cursor)
+        }
+        guard cursor < upperBound, text[cursor] == "#" else {
+            return start ..< end
+        }
+        return start ..< lineEnd(startingAt: cursor, in: text, upperBound: upperBound)
+    }
+
+    private func configStringEnd(
+        startingAt start: String.Index,
+        in text: String,
+        upperBound: String.Index,
+    ) -> String.Index {
         let quote = text[start]
         let afterFirst = text.index(after: start)
-        let isTriple = afterFirst < text.endIndex &&
+        let isTriple = afterFirst < upperBound &&
             text[afterFirst] == quote &&
-            text.index(after: afterFirst) < text.endIndex &&
+            text.index(after: afterFirst) < upperBound &&
             text[text.index(after: afterFirst)] == quote
         var index = isTriple ? text.index(start, offsetBy: 3) : afterFirst
-        while index < text.endIndex {
+        while index < upperBound {
             if text[index] == quote {
                 if isTriple {
                     let second = text.index(after: index)
-                    let third = second < text.endIndex ? text.index(after: second) : text.endIndex
-                    if second < text.endIndex, third < text.endIndex, text[second] == quote, text[third] == quote {
+                    let third = second < upperBound ? text.index(after: second) : upperBound
+                    if second < upperBound, third < upperBound, text[second] == quote, text[third] == quote {
                         return text.index(after: third)
                     }
                 } else {
@@ -639,7 +700,7 @@ private struct ZoneSupportBundleRedactor {
             }
             if quote == "\"", text[index] == "\\", !isTriple {
                 index = text.index(after: index)
-                if index < text.endIndex {
+                if index < upperBound {
                     index = text.index(after: index)
                     continue
                 }
@@ -647,32 +708,15 @@ private struct ZoneSupportBundleRedactor {
                 index = text.index(after: index)
             }
         }
-        return text.endIndex
+        return upperBound
     }
 
-    private func isInsideConfigString(_ target: String.Index, in text: String) -> Bool {
-        var index = text.startIndex
-        var isInsideComment = false
-        while index < target {
-            if isInsideComment {
-                if text[index] == "\n" {
-                    isInsideComment = false
-                }
-                index = text.index(after: index)
-            } else if text[index] == "#" {
-                isInsideComment = true
-                index = text.index(after: index)
-            } else if text[index] == "\"" || text[index] == "'" {
-                let end = configStringEnd(startingAt: index, in: text)
-                if target < end {
-                    return true
-                }
-                index = end
-            } else {
-                index = text.index(after: index)
-            }
+    private func lineEnd(startingAt start: String.Index, in text: String, upperBound: String.Index) -> String.Index {
+        var index = start
+        while index < upperBound, text[index] != "\n" {
+            index = text.index(after: index)
         }
-        return false
+        return index
     }
 
     private func redactQuotedConfigValues(in value: String) -> String {

@@ -37,7 +37,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") <slice-50-run-dir>
 
-Builds the Slice 50 beta package with PUBLISH=0, copies package/app/CLI
+Builds the Slice 50 beta package with PUBLISH=0, copies package/app/CLI/docs
 artifacts into the run directory, and writes logs/package-host-provenance.env.
 EOF
 }
@@ -68,15 +68,18 @@ DEMO_CONTACT_SHEET="artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/sc
 ZIP_SOURCE="${BUILD_RELEASE_DIR}/${PACKAGE_ZIP_NAME}"
 APP_SOURCE="${BUILD_RELEASE_DIR}/WinMux-${VERSION}/WinMux.app"
 CLI_SOURCE="${BUILD_RELEASE_DIR}/WinMux-${VERSION}/bin/winmux"
+DOCS_LINKS_SOURCE="${BUILD_RELEASE_DIR}/WinMux-${VERSION}/docs/package-docs-links.md"
 
 [ -s "$ZIP_SOURCE" ] || die "package zip was not built: $ZIP_SOURCE"
 [ -x "$APP_SOURCE/Contents/MacOS/WinMuxApp" ] || die "package app was not built: $APP_SOURCE"
 [ -x "$CLI_SOURCE" ] || die "package CLI was not built: $CLI_SOURCE"
+[ -s "$DOCS_LINKS_SOURCE" ] || die "package docs links were not built: $DOCS_LINKS_SOURCE"
 
-rm -rf "${RUN_DIR}/package/WinMux.app" "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}" "${RUN_DIR}/bin/winmux"
+rm -rf "${RUN_DIR}/package/WinMux.app" "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}" "${RUN_DIR}/bin/winmux" "${RUN_DIR}/docs/package-docs-links.md"
 /usr/bin/ditto "$APP_SOURCE" "${RUN_DIR}/package/WinMux.app"
 /bin/cp "$CLI_SOURCE" "${RUN_DIR}/bin/winmux"
 /bin/cp "$ZIP_SOURCE" "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}"
+/bin/cp "$DOCS_LINKS_SOURCE" "${RUN_DIR}/docs/package-docs-links.md"
 chmod +x "${RUN_DIR}/bin/winmux"
 cp "${SCRIPT_DIR}/specs/product-evidence-index.tsv" "${RUN_DIR}/logs/product-evidence-index.tsv"
 printf 'kind=package\nslice=50\n' >"${RUN_DIR}/logs/package-slice-manifest.txt"
@@ -101,6 +104,8 @@ app_path=package/WinMux.app
 app_sha256=$(sha256_path "${RUN_DIR}/package/WinMux.app")
 cli_path=bin/winmux
 cli_sha256=$(sha256_path "${RUN_DIR}/bin/winmux")
+docs_links_path=docs/package-docs-links.md
+docs_links_sha256=$(sha256_file "${RUN_DIR}/docs/package-docs-links.md")
 codesign_status=${codesign_status}
 notarization_status=not-notarized
 release_notes_path=docs/release-notes.md

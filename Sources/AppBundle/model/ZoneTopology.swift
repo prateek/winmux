@@ -20,7 +20,6 @@ struct ZoneTopologySnapshot: Sendable {
 
     init(
         _ config: Config,
-        environment _: [String: String] = ProcessInfo.processInfo.environment,
         runtimeOverlaysByPhysicalIdentity: [String: ZoneRuntimeOverlay] = zoneRuntimeOverlaysSnapshot(),
     ) {
         self.init(

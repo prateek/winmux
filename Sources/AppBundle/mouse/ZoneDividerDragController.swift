@@ -170,13 +170,48 @@ final class ZoneDividerDragController {
 
 @MainActor
 private func isPointInsideKnownWindowFrame(_ point: CGPoint) -> Bool {
-    Workspace.all
+    let candidates = Workspace.all
         .filter(\.isVisible)
         .flatMap(\.allLeafWindowsRecursive)
-        .contains { window in
+        .filter { window in
             guard !window.isHiddenInCorner else { return false }
             return [window.lastKnownActualRect, window.lastAppliedLayoutPhysicalRect]
                 .compactMap { $0 }
                 .contains { $0.contains(point) }
         }
+    guard !candidates.isEmpty else { return false }
+    let liveFrames = liveOnScreenWindowFramesById()
+    return candidates.contains { window in
+        if let frame = window.currentFrameForHitTesting() {
+            return frame.contains(point)
+        }
+        return liveFrames[window.windowId]?.contains(point) == true
+    }
+}
+
+private func liveOnScreenWindowFramesById() -> [UInt32: Rect] {
+    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let windowInfos = CGWindowListCopyWindowInfo(options, CGWindowID(0)) as? [[String: Any]] else {
+        return [:]
+    }
+    return windowInfos.reduce(into: [:]) { result, info in
+        guard let windowId = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+              let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue,
+              layer == 0,
+              let alpha = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue,
+              alpha > 0.01,
+              let boundsDictionary = info[kCGWindowBounds as String] as? NSDictionary,
+              let bounds = CGRect(dictionaryRepresentation: boundsDictionary),
+              bounds.width > 8,
+              bounds.height > 8
+        else {
+            return
+        }
+        result[windowId] = Rect(
+            topLeftX: bounds.minX,
+            topLeftY: bounds.minY,
+            width: bounds.width,
+            height: bounds.height,
+        )
+    }
 }

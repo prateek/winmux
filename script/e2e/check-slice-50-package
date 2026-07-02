@@ -17,8 +17,8 @@ usage() {
 Usage: $(basename "$0") [--require-review] [--closeout] <run-dir>
        $(basename "$0") --self-test
 
-Validates a Slice 50 beta package artifact: provenance, package/app/CLI hashes,
-install and launch proof, release notes, reused product evidence, and optional
+Validates a Slice 50 beta package artifact: provenance, package/app/CLI/docs
+hashes, install and launch proof, release notes, reused product evidence, and optional
 review/closeout files.
 EOF
 }
@@ -98,6 +98,7 @@ validate_release_notes() {
     local path="$1"
     local codesign_status="$2"
     local demo_contact_sheet_path="$3"
+    local docs_links_path="$4"
     require_file_under_run "$path"
     if /usr/bin/grep -Eiq 'is App Store ready|means App Store readiness|public beta started|external beta started|public release starts|public release has started|starts public release|is a public release|is a release-ready distribution' "${RUN_DIR}/${path}"; then
         die "release notes contain forbidden public-beta/App-Store readiness claim"
@@ -110,6 +111,10 @@ validate_release_notes() {
     fi
     /usr/bin/grep -F "$demo_contact_sheet_path" "${RUN_DIR}/${path}" >/dev/null \
         || die "release notes must cite the root ultrawide demo contact sheet"
+    /usr/bin/grep -F 'Docs links:' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must name packaged docs links"
+    /usr/bin/grep -F "$docs_links_path" "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must cite the packaged docs links path"
     /usr/bin/grep -F 'doctor zones --support-bundle' "${RUN_DIR}/${path}" >/dev/null \
         || die "release notes must tell testers how to generate a support bundle"
     /usr/bin/grep -F 'Supported workflows' "${RUN_DIR}/${path}" >/dev/null \
@@ -120,6 +125,22 @@ validate_release_notes() {
         || die "release notes must say Slice 50 does not start external beta"
     /usr/bin/grep -F 'does not imply App Store readiness' "${RUN_DIR}/${path}" >/dev/null \
         || die "release notes must say Slice 50 does not imply App Store readiness"
+}
+
+validate_docs_links_payload() {
+    local path="$1"
+    local expected_sha="$2"
+    require_file_under_run "$path"
+    [ "$(sha256_file "${RUN_DIR}/${path}")" = "$expected_sha" ] \
+        || die "docs links hash mismatch: ${path}"
+    for text in \
+        "README.md" \
+        "docs/ultrawide-zones.md" \
+        "docs/samples/" \
+        "https://github.com/zimengxiong/winmux" \
+        "https://macoswm.com/wm/winmux"; do
+        require_artifact_text "$path" "$text"
+    done
 }
 
 validate_normal_config_path() {
@@ -337,6 +358,10 @@ validate_package_artifact() {
         *PUBLISH=0*) ;;
         *) die "package command must make PUBLISH=0 explicit: ${package_command}" ;;
     esac
+    case "$package_command" in
+        make\ beta-package\ VERSION=*\ PUBLISH=0) ;;
+        *) die "package command must use beta-package with VERSION and PUBLISH=0: ${package_command}" ;;
+    esac
     validate_package_caption_command "$package_command"
 
     local package_path package_sha app_path app_sha cli_path cli_sha
@@ -357,7 +382,7 @@ validate_package_artifact() {
         || die "CLI hash mismatch: ${cli_path}"
 
     local codesign_status notarization_status normal_config_path install_proof launch_proof release_notes installed_app_path guest_user
-    local demo_contact_sheet_path demo_contact_sheet_sha
+    local demo_contact_sheet_path demo_contact_sheet_sha docs_links_path docs_links_sha
     codesign_status="$(require_env_value codesign_status "$provenance")"
     notarization_status="$(require_env_value notarization_status "$provenance")"
     guest_user="$(require_env_value guest_user "$provenance")"
@@ -368,6 +393,8 @@ validate_package_artifact() {
     installed_app_path="$(require_env_value installed_app_path "$provenance")"
     demo_contact_sheet_path="$(require_env_value demo_contact_sheet_path "$provenance")"
     demo_contact_sheet_sha="$(require_env_value demo_contact_sheet_sha256 "$provenance")"
+    docs_links_path="$(require_env_value docs_links_path "$provenance")"
+    docs_links_sha="$(require_env_value docs_links_sha256 "$provenance")"
     case "$codesign_status" in
         signed|unsigned) ;;
         *) die "codesign_status must be signed or unsigned, got: ${codesign_status}" ;;
@@ -388,6 +415,7 @@ validate_package_artifact() {
     require_artifact_text "$install_proof" "clean_guest=1"
     require_artifact_text "$install_proof" "package_path=${package_path}"
     require_artifact_text "$install_proof" "packaged_app_path=${app_path}"
+    require_artifact_text "$install_proof" "packaged_docs_links_path=${docs_links_path}"
     require_artifact_text "$install_proof" "installed_app_path=${installed_app_path}"
     require_artifact_text "$install_proof" "installed_app_exists=true"
     require_artifact_text "$launch_proof" "launch_result=success"
@@ -400,9 +428,10 @@ validate_package_artifact() {
     require_artifact_text "$launch_proof" "accessibility=granted"
     require_artifact_text "$launch_proof" "screen-recording=granted"
     validate_demo_contact_sheet "$demo_contact_sheet_path" "$demo_contact_sheet_sha"
+    validate_docs_links_payload "$docs_links_path" "$docs_links_sha"
     validate_support_bundle "$provenance"
     validate_retry_summary
-    validate_release_notes "$release_notes" "$codesign_status" "$demo_contact_sheet_path"
+    validate_release_notes "$release_notes" "$codesign_status" "$demo_contact_sheet_path" "$docs_links_path"
     validate_product_evidence_index
 }
 
@@ -422,6 +451,9 @@ validate_review() {
         "package_sha256" \
         "app_sha256" \
         "cli_sha256" \
+        "docs_links_path" \
+        "docs_links_sha256" \
+        "docs links" \
         "normal config path" \
         "guest_user" \
         "install_proof_path" \
@@ -536,6 +568,15 @@ run_self_test() {
     printf 'zip\n' >"$tmp/WinMux-test.zip"
     cp "$EVIDENCE_INDEX" "$tmp/logs/product-evidence-index.tsv"
     printf 'kind=package\nslice=50\n' >"$tmp/logs/package-slice-manifest.txt"
+    cat >"$tmp/docs/package-docs-links.md" <<'EOF'
+# WinMux Beta Package Docs Links
+
+- README: README.md
+- Ultrawide zones guide: docs/ultrawide-zones.md
+- Parse-checked ultrawide sample configs: docs/samples/
+- Project repository: https://github.com/zimengxiong/winmux
+- Product listing: https://macoswm.com/wm/winmux
+EOF
     cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
 # phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
 slice-50-setup	logs/slice-50-setup.log	1	0	success	yes	success	-	-	no	-
@@ -556,6 +597,7 @@ Generate diagnostics with: winmux doctor zones --support-bundle
 This does not imply App Store readiness and does not start external beta.
 Supported workflows: install, launch, permissions, ultrawide zones, support bundle.
 Known limitations: unsigned build, no public beta, no App Store readiness.
+Docs links: docs/package-docs-links.md
 EOF
     printf 'Inspect the current ultrawide demo poster: %s\n' "$demo_contact_sheet_path" >>"$tmp/${release_notes}"
     {
@@ -564,6 +606,7 @@ EOF
         printf 'clean_guest=1\n'
         printf 'package_path=WinMux-test.zip\n'
         printf 'packaged_app_path=package/WinMux.app\n'
+        printf 'packaged_docs_links_path=docs/package-docs-links.md\n'
         printf 'installed_app_path=/Applications/WinMux.app\n'
         printf 'installed_app_exists=true\n'
     } >"$tmp/${install_proof}"
@@ -580,23 +623,25 @@ EOF
     } >"$tmp/${launch_proof}"
     provenance="$tmp/logs/package-provenance.env"
     cat >"$tmp/logs/slice-50-package-release.expected-chips.txt" <<'EOF'
-Run: make release VERSION=0.0.0-self-test PUBLISH=0
+Run: make beta-package VERSION=0.0.0-self-test PUBLISH=0
 Run: WinMuxApp from /Applications/WinMux.app
 EOF
     cat >"$tmp/logs/slice-50-package-release.annotations.tsv" <<'EOF'
-0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: make release VERSION=0.0.0-self-test PUBLISH=0
+0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: make beta-package VERSION=0.0.0-self-test PUBLISH=0
 EOF
     cat >"$provenance" <<EOF
 source_commit=self-test
 git_status_sha256=self-test
 version=0.0.0-self-test
-package_command=make release VERSION=0.0.0-self-test PUBLISH=0
+package_command=make beta-package VERSION=0.0.0-self-test PUBLISH=0
 package_path=WinMux-test.zip
 package_sha256=$(sha256_path "$tmp/WinMux-test.zip")
 app_path=package/WinMux.app
 app_sha256=$(sha256_path "$tmp/package/WinMux.app")
 cli_path=bin/winmux
 cli_sha256=$(sha256_path "$tmp/bin/winmux")
+docs_links_path=docs/package-docs-links.md
+docs_links_sha256=$(sha256_file "$tmp/docs/package-docs-links.md")
 codesign_status=unsigned
 notarization_status=not-notarized
 guest_user=admin
@@ -612,17 +657,29 @@ support_bundle_schema_log_path=logs/support-bundle-schema.log
 EOF
     validate_package_artifact
 
-    /usr/bin/perl -0pi -e 's/Run: make release VERSION=0.0.0-self-test PUBLISH=0/Run: make release VERSION=stale PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
+    /usr/bin/perl -0pi -e 's/make beta-package/make release/g' "$provenance" "$tmp/logs/slice-50-package-release.expected-chips.txt" "$tmp/logs/slice-50-package-release.annotations.tsv"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected non-beta package command rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/make release/make beta-package/g' "$provenance" "$tmp/logs/slice-50-package-release.expected-chips.txt" "$tmp/logs/slice-50-package-release.annotations.tsv"
+
+    /usr/bin/perl -0pi -e 's/Run: make beta-package VERSION=0.0.0-self-test PUBLISH=0/Run: make beta-package VERSION=stale PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
     if ( validate_package_artifact ) >/dev/null 2>&1; then
         die "self-test expected stale package caption rejection"
     fi
-    /usr/bin/perl -0pi -e 's/Run: make release VERSION=stale PUBLISH=0/Run: make release VERSION=0.0.0-self-test PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
+    /usr/bin/perl -0pi -e 's/Run: make beta-package VERSION=stale PUBLISH=0/Run: make beta-package VERSION=0.0.0-self-test PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
 
     mv "$tmp/logs/package-slice-manifest.txt" "$tmp/logs/package-slice-manifest.txt.bak"
     if ( validate_package_artifact ) >/dev/null 2>&1; then
         die "self-test expected missing package slice manifest rejection"
     fi
     mv "$tmp/logs/package-slice-manifest.txt.bak" "$tmp/logs/package-slice-manifest.txt"
+
+    mv "$tmp/docs/package-docs-links.md" "$tmp/docs/package-docs-links.md.bak"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected missing package docs links rejection"
+    fi
+    mv "$tmp/docs/package-docs-links.md.bak" "$tmp/docs/package-docs-links.md"
 
     /usr/bin/perl -0pi -e "s|normal_config_path=/Users/admin/\\.config/winmux/winmux\\.toml|normal_config_path=$HOME/.config/winmux/winmux.toml|" "$provenance"
     /usr/bin/perl -0pi -e "s|normal_config_path=/Users/admin/\\.config/winmux/winmux\\.toml|normal_config_path=$HOME/.config/winmux/winmux.toml|" "$tmp/${launch_proof}"

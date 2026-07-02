@@ -197,7 +197,7 @@ e2e-pre-tart-checks:
 	echo "[winmux-e2e] Slice 51 guest self-test PASS: script/e2e/guest/slice-51-beta-acceptance.sh" && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
-	swift test --filter '"'"'AppBundleUtilTest|DoctorCommandTest|FocusCommandTest/testFocusedMonitorChangedHookFiresAcrossZonesOnSamePhysicalMonitor|ConfigBootstrapTest|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testRenderConfigDoctorLinesForValidZonesConfig|ConfigTest.testRenderConfigDoctorLinesForInvalidZonesConfig|ConfigTest.testRenderConfigDoctorLinesIncludesRuntimeOverlayState|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneRelaunchSavedLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseZoneAffinitiesBetaE2EConfig|ConfigTest.testParseZoneAvailabilityProfilesE2EConfig|ConfigTest.testParseZoneChromePolishE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseMouseGestureConfigurabilityE2EConfig|ConfigTest.testParseDragOverlaySemanticsE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testWorkspaceSidebarKeepsDisabledZoneTargetsReadable|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \
+	swift test --filter '"'"'AppBundleUtilTest|DoctorCommandTest|FocusCommandTest|ConfigBootstrapTest|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testRenderConfigDoctorLinesForValidZonesConfig|ConfigTest.testRenderConfigDoctorLinesForInvalidZonesConfig|ConfigTest.testRenderConfigDoctorLinesIncludesRuntimeOverlayState|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneRelaunchSavedLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseZoneAffinitiesBetaE2EConfig|ConfigTest.testParseZoneAvailabilityProfilesE2EConfig|ConfigTest.testParseZoneChromePolishE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseMouseGestureConfigurabilityE2EConfig|ConfigTest.testParseDragOverlaySemanticsE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceNamingTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testWorkspaceSidebarKeepsDisabledZoneTargetsReadable|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \
 	./script/e2e/check-generated-version-clean'
 
 e2e-run-product-slice:
@@ -539,7 +539,7 @@ beta-package:
 	printf "%s\n" "// FILE IS GENERATED BY Makefile" "public let gitHash = \"$$git_hash\"" "public let gitShortHash = \"$$git_short_hash\"" > Sources/Common/gitHashGenerated.swift; \
 	source ./script/setup.sh; \
 	rm -rf "$$staging_dir" "$$zip_path"; \
-	mkdir -p "$$release_dir" "$$app_path/Contents/MacOS" "$$app_path/Contents/Resources" "$$(dirname "$$cli_path")"; \
+	mkdir -p "$$release_dir" "$$app_path/Contents/MacOS" "$$app_path/Contents/Resources" "$$(dirname "$$cli_path")" "$$staging_dir/docs"; \
 	{ \
 	    echo "+ swift build -c release --product WinMuxApp"; \
 	    swift build -c release --product WinMuxApp; \
@@ -549,6 +549,19 @@ beta-package:
 	cp .build/release/WinMuxApp "$$app_path/Contents/MacOS/WinMuxApp"; \
 	cp .build/release/winmux "$$cli_path"; \
 	cp resources/default-config.toml "$$app_path/Contents/Resources/default-config.toml"; \
+	printf "%s\n" \
+	    "# WinMux Beta Package Docs Links" \
+	    "" \
+	    "Version: $(VERSION)" \
+	    "" \
+	    "- README: README.md" \
+	    "- Ultrawide zones guide: docs/ultrawide-zones.md" \
+	    "- Parse-checked ultrawide sample configs: docs/samples/" \
+	    "- Project repository: https://github.com/zimengxiong/winmux" \
+	    "- Product listing: https://macoswm.com/wm/winmux" \
+	    "" \
+	    "This package includes the app, CLI, default config resources, this docs-link payload, and helper metadata for internal beta validation." \
+	    >"$$staging_dir/docs/package-docs-links.md"; \
 	chmod +x "$$app_path/Contents/MacOS/WinMuxApp" "$$cli_path"; \
 	printf "%s\n" \
 	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" \

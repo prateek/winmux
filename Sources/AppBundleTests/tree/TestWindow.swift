@@ -47,6 +47,10 @@ final class TestWindow: Window, CustomStringConvertible {
         return _rect
     }
 
+    @MainActor override func currentFrameForHitTesting() -> Rect? {
+        _rect
+    }
+
     @MainActor override var isMacosFullscreen: Bool { get async throws { nativeIsMacosFullscreen } }
 
     @MainActor override var isMacosMinimized: Bool { get async throws { nativeIsMacosMinimized } }

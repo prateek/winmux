@@ -89,7 +89,79 @@ require_slice_51_screenshot_sequence() {
         screenshots/10-support-bundle-slice-51.png \
         screenshots/11-final-beta-acceptance-slice-51.png; do
         require_file_under_run "$screenshot"
+        validate_image_media "$screenshot" exact
     done
+}
+
+required_record_seconds() {
+    if [ "$SELF_TEST" -eq 1 ] || [ "${WINMUX_E2E_SLICE51_SELF_TEST_CONTRACT:-}" = "1" ]; then
+        printf '1\n'
+    else
+        printf '180\n'
+    fi
+}
+
+required_display_width() {
+    if [ "$SELF_TEST" -eq 1 ] || [ "${WINMUX_E2E_SLICE51_SELF_TEST_CONTRACT:-}" = "1" ]; then
+        printf '100\n'
+    else
+        printf '3440\n'
+    fi
+}
+
+required_display_height() {
+    if [ "$SELF_TEST" -eq 1 ] || [ "${WINMUX_E2E_SLICE51_SELF_TEST_CONTRACT:-}" = "1" ]; then
+        printf '80\n'
+    else
+        printf '1440\n'
+    fi
+}
+
+require_tool() {
+    command -v "$1" >/dev/null 2>&1 || die "missing media validation tool: $1"
+}
+
+validate_image_media() {
+    local path="$1"
+    local mode="${2:-min}"
+    local width height
+    require_file_under_run "$path"
+    width="$(/usr/bin/sips -g pixelWidth "${RUN_DIR}/${path}" 2>/dev/null | /usr/bin/awk '/pixelWidth:/ { print $2; exit }')" \
+        || die "image is not readable media: ${path}"
+    height="$(/usr/bin/sips -g pixelHeight "${RUN_DIR}/${path}" 2>/dev/null | /usr/bin/awk '/pixelHeight:/ { print $2; exit }')" \
+        || die "image is not readable media: ${path}"
+    [ -n "$width" ] && [ -n "$height" ] || die "image has no readable dimensions: ${path}"
+    if [ "$mode" = "exact" ]; then
+        [ "$width" = "$(required_display_width)" ] || die "${path} width ${width} does not match Slice 51 display width $(required_display_width)"
+        [ "$height" = "$(required_display_height)" ] || die "${path} height ${height} does not match Slice 51 display height $(required_display_height)"
+    else
+        [ "$width" -ge 40 ] || die "${path} width is too small: ${width}"
+        [ "$height" -ge 30 ] || die "${path} height is too small: ${height}"
+    fi
+}
+
+validate_recording_media() {
+    local path="$1"
+    local duration width height frames codec
+    require_file_under_run "$path"
+    require_tool ffprobe
+    duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${RUN_DIR}/${path}")" \
+        || die "recording is not playable: ${path}"
+    width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "${RUN_DIR}/${path}")" \
+        || die "recording has no readable width: ${path}"
+    height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 "${RUN_DIR}/${path}")" \
+        || die "recording has no readable height: ${path}"
+    codec="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${RUN_DIR}/${path}")" \
+        || die "recording has no readable codec: ${path}"
+    frames="$(ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 "${RUN_DIR}/${path}")" \
+        || die "recording has no readable frame count: ${path}"
+    /usr/bin/awk -v duration="$duration" -v expected="$(required_record_seconds)" \
+        'BEGIN { exit(duration + 0 >= expected * 0.80 ? 0 : 1) }' \
+        || die "${path} duration ${duration}s is shorter than 80% of requested $(required_record_seconds)s"
+    [ -n "$codec" ] || die "recording codec is missing: ${path}"
+    [ "${frames:-0}" -gt 5 ] || die "recording frame count is too low for ${path}: ${frames:-0}"
+    [ "$width" = "$(required_display_width)" ] || die "${path} width ${width} does not match Slice 51 display width $(required_display_width)"
+    [ "$height" = "$(required_display_height)" ] || die "${path} height ${height} does not match Slice 51 display height $(required_display_height)"
 }
 
 require_text() {
@@ -174,6 +246,124 @@ validate_package_provenance() {
         || die "CLI hash mismatch: ${cli_path}"
 }
 
+validate_preflight_media_contract() {
+    local preflight="${RUN_DIR}/logs/preflight.log"
+    local vm_display record_seconds capture_mode require_guest_control annotate_recording
+    require_file_under_run "logs/preflight.log"
+    vm_display="$(env_value vm_display "$preflight")"
+    record_seconds="$(env_value record_seconds "$preflight")"
+    capture_mode="$(env_value capture_mode "$preflight")"
+    require_guest_control="$(env_value require_guest_control "$preflight")"
+    annotate_recording="$(env_value annotate_recording "$preflight")"
+    [ "$vm_display" = "$(required_display_width)x$(required_display_height)px" ] \
+        || die "Slice 51 preflight must use $(required_display_width)x$(required_display_height)px display, got: ${vm_display:-missing}"
+    [ "$record_seconds" = "$(required_record_seconds)" ] \
+        || die "Slice 51 preflight must request $(required_record_seconds)s, got: ${record_seconds:-missing}"
+    [ "$capture_mode" = "guest" ] || die "Slice 51 must use guest capture, got: ${capture_mode:-missing}"
+    [ "$require_guest_control" = "1" ] || die "Slice 51 must require guest control"
+    [ "$annotate_recording" = "1" ] || die "Slice 51 must annotate the recording"
+}
+
+manifest_path_column() {
+    local manifest="$1"
+    local column="$2"
+    local context="$3"
+    local col1 col5 col6 rest path
+    while IFS=$'\t' read -r col1 _ _ _ col5 col6 rest; do
+        [ -n "$col1" ] || continue
+        case "$col1" in \#*) continue ;; esac
+        if [ "$column" = "5" ]; then
+            path="$col5"
+        else
+            path="$col6"
+        fi
+        [ -n "$path" ] || die "${context} has a row without a media path: ${col1}"
+        require_file_under_run "$path"
+        case "$path" in
+            screenshots/*.png|screenshots/*.jpg|screenshots/*.jpeg)
+                validate_image_media "$path"
+                ;;
+        esac
+    done <"$manifest"
+}
+
+require_sample_manifest_entry() {
+    local label="$1"
+    local path="$2"
+    local manifest="${RUN_DIR}/logs/slice-51-beta-acceptance.sample-manifest.tsv"
+    /usr/bin/awk -F'\t' -v label="$label" -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $2 == label && $5 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest" || die "sample manifest missing ${label}: ${path}"
+}
+
+require_event_manifest_entry() {
+    local event_id="$1"
+    local path="$2"
+    local manifest="${RUN_DIR}/logs/slice-51-beta-acceptance.event-manifest.tsv"
+    /usr/bin/awk -F'\t' -v event_id="$event_id" -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == event_id && $6 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$manifest" || die "event manifest missing ${event_id}: ${path}"
+}
+
+validate_media_artifacts() {
+    local sample_manifest="${RUN_DIR}/logs/slice-51-beta-acceptance.sample-manifest.tsv"
+    local event_manifest="${RUN_DIR}/logs/slice-51-beta-acceptance.event-manifest.tsv"
+    validate_preflight_media_contract
+    validate_recording_media "recordings/slice-51-beta-acceptance.mov"
+    validate_recording_media "recordings/raw/slice-51-beta-acceptance.raw.mov"
+    validate_image_media "screenshots/slice-51-beta-acceptance.contact-sheet.jpg"
+    validate_image_media "screenshots/slice-51-beta-acceptance.event-contact-sheet.jpg"
+    require_file_under_run "logs/slice-51-beta-acceptance.annotation.log"
+    require_text "logs/slice-51-beta-acceptance.annotation.log" "result=success"
+    require_file_under_run "logs/slice-51-beta-acceptance.annotations.tsv"
+    require_file_under_run "logs/slice-51-beta-acceptance.expected-chips.txt"
+    require_file_under_run "logs/slice-51-beta-acceptance.caption-tail.tsv"
+    require_file_under_run "logs/slice-51-beta-acceptance.demo-cut.tsv"
+    require_file_under_run "logs/slice-51-beta-acceptance.sample-manifest.tsv"
+    require_file_under_run "logs/slice-51-beta-acceptance.event-manifest.tsv"
+    manifest_path_column "$sample_manifest" 5 "sample manifest"
+    manifest_path_column "$event_manifest" 6 "event manifest"
+    for text in \
+        "Run: make beta-package" \
+        "PUBLISH=0" \
+        "Run: open /Applications/WinMux.app" \
+        "Run: winmux move-node-to-zone --window-id ROUTE_ID Comms" \
+        "Run: winmux focus-zone Work" \
+        "Action: drag snap-demo without Option" \
+        "Action: hold Option and snap snap-demo to Comms" \
+        "Run: winmux use-zone-profile communications" \
+        "Run: winmux resize-zone Work width +10%" \
+        "Run: winmux save-zone-layout" \
+        "Run: winmux doctor zones --support-bundle"; do
+        require_text "logs/slice-51-beta-acceptance.expected-chips.txt" "$text"
+    done
+    for entry in \
+        "package-provenance:screenshots/02-package-provenance-slice-51.png" \
+        "fresh-install:screenshots/03-fresh-install-slice-51.png" \
+        "permissions-setup:screenshots/04-permissions-setup-slice-51.png" \
+        "normal-launch:screenshots/05-normal-launch-slice-51.png" \
+        "routing-keyboard:screenshots/06-routing-keyboard-slice-51.png" \
+        "mouse-snap:screenshots/07-mouse-snap-slice-51.png" \
+        "profile-layout:screenshots/08-profile-layout-slice-51.png" \
+        "save-relaunch:screenshots/09-save-relaunch-slice-51.png" \
+        "support-bundle:screenshots/10-support-bundle-slice-51.png" \
+        "disable-close:screenshots/11-final-beta-acceptance-slice-51.png" \
+        "freeform-drag-start:screenshots/07a-freeform-pickup-slice-51.png" \
+        "freeform-drag-hover:screenshots/07b-freeform-hover-slice-51.png" \
+        "freeform-drag-release:screenshots/07c-reset-before-snap-slice-51.png" \
+        "snap-drag-start:screenshots/07d-snap-pickup-slice-51.png" \
+        "snap-drag-path:screenshots/07e-snap-path-slice-51.png" \
+        "snap-drag-hover:screenshots/07f-snap-hover-comms-slice-51.png" \
+        "snap-release:screenshots/07g-snap-release-slice-51.png"; do
+        require_event_manifest_entry "${entry%%:*}" "${entry#*:}"
+        require_sample_manifest_entry "${entry%%:*}" "${entry#*:}"
+    done
+}
+
 validate_retry_summary() {
     local summary="${RUN_DIR}/logs/guest-script-retry-summary.tsv"
     local attempts failures final_result before_recording attempt_statuses mutation_started first_mutation_line
@@ -241,6 +431,8 @@ validate_acceptance_proof() {
     require_file_under_run "$provenance_frame"
     require_file_under_run "$final_frame"
     require_slice_51_screenshot_sequence
+    validate_live_routing_proof
+    validate_live_mouse_snap_proof
     require_text "$blockers" 'dogfood blockers:'
     require_text "$blockers" 'beta blockers:'
     require_text "$blockers" 'known limitations:'
@@ -249,6 +441,40 @@ validate_acceptance_proof() {
     require_text "$docs_update" 'release notes'
     reject_text_regex "$dogfood_notes" 'public beta started|external beta started|public release|App Store ready|release-ready distribution'
     reject_text_regex "$blockers" 'untriaged crash|untriaged permission failure|untriaged config corruption'
+}
+
+validate_live_routing_proof() {
+    require_file_under_run "logs/slice-51-windows-before-routing.log"
+    require_file_under_run "logs/slice-51-windows-after-routing.log"
+    require_file_under_run "logs/slice-51-routing-keyboard.log"
+    require_text "logs/slice-51-routing-keyboard.log" "winmux move-node-to-zone --window-id"
+    require_text "logs/slice-51-routing-keyboard.log" "route-beta.rtf"
+    require_text "logs/slice-51-windows-before-routing.log" "route-beta.rtf|zone=main"
+    require_text "logs/slice-51-windows-after-routing.log" "route-beta.rtf|zone=right"
+}
+
+validate_live_mouse_snap_proof() {
+    require_file_under_run "logs/slice-51-mouse-snap.log"
+    require_file_under_run "logs/slice-51-windows-after-freeform.log"
+    require_file_under_run "logs/slice-51-windows-after-snap.log"
+    require_file_under_run "logs/slice-51-beta-acceptance.mouse-events.tsv"
+    require_text "logs/slice-51-mouse-snap.log" "freeform-after-zone=main"
+    require_text "logs/slice-51-mouse-snap.log" "snap-after-zone=right"
+    require_text "logs/slice-51-windows-after-freeform.log" "snap-demo.rtf|zone=main"
+    require_text "logs/slice-51-windows-after-snap.log" "snap-demo.rtf|zone=right"
+    for event_id in freeform-drag-start freeform-drag-hover freeform-drag-release snap-drag-start snap-drag-hover snap-release; do
+        require_text "logs/slice-51-beta-acceptance.mouse-events.tsv" "${event_id}"
+    done
+    for screenshot in \
+        screenshots/07a-freeform-pickup-slice-51.png \
+        screenshots/07b-freeform-hover-slice-51.png \
+        screenshots/07c-reset-before-snap-slice-51.png \
+        screenshots/07d-snap-pickup-slice-51.png \
+        screenshots/07e-snap-path-slice-51.png \
+        screenshots/07f-snap-hover-comms-slice-51.png \
+        screenshots/07g-snap-release-slice-51.png; do
+        validate_image_media "$screenshot" exact
+    done
 }
 
 validate_review() {
@@ -262,6 +488,21 @@ validate_review() {
         || die "Slice 51 review final line must be: next slice allowed: yes"
     for text in \
         "Slice 51" \
+        "recordings/slice-51-beta-acceptance.mov" \
+        "recordings/raw/slice-51-beta-acceptance.raw.mov" \
+        "screenshots/slice-51-beta-acceptance.contact-sheet.jpg" \
+        "logs/slice-51-beta-acceptance.sample-manifest.tsv" \
+        "logs/slice-51-beta-acceptance.event-manifest.tsv" \
+        "logs/slice-51-beta-acceptance.annotations.tsv" \
+        "logs/slice-51-beta-acceptance.expected-chips.txt" \
+        "logs/slice-51-beta-acceptance.mouse-events.tsv" \
+        "screenshots/07a-freeform-pickup-slice-51.png" \
+        "screenshots/07b-freeform-hover-slice-51.png" \
+        "screenshots/07c-reset-before-snap-slice-51.png" \
+        "screenshots/07d-snap-pickup-slice-51.png" \
+        "screenshots/07e-snap-path-slice-51.png" \
+        "screenshots/07f-snap-hover-comms-slice-51.png" \
+        "screenshots/07g-snap-release-slice-51.png" \
         "beta-acceptance-manifest.txt" \
         "package-provenance.env" \
         "beta-acceptance-proof.env" \
@@ -288,6 +529,7 @@ validate_closeout() {
 validate_artifact() {
     validate_manifest
     validate_package_provenance
+    validate_media_artifacts
     validate_acceptance_proof
     validate_retry_summary
 }
@@ -299,6 +541,11 @@ run_self_test() {
     trap 'rm -rf "$SELF_TEST_TMP_DIR"' EXIT
     RUN_DIR="$tmp"
     mkdir -p "$tmp/logs" "$tmp/package/WinMux.app/Contents" "$tmp/bin" "$tmp/docs" "$tmp/screenshots" "$tmp/reviews" "$tmp/retrospectives"
+    mkdir -p "$tmp/recordings/raw" "$tmp/screenshots/slice-51-beta-acceptance.samples"
+    require_tool ffmpeg
+    ffmpeg -v error -y -f lavfi -i "color=c=0x102030:s=$(required_display_width)x$(required_display_height)" -frames:v 1 "$tmp/template.png"
+    ffmpeg -v error -y -f lavfi -i "color=c=0x304050:s=$(required_display_width)x$(required_display_height)" -frames:v 1 "$tmp/template.jpg"
+    ffmpeg -v error -y -f lavfi -i "testsrc=duration=$(required_record_seconds):size=$(required_display_width)x$(required_display_height):rate=10" -pix_fmt yuv420p "$tmp/template.mov"
     printf 'package\n' >"$tmp/WinMux-test.zip"
     printf 'app\n' >"$tmp/package/WinMux.app/Contents/PkgInfo"
     printf 'cli\n' >"$tmp/bin/winmux"
@@ -309,6 +556,13 @@ run_self_test() {
     app_sha="$(sha256_path "$tmp/$app_dir")"
     cli_sha="$(sha256_path "$tmp/$cli_path")"
     printf 'kind=beta-acceptance\nslice=51\n' >"$tmp/logs/beta-acceptance-manifest.txt"
+    cat >"$tmp/logs/preflight.log" <<EOF
+vm_display=$(required_display_width)x$(required_display_height)px
+record_seconds=$(required_record_seconds)
+capture_mode=guest
+require_guest_control=1
+annotate_recording=1
+EOF
     cat >"$tmp/logs/package-provenance.env" <<EOF
 source_commit=self-test
 git_status_sha256=self-test
@@ -335,6 +589,35 @@ known limitations: unsigned internal build
 later enhancements: settings UI
 EOF
     printf 'README updated\nrelease notes updated\n' >"$tmp/docs/beta-readiness-docs.md"
+    cat >"$tmp/logs/slice-51-windows-before-routing.log" <<'EOF'
+1|route-beta.rtf|zone=main|workspace=Work|layout=tiling|monitor=Main / Work|left=300|top=0|width=600|height=800
+EOF
+    cat >"$tmp/logs/slice-51-windows-after-routing.log" <<'EOF'
+1|route-beta.rtf|zone=right|workspace=Comms|layout=tiling|monitor=Main / Comms|left=900|top=0|width=300|height=800
+EOF
+    cat >"$tmp/logs/slice-51-routing-keyboard.log" <<'EOF'
+$ winmux move-node-to-zone --window-id 1 Comms
+route-beta.rtf moved from Work/main to Comms/right
+EOF
+    cat >"$tmp/logs/slice-51-windows-after-freeform.log" <<'EOF'
+2|snap-demo.rtf|zone=main|workspace=Work|layout=floating|monitor=Main / Work|left=500|top=40|width=600|height=800
+EOF
+    cat >"$tmp/logs/slice-51-windows-after-snap.log" <<'EOF'
+2|snap-demo.rtf|zone=right|workspace=Comms|layout=tiling|monitor=Main / Comms|left=900|top=0|width=300|height=800
+EOF
+    cat >"$tmp/logs/slice-51-mouse-snap.log" <<'EOF'
+freeform-after-zone=main
+snap-after-zone=right
+EOF
+    cat >"$tmp/logs/slice-51-beta-acceptance.mouse-events.tsv" <<'EOF'
+# event-id	kind	offset-seconds	note
+freeform-drag-start	drag	1.0	no modifier pickup
+freeform-drag-hover	drag	2.0	no modifier hover
+freeform-drag-release	drag	3.0	no modifier release
+snap-drag-start	drag	4.0	Alt-held pickup
+snap-drag-hover	overlay	5.0	whole Comms zone target
+snap-release	drag	6.0	release on whole Comms zone
+EOF
     for screenshot in \
         02-package-provenance-slice-51 \
         03-fresh-install-slice-51 \
@@ -346,8 +629,90 @@ EOF
         09-save-relaunch-slice-51 \
         10-support-bundle-slice-51 \
         11-final-beta-acceptance-slice-51; do
-        printf 'png\n' >"$tmp/screenshots/${screenshot}.png"
+        cp "$tmp/template.png" "$tmp/screenshots/${screenshot}.png"
     done
+    for screenshot in \
+        07a-freeform-pickup-slice-51 \
+        07b-freeform-hover-slice-51 \
+        07c-reset-before-snap-slice-51 \
+        07d-snap-pickup-slice-51 \
+        07e-snap-path-slice-51 \
+        07f-snap-hover-comms-slice-51 \
+        07g-snap-release-slice-51; do
+        cp "$tmp/template.png" "$tmp/screenshots/${screenshot}.png"
+    done
+    cp "$tmp/template.jpg" "$tmp/screenshots/slice-51-beta-acceptance.contact-sheet.jpg"
+    cp "$tmp/template.jpg" "$tmp/screenshots/slice-51-beta-acceptance.event-contact-sheet.jpg"
+    cp "$tmp/template.mov" "$tmp/recordings/slice-51-beta-acceptance.mov"
+    cp "$tmp/template.mov" "$tmp/recordings/raw/slice-51-beta-acceptance.raw.mov"
+    for sample in caption-01 caption-02 caption-03 caption-04 caption-05 caption-06 caption-07 caption-08 caption-09 caption-10; do
+        cp "$tmp/template.png" "$tmp/screenshots/slice-51-beta-acceptance.samples/${sample}.png"
+        cp "$tmp/template.png" "$tmp/screenshots/slice-51-beta-acceptance.samples/${sample}-boundary-start.png"
+    done
+    printf 'result=success\n' >"$tmp/logs/slice-51-beta-acceptance.annotation.log"
+    cat >"$tmp/logs/slice-51-beta-acceptance.annotations.tsv" <<'EOF'
+0	16	Package provenance	Start from the beta package and show hashes before any acceptance action.	Run: make beta-package VERSION=0.51.0-self-test PUBLISH=0
+48	68	Normal launch	Launch the packaged app with the normal config path.	Run: open /Applications/WinMux.app
+68	90	Routing and keyboard	Route a window and move it across zones with key-bindable commands.	Run: winmux move-node-to-zone --window-id ROUTE_ID Comms	Run: winmux focus-zone Work
+90	110	Mouse snap	Show freeform drag first, then modifier-held zone snap.	Action: drag snap-demo without Option	Result: no snap	Action: hold Option and snap snap-demo to Comms
+110	130	Profiles and sizing	Toggle zone availability and resize the working layout.	Run: winmux use-zone-profile communications	Run: winmux resize-zone Work width +10%
+130	148	Save and relaunch	Persist the layout, quit, relaunch, and inspect restored widths.	Run: winmux save-zone-layout	Action: relaunch WinMux
+148	164	Support bundle	Generate the attachable diagnostics bundle from the packaged CLI.	Run: winmux doctor zones --support-bundle
+EOF
+    cat >"$tmp/logs/slice-51-beta-acceptance.expected-chips.txt" <<'EOF'
+Run: make beta-package VERSION=0.51.0-self-test PUBLISH=0
+Run: open /Applications/WinMux.app
+Run: winmux move-node-to-zone --window-id ROUTE_ID Comms
+Run: winmux focus-zone Work
+Action: drag snap-demo without Option
+Result: no snap
+Action: hold Option and snap snap-demo to Comms
+Run: winmux use-zone-profile communications
+Run: winmux resize-zone Work width +10%
+Run: winmux save-zone-layout
+Run: winmux doctor zones --support-bundle
+EOF
+    printf 'result=success\n' >"$tmp/logs/slice-51-beta-acceptance.caption-tail.tsv"
+    printf 'result=success\n' >"$tmp/logs/slice-51-beta-acceptance.demo-cut.tsv"
+    cat >"$tmp/logs/slice-51-beta-acceptance.event-manifest.tsv" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+package-provenance	context	4.100	caption-01	package-provenance	screenshots/02-package-provenance-slice-51.png	provenance visible
+fresh-install	action	18.100	caption-02	fresh-install	screenshots/03-fresh-install-slice-51.png	fresh install visible
+permissions-setup	action	34.100	caption-03	permissions-setup	screenshots/04-permissions-setup-slice-51.png	permissions visible
+normal-launch	action	50.100	caption-04	normal-launch	screenshots/05-normal-launch-slice-51.png	normal launch visible
+routing-keyboard	action	70.100	caption-05	routing-keyboard	screenshots/06-routing-keyboard-slice-51.png	routing visible
+mouse-snap	action	92.100	caption-06	mouse-snap	screenshots/07-mouse-snap-slice-51.png	mouse visible
+profile-layout	action	112.100	caption-07	profile-layout	screenshots/08-profile-layout-slice-51.png	profile visible
+save-relaunch	relaunch	132.100	caption-08	save-relaunch	screenshots/09-save-relaunch-slice-51.png	save visible
+support-bundle	diagnostic	150.100	caption-09	support-bundle	screenshots/10-support-bundle-slice-51.png	support visible
+disable-close	result	166.100	caption-10	disable-close	screenshots/11-final-beta-acceptance-slice-51.png	final visible
+freeform-drag-start	drag	93.100	caption-06	freeform-drag-start	screenshots/07a-freeform-pickup-slice-51.png	freeform pickup
+freeform-drag-hover	drag	96.100	caption-06	freeform-drag-hover	screenshots/07b-freeform-hover-slice-51.png	freeform hover
+freeform-drag-release	drag	99.100	caption-06	freeform-drag-release	screenshots/07c-reset-before-snap-slice-51.png	freeform release
+snap-drag-start	drag	101.100	caption-06	snap-drag-start	screenshots/07d-snap-pickup-slice-51.png	snap pickup
+snap-drag-path	drag	103.100	caption-06	snap-drag-path	screenshots/07e-snap-path-slice-51.png	snap path
+snap-drag-hover	overlay	105.100	caption-06	snap-drag-hover	screenshots/07f-snap-hover-comms-slice-51.png	snap hover
+snap-release	drag	108.100	caption-06	snap-release	screenshots/07g-snap-release-slice-51.png	snap release
+EOF
+    cat >"$tmp/logs/slice-51-beta-acceptance.sample-manifest.tsv" <<'EOF'
+semantic	package-provenance	screenshot	screenshot	screenshots/02-package-provenance-slice-51.png	provenance visible
+semantic	fresh-install	screenshot	screenshot	screenshots/03-fresh-install-slice-51.png	fresh install visible
+semantic	permissions-setup	screenshot	screenshot	screenshots/04-permissions-setup-slice-51.png	permissions visible
+semantic	normal-launch	screenshot	screenshot	screenshots/05-normal-launch-slice-51.png	normal launch visible
+semantic	routing-keyboard	screenshot	screenshot	screenshots/06-routing-keyboard-slice-51.png	routing visible
+semantic	mouse-snap	screenshot	screenshot	screenshots/07-mouse-snap-slice-51.png	mouse visible
+semantic	profile-layout	screenshot	screenshot	screenshots/08-profile-layout-slice-51.png	profile visible
+semantic	save-relaunch	screenshot	screenshot	screenshots/09-save-relaunch-slice-51.png	save visible
+semantic	support-bundle	screenshot	screenshot	screenshots/10-support-bundle-slice-51.png	support visible
+semantic	disable-close	screenshot	screenshot	screenshots/11-final-beta-acceptance-slice-51.png	final visible
+semantic	freeform-drag-start	screenshot	screenshot	screenshots/07a-freeform-pickup-slice-51.png	freeform pickup
+semantic	freeform-drag-hover	screenshot	screenshot	screenshots/07b-freeform-hover-slice-51.png	freeform hover
+semantic	freeform-drag-release	screenshot	screenshot	screenshots/07c-reset-before-snap-slice-51.png	freeform release
+semantic	snap-drag-start	screenshot	screenshot	screenshots/07d-snap-pickup-slice-51.png	snap pickup
+semantic	snap-drag-path	screenshot	screenshot	screenshots/07e-snap-path-slice-51.png	snap path
+semantic	snap-drag-hover	screenshot	screenshot	screenshots/07f-snap-hover-comms-slice-51.png	snap hover
+semantic	snap-release	screenshot	screenshot	screenshots/07g-snap-release-slice-51.png	snap release
+EOF
     cat >"$tmp/logs/beta-acceptance-proof.env" <<'EOF'
 package_source=beta-package
 acceptance_path=fresh-install-permissions-setup-normal-launch-routing-keyboard-mouse-profile-save-relaunch-support-bundle
@@ -369,7 +734,7 @@ slice-51-run	logs/slice-51-run.log	1	0	success	no	success	-	-	yes	7
 EOF
     cat >"$tmp/reviews/no-ctx-artifact-review.md" <<'EOF'
 PASS: Slice 51 beta acceptance artifact is internally consistent.
-Slice 51 cites beta-acceptance-manifest.txt, package-provenance.env, beta-acceptance-proof.env, guest-script-retry-summary.tsv, PUBLISH=0, support bundle, dogfood blockers, beta blockers, known limitations, and does not mean broad public release.
+Slice 51 cites recordings/slice-51-beta-acceptance.mov, recordings/raw/slice-51-beta-acceptance.raw.mov, screenshots/slice-51-beta-acceptance.contact-sheet.jpg, logs/slice-51-beta-acceptance.sample-manifest.tsv, logs/slice-51-beta-acceptance.event-manifest.tsv, logs/slice-51-beta-acceptance.annotations.tsv, logs/slice-51-beta-acceptance.expected-chips.txt, logs/slice-51-beta-acceptance.mouse-events.tsv, screenshots/07a-freeform-pickup-slice-51.png, screenshots/07b-freeform-hover-slice-51.png, screenshots/07c-reset-before-snap-slice-51.png, screenshots/07d-snap-pickup-slice-51.png, screenshots/07e-snap-path-slice-51.png, screenshots/07f-snap-hover-comms-slice-51.png, screenshots/07g-snap-release-slice-51.png, beta-acceptance-manifest.txt, package-provenance.env, beta-acceptance-proof.env, guest-script-retry-summary.tsv, PUBLISH=0, support bundle, dogfood blockers, beta blockers, known limitations, and does not mean broad public release.
 next slice allowed: yes
 EOF
     printf 'result=success\n' >"$tmp/logs/review-lint.log"
@@ -378,6 +743,16 @@ EOF
     printf 'ok\n' >"$tmp/retrospectives/code-harness.md"
     printf 'ok\n' >"$tmp/retrospectives/artifact-product.md"
     validate_artifact
+    mv "$tmp/recordings/slice-51-beta-acceptance.mov" "$tmp/recordings/slice-51-beta-acceptance.mov.bak"
+    if ( validate_artifact ) >/dev/null 2>&1; then
+        die "self-test expected missing primary recording rejection"
+    fi
+    mv "$tmp/recordings/slice-51-beta-acceptance.mov.bak" "$tmp/recordings/slice-51-beta-acceptance.mov"
+    printf 'not an image\n' >"$tmp/screenshots/07f-snap-hover-comms-slice-51.png"
+    if ( validate_artifact ) >/dev/null 2>&1; then
+        die "self-test expected invalid snap-hover image rejection"
+    fi
+    cp "$tmp/template.png" "$tmp/screenshots/07f-snap-hover-comms-slice-51.png"
     REQUIRE_REVIEW=1
     validate_review
     CLOSEOUT=1

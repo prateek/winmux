@@ -19,6 +19,23 @@ This fits the current architecture because WinMux already treats monitors as ind
 
 The implementation should make zones feel like a first-class monitor surface to workspace code, while keeping physical-display code explicit.
 
+Identity rule for call sites:
+
+- use `WorkspaceViewport` / stable viewport identity when the operation targets
+  where a workspace lives: zone focus, relative `next`/`prev` movement,
+  directional movement, layout, active workspace slots, and sidebar zone targets;
+- use `PhysicalMonitor` identity when the operation is about real display
+  hardware or a user-supplied physical monitor selector: display numbering,
+  `.main` / `.secondary`, monitor-pattern commands, permissions, display
+  topology changes, and `on-focused-monitor-changed`;
+- pattern-addressed `move-workspace-to-monitor 1` should no-op when the
+  workspace is already anywhere on display 1, while viewport-addressed
+  `move-workspace-to-monitor next` may move it to the next zone on that display;
+- assignment validation must require the candidate point to be contained in a
+  live physical display. Nearest-monitor fallback is acceptable for ergonomic
+  mouse approximations, but not for deciding whether a persisted or
+  force-assigned workspace is valid.
+
 ## Domain Model
 
 Keep these concepts separate in code, config, tests, and demos:
@@ -493,7 +510,7 @@ On config reload or screen change, update the snapshot and invalidate monitor ca
 
 ### Zone Identity Is Stable For Configured Zones
 
-`MonitorViewportId` now carries a `stableIdentity` in addition to the current geometry point. Physical monitor viewports preserve the legacy top-left identity, while configured zone viewports use physical monitor identity plus stable zone id. This prevents width changes from remapping active workspaces or suppressing cross-zone monitor-change hooks.
+`MonitorViewportId` now carries a `stableIdentity` in addition to the current geometry point. Physical monitor viewports preserve the legacy top-left identity, while configured zone viewports use physical monitor identity plus stable zone id. This prevents width changes from remapping active workspaces while keeping physical-monitor hooks keyed to real display changes.
 
 Keep these invariants intact:
 
@@ -9237,12 +9254,13 @@ must still verify package provenance and media hashes.
 Implementation update, 2026-07-02:
 
 - `make beta-package VERSION=<version> PUBLISH=0` builds a release app bundle,
-  CLI, default config resource, and zip under a caller-provided release
-  directory, with ad-hoc signing when the local release path has no notarized
-  credentials.
+  CLI, default config resource, packaged docs-link payload, and zip under a
+  caller-provided release directory, with ad-hoc signing when the local release
+  path has no notarized credentials.
 - `script/e2e/package-slice-50` stages the package zip, extracted app, CLI,
-  product evidence index, package manifest, and host provenance into the Slice
-  50 run directory before the guest recording starts.
+  `docs/package-docs-links.md`, product evidence index, package manifest, and
+  host provenance into the Slice 50 run directory before the guest recording
+  starts.
 - `make e2e-slice-50` records the Tart guest installing from the package,
   launching `/Applications/WinMux.app` without `--config-path`, running
   `winmux doctor`, proving the normal config path, validating the config,
@@ -9250,8 +9268,9 @@ Implementation update, 2026-07-02:
   release notes plus install/launch/package provenance logs.
 - `script/e2e/check-slice-50-package` remains the mechanical acceptance gate:
   the package proof must include hashes, package/install/launch/support-bundle
-  logs, release notes with non-claims, the current demo contact sheet, and a
-  no-context review. After the first Slice 50 pre-Tart review blocked on a
+  logs, release notes with non-claims, the current demo contact sheet,
+  `docs_links_path`/`docs_links_sha256`, and a no-context review. After the
+  first Slice 50 pre-Tart review blocked on a
   retry-policy gap, the gate now also requires `slice-50-run` to be a single
   post-recording attempt with zero failures, `mutation_started=yes`, and a
   non-empty `first_mutation_line`.
@@ -9267,16 +9286,26 @@ Implementation update, 2026-07-02:
   a report containing an `ACTIONABLE ISSUES` marker if its final line was clean.
   The follow-up fix adds both self-test cases and rejects any pre-Tart report
   containing an actionable marker.
-- `artifacts/e2e/slice-50-pre-tart-20260702T135154Z` is the accepted package
-  artifact. It was built from clean commit
-  `7867a4a3cfd9892e5bc941c3799868b9b7641dd7`, produced
-  `WinMux-0.50.0-20260702T140040Z.zip`, recorded a 3440x1440 guest package
-  install video, and stores package/app/CLI hashes in
-  `logs/package-provenance.env`. The Tart guest installed from the package,
-  launched `/Applications/WinMux.app` without a config override, used
+- `artifacts/e2e/slice-50-round2-review-20260702T175701Z` is the current
+  accepted package artifact. It supersedes
+  `artifacts/e2e/slice-50-pre-tart-20260702T135154Z` for future package and
+  beta-readiness comparisons. The replacement artifact was built from source
+  commit `25b0e3f4f438ac603d2b9f89316018b697dce9cf`, produced
+  `WinMux-0.50.0-20260702T180340Z.zip`, recorded a 3440x1440 guest package
+  install video, and stores package/app/CLI/docs-link hashes in
+  `logs/package-provenance.env`: package
+  `fc482ba17f54503cb1c9cf1f971f733e66c34bf6e8ae2315c23554431243474d`, app
+  `af665db800c1bba38945eff32044907ffb0b0044dd5e76a92e648cc73ec3086d`, CLI
+  `cbcf5fb324f0732bb0b26e0a5fa75cf60af8f0a0ea069fbb0baf92e4259a2aca`, and
+  docs links
+  `45803b247c7ef40d4d8addd7fef0c85827a28d42d100a1572002721c83d94977`.
+  The Tart guest installed from the package, launched
+  `/Applications/WinMux.app` without a config override, used
   `/Users/admin/.config/winmux/winmux.toml`, passed `winmux doctor` and
   `winmux config --check`, generated `doctor zones --support-bundle`, and
   schema-checked the support bundle with `result=success`.
+- `artifacts/e2e/slice-50-pre-tart-20260702T135154Z` remains useful historical
+  evidence, but should be treated as superseded package proof.
 - The accepted Slice 50 post-recording retry summary has `slice-50-run` with
   one attempt, zero failures, `final_result=success`,
   `before_recording=no`, `mutation_started=yes`, and `first_mutation_line=2`.
@@ -9291,8 +9320,10 @@ Implementation update, 2026-07-02:
   `logs/post-review-verify.log` both report `result=success`.
 - Slice 50 closeout evidence includes all three no-context retrospectives:
   `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
-  `retrospectives/artifact-product.md`. Their blocking carry-forward items are
-  folded into the Slice 51 pre-slice cleanup list below.
+  `retrospectives/artifact-product.md`. `logs/review-lint.log`,
+  `logs/post-review-verify.log`, and `logs/closeout-check.log` all pass for the
+  round-2 replacement artifact. Their blocking carry-forward items are folded
+  into the Slice 51 pre-slice cleanup list below.
 - `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
   dirty-source packaging smoke. It is useful as implementation evidence, but it
   is not accepted Slice 50 evidence; accepted evidence must come from a clean
@@ -9359,6 +9390,12 @@ Pre-slice cleanup from Slice 50 retrospectives:
   opens a package-provenance proof board before the product mutation phase, and
   the checker verifies the package, app, and CLI hashes against the staged
   provenance.
+- [x] Fix the Slice 51 event-manifest template before recording. Three
+  no-context pre-Tart reviewers blocked on leading tabs in
+  `script/e2e/tart-recording-harness` that moved required event ids into TSV
+  column 2. The source rows now start at column 1; the next agent must
+  regenerate freshness and rerun the three clean no-context pre-Tart reviews
+  because the previous reports are intentionally blocked/stale.
 - [ ] Decide the final desktop policy before the next recording: either end on
   one consolidated final proof board, or declare in the reviewer packet why
   multiple proof boards are intentional and not desktop contamination.
