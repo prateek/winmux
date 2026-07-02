@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-45 accepted; Slices 46-51 planned
+Status: slices 0-45 accepted; Slice 46 implementation/pre-Tart validation in progress; Slices 47-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -8580,56 +8580,75 @@ Pre-Slice-46 cleanup from Slice 45 retrospectives:
 - [x] Rerun
   `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-45-pre-tart-20260702T022831Z`
   after the retrospectives are present and tee it to `logs/closeout-check.log`.
-- [ ] Before Slice 46 Tart, collapse the persistence/rollback/config-doctor
+- [x] Before Slice 46 Tart, collapse the persistence/rollback/config-doctor
   artifact contract into one checked contract source. It must enumerate caption
   chips, event ids, proof-manifest keys, screenshots/log paths, final command
   logs, and reviewer packet requirements. Generate or mechanically compare the
   guest-emitted manifests, harness event/sample manifests, verifier required
-  rows, and reviewer packet/checklist from that source.
-- [ ] Before Slice 46 Tart, make stateful proof phases no-retry after recording
+  rows, and reviewer packet/checklist from that source. Implemented as
+  `script/e2e/specs/slice-46-persistence-rollback-doctor.tsv`,
+  `script/e2e/check-slice-46-contract`, Slice 46 annotation/event rows in
+  `script/e2e/tart-recording-harness`, verifier requirements in
+  `script/e2e/verify-artifact`, and reviewer packet requirements in
+  `script/e2e/write-review-packet`.
+- [x] Before Slice 46 Tart, make stateful proof phases no-retry after recording
   starts unless the harness discards and restarts the recording. Split
   transport probes from mutation commands, require a clean final guest-control
   probe immediately before capture, emit the mutation marker before the first
   save/backup/restore/bad-config write, and fail or restart the artifact if any
   `guest-script-retry-summary.tsv` row has `before_recording=no` and
-  `failures>0`.
-- [ ] Reuse the Slice 45 event-manifest columns and key/value diagnostic log
+  `failures>0`. Slice 46 forces a single recorded guest attempt and the verifier
+  rejects post-recording guest retry failures.
+- [x] Reuse the Slice 45 event-manifest columns and key/value diagnostic log
   style for Slice 46 persistence diagnostics. Add rows/keys for original config
   hash, dry-run hash, saved config hash, backup path, deliberately bad config
   path/hash, config doctor result, rollback result, restored config hash,
-  relaunch loaded saved layout, and no user config deletion.
-- [ ] Define the Slice 46 Tart storyboard before implementation: save a runtime
+  relaunch loaded saved layout, and no user config deletion. The Slice 46 guest
+  script emits `slice-46-proof-manifest.env`, `slice-46-event-manifest.tsv`,
+  timing metadata, copied config snapshots, command logs, and final zone/window
+  logs for these boundaries.
+- [x] Define the Slice 46 Tart storyboard before implementation: save a runtime
   layout, relaunch into the saved layout, introduce a deliberately bad config,
   run `winmux config doctor` or equivalent diagnostics, restore a known-good
   backup, and show the restored layout. The artifact must include exact
   before/save/relaunch/bad-config/doctor/rollback/final media rows, a contact
   sheet, a machine-readable manifest, and command logs for every persisted file
-  mutation.
-- [ ] Keep Slice 46 visually less dense than Slice 45: final frame should show
+  mutation. Implemented storyboard: original 25/50/25 layout, `resize-zone Work
+  width +10%`, `save-zone-layout`, fresh relaunch into 20/60/20, deliberately
+  invalid generated config, `winmux doctor`, `config --restore-backup`, final
+  relaunch into restored 20/60/20.
+- [x] Keep Slice 46 visually less dense than Slice 45: final frame should show
   one active user-facing result board plus, at most, one compact audit board.
   Put full TOML diffs, full doctor output, and full all-windows audits in logs
-  or close-up screenshots cited from the reviewer packet.
-- [ ] Use ordered command/result chips for the user workflow:
+  or close-up screenshots cited from the reviewer packet. The guest script uses
+  compact TextEdit proof boards and moves full config/doctor/window audits into
+  cited logs and screenshots.
+- [x] Use ordered command/result chips for the user workflow:
   `Run: winmux save-zone-layout`,
   `Result: backup created + config updated`,
   `Run: winmux config --check ~/.config/winmux/winmux.toml`,
   `Result: Config OK`,
   `Run: winmux doctor`,
   `Result: persistence/rollback status OK`, and the rollback/restore command
-  plus restored-layout result.
-- [ ] Add Slice 46 proof-manifest boundary rows for deterministic Tart config
+  plus restored-layout result. The annotation plan includes the corresponding
+  save, relaunch, doctor, restore, final list-zones, and no-post-recording-retry
+  chips.
+- [x] Add Slice 46 proof-manifest boundary rows for deterministic Tart config
   persistence, rollback safety, config doctor status, and any real-machine
   supplemental claim. The review packet must reject wording that upgrades
   deterministic Tart evidence into real hardware, sleep/wake, or physical
   unplug/replug support without a separate reviewed real-machine artifact.
-- [ ] Keep a clean desktop and visible product anchor in Slice 46. Reference,
+- [x] Keep a clean desktop and visible product anchor in Slice 46. Reference,
   Work, and Comms zones or the relevant sidebar/tab-zone surface must remain
   visible before and after save, rollback, and doctor; the proof board should
-  explain the config-safety outcome, not replace the product surface.
+  explain the config-safety outcome, not replace the product surface. The guest
+  setup stages Reference, Work, and Comms TextEdit anchors before recording and
+  keeps the audit board supplemental to the zone surface.
 
 ### Slice 46: Persistence, Rollback, and Config Doctor
 
-Status: planned.
+Status: implementation and local pre-Tart validation complete; Tart recording,
+no-context artifact review, retrospectives, and closeout still pending.
 
 Goal: make saving and repairing zone layouts safe enough for beta testers.
 
@@ -8646,6 +8665,37 @@ Required scope:
 
 Required artifact: a fresh Tart video saving a runtime layout, relaunching into
 it, detecting a deliberately bad config, and restoring a known-good backup.
+
+Implemented product surface:
+
+- `winmux config --restore-backup <path>` validates a backup with the same app
+  parser, writes a rollback copy of the current config, and restores the backup
+  atomically.
+- `winmux doctor` now includes a `Config doctor:` section with config path,
+  parse status, layout/reference status, and runtime zone overlay rows.
+- Local CLI fallback supports `config --check` and `config --restore-backup`
+  when the app server is not available.
+
+Implemented Slice 46 artifact/harness surface:
+
+- `script/e2e/guest/slice-46-persistence-rollback-doctor.sh`;
+- `script/e2e/specs/slice-46-persistence-rollback-doctor.tsv`;
+- `script/e2e/check-slice-46-contract`;
+- Slice 46 dispatch, caption plan, event/sample manifests, no-post-recording
+  retry gate, and `e2e-slice-46` target;
+- verifier and reviewer-packet gates for the proof manifest, command logs,
+  screenshots, retry summary, expected chips, and no-context review evidence.
+
+Local validation passed:
+
+- `swift test --filter ZoneCommandTest/testParse`;
+- `swift test --filter ZoneCommandTest/testConfigRestoreBackup`;
+- `swift test --filter ConfigTest/testRenderConfigDoctorLines`;
+- `python3 script/check-command-metadata`;
+- `./script/e2e/check-slice-46-contract`;
+- `./script/e2e/verify-artifact --self-test`;
+- `./script/e2e/tart-recording-harness annotation-preflight`;
+- `WINMUX_E2E_ALLOW_INTERNAL_DISK=1 make e2e-pre-tart-checks`.
 
 Non-claims:
 
