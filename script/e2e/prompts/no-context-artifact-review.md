@@ -786,6 +786,27 @@ Slice-specific checks:
   `style-beats-preserve-post-profile-placement=yes`. The final media must show
   `profile=communications`, Comms focused, Comms style calm, and Reference still
   visible as hidden.
+- Slice 48 must show a local support workflow, not a logs-only diagnostic
+  claim. Inspect the primary annotated recording first, then the raw recording,
+  contact sheet, semantic sample manifest, event manifest, caption-boundary
+  frames, edge crops, `logs/slice-48-support-bundle-command.log`,
+  `logs/slice-48-zone-support-bundle`, copied bundle evidence, final board
+  source, and `logs/guest-script-retry-summary.tsv`. Require exact captions or
+  visible chips for `Run: winmux focus-zone Comms`,
+  `Run: winmux list-zones --format zone|name|workspace|physical`,
+  `Run: winmux doctor zones --support-bundle`,
+  `Run: find slice-48-zone-support-bundle`,
+  `Result: redacted bundle is attachable`, `Result: no automatic upload`, and
+  `Result: no post-recording guest retries`.
+  Reject Slice 48 if stored support-bundle contents leak Secret Board or com.secret.Mail. Also reject if `super-secret-token` appears anywhere in the stored bundle. Require
+  `<redacted-window-title>`, `<redacted-app-identifier>`,
+  `support-bundle-redaction-pass=yes`,
+  `support-bundle-required-files-pass=yes`,
+  `support-bundle-debug-value-pass=yes`, and `non-claim=no automatic upload`.
+  Require either a `zone-affinity-config` routing row with live-history
+  retention limits or the unavailable-history line
+  `WinMux does not retain a recent window-routing decision log yet`. Reject any
+  automatic-upload, unified-log, crash-log, or full live routing-history claim.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

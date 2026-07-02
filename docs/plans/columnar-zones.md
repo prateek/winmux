@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-46 accepted; Slices 47-51 planned
+Status: slices 0-48 accepted; Slices 49-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -8906,7 +8906,7 @@ Non-claims:
 
 ### Slice 48: Support Bundle and Diagnostics
 
-Status: planned.
+Status: accepted.
 
 Goal: give dogfooders and beta testers a way to report zone bugs with enough
 evidence to debug them.
@@ -8935,23 +8935,86 @@ Pre-slice cleanup from Slice 47 retrospectives:
   closeout, retrospective, claim, non-claim, and superseded-attempt evidence.
 - [x] Run `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-47-pre-tart-20260702T062251Z`
   with all three retrospectives present and tee it to `logs/closeout-check.log`.
-- [ ] Before the Slice 48 Tart run, write a checked support-bundle artifact
+- [x] Before the Slice 48 Tart run, write a checked support-bundle artifact
   contract that names required bundle fields and redaction rules for usernames,
   requested window titles, non-config paths, non-log paths, and app-sensitive
   fields.
-- [ ] Keep Slice 48 command captions, event manifest, proof file, reviewer
+- [x] Keep Slice 48 command captions, event manifest, proof file, reviewer
   packet, and verifier in lockstep; any caption wording change must update the
   corresponding manifest and proof expectations before Tart.
-- [ ] Define the Slice 48 final audit before recording: the closing frame must
+- [x] Define the Slice 48 final audit before recording: the closing frame must
   show the generated bundle path, redaction summary, and the command sequence
   needed to reproduce the bundle.
-- [ ] Treat any Slice 48 post-recording guest retry as a rerun condition, not a
+- [x] Treat any Slice 48 post-recording guest retry as a rerun condition, not a
   reviewable artifact.
+
+Implemented local Slice 48 surface before Tart:
+
+- `doctor zones --support-bundle [--output <dir>]` writes an attachable
+  redacted directory and refuses non-empty output directories.
+- The local test seam drives the public command path through
+  `DoctorCommandTest`, including required files and private-field redaction.
+- The Slice 48 E2E contract, guest script, annotation plan, event/sample
+  manifests, no-post-recording-retry rule, verifier checks, no-context prompt,
+  reviewer packet, and pre-Tart review gate are registered together.
+- Run-bound pre-Tart checks for `artifacts/e2e/slice-48-20260702T094800Z`
+  passed with 211 focused Swift tests plus shellcheck, contract checks, guest
+  self-tests, annotation preflight, and generated-version cleanliness.
+
+Accepted Slice 48 artifact:
+
+- run directory: `artifacts/e2e/slice-48-20260702T094800Z`;
+- annotated recording:
+  `recordings/slice-48-support-bundle-diagnostics.mov`;
+- preserved raw recording:
+  `recordings/raw/slice-48-support-bundle-diagnostics.raw.mov`;
+- stored support bundle:
+  `logs/slice-48-zone-support-bundle/`;
+- no-context pre-Tart reviews:
+  `reviews/pre-tart/process-plan.md`, `reviews/pre-tart/code-harness.md`, and
+  `reviews/pre-tart/artifact-product.md`;
+- no-context artifact review: `reviews/no-ctx-artifact-review.md`, ending
+  `next slice allowed: yes`;
+- reviewer-attempt ledger: `reviews/reviewer-attempts.tsv`, including one
+  stalled reviewer replaced after no review file existed after two 15-minute
+  waits;
+- post-review gate logs:
+  `logs/review-lint.log` and `logs/post-review-verify.log`;
+- closeout log: `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- `doctor zones --support-bundle --output <dir>` runs after a zone workflow and
+  writes an attachable diagnostics directory;
+- the bundle includes manifest, redacted config, config-doctor output,
+  permissions, monitor topology, active workspaces, zone runtime overlay,
+  affinities, node bindings, routing-decision retention state, command-failure
+  retention state, and logs boundary files;
+- configured window-title, app-identifier, token, local-username, and
+  out-of-scope path canaries are redacted from the stored bundle evidence;
+- command chips and proof boards expose the user-facing commands needed to
+  reproduce the bundle;
+- the accepted run starts from a clean desktop and has no post-recording guest
+  retry.
+
+Superseded Slice 48 attempt:
+
+- `artifacts/e2e/slice-48-20260702T090939Z` produced product media and a
+  reviewer packet but no accepted artifact review. It is marked superseded by
+  `artifacts/e2e/slice-48-20260702T094800Z`, whose replacement no-context
+  review, review lint, post-review verifier, closeout, and retrospectives all
+  passed.
 
 Non-claims:
 
 - Slice 48 does not upload diagnostics automatically;
-- Slice 48 does not collect private app contents.
+- Slice 48 does not collect private app contents;
+- Slice 48 does not retain full live window-routing history, crash logs, macOS
+  unified logs, or past command-failure history beyond the explicit retention
+  boundary files written into the bundle.
 
 ### Slice 49: Ultrawide Zones Documentation
 
@@ -8976,6 +9039,45 @@ Required artifact: a documentation-only slice artifact with the reviewed docs
 snapshot, snapshot hash, referenced accepted media, verifier commands, and a
 no-context docs/product review. Reuse already accepted Tart-derived media unless
 the docs introduce a new workflow that lacks video proof.
+
+Pre-slice cleanup from Slice 48 retrospectives:
+
+- [x] Close Slice 48 in this plan with accepted artifact, review, verifier,
+  reviewer-attempt lineage, claims, non-claims, and retrospectives.
+- [x] Persist Slice 48 `review-lint` and post-review verifier transcripts at
+  `logs/review-lint.log` and `logs/post-review-verify.log`.
+- [x] Harden `make e2e-slice-closeout-check` so future closeout requires those
+  two prior gate logs before the final closeout can pass.
+- [x] Mark the earlier Slice 48 media attempt
+  `artifacts/e2e/slice-48-20260702T090939Z` as superseded before relying on
+  sibling-artifact hygiene.
+- [x] Run Slice 48 closeout again and tee it to `logs/closeout-check.log`.
+- [ ] Make the Slice 49 review scope explicit before dispatching no-context
+  pre-Tart reviewers, including docs snapshot, referenced media, package/docs
+  links, reviewer packet, and verifier rules.
+- [ ] For new contract checks, prefer semantic validators for dispatch,
+  annotation plans, event manifests, retry policy, verifier hooks, and
+  reviewer-lint hooks. Keep literal `source-check` rows only for prose prompts
+  or exact reviewer text.
+- [ ] Centralize the no-post-recording retry policy for future stateful slices
+  so the harness, verifier, reviewer packet, and specs read from one contract.
+- [ ] Stop guest setup scripts from clobbering retry-wrapper metadata; wrapper
+  logs and guest detail logs need separate paths.
+- [ ] Add a reusable support-bundle schema and redaction validator covering the
+  manifest file list, actual files, TSV headers, redaction markers, sentinel
+  leak scan, and `--include-window-titles` behavior.
+- [ ] For text-heavy docs or diagnostics artifacts, add a readable visual
+  summary sidecar before no-context review starts:
+  `screenshots/<recording>.diagnostic-summary.jpg`,
+  `logs/<recording>.diagnostic-summary.tsv`, and
+  `logs/<recording>.diagnostic-summary.md`.
+- [ ] Update reviewer packet and prompt shape for long artifacts: put a
+  "Review Critical Path" before the full citation inventory and instruct
+  reviewers not to treat tiny contact-sheet text as sole proof for command
+  output, redaction status, required-file lists, or final audit claims.
+- [ ] Future support demos should show a compact support outcome board in the
+  video and leave dense directory listings to logs and native-scale proof
+  images.
 
 Non-claims:
 

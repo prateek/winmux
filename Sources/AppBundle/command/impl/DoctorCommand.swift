@@ -6,6 +6,21 @@ struct DoctorCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        if args.subject == .zones, args.supportBundle {
+            do {
+                let bundle = try await writeZoneSupportBundle(options: ZoneSupportBundleOptions(
+                    outputPath: args.outputPath,
+                    includeWindowTitles: args.includeWindowTitles,
+                ))
+                io.out("Zone support bundle: \(bundle.directory.path)")
+                io.out("Redaction: usernames, home paths, app identifiers, and window titles are redacted by default")
+                io.out("Files: \(bundle.files.joined(separator: ", "))")
+                return true
+            } catch {
+                return io.err("Can't write zone support bundle: \(error.localizedDescription)")
+            }
+        }
+
         io.out("WinMux doctor — git \(gitShortHash)")
         io.out("")
 

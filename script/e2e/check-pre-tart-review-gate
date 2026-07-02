@@ -280,6 +280,29 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-47-zone-chrome-polish.sh"
             )
             ;;
+        slice-48)
+            required_mentions=(
+                "Slice 48"
+                "docs/plans/columnar-zones.md"
+                "Sources/AppBundle/command/impl/DoctorCommand.swift"
+                "Sources/AppBundle/diagnostics/ZoneSupportBundle.swift"
+                "Sources/AppBundleTests/command/DoctorCommandTest.swift"
+                "Sources/Common/cmdArgs/cmdArgsManifest.swift"
+                "Sources/Common/cmdArgs/impl/DoctorCmdArgs.swift"
+                "makefile"
+                "script/e2e/configs/zone-affinities-beta.toml"
+                "script/e2e/specs/slice-48-support-bundle-diagnostics.tsv"
+                "script/e2e/check-slice-48-contract"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/zone-window-helpers.sh"
+                "script/e2e/guest/slice-48-support-bundle-diagnostics.sh"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -562,6 +585,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-47 >/dev/null
+
+    configure_slice_requirements slice-48
+    write_freshness_manifest "$run_dir" slice-48 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-48 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

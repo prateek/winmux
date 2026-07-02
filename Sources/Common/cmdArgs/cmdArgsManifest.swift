@@ -112,7 +112,7 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
             case .disableZone:
                 result[kind.rawValue] = SubCommandParser(parseDisableZoneCmdArgs)
             case .doctor:
-                result[kind.rawValue] = SubCommandParser(DoctorCmdArgs.init)
+                result[kind.rawValue] = SubCommandParser(parseDoctorCmdArgs)
             case .enable:
                 result[kind.rawValue] = SubCommandParser(parseEnableCmdArgs)
             case .enableZone:

@@ -3806,6 +3806,33 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 47 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-48-support-bundle-diagnostics" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-48-setup.log" \
+            "${LOGS_DIR}/slice-48-zone-workflow.log" \
+            "${LOGS_DIR}/slice-48-support-bundle-command.log" \
+            "${LOGS_DIR}/slice-48-bundle-files.txt" \
+            "${LOGS_DIR}/slice-48-bundle-manifest.txt" \
+            "${LOGS_DIR}/slice-48-bundle-redaction-summary.txt" \
+            "${LOGS_DIR}/slice-48-bundle-config-redacted.toml" \
+            "${LOGS_DIR}/slice-48-bundle-zone-affinities.tsv" \
+            "${LOGS_DIR}/slice-48-bundle-routing-decisions.tsv" \
+            "${LOGS_DIR}/slice-48-final-board-source.txt" \
+            "${LOGS_DIR}/slice-48-command-timing.log" \
+            "${LOGS_DIR}/slice-48-support-bundle-diagnostics.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-script-retry-summary.tsv" \
+            "${SCREENSHOTS_DIR}/00-before-slice-48.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-48.png" \
+            "${SCREENSHOTS_DIR}/02-zone-workflow-slice-48.png" \
+            "${SCREENSHOTS_DIR}/03-support-bundle-command-slice-48.png" \
+            "${SCREENSHOTS_DIR}/04-support-bundle-contents-slice-48.png" \
+            "${SCREENSHOTS_DIR}/05-final-support-audit-slice-48.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-48.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 48 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -5705,6 +5732,122 @@ EOF
         || die "Slice 47 review must discuss layout stability"
 }
 
+require_review_mentions_slice_48_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-48-support-bundle-diagnostics) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local bundle_dir="${LOGS_DIR}/slice-48-zone-support-bundle"
+    [ -d "$bundle_dir" ] || die "Slice 48 stored support bundle directory is missing: $bundle_dir"
+    grep -F "$bundle_dir" "$review_path" >/dev/null \
+        || grep -F 'logs/slice-48-zone-support-bundle' "$review_path" >/dev/null \
+        || die "Slice 48 review must cite stored support bundle directory"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/guest-script-retry-summary.tsv	retry summary
+${LOGS_DIR}/slice-48-zone-workflow.log	zone workflow command log
+${LOGS_DIR}/slice-48-support-bundle-command.log	support bundle command log
+${LOGS_DIR}/slice-48-bundle-files.txt	support bundle file list
+${LOGS_DIR}/slice-48-bundle-manifest.txt	copied bundle manifest
+${LOGS_DIR}/slice-48-bundle-redaction-summary.txt	copied redaction summary
+${LOGS_DIR}/slice-48-bundle-config-redacted.toml	copied redacted config
+${LOGS_DIR}/slice-48-bundle-zone-affinities.tsv	copied zone affinities
+${LOGS_DIR}/slice-48-bundle-routing-decisions.tsv	copied routing decisions
+${LOGS_DIR}/slice-48-final-board-source.txt	final support board source
+${LOGS_DIR}/slice-48-command-timing.log	command timing log
+${bundle_dir}/manifest.txt	stored bundle manifest
+${bundle_dir}/redaction-summary.txt	stored redaction summary
+${bundle_dir}/config-redacted.toml	stored redacted config
+${bundle_dir}/zone-affinities.tsv	stored zone affinities
+${bundle_dir}/recent-window-routing-decisions.tsv	stored routing diagnostics
+${bundle_dir}/command-failures.tsv	stored command failure diagnostics
+${RUN_DIR}/slice-48-support-bundle-diagnostics-proof.txt	proof file
+${SCREENSHOTS_DIR}/02-zone-workflow-slice-48.png	zone workflow screenshot
+${SCREENSHOTS_DIR}/03-support-bundle-command-slice-48.png	support bundle command screenshot
+${SCREENSHOTS_DIR}/04-support-bundle-contents-slice-48.png	support bundle contents screenshot
+${SCREENSHOTS_DIR}/05-final-support-audit-slice-48.png	final support audit screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 48 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 48 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    for event_id in \
+        zone-workflow \
+        support-bundle-command \
+        bundle-contents \
+        final-audit; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 48 review must cite event: $event_id"
+    done
+    for timing_key in \
+        zone-workflow-offset-seconds \
+        support-bundle-command-offset-seconds \
+        bundle-contents-offset-seconds \
+        final-audit-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 48 review must cite timing value key: $timing_key"
+    done
+    for exact in \
+        'Run: winmux focus-zone Comms' \
+        'Run: winmux list-zones --format zone|name|workspace|physical' \
+        'Run: winmux doctor zones --support-bundle' \
+        '$ winmux doctor zones --support-bundle --output' \
+        'Run: find slice-48-zone-support-bundle' \
+        'Config: redaction-summary.txt' \
+        'Config: zone-affinities.tsv' \
+        'Result: redacted bundle is attachable' \
+        'Result: no automatic upload' \
+        'Result: no post-recording guest retries' \
+        '<redacted-window-title>' \
+        '<redacted-app-identifier>' \
+        'true:<redacted-app-identifier>' \
+        'true:<redacted-window-title>' \
+        'support-bundle-redaction-pass=yes' \
+        'support-bundle-required-files-pass=yes' \
+        'support-bundle-debug-value-pass=yes' \
+        'non-claim=no automatic upload' \
+        'schema-version=1' \
+        'command=doctor zones --support-bundle' \
+        'WinMux does not retain command failure history yet' \
+        'Secret Board' \
+        'com.secret.Mail' \
+        'super-secret-token'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 48 review must cite exact evidence text: $exact"
+    done
+    if ! grep -F 'WinMux does not retain a recent window-routing decision log yet' "$review_path" >/dev/null &&
+        ! grep -F 'zone-affinity-config' "$review_path" >/dev/null &&
+        ! grep -F 'live window match history is not retained' "$review_path" >/dev/null; then
+        die "Slice 48 review must cite routing diagnostics retention evidence"
+    fi
+    grep -Eiq 'redact|redaction|leak' "$review_path" \
+        || die "Slice 48 review must discuss redaction/leak checks"
+    grep -Eiq 'no automatic upload|no-upload|automatic upload' "$review_path" \
+        || die "Slice 48 review must discuss the no-upload boundary"
+    grep -Eiq 'debug value|schema-version|manifest|attachable|files=' "$review_path" \
+        || die "Slice 48 review must discuss support-bundle debug value"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -6060,6 +6203,7 @@ run_review_lint() {
     require_review_mentions_slice_45_evidence "$review_path"
     require_review_mentions_slice_46_evidence "$review_path"
     require_review_mentions_slice_47_evidence "$review_path"
+    require_review_mentions_slice_48_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -10691,6 +10835,218 @@ require_slice_47_zone_chrome_polish_proof() {
     require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
     require_slice_47_event_manifest "$event_manifest"
     require_no_slice_47_post_recording_retries
+}
+
+require_no_slice_48_post_recording_retries() {
+    local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    require_file "$summary_path"
+
+    local attempts failures final_result before_recording
+    attempts="$(transport_summary_value "$summary_path" slice-48-run attempts)"
+    failures="$(transport_summary_value "$summary_path" slice-48-run failures)"
+    final_result="$(transport_summary_value "$summary_path" slice-48-run final_result)"
+    before_recording="$(transport_summary_value "$summary_path" slice-48-run before_recording)"
+    [ "$attempts" = "1" ] \
+        || die "Slice 48 post-recording scenario must run once and be discarded on failure; attempts=${attempts}"
+    [ "$failures" = "0" ] \
+        || die "Slice 48 post-recording scenario had failures; discard and rerun artifact"
+    [ "$final_result" = "success" ] \
+        || die "Slice 48 post-recording scenario did not succeed cleanly: ${final_result}"
+    [ "$before_recording" = "no" ] \
+        || die "Slice 48 run row must be after recording started, got before_recording=${before_recording}"
+
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            failures = $4 + 0
+            before_recording = $6
+            if (before_recording == "no" && failures > 0) {
+                printf("post-recording retry failure row: %s\n", $0) > "/dev/stderr"
+                bad = 1
+            }
+        }
+        END { exit(bad ? 1 : 0) }
+    ' "$summary_path" || die "Slice 48 artifact contains post-recording failures/retries"
+}
+
+require_slice_48_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+    require_event_manifest_event "$manifest_path" zone-workflow context
+    require_event_manifest_event "$manifest_path" support-bundle-command action
+    require_event_manifest_event "$manifest_path" bundle-contents diagnostic
+    require_event_manifest_event "$manifest_path" final-audit result
+    require_event_before "$manifest_path" zone-workflow support-bundle-command \
+        "Slice 48 zone workflow must precede support bundle command"
+    require_event_before "$manifest_path" support-bundle-command bundle-contents \
+        "Slice 48 support bundle command must precede bundle contents"
+    require_event_before "$manifest_path" bundle-contents final-audit \
+        "Slice 48 bundle contents must precede final support audit"
+
+    local event_id expected_path
+    for event_id in \
+        zone-workflow:screenshots/02-zone-workflow-slice-48.png \
+        support-bundle-command:screenshots/03-support-bundle-command-slice-48.png \
+        bundle-contents:screenshots/04-support-bundle-contents-slice-48.png \
+        final-audit:screenshots/05-final-support-audit-slice-48.png; do
+        expected_path="${event_id#*:}"
+        event_id="${event_id%%:*}"
+        [ "$(require_event_manifest_value "$manifest_path" "$event_id" path)" = "$expected_path" ] \
+            || die "Slice 48 event manifest path mismatch for ${event_id}"
+    done
+}
+
+require_slice_48_support_bundle_diagnostics_proof() {
+    local proof="${RUN_DIR}/slice-48-support-bundle-diagnostics-proof.txt"
+    local done="${LOGS_DIR}/slice-48-support-bundle-diagnostics.done"
+    local bundle_dir="${LOGS_DIR}/slice-48-zone-support-bundle"
+    local zone_workflow_log="${LOGS_DIR}/slice-48-zone-workflow.log"
+    local support_command_log="${LOGS_DIR}/slice-48-support-bundle-command.log"
+    local bundle_files="${LOGS_DIR}/slice-48-bundle-files.txt"
+    local bundle_manifest="${LOGS_DIR}/slice-48-bundle-manifest.txt"
+    local bundle_redaction="${LOGS_DIR}/slice-48-bundle-redaction-summary.txt"
+    local bundle_config="${LOGS_DIR}/slice-48-bundle-config-redacted.toml"
+    local bundle_affinities="${LOGS_DIR}/slice-48-bundle-zone-affinities.tsv"
+    local bundle_routing="${LOGS_DIR}/slice-48-bundle-routing-decisions.tsv"
+    local final_board="${LOGS_DIR}/slice-48-final-board-source.txt"
+    local timing_log="${LOGS_DIR}/slice-48-command-timing.log"
+    local event_manifest
+    event_manifest="$(event_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 48"
+    [ -d "$bundle_dir" ] || die "Slice 48 stored support bundle directory is missing: $bundle_dir"
+    require_file "$zone_workflow_log"
+    require_file "$support_command_log"
+    require_file "$bundle_files"
+    require_file "$bundle_manifest"
+    require_file "$bundle_redaction"
+    require_file "$bundle_config"
+    require_file "$bundle_affinities"
+    require_file "$bundle_routing"
+    require_file "$final_board"
+    require_file "$timing_log"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-48.png"
+    require_file "${SCREENSHOTS_DIR}/02-zone-workflow-slice-48.png"
+    require_file "${SCREENSHOTS_DIR}/03-support-bundle-command-slice-48.png"
+    require_file "${SCREENSHOTS_DIR}/04-support-bundle-contents-slice-48.png"
+    require_file "${SCREENSHOTS_DIR}/05-final-support-audit-slice-48.png"
+
+    local required
+    for required in \
+        active-workspaces.tsv \
+        command-failures.tsv \
+        config-doctor.txt \
+        config-redacted.toml \
+        logs.txt \
+        manifest.txt \
+        monitor-topology.tsv \
+        node-zone-bindings.tsv \
+        permissions.txt \
+        recent-window-routing-decisions.tsv \
+        redaction-summary.txt \
+        zone-affinities.tsv \
+        zone-runtime-overlay.tsv; do
+        require_file "${bundle_dir}/${required}"
+        grep -F "$required" "$bundle_files" >/dev/null \
+            || die "Slice 48 bundle file list missing ${required}"
+    done
+
+    grep -F '$ winmux focus-zone Comms' "$zone_workflow_log" >/dev/null \
+        || die "Slice 48 zone workflow log missing exact focus command"
+    grep -F '$ winmux list-zones --format zone|name|workspace|physical' "$zone_workflow_log" >/dev/null \
+        || die "Slice 48 zone workflow log missing exact list-zones command"
+    grep -F '$ winmux doctor zones --support-bundle --output' "$support_command_log" >/dev/null \
+        || die "Slice 48 support command log missing exact doctor command"
+    grep -F 'Zone support bundle:' "$support_command_log" >/dev/null \
+        || die "Slice 48 support command log missing generated bundle path"
+    grep -F 'Files:' "$support_command_log" >/dev/null \
+        || die "Slice 48 support command log missing generated file list"
+
+    grep -F 'winmux-zone-support-bundle' "$bundle_manifest" >/dev/null \
+        || die "Slice 48 bundle manifest missing bundle marker"
+    grep -F 'schema-version=1' "$bundle_manifest" >/dev/null \
+        || die "Slice 48 bundle manifest missing schema-version"
+    grep -F 'command=doctor zones --support-bundle' "$bundle_manifest" >/dev/null \
+        || die "Slice 48 bundle manifest missing command"
+    grep -F 'files=' "$bundle_manifest" >/dev/null \
+        || die "Slice 48 bundle manifest missing file list"
+    grep -F '<redacted-window-title>' "$bundle_redaction" >/dev/null \
+        || die "Slice 48 redaction summary missing window-title redaction marker"
+    grep -F '<redacted-app-identifier>' "$bundle_redaction" >/dev/null \
+        || die "Slice 48 redaction summary missing app identifier redaction marker"
+    grep -F '<redacted>' "$bundle_config" >/dev/null \
+        || die "Slice 48 redacted config missing generic secret redaction marker"
+    grep -F 'true:<redacted-app-identifier>' "$bundle_affinities" >/dev/null \
+        || die "Slice 48 zone affinities missing app identifier redaction marker"
+    grep -F 'true:<redacted-window-title>' "$bundle_affinities" >/dev/null \
+        || die "Slice 48 zone affinities missing title redaction marker"
+    grep -F 'WinMux does not retain command failure history yet' "${bundle_dir}/command-failures.tsv" >/dev/null \
+        || die "Slice 48 command failures diagnostic missing retention note"
+    if ! grep -F 'WinMux does not retain a recent window-routing decision log yet' "$bundle_routing" >/dev/null &&
+        ! grep -F 'zone-affinity-config' "$bundle_routing" >/dev/null; then
+        die "Slice 48 routing diagnostics missing retention or affinity-config evidence"
+    fi
+
+    if /usr/bin/grep -R -E 'Secret Board|com\.secret\.Mail|super-secret-token' "$bundle_dir" >/dev/null; then
+        die "support bundle leaked sensitive app/title/token content"
+    fi
+
+    grep -F 'support-bundle-redaction-pass=yes' "$final_board" >/dev/null \
+        || die "Slice 48 final board missing redaction pass flag"
+    grep -F 'support-bundle-required-files-pass=yes' "$final_board" >/dev/null \
+        || die "Slice 48 final board missing required-files pass flag"
+    grep -F 'support-bundle-debug-value-pass=yes' "$final_board" >/dev/null \
+        || die "Slice 48 final board missing debug-value pass flag"
+    grep -F 'non-claim=no automatic upload' "$final_board" >/dev/null \
+        || die "Slice 48 final board missing no-upload non-claim"
+    grep -F 'PASS: doctor zones --support-bundle creates an attachable redacted zone diagnostics directory' "$proof" >/dev/null \
+        || die "Slice 48 proof missing PASS claim"
+    grep -F 'support-bundle-redaction-pass=yes' "$proof" >/dev/null \
+        || die "Slice 48 proof missing redaction pass flag"
+    grep -F 'support-bundle-required-files-pass=yes' "$proof" >/dev/null \
+        || die "Slice 48 proof missing required-files pass flag"
+    grep -F 'support-bundle-debug-value-pass=yes' "$proof" >/dev/null \
+        || die "Slice 48 proof missing debug-value pass flag"
+    grep -F 'non-claim=no automatic upload' "$proof" >/dev/null \
+        || die "Slice 48 proof missing no-upload non-claim"
+
+    local timing_key
+    for timing_key in \
+        zone-workflow-offset-seconds \
+        support-bundle-command-offset-seconds \
+        bundle-contents-offset-seconds \
+        final-audit-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 48 timing log missing ${timing_key}"
+    done
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux focus-zone Comms" \
+        "$(value_from_log zone-workflow-offset-seconds "$timing_log")" \
+        "Slice 48 focus-zone command must happen while zone workflow caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux doctor zones --support-bundle" \
+        "$(value_from_log support-bundle-command-offset-seconds "$timing_log")" \
+        "Slice 48 support bundle command must happen while doctor caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: find slice-48-zone-support-bundle" \
+        "$(value_from_log bundle-contents-offset-seconds "$timing_log")" \
+        "Slice 48 bundle contents inspection must happen while contents caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: no automatic upload" \
+        "$(value_from_log final-audit-offset-seconds "$timing_log")" \
+        "Slice 48 final audit must happen while no-upload caption is visible"
+
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+    require_sample_manifest_label_path "$sample_manifest" zone-workflow "screenshots/02-zone-workflow-slice-48.png"
+    require_sample_manifest_label_path "$sample_manifest" support-bundle-command "screenshots/03-support-bundle-command-slice-48.png"
+    require_sample_manifest_label_path "$sample_manifest" bundle-contents "screenshots/04-support-bundle-contents-slice-48.png"
+    require_sample_manifest_label_path "$sample_manifest" final-audit "screenshots/05-final-support-audit-slice-48.png"
+
+    require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
+    require_slice_48_event_manifest "$event_manifest"
+    require_no_slice_48_post_recording_retries
 }
 
 require_slice_8_window_routing_proof() {
@@ -16333,6 +16689,9 @@ case "$recording_name" in
     slice-47-zone-chrome-polish)
         require_slice_47_zone_chrome_polish_proof
         ;;
+    slice-48-support-bundle-diagnostics)
+        require_slice_48_support_bundle_diagnostics_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -16450,6 +16809,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_45_evidence "$review_path"
     require_review_mentions_slice_46_evidence "$review_path"
     require_review_mentions_slice_47_evidence "$review_path"
+    require_review_mentions_slice_48_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

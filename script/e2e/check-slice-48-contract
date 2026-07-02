@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CONTRACT="${1:-${SCRIPT_DIR}/specs/slice-48-support-bundle-diagnostics.tsv}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+die() {
+    printf '[winmux-e2e] Slice 48 contract error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_row() {
+    local kind="$1"
+    local id="$2"
+    /usr/bin/awk -F'\t' -v kind="$kind" -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == kind && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing ${kind}/${id}"
+}
+
+require_artifact_path() {
+    local path="$1"
+    /usr/bin/awk -F'\t' -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $3 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing artifact path ${path}"
+}
+
+require_source_check() {
+    local id="$1"
+    /usr/bin/awk -F'\t' -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == "source-check" && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing source-check/${id}"
+}
+
+validate_source_checks() {
+    while IFS=$'\t' read -r kind id source_path expected extra; do
+        [ "${kind:-}" = "source-check" ] || continue
+        [ -z "${extra:-}" ] || die "source-check/${id} has too many TSV fields"
+        [ -n "${id:-}" ] || die "source-check row missing id"
+        [ -n "${source_path:-}" ] || die "source-check/${id} missing source path"
+        [ -n "${expected:-}" ] || die "source-check/${id} missing expected text"
+
+        local source_file
+        case "$source_path" in
+            /*) source_file="$source_path" ;;
+            *) source_file="${REPO_ROOT}/${source_path}" ;;
+        esac
+        [ -s "$source_file" ] || die "source-check/${id} missing source file: ${source_path}"
+        /usr/bin/grep -F -- "$expected" "$source_file" >/dev/null \
+            || die "source-check/${id} did not find expected text in ${source_path}: ${expected}"
+    done <"$CONTRACT"
+}
+
+require_slice_48_active_config_mutates_policy() {
+    local harness="${REPO_ROOT}/script/e2e/tart-recording-harness"
+
+    /usr/bin/awk '
+        /ACTIVE_CONFIG_HASH_POLICY=mutates/ {
+            if (previous ~ /\[ "\$ACTION" = "slice-48" \]/ &&
+                previous ~ /WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY/ &&
+                previous ~ /then/) {
+                found = 1
+            }
+        }
+        { previous = $0 }
+        END { exit(found ? 0 : 1) }
+    ' "$harness" || die "Slice 48 must be in the active_config_hash_policy=mutates guard"
+}
+
+[ -s "$CONTRACT" ] || die "missing contract file: $CONTRACT"
+
+for id in \
+    zone-workflow \
+    support-bundle-command \
+    bundle-contents \
+    final-audit; do
+    require_row event "$id"
+done
+
+for id in \
+    required-files \
+    redaction \
+    debug-value \
+    routing-note; do
+    require_row proof "$id"
+done
+
+require_row retry no-post-recording-retry
+require_row artifact expected-chips
+require_row artifact support-command-log
+require_row artifact final-board-source
+require_artifact_path logs/slice-48-bundle-files.txt
+require_artifact_path logs/slice-48-bundle-redaction-summary.txt
+require_artifact_path logs/slice-48-bundle-manifest.txt
+require_artifact_path logs/slice-48-bundle-routing-decisions.tsv
+require_artifact_path logs/slice-48-support-bundle-command.log
+require_artifact_path logs/slice-48-final-board-source.txt
+
+for id in \
+    caption:workflow \
+    caption:doctor \
+    caption:contents \
+    caption:redaction \
+    harness:event-manifest \
+    harness:no-recording-retry \
+    harness:config-mutation-policy \
+    guest:command \
+    guest:required-files \
+    guest:redaction \
+    guest:final-board \
+    verifier:proof \
+    verifier:event-manifest \
+    verifier:review \
+    verifier:redaction \
+    reviewer:checks \
+    reviewer:bundle-path \
+    reviewer:redaction \
+    prompt:redaction; do
+    require_source_check "$id"
+done
+
+validate_source_checks
+require_slice_48_active_config_mutates_policy
+
+printf 'result=success\n'

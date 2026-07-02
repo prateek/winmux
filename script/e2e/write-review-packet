@@ -780,6 +780,23 @@ EOF
 - State explicitly that Slice 47 proves product UI chrome for focused, hidden, profile, and style state while preserving anchor window ids/workspaces and style-only placement. It does not prove a full GUI editor, decorative product marketing screens, or new layout/persistence semantics.
 EOF
             ;;
+        slice-48-support-bundle-diagnostics)
+            cat <<'EOF'
+- Slice 48 support bundle diagnostics: inspect the annotated recording first, then the raw recording, contact sheet, semantic sample manifest, event manifest, caption-boundary frames, edge crops, retry summary, support command log, stored support-bundle directory, copied bundle files, and final board source.
+- Confirm the recording is a fresh Slice 48 artifact named `slice-48-support-bundle-diagnostics`. It must show a normal zone workflow first, the exact support-bundle command, stored bundle contents, and a final support audit on a clean desktop.
+- Confirm captions expose the exact user-facing surface: `Run: winmux focus-zone Comms`, `Run: winmux list-zones --format zone|name|workspace|physical`, `Run: winmux doctor zones --support-bundle`, `Run: find slice-48-zone-support-bundle`, `Config: redaction-summary.txt`, `Config: zone-affinities.tsv`, `Result: redacted bundle is attachable`, `Result: no automatic upload`, and `Result: no post-recording guest retries`.
+- Inspect `logs/slice-48-support-bundle-command.log`; require `$ winmux doctor zones --support-bundle --output`, `Zone support bundle:`, and the generated `logs/slice-48-zone-support-bundle` path. Reject proof that only describes diagnostics without running the public command.
+- Inspect `logs/slice-48-zone-support-bundle`, `logs/slice-48-bundle-files.txt`, `logs/slice-48-bundle-manifest.txt`, `logs/slice-48-bundle-redaction-summary.txt`, `logs/slice-48-bundle-config-redacted.toml`, `logs/slice-48-bundle-zone-affinities.tsv`, and `logs/slice-48-bundle-routing-decisions.tsv`. Require manifest, config doctor, redacted config, monitor topology, active workspaces, runtime overlay, permissions, command failures, routing decisions, logs, node bindings, zone affinities, and redaction summary files.
+- Reject if Secret Board or com.secret.Mail appears in any stored bundle file. Also reject `super-secret-token` leaks. Require `<redacted-window-title>` and `<redacted-app-identifier>` in stored evidence and a `true:<redacted-app-identifier>` / `true:<redacted-window-title>` zone-affinity row.
+- Inspect `logs/slice-48-bundle-routing-decisions.tsv`; require either `zone-affinity-config` with `live window match history is not retained` or the unavailable-history line `WinMux does not retain a recent window-routing decision log yet`. Inspect `logs/slice-48-bundle-command-failures.tsv` if present, or the stored bundle's `command-failures.tsv`, and require `WinMux does not retain command failure history yet`.
+- Inspect `logs/slice-48-final-board-source.txt` and `slice-48-support-bundle-diagnostics-proof.txt`; require `support-bundle-redaction-pass=yes`, `support-bundle-required-files-pass=yes`, `support-bundle-debug-value-pass=yes`, and `non-claim=no automatic upload`.
+- Inspect `logs/slice-48-command-timing.log`; cite `zone-workflow-offset-seconds`, `support-bundle-command-offset-seconds`, `bundle-contents-offset-seconds`, and `final-audit-offset-seconds`, and reject if the command/action happens outside its matching caption chip.
+- Inspect `logs/slice-48-support-bundle-diagnostics.event-manifest.tsv`; require `zone-workflow`, `support-bundle-command`, `bundle-contents`, and `final-audit` in order with concrete media paths.
+- Inspect `logs/guest-script-retry-summary.tsv`; require `slice-48-run` to have one attempt, zero failures, `final_result=success`, and `before_recording=no`. Reject any post-recording failure/retry; this slice must be discarded and rerun instead.
+- Compare against accepted Slice 36-47 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, and readable support-flow pacing used in the accepted demos.
+- State explicitly that Slice 48 proves a local, user-run `doctor zones --support-bundle` command that creates an attachable, redacted zone diagnostics directory with useful topology/routing/config files. It does not prove automatic upload, crash-log collection, unified-log collection, or full live routing-history retention.
+EOF
+            ;;
         slice-8-window-routing)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.

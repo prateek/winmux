@@ -1,0 +1,32 @@
+# kind	id	required-artifact	expected
+event	zone-workflow	screenshots/02-zone-workflow-slice-48.png	focus-zone Comms and list-zones run before diagnostics
+event	support-bundle-command	screenshots/03-support-bundle-command-slice-48.png	doctor zones --support-bundle generates a bundle path and file list
+event	bundle-contents	screenshots/04-support-bundle-contents-slice-48.png	stored bundle contents show manifest redaction summary and zone-affinity redaction
+event	final-audit	screenshots/05-final-support-audit-slice-48.png	final board shows command sequence bundle path redaction summary and no-upload non-claim
+proof	required-files	logs/slice-48-bundle-files.txt	bundle contains manifest config monitor topology active workspaces overlays permissions logs failures routing bindings and affinities
+proof	redaction	logs/slice-48-bundle-redaction-summary.txt	window titles app identifiers home paths and usernames are redacted by default
+proof	debug-value	logs/slice-48-bundle-manifest.txt	manifest records schema version command config path and attachable file list
+proof	routing-note	logs/slice-48-bundle-routing-decisions.tsv	routing log file is present and states current retention limits when history is unavailable
+artifact	expected-chips	logs/slice-48-support-bundle-diagnostics.expected-chips.txt	expected caption chips are derived from annotation TSV
+artifact	support-command-log	logs/slice-48-support-bundle-command.log	exact doctor zones --support-bundle command and output are stored
+artifact	final-board-source	logs/slice-48-final-board-source.txt	final visible board source records pass flags and non-claim
+retry	no-post-recording-retry	logs/guest-script-retry-summary.tsv	no guest action retries after recording starts; discard and rerun instead
+source-check	caption:workflow	script/e2e/tart-recording-harness	Run: winmux focus-zone Comms
+source-check	caption:doctor	script/e2e/tart-recording-harness	Run: winmux doctor zones --support-bundle
+source-check	caption:contents	script/e2e/tart-recording-harness	Run: find slice-48-zone-support-bundle
+source-check	caption:redaction	script/e2e/tart-recording-harness	Result: redacted bundle is attachable
+source-check	harness:event-manifest	script/e2e/tart-recording-harness	write_slice_48_event_manifest
+source-check	harness:no-recording-retry	script/e2e/tart-recording-harness	require_no_post_recording_guest_retry_failures
+source-check	harness:config-mutation-policy	script/e2e/check-slice-48-contract	require_slice_48_active_config_mutates_policy
+source-check	guest:command	script/e2e/guest/slice-48-support-bundle-diagnostics.sh	"${CLI}" doctor zones --support-bundle --output "${BUNDLE_DIR}"
+source-check	guest:required-files	script/e2e/guest/slice-48-support-bundle-diagnostics.sh	validate_bundle
+source-check	guest:redaction	script/e2e/guest/slice-48-support-bundle-diagnostics.sh	support bundle leaked sensitive app/title/token content
+source-check	guest:final-board	script/e2e/guest/slice-48-support-bundle-diagnostics.sh	support-bundle-redaction-pass=yes
+source-check	verifier:proof	script/e2e/verify-artifact	require_slice_48_support_bundle_diagnostics_proof
+source-check	verifier:event-manifest	script/e2e/verify-artifact	require_slice_48_event_manifest
+source-check	verifier:review	script/e2e/verify-artifact	require_review_mentions_slice_48_evidence
+source-check	verifier:redaction	script/e2e/verify-artifact	support bundle leaked sensitive app/title/token content
+source-check	reviewer:checks	script/e2e/write-review-packet	Slice 48 support bundle diagnostics
+source-check	reviewer:bundle-path	script/e2e/write-review-packet	logs/slice-48-zone-support-bundle
+source-check	reviewer:redaction	script/e2e/write-review-packet	Reject if Secret Board or com.secret.Mail appears in any stored bundle file
+source-check	prompt:redaction	script/e2e/prompts/no-context-artifact-review.md	Reject Slice 48 if stored support-bundle contents leak Secret Board or com.secret.Mail
