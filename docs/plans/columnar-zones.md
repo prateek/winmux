@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-44 accepted; Slice 45 planned; Slices 46-51 planned
+Status: slices 0-45 accepted; Slices 46-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -8314,7 +8314,7 @@ Non-claims:
 
 ### Slice 45: Multi-Monitor, Hotplug, and Sleep/Wake Hardening
 
-Status: planned.
+Status: accepted.
 
 Pre-Slice-45 cleanup from Slice 44 retrospectives:
 
@@ -8451,7 +8451,87 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   `logs/slice-45-topology-before.log` did not contain the required
   `winmux list-windows --all --format ...` audit. The guest script now keeps
   the visible-window readiness check and then writes the before-state log with
-  the full user-facing all-windows command before generating topology logs.
+  the full user-facing all-windows command before generating topology logs. The
+  run is formally marked superseded by
+  `artifacts/e2e/slice-45-pre-tart-20260702T022831Z` in
+  `reviews/superseded.md` and `logs/run-abort-status.txt`.
+
+Accepted result:
+
+- artifact directory:
+  `artifacts/e2e/slice-45-pre-tart-20260702T022831Z`;
+- recording: `recordings/slice-45-display-topology-recovery.mov`;
+- raw guest capture:
+  `recordings/raw/slice-45-display-topology-recovery.raw.mov`;
+- media metadata: H.264, 3440x1440, `99.983333s`, 4,320 frames;
+- contact sheets:
+  `screenshots/slice-45-display-topology-recovery.contact-sheet.jpg`,
+  `screenshots/slice-45-display-topology-recovery.event-contact-sheet.jpg`,
+  and
+  `screenshots/slice-45-display-topology-recovery.topology-contact-sheet.jpg`;
+- topology proof frames:
+  `screenshots/02-topology-before-slice-45.png`,
+  `screenshots/03-simulated-loss-slice-45.png`,
+  `screenshots/04-recovery-visible-slice-45.png`,
+  `screenshots/05-simulated-return-slice-45.png`,
+  `screenshots/06-topology-after-slice-45.png`, and
+  `screenshots/07-final-recoverability-slice-45.png`;
+- pre-Tart freshness:
+  `reviews/pre-tart/freshness.env`, with
+  `candidate_head=083b7ec725cd0176a428a98cc9c4b247be6bb1c5`;
+- pre-Tart no-context reviewers:
+  `reviews/pre-tart/process-plan.md`,
+  `reviews/pre-tart/code-harness.md`, and
+  `reviews/pre-tart/artifact-product.md`, each `Verdict: CLEAN` and ending
+  with `NO ACTIONABLE ISSUES`;
+- artifact review:
+  `reviews/no-ctx-artifact-review.md`, first line `PASS: Slice 45 passes as a
+  deterministic Tart topology recoverability artifact, with no real physical
+  display unplug/replug claim.`, final line `next slice allowed: yes`;
+- persisted verifier logs:
+  `logs/review-lint.log`, `logs/post-review-verify.log`, and
+  `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`, all with `ACTIONABLE FINDINGS` folded
+  into pre-Slice-46 cleanup below.
+
+Accepted claims:
+
+- deterministic Tart topology recoverability policy is demonstrated across
+  simulated display loss, recovery, simulated return/resolution churn, restored
+  topology, and final recoverability;
+- the artifact proves the user-facing
+  `winmux list-zones --format ...` and
+  `winmux list-windows --all --format ...` audit surfaces for the topology
+  story;
+- the video, event contact sheet, topology contact sheet, proof manifest, and
+  per-beat logs make the proof reviewable without accepting logs-only or
+  final-state-only evidence;
+- the final zones and windows logs show Reference, Work, and Comms restored
+  with `slice45-reference-topology.rtf`, `slice45-work-topology.rtf`, and
+  `slice45-comms-topology.rtf` in their expected zones.
+
+Accepted retry note:
+
+- `slice-45-run` had one post-recording SSH/askpass transport failure before
+  the successful mutating attempt. `logs/slice-45-run.log` shows the failure
+  happened before the `winmux-e2e-mutation-started=1` marker, then the retry
+  succeeded and produced the visible proof. The accepted artifact review treats
+  this as acceptable for Slice 45, but Slice 46 stateful persistence work must
+  be stricter about post-recording retries.
+
+Unaccepted Slice 45 sibling runs:
+
+- `artifacts/e2e/slice-45-pre-tart-20260702T015629Z`: pre-Tart-only run with
+  `logs/pre-tart-checks.log`; no product media and no superseded marker needed;
+- `artifacts/e2e/slice-45-pre-tart-20260702T020436Z`: pre-Tart-only run with
+  `reviews/pre-tart/freshness.env` and `logs/pre-tart-checks.log`; no product
+  media and no superseded marker needed;
+- `artifacts/e2e/slice-45-pre-tart-20260702T020808Z`: media-producing run
+  superseded by the accepted rerun after the topology-before
+  `list-windows --all --format ...` audit fix; keep
+  `reviews/superseded.md` and `logs/run-abort-status.txt`.
 
 Goal: make zones survive realistic external-monitor use.
 
@@ -8484,7 +8564,68 @@ slices; do not accept screenshots or operator notes as the product proof.
 Non-claims:
 
 - Slice 45 does not support arbitrary overlapping rectangle layouts;
-- Slice 45 does not promise identical display ids across macOS hardware events.
+- Slice 45 does not promise identical display ids across macOS hardware events;
+- Slice 45 does not prove real physical display unplug/replug, sleep/wake, or
+  clamshell behavior. A supplemental real-machine video with the same review
+  and closeout flow is required before making that claim.
+
+Pre-Slice-46 cleanup from Slice 45 retrospectives:
+
+- [x] Mark Slice 45 accepted in this plan and record the accepted artifact,
+  review, verifier, retrospective, claim, non-claim, retry, and sibling-run
+  evidence above.
+- [x] Persist all three Slice 45 retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+- [x] Rerun
+  `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-45-pre-tart-20260702T022831Z`
+  after the retrospectives are present and tee it to `logs/closeout-check.log`.
+- [ ] Before Slice 46 Tart, collapse the persistence/rollback/config-doctor
+  artifact contract into one checked contract source. It must enumerate caption
+  chips, event ids, proof-manifest keys, screenshots/log paths, final command
+  logs, and reviewer packet requirements. Generate or mechanically compare the
+  guest-emitted manifests, harness event/sample manifests, verifier required
+  rows, and reviewer packet/checklist from that source.
+- [ ] Before Slice 46 Tart, make stateful proof phases no-retry after recording
+  starts unless the harness discards and restarts the recording. Split
+  transport probes from mutation commands, require a clean final guest-control
+  probe immediately before capture, emit the mutation marker before the first
+  save/backup/restore/bad-config write, and fail or restart the artifact if any
+  `guest-script-retry-summary.tsv` row has `before_recording=no` and
+  `failures>0`.
+- [ ] Reuse the Slice 45 event-manifest columns and key/value diagnostic log
+  style for Slice 46 persistence diagnostics. Add rows/keys for original config
+  hash, dry-run hash, saved config hash, backup path, deliberately bad config
+  path/hash, config doctor result, rollback result, restored config hash,
+  relaunch loaded saved layout, and no user config deletion.
+- [ ] Define the Slice 46 Tart storyboard before implementation: save a runtime
+  layout, relaunch into the saved layout, introduce a deliberately bad config,
+  run `winmux config doctor` or equivalent diagnostics, restore a known-good
+  backup, and show the restored layout. The artifact must include exact
+  before/save/relaunch/bad-config/doctor/rollback/final media rows, a contact
+  sheet, a machine-readable manifest, and command logs for every persisted file
+  mutation.
+- [ ] Keep Slice 46 visually less dense than Slice 45: final frame should show
+  one active user-facing result board plus, at most, one compact audit board.
+  Put full TOML diffs, full doctor output, and full all-windows audits in logs
+  or close-up screenshots cited from the reviewer packet.
+- [ ] Use ordered command/result chips for the user workflow:
+  `Run: winmux save-zone-layout`,
+  `Result: backup created + config updated`,
+  `Run: winmux config --check ~/.config/winmux/winmux.toml`,
+  `Result: Config OK`,
+  `Run: winmux doctor`,
+  `Result: persistence/rollback status OK`, and the rollback/restore command
+  plus restored-layout result.
+- [ ] Add Slice 46 proof-manifest boundary rows for deterministic Tart config
+  persistence, rollback safety, config doctor status, and any real-machine
+  supplemental claim. The review packet must reject wording that upgrades
+  deterministic Tart evidence into real hardware, sleep/wake, or physical
+  unplug/replug support without a separate reviewed real-machine artifact.
+- [ ] Keep a clean desktop and visible product anchor in Slice 46. Reference,
+  Work, and Comms zones or the relevant sidebar/tab-zone surface must remain
+  visible before and after save, rollback, and doctor; the proof board should
+  explain the config-safety outcome, not replace the product surface.
 
 ### Slice 46: Persistence, Rollback, and Config Doctor
 
