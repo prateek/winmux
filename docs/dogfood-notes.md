@@ -38,11 +38,16 @@ display. Zone workflows not yet exercised; ultrawide dogfood pending.
 
 - **Dogfood blocker — general input lag.** Interactions feel slow; the
   clearest repro is clicking the desktop wallpaper (macOS Show Desktop
-  gesture), which responds noticeably late. Under investigation; prime
-  suspects are synchronous work in global mouse-event paths (divider drag
-  veto live hit-testing, overlay refresh) and full refresh passes on app
-  deactivation. FlashSpace (github.com/wojciech-kulik/FlashSpace) reported as
-  a fast comparison point.
+  gesture), which responds noticeably late. Root cause traced (planned fix:
+  Slice 53): every global left mouse up runs a full-refresh barrier that
+  enumerates all windows of all apps over AX and can block on a slow app's
+  AX thread; a desktop click additionally fires a second refresh via the
+  Finder activation notification; divider-proximity clicks also run
+  `CGWindowListCopyWindowInfo` synchronously on the main thread. All of it
+  contends on the main actor with 60-120 Hz pointer monitors, so one blocked
+  refresh stalls subsequent input. FlashSpace comparison confirmed the
+  pattern to avoid: its hot paths never enumerate or write window frames,
+  and it skips apps with hostile AX behavior.
 - **Dogfood blocker — zone dividers are draggable in normal use.** Divider
   hover chrome and drag affordances appear during default interaction with
   the balanced layout. Expected: zone resizing is an explicit action (zone

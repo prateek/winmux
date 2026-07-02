@@ -9484,6 +9484,119 @@ Non-claims:
 - Slice 52 does not replace the Homebrew cask as the first-install path;
 - Slice 52 does not add update channels beyond a single dogfood feed.
 
+### Slice 53: Input Latency and Refresh Diet
+
+Status: planned; dogfood blocker from 2026-07-02 daily-driver feedback.
+Prioritize ahead of Slice 52.
+
+Goal: ordinary interactions (desktop click, focus changes, typing while
+overlays animate) respond instantly; no full AX sweep runs on the input path.
+
+Diagnosis this slice must fix (see `docs/dogfood-notes.md`):
+
+- every global left mouse up schedules `.globalObserverLeftMouseUp`, whose
+  refresh barrier runs a full `refresh()` — an AX enumeration of every window
+  of every app plus a `getNativeFocusedWindow` call that can block up to the
+  AX messaging timeout on a slow app (`GlobalObserver.swift`,
+  `refresh.swift`);
+- a desktop click also fires `didActivateApplication` for Finder, so one
+  click runs two overlapping refresh sessions with double `layoutWorkspaces`;
+- clicks within the divider hit slop run `CGWindowListCopyWindowInfo`
+  synchronously on the main thread before refresh starts
+  (`ZoneDividerDragController.swift`);
+- all of this shares the main actor with the 60-120 Hz pointer monitors and
+  the 60 Hz `DisplayRefreshDriver`, so a blocked refresh stalls every
+  subsequent input event.
+
+Required scope, informed by the FlashSpace comparison (fast because its hot
+paths never enumerate or write window frames):
+
+- stop running the full refresh barrier on ordinary mouse ups; reserve it for
+  sessions that actually manipulated windows and use the light session
+  otherwise;
+- coalesce the activation-notification and mouse-up refreshes for the same
+  interaction;
+- add a per-app AX budget: time out and skip apps whose AX round-trips exceed
+  a threshold, remember offenders for the session, and surface them in
+  `winmux doctor` (FlashSpace hard-skips known-hostile apps);
+- move the divider window-frame veto off the synchronous click path (async
+  check or short-lived cache);
+- suspend winmux's own focus observers around self-initiated raises and add a
+  timestamp guard against feedback loops;
+- keep always-on signpost or log instrumentation for input-to-layout latency
+  so regressions are measurable in artifacts.
+
+Required artifact: a Tart recording plus before/after latency evidence from
+the new instrumentation (log or signpost export), and a no-context artifact
+review.
+
+Non-claims:
+
+- Slice 53 does not adopt FlashSpace's raise/hide workspace model;
+- Slice 53 does not promise zero AX cost, only that slow AX cannot stall the
+  input path.
+
+### Slice 54: Explicit Zone Resize Affordance
+
+Status: planned; dogfood blocker from 2026-07-02 daily-driver feedback.
+Prioritize ahead of Slice 52.
+
+Goal: zone dividers are not draggable during normal use; resizing requires
+explicit intent.
+
+Decisions:
+
+- add a config policy for divider interactivity, for example
+  `zone-divider-drag = 'zone-mode' | 'always' | 'off'`, defaulting to
+  `zone-mode`: hover chrome and the invisible hit panel appear only while
+  zone mode is active;
+- `resize-zone`, `balance-zones`, and `save-zone-layout` keep working
+  regardless of the policy;
+- the divider overlay controller must not order hit panels front outside the
+  allowed mode, which also removes that path's event round-trip from normal
+  use.
+
+Required artifact: a Tart recording proving no divider affordance appears in
+default mode, drag works inside zone mode, and the config policy switches
+behavior; a no-context artifact review.
+
+Non-claims:
+
+- Slice 54 does not remove runtime resizing, only gates its mouse affordance.
+
+### Slice 55: Zone Exposé Overview
+
+Status: planned; later enhancement from 2026-07-02 daily-driver feedback.
+
+Goal: Ctrl+Up shows a whole-display overview of workspaces and zones;
+Ctrl+Down shows an overview of the focused zone's windows; selecting a tile
+focuses it.
+
+Decisions, modeled on FlashSpace SpaceControl:
+
+- previews are pre-captured, not live: capture the display via
+  ScreenCaptureKit when a workspace/zone transition finishes, crop per zone
+  using known zone rects, downscale, JPEG-cache keyed by display, zone, and
+  workspace; opening the overview renders cached tiles only;
+- the overview is one borderless screensaver-level panel with static tiles;
+  arrow keys, numbers, and click activate; escape restores prior focus;
+- bindings are ordinary registered hotkeys through the existing binding
+  system (`ctrl-up`, `ctrl-down` defaults in the starter template), not an
+  event tap;
+- requires the Screen Recording permission; degrade to labeled placeholder
+  tiles without it;
+- trackpad three/four-finger swipe gestures are explicitly out of scope for
+  this slice; if added later, use a gesture-mask-only pass-through CGEventTap
+  the way FlashSpace does.
+
+Required artifact: a Tart recording of both overviews, cached-preview
+provenance in logs, and a no-context artifact review.
+
+Non-claims:
+
+- Slice 55 does not implement live window previews or per-window thumbnails;
+- Slice 55 does not add trackpad gesture bindings.
+
 ## Call-Site Audit
 
 The first implementation should touch these seams deliberately:
