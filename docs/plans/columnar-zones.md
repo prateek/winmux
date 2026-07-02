@@ -9305,8 +9305,8 @@ Non-claims:
 
 ### Slice 51: Beta Acceptance and Dogfood Soak
 
-Status: in progress; source registration and beta-acceptance gates are being
-wired before the first Tart run.
+Status: in progress; source registration, beta-acceptance gates, and the
+first-pass guest workflow are wired before the first Tart run.
 
 Goal: decide whether this fork is ready for daily dogfood and a small beta.
 
@@ -9352,10 +9352,13 @@ Pre-slice cleanup from Slice 50 retrospectives:
   timestamped package command. Slice 51 annotation reads
   `package_command` from `logs/package-provenance.env` and requires
   `PUBLISH=0`.
-- [ ] Add a visible package-provenance proof surface for Slice 51 that shows the
+- [x] Add a visible package-provenance proof surface for Slice 51 that shows the
   package zip path, package/app/CLI SHA-256 values, source commit,
   `PUBLISH=0`, install path, normal config path, signing status, and
-  notarization status in one inspectable frame.
+  notarization status in one inspectable frame. The guest workflow writes and
+  opens a package-provenance proof board before the product mutation phase, and
+  the checker verifies the package, app, and CLI hashes against the staged
+  provenance.
 - [ ] Decide the final desktop policy before the next recording: either end on
   one consolidated final proof board, or declare in the reviewer packet why
   multiple proof boards are intentional and not desktop contamination.
@@ -9379,9 +9382,12 @@ issue links or local issue records, no-context artifact review, review lint,
 post-review verifier, closeout, and retrospectives.
 
 Current implementation note: Slice 51 is registered in the source gates and
-has a self-tested checker/storyboard. The Tart guest proof script still needs
-the real beta-acceptance workflow before the first recording; the placeholder
-fails setup/proof modes intentionally until that work is complete.
+has a self-tested checker/storyboard plus a first-pass guest workflow for
+setup, package provenance, fresh install, normal launch, routing, mouse snap,
+profile/layout changes, save/relaunch, support-bundle generation, and final
+beta-readiness docs. The actual Tart recording, no-context artifact review,
+post-review verifier, closeout, dogfood notes, and retrospectives are still
+pending before Slice 51 can be accepted.
 
 Non-claims:
 

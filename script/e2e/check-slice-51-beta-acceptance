@@ -27,6 +27,21 @@ sha256_file() {
     /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
 }
 
+sha256_path() {
+    local path="$1"
+    if [ -f "$path" ]; then
+        sha256_file "$path"
+        return
+    fi
+    [ -d "$path" ] || die "missing hash path: $path"
+    (
+        cd "$path"
+        find . -type f -print0 | /usr/bin/sort -z | while IFS= read -r -d '' file; do
+            /usr/bin/shasum -a 256 "$file"
+        done
+    ) | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
 first_nonblank_line() {
     /usr/bin/awk 'NF { print; exit }' "$1"
 }
@@ -58,6 +73,23 @@ require_file_under_run() {
 require_dir_under_run() {
     local path="$1"
     [ -d "${RUN_DIR}/${path}" ] || die "missing artifact directory: ${path}"
+}
+
+require_slice_51_screenshot_sequence() {
+    local screenshot
+    for screenshot in \
+        screenshots/02-package-provenance-slice-51.png \
+        screenshots/03-fresh-install-slice-51.png \
+        screenshots/04-permissions-setup-slice-51.png \
+        screenshots/05-normal-launch-slice-51.png \
+        screenshots/06-routing-keyboard-slice-51.png \
+        screenshots/07-mouse-snap-slice-51.png \
+        screenshots/08-profile-layout-slice-51.png \
+        screenshots/09-save-relaunch-slice-51.png \
+        screenshots/10-support-bundle-slice-51.png \
+        screenshots/11-final-beta-acceptance-slice-51.png; do
+        require_file_under_run "$screenshot"
+    done
 }
 
 require_text() {
@@ -134,11 +166,11 @@ validate_package_provenance() {
     require_file_under_run "$package_path"
     [ -e "${RUN_DIR}/${app_path}" ] || die "missing packaged app path: ${app_path}"
     require_file_under_run "$cli_path"
-    [ "$(sha256_file "${RUN_DIR}/${package_path}")" = "$package_sha" ] \
+    [ "$(sha256_path "${RUN_DIR}/${package_path}")" = "$package_sha" ] \
         || die "package hash mismatch: ${package_path}"
-    [ "$(find "${RUN_DIR}/${app_path}" -type f -print0 | /usr/bin/sort -z | xargs -0 /usr/bin/shasum -a 256 | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }')" = "$app_sha" ] \
+    [ "$(sha256_path "${RUN_DIR}/${app_path}")" = "$app_sha" ] \
         || die "app hash mismatch: ${app_path}"
-    [ "$(sha256_file "${RUN_DIR}/${cli_path}")" = "$cli_sha" ] \
+    [ "$(sha256_path "${RUN_DIR}/${cli_path}")" = "$cli_sha" ] \
         || die "CLI hash mismatch: ${cli_path}"
 }
 
@@ -208,6 +240,7 @@ validate_acceptance_proof() {
     require_file_under_run "$docs_update"
     require_file_under_run "$provenance_frame"
     require_file_under_run "$final_frame"
+    require_slice_51_screenshot_sequence
     require_text "$blockers" 'dogfood blockers:'
     require_text "$blockers" 'beta blockers:'
     require_text "$blockers" 'known limitations:'
@@ -272,9 +305,9 @@ run_self_test() {
     package_path="WinMux-test.zip"
     app_dir="package/WinMux.app"
     cli_path="bin/winmux"
-    package_sha="$(sha256_file "$tmp/$package_path")"
-    app_sha="$(find "$tmp/$app_dir" -type f -print0 | /usr/bin/sort -z | xargs -0 /usr/bin/shasum -a 256 | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }')"
-    cli_sha="$(sha256_file "$tmp/$cli_path")"
+    package_sha="$(sha256_path "$tmp/$package_path")"
+    app_sha="$(sha256_path "$tmp/$app_dir")"
+    cli_sha="$(sha256_path "$tmp/$cli_path")"
     printf 'kind=beta-acceptance\nslice=51\n' >"$tmp/logs/beta-acceptance-manifest.txt"
     cat >"$tmp/logs/package-provenance.env" <<EOF
 source_commit=self-test
@@ -302,8 +335,19 @@ known limitations: unsigned internal build
 later enhancements: settings UI
 EOF
     printf 'README updated\nrelease notes updated\n' >"$tmp/docs/beta-readiness-docs.md"
-    printf 'png\n' >"$tmp/screenshots/02-package-provenance-slice-51.png"
-    printf 'png\n' >"$tmp/screenshots/10-final-beta-acceptance-slice-51.png"
+    for screenshot in \
+        02-package-provenance-slice-51 \
+        03-fresh-install-slice-51 \
+        04-permissions-setup-slice-51 \
+        05-normal-launch-slice-51 \
+        06-routing-keyboard-slice-51 \
+        07-mouse-snap-slice-51 \
+        08-profile-layout-slice-51 \
+        09-save-relaunch-slice-51 \
+        10-support-bundle-slice-51 \
+        11-final-beta-acceptance-slice-51; do
+        printf 'png\n' >"$tmp/screenshots/${screenshot}.png"
+    done
     cat >"$tmp/logs/beta-acceptance-proof.env" <<'EOF'
 package_source=beta-package
 acceptance_path=fresh-install-permissions-setup-normal-launch-routing-keyboard-mouse-profile-save-relaunch-support-bundle
@@ -315,7 +359,7 @@ dogfood_notes_path=docs/dogfood-notes.md
 blocker_classification_path=docs/blocker-classification.md
 docs_update_path=docs/beta-readiness-docs.md
 provenance_surface_screenshot=screenshots/02-package-provenance-slice-51.png
-final_screenshot=screenshots/10-final-beta-acceptance-slice-51.png
+final_screenshot=screenshots/11-final-beta-acceptance-slice-51.png
 uninstall_or_disable=disable
 EOF
     cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
