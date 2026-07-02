@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-43 accepted; Slice 44 in progress; Slices 45-51 planned
+Status: slices 0-44 accepted; Slice 45 planned; Slices 46-51 planned
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -8177,7 +8177,7 @@ Non-claims:
 
 ### Slice 44: Drag Overlay and Snap Semantics Polish
 
-Status: in progress.
+Status: accepted via `artifacts/e2e/slice-44-pre-tart-20260702T003639Z`.
 
 Pre-Slice-44 cleanup from Slice 43 retrospectives:
 
@@ -8215,8 +8215,11 @@ Current implementation progress:
   semantic samples, overlay-sentinel registration, and verifier dispatch.
 - [x] Add an explicit slot-noop proof-manifest field:
   `drag-target	slot-noop	whole-zone target; no window-slot target active`.
-- [ ] Run focused local validation, then generate the pre-Tart freshness
+- [x] Run focused local validation, then generate the pre-Tart freshness
   manifest and three no-context pre-Tart reports before any Tart recording.
+- [x] Record the fresh Tart artifact, run no-context artifact review, persist
+  review lint and post-review verification, and run three no-context
+  retrospectives.
 
 Goal: make drag affordances understandable from the video without reading logs:
 what is being dragged, what target will receive it, and whether the target is a
@@ -8239,14 +8242,127 @@ window-slot proof; Slice 44 must instead prove that the new whole-zone hover and
 release affordances are visually distinct from a window-slot target and
 reviewer-visible without reading logs.
 
+Accepted result:
+
+- artifact directory: `artifacts/e2e/slice-44-pre-tart-20260702T003639Z`;
+- recording: `recordings/slice-44-drag-overlay-semantics.mov`;
+- raw guest capture:
+  `recordings/raw/slice-44-drag-overlay-semantics.raw.mov`;
+- demo cut: `recordings/slice-44-drag-overlay-semantics.demo.mov`;
+- contact sheets:
+  `screenshots/slice-44-drag-overlay-semantics.contact-sheet.jpg` and
+  `screenshots/slice-44-drag-overlay-semantics.event-contact-sheet.jpg`;
+- primary product frames:
+  `screenshots/03-freeform-hover-no-overlay-slice-44.png`,
+  `screenshots/07-snap-hover-comms-slice-44.png`,
+  `screenshots/08-snap-release-slice-44.png`, and
+  `screenshots/99-after-slice-44.png`;
+- pre-Tart freshness:
+  `reviews/pre-tart/freshness.env`, with `candidate_head=4e2fd29708a64bb968c6354b24d72e9eebde0131`;
+- pre-Tart no-context reviewers:
+  `reviews/pre-tart/process-plan.md`,
+  `reviews/pre-tart/code-harness.md`, and
+  `reviews/pre-tart/artifact-product.md`, each `Verdict: CLEAN` and ending
+  with `NO ACTIONABLE ISSUES`;
+- artifact review: `reviews/no-ctx-artifact-review.md`, first line `PASS:`,
+  final line `next slice allowed: yes`;
+- persisted verifier logs: `logs/review-lint.log`,
+  `logs/post-review-verify.log`, and `logs/closeout-check.log`;
+- retrospectives: `retrospectives/process-plan.md`,
+  `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+Accepted claims:
+
+- ordinary drag under `policy='float-unless-snap'` and no secondary button
+  floats without a snap overlay;
+- secondary-button drag targets the whole Comms zone, not a window slot inside
+  that zone;
+- hover and release frames show the `Whole zone: Comms` product label on the
+  full product frame, with crops and logs used only as corroboration;
+- event, mouse, proof, and window-state manifests prove pickup, path, hover,
+  release, and post-release state for the ordinary and snap branches.
+
+Superseded Slice 44 attempts:
+
+- `artifacts/e2e/slice-44-pre-tart-20260702T000853Z`: pre-Tart run blocked by
+  process-plan review because it attempted to bypass the direct recorder gate;
+- `artifacts/e2e/slice-44-pre-tart-20260702T001716Z`: clean pre-Tart run, but
+  stale after later Slice 44 commits and no accepted product media.
+
 Non-claims:
 
 - Slice 44 does not change the core layout model;
-- Slice 44 does not require animation polish beyond clear product affordances.
+- Slice 44 does not require animation polish beyond clear product affordances;
+- Slice 44 does not claim persistence, settings UI coverage, or generic slot
+  snapping.
 
 ### Slice 45: Multi-Monitor, Hotplug, and Sleep/Wake Hardening
 
 Status: planned.
+
+Pre-Slice-45 cleanup from Slice 44 retrospectives:
+
+- [x] Mark Slice 44 accepted in this plan and record the accepted artifact,
+  review, verifier, retrospective, claim, and non-claim evidence above.
+- [x] Run `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-44-pre-tart-20260702T003639Z`
+  after this plan update and tee it to `logs/closeout-check.log`; do not begin
+  Slice 45 implementation until it passes.
+- [ ] Before Slice 45 Tart, update `script/e2e/verify-artifact` so
+  `require_mouse_snap_overlay_sentinel` derives source screenshot freshness
+  from the recording name or manifest paths instead of a hard-coded case list,
+  covering Slice 25, Slice 43, and Slice 44. Add a self-test that touches or
+  swaps a source hover screenshot after overlay crops are generated and fails
+  unless the overlay crop, labeled crop, and sentinel TSV are fresher than the
+  source frames.
+- [ ] Before Slice 45 reviewer closeout, extend `require_review_freshness` with
+  current-recording evidence dependencies when present:
+  `logs/${recording_name}.proof-manifest.tsv`,
+  `logs/${recording_name}.overlay-sentinel.tsv`,
+  `logs/${recording_name}.mouse-events.tsv`,
+  `logs/${slice_prefix}-command-timing.log`,
+  `logs/${slice_prefix}-mouse-zone-snap-action.log`, and the before/freeform/
+  reset/after window logs. Add a review-freshness self-test that writes a
+  passing review, touches one proof-manifest field, and expects `--review-lint`
+  or `--require-review` check-only verification to fail as stale.
+- [ ] Before Slice 45 Tart if hotplug, monitor identity, or multi-monitor
+  behavior is touched, add a local pre-Tart self-test for overlay crop geometry
+  using a synthetic zones log with a non-zero physical monitor origin and a
+  generated screenshot. The test should fail until crop code normalizes global
+  zone coordinates into the captured display's local coordinate space or
+  records/crops from an all-display screenshot. If Slice 45 remains
+  single-display, state hotplug/multi-monitor behavior as a non-claim in the
+  plan and reviewer packet.
+- [ ] Define the exact topology transition path before scenario code:
+  Tart-simulated display change if available; otherwise deterministic topology
+  harness plus real-machine video. Record why the chosen path can prove
+  disconnect/reconnect or resolution/id churn.
+- [ ] Define the topology-event storyboard before implementation. Required
+  media: topology-before, display-loss or simulated-loss, recovery-visible,
+  display-return or resolution-change, topology-after, and final
+  recoverability. Generate `logs/<recording>.topology-event-manifest.tsv` and
+  `screenshots/<recording>.topology-contact-sheet.jpg`; the reviewer packet
+  must name exact full-frame screenshot paths for every row and reject
+  final-state-only or logs-only topology proof.
+- [ ] Add Slice 45 caption chips before wiring the harness:
+  `Config: zones bind to physical monitor; display ids may churn`,
+  `Action: disconnect ultrawide`,
+  `Result: windows recover on the remaining display`,
+  `Action: reconnect ultrawide at 3440x1440`,
+  `Run: winmux list-zones --format 'physical=%{monitor-physical-id}|zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}'`,
+  `Run: winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'`,
+  and `Result: Reference | Work | Comms restored; no offscreen windows`.
+- [ ] Add a visible topology board or product overlay to the Slice 45 proof
+  frames. During before/loss/recovery/return/after beats, the full frame must
+  show physical monitor identity, resolution, active zone names, active
+  workspaces, and recoverability status. Crops, support logs, and topology logs
+  may corroborate only.
+- [ ] The required no-context review question for Slice 45 is: "Could a
+  reviewer understand the display topology transition from the video alone
+  before reading logs?" The accepted review must answer yes with exact media
+  paths.
+- [ ] The final media must include a topology contact sheet and an event contact
+  sheet that read as a storyboard without opening logs.
 
 Goal: make zones survive realistic external-monitor use.
 
@@ -8264,6 +8380,17 @@ Required artifact: a Tart or real-machine recording that simulates or performs a
 display topology change and proves windows remain recoverable. If Tart cannot
 exercise the hardware transition, the slice must pair a deterministic harness
 test with a real-machine video artifact and no-context review.
+
+The reviewer packet must require visible before/action/after media, not
+logs-only proof: before topology board, before window placement,
+topology-change action, degraded/recovery state, final restored or recoverable
+window placement, and final contamination/edge checks. The artifact must include
+machine-readable topology logs for each beat: physical display id/name/frame,
+zone viewport id/name/frame, active workspace, window id/title/workspace/zone,
+and whether any window was recovered from an unavailable or offscreen viewport.
+If using a real-machine fallback, preserve a real video artifact with the same
+no-context review, review-lint, post-review verifier, and closeout flow as Tart
+slices; do not accept screenshots or operator notes as the product proof.
 
 Non-claims:
 
