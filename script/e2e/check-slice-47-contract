@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CONTRACT="${1:-${SCRIPT_DIR}/specs/slice-47-zone-chrome-polish.tsv}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+die() {
+    printf '[winmux-e2e] Slice 47 contract error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_row() {
+    local kind="$1"
+    local id="$2"
+    /usr/bin/awk -F'\t' -v kind="$kind" -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == kind && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing ${kind}/${id}"
+}
+
+require_artifact_path() {
+    local path="$1"
+    /usr/bin/awk -F'\t' -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $3 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing artifact path ${path}"
+}
+
+require_source_check() {
+    local id="$1"
+    /usr/bin/awk -F'\t' -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == "source-check" && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing source-check/${id}"
+}
+
+validate_source_checks() {
+    while IFS=$'\t' read -r kind id source_path expected extra; do
+        [ "${kind:-}" = "source-check" ] || continue
+        [ -z "${extra:-}" ] || die "source-check/${id} has too many TSV fields"
+        [ -n "${id:-}" ] || die "source-check row missing id"
+        [ -n "${source_path:-}" ] || die "source-check/${id} missing source path"
+        [ -n "${expected:-}" ] || die "source-check/${id} missing expected text"
+
+        local source_file
+        case "$source_path" in
+            /*) source_file="$source_path" ;;
+            *) source_file="${REPO_ROOT}/${source_path}" ;;
+        esac
+        [ -s "$source_file" ] || die "source-check/${id} missing source file: ${source_path}"
+        /usr/bin/grep -F -- "$expected" "$source_file" >/dev/null \
+            || die "source-check/${id} did not find expected text in ${source_path}: ${expected}"
+    done <"$CONTRACT"
+}
+
+[ -s "$CONTRACT" ] || die "missing contract file: $CONTRACT"
+
+for id in \
+    ready-chrome \
+    focus-reference \
+    focus-comms \
+    focus-only-profile \
+    communications-profile \
+    style-cycle-urgent \
+    style-cycle-calm \
+    final-audit; do
+    require_row event "$id"
+done
+
+for id in \
+    focused-zone-indicator \
+    hidden-zone-indicator \
+    active-profile-indicator \
+    active-style-indicator \
+    windows-stable \
+    layout-stable; do
+    require_row proof "$id"
+done
+
+require_row retry no-post-recording-retry
+require_row artifact expected-chips
+require_row artifact zone-targets-ready
+require_row artifact zone-targets-focus-only
+require_row artifact zone-targets-calm
+require_artifact_path screenshots/05-focus-only-profile-slice-47.png
+require_artifact_path screenshots/08-style-cycle-calm-slice-47.png
+require_artifact_path logs/slice-47-window-stability.tsv
+require_artifact_path logs/slice-47-layout-stability.tsv
+require_artifact_path logs/guest-script-retry-summary.tsv
+
+for id in \
+    caption:config \
+    caption:focus-reference \
+    caption:focus-comms \
+    caption:focus-only \
+    caption:communications \
+    caption:style-urgent \
+    caption:style-calm \
+    caption:final-audit \
+    harness:event-manifest \
+    harness:no-recording-retry \
+    guest:zone-target-log \
+    guest:hidden-rows \
+    guest:style-rows \
+    guest:stability \
+    verifier:proof \
+    verifier:expected-chips \
+    verifier:event-manifest \
+    verifier:no-retry \
+    verifier:hidden-rows \
+    verifier:focused-comms \
+    verifier:style-calm \
+    verifier:anchor-id-workspace \
+    verifier:style-post-profile \
+    reviewer:caption-config \
+    reviewer:hidden-state \
+    reviewer:profile-style \
+    reviewer:stale-state \
+    reviewer:layout-stable \
+    reviewer:window-stable \
+    reviewer:proof-flags \
+    reviewer:no-retry \
+    prompt:proof-flags; do
+    require_source_check "$id"
+done
+
+validate_source_checks
+
+printf 'result=success\n'

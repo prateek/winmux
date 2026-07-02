@@ -26,10 +26,12 @@ struct WorkspaceSidebarZoneTargetViewModel: Hashable, Identifiable {
     let monitorScopeId: String
     let zoneId: String
     let displayName: String
-    let activeWorkspaceName: String
+    let activeWorkspaceName: String?
     let activeWorkspaceDisplayName: String
     let isFocused: Bool
     let isDefaultZone: Bool
+    let isEnabled: Bool
+    let availabilitySetId: String?
     let styleId: String?
     let styleColorHex: String?
 }

@@ -8758,7 +8758,7 @@ Non-claims:
 
 ### Slice 47: Product UI and Zone Chrome Polish
 
-Status: planned.
+Status: accepted and closed out.
 
 Goal: make current zone state readable in normal use without turning WinMux into
 a heavy dashboard.
@@ -8782,20 +8782,122 @@ Pre-slice cleanup:
 
 - [x] Commit the accepted Slice 46 source, harness, artifact metadata, and plan
   closeout boundary before starting Slice 47 code or harness work.
-- [ ] Before the first Slice 47 Tart run, write a checked Slice 47 artifact
+- [x] Before the first Slice 47 Tart run, write a checked Slice 47 artifact
   contract that names the exact beats: focused-zone indicator, disabled-zone
   state, active-profile switch, active-style cycle, and final audit.
-- [ ] Require Slice 47 event/sample rows and reviewer-packet checks for
+- [x] Require Slice 47 event/sample rows and reviewer-packet checks for
   before/action/after visual chrome, including caption-boundary frames before
   each chrome change.
-- [ ] Add verifier checks that chrome changes do not move windows, change
+- [x] Add verifier checks that chrome changes do not move windows, change
   layout widths, or change workspace assignment unless the beat explicitly
   claims a profile or availability change.
-- [ ] Add visual stale-state checks: final screenshots must not show the
+- [x] Add visual stale-state checks: final screenshots must not show the
   previous profile/style indicator, hidden zones must be visually distinct from
   focused/current zones, and labels must fit without clipping or overlap.
-- [ ] Register Slice 47 in the pre-Tart review gate and make target before the
+- [x] Register Slice 47 in the pre-Tart review gate and make target before the
   first product recording.
+
+Implemented Slice 47 artifact/harness surface:
+
+- sidebar zone target rows now include enabled/hidden state, focused state,
+  active profile id, and style id/color while disabled rows remain visible and
+  non-droppable;
+- `script/e2e/configs/zone-chrome-polish.toml`;
+- `script/e2e/guest/slice-47-zone-chrome-polish.sh`;
+- `script/e2e/specs/slice-47-zone-chrome-polish.tsv`;
+- `script/e2e/check-slice-47-contract`;
+- Slice 47 dispatch, caption plan, event/sample manifests, no-post-recording
+  retry gate, and `e2e-slice-47` target;
+- Slice 47 verifier proof and review-lint requirements for hidden rows,
+  profile/style chrome, stale final-state rejection, stable window ids and
+  workspaces, style-only post-profile placement stability, layout stability,
+  exact caption chips, event manifest, and no post-recording retries;
+- Slice 47 pre-Tart review-gate registration and no-context artifact-review
+  prompt hardening.
+
+Local validation before the first Tart attempt:
+
+- `bash -n` for the Slice 47 harness, verifier, reviewer packet, pre-Tart gate,
+  contract checker, and guest script;
+- `./script/e2e/check-slice-47-contract`;
+- Slice 47 guest-script self-test;
+- `./script/e2e/check-pre-tart-review-gate --self-test`;
+- focused Swift tests for `testParseZoneChromePolishE2EConfig`,
+  `testWorkspaceSidebarKeepsDisabledZoneTargetsReadable`, existing sidebar
+  zone-target scope cases, and style propagation;
+- `./script/e2e/verify-artifact --self-test`;
+- `./script/e2e/tart-recording-harness annotation-preflight`;
+- `python3 script/check-command-metadata`;
+- `git diff --check`;
+- `WINMUX_E2E_ALLOW_INTERNAL_DISK=1 make e2e-pre-tart-checks`, including
+  shellcheck, Slice 47 contract/self-test, annotation preflight, and 208 focused
+  Swift tests.
+
+Corrected invariant local validation:
+
+- The first Slice 47 Tart run correctly exposed an over-strict proof contract:
+  hidden Reference/Comms windows may be reported under the remaining enabled
+  zone while their sidebar rows are hidden.
+- The corrected invariant is stable anchor window ids/workspaces across all
+  phases, expected zone placement while zones are enabled, and style-only beats
+  preserving the communications-phase placement.
+- `bash -n`, `./script/e2e/check-slice-47-contract`, Slice 47 guest-script
+  `self-test`, and `./script/e2e/verify-artifact --self-test` passed after this
+  correction.
+
+Accepted Slice 47 result:
+
+- accepted artifact:
+  `artifacts/e2e/slice-47-pre-tart-20260702T062251Z`;
+- recording:
+  `recordings/slice-47-zone-chrome-polish.mov`;
+- raw recording:
+  `recordings/raw/slice-47-zone-chrome-polish.raw.mov`;
+- proof:
+  `slice-47-zone-chrome-polish-proof.txt`;
+- event/contact evidence:
+  `screenshots/slice-47-zone-chrome-polish.contact-sheet.jpg`,
+  `screenshots/slice-47-zone-chrome-polish.event-contact-sheet.jpg`,
+  `logs/slice-47-zone-chrome-polish.event-manifest.tsv`,
+  `logs/slice-47-zone-chrome-polish.sample-manifest.tsv`,
+  `logs/slice-47-window-stability.tsv`, and
+  `logs/slice-47-layout-stability.tsv`;
+- pre-Tart validation:
+  `logs/pre-tart-checks.log`;
+- no-context pre-Tart reviews:
+  `reviews/pre-tart/process-plan.md`, `reviews/pre-tart/code-harness.md`, and
+  `reviews/pre-tart/artifact-product.md`;
+- no-context artifact review:
+  `reviews/no-ctx-artifact-review.md`, with `PASS_WITH_NOTES` and
+  `next slice allowed: yes`;
+- post-review verifier and review lint:
+  `make e2e-verify-slice-check RUN_DIR=artifacts/e2e/slice-47-pre-tart-20260702T062251Z ARGS=--require-review`
+  and
+  `make e2e-review-lint RUN_DIR=artifacts/e2e/slice-47-pre-tart-20260702T062251Z`;
+- closeout:
+  `logs/closeout-check.log`;
+- retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`.
+
+What the accepted artifact proves:
+
+- focused-zone chrome moves between Work, Reference, and Comms without moving
+  anchor windows;
+- disabled Reference/Comms rows remain visible as Hidden in profile states;
+- active profile and active style are visible in product sidebar rows;
+- style cycling changes zone chrome only and preserves the communications-phase
+  placement;
+- anchor window ids and workspace ids stay stable across the run;
+- the recording has no post-recording guest retry.
+
+Superseded Slice 47 attempts:
+
+- `artifacts/e2e/slice-47-pre-tart-20260702T055942Z` recorded a post-recording
+  failed attempt. It is rejected and must not be accepted as Slice 47 evidence.
+  The guest product state was useful diagnosis, but the verifier/reviewer
+  contract incorrectly required hidden Reference/Comms windows to stay reported
+  in their original zones for every phase.
 
 Non-claims:
 
@@ -8824,6 +8926,27 @@ Required scope:
 Required artifact: a fresh Tart video generating a bundle after a zone workflow,
 plus stored bundle contents and a no-context review that checks redaction and
 debug value.
+
+Pre-slice cleanup from Slice 47 retrospectives:
+
+- [x] Read all three Slice 47 retrospectives and fold accepted findings into
+  this checklist.
+- [x] Close Slice 47 in this plan with accepted artifact, review, verifier,
+  closeout, retrospective, claim, non-claim, and superseded-attempt evidence.
+- [x] Run `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-47-pre-tart-20260702T062251Z`
+  with all three retrospectives present and tee it to `logs/closeout-check.log`.
+- [ ] Before the Slice 48 Tart run, write a checked support-bundle artifact
+  contract that names required bundle fields and redaction rules for usernames,
+  requested window titles, non-config paths, non-log paths, and app-sensitive
+  fields.
+- [ ] Keep Slice 48 command captions, event manifest, proof file, reviewer
+  packet, and verifier in lockstep; any caption wording change must update the
+  corresponding manifest and proof expectations before Tart.
+- [ ] Define the Slice 48 final audit before recording: the closing frame must
+  show the generated bundle path, redaction summary, and the command sequence
+  needed to reproduce the bundle.
+- [ ] Treat any Slice 48 post-recording guest retry as a rerun condition, not a
+  reviewable artifact.
 
 Non-claims:
 

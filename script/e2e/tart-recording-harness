@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 MOUSE_DRAG_EVENT_SPEC="${SCRIPT_DIR}/specs/mouse-drag-events.tsv"
 SLICE_46_CONTRACT="${SCRIPT_DIR}/specs/slice-46-persistence-rollback-doctor.tsv"
+SLICE_47_CONTRACT="${SCRIPT_DIR}/specs/slice-47-zone-chrome-polish.tsv"
 
 ACTION="${1:-preflight}"
 SLICE_ID="${WINMUX_E2E_SLICE:-slice-0}"
@@ -111,6 +112,9 @@ fi
 if [ "$ACTION" = "slice-46" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-save-layout.toml"
 fi
+if [ "$ACTION" = "slice-47" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-chrome-polish.toml"
+fi
 if [ "$ACTION" = "slice-26" ] || [ "$ACTION" = "slice-32" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
 fi
@@ -138,6 +142,9 @@ GUEST_DISPLAY_ID="${WINMUX_E2E_GUEST_DISPLAY_ID:-$DISPLAY_ID}"
 RECORD_SECONDS="${WINMUX_E2E_RECORD_SECONDS:-12}"
 if [ "$ACTION" = "slice-45" ] && [ -z "${WINMUX_E2E_RECORD_SECONDS:-}" ]; then
     RECORD_SECONDS=100
+fi
+if [ "$ACTION" = "slice-47" ] && [ -z "${WINMUX_E2E_RECORD_SECONDS:-}" ]; then
+    RECORD_SECONDS=120
 fi
 VIDEO_FPS="${WINMUX_E2E_VIDEO_FPS:-10}"
 FFMPEG_SCREEN_DEVICE="${WINMUX_E2E_FFMPEG_SCREEN_DEVICE:-Capture screen 0}"
@@ -185,7 +192,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -568,9 +575,15 @@ require_slice_46_contract() {
     "${SCRIPT_DIR}/check-slice-46-contract" "$SLICE_46_CONTRACT" >/dev/null
 }
 
+require_slice_47_contract() {
+    [ -s "$SLICE_47_CONTRACT" ] \
+        || die "Slice 47 contract file is missing: ${SLICE_47_CONTRACT}"
+    "${SCRIPT_DIR}/check-slice-47-contract" "$SLICE_47_CONTRACT" >/dev/null
+}
+
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47)
             printf '%s\n' "$1"
             ;;
         *)
@@ -606,7 +619,7 @@ pre_tart_gate_self_test() {
     local direct_slice
 
     tmp_dir="$(mktemp -d)"
-    for direct_slice in slice-39 slice-44 slice-45 slice-46; do
+    for direct_slice in slice-39 slice-44 slice-45 slice-46 slice-47; do
         rm -rf "${tmp_dir}/run"
         log_path="${tmp_dir}/direct-${direct_slice}.log"
         if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
@@ -904,7 +917,7 @@ guest_script_retry() {
     local attempt=1
     local failure_count=0
     local max_attempts="$GUEST_ACTION_ATTEMPTS"
-    if [ "$ACTION" = "slice-46" ] && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
+    if { [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-47" ]; } && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
         max_attempts=1
     fi
 
@@ -988,7 +1001,7 @@ has_post_recording_guest_retry_failures() {
 
 require_no_post_recording_guest_retry_failures() {
     case "$ACTION" in
-        slice-46) ;;
+        slice-46|slice-47) ;;
         *) return 0 ;;
     esac
 
@@ -996,7 +1009,7 @@ require_no_post_recording_guest_retry_failures() {
         local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
         cat "$summary_path" >&2 || true
         write_run_abort_status "post-recording-retry-gate" 1 failure "$summary_path" \
-            "Slice 46 requires discard and rerun when any guest action fails after recording starts"
+            "${ACTION} requires discard and rerun when any guest action fails after recording starts"
         return 1
     fi
 }
@@ -3472,6 +3485,21 @@ final-restored-layout	result	92.100	caption-07	final-restored-layout	screenshots
 MANIFEST
 }
 
+write_slice_47_event_manifest() {
+    local name="$1"
+    cat >"${LOGS_DIR}/${name}.event-manifest.tsv" <<'MANIFEST'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+ready-chrome	context	4.100	caption-01	ready-chrome	screenshots/02-ready-zone-chrome-slice-47.png	sidebar zone rows show Reference Work Comms with Work focused and no hidden zones
+focus-reference	action	12.100	caption-02	focus-reference	screenshots/03-focus-reference-slice-47.png	focus-zone Reference moves the focused marker to Reference without moving windows
+focus-comms	action	24.100	caption-03	focus-comms	screenshots/04-focus-comms-slice-47.png	focus-zone Comms moves the focused marker to Comms without moving windows
+focus-only-profile	action	36.100	caption-04	focus-only-profile	screenshots/05-focus-only-profile-slice-47.png	use-zone-profile focus-only leaves disabled Reference and Comms rows visible as Hidden
+communications-profile	action	52.100	caption-05	communications-profile	screenshots/06-communications-profile-slice-47.png	use-zone-profile communications restores Comms and keeps Reference visible as Hidden
+style-cycle-urgent	action	68.100	caption-06	style-cycle-urgent	screenshots/07-style-cycle-urgent-slice-47.png	cycle-zone-style current urgent calm shows the current zone urgent style chip
+style-cycle-calm	action	84.100	caption-07	style-cycle-calm	screenshots/08-style-cycle-calm-slice-47.png	cycle-zone-style current urgent calm shows the current zone calm style chip
+final-audit	result	100.100	caption-08	final-audit	screenshots/09-final-zone-chrome-audit-slice-47.png	final audit proves style-only chrome changes preserve post-profile placement and layout widths
+MANIFEST
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3549,6 +3577,9 @@ write_event_manifest() {
             ;;
         slice-46-persistence-rollback-doctor)
             write_slice_46_event_manifest "$name"
+            ;;
+        slice-47-zone-chrome-polish)
+            write_slice_47_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3760,6 +3791,19 @@ CAPTIONS
 54	74	Bad config doctor	Write an invalid generated config and run the user-facing doctor.	Run: winmux doctor	Result: Config doctor reports ERROR
 74	92	Restore saved backup	Restore the saved-good backup and keep the bad file as rollback evidence.	Run: winmux config --restore-backup slice-46-good-saved-backup.toml	Result: Restored config OK
 92	112	Final restored layout	Relaunch again and prove the restored saved layout is loaded, with no config deletion.	Action: relaunch WinMux	Run: winmux list-zones --format zone|configured|effective	Result: Reference 20% | Work 60% | Comms 20%
+112	120	No retry policy	The artifact must be discarded and rerun if any post-recording action failed.	Result: no post-recording guest retries
+CAPTIONS
+            ;;
+        slice-47-zone-chrome-polish)
+            cat >"$captions_path" <<'CAPTIONS'
+0	10	Zone chrome ready	The sidebar zone rows expose focused zone, profile, style, and hidden state.	Config: sidebar zone rows show profile + style chips
+10	22	Focus Reference	Move the focused marker to Reference without moving anchor windows.	Run: winmux focus-zone Reference
+22	34	Focus Comms	Move the focused marker to Comms without changing layout or workspace assignment.	Run: winmux focus-zone Comms
+34	50	Focus-only profile	Switch the layout profile and keep hidden zone rows visible as Hidden.	Run: winmux use-zone-profile focus-only
+50	66	Communications profile	Restore Comms, keep Reference hidden, and show profile state in the rows.	Run: winmux use-zone-profile communications
+66	82	Urgent style	Style the current Comms zone so the row shows the urgent style chip.	Run: winmux cycle-zone-style current urgent calm
+82	98	Calm style	Cycle the current Comms row to calm without moving anchor windows.	Run: winmux cycle-zone-style current urgent calm	Result: current zone style = calm
+98	112	Final chrome audit	Show the exact final zone rows and anchor-window stability evidence.	Run: winmux list-zones --format chrome audit
 112	120	No retry policy	The artifact must be discarded and rerun if any post-recording action failed.	Result: no post-recording guest retries
 CAPTIONS
             ;;
@@ -4125,16 +4169,20 @@ annotation_preflight() {
         slice-41-zone-affinity-beta \
         slice-42-zone-availability-profiles \
         slice-45-display-topology-recovery \
-        slice-46-persistence-rollback-doctor
+        slice-46-persistence-rollback-doctor \
+        slice-47-zone-chrome-polish
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor|slice-47-zone-chrome-polish)
                 if [ "$name" = "slice-46-persistence-rollback-doctor" ]; then
                     require_slice_46_contract
+                fi
+                if [ "$name" = "slice-47-zone-chrome-polish" ]; then
+                    require_slice_47_contract
                 fi
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
@@ -5059,6 +5107,32 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic final-restored-layout screenshot screenshot \
                 "screenshots/07-final-restored-layout-slice-46.png" \
                 "final screenshot shows restored saved 20/60/20 layout after a fresh relaunch"
+            ;;
+        slice-47-zone-chrome-polish)
+            append_sample_manifest_row "$manifest_path" semantic ready-chrome screenshot screenshot \
+                "screenshots/02-ready-zone-chrome-slice-47.png" \
+                "ready screenshot shows sidebar zone rows for Reference, Work, and Comms with Work focused"
+            append_sample_manifest_row "$manifest_path" semantic focus-reference screenshot screenshot \
+                "screenshots/03-focus-reference-slice-47.png" \
+                "focus Reference screenshot shows the focused marker on Reference without moving anchor windows"
+            append_sample_manifest_row "$manifest_path" semantic focus-comms screenshot screenshot \
+                "screenshots/04-focus-comms-slice-47.png" \
+                "focus Comms screenshot shows the focused marker on Comms without moving anchor windows"
+            append_sample_manifest_row "$manifest_path" semantic focus-only-profile screenshot screenshot \
+                "screenshots/05-focus-only-profile-slice-47.png" \
+                "focus-only screenshot shows disabled Reference and Comms rows still visible as Hidden"
+            append_sample_manifest_row "$manifest_path" semantic communications-profile screenshot screenshot \
+                "screenshots/06-communications-profile-slice-47.png" \
+                "communications screenshot shows Comms restored and Reference still visible as Hidden"
+            append_sample_manifest_row "$manifest_path" semantic style-cycle-urgent screenshot screenshot \
+                "screenshots/07-style-cycle-urgent-slice-47.png" \
+                "urgent style screenshot shows the current Comms row with urgent style chrome"
+            append_sample_manifest_row "$manifest_path" semantic style-cycle-calm screenshot screenshot \
+                "screenshots/08-style-cycle-calm-slice-47.png" \
+                "calm style screenshot shows the current Comms row with calm style chrome"
+            append_sample_manifest_row "$manifest_path" semantic final-audit screenshot screenshot \
+                "screenshots/09-final-zone-chrome-audit-slice-47.png" \
+                "final screenshot shows final communications profile, calm style, and anchor-window stability audit"
             ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
@@ -7219,6 +7293,36 @@ run_slice_46_persistence_rollback_doctor() {
         "${LOGS_DIR}/slice-46-run.log"
 }
 
+run_slice_47_zone_chrome_polish_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-47-zone-chrome-polish.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE47_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-47-setup.log"
+}
+
+run_slice_47_zone_chrome_polish() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-47-zone-chrome-polish.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE47_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-47-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -8242,6 +8346,10 @@ slice_46() {
     run_recorded_scenario "slice-46-persistence-rollback-doctor" "00-before-slice-46" "99-after-slice-46" "run_slice_46_persistence_rollback_doctor" "run_slice_46_persistence_rollback_doctor_setup" "01-ready-slice-46"
 }
 
+slice_47() {
+    run_recorded_scenario "slice-47-zone-chrome-polish" "00-before-slice-47" "99-after-slice-47" "run_slice_47_zone_chrome_polish" "run_slice_47_zone_chrome_polish_setup" "01-ready-slice-47"
+}
+
 slice_26() {
     run_recorded_scenario "slice-26-zone-divider-drag" "00-before-slice-26" "99-after-slice-26" "run_slice_26_zone_divider_drag" "run_slice_26_zone_divider_drag_setup" "01-ready-slice-26"
 }
@@ -8410,6 +8518,9 @@ case "$ACTION" in
         ;;
     slice-46)
         slice_46
+        ;;
+    slice-47)
+        slice_47
         ;;
     slice-26)
         slice_26

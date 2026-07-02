@@ -3775,6 +3775,37 @@ require_review_freshness() {
                 || die "Review is stale relative to Slice 46 evidence dependency: $dependency"
         done
     fi
+    if [ "${recording_name:-}" = "slice-47-zone-chrome-polish" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-47-setup.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-ready.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-focus-reference.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-focus-comms.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-focus-only.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-communications.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-urgent.log" \
+            "${LOGS_DIR}/slice-47-zone-targets-calm.log" \
+            "${LOGS_DIR}/slice-47-window-stability.tsv" \
+            "${LOGS_DIR}/slice-47-layout-stability.tsv" \
+            "${LOGS_DIR}/slice-47-command-timing.log" \
+            "${LOGS_DIR}/slice-47-zone-chrome-polish.event-manifest.tsv" \
+            "${LOGS_DIR}/guest-script-retry-summary.tsv" \
+            "${SCREENSHOTS_DIR}/00-before-slice-47.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-47.png" \
+            "${SCREENSHOTS_DIR}/02-ready-zone-chrome-slice-47.png" \
+            "${SCREENSHOTS_DIR}/03-focus-reference-slice-47.png" \
+            "${SCREENSHOTS_DIR}/04-focus-comms-slice-47.png" \
+            "${SCREENSHOTS_DIR}/05-focus-only-profile-slice-47.png" \
+            "${SCREENSHOTS_DIR}/06-communications-profile-slice-47.png" \
+            "${SCREENSHOTS_DIR}/07-style-cycle-urgent-slice-47.png" \
+            "${SCREENSHOTS_DIR}/08-style-cycle-calm-slice-47.png" \
+            "${SCREENSHOTS_DIR}/09-final-zone-chrome-audit-slice-47.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-47.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 47 evidence dependency: $dependency"
+        done
+    fi
 }
 
 require_review_mentions_semantic_samples() {
@@ -5561,6 +5592,119 @@ EOF
         || die "Slice 46 review must explicitly compare restore/final screenshots for stale TextEdit proof"
 }
 
+require_review_mentions_slice_47_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-47-zone-chrome-polish) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/guest-script-retry-summary.tsv	retry summary
+${LOGS_DIR}/slice-47-setup.log	setup log
+${LOGS_DIR}/slice-47-zone-targets-ready.log	ready zone chrome rows
+${LOGS_DIR}/slice-47-zone-targets-focus-reference.log	focus Reference zone chrome rows
+${LOGS_DIR}/slice-47-zone-targets-focus-comms.log	focus Comms zone chrome rows
+${LOGS_DIR}/slice-47-zone-targets-focus-only.log	focus-only hidden zone rows
+${LOGS_DIR}/slice-47-zone-targets-communications.log	communications profile zone rows
+${LOGS_DIR}/slice-47-zone-targets-urgent.log	urgent style zone rows
+${LOGS_DIR}/slice-47-zone-targets-calm.log	calm style zone rows
+${LOGS_DIR}/slice-47-window-stability.tsv	window stability log
+${LOGS_DIR}/slice-47-layout-stability.tsv	layout stability log
+${LOGS_DIR}/slice-47-command-timing.log	command timing log
+${SCREENSHOTS_DIR}/02-ready-zone-chrome-slice-47.png	ready chrome screenshot
+${SCREENSHOTS_DIR}/03-focus-reference-slice-47.png	focus Reference screenshot
+${SCREENSHOTS_DIR}/04-focus-comms-slice-47.png	focus Comms screenshot
+${SCREENSHOTS_DIR}/05-focus-only-profile-slice-47.png	focus-only hidden rows screenshot
+${SCREENSHOTS_DIR}/06-communications-profile-slice-47.png	communications profile screenshot
+${SCREENSHOTS_DIR}/07-style-cycle-urgent-slice-47.png	urgent style screenshot
+${SCREENSHOTS_DIR}/08-style-cycle-calm-slice-47.png	calm style screenshot
+${SCREENSHOTS_DIR}/09-final-zone-chrome-audit-slice-47.png	final audit screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 47 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 47 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    for event_id in \
+        ready-chrome \
+        focus-reference \
+        focus-comms \
+        focus-only-profile \
+        communications-profile \
+        style-cycle-urgent \
+        style-cycle-calm \
+        final-audit; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 47 review must cite event: $event_id"
+    done
+    for timing_key in \
+        focus-reference-offset-seconds \
+        focus-comms-offset-seconds \
+        focus-only-offset-seconds \
+        communications-offset-seconds \
+        style-urgent-offset-seconds \
+        style-calm-offset-seconds \
+        final-audit-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 47 review must cite timing value key: $timing_key"
+    done
+    for exact in \
+        'Config: sidebar zone rows show profile + style chips' \
+        'Run: winmux focus-zone Reference' \
+        'Run: winmux focus-zone Comms' \
+        'Run: winmux use-zone-profile focus-only' \
+        'Run: winmux use-zone-profile communications' \
+        'Run: winmux cycle-zone-style current urgent calm' \
+        'Result: current zone style = calm' \
+        'Run: winmux list-zones --format chrome audit' \
+        'Result: no post-recording guest retries' \
+        'zone=left|name=Reference|enabled=false|profile=focus-only|workspace=Hidden' \
+        'zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true' \
+        'zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true|style=calm' \
+        'anchor-window-ids-and-workspaces-stable=yes' \
+        'style-beats-preserve-post-profile-placement=yes' \
+        'slice47-reference.rtf' \
+        'slice47-work.rtf' \
+        'slice47-comms.rtf' \
+        'logs/slice-47-window-stability.tsv' \
+        'logs/slice-47-layout-stability.tsv' \
+        '08-style-cycle-calm-slice-47.png' \
+        '09-final-zone-chrome-audit-slice-47.png'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 47 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'hidden.*(visible|row)|visible.*hidden' "$review_path" \
+        || die "Slice 47 review must discuss hidden zones staying visible in sidebar chrome"
+    grep -Eiq 'profile.*style|style.*profile' "$review_path" \
+        || die "Slice 47 review must discuss profile and style as visible product chrome"
+    grep -Eiq 'stale|not stale|fresh|final.*calm|urgent.*not.*final|focus-only.*not.*final' "$review_path" \
+        || die "Slice 47 review must explicitly check for stale final profile/style state"
+    grep -Eiq 'window.*(id|ids).*workspace|workspace.*window.*(id|ids)|anchor-window-ids-and-workspaces-stable' "$review_path" \
+        || die "Slice 47 review must discuss stable window ids and workspaces"
+    grep -Eiq 'style.*post-profile.*placement|post-profile.*placement.*style|style-beats-preserve-post-profile-placement' "$review_path" \
+        || die "Slice 47 review must discuss style beats preserving post-profile placement"
+    grep -Eiq 'layout.*stable|stable.*layout|width' "$review_path" \
+        || die "Slice 47 review must discuss layout stability"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -5915,6 +6059,7 @@ run_review_lint() {
     require_review_mentions_slice_42_evidence "$review_path"
     require_review_mentions_slice_45_evidence "$review_path"
     require_review_mentions_slice_46_evidence "$review_path"
+    require_review_mentions_slice_47_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -10245,6 +10390,307 @@ require_slice_46_persistence_rollback_doctor_proof() {
     require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
     require_slice_46_event_manifest "$event_manifest"
     require_no_slice_46_post_recording_retries
+}
+
+require_no_slice_47_post_recording_retries() {
+    local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    require_file "$summary_path"
+
+    local attempts failures final_result before_recording
+    attempts="$(transport_summary_value "$summary_path" slice-47-run attempts)"
+    failures="$(transport_summary_value "$summary_path" slice-47-run failures)"
+    final_result="$(transport_summary_value "$summary_path" slice-47-run final_result)"
+    before_recording="$(transport_summary_value "$summary_path" slice-47-run before_recording)"
+    [ "$attempts" = "1" ] \
+        || die "Slice 47 post-recording scenario must run once and be discarded on failure; attempts=${attempts}"
+    [ "$failures" = "0" ] \
+        || die "Slice 47 post-recording scenario had failures; discard and rerun artifact"
+    [ "$final_result" = "success" ] \
+        || die "Slice 47 post-recording scenario did not succeed cleanly: ${final_result}"
+    [ "$before_recording" = "no" ] \
+        || die "Slice 47 run row must be after recording started, got before_recording=${before_recording}"
+
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            failures = $4 + 0
+            before_recording = $6
+            if (before_recording == "no" && failures > 0) {
+                printf("post-recording retry failure row: %s\n", $0) > "/dev/stderr"
+                bad = 1
+            }
+        }
+        END { exit(bad ? 1 : 0) }
+    ' "$summary_path" || die "Slice 47 artifact contains post-recording failures/retries"
+}
+
+require_slice_47_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+    require_event_manifest_event "$manifest_path" ready-chrome context
+    require_event_manifest_event "$manifest_path" focus-reference action
+    require_event_manifest_event "$manifest_path" focus-comms action
+    require_event_manifest_event "$manifest_path" focus-only-profile action
+    require_event_manifest_event "$manifest_path" communications-profile action
+    require_event_manifest_event "$manifest_path" style-cycle-urgent action
+    require_event_manifest_event "$manifest_path" style-cycle-calm action
+    require_event_manifest_event "$manifest_path" final-audit result
+    require_event_before "$manifest_path" ready-chrome focus-reference \
+        "Slice 47 ready chrome must precede focus Reference"
+    require_event_before "$manifest_path" focus-reference focus-comms \
+        "Slice 47 focus Reference must precede focus Comms"
+    require_event_before "$manifest_path" focus-comms focus-only-profile \
+        "Slice 47 focus Comms must precede focus-only profile"
+    require_event_before "$manifest_path" focus-only-profile communications-profile \
+        "Slice 47 focus-only profile must precede communications profile"
+    require_event_before "$manifest_path" communications-profile style-cycle-urgent \
+        "Slice 47 communications profile must precede urgent style"
+    require_event_before "$manifest_path" style-cycle-urgent style-cycle-calm \
+        "Slice 47 urgent style must precede calm style"
+    require_event_before "$manifest_path" style-cycle-calm final-audit \
+        "Slice 47 calm style must precede final audit"
+
+    local event_id expected_path
+    for event_id in \
+        ready-chrome:screenshots/02-ready-zone-chrome-slice-47.png \
+        focus-reference:screenshots/03-focus-reference-slice-47.png \
+        focus-comms:screenshots/04-focus-comms-slice-47.png \
+        focus-only-profile:screenshots/05-focus-only-profile-slice-47.png \
+        communications-profile:screenshots/06-communications-profile-slice-47.png \
+        style-cycle-urgent:screenshots/07-style-cycle-urgent-slice-47.png \
+        style-cycle-calm:screenshots/08-style-cycle-calm-slice-47.png \
+        final-audit:screenshots/09-final-zone-chrome-audit-slice-47.png; do
+        expected_path="${event_id#*:}"
+        event_id="${event_id%%:*}"
+        [ "$(require_event_manifest_value "$manifest_path" "$event_id" path)" = "$expected_path" ] \
+            || die "Slice 47 event manifest path mismatch for ${event_id}"
+    done
+}
+
+zone_target_field() {
+    local path="$1"
+    local zone_id="$2"
+    local key="$3"
+    /usr/bin/awk -F'|' -v zone="zone=${zone_id}" -v key="${key}" '$1 == zone {
+        for (i = 1; i <= NF; i++) {
+            if (index($i, key "=") == 1) {
+                print substr($i, length(key) + 2)
+                exit
+            }
+        }
+    }' "$path"
+}
+
+require_zone_target_field() {
+    local path="$1"
+    local zone_id="$2"
+    local key="$3"
+    local expected="$4"
+    local actual
+    require_file "$path"
+    actual="$(zone_target_field "$path" "$zone_id" "$key")"
+    [ "$actual" = "$expected" ] \
+        || die "Slice 47 expected ${zone_id} ${key}=${expected} in ${path}, got ${actual:-missing}"
+}
+
+slice_47_window_stability_field() {
+    local path="$1"
+    local phase="$2"
+    local title="$3"
+    local field="$4"
+    /usr/bin/awk -F'\t' -v phase="$phase" -v title="$title" -v field="$field" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == phase && $2 == title {
+            if (field == "id") { print $3; exit }
+            if (field == "zone") { print $4; exit }
+            if (field == "workspace") { print $5; exit }
+        }
+    ' "$path"
+}
+
+require_slice_47_window_stability_field() {
+    local path="$1"
+    local phase="$2"
+    local title="$3"
+    local field="$4"
+    local expected="$5"
+    local actual
+    actual="$(slice_47_window_stability_field "$path" "$phase" "$title" "$field")"
+    [ "$actual" = "$expected" ] \
+        || die "Slice 47 window stability expected ${title} ${field}=${expected} at ${phase}, got ${actual:-missing}"
+}
+
+require_slice_47_zone_chrome_polish_proof() {
+    local proof="${RUN_DIR}/slice-47-zone-chrome-polish-proof.txt"
+    local done="${LOGS_DIR}/slice-47-zone-chrome-polish.done"
+    local setup_log="${LOGS_DIR}/slice-47-setup.log"
+    local ready_log="${LOGS_DIR}/slice-47-zone-targets-ready.log"
+    local reference_log="${LOGS_DIR}/slice-47-zone-targets-focus-reference.log"
+    local comms_log="${LOGS_DIR}/slice-47-zone-targets-focus-comms.log"
+    local focus_log="${LOGS_DIR}/slice-47-zone-targets-focus-only.log"
+    local communications_log="${LOGS_DIR}/slice-47-zone-targets-communications.log"
+    local urgent_log="${LOGS_DIR}/slice-47-zone-targets-urgent.log"
+    local calm_log="${LOGS_DIR}/slice-47-zone-targets-calm.log"
+    local final_log="${LOGS_DIR}/slice-47-zone-targets-final.log"
+    local window_stability="${LOGS_DIR}/slice-47-window-stability.tsv"
+    local layout_stability="${LOGS_DIR}/slice-47-layout-stability.tsv"
+    local timing_log="${LOGS_DIR}/slice-47-command-timing.log"
+    local event_manifest
+    event_manifest="$(event_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 47"
+    require_file "$setup_log"
+    require_file "$ready_log"
+    require_file "$reference_log"
+    require_file "$comms_log"
+    require_file "$focus_log"
+    require_file "$communications_log"
+    require_file "$urgent_log"
+    require_file "$calm_log"
+    require_file "$final_log"
+    require_file "$window_stability"
+    require_file "$layout_stability"
+    require_file "$timing_log"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/02-ready-zone-chrome-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/03-focus-reference-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/04-focus-comms-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/05-focus-only-profile-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/06-communications-profile-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/07-style-cycle-urgent-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/08-style-cycle-calm-slice-47.png"
+    require_file "${SCREENSHOTS_DIR}/09-final-zone-chrome-audit-slice-47.png"
+
+    grep -F 'Config: sidebar zone rows show profile + style chips' "$setup_log" >/dev/null \
+        || die "Slice 47 setup log missing chrome config summary"
+    grep -F '$ winmux focus-zone Reference' "${LOGS_DIR}/slice-47-focus-reference.log" >/dev/null \
+        || die "Slice 47 missing focus-zone Reference command log"
+    grep -F '$ winmux focus-zone Comms' "${LOGS_DIR}/slice-47-focus-comms.log" >/dev/null \
+        || die "Slice 47 missing focus-zone Comms command log"
+    grep -F '$ winmux use-zone-profile focus-only' "${LOGS_DIR}/slice-47-use-focus-only.log" >/dev/null \
+        || die "Slice 47 missing use-zone-profile focus-only command log"
+    grep -F '$ winmux use-zone-profile communications' "${LOGS_DIR}/slice-47-use-communications.log" >/dev/null \
+        || die "Slice 47 missing use-zone-profile communications command log"
+    grep -F '$ winmux cycle-zone-style current urgent calm' "${LOGS_DIR}/slice-47-style-urgent.log" >/dev/null \
+        || die "Slice 47 missing urgent cycle-zone-style command log"
+    grep -F '$ winmux cycle-zone-style current urgent calm' "${LOGS_DIR}/slice-47-style-calm.log" >/dev/null \
+        || die "Slice 47 missing calm cycle-zone-style command log"
+
+    require_zone_target_field "$ready_log" main focused true
+    require_zone_target_field "$reference_log" left focused true
+    require_zone_target_field "$comms_log" right focused true
+    require_zone_target_field "$focus_log" left enabled false
+    require_zone_target_field "$focus_log" left workspace Hidden
+    require_zone_target_field "$focus_log" right enabled false
+    require_zone_target_field "$focus_log" right workspace Hidden
+    require_zone_target_field "$communications_log" left enabled false
+    require_zone_target_field "$communications_log" left profile communications
+    require_zone_target_field "$communications_log" right enabled true
+    require_zone_target_field "$communications_log" right profile communications
+    require_zone_target_field "$communications_log" right focused true
+    require_zone_target_field "$urgent_log" right style urgent
+    require_zone_target_field "$calm_log" right style calm
+    require_zone_target_field "$final_log" right style calm
+    require_zone_target_field "$final_log" right profile communications
+    require_zone_target_field "$final_log" left workspace Hidden
+
+    grep -F 'zone=left|name=Reference|enabled=false|profile=focus-only|workspace=Hidden' "$focus_log" >/dev/null \
+        || die "Slice 47 focus-only log missing exact hidden Reference row"
+    grep -F 'zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true' "$communications_log" >/dev/null \
+        || die "Slice 47 communications log missing exact focused Comms row"
+    grep -F 'zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true|style=calm' "$calm_log" >/dev/null \
+        || die "Slice 47 calm log missing exact focused calm Comms row"
+
+    local phases=(ready focus-reference focus-comms focus-only communications style-urgent style-calm final-audit)
+    local title phase ready_id ready_workspace communications_zone
+    for title in slice47-reference.rtf slice47-work.rtf slice47-comms.rtf; do
+        ready_id="$(slice_47_window_stability_field "$window_stability" ready "$title" id)"
+        ready_workspace="$(slice_47_window_stability_field "$window_stability" ready "$title" workspace)"
+        [ -n "$ready_id" ] && [ -n "$ready_workspace" ] \
+            || die "Slice 47 window stability missing ready id/workspace for ${title}"
+        for phase in "${phases[@]}"; do
+            require_slice_47_window_stability_field "$window_stability" "$phase" "$title" id "$ready_id"
+            require_slice_47_window_stability_field "$window_stability" "$phase" "$title" workspace "$ready_workspace"
+        done
+    done
+    for phase in ready focus-reference focus-comms; do
+        require_slice_47_window_stability_field "$window_stability" "$phase" slice47-reference.rtf zone left
+        require_slice_47_window_stability_field "$window_stability" "$phase" slice47-work.rtf zone main
+        require_slice_47_window_stability_field "$window_stability" "$phase" slice47-comms.rtf zone right
+    done
+    for phase in "${phases[@]}"; do
+        require_slice_47_window_stability_field "$window_stability" "$phase" slice47-work.rtf zone main
+    done
+    for phase in ready focus-reference focus-comms communications style-urgent style-calm final-audit; do
+        require_slice_47_window_stability_field "$window_stability" "$phase" slice47-comms.rtf zone right
+    done
+    for title in slice47-reference.rtf slice47-work.rtf slice47-comms.rtf; do
+        communications_zone="$(slice_47_window_stability_field "$window_stability" communications "$title" zone)"
+        [ -n "$communications_zone" ] \
+            || die "Slice 47 window stability missing communications placement for ${title}"
+        for phase in style-urgent style-calm final-audit; do
+            require_slice_47_window_stability_field "$window_stability" "$phase" "$title" zone "$communications_zone"
+        done
+    done
+    grep -F $'style-calm\tright\ttrue\tcommunications\tcalm' "$layout_stability" >/dev/null \
+        || die "Slice 47 layout stability missing calm style row"
+    grep -F $'focus-only\tleft\tfalse\tfocus-only' "$layout_stability" >/dev/null \
+        || die "Slice 47 layout stability missing focus-only hidden Reference row"
+
+    local timing_key
+    for timing_key in \
+        ready-chrome-offset-seconds \
+        focus-reference-offset-seconds \
+        focus-comms-offset-seconds \
+        focus-only-offset-seconds \
+        communications-offset-seconds \
+        style-urgent-offset-seconds \
+        style-calm-offset-seconds \
+        final-audit-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 47 timing log missing ${timing_key}"
+    done
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux focus-zone Reference" \
+        "$(value_from_log focus-reference-offset-seconds "$timing_log")" \
+        "Slice 47 focus Reference command must happen while its caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux use-zone-profile focus-only" \
+        "$(value_from_log focus-only-offset-seconds "$timing_log")" \
+        "Slice 47 focus-only command must happen while its caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Run: winmux cycle-zone-style current urgent calm" \
+        "$(value_from_log style-urgent-offset-seconds "$timing_log")" \
+        "Slice 47 urgent style command must happen while style caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: current zone style = calm" \
+        "$(value_from_log style-calm-offset-seconds "$timing_log")" \
+        "Slice 47 calm style result must happen while calm caption is visible"
+
+    grep -F 'PASS: Slice 47 zone chrome shows focused, hidden, profile, and style state' "$proof" >/dev/null \
+        || die "Slice 47 proof missing PASS claim"
+    grep -F 'style-cycle-changes-chrome-only=yes' "$proof" >/dev/null \
+        || die "Slice 47 proof must state style cycle is chrome-only"
+    grep -F 'anchor-window-ids-and-workspaces-stable=yes' "$proof" >/dev/null \
+        || die "Slice 47 proof must state anchor window ids and workspaces stayed stable"
+    grep -F 'style-beats-preserve-post-profile-placement=yes' "$proof" >/dev/null \
+        || die "Slice 47 proof must state style beats preserve post-profile placement"
+
+    local sample_manifest
+    sample_manifest="$(sample_manifest_path)"
+    require_sample_manifest_label_path "$sample_manifest" ready-chrome "screenshots/02-ready-zone-chrome-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" focus-reference "screenshots/03-focus-reference-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" focus-comms "screenshots/04-focus-comms-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" focus-only-profile "screenshots/05-focus-only-profile-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" communications-profile "screenshots/06-communications-profile-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" style-cycle-urgent "screenshots/07-style-cycle-urgent-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" style-cycle-calm "screenshots/08-style-cycle-calm-slice-47.png"
+    require_sample_manifest_label_path "$sample_manifest" final-audit "screenshots/09-final-zone-chrome-audit-slice-47.png"
+
+    require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
+    require_slice_47_event_manifest "$event_manifest"
+    require_no_slice_47_post_recording_retries
 }
 
 require_slice_8_window_routing_proof() {
@@ -15884,6 +16330,9 @@ case "$recording_name" in
     slice-46-persistence-rollback-doctor)
         require_slice_46_persistence_rollback_doctor_proof
         ;;
+    slice-47-zone-chrome-polish)
+        require_slice_47_zone_chrome_polish_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -15999,6 +16448,8 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_41_evidence "$review_path"
     require_review_mentions_slice_42_evidence "$review_path"
     require_review_mentions_slice_45_evidence "$review_path"
+    require_review_mentions_slice_46_evidence "$review_path"
+    require_review_mentions_slice_47_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

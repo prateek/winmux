@@ -759,6 +759,33 @@ Slice-specific checks:
   proof, missing topology contact sheet, vague command captions, and any review
   that claims real physical display unplug/replug support without a supplemental
   real-machine artifact.
+- Slice 47 must show sidebar/product chrome that makes focused zone, hidden
+  zones, active profile, and active style readable in the media. Inspect the
+  primary annotated recording first, then the raw recording, contact sheet,
+  semantic sample manifest, event manifest, caption-boundary frames, edge crops,
+  zone-target logs, `logs/slice-47-window-stability.tsv`,
+  `logs/slice-47-layout-stability.tsv`, `logs/slice-47-command-timing.log`, and
+  `logs/guest-script-retry-summary.tsv`. Require exact captions or visible
+  chips for `Config: sidebar zone rows show profile + style chips`,
+  `Run: winmux focus-zone Reference`, `Run: winmux focus-zone Comms`,
+  `Run: winmux use-zone-profile focus-only`,
+  `Run: winmux use-zone-profile communications`,
+  `Run: winmux cycle-zone-style current urgent calm`,
+  `Result: current zone style = calm`,
+  `Run: winmux list-zones --format chrome audit`, and
+  `Result: no post-recording guest retries`. Reject hidden zones that disappear
+  from the sidebar zone rows, profile/style state that is only in logs and not
+  visible in sidebar chrome, stale final screenshots that still show urgent
+  style or focus-only profile, clipped/overlapping row labels, any post-recording
+  guest retry, and any proof where style cycling changes the communications-phase
+  placement, layout, or workspace assignment. Require window ids and workspaces
+  to stay stable across all phases, but do not fail merely because a hidden
+  Reference or Comms window is reported under the remaining enabled zone while
+  its sidebar row is hidden. Cite the corrected proof flags
+  `anchor-window-ids-and-workspaces-stable=yes` and
+  `style-beats-preserve-post-profile-placement=yes`. The final media must show
+  `profile=communications`, Comms focused, Comms style calm, and Reference still
+  visible as hidden.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

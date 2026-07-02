@@ -323,9 +323,56 @@ extension WorkspaceSidebarDragTest {
 
         XCTAssertEqual(targets.map(\.zoneId), ["left", "main", "right"])
         XCTAssertEqual(targets.map(\.displayName), ["Reference", "Work", "Comms"])
-        XCTAssertEqual(targets.map(\.activeWorkspaceName), ["reference", "work", "comms"])
+        XCTAssertEqual(targets.map(\.activeWorkspaceName), ["reference", "work", "comms"].map(Optional.some))
+        XCTAssertEqual(targets.map(\.isEnabled), [true, true, true])
         XCTAssertEqual(Set(targets.map(\.monitorScopeId)).count, 1)
         XCTAssertEqual(targets.singleOrNil { $0.zoneId == "main" }?.isFocused, true)
+    }
+
+    @MainActor
+    func testWorkspaceSidebarKeepsDisabledZoneTargetsReadable() async throws {
+        setUpWorkspacesForTests()
+        defer { setUpWorkspacesForTests() }
+        let zones = configureWorkspaceSidebarThreeZones()
+        config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
+        config.zoneAvailabilitySets = [
+            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
+            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
+        ]
+        refreshZoneTopologySnapshot()
+
+        let reference = Workspace.get(byName: "reference")
+        let work = Workspace.get(byName: "work")
+        let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
+        XCTAssertTrue(work.focusWorkspace())
+        let styleResult = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(styleResult.exitCode, 0)
+        let profileResult = try await parseCommand("use-zone-profile focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(profileResult.exitCode, 0)
+
+        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+            sortedMonitors: sortedMonitors,
+            currentFocus: focus,
+        )
+
+        XCTAssertEqual(targets.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(targets.map(\.isEnabled), [false, true, false])
+        XCTAssertEqual(Set(targets.compactMap(\.availabilitySetId)), ["focus-only"])
+        let referenceTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "left" })
+        let workTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "main" })
+        let commsTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "right" })
+        XCTAssertNil(referenceTarget.activeWorkspaceName)
+        XCTAssertEqual(referenceTarget.activeWorkspaceDisplayName, "Hidden")
+        XCTAssertEqual(workTarget.activeWorkspaceName, "work")
+        XCTAssertEqual(workTarget.activeWorkspaceDisplayName, "work")
+        XCTAssertEqual(workTarget.isFocused, true)
+        XCTAssertNil(commsTarget.activeWorkspaceName)
+        XCTAssertEqual(commsTarget.activeWorkspaceDisplayName, "Hidden")
+        XCTAssertEqual(commsTarget.styleId, "urgent")
+        XCTAssertEqual(commsTarget.styleColorHex, "#D3455B")
     }
 
     @MainActor
@@ -348,7 +395,7 @@ extension WorkspaceSidebarDragTest {
 
         XCTAssertEqual(targets.filter { $0.monitorScopeId == mainScope }.map(\.zoneId), ["left", "main", "right"])
         XCTAssertEqual(targets.filter { $0.monitorScopeId == secondaryScope }.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(targets.filter { $0.zoneId == "right" }.map(\.activeWorkspaceName), ["main-comms", "secondary-comms"])
+        XCTAssertEqual(targets.filter { $0.zoneId == "right" }.map(\.activeWorkspaceName), ["main-comms", "secondary-comms"].map(Optional.some))
         XCTAssertEqual(targets.filter { $0.zoneId == "right" }.map(\.displayName), ["Main Comms", "Secondary Comms"])
         XCTAssertTrue(workspaceSidebarResolvedZoneTarget(monitorScopeId: mainScope, zoneId: "right")?.activeWorkspace === mainRight)
         XCTAssertTrue(workspaceSidebarResolvedZoneTarget(monitorScopeId: secondaryScope, zoneId: "right")?.activeWorkspace === secondaryRight)
@@ -547,6 +594,7 @@ private func configureWorkspaceSidebarThreeZones(defaultZone: String = "main") -
             ],
         ),
     ]
+    refreshZoneTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
     })
@@ -599,6 +647,7 @@ private func configureWorkspaceSidebarDuplicateZonesByScope() -> (
             ],
         ),
     ]
+    refreshZoneTopologySnapshot()
     let mainScope = workspaceSidebarMonitorScopeId(for: main)
     let secondaryScope = workspaceSidebarMonitorScopeId(for: secondary)
     return (

@@ -1,0 +1,52 @@
+# kind	id	required-artifact	expected
+event	ready-chrome	screenshots/02-ready-zone-chrome-slice-47.png	sidebar zone rows show Reference Work Comms with Work focused and no hidden zones
+event	focus-reference	screenshots/03-focus-reference-slice-47.png	focus-zone Reference moves the focused marker to the Reference zone row without moving windows
+event	focus-comms	screenshots/04-focus-comms-slice-47.png	focus-zone Comms moves the focused marker to the Comms zone row without moving windows
+event	focus-only-profile	screenshots/05-focus-only-profile-slice-47.png	use-zone-profile focus-only leaves disabled Reference and Comms rows visible as Hidden
+event	communications-profile	screenshots/06-communications-profile-slice-47.png	use-zone-profile communications restores Comms and keeps Reference visible as Hidden
+event	style-cycle-urgent	screenshots/07-style-cycle-urgent-slice-47.png	cycle-zone-style current urgent calm shows the current zone urgent style chip
+event	style-cycle-calm	screenshots/08-style-cycle-calm-slice-47.png	cycle-zone-style current urgent calm shows the current zone calm style chip
+event	final-audit	screenshots/09-final-zone-chrome-audit-slice-47.png	final audit proves style-only chrome changes preserve post-profile placement and layout widths
+proof	focused-zone-indicator	logs/slice-47-zone-targets-focus-comms.log	focused row changes to Comms after focus-zone Comms
+proof	hidden-zone-indicator	logs/slice-47-zone-targets-focus-only.log	disabled Reference and Comms rows remain visible with Hidden state
+proof	active-profile-indicator	logs/slice-47-zone-targets-communications.log	profile communications appears on visible and hidden zone rows
+proof	active-style-indicator	logs/slice-47-zone-targets-calm.log	calm style token appears on the current zone row after the style cycle
+proof	windows-stable	logs/slice-47-window-stability.tsv	window ids and workspaces remain stable; enabled phases keep expected zones and style beats preserve post-profile placement
+proof	layout-stable	logs/slice-47-layout-stability.tsv	layout widths remain 25/50/25 or profile-normalized values for the claimed state
+artifact	expected-chips	logs/slice-47-zone-chrome-polish.expected-chips.txt	expected caption chips are derived from annotation TSV
+artifact	zone-targets-ready	logs/slice-47-zone-targets-ready.log	sidebar zone target proof includes enabled/focused/profile/style state
+artifact	zone-targets-focus-only	logs/slice-47-zone-targets-focus-only.log	hidden rows are recorded in the product proof
+artifact	zone-targets-calm	logs/slice-47-zone-targets-calm.log	final style proof records calm style state
+retry	no-post-recording-retry	logs/guest-script-retry-summary.tsv	no guest action retries after recording starts; discard and rerun instead
+source-check	caption:config	script/e2e/tart-recording-harness	Config: sidebar zone rows show profile + style chips
+source-check	caption:focus-reference	script/e2e/tart-recording-harness	Run: winmux focus-zone Reference
+source-check	caption:focus-comms	script/e2e/tart-recording-harness	Run: winmux focus-zone Comms
+source-check	caption:focus-only	script/e2e/tart-recording-harness	Run: winmux use-zone-profile focus-only
+source-check	caption:communications	script/e2e/tart-recording-harness	Run: winmux use-zone-profile communications
+source-check	caption:style-urgent	script/e2e/tart-recording-harness	Run: winmux cycle-zone-style current urgent calm
+source-check	caption:style-calm	script/e2e/tart-recording-harness	Result: current zone style = calm
+source-check	caption:final-audit	script/e2e/tart-recording-harness	Run: winmux list-zones --format chrome audit
+source-check	harness:event-manifest	script/e2e/tart-recording-harness	write_slice_47_event_manifest
+source-check	harness:no-recording-retry	script/e2e/tart-recording-harness	require_no_post_recording_guest_retry_failures
+source-check	guest:zone-target-log	script/e2e/guest/slice-47-zone-chrome-polish.sh	write_zone_targets_log
+source-check	guest:hidden-rows	script/e2e/guest/slice-47-zone-chrome-polish.sh	assert_zone_target_state "${ZONE_TARGETS_FOCUS_LOG}" left false
+source-check	guest:style-rows	script/e2e/guest/slice-47-zone-chrome-polish.sh	assert_zone_target_state "${ZONE_TARGETS_CALM_LOG}" right true communications calm
+source-check	guest:stability	script/e2e/guest/slice-47-zone-chrome-polish.sh	write_stability_logs
+source-check	verifier:proof	script/e2e/verify-artifact	require_slice_47_zone_chrome_polish_proof
+source-check	verifier:expected-chips	script/e2e/verify-artifact	require_expected_caption_chips_exact
+source-check	verifier:event-manifest	script/e2e/verify-artifact	require_slice_47_event_manifest
+source-check	verifier:no-retry	script/e2e/verify-artifact	require_no_slice_47_post_recording_retries
+source-check	verifier:hidden-rows	script/e2e/verify-artifact	zone=left|name=Reference|enabled=false|profile=focus-only|workspace=Hidden
+source-check	verifier:focused-comms	script/e2e/verify-artifact	zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true
+source-check	verifier:style-calm	script/e2e/verify-artifact	zone=right|name=Comms|enabled=true|profile=communications|workspace=3|focused=true|style=calm
+source-check	verifier:anchor-id-workspace	script/e2e/verify-artifact	anchor-window-ids-and-workspaces-stable=yes
+source-check	verifier:style-post-profile	script/e2e/verify-artifact	style-beats-preserve-post-profile-placement=yes
+source-check	reviewer:caption-config	script/e2e/write-review-packet	Config: sidebar zone rows show profile + style chips
+source-check	reviewer:hidden-state	script/e2e/write-review-packet	Reject if hidden zones disappear from the sidebar zone rows
+source-check	reviewer:profile-style	script/e2e/write-review-packet	Reject if profile or style state is only in logs and not visible in sidebar chrome
+source-check	reviewer:stale-state	script/e2e/write-review-packet	Reject stale final screenshots that still show urgent style or focus-only profile
+source-check	reviewer:layout-stable	script/e2e/write-review-packet	logs/slice-47-layout-stability.tsv
+source-check	reviewer:window-stable	script/e2e/write-review-packet	logs/slice-47-window-stability.tsv
+source-check	reviewer:proof-flags	script/e2e/write-review-packet	anchor-window-ids-and-workspaces-stable=yes
+source-check	reviewer:no-retry	script/e2e/write-review-packet	Result: no post-recording guest retries
+source-check	prompt:proof-flags	script/e2e/prompts/no-context-artifact-review.md	style-beats-preserve-post-profile-placement=yes
