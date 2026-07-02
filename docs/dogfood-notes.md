@@ -33,3 +33,23 @@ Machine: Apple silicon laptop, macOS 26, Homebrew 6, installed via
 Post-install doctor on the daily driver: config OK, accessibility granted,
 screen recording not yet granted (tab previews degraded), single built-in
 display. Zone workflows not yet exercised; ultrawide dogfood pending.
+
+## 2026-07-02 — first live-usage feedback (0.51.0-dogfood.2)
+
+- **Dogfood blocker — general input lag.** Interactions feel slow; the
+  clearest repro is clicking the desktop wallpaper (macOS Show Desktop
+  gesture), which responds noticeably late. Under investigation; prime
+  suspects are synchronous work in global mouse-event paths (divider drag
+  veto live hit-testing, overlay refresh) and full refresh passes on app
+  deactivation. FlashSpace (github.com/wojciech-kulik/FlashSpace) reported as
+  a fast comparison point.
+- **Dogfood blocker — zone dividers are draggable in normal use.** Divider
+  hover chrome and drag affordances appear during default interaction with
+  the balanced layout. Expected: zone resizing is an explicit action (zone
+  mode, a setting, or a command), not an always-on affordance near zone
+  boundaries.
+- **Later enhancement — Exposé-style overview gestures.** Requested
+  bindings: Ctrl+Up for a whole-display overview (Mission Control analog)
+  and Ctrl+Down for an overview of the focused zone's windows; three/four
+  finger trackpad gestures are the user's habitual flow. FlashSpace's
+  SpaceControl is the referenced prior art.
