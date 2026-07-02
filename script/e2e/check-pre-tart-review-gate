@@ -212,6 +212,23 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-12-mouse-zone-snap.sh"
             )
             ;;
+        slice-45)
+            required_mentions=(
+                "Slice 45"
+                "docs/plans/columnar-zones.md"
+                "Sources/AppBundleTests/model/MonitorTopologyTest.swift"
+                "makefile"
+                "script/e2e/README.md"
+                "script/e2e/configs/column-zones.toml"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "script/e2e/guest/recording-timing-helpers.sh"
+                "script/e2e/guest/slice-45-display-topology-recovery.sh"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -476,6 +493,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-44 >/dev/null
+
+    configure_slice_requirements slice-45
+    write_freshness_manifest "$run_dir" slice-45 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-45 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

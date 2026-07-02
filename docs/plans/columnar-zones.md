@@ -8414,6 +8414,10 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   missing or logs-only topology proof.
 - [x] Register `make e2e-slice-45` with the mandatory pre-Tart review gate and
   document the target in the E2E README.
+  Follow-up: `script/e2e/check-pre-tart-review-gate` now has an explicit
+  Slice 45 required-mentions registry entry and self-test coverage, so the
+  first pre-Tart run can write a Slice 45 freshness manifest instead of failing
+  as an unregistered slice.
 - Local Slice 45 prep validation passed:
   `bash -n script/e2e/tart-recording-harness script/e2e/guest/slice-45-display-topology-recovery.sh script/e2e/verify-artifact script/e2e/write-review-packet`,
   Slice 45 guest `self-test`, `./script/e2e/tart-recording-harness annotation-preflight`,
