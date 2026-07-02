@@ -12,7 +12,7 @@ struct MoveWorkspaceToMonitorCommand: Command {
 
         switch args.target.val.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
             case .success(let targetMonitor):
-                if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
+                if targetMonitor.hasSameWorkspaceViewport(as: prevMonitor) {
                     return true
                 }
                 if activateWorkspaceOnMonitorPreservingSourceViewport(focusedWorkspace, targetMonitor: targetMonitor) {

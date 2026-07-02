@@ -491,18 +491,19 @@ Introduce a small topology store:
 
 On config reload or screen change, update the snapshot and invalidate monitor caches together. Off-main callers may read the last completed snapshot, but they must not touch main-actor config.
 
-### Zone Identity Must Become Stable Before User-Facing Config
+### Zone Identity Is Stable For Configured Zones
 
-`MonitorViewportId` is currently based on `rect.topLeftCorner`. That is good enough for a hardcoded spike, but it is too fragile for user-facing zones because changing a column width can change a zone's point and remap active workspaces.
+`MonitorViewportId` now carries a `stableIdentity` in addition to the current geometry point. Physical monitor viewports preserve the legacy top-left identity, while configured zone viewports use physical monitor identity plus stable zone id. This prevents width changes from remapping active workspaces or suppressing cross-zone monitor-change hooks.
 
-Before shipping config-backed zones, add stable viewport identity:
+Keep these invariants intact:
 
-- physical viewport id: current top-left based id, preserving legacy behavior;
+- physical viewport id: top-left based id, preserving legacy behavior;
 - zone viewport id: physical monitor identity plus stable zone id;
 - optional namespace only if future scene/layout switching needs two different logical zones with the same id on one physical monitor;
-- legacy decode path for existing top-left encoded viewport ids if any persisted state uses them.
+- legacy decode path for existing top-left encoded viewport ids if any persisted state uses them;
+- geometry lookups may still use the current point, but configured-zone durability must use the stable identity.
 
-Keep the current point available for geometry lookups, but do not make it the durable identity for a configured zone.
+Future identity work should be compatibility-focused, not a prerequisite for config-backed zones.
 
 ### Sidebar Insets Are Physical By Default
 
@@ -530,7 +531,7 @@ Compact slice inventory:
 | Slice | Scope |
 | --- | --- |
 | 0 | Tart VM recording harness with clean desktop setup, screenshots, video, logs, and no-context artifact review. |
-| 1 | Hardcoded zone spike proving one physical ultrawide can expose independent virtual-monitor workspaces. |
+| 1 | Config-backed zone viewports proving one physical ultrawide can expose independent virtual-monitor workspaces. |
 | 2 | User config for column zones, validation, and visible live windows in each configured zone. |
 | 3 | Stable zone viewport identity across config reload and width changes. |
 | 4 | Zone commands and selectors: focus and move nodes to named zones while preserving physical monitor command compatibility. |
@@ -638,11 +639,11 @@ Slice 0 result:
 - verdict: `PASS_WITH_NOTES`;
 - notes to carry forward: product slices need longer and smoother recordings, visible WinMux sidebar behavior, visible zone/tab/workspace interactions, and more explicit logging of state files cleaned or confirmed absent.
 
-### Slice 1: Hardcoded Zone Spike
+### Slice 1: Config-Backed Zone Viewports
 
 Goal: prove that zones as virtual monitors work with the existing workspace and layout pipeline.
 
-Add a temporary `WINMUX_ZONES_SPIKE=1` path that splits the main physical monitor into three non-overlapping columns.
+Use a minimal explicit `[[zones]]` config that splits the main physical monitor into three non-overlapping columns.
 
 Work:
 
@@ -655,13 +656,13 @@ Work:
 
 Exit criteria:
 
-- disabled spike has no behavior change;
-- enabled spike gives independent active workspaces per column;
+- disabled zone config has no behavior change;
+- enabled zone config gives independent active workspaces per column;
 - moving focus between columns works;
 - moving a window or tab group to another column works through existing move-to-monitor plumbing or a small temporary helper;
 - no sidebar width is subtracted more than once per physical monitor.
-- Tart video gate: record the hardcoded three-column spike showing independent workspaces, focus movement, and window or tab-group movement.
-- Artifact review gate: no-context subagent confirms the recording demonstrates the spike and matches the baseline product style before Slice 2 starts.
+- Tart video gate: record the configured three-column layout showing independent workspaces, focus movement, and window or tab-group movement.
+- Artifact review gate: no-context subagent confirms the recording demonstrates configured zones and matches the baseline product style before Slice 2 starts.
 
 Slice 1 result:
 
@@ -670,11 +671,17 @@ Slice 1 result:
 - proof: `artifacts/e2e/slice-1-20260623T211027Z/slice-1-zone-spike-proof.txt`;
 - review: `artifacts/e2e/slice-1-20260623T211027Z/reviews/no-ctx-artifact-review.md`;
 - verdict: `PASS_WITH_NOTES`;
-- notes to carry forward: the artifact proves three zone viewports, focus traversal, and independent visible workspaces through CLI/TextEdit output on a clean ultrawide desktop. Slice 2 should add live windows in each zone and visible focus or movement cues so the recording reads less like a raw engineering proof.
+- notes to carry forward: the historical artifact filename still uses the
+  original spike label, but the production env flag and harness path have since
+  been removed. The artifact proves three zone viewports, focus traversal, and
+  independent visible workspaces through CLI/TextEdit output on a clean
+  ultrawide desktop. Slice 2 should add live windows in each zone and visible
+  focus or movement cues so the recording reads less like a raw engineering
+  proof.
 
 ### Slice 2: Config Model and Validation
 
-Goal: turn the spike topology into parsed config without widening the feature.
+Goal: harden the parsed column-zone config without widening the feature.
 
 Add config structs:
 
@@ -7598,7 +7605,7 @@ Pre-Slice-40 cleanup from Slice 39 retrospectives:
   `retrospectives/artifact-product.md`.
 - [x] Update this plan with the accepted Slice 39 artifact, review verdict,
   persisted gate logs, closeout command, accepted findings, and non-claims.
-- [x] Add a generated review skeleton spike without delaying the setup
+- [x] Add a generated review skeleton prototype without delaying the setup
   assistant. `script/e2e/write-review-packet` now writes
   `reviews/no-ctx-artifact-review.skeleton.md` from
   `reviews/reviewer-citation-checklist.tsv`, and `script/e2e/README.md`
@@ -9393,7 +9400,7 @@ Validation layers:
 
 - Pure or mostly pure tests for config parsing, zone topology expansion, identity, command resolution, and sidebar inset math.
 - In-process command tests for focus and move behavior using the existing test tree and fake monitors.
-- Manual smoke tests during the spike when the feature is still changing quickly.
+- Manual smoke tests during early slices when the feature is still changing quickly.
 - Tart VM video checks for every slice, starting with the harness itself.
 - No-context artifact review for every slice, after the Tart artifact exists and before the next slice starts.
 
@@ -9418,10 +9425,10 @@ Command tests:
 - directional focus traverses zone viewports in screen order;
 - `move-node-to-zone` moves a focused tab group as a group.
 
-Manual spike checklist:
+Manual config checklist:
 
 - run with no zones and verify behavior is unchanged;
-- run with `WINMUX_ZONES_SPIKE=1` on an ultrawide;
+- run with an explicit left/main/right `[[zones]]` config on an ultrawide;
 - create or move windows into each zone;
 - switch workspaces independently per zone;
 - move a tab group from `main` to `right`;
@@ -9453,7 +9460,7 @@ Do not let the implementing agent self-certify artifacts. The no-context review 
 ## Risks
 
 - Some code assumes `monitors.count == physical display count`. Fix physical-only call sites early and add tests for them.
-- Stable zone identity is more invasive than the hardcoded spike. Do it before making zones user-facing.
+- Stable zone identity is more invasive than the initial prototype. Do it before making zones user-facing.
 - Sidebar scope types may be more monitor-shaped than they look. Keep the first UX to one physical panel with zone sections.
 - Existing command names may make `monitor` and `zone` semantics confusing. Prefer explicit new zone commands rather than changing numeric monitor behavior.
 - Freeform rectangles are tempting, but overlap and hit-testing make them a separate feature.
@@ -9461,7 +9468,7 @@ Do not let the implementing agent self-certify artifacts. The no-context review 
 ## Milestones
 
 1. Tart harness boots from external SSD-backed storage, captures screenshots, records video, exports artifacts, and passes no-context artifact review.
-2. Hardcoded virtual monitor spike works with independent workspaces and has a Tart video plus no-context artifact review.
+2. Config-backed virtual monitor zones work with independent workspaces and have a Tart video plus no-context artifact review.
 3. Zone config parses and validates column layouts and has a Tart video plus no-context artifact review.
 4. Stable zone viewport ids survive config changes and have a Tart video plus no-context artifact review.
 5. Zone commands make focus and movement ergonomic and have a Tart video plus no-context artifact review.

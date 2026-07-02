@@ -165,6 +165,7 @@ func invalidateMonitorCaches() {
     sortedPhysicalMonitorsCache = nil
     monitorsCache = nil
     sortedMonitorsCache = nil
+    invalidateZoneDividerHandlesCache()
 }
 
 var physicalMonitors: [Monitor] {

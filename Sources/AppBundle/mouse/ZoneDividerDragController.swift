@@ -5,6 +5,11 @@ private struct ZoneDividerDragSession {
     let startPoint: CGPoint
 }
 
+enum ZoneDividerMouseDownSource {
+    case ambient
+    case dividerChrome
+}
+
 @MainActor
 final class ZoneDividerDragController {
     static let shared = ZoneDividerDragController()
@@ -35,11 +40,20 @@ final class ZoneDividerDragController {
     }
 
     @discardableResult
-    func handleMouseDown(at point: CGPoint) -> Bool {
+    func handleMouseDown(
+        at point: CGPoint,
+        source: ZoneDividerMouseDownSource = .ambient,
+    ) -> Bool {
         guard TrayMenuModel.shared.isEnabled,
               session == nil,
               let handle = zoneDividerHandle(at: point, hitSlop: hitSlop)
         else { return false }
+        guard source == .dividerChrome || !isPointInsideKnownWindowFrame(point) else {
+            logWindowDragLive(
+                "zoneDivider.start skipped reason=window-content point=\(point) boundary=\(handle.boundaryX)"
+            )
+            return false
+        }
 
         clearPendingWindowDragIntent()
         WindowDropIntentOverlayPanelController.shared.hide()
@@ -152,4 +166,17 @@ final class ZoneDividerDragController {
         ))
         ZoneDividerOverlayPanelController.shared.hide(after: 0.85)
     }
+}
+
+@MainActor
+private func isPointInsideKnownWindowFrame(_ point: CGPoint) -> Bool {
+    Workspace.all
+        .filter(\.isVisible)
+        .flatMap(\.allLeafWindowsRecursive)
+        .contains { window in
+            guard !window.isHiddenInCorner else { return false }
+            return [window.lastKnownActualRect, window.lastAppliedLayoutPhysicalRect]
+                .compactMap { $0 }
+                .contains { $0.contains(point) }
+        }
 }

@@ -61,15 +61,14 @@ require_slice_48_active_config_mutates_policy() {
     local harness="${REPO_ROOT}/script/e2e/tart-recording-harness"
 
     /usr/bin/awk '
-        /ACTIVE_CONFIG_HASH_POLICY=mutates/ {
-            if (previous ~ /\[ "\$ACTION" = "slice-48" \]/ &&
-                previous ~ /WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY/ &&
-                previous ~ /then/) {
-                found = 1
-            }
-        }
-        { previous = $0 }
-        END { exit(found ? 0 : 1) }
+        /mutates_active_config_action\(\)/ { in_function = 1 }
+        in_function && /slice-48/ { function_contains_slice_48 = 1 }
+        in_function && /^}/ { in_function = 0 }
+        /if mutates_active_config_action "\$ACTION"/ &&
+            /WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY/ &&
+            /then/ { guard_uses_helper = 1 }
+        /ACTIVE_CONFIG_HASH_POLICY=mutates/ { sets_mutates = 1 }
+        END { exit(function_contains_slice_48 && guard_uses_helper && sets_mutates ? 0 : 1) }
     ' "$harness" || die "Slice 48 must be in the active_config_hash_policy=mutates guard"
 }
 

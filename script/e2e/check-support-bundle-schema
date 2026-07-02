@@ -142,15 +142,23 @@ validate_required_text() {
     require_contains permissions.txt $'permission\tstatus\tnote'
     require_contains command-failures.tsv "WinMux does not retain command failure history yet"
     require_contains logs.txt "Slice 48 support bundles do not query macOS unified logs yet"
-    require_contains recent-window-routing-decisions.tsv "live window match history is not retained"
     require_contains config-doctor.txt "zones:"
     require_contains config-redacted.toml "<redacted>"
+}
+
+zone_affinities_has_data_rows() {
+    /usr/bin/awk -F'\t' '
+        NR == 1 { next }
+        $1 != "none" { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "${BUNDLE_DIR}/zone-affinities.tsv"
 }
 
 validate_zone_affinity_redaction() {
     local expected_title_value="$1"
     /usr/bin/awk -F'\t' -v expected_title_value="$expected_title_value" '
         NR == 1 { next }
+        $1 == "none" { next }
         {
             app_id = $3
             app_name = $4
@@ -181,12 +189,16 @@ validate_redaction() {
 
     if [ "$MODE" = "redacted" ]; then
         require_contains redaction-summary.txt "window-titles=<redacted-window-title>"
-        require_contains zone-affinities.tsv "true:<redacted-window-title>"
+        if zone_affinities_has_data_rows; then
+            require_contains zone-affinities.tsv "true:<redacted-window-title>"
+        fi
         require_contains redaction-summary.txt "<redacted-window-title>"
         validate_zone_affinity_redaction "true:<redacted-window-title>"
     else
         require_contains redaction-summary.txt "window-titles=included by --include-window-titles"
-        require_contains zone-affinities.tsv "true:configured"
+        if zone_affinities_has_data_rows; then
+            require_contains zone-affinities.tsv "true:configured"
+        fi
         reject_contains zone-affinities.tsv "true:<redacted-window-title>"
         validate_zone_affinity_redaction "true:configured"
     fi
@@ -304,6 +316,21 @@ EOF
     BUNDLE_DIR="$redacted"
     MODE="redacted"
     validate_bundle
+    no_affinity="${SELF_TEST_TMP_DIR}/no-affinity"
+    write_bundle_fixture "$no_affinity" "<redacted-window-title>"
+    cat >"${no_affinity}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+none
+EOF
+    cat >"${no_affinity}/recent-window-routing-decisions.tsv" <<'EOF'
+source	index-or-node	zone	workspace	matched	debug
+unavailable				not-retained	WinMux does not retain a recent window-routing decision log yet
+EOF
+    BUNDLE_DIR="$no_affinity"
+    MODE="redacted"
+    validate_bundle
+    BUNDLE_DIR="$redacted"
+    MODE="redacted"
     /usr/bin/perl -0pi -e 's/true:<redacted-app-identifier>/true:com.secret.Mail/' "${redacted}/zone-affinities.tsv"
     if ( validate_bundle ) >/dev/null 2>&1; then
         die "self-test expected raw app identifier in affinity TSV rejection"

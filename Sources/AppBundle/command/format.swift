@@ -121,6 +121,18 @@ private struct Cell<T> {
     let rightPadding: Bool
 }
 
+@MainActor
+private func configuredZoneSummary(for monitor: Monitor) -> ConfiguredZoneSummary? {
+    guard let zoneId = monitor.zoneId else { return nil }
+    let physicalTopLeft = monitor.physicalMonitor.rect.topLeftCorner
+    return getCurrentZoneTopologySnapshot()
+        .configuredZones(for: sortedPhysicalMonitors)
+        .first {
+            $0.zoneId == zoneId &&
+                $0.physicalMonitor.rect.topLeftCorner == physicalTopLeft
+        }
+}
+
 extension String {
     @MainActor
     func expandFormatVar(obj: FormatObject) -> Result<Primitive, String> {
@@ -164,6 +176,7 @@ extension String {
                     case .workspaceRootContainerLayout: .success(.string(toLayoutString(tc: w.rootTilingContainer)))
                 }
             case (.monitor(let m), .monitor(let f)):
+                let zone = configuredZoneSummary(for: m)
                 return switch f {
                     case .monitorId_oneBased: .success(m.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                     case .monitorAppKitNsScreenScreensId: .success(.int(m.monitorAppKitNsScreenScreensId))
@@ -177,10 +190,10 @@ extension String {
                     case .monitorZoneStyleId: .success(.string(m.zoneStyleId ?? ""))
                     case .monitorZoneStyleColor: .success(.string(m.zoneStyleColorHex ?? ""))
                     case .monitorZoneEnabled: .success(.bool(m.zoneId != nil))
-                    case .monitorZoneConfiguredWidth: .success(.string(""))
-                    case .monitorZoneEffectiveWidth: .success(.string(""))
-                    case .monitorZoneRuntimeWidthOverride: .success(.string(""))
-                    case .monitorZoneRuntimeWidthOverrideState: .success(.string(""))
+                    case .monitorZoneConfiguredWidth: .success(.string(zone?.configuredWidth.description ?? ""))
+                    case .monitorZoneEffectiveWidth: .success(.string(zone?.effectiveWidth.description ?? ""))
+                    case .monitorZoneRuntimeWidthOverride: .success(.string(zone?.runtimeWidthOverride?.description ?? ""))
+                    case .monitorZoneRuntimeWidthOverrideState: .success(.string(zone?.runtimeWidthOverrideState ?? ""))
                     case .monitorZoneLeft: .success(.string(m.zoneId == nil ? "" : m.rect.topLeftX.description))
                     case .monitorZonePixelWidth: .success(.string(m.zoneId == nil ? "" : m.rect.width.description))
                     case .monitorPhysicalId_oneBased: .success(m.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))

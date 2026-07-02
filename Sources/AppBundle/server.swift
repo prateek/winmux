@@ -103,6 +103,7 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
                     let env = CmdEnv.init(
                         windowId: request.windowId.flatMap { $0 },
                         workspaceName: request.workspace.flatMap { $0 },
+                        clientCurrentDirectory: request.currentDirectory,
                     )
                     let cmdResult = try await command.run(env, CmdStdin(request.stdin))
                     return ServerAnswer(

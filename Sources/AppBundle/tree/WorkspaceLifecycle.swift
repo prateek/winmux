@@ -274,7 +274,7 @@ func availablePreferredWorkspace(projectId: WorkspaceProjectId, monitor: Monitor
 @MainActor
 func workspaceIsAvailableForMonitor(_ workspace: Workspace, monitor: Monitor) -> Bool {
     isValidAssignment(workspace: workspace, screen: monitor.rect.topLeftCorner) &&
-        (!workspace.isVisible || workspace.workspaceMonitor.rect.topLeftCorner == monitor.rect.topLeftCorner)
+        (!workspace.isVisible || workspace.workspaceMonitor.hasSameWorkspaceViewport(as: monitor))
 }
 
 @MainActor

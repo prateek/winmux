@@ -21,7 +21,7 @@ struct LiveFocus: WinMuxAny, Equatable {
         return FrozenFocus(
             windowId: windowOrNil?.windowId,
             workspaceName: workspace.name,
-            monitorId_oneBased: workspace.workspaceMonitor.monitorId_oneBased ?? 0,
+            monitorViewportStableIdentity: workspace.workspaceMonitor.workspaceViewportStableIdentity,
         )
     }
 }
@@ -33,8 +33,8 @@ struct LiveFocus: WinMuxAny, Equatable {
 struct FrozenFocus: WinMuxAny, Equatable, Sendable {
     let windowId: UInt32?
     let workspaceName: String
-    // monitorId is not part of the focus. We keep it here only for 'on-focused-monitor-changed' to work
-    let monitorId_oneBased: Int
+    // Monitor viewport identity is only retained for 'on-focused-monitor-changed'.
+    let monitorViewportStableIdentity: String
 
     @MainActor var liveOrNil: LiveFocus? { // Important: don't access focus.monitorId here. monitorId is not part of the focus. Always prefer workspace
         let window: Window? = windowId.flatMap { Window.get(byId: $0) }
@@ -52,7 +52,7 @@ struct FrozenFocus: WinMuxAny, Equatable, Sendable {
 
     func replacingWorkspaceName(_ oldName: String, with newName: String) -> FrozenFocus {
         workspaceName == oldName
-            ? FrozenFocus(windowId: windowId, workspaceName: newName, monitorId_oneBased: monitorId_oneBased)
+            ? FrozenFocus(windowId: windowId, workspaceName: newName, monitorViewportStableIdentity: monitorViewportStableIdentity)
             : self
     }
 }
@@ -97,7 +97,7 @@ func debugDescribe(_ snapshot: RefreshSessionFocusSnapshot?) -> String {
 
 @MainActor private var _focus: FrozenFocus = {
     let monitor = mainMonitor
-    return FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased ?? 0)
+    return FrozenFocus(windowId: nil, workspaceName: monitor.activeWorkspace.name, monitorViewportStableIdentity: monitor.workspaceViewportStableIdentity)
 }()
 
 @MainActor
@@ -214,7 +214,7 @@ extension Workspace {
         _prevFocusedWorkspaceName = _lastKnownFocus.workspaceName
         hasFocusedWorkspaceChanged = true
     }
-    if frozenFocus.monitorId_oneBased != _lastKnownFocus.monitorId_oneBased {
+    if frozenFocus.monitorViewportStableIdentity != _lastKnownFocus.monitorViewportStableIdentity {
         hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus

@@ -486,14 +486,16 @@ Slice-specific checks:
   `logs/slice-26-zone-divider-drag.event-manifest.tsv`,
   `logs/slice-26-zone-divider-drag.mouse-events.tsv`, and
   `logs/slice-26-zone-divider-drag.proof-manifest.tsv`; require separate rows
-  for `divider-hover`, `divider-pickup`, `divider-drag-path`,
-  `divider-live-preview`, `divider-release`, and `after-divider-resize`, in
-  that order. The proof manifest must state `drag-target	snap-target	zone-divider`,
+  for `divider-content-guard`, `divider-hover`, `divider-pickup`,
+  `divider-drag-path`, `divider-live-preview`, `divider-release`, and
+  `after-divider-resize`, in that order. The proof manifest must state
+  `drag-target	snap-target	zone-divider`,
   `divider-policy	target	adjacent-zone-boundary`, and
   `divider-policy	config-persistence	no-config-rewrite`, and it must
-  distinguish the real boundary from the click point with
+  distinguish the real boundary from the content guard and click point with
   `divider-points	boundary	...` plus
-  `divider-points	hit-band-offset-pixels	8`. Inspect
+  `divider-points	content-guard-offset-pixels	8` and
+  `divider-points	hit-band-offset-pixels	2`. Inspect
   `logs/winmux-app.log`; require `zoneDivider.start` and `zoneDivider.commit`,
   and reject if `resize.start ... kind=zoneDivider` appears because that means
   the demo also used native window resizing. Compare

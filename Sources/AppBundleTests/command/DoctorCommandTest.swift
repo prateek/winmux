@@ -60,10 +60,65 @@ final class DoctorCommandTest: XCTestCase {
             XCTAssertFalse(allText.contains(NSUserName()))
             XCTAssertFalse(allText.contains("Secret Board"))
             XCTAssertFalse(allText.contains("com.secret.Mail"))
+            XCTAssertFalse(allText.contains("multi-line-token-secret"))
+            XCTAssertFalse(allText.contains("comment-poison-secret"))
+            XCTAssertFalse(allText.contains("abc]def"))
             XCTAssertTrue(allText.contains("<redacted-window-title>"))
             XCTAssertTrue(allText.contains("<redacted-app-identifier>"))
+            XCTAssertTrue(allText.contains(#"if.app-id = "<redacted>""#))
+            XCTAssertTrue(allText.contains(#"if."app-id" = "<redacted>""#))
+            XCTAssertTrue(allText.contains(#"if."app\u002Did" = "<redacted>""#))
+            XCTAssertTrue(allText.contains(#"#app-id = "<redacted>""#))
+            XCTAssertTrue(allText.contains(#"api-token = "<redacted>""#))
             XCTAssertTrue(allText.contains("monitor-id\tzone-id\tzone-name\tphysical-identity\tactive-workspace"))
             XCTAssertTrue(allText.contains("zone-support-bundle") || allText.contains("winmux-zone-support-bundle"))
+        }
+    }
+
+    func testZoneSupportBundleRedactsSensitiveParseErrors() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig(extraConfigText: """
+
+        [[zone-affinities]]
+        zone = "Comms"
+        if.window-title-regex-substring = "Secret Board ("
+        """) { outputDirectory in
+            let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
+            let doctorText = try String(contentsOf: outputDirectory.appending(component: "config-doctor.txt"), encoding: .utf8)
+            XCTAssertTrue(doctorText.contains("config status: ERROR"))
+            XCTAssertFalse(doctorText.contains("Secret Board"))
+            XCTAssertTrue(doctorText.contains("<redacted-config-value>"))
+        }
+    }
+
+    func testZoneSupportBundleResolvesRelativeAndTildeOutputPathsFromClient() async throws {
+        configureSupportBundleZones()
+
+        try await withTemporaryDoctorConfig { outputDirectory in
+            let baseDirectory = outputDirectory.deletingLastPathComponent()
+            let relativeResult = try await parseCommand("doctor zones --support-bundle --output bundle").cmdOrDie
+                .run(.defaultEnv.copy(\.clientCurrentDirectory, baseDirectory.path), .emptyStdin)
+
+            XCTAssertEqual(relativeResult.exitCode, 0, relativeResult.stderr.joined(separator: "\n"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outputDirectory.appending(component: "manifest.txt").path))
+            XCTAssertTrue(relativeResult.stdout.joined(separator: "\n").contains("Zone support bundle: \(outputDirectory.path)"))
+        }
+
+        try await withTemporaryDoctorConfig { _ in
+            let bundleName = ".winmux-doctor-tilde-\(UUID().uuidString)"
+            let homeOutput = FileManager.default.homeDirectoryForCurrentUser.appending(component: bundleName)
+            defer { try? FileManager.default.removeItem(at: homeOutput) }
+
+            let tildeResult = try await parseCommand("doctor zones --support-bundle --output ~/\(bundleName)").cmdOrDie
+                .run(.defaultEnv, .emptyStdin)
+
+            XCTAssertEqual(tildeResult.exitCode, 0, tildeResult.stderr.joined(separator: "\n"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: homeOutput.appending(component: "manifest.txt").path))
+            XCTAssertTrue(tildeResult.stdout.joined(separator: "\n").contains("Zone support bundle: \(homeOutput.path)"))
         }
     }
 
@@ -123,7 +178,10 @@ private func supportBundleAffinity() -> ZoneAffinityConfig {
 }
 
 @MainActor
-private func withTemporaryDoctorConfig(_ body: (URL) async throws -> Void) async throws {
+private func withTemporaryDoctorConfig(
+    extraConfigText: String = "",
+    _ body: (URL) async throws -> Void,
+) async throws {
     let previousConfigUrl = configUrl
     let directory = FileManager.default.temporaryDirectory
         .appending(component: "winmux-doctor-support-\(UUID().uuidString)")
@@ -134,8 +192,19 @@ private func withTemporaryDoctorConfig(_ body: (URL) async throws -> Void) async
 
     # token = "super-secret-token"
     # app-id = "com.secret.Mail"
+    #app-id = "com.secret.Mail"
     # window-title-regex-substring = "Secret Board"
     # private-path = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Secret"
+    zone-affinities = [{ if.app-id = 'com.secret.Mail', zone = 'comms' }]
+    quoted-zone-affinities = [{ if."app-id" = "com.secret.Mail", zone = "comms" }]
+    escaped-key-zone-affinities = [{ if."app\\u002Did" = "com.secret.Mail", zone = "comms" }]
+    # don't let this comment apostrophe hide the next sensitive assignment
+    comment-poison-api-token = "comment-poison-secret"
+    api-token = \"\"\"
+    multi-line-token-secret
+    \"\"\"
+    bracket-token = ["abc]def"]
+    \(extraConfigText)
     """
     try configText.write(to: configFile, atomically: true, encoding: .utf8)
     configUrl = configFile

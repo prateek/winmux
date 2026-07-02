@@ -25,8 +25,42 @@ GENERATED_VERSION_SNAPSHOT_DIR=""
 BASE_VM="${WINMUX_E2E_BASE_VM:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
 VM_NAME="${WINMUX_E2E_VM_NAME:-winmux-e2e-${RUN_ID}}"
 VM_DISPLAY="${WINMUX_E2E_VM_DISPLAY:-3440x1440px}"
+
+uses_packaged_default_config_action() {
+    case "$1" in
+        slice-35|slice-37|slice-38|slice-39|slice-40|slice-50)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+mutates_active_config_action() {
+    case "$1" in
+        slice-29|slice-31|slice-32|slice-46|slice-48|slice-50)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+stateful_post_recording_action() {
+    case "$1" in
+        slice-46|slice-47|slice-48|slice-50)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/harness-smoke.toml"
-if [ "$ACTION" = "slice-2" ] || [ "$ACTION" = "slice-3" ] || [ "$ACTION" = "slice-4" ]; then
+if [ "$ACTION" = "slice-1" ] || [ "$ACTION" = "slice-2" ] || [ "$ACTION" = "slice-3" ] || [ "$ACTION" = "slice-4" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones.toml"
 fi
 if [ "$ACTION" = "slice-5" ]; then
@@ -44,7 +78,7 @@ fi
 if [ "$ACTION" = "slice-34" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
-if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ] || [ "$ACTION" = "slice-40" ] || [ "$ACTION" = "slice-50" ]; then
+if uses_packaged_default_config_action "$ACTION"; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
 if [ "$ACTION" = "slice-41" ]; then
@@ -136,7 +170,7 @@ if [ "$ACTION" = "slice-31" ]; then
 fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 ACTIVE_CONFIG_HASH_POLICY="${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-immutable}"
-if { [ "$ACTION" = "slice-29" ] || [ "$ACTION" = "slice-31" ] || [ "$ACTION" = "slice-32" ] || [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-48" ] || [ "$ACTION" = "slice-50" ]; } && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
+if mutates_active_config_action "$ACTION" && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
     ACTIVE_CONFIG_HASH_POLICY=mutates
 fi
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
@@ -930,7 +964,7 @@ guest_script_retry() {
     local attempt=1
     local failure_count=0
     local max_attempts="$GUEST_ACTION_ATTEMPTS"
-    if { [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-47" ] || [ "$ACTION" = "slice-48" ] || [ "$ACTION" = "slice-50" ]; } && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
+    if stateful_post_recording_action "$ACTION" && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
         max_attempts=1
     fi
 
@@ -1013,10 +1047,7 @@ has_post_recording_guest_retry_failures() {
 }
 
 require_no_post_recording_guest_retry_failures() {
-    case "$ACTION" in
-        slice-46|slice-47|slice-48|slice-50) ;;
-        *) return 0 ;;
-    esac
+    stateful_post_recording_action "$ACTION" || return 0
 
     if has_post_recording_guest_retry_failures; then
         local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
@@ -3631,6 +3662,41 @@ write_event_manifest() {
     esac
 }
 
+env_value_from_file() {
+    local key="$1"
+    local path="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$path"
+}
+
+slice_50_package_caption_command() {
+    local provenance="${LOGS_DIR}/package-provenance.env"
+    [ -s "$provenance" ] || die "Slice 50 annotation requires package provenance: ${provenance}"
+    local command
+    command="$(env_value_from_file package_command "$provenance")"
+    [ -n "$command" ] || die "Slice 50 package provenance is missing package_command"
+    case "$command" in
+        *PUBLISH=0*) ;;
+        *) die "Slice 50 package caption command must include PUBLISH=0: ${command}" ;;
+    esac
+    printf '%s\n' "$command"
+}
+
+write_slice_50_annotation_plan() {
+    local captions_path="$1"
+    local package_command
+    package_command="$(slice_50_package_caption_command)"
+    cat >"$captions_path" <<CAPTIONS
+0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: ${package_command}
+14	26	Launch packaged app	Start WinMux from /Applications with no config-path override.	Run: WinMuxApp from /Applications/WinMux.app
+26	38	Check package status	Show the installed app identity, normal config path, and permissions.	Run: winmux doctor
+38	48	Confirm config source	The CLI reports the editable user config path.	Run: winmux config --config-path
+48	58	Validate normal config	Check the same user config path through the packaged server.	Run: winmux config --check ~/.config/winmux/winmux.toml
+58	74	Generate support bundle	Create the attachable diagnostics directory from the packaged CLI.	Run: winmux doctor zones --support-bundle
+74	88	Inspect packaged zones	Reference, Work, and Comms come from the packaged install.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+88	100	Ready for beta acceptance	The package, install proof, launch proof, and support bundle are stored.	Result: package install path is ready
+CAPTIONS
+}
+
 write_annotation_plan() {
     local name="$1"
     local captions_path="$2"
@@ -3642,9 +3708,9 @@ write_annotation_plan() {
 4	10	Recording harness proof	Artifacts include video, screenshots, logs, and config.	Run: make e2e-verify-slice RUN_DIR=artifacts/e2e/harness-smoke
 CAPTIONS
             ;;
-        slice-1-zone-spike)
+        slice-1-config-zones)
             cat >"$captions_path" <<'CAPTIONS'
-0	4	One ultrawide, three zones	WinMux treats each column as a workspace viewport.	Debug: WINMUX_ZONES_SPIKE=1 WinMuxApp
+0	4	One ultrawide, three zones	WinMux treats each configured column as a workspace viewport.	Config: [[zones]] columns = left, main, right
 4	11	Independent workspaces	Focus moves across left, main, and right zones.	Run: winmux focus-monitor right
 11	18	Live proof	The final logs confirm each zone keeps its own workspace.	Run: winmux list-workspaces --all
 CAPTIONS
@@ -3862,16 +3928,7 @@ CAPTIONS
 CAPTIONS
             ;;
         slice-50-package-release)
-            cat >"$captions_path" <<'CAPTIONS'
-0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: make beta-package VERSION=0.50.0-slice50 PUBLISH=0
-14	26	Launch packaged app	Start WinMux from /Applications with no config-path override.	Run: WinMuxApp from /Applications/WinMux.app
-26	38	Check package status	Show the installed app identity, normal config path, and permissions.	Run: winmux doctor
-38	48	Confirm config source	The CLI reports the editable user config path.	Run: winmux config --config-path
-48	58	Validate normal config	Check the same user config path through the packaged server.	Run: winmux config --check ~/.config/winmux/winmux.toml
-58	74	Generate support bundle	Create the attachable diagnostics directory from the packaged CLI.	Run: winmux doctor zones --support-bundle
-74	88	Inspect packaged zones	Reference, Work, and Comms come from the packaged install.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
-88	100	Ready for beta acceptance	The package, install proof, launch proof, and support bundle are stored.	Result: package install path is ready
-CAPTIONS
+            write_slice_50_annotation_plan "$captions_path"
             ;;
         slice-8-window-routing)
             cat >"$captions_path" <<'CAPTIONS'
@@ -4191,7 +4248,7 @@ annotation_preflight() {
     local name captions output render_log caption_footprint caption_anchor
     for name in \
         harness-smoke \
-        slice-1-zone-spike \
+        slice-1-config-zones \
         slice-2-config-zones \
         slice-3-stable-identity \
         slice-4-zone-commands \
@@ -4243,6 +4300,11 @@ annotation_preflight() {
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
+        if [ "$name" = "slice-50-package-release" ]; then
+            cat >"${tmp_dir}/logs/package-provenance.env" <<'EOF'
+package_command=make beta-package VERSION=0.50.0-20260702T140040Z PUBLISH=0
+EOF
+        fi
         write_annotation_plan "$name" "$captions"
         case "$name" in
             slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor|slice-47-zone-chrome-polish|slice-48-support-bundle-diagnostics|slice-50-package-release)
@@ -4273,7 +4335,7 @@ annotation_preflight() {
                         printf("Caption chip %d is missing a user-facing prefix: %s\n", i - 4, $i) > "/dev/stderr"
                         exit 1
                     }
-                    if ($i ~ /\.\.\.|<[^>]*>|winmux <command>/) {
+                    if ($i ~ /\.\.\.|<[^>]*>|winmux <command>|VERSION=[^[:space:]]*slice50/) {
                         printf("Caption chip %d uses a placeholder command/config/action/result: %s\n", i - 4, $i) > "/dev/stderr"
                         exit 1
                     }
@@ -6410,8 +6472,8 @@ echo "guest smoke complete"'
     cat "${LOGS_DIR}/guest-smoke.log"
 }
 
-run_slice_1_spike() {
-    local scenario_path="${GUEST_ARTIFACTS_DIR}/slice-1-spike.sh"
+run_slice_1_config_zones() {
+    local scenario_path="${GUEST_ARTIFACTS_DIR}/slice-1-config-zones.sh"
     local scenario_path_quoted
     local guest_repo_quoted
     local guest_artifacts_quoted
@@ -6442,16 +6504,16 @@ MONITOR_LOG=\"\${ARTIFACTS_DIR}/logs/slice-1-monitors.log\"
 FOCUS_LOG=\"\${ARTIFACTS_DIR}/logs/slice-1-focus.log\"
 WORKSPACE_LOG=\"\${ARTIFACTS_DIR}/logs/slice-1-workspaces.log\"
 LAUNCH_STATUS=\"\${ARTIFACTS_DIR}/logs/winmux-launchagent-status.log\"
-DONE=\"\${ARTIFACTS_DIR}/logs/slice-1-spike.done\"
+DONE=\"\${ARTIFACTS_DIR}/logs/slice-1-config-zones.done\"
 WAIT_ERR=\"\${ARTIFACTS_DIR}/logs/slice-1-cli-wait.err\"
-PROOF=\"\${ARTIFACTS_DIR}/slice-1-zone-spike-proof.txt\"
+PROOF=\"\${ARTIFACTS_DIR}/slice-1-config-zones-proof.txt\"
 LAUNCH_LABEL=\"local.winmux.e2e.slice1\"
 LAUNCH_PLIST=\"/tmp/winmux-e2e-slice1.plist\"
 LAUNCH_PLIST_COPY=\"\${ARTIFACTS_DIR}/logs/winmux-e2e-slice1.plist\"
 
 rm -f \"\${DONE}\" \"\${CLI_LOG}\" \"\${MONITOR_LOG}\" \"\${FOCUS_LOG}\" \"\${WORKSPACE_LOG}\" \"\${WAIT_ERR}\" \"\${PROOF}\" \"\${APP_LOG}\" \"\${APP_LOG_LOCAL}\" \"\${STARTUP_TRACE}\" \"\${STARTUP_TRACE_LOCAL}\" \"\${LAUNCH_STATUS}\" \"\${LAUNCH_PLIST}\" \"\${LAUNCH_PLIST_COPY}\"
-echo 'WinMux Slice 1: hardcoded three-column zone spike'
-echo 'Environment: WINMUX_ZONES_SPIKE=1'
+echo 'WinMux Slice 1: config-backed three-column zones'
+echo 'Config: explicit [[zones]] left/main/right columns'
 echo
 echo \"Source App: \${SOURCE_APP}\"
 echo \"Source CLI: \${SOURCE_CLI}\"
@@ -6488,8 +6550,6 @@ cat >\"\${LAUNCH_PLIST}\" <<PLIST
     </array>
     <key>EnvironmentVariables</key>
     <dict>
-        <key>WINMUX_ZONES_SPIKE</key>
-        <string>1</string>
         <key>WINMUX_DEFAULT_CONFIG_PATH</key>
         <string>\${CONFIG}</string>
         <key>WINMUX_E2E_SKIP_PERMISSION_PROMPTS</key>
@@ -6593,9 +6653,9 @@ grep -F 'zone=main' \"\${WORKSPACE_LOG}\" >/dev/null
 grep -F 'zone=right' \"\${WORKSPACE_LOG}\" >/dev/null
 
 {
-    echo 'WinMux Slice 1: hardcoded zone spike'
+    echo 'WinMux Slice 1: config-backed zones'
     echo
-    echo 'WINMUX_ZONES_SPIKE=1 exposes three monitor-like workspace viewports:'
+    echo 'Explicit [[zones]] config exposes three monitor-like workspace viewports:'
     cat \"\${MONITOR_LOG}\"
     echo
     echo 'Directional monitor focus traverses zone viewports:'
@@ -6668,7 +6728,7 @@ LAUNCH_PLIST_COPY=\"\${ARTIFACTS_DIR}/logs/winmux-e2e-slice2.plist\"
 rm -f \"\${DONE}\" \"\${CLI_LOG}\" \"\${MONITOR_LOG}\" \"\${FOCUS_LOG}\" \"\${WINDOW_LOG}\" \"\${MOVE_LOG}\" \"\${WORKSPACE_LOG}\" \"\${WAIT_ERR}\" \"\${PROOF}\" \"\${APP_LOG}\" \"\${APP_LOG_LOCAL}\" \"\${STARTUP_TRACE}\" \"\${STARTUP_TRACE_LOCAL}\" \"\${LAUNCH_STATUS}\" \"\${LAUNCH_PLIST}\" \"\${LAUNCH_PLIST_COPY}\"
 rm -rf \"\${ZONE_DOC_DIR}\"
 echo 'WinMux Slice 2: config-backed column zones with live windows'
-echo 'Environment: WINMUX_ZONES_SPIKE is intentionally unset'
+echo 'Config: explicit [[zones]] left/main/right columns'
 echo
 echo \"Source App: \${SOURCE_APP}\"
 echo \"Source CLI: \${SOURCE_CLI}\"
@@ -8375,7 +8435,7 @@ smoke() {
 }
 
 slice_1() {
-    run_recorded_scenario "slice-1-zone-spike" "00-before-slice-1" "99-after-slice-1" "run_slice_1_spike"
+    run_recorded_scenario "slice-1-config-zones" "00-before-slice-1" "99-after-slice-1" "run_slice_1_config_zones"
 }
 
 slice_2() {

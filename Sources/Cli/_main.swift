@@ -162,7 +162,13 @@ private func shouldUseRelativeWorkspaceStdin(_ args: any CmdArgs) -> Bool {
 }
 
 func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UInt32?, workspace: String?) async {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: "", windowId: windowId, workspace: workspace)).error {
+    if let e = await connection.writeAtomic(ClientRequest(
+        args: args.toArray(),
+        stdin: "",
+        windowId: windowId,
+        workspace: workspace,
+        currentDirectory: FileManager.default.currentDirectoryPath,
+    )).error {
         exit(1, err: "Failed to write to server socket: \(e)")
     }
 
@@ -182,7 +188,13 @@ func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UIn
 }
 
 func run(_ connection: NWConnection, _ args: StrArrSlice, stdin: String, windowId: UInt32?, workspace: String?) async -> ServerAnswer {
-    if let e = await connection.writeAtomic(ClientRequest(args: args.toArray(), stdin: stdin, windowId: windowId, workspace: workspace)).error {
+    if let e = await connection.writeAtomic(ClientRequest(
+        args: args.toArray(),
+        stdin: stdin,
+        windowId: windowId,
+        workspace: workspace,
+        currentDirectory: FileManager.default.currentDirectoryPath,
+    )).error {
         exit(1, err: "Failed to write to server socket: \(e)")
     }
 

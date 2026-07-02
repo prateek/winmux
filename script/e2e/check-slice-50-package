@@ -137,6 +137,31 @@ validate_normal_config_path() {
         || die "guest_user must identify the clean guest, not the verifier host user"
 }
 
+validate_package_caption_command() {
+    local package_command="$1"
+    local expected_chips="logs/slice-50-package-release.expected-chips.txt"
+    local annotations="logs/slice-50-package-release.annotations.tsv"
+    require_file_under_run "$expected_chips"
+    require_file_under_run "$annotations"
+    /usr/bin/grep -Fx "Run: ${package_command}" "${RUN_DIR}/${expected_chips}" >/dev/null \
+        || die "Slice 50 expected caption chips must include package provenance command"
+    /usr/bin/awk -F'\t' -v chip="Run: ${package_command}" '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            for (i = 5; i <= NF; i++) {
+                if ($i == chip) {
+                    found = 1
+                }
+            }
+        }
+        END { exit(found ? 0 : 1) }
+    ' "${RUN_DIR}/${annotations}" \
+        || die "Slice 50 annotations must render package provenance command"
+    if /usr/bin/grep -F 'RELEASE_DIR=' "${RUN_DIR}/${expected_chips}" "${RUN_DIR}/${annotations}" >/dev/null; then
+        die "Slice 50 visible package caption must not include harness RELEASE_DIR"
+    fi
+}
+
 validate_product_evidence_index() {
     local artifact_index="${RUN_DIR}/logs/product-evidence-index.tsv"
     local header feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims
@@ -312,6 +337,7 @@ validate_package_artifact() {
         *PUBLISH=0*) ;;
         *) die "package command must make PUBLISH=0 explicit: ${package_command}" ;;
     esac
+    validate_package_caption_command "$package_command"
 
     local package_path package_sha app_path app_sha cli_path cli_sha
     package_path="$(require_env_value package_path "$provenance")"
@@ -553,6 +579,13 @@ EOF
         printf 'screen-recording=granted\n'
     } >"$tmp/${launch_proof}"
     provenance="$tmp/logs/package-provenance.env"
+    cat >"$tmp/logs/slice-50-package-release.expected-chips.txt" <<'EOF'
+Run: make release VERSION=0.0.0-self-test PUBLISH=0
+Run: WinMuxApp from /Applications/WinMux.app
+EOF
+    cat >"$tmp/logs/slice-50-package-release.annotations.tsv" <<'EOF'
+0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: make release VERSION=0.0.0-self-test PUBLISH=0
+EOF
     cat >"$provenance" <<EOF
 source_commit=self-test
 git_status_sha256=self-test
@@ -578,6 +611,12 @@ support_bundle_path=logs/slice-50-zone-support-bundle
 support_bundle_schema_log_path=logs/support-bundle-schema.log
 EOF
     validate_package_artifact
+
+    /usr/bin/perl -0pi -e 's/Run: make release VERSION=0.0.0-self-test PUBLISH=0/Run: make release VERSION=stale PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected stale package caption rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/Run: make release VERSION=stale PUBLISH=0/Run: make release VERSION=0.0.0-self-test PUBLISH=0/' "$tmp/logs/slice-50-package-release.expected-chips.txt"
 
     mv "$tmp/logs/package-slice-manifest.txt" "$tmp/logs/package-slice-manifest.txt.bak"
     if ( validate_package_artifact ) >/dev/null 2>&1; then

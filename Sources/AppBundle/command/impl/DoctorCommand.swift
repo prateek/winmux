@@ -9,7 +9,7 @@ struct DoctorCommand: Command {
         if args.subject == .zones, args.supportBundle {
             do {
                 let bundle = try await writeZoneSupportBundle(options: ZoneSupportBundleOptions(
-                    outputPath: args.outputPath,
+                    outputPath: resolvedOutputPath(args.outputPath, clientCurrentDirectory: env.clientCurrentDirectory),
                     includeWindowTitles: args.includeWindowTitles,
                 ))
                 io.out("Zone support bundle: \(bundle.directory.path)")
@@ -96,5 +96,21 @@ struct DoctorCommand: Command {
 
     private func permissionStatus(_ granted: Bool, missing: String) -> String {
         granted ? "granted" : missing
+    }
+
+    private func resolvedOutputPath(_ outputPath: String?, clientCurrentDirectory: String?) -> String? {
+        guard let outputPath else { return nil }
+        let expandedPath = (outputPath as NSString).expandingTildeInPath
+        if expandedPath.hasPrefix("/") {
+            return URL(fileURLWithPath: expandedPath).standardizedFileURL.path
+        }
+
+        let baseDirectory = clientCurrentDirectory ?? FileManager.default.currentDirectoryPath
+        return URL(
+            fileURLWithPath: expandedPath,
+            relativeTo: URL(fileURLWithPath: baseDirectory, isDirectory: true),
+        )
+        .standardizedFileURL
+        .path
     }
 }

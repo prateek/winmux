@@ -118,7 +118,7 @@ private struct ZoneSupportBundleWriter {
             readError: snapshot.readError,
             runtimeOverlays: zoneRuntimeOverlaysSnapshot(),
         )
-        .map(redactor.redact)
+        .map(redactor.redactConfigDiagnostic)
         .joined(separator: "\n")
     }
 
@@ -373,25 +373,333 @@ private struct ZoneSupportBundleRedactor {
     }
 
     func redactConfigText(_ text: String) -> String {
-        text
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { redactConfigLine(String($0)) }
-            .joined(separator: "\n")
+        redact(redactSensitiveConfigAssignments(in: text))
     }
 
-    private func redactConfigLine(_ line: String) -> String {
-        guard let equalsIndex = line.firstIndex(of: "=") else {
-            return redact(line)
+    func redactConfigDiagnostic(_ value: String) -> String {
+        let redacted = redact(redactSensitiveConfigAssignments(in: value))
+        guard redacted.localizedCaseInsensitiveContains("error") ||
+              redacted.localizedCaseInsensitiveContains("can't parse") ||
+              isSensitiveConfigKey(redacted)
+        else {
+            return redacted
         }
-        let key = line[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if isSensitiveConfigKey(key) {
-            return redact(String(line[..<equalsIndex])) + "= \"<redacted>\""
+        let quotedValuesRedacted = redactQuotedConfigValues(in: redacted)
+        let parseValueRedacted = replaceMatches(
+            in: quotedValuesRedacted,
+            pattern: #"(?i)(can't parse\s+).+?(\s+regex)"#,
+            replacement: #"$1<redacted-config-value>$2"#,
+        )
+        guard isSensitiveConfigKey(parseValueRedacted) else { return parseValueRedacted }
+        return replaceMatches(
+            in: parseValueRedacted,
+            pattern: #"(?i)((?:window-title|app-id|app-name|bundle-id|password|secret|token|credential|api-key|apikey)[^:\n]*:\s*).+"#,
+            replacement: #"$1<redacted-config-value>"#,
+        )
+    }
+
+    private func redactSensitiveConfigAssignments(in text: String) -> String {
+        let assignments = sensitiveConfigValueRanges(in: text)
+        var result = text
+        for range in assignments.reversed() {
+            result = (result as NSString).replacingCharacters(in: range, with: #""<redacted>""#)
         }
-        return redact(line)
+        return result
+    }
+
+    private func sensitiveConfigValueRanges(in text: String) -> [NSRange] {
+        var ranges: [NSRange] = []
+        var index = text.startIndex
+        while index < text.endIndex {
+            if text[index] == "=",
+               !isInsideConfigString(index, in: text),
+               let keyRange = configAssignmentKeyRange(endingAt: index, in: text),
+               isSensitiveConfigKey(String(text[keyRange])),
+               let valueRange = configAssignmentValueRange(startingAfter: index, in: text)
+            {
+                ranges.append(NSRange(valueRange, in: text))
+                index = valueRange.upperBound
+            } else {
+                index = text.index(after: index)
+            }
+        }
+        return ranges
+    }
+
+    private func configAssignmentKeyRange(
+        endingAt equalsIndex: String.Index,
+        in text: String,
+    ) -> Range<String.Index>? {
+        var start = equalsIndex
+        while start > text.startIndex {
+            let previous = text.index(before: start)
+            if "\n,#{[".contains(text[previous]) {
+                break
+            }
+            start = previous
+        }
+        let range = start ..< equalsIndex
+        let trimmed = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return range
+    }
+
+    private func normalizedConfigKey(_ key: String) -> String {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        var result = ""
+        var index = trimmed.startIndex
+        while index < trimmed.endIndex {
+            switch trimmed[index] {
+                case "\"":
+                    let decoded = decodeTomlBasicStringContent(startingAt: index, in: trimmed)
+                    result += decoded.value
+                    index = decoded.end
+                case "'":
+                    let decoded = decodeTomlLiteralStringContent(startingAt: index, in: trimmed)
+                    result += decoded.value
+                    index = decoded.end
+                default:
+                    result.append(trimmed[index])
+                    index = trimmed.index(after: index)
+            }
+        }
+        return result.lowercased()
+    }
+
+    private func decodeTomlBasicStringContent(
+        startingAt start: String.Index,
+        in text: String,
+    ) -> (value: String, end: String.Index) {
+        var result = ""
+        var index = text.index(after: start)
+        while index < text.endIndex {
+            let char = text[index]
+            if char == "\"" {
+                return (result, text.index(after: index))
+            }
+            if char == "\\" {
+                let escapeStart = index
+                index = text.index(after: index)
+                guard index < text.endIndex else {
+                    result.append("\\")
+                    return (result, index)
+                }
+                switch text[index] {
+                    case "b":
+                        result.append("\u{08}")
+                        index = text.index(after: index)
+                    case "t":
+                        result.append("\t")
+                        index = text.index(after: index)
+                    case "n":
+                        result.append("\n")
+                        index = text.index(after: index)
+                    case "f":
+                        result.append("\u{0C}")
+                        index = text.index(after: index)
+                    case "r":
+                        result.append("\r")
+                        index = text.index(after: index)
+                    case "\"":
+                        result.append("\"")
+                        index = text.index(after: index)
+                    case "\\":
+                        result.append("\\")
+                        index = text.index(after: index)
+                    case "u":
+                        let decoded = decodeUnicodeEscape(length: 4, afterMarkerAt: index, in: text)
+                        result += decoded.value ?? String(text[escapeStart ... index])
+                        index = decoded.end
+                    case "U":
+                        let decoded = decodeUnicodeEscape(length: 8, afterMarkerAt: index, in: text)
+                        result += decoded.value ?? String(text[escapeStart ... index])
+                        index = decoded.end
+                    default:
+                        result.append(text[index])
+                        index = text.index(after: index)
+                }
+            } else {
+                result.append(char)
+                index = text.index(after: index)
+            }
+        }
+        return (result, text.endIndex)
+    }
+
+    private func decodeUnicodeEscape(
+        length: Int,
+        afterMarkerAt marker: String.Index,
+        in text: String,
+    ) -> (value: String?, end: String.Index) {
+        let hexStart = text.index(after: marker)
+        var hexEnd = hexStart
+        for _ in 0 ..< length {
+            guard hexEnd < text.endIndex else { return (nil, hexStart) }
+            hexEnd = text.index(after: hexEnd)
+        }
+        let hex = String(text[hexStart ..< hexEnd])
+        guard let value = UInt32(hex, radix: 16), let scalar = Unicode.Scalar(value) else {
+            return (nil, hexEnd)
+        }
+        return (String(Character(scalar)), hexEnd)
+    }
+
+    private func decodeTomlLiteralStringContent(
+        startingAt start: String.Index,
+        in text: String,
+    ) -> (value: String, end: String.Index) {
+        var result = ""
+        var index = text.index(after: start)
+        while index < text.endIndex {
+            if text[index] == "'" {
+                return (result, text.index(after: index))
+            }
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+        return (result, text.endIndex)
+    }
+
+    private func configAssignmentValueRange(
+        startingAfter equalsIndex: String.Index,
+        in text: String,
+    ) -> Range<String.Index>? {
+        var start = text.index(after: equalsIndex)
+        while start < text.endIndex, text[start].isWhitespace, text[start] != "\n" {
+            start = text.index(after: start)
+        }
+        guard start < text.endIndex else { return nil }
+        var index = start
+        var squareDepth = 0
+        var braceDepth = 0
+        while index < text.endIndex {
+            let char = text[index]
+            if char == "\"" || char == "'" {
+                index = configStringEnd(startingAt: index, in: text)
+                continue
+            }
+            switch char {
+                case "[":
+                    squareDepth += 1
+                case "]":
+                    if squareDepth == 0 && braceDepth == 0 {
+                        return start ..< index
+                    }
+                    squareDepth = max(0, squareDepth - 1)
+                    if squareDepth == 0 && braceDepth == 0 {
+                        index = text.index(after: index)
+                        return start ..< index
+                    }
+                case "{":
+                    braceDepth += 1
+                case "}":
+                    if squareDepth == 0 && braceDepth == 0 {
+                        return start ..< index
+                    }
+                    braceDepth = max(0, braceDepth - 1)
+                    if squareDepth == 0 && braceDepth == 0 {
+                        index = text.index(after: index)
+                        return start ..< index
+                    }
+                case ",", "#":
+                    if squareDepth == 0 && braceDepth == 0 {
+                        return start ..< index
+                    }
+                case "\n":
+                    if squareDepth == 0 && braceDepth == 0 {
+                        return start ..< index
+                    }
+                default:
+                    break
+            }
+            index = text.index(after: index)
+        }
+        return start ..< text.endIndex
+    }
+
+    private func configStringEnd(startingAt start: String.Index, in text: String) -> String.Index {
+        let quote = text[start]
+        let afterFirst = text.index(after: start)
+        let isTriple = afterFirst < text.endIndex &&
+            text[afterFirst] == quote &&
+            text.index(after: afterFirst) < text.endIndex &&
+            text[text.index(after: afterFirst)] == quote
+        var index = isTriple ? text.index(start, offsetBy: 3) : afterFirst
+        while index < text.endIndex {
+            if text[index] == quote {
+                if isTriple {
+                    let second = text.index(after: index)
+                    let third = second < text.endIndex ? text.index(after: second) : text.endIndex
+                    if second < text.endIndex, third < text.endIndex, text[second] == quote, text[third] == quote {
+                        return text.index(after: third)
+                    }
+                } else {
+                    return text.index(after: index)
+                }
+            }
+            if quote == "\"", text[index] == "\\", !isTriple {
+                index = text.index(after: index)
+                if index < text.endIndex {
+                    index = text.index(after: index)
+                    continue
+                }
+            } else {
+                index = text.index(after: index)
+            }
+        }
+        return text.endIndex
+    }
+
+    private func isInsideConfigString(_ target: String.Index, in text: String) -> Bool {
+        var index = text.startIndex
+        var isInsideComment = false
+        while index < target {
+            if isInsideComment {
+                if text[index] == "\n" {
+                    isInsideComment = false
+                }
+                index = text.index(after: index)
+            } else if text[index] == "#" {
+                isInsideComment = true
+                index = text.index(after: index)
+            } else if text[index] == "\"" || text[index] == "'" {
+                let end = configStringEnd(startingAt: index, in: text)
+                if target < end {
+                    return true
+                }
+                index = end
+            } else {
+                index = text.index(after: index)
+            }
+        }
+        return false
+    }
+
+    private func redactQuotedConfigValues(in value: String) -> String {
+        let singleQuoted = replaceMatches(
+            in: value,
+            pattern: #"'(?:\\.|[^'])*'"#,
+            replacement: #"'<redacted-config-value>'"#,
+        )
+        return replaceMatches(
+            in: singleQuoted,
+            pattern: #""(?:\\.|[^"])*""#,
+            replacement: #""<redacted-config-value>""#,
+        )
+    }
+
+    private func replaceMatches(in value: String, pattern: String, replacement: String) -> String {
+        let regex = try! NSRegularExpression(pattern: pattern)
+        return regex.stringByReplacingMatches(
+            in: value,
+            range: NSRange(location: 0, length: (value as NSString).length),
+            withTemplate: replacement,
+        )
     }
 
     private func isSensitiveConfigKey(_ key: String) -> Bool {
-        if key.contains("window-title") {
+        let normalized = normalizedConfigKey(key)
+        if normalized.contains("window-title") {
             return !includeWindowTitles
         }
         return [
@@ -404,7 +712,7 @@ private struct ZoneSupportBundleRedactor {
             "app-id",
             "app-name",
             "bundle-id",
-        ].contains { key.contains($0) }
+        ].contains { normalized.contains($0) }
     }
 }
 

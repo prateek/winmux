@@ -52,7 +52,7 @@ mkdir -p "$RUN_DIR/package" "$RUN_DIR/bin" "$RUN_DIR/logs" "$RUN_DIR/docs"
 
 VERSION="${WINMUX_E2E_PACKAGE_VERSION:-0.50.0-$(date -u +%Y%m%dT%H%M%SZ)}"
 BUILD_RELEASE_DIR="${RUN_DIR}/host-release"
-PACKAGE_COMMAND="make beta-package VERSION=${VERSION} PUBLISH=0 RELEASE_DIR=${BUILD_RELEASE_DIR}"
+PACKAGE_COMMAND="make beta-package VERSION=${VERSION} PUBLISH=0"
 PACKAGE_ZIP_NAME="WinMux-${VERSION}.zip"
 SOURCE_COMMIT="$(cd "$REPO_ROOT" && git rev-parse HEAD)"
 GIT_STATUS_SHA="$(git_status_sha)"
@@ -94,6 +94,7 @@ source_commit=${SOURCE_COMMIT}
 git_status_sha256=${GIT_STATUS_SHA}
 version=${VERSION}
 package_command=${PACKAGE_COMMAND}
+release_dir=${BUILD_RELEASE_DIR}
 package_path=package/${PACKAGE_ZIP_NAME}
 package_sha256=$(sha256_path "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}")
 app_path=package/WinMux.app

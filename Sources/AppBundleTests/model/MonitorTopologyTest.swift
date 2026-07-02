@@ -26,6 +26,19 @@ private func assertRectsEqual(
     XCTAssertEqual(actual.map(\.height), expected.map(\.height), file: file, line: line)
 }
 
+private func threeColumnZoneConfig(monitor: MonitorDescription = .main, defaultZone: String = "main") -> ZoneConfig {
+    ZoneConfig(
+        monitor: monitor,
+        layout: .columns,
+        defaultZone: defaultZone,
+        columns: [
+            ZoneColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
+            ZoneColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
+            ZoneColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
+        ],
+    )
+}
+
 @MainActor
 final class MonitorTopologyTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
@@ -178,7 +191,7 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertEqual(viewports.map(\.isMain), [false, true, false, false])
     }
 
-    func testZoneSpikeIsDisabledByDefault() {
+    func testZonesAreDisabledWithoutExplicitConfig() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -187,14 +200,13 @@ final class MonitorTopologyTest: XCTestCase {
             isMain: true,
         )
         setMonitorsForTests([main])
-        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config, environment: [:]))
 
         XCTAssertEqual(workspaceViewports.count, 1)
         XCTAssertNil(workspaceViewports[0].zoneId)
         assertRectsEqual(workspaceViewports.map(\.rect), [main.rect])
     }
 
-    func testZoneSpikeEnvironmentSplitsMainMonitorIntoThreeColumns() {
+    func testExplicitConfigSplitsMainMonitorIntoThreeColumns() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -205,7 +217,7 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config, environment: ["WINMUX_ZONES_SPIKE": "1"]))
+        config.zones = [threeColumnZoneConfig()]
 
         XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
         XCTAssertEqual(monitors.map(\.zoneId), workspaceViewports.map(\.zoneId))
@@ -217,7 +229,7 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertEqual(workspaceViewports.map(\.isMain), [false, true, false])
     }
 
-    func testZoneSpikeViewportsCanShowIndependentWorkspaces() {
+    func testExplicitConfigViewportsCanShowIndependentWorkspaces() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -228,7 +240,7 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config, environment: ["WINMUX_ZONES_SPIKE": "1"]))
+        config.zones = [threeColumnZoneConfig()]
         let viewports = workspaceViewports
         XCTAssertEqual(viewports.map(\.zoneId), ["left", "main", "right"])
 
@@ -303,6 +315,8 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(MonitorViewportId(originalViewports[2]).hasSameStableIdentity(as: MonitorViewportId(updatedViewports[2])))
         XCTAssertNotEqual(originalViewports[1].rect.topLeftCorner, updatedViewports[1].rect.topLeftCorner)
         XCTAssertNotEqual(originalViewports[2].rect.topLeftCorner, updatedViewports[2].rect.topLeftCorner)
+        XCTAssertTrue(originalViewports[1].activeWorkspace === center)
+        XCTAssertTrue(originalViewports[2].activeWorkspace === right)
         XCTAssertTrue(updatedViewports[0].activeWorkspace === left)
         XCTAssertTrue(updatedViewports[1].activeWorkspace === center)
         XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
@@ -488,6 +502,10 @@ final class MonitorTopologyTest: XCTestCase {
             Rect(topLeftX: 600, topLeftY: 0, width: 600, height: 800),
         ])
         XCTAssertEqual(workspaceViewports.map(\.isMain), [true, false])
+        XCTAssertEqual(
+            getCurrentZoneTopologySnapshot().configuredZones(for: sortedPhysicalMonitors).map { "\($0.zoneId):\($0.isDefaultZone):\($0.isEnabled)" },
+            ["left:true:true", "main:false:false", "right:false:true"],
+        )
 
         switch setZoneAvailability(.enable, selector: ZoneSelector("main")) {
             case .success(let change):
@@ -529,7 +547,7 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config, environment: ["WINMUX_ZONES_SPIKE": "1"]))
+        config.zones = [threeColumnZoneConfig()]
 
         Workspace.reconcileWorkspaceState()
         let defaultZone = monitors.singleOrNil { $0.zoneId == "main" }.orDie()

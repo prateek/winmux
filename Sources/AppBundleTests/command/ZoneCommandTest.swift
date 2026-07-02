@@ -1264,6 +1264,115 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }
 
+    func testZoneDividerAmbientClickDoesNotStartInsideKnownWindowFrame() {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        TestWindow.new(
+            id: 451,
+            parent: work.rootTilingContainer,
+            rect: Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200),
+        )
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+
+        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
+        XCTAssertFalse(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
+        XCTAssertFalse(controller.isDragging)
+
+        XCTAssertTrue(controller.handleMouseDown(at: CGPoint(x: 900, y: 20)))
+        XCTAssertTrue(controller.isDragging)
+        controller.cancel()
+    }
+
+    func testZoneDividerAmbientClickChecksAppliedFrameWhenActualFrameIsStale() {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let window = TestWindow.new(
+            id: 454,
+            parent: work.rootTilingContainer,
+            rect: Rect(topLeftX: 100, topLeftY: 100, width: 80, height: 80),
+        )
+        window.lastKnownActualRect = Rect(topLeftX: 100, topLeftY: 100, width: 80, height: 80)
+        window.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200)
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+
+        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
+        XCTAssertFalse(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
+        XCTAssertFalse(controller.isDragging)
+    }
+
+    func testZoneDividerChromeCanStartInsideFullHeightTiledWindowFrame() {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        TestWindow.new(
+            id: 453,
+            parent: work.rootTilingContainer,
+            rect: Rect(topLeftX: 300, topLeftY: 0, width: 620, height: 800),
+        )
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+
+        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 400), hitSlop: 16))
+        XCTAssertFalse(controller.handleMouseDown(at: CGPoint(x: 900, y: 400)))
+        XCTAssertFalse(controller.isDragging)
+
+        XCTAssertTrue(controller.handleMouseDown(
+            at: CGPoint(x: 900, y: 400),
+            source: .dividerChrome,
+        ))
+        XCTAssertTrue(controller.isDragging)
+        controller.cancel()
+    }
+
+    func testZoneDividerChromeHitBandTracksVisibleHandleWidth() {
+        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .hover), 8)
+        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .dragging), 14)
+        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .committed), 14)
+        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .hover), 8)
+        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .dragging), 14)
+        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .committed), 0)
+    }
+
+    func testZoneDividerDragIgnoresStaleFramesFromInactiveWorkspaces() {
+        _ = configureThreeZones()
+        let inactiveWorkspace = Workspace.get(byName: "inactive-with-stale-frame")
+        TestWindow.new(
+            id: 452,
+            parent: inactiveWorkspace.rootTilingContainer,
+            rect: Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200),
+        )
+        XCTAssertFalse(inactiveWorkspace.isVisible)
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+
+        XCTAssertTrue(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
+        XCTAssertTrue(controller.isDragging)
+        controller.cancel()
+    }
+
+    func testForceAssignedWorkspaceCanMoveBetweenZonesOnSamePhysicalMonitor() async throws {
+        let zones = configureThreeZones()
+        let assigned = Workspace.get(byName: "assigned-to-display-one")
+        config.workspaceToMonitorForceAssignment[assigned.name] = [.sequenceNumber(1)]
+
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(assigned))
+        XCTAssertTrue(assigned.focusWorkspace())
+
+        let moveToMain = try await parseCommand("move-workspace-to-monitor next").cmdOrDie
+            .run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(moveToMain.exitCode, 0)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === assigned)
+
+        let moveToRight = try await parseCommand("move-workspace-to-monitor next").cmdOrDie
+            .run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(moveToRight.exitCode, 0)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === assigned)
+    }
+
     func testMoveZoneDividerClampsAtMinimumShare() async throws {
         let zones = configureThreeZones()
 

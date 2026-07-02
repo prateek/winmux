@@ -29,7 +29,6 @@ final class ZoneDividerOverlayPanelController {
     private let hitPanel = ZoneDividerHitPanel()
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private var pendingHide: DispatchWorkItem?
-    private let hitBandWidth: CGFloat = 34
 
     private init() {
         panel.identifier = NSUserInterfaceItemIdentifier("WinMux.zoneDividerOverlay")
@@ -49,7 +48,7 @@ final class ZoneDividerOverlayPanelController {
         hitPanel.isFloatingPanel = true
         hitPanel.isExcludedFromWindowsMenu = true
         hitPanel.animationBehavior = .none
-        hitPanel.ignoresMouseEvents = true
+        hitPanel.ignoresMouseEvents = false
         hitPanel.backgroundColor = .clear
         hitPanel.applyWinMuxLayer(.overlay)
         hitPanel.contentView = ZoneDividerHitView(frame: .zero)
@@ -92,8 +91,13 @@ final class ZoneDividerOverlayPanelController {
     }
 
     private func showHitPanel(for model: ZoneDividerOverlayModel) {
+        guard model.state != .committed else {
+            hideHitPanel()
+            return
+        }
         hitPanel.workspaceRect = model.workspaceRect
         let workspaceFrame = model.workspaceRect.toAppKitScreenRect.alignedToBackingPixels()
+        let hitBandWidth = zoneDividerChromeHitBandWidth(for: model.state)
         let frame = CGRect(
             x: model.boundaryX - hitBandWidth / 2,
             y: workspaceFrame.minY,
@@ -126,7 +130,10 @@ private final class ZoneDividerHitPanel: NSPanelHud {
 
     override func mouseDown(with event: NSEvent) {
         Task { @MainActor in
-            _ = ZoneDividerDragController.shared.handleMouseDown(at: self.normalizedPoint(for: event))
+            _ = ZoneDividerDragController.shared.handleMouseDown(
+                at: self.normalizedPoint(for: event),
+                source: .dividerChrome,
+            )
         }
     }
 
@@ -171,4 +178,18 @@ private final class ZoneDividerHitView: NSView {
     }
 
     override var acceptsFirstResponder: Bool { false }
+}
+
+func zoneDividerChromeHitBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
+    guard state != .committed else { return 0 }
+    return zoneDividerVisibleBandWidth(for: state)
+}
+
+func zoneDividerVisibleBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
+    switch state {
+        case .hover:
+            8
+        case .dragging, .committed:
+            14
+    }
 }

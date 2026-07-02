@@ -3,6 +3,7 @@ import Common
 struct CmdEnv: ConvenienceCopyable {
     var windowId: UInt32?
     var workspaceName: String?
+    var clientCurrentDirectory: String?
 
     static let defaultEnv: CmdEnv = .init()
     func withFocus(_ focus: LiveFocus) -> CmdEnv {

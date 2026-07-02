@@ -30,6 +30,21 @@ extension Monitor {
     }
 
     @MainActor
+    var workspaceViewportStableIdentity: String {
+        MonitorViewportId(self).stableIdentity
+    }
+
+    @MainActor
+    func hasSameWorkspaceViewport(as other: Monitor) -> Bool {
+        MonitorViewportId(self).hasSameStableIdentity(as: MonitorViewportId(other))
+    }
+
+    @MainActor
+    func hasSamePhysicalMonitor(as other: Monitor) -> Bool {
+        physicalMonitor.rect.topLeftCorner == other.physicalMonitor.rect.topLeftCorner
+    }
+
+    @MainActor
     var defaultWorkspaceViewport: Monitor {
         guard zoneId == nil else { return self }
         let zoneViewports = workspaceViewports.filter {

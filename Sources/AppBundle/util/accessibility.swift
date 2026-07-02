@@ -19,7 +19,13 @@ func requestScreenRecordingPermissionsIfNeeded() {
 }
 
 private var shouldSkipPermissionPromptsForE2E: Bool {
-    ProcessInfo.processInfo.environment["WINMUX_E2E_SKIP_PERMISSION_PROMPTS"] == "1"
+    guard ProcessInfo.processInfo.environment["WINMUX_E2E_SKIP_PERMISSION_PROMPTS"] == "1" else { return false }
+    guard isDebug else {
+        fputs("[winmux] Ignoring WINMUX_E2E_SKIP_PERMISSION_PROMPTS outside DEBUG builds\n", stderr)
+        return false
+    }
+    fputs("[winmux-e2e] Skipping permission prompts for DEBUG e2e run\n", stderr)
+    return true
 }
 
 private func resetAccessibility() {

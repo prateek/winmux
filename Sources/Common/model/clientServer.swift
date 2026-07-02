@@ -35,17 +35,20 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
     // Double Optional to encode explicit null into JSON
     public var windowId: UInt32??  // Please forward WINMUX_WINDOW_ID env variable here
     public var workspace: String?? // Please forward WINMUX_WORKSPACE env variable here
+    public var currentDirectory: String?
 
     public init(
         args: [String],
         stdin: String,
         windowId: UInt32?,
         workspace: String?,
+        currentDirectory: String? = nil,
     ) {
         self.args = args
         self.stdin = stdin
         self.windowId = .some(windowId)
         self.workspace = .some(workspace)
+        self.currentDirectory = currentDirectory
     }
 
     public static func decodeJson(_ data: Data) -> Result<ClientRequest, String> {
@@ -57,6 +60,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
         case stdin
         case windowId
         case workspace
+        case currentDirectory
     }
 
     public init(from decoder: any Decoder) throws {
@@ -66,6 +70,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
             stdin: data.stdin,
             windowId: data.windowId.flatMap { $0 },
             workspace: data.workspace.flatMap { $0 },
+            currentDirectory: data.currentDirectory,
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if !container.contains(.windowId) { raw.windowId = nil }
@@ -79,4 +84,5 @@ private struct ClientRequestData: Codable, Sendable {
     var stdin: String
     var windowId: UInt32??
     var workspace: String??
+    var currentDirectory: String?
 }

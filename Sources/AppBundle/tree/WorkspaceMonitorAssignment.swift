@@ -15,6 +15,10 @@ extension Monitor {
         if let existing = winMuxWorkspaceState.visibleWorkspace(for: viewport) {
             return existing
         }
+        let currentViewport = MonitorViewportId(viewport).currentMonitorApproximation
+        if currentViewport.rect.topLeftCorner != viewport.rect.topLeftCorner || currentViewport.zoneId != viewport.zoneId {
+            return currentViewport.activeWorkspace
+        }
         die("Current monitor viewport '\(MonitorViewportId(viewport))' has no active workspace after reconciliation")
     }
 
@@ -44,17 +48,19 @@ func activateWorkspaceOnMonitorPreservingSourceViewport(_ workspace: Workspace, 
     let sourceMonitor = workspace.isVisible ? workspace.workspaceMonitor : nil
     let sourceProjectId = workspace.projectId
     if let sourceMonitor,
-       sourceMonitor.rect.topLeftCorner != targetMonitor.rect.topLeftCorner
+       !sourceMonitor.hasSameWorkspaceViewport(as: targetMonitor)
     {
         let fallbackWorkspace = getOrCreateMonitorViewportFallbackWorkspace(
             projectId: sourceProjectId,
             for: sourceMonitor,
             excluding: workspace,
         )
-        check(
-            sourceMonitor.setActiveWorkspace(fallbackWorkspace),
-            "Generated incompatible fallback workspace (\(fallbackWorkspace)) for the monitor (\(sourceMonitor))",
-        )
+        if !sourceMonitor.setActiveWorkspace(fallbackWorkspace) {
+            let blankFallback = createBlankWorkspace(projectId: sourceProjectId, monitor: sourceMonitor)
+            guard sourceMonitor.setActiveWorkspace(blankFallback) else {
+                return false
+            }
+        }
     }
     guard targetMonitor.setActiveWorkspace(workspace) else { return false }
     return true
@@ -70,7 +76,7 @@ func overrideWorkspaceOnMonitorBySwappingActiveViewports(_ workspace: Workspace,
     }
 
     let sourceMonitor = workspace.workspaceMonitor
-    guard sourceMonitor.rect.topLeftCorner != targetMonitor.rect.topLeftCorner else {
+    guard !sourceMonitor.hasSameWorkspaceViewport(as: targetMonitor) else {
         return true
     }
 
@@ -98,11 +104,11 @@ func nearestWorkspaceForOverrideSourceMonitor(
 ) -> Workspace? {
     let candidates = orderedWorkspacesForPresentation()
         .filter { candidate in
-            candidate.projectId == workspace.projectId &&
+                candidate.projectId == workspace.projectId &&
                 candidate != workspace &&
                 !candidate.isArchived &&
                 isValidAssignment(workspace: candidate, screen: sourceMonitor.rect.topLeftCorner) &&
-                (!candidate.isVisible || candidate.workspaceMonitor.rect.topLeftCorner == targetMonitor.rect.topLeftCorner)
+                (!candidate.isVisible || candidate.workspaceMonitor.hasSameWorkspaceViewport(as: targetMonitor))
         }
     guard let workspaceIndex = orderedWorkspacesForPresentation().firstIndex(of: workspace) else {
         return candidates.first
@@ -249,9 +255,6 @@ func isValidAssignment(workspace: Workspace, screen: CGPoint) -> Bool {
 
 @MainActor
 func isValidAssignment(workspaceName: String, screen: CGPoint) -> Bool {
-    if let forceAssigned = resolvedForceAssignedMonitor(forWorkspaceName: workspaceName), forceAssigned.rect.topLeftCorner != screen {
-        return false
-    } else {
-        return true
-    }
+    guard let forceAssigned = resolvedForceAssignedPhysicalMonitor(forWorkspaceName: workspaceName) else { return true }
+    return forceAssigned.rect.topLeftCorner == screen.monitorApproximation.physicalMonitor.rect.topLeftCorner
 }

@@ -87,6 +87,51 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil?.windowId, 3)
     }
 
+    func testFocusedMonitorChangedHookFiresAcrossZonesOnSamePhysicalMonitor() async throws {
+        let main = TestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [
+            ZoneConfig(
+                monitor: .sequenceNumber(1),
+                layout: .columns,
+                defaultZone: "left",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.50),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.50),
+                ],
+            ),
+        ]
+        let zones = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
+            monitor.zoneId.map { ($0, monitor) }
+        })
+        let leftWorkspace = Workspace.get(byName: "left-zone-focus")
+        let rightWorkspace = Workspace.get(byName: "right-zone-focus")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(leftWorkspace))
+        XCTAssertTrue(leftWorkspace.focusWorkspace())
+        checkOnFocusChangedCallbacks()
+
+        focusedMonitorChangedHookRuns = 0
+        config.onFocusedMonitorChanged = [RecordingFocusedMonitorChangedCommand()]
+        TrayMenuModel.shared.isEnabled = true
+
+        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(rightWorkspace))
+        XCTAssertTrue(rightWorkspace.focusWorkspace())
+        checkOnFocusChangedCallbacks()
+
+        for _ in 0 ..< 20 where focusedMonitorChangedHookRuns == 0 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertGreaterThanOrEqual(focusedMonitorChangedHookRuns, 1)
+    }
+
     func testFocusAlongTheContainerOrientation() async throws {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
@@ -348,5 +393,19 @@ extension FocusCommand {
     }
     static func new(tabRelative: TabNextPrev) -> FocusCommand {
         FocusCommand(args: FocusCmdArgs(rawArgs: [], targetArg: .tabRelative(tabRelative)))
+    }
+}
+
+@MainActor private var focusedMonitorChangedHookRuns = 0
+
+private struct RecordingFocusedMonitorChangedCommand: Command {
+    typealias T = ListModesCmdArgs
+    let args = ListModesCmdArgs(rawArgs: [])
+    let shouldResetClosedWindowsCache = false
+    let canSkipPostCommandRefresh = true
+
+    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        focusedMonitorChangedHookRuns += 1
+        return true
     }
 }

@@ -11511,6 +11511,7 @@ require_slice_26_zone_divider_drag_proof() {
     local windows_before="${LOGS_DIR}/slice-26-windows-before.log"
     local windows_after="${LOGS_DIR}/slice-26-windows-after.log"
     local zones_before="${LOGS_DIR}/slice-26-zones-before.log"
+    local zones_content_guard="${LOGS_DIR}/slice-26-zones-content-guard.log"
     local zones_after="${LOGS_DIR}/slice-26-zones-after.log"
     local timing_log="${LOGS_DIR}/slice-26-command-timing.log"
     local mouse_events="${LOGS_DIR}/slice-26-zone-divider-drag.mouse-events.tsv"
@@ -11525,6 +11526,7 @@ require_slice_26_zone_divider_drag_proof() {
     require_file "$windows_before"
     require_file "$windows_after"
     require_file "$zones_before"
+    require_file "$zones_content_guard"
     require_file "$zones_after"
     require_file "$timing_log"
     require_file "$mouse_events"
@@ -11586,7 +11588,11 @@ require_slice_26_zone_divider_drag_proof() {
         || die "Slice 26 proof manifest must target Comms/right side"
     [ -n "$(manifest_value "$proof_manifest" divider-points boundary)" ] \
         || die "Slice 26 proof manifest must record the real Work|Comms boundary point"
-    [ "$(manifest_value "$proof_manifest" divider-points hit-band-offset-pixels)" = 8 ] \
+    [ "$(manifest_value "$proof_manifest" verification content-guard-zone-log)" = "logs/slice-26-zones-content-guard.log" ] \
+        || die "Slice 26 proof manifest must record the app-content guard zones log"
+    [ "$(manifest_value "$proof_manifest" divider-points content-guard-offset-pixels)" = 8 ] \
+        || die "Slice 26 proof manifest must record the app-content guard offset"
+    [ "$(manifest_value "$proof_manifest" divider-points hit-band-offset-pixels)" = 2 ] \
         || die "Slice 26 proof manifest must record the divider hit-band offset"
     grep -F '[drag-live] zoneDivider.start' "$app_log" >/dev/null \
         || die "Slice 26 app log missing zoneDivider.start"
@@ -11597,12 +11603,15 @@ require_slice_26_zone_divider_drag_proof() {
     fi
 
     require_mouse_event_log_shape "$mouse_events"
+    require_mouse_event_log_event "$mouse_events" divider-content-guard drag
     require_mouse_event_log_event "$mouse_events" divider-hover overlay
     require_mouse_event_log_event "$mouse_events" divider-pickup drag
     require_mouse_event_log_event "$mouse_events" divider-drag-path drag
     require_mouse_event_log_event "$mouse_events" divider-live-preview overlay
     require_mouse_event_log_event "$mouse_events" divider-release drag
     require_mouse_event_log_event "$mouse_events" after-divider-resize inspection
+    require_mouse_event_log_order "$mouse_events" divider-content-guard divider-hover \
+        "Slice 26 app-content guard drag must precede divider hover"
     require_mouse_event_log_order "$mouse_events" divider-hover divider-pickup \
         "Slice 26 hover must precede divider pickup"
     require_mouse_event_log_order "$mouse_events" divider-pickup divider-drag-path \
@@ -11614,17 +11623,25 @@ require_slice_26_zone_divider_drag_proof() {
     require_mouse_event_log_order "$mouse_events" divider-release after-divider-resize \
         "Slice 26 release must precede post-resize inspection"
 
-    local before_left before_main before_right after_left after_main after_right
+    local before_left before_main before_right guard_left guard_main guard_right after_left after_main after_right
     before_left="$(zone_log_value "$zones_before" left width)"
     before_main="$(zone_log_value "$zones_before" main width)"
     before_right="$(zone_log_value "$zones_before" right width)"
+    guard_left="$(zone_log_value "$zones_content_guard" left width)"
+    guard_main="$(zone_log_value "$zones_content_guard" main width)"
+    guard_right="$(zone_log_value "$zones_content_guard" right width)"
     after_left="$(zone_log_value "$zones_after" left width)"
     after_main="$(zone_log_value "$zones_after" main width)"
     after_right="$(zone_log_value "$zones_after" right width)"
     [ -n "$before_left" ] && [ -n "$before_main" ] && [ -n "$before_right" ] \
         || die "Slice 26 before zones log missing widths"
+    [ -n "$guard_left" ] && [ -n "$guard_main" ] && [ -n "$guard_right" ] \
+        || die "Slice 26 app-content guard zones log missing widths"
     [ -n "$after_left" ] && [ -n "$after_main" ] && [ -n "$after_right" ] \
         || die "Slice 26 after zones log missing widths"
+    assert_numeric_approximately_equal "$guard_left" "$before_left" 2 "Slice 26 app-content guard drag changed Reference/left width"
+    assert_numeric_approximately_equal "$guard_main" "$before_main" 2 "Slice 26 app-content guard drag changed Work/main width"
+    assert_numeric_approximately_equal "$guard_right" "$before_right" 2 "Slice 26 app-content guard drag changed Comms/right width"
     assert_numeric_gt "$after_main" "$before_main" "Slice 26 Work/main width did not grow after divider drag"
     assert_numeric_lt "$after_right" "$before_right" "Slice 26 Comms/right width did not shrink after divider drag"
     assert_numeric_approximately_equal "$after_left" "$before_left" 2 "Slice 26 Reference/left changed during adjacent divider drag"
@@ -11676,6 +11693,8 @@ require_slice_26_zone_divider_drag_proof() {
 
     grep -F "widths-before=left:${before_left},main:${before_main},right:${before_right}" "$proof" >/dev/null \
         || die "Slice 26 proof does not copy before widths from zones log"
+    grep -F "widths-content-guard=left:${guard_left},main:${guard_main},right:${guard_right}" "$proof" >/dev/null \
+        || die "Slice 26 proof does not copy app-content guard widths from zones log"
     grep -F "widths-after=left:${after_left},main:${after_main},right:${after_right}" "$proof" >/dev/null \
         || die "Slice 26 proof does not copy after widths from zones log"
 }

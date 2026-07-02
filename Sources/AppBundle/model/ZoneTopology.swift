@@ -20,11 +20,11 @@ struct ZoneTopologySnapshot: Sendable {
 
     init(
         _ config: Config,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
         runtimeOverlaysByPhysicalIdentity: [String: ZoneRuntimeOverlay] = zoneRuntimeOverlaysSnapshot(),
     ) {
         self.init(
-            zones: Self.effectiveZones(config.zones, environment: environment),
+            zones: config.zones,
             zoneStyles: config.zoneStyles,
             zoneLayouts: config.zoneLayouts,
             gaps: config.gaps,
@@ -50,29 +50,6 @@ struct ZoneTopologySnapshot: Sendable {
     }
 
     var isEmpty: Bool { zones.isEmpty }
-
-    private static func effectiveZones(_ configuredZones: [ZoneConfig], environment: [String: String]) -> [ZoneConfig] {
-        guard isSpikeEnabled(environment) else { return configuredZones }
-        return [
-            ZoneConfig(
-                monitor: .main,
-                layout: .columns,
-                defaultZone: "main",
-                columns: [
-                    ZoneColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
-                    ZoneColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
-                    ZoneColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
-                ],
-            ),
-        ]
-    }
-
-    private static func isSpikeEnabled(_ environment: [String: String]) -> Bool {
-        switch environment["WINMUX_ZONES_SPIKE"]?.lowercased() {
-            case "1", "true", "yes", "on": return true
-            default: return false
-        }
-    }
 
     func workspaceViewports(for physicalMonitors: [Monitor]) -> [Monitor] {
         guard !zones.isEmpty else { return physicalMonitors }
@@ -105,10 +82,7 @@ struct ZoneTopologySnapshot: Sendable {
         guard !enabledColumns.isEmpty else { return [physicalMonitor] }
 
         let baseRect = physicalWorkspaceRect(for: physicalMonitor, sortedPhysicalMonitors: sortedPhysicalMonitors)
-        let configuredDefaultZoneId = zoneLayout.defaultZone
-        let defaultZoneId = configuredDefaultZoneId.flatMap { defaultZoneId in
-            enabledColumns.contains { $0.column.id == defaultZoneId } ? defaultZoneId : nil
-        } ?? enabledColumns.first?.column.id
+        let defaultZoneId = effectiveDefaultZoneId(zoneLayout: zoneLayout, enabledColumns: enabledColumns)
         let enabledWidthTotal = enabledColumns.reduce(0.0) { $0 + $1.effectiveWidth }
         let activeAvailabilitySetId = runtimeOverlay(for: physicalMonitor).activeAvailabilitySetId
         var nextLeft = baseRect.topLeftX
@@ -150,8 +124,9 @@ struct ZoneTopologySnapshot: Sendable {
             let disabledZoneIds = disabledZoneIds(for: physicalMonitor)
             let activeAvailabilitySetId = runtimeOverlay(for: physicalMonitor).activeAvailabilitySetId
             let effectiveColumns = resolvedEffectiveColumns(for: physicalMonitor, zoneLayout: zoneLayout)
+            let enabledColumns = effectiveColumns.filter { !disabledZoneIds.contains($0.column.id) }
             let activeZoneMonitors = zoneMonitors(for: physicalMonitor, zoneConfig: zoneConfig, sortedPhysicalMonitors: sortedPhysicalMonitors)
-            let defaultZoneId = zoneLayout.defaultZone ?? zoneLayout.columns.first?.id
+            let defaultZoneId = effectiveDefaultZoneId(zoneLayout: zoneLayout, enabledColumns: enabledColumns)
             return effectiveColumns.map { effectiveColumn in
                 let column = effectiveColumn.column
                 let activeZoneMonitor = activeZoneMonitors.first { $0.zoneId == column.id }
@@ -176,6 +151,15 @@ struct ZoneTopologySnapshot: Sendable {
                 )
             }
         }
+    }
+
+    private func effectiveDefaultZoneId(
+        zoneLayout: ResolvedZoneLayout,
+        enabledColumns: [EffectiveZoneColumn],
+    ) -> String? {
+        zoneLayout.defaultZone.flatMap { defaultZoneId in
+            enabledColumns.contains { $0.column.id == defaultZoneId } ? defaultZoneId : nil
+        } ?? enabledColumns.first?.column.id
     }
 
     private func style(for physicalMonitor: Monitor, zoneId: String) -> ZoneStyleConfig? {
@@ -1009,6 +993,11 @@ private enum ZoneWidthOperation {
 }
 
 private let zoneMinimumShare = 0.05
+nonisolated(unsafe) private var zoneDividerHandlesCache: [ZoneDividerHandle]? = nil
+
+func invalidateZoneDividerHandlesCache() {
+    zoneDividerHandlesCache = nil
+}
 
 @MainActor
 private func configuredZones(on physicalMonitor: Monitor) -> [ConfiguredZoneSummary] {
@@ -1030,15 +1019,20 @@ private func resolvedConfiguredZone(from summary: ConfiguredZoneSummary) -> Reso
 }
 
 @MainActor
-func zoneDividerHandles(hitSlop: CGFloat = 10) -> [ZoneDividerHandle] {
+func zoneDividerHandles(hitSlop _: CGFloat = 10) -> [ZoneDividerHandle] {
+    if let cached = zoneDividerHandlesCache { return cached }
+
     let zoneViewports = sortedMonitors.filter { $0.zoneId != nil }
-    guard zoneViewports.count > 1 else { return [] }
+    guard zoneViewports.count > 1 else {
+        zoneDividerHandlesCache = []
+        return []
+    }
 
     let grouped = Dictionary(grouping: zoneViewports) { monitor in
         "\(monitor.physicalMonitor.rect.topLeftX),\(monitor.physicalMonitor.rect.topLeftY)"
     }
 
-    return grouped.values.flatMap { viewports -> [ZoneDividerHandle] in
+    let handles = grouped.values.flatMap { viewports -> [ZoneDividerHandle] in
         let ordered = viewports.sorted { lhs, rhs in
             if lhs.rect.topLeftX == rhs.rect.topLeftX {
                 lhs.rect.topLeftY < rhs.rect.topLeftY
@@ -1086,11 +1080,17 @@ func zoneDividerHandles(hitSlop: CGFloat = 10) -> [ZoneDividerHandle] {
             lhs.workspaceRect.topLeftX < rhs.workspaceRect.topLeftX
         }
     }
+    zoneDividerHandlesCache = handles
+    return handles
 }
 
 @MainActor
 func zoneDividerHandle(at point: CGPoint, hitSlop: CGFloat = 10) -> ZoneDividerHandle? {
-    zoneDividerHandles(hitSlop: hitSlop)
+    let handles = zoneDividerHandles(hitSlop: hitSlop)
+    guard handles.contains(where: { $0.workspaceRect.contains(point) && abs($0.boundaryX - point.x) <= hitSlop }) else {
+        return nil
+    }
+    return handles
         .filter { $0.hitRect(hitSlop: hitSlop).contains(point) }
         .min { lhs, rhs in
             abs(lhs.boundaryX - point.x) < abs(rhs.boundaryX - point.x)
@@ -1658,6 +1658,7 @@ func zoneLayoutPhysicalIdentity(for monitor: Monitor) -> String {
 
 func setCurrentZoneTopologySnapshot(_ snapshot: ZoneTopologySnapshot) {
     currentZoneTopologySnapshot = snapshot
+    invalidateZoneDividerHandlesCache()
 }
 
 func getCurrentZoneTopologySnapshot() -> ZoneTopologySnapshot {

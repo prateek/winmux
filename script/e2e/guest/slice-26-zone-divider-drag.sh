@@ -29,6 +29,7 @@ WINDOW_SETUP_LOG="${ARTIFACTS_DIR}/logs/slice-26-windows-setup.log"
 WINDOW_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-26-windows-before.log"
 WINDOW_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-26-windows-after.log"
 ZONES_BEFORE_LOG="${ARTIFACTS_DIR}/logs/slice-26-zones-before.log"
+ZONES_CONTENT_GUARD_LOG="${ARTIFACTS_DIR}/logs/slice-26-zones-content-guard.log"
 ZONES_AFTER_LOG="${ARTIFACTS_DIR}/logs/slice-26-zones-after.log"
 TIMING_LOG="${ARTIFACTS_DIR}/logs/slice-26-command-timing.log"
 CLI_LOG="${ARTIFACTS_DIR}/logs/slice-26-cli.log"
@@ -279,7 +280,7 @@ PLIST
 setup_slice() {
     rm -f \
         "${DONE}" "${SETUP_LOG}" "${ACTION_LOG}" "${WINDOW_SETUP_LOG}" "${WINDOW_BEFORE_LOG}" \
-        "${WINDOW_AFTER_LOG}" "${ZONES_BEFORE_LOG}" "${ZONES_AFTER_LOG}" "${TIMING_LOG}" \
+        "${WINDOW_AFTER_LOG}" "${ZONES_BEFORE_LOG}" "${ZONES_CONTENT_GUARD_LOG}" "${ZONES_AFTER_LOG}" "${TIMING_LOG}" \
         "${CLI_LOG}" "${WAIT_ERR}" "${STATE_FILE}" "${ACTION_MANIFEST}" "${MOUSE_EVENTS_LOG}" \
         "${PROOF}" "${APP_LOG}" "${APP_LOG_LOCAL}" "${STARTUP_TRACE}" "${STARTUP_TRACE_LOCAL}" \
         "${LAUNCH_STATUS}" "${LAUNCH_PLIST}" "${LAUNCH_PLIST_COPY}" \
@@ -521,13 +522,17 @@ proof_slice() {
     before_comms_workspace="$(workspace_for_title "${WINDOW_BEFORE_LOG}" 'comms-divider.rtf')"
 
     local main_left main_top main_width main_height right_width boundary_x start_x start_y drag_delta target_x target_y hit_band_offset
+    local ambient_guard_offset ambient_guard_x ambient_guard_target_x
     main_left="$(zone_field "${ZONES_BEFORE_LOG}" main left)"
     main_top="$(zone_field "${ZONES_BEFORE_LOG}" main top)"
     main_width="$(zone_field "${ZONES_BEFORE_LOG}" main width)"
     main_height="$(zone_field "${ZONES_BEFORE_LOG}" main height)"
     right_width="$(zone_field "${ZONES_BEFORE_LOG}" right width)"
     boundary_x="$(awk_int "${main_left} + ${main_width}")"
-    hit_band_offset=8
+    ambient_guard_offset=8
+    hit_band_offset=2
+    ambient_guard_x="$(awk_int "${boundary_x} + ${ambient_guard_offset}")"
+    ambient_guard_target_x="$(awk_int "${ambient_guard_x} + 120")"
     start_x="$(awk_int "${boundary_x} + ${hit_band_offset}")"
     start_y="$(awk_int "${main_top} + (${main_height} * 0.42)")"
     drag_delta="$(awk_int "${right_width} * 0.30")"
@@ -558,13 +563,16 @@ proof_slice() {
     append_action_manifest_value drag-target zone-name Comms
     append_action_manifest_value drag-target snap-target zone-divider
     append_action_manifest_value drag-target not-snap-target window-within-zone
+    append_action_manifest_value drag-points ambient-content-guard-source "${ambient_guard_x},${start_y}"
+    append_action_manifest_value drag-points ambient-content-guard-target "${ambient_guard_target_x},${start_y}"
     append_action_manifest_value drag-points source "${start_x},${start_y}"
     append_action_manifest_value drag-points target "${target_x},${target_y}"
     append_action_manifest_value drag-points target-hover-hold-seconds '3.2'
-    append_action_manifest_value drag-points coordinate-policy 'derived-from-list-zones: boundary is the Work/main right edge; source clicks eight pixels inside the divider hit band so the gesture targets WinMux instead of TextEdit window resize'
+    append_action_manifest_value drag-points coordinate-policy 'derived-from-list-zones: first drag starts eight pixels from the boundary as app content and must not resize; second drag starts two pixels from the boundary inside the visible divider handle'
     append_action_manifest_value visual-floor required-frames 'source divider, proxy preview, highlighted boundary, path frames, release, and final adjacent-zone widths'
     append_action_manifest_value caption chip 'Action: drag divider right'
     append_action_manifest_value divider-points boundary "${boundary_x},${start_y}" boundary-point
+    append_action_manifest_value divider-points content-guard-offset-pixels "${ambient_guard_offset}" content-guard-offset-pixels
     append_action_manifest_value divider-points hit-band-offset-pixels "${hit_band_offset}" hit-band-offset-pixels
     append_action_manifest_value divider-points start "${start_x},${start_y}" source-point
     append_action_manifest_value divider-points target "${target_x},${target_y}" target-point
@@ -580,6 +588,7 @@ proof_slice() {
     append_action_manifest_value caption drag "Action: drag divider right"
     append_action_manifest_value caption inspect "Run: winmux list-zones"
     append_action_manifest_value verification before-zone-log "$(artifact_relative_path "${ZONES_BEFORE_LOG}")"
+    append_action_manifest_value verification content-guard-zone-log "$(artifact_relative_path "${ZONES_CONTENT_GUARD_LOG}")"
     append_action_manifest_value verification before-window-log "$(artifact_relative_path "${WINDOW_BEFORE_LOG}")"
     append_action_manifest_value verification config-sha-before "${before_sha}" config-sha-before
 
@@ -588,6 +597,39 @@ proof_slice() {
     local scenario_start_ms
     scenario_start_ms="$(/bin/date +%s)000"
     echo "${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
+    /usr/bin/osascript -l JavaScript <<JXA
+ObjC.import('ApplicationServices')
+const app = Application.currentApplication()
+app.includeStandardAdditions = true
+function postLeftMouse(type, x, y) {
+  const event = $.CGEventCreateMouseEvent(null, type, $.CGPointMake(Number(x), Number(y)), $.kCGMouseButtonLeft)
+  $.CGEventPost($.kCGHIDEventTap, event)
+}
+function dragTo(x1, y1, x2, y2, steps, stepDelay) {
+  for (let i = 1; i <= steps; i++) {
+    const t = i / Number(steps)
+    const x = Number(x1) + ((Number(x2) - Number(x1)) * t)
+    const y = Number(y1) + ((Number(y2) - Number(y1)) * t)
+    postLeftMouse($.kCGEventLeftMouseDragged, x, y)
+    delay(stepDelay)
+  }
+}
+quickAmbientDrag(${ambient_guard_x}, ${start_y}, ${ambient_guard_target_x}, ${start_y})
+function quickAmbientDrag(x1, y1, x2, y2) {
+  postLeftMouse($.kCGEventMouseMoved, x1, y1)
+  delay(0.2)
+  postLeftMouse($.kCGEventLeftMouseDown, x1, y1)
+  delay(0.1)
+  dragTo(x1, y1, x2, y2, 8, 0.025)
+  delay(0.1)
+  postLeftMouse($.kCGEventLeftMouseUp, x2, y2)
+  delay(0.4)
+}
+JXA
+    write_zones_log "${ZONES_CONTENT_GUARD_LOG}" >/dev/null
+    assert_float_approximately_equal "$(zone_field "${ZONES_CONTENT_GUARD_LOG}" main width)" "${before_main_width}" 2 'Ambient app-content drag near divider changed Work/main width'
+    assert_float_approximately_equal "$(zone_field "${ZONES_CONTENT_GUARD_LOG}" right width)" "${before_right_width}" 2 'Ambient app-content drag near divider changed Comms/right width'
+    append_mouse_event divider-content-guard drag "${scenario_start_ms}" "ambient drag eight pixels from boundary stayed app content and did not resize zones"
     drag_divider_jxa "${start_x}" "${start_y}" "${target_x}" "${target_y}" "${scenario_start_ms}"
     sleep 2
 
@@ -653,7 +695,7 @@ proof_slice() {
 
     cat \
         "${ZONES_BEFORE_LOG}" "${WINDOW_BEFORE_LOG}" "${ACTION_LOG}" \
-        "${ZONES_AFTER_LOG}" "${WINDOW_AFTER_LOG}" >"${CLI_LOG}"
+        "${ZONES_CONTENT_GUARD_LOG}" "${ZONES_AFTER_LOG}" "${WINDOW_AFTER_LOG}" >"${CLI_LOG}"
 
     {
         echo 'WinMux Slice 26: draggable zone dividers'
@@ -663,6 +705,9 @@ proof_slice() {
         echo
         echo 'Before zones:'
         cat "${ZONES_BEFORE_LOG}"
+        echo
+        echo 'Content guard zones:'
+        cat "${ZONES_CONTENT_GUARD_LOG}"
         echo
         echo 'After zones:'
         cat "${ZONES_AFTER_LOG}"
@@ -677,6 +722,7 @@ proof_slice() {
         cat "${ACTION_MANIFEST}"
         echo
         echo "widths-before=left:${before_left_width},main:${before_main_width},right:${before_right_width}"
+        echo "widths-content-guard=left:$(zone_field "${ZONES_CONTENT_GUARD_LOG}" left width),main:$(zone_field "${ZONES_CONTENT_GUARD_LOG}" main width),right:$(zone_field "${ZONES_CONTENT_GUARD_LOG}" right width)"
         echo "widths-after=left:${after_left_width},main:${after_main_width},right:${after_right_width}"
         echo "config-sha-before=${before_sha}"
         echo "config-sha-after=${after_sha}"
@@ -697,6 +743,7 @@ mouse_event_writer_self_test() {
     zone_window_helpers_self_test "${ARTIFACTS_DIR}/logs/zone-window-helper-self-test"
     init_mouse_events_log
     scenario_start_ms="$(/bin/date +%s)000"
+    append_mouse_event divider-content-guard drag "${scenario_start_ms}" 'content guard event'
     append_mouse_event divider-hover overlay "${scenario_start_ms}" 'hover event'
     append_mouse_event divider-pickup drag "${scenario_start_ms}" 'pickup event'
     append_mouse_event divider-drag-path drag "${scenario_start_ms}" 'path event'
@@ -715,7 +762,7 @@ mouse_event_writer_self_test() {
         }
         { seen[$1] = 1; count += 1 }
         END {
-            if (count != 6 || !seen["divider-hover"] || !seen["divider-pickup"] || !seen["divider-drag-path"] || !seen["divider-live-preview"] || !seen["divider-release"] || !seen["after-divider-resize"]) {
+            if (count != 7 || !seen["divider-content-guard"] || !seen["divider-hover"] || !seen["divider-pickup"] || !seen["divider-drag-path"] || !seen["divider-live-preview"] || !seen["divider-release"] || !seen["after-divider-resize"]) {
                 print "mouse event self-test missing required ids" > "/dev/stderr"
                 exit 1
             }

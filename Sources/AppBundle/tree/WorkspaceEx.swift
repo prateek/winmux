@@ -1,12 +1,16 @@
 import Common
 
 @MainActor
-func resolvedForceAssignedMonitor(forWorkspaceName name: String) -> Monitor? {
+func resolvedForceAssignedPhysicalMonitor(forWorkspaceName name: String) -> Monitor? {
     config.workspaceToMonitorForceAssignment[name]?
         .lazy
         .compactMap { $0.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) }
-        .compactMap { $0.defaultWorkspaceViewport }
         .first
+}
+
+@MainActor
+func resolvedForceAssignedMonitor(forWorkspaceName name: String) -> Monitor? {
+    resolvedForceAssignedPhysicalMonitor(forWorkspaceName: name)?.defaultWorkspaceViewport
 }
 
 extension Workspace {

@@ -48,7 +48,7 @@ func focusWorkspaceFromSidebar(_ workspace: Workspace, targetMonitorScopeId: Str
     }
 
     if workspace.isVisible {
-        guard workspace.workspaceMonitor.rect.topLeftCorner == targetMonitor.rect.topLeftCorner else {
+        guard workspace.workspaceMonitor.hasSameWorkspaceViewport(as: targetMonitor) else {
             return false
         }
         return workspace.focusWorkspace()

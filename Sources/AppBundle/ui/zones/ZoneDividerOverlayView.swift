@@ -94,10 +94,7 @@ struct ZoneDividerOverlayView: View {
     }
 
     private var bandWidth: CGFloat {
-        switch model.state {
-            case .hover: 18
-            case .dragging, .committed: 26
-        }
+        zoneDividerVisibleBandWidth(for: model.state)
     }
 
     private var labelWidth: CGFloat {
