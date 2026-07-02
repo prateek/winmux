@@ -76,6 +76,18 @@ slice-43	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-com
 slice-43	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay and product label remain visible before release	snap-first-affordance
 slice-43	snap-release	drag	mouse-caption-start	release	snap-release	screenshot	08-snap-release-{slice}.png	release-boundary screenshot still shows the active secondary-button whole-zone target before post-drop placement	snap-first-affordance
 slice-43	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after secondary-button snap	snap-release
+slice-44	config-ready	context	caption-start	config	caption-01	sample-start	-	drag overlay semantics config chip is visible before any drag	-
+slice-44	float-drag-start	drag	mouse-caption-start	freeform	freeform-pickup	screenshot	02-freeform-pickup-{slice}.png	source pickup under float-unless-snap with no secondary button	config-ready
+slice-44	float-drag-hover	drag	mouse-caption-start+1.000	freeform	freeform-hover-no-overlay	screenshot	03-freeform-hover-no-overlay-{slice}.png	ordinary hover has no whole-zone snap overlay, product snap label, or window-slot target	float-drag-start
+slice-44	float-drag-release	drag	mouse-caption-end	freeform	-	none	-	ordinary drag completes as floating/freeform placement	float-drag-hover
+slice-44	float-post-state	inspection	mouse-caption-start	float-result	float-final-placement	sample-start	-	post-freeform inspection shows layout=floating and Comms/right	float-drag-release
+slice-44	reset-before-snap	preparation	mouse-caption-start	reset	reset-before-snap	screenshot	04-reset-before-snap-{slice}.png	same source window reset to Work/main tiling before secondary-button whole-zone drag	float-post-state
+slice-44	snap-drag-start	drag	mouse-caption-start	snap	snap-pickup	screenshot	05-snap-pickup-{slice}.png	secondary-button pickup starts the whole-zone snap branch	reset-before-snap
+slice-44	snap-drag-path	drag	mouse-caption-start+1.000	snap	snap-path	screenshot	06-snap-path-{slice}.png	secondary-button snap path toward Comms without a window-slot target	snap-drag-start
+slice-44	snap-first-affordance	overlay	mouse-caption-start	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	first visible product label names the whole Comms zone target and not a slot	snap-drag-path
+slice-44	snap-drag-hover	overlay	mouse-caption-start+0.500	target	snap-hover-comms	screenshot	07-snap-hover-comms-{slice}.png	whole Comms zone overlay and product label remain visible; no window-slot target is active	snap-first-affordance
+slice-44	snap-release	drag	mouse-caption-start	release	snap-release	screenshot	08-snap-release-{slice}.png	release-boundary screenshot still shows the active secondary-button whole-zone target before post-drop placement	snap-first-affordance
+slice-44	snap-post-state	inspection	mouse-caption-start	list-last	snap-final-placement	screenshot	99-after-{slice}.png	same source window is placed in Comms/right after secondary-button whole-zone snap	snap-release
 slice-27	config-ready	context	caption-start	config	caption-01	sample-start	-	window-slot snap config chip is visible before any drag	-
 slice-27	float-drag-start	drag	mouse-caption-start	freeform	ordinary-pickup	screenshot	02-ordinary-pickup-{slice}.png	source pickup under float-unless-snap with no secondary button	config-ready
 slice-27	float-drag-hover	drag	mouse-caption-start+1.000	freeform	ordinary-hover-no-overlay	screenshot	03-ordinary-hover-no-overlay-{slice}.png	ordinary drag inside Work/main has no window-slot overlay	float-drag-start

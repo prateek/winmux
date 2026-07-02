@@ -5554,6 +5554,10 @@ require_slice_43_sample_manifest() {
     require_slice_22_sample_manifest "$1"
 }
 
+require_slice_44_sample_manifest() {
+    require_slice_22_sample_manifest "$1"
+}
+
 require_slice_27_sample_manifest() {
     local manifest_path="$1"
     require_sample_manifest_paths "$manifest_path"
@@ -11948,6 +11952,10 @@ require_slice_43_event_manifest() {
     require_mouse_drag_event_manifest slice-43 "$1"
 }
 
+require_slice_44_event_manifest() {
+    require_mouse_drag_event_manifest slice-44 "$1"
+}
+
 require_slice_27_event_manifest() {
     require_mouse_drag_event_manifest slice-27 "$1"
 }
@@ -13036,7 +13044,7 @@ require_float_unless_snap_proof() {
     local snap_action_chip="Action: hold Alt while dragging snap-demo.rtf"
     local float_description="no-Alt"
     local snap_description="Alt"
-    if [ "$slice_prefix" = "slice-24" ] || [ "$slice_prefix" = "slice-25" ] || [ "$slice_prefix" = "slice-43" ]; then
+    if [ "$slice_prefix" = "slice-24" ] || [ "$slice_prefix" = "slice-25" ] || [ "$slice_prefix" = "slice-43" ] || [ "$slice_prefix" = "slice-44" ]; then
         expected_pass="PASS: desktop drag starts from config float-unless-snap with gesture secondary-button-drag; ordinary drag converts the tiled source into floating/freeform placement in Comms/right without a snap overlay; resetting to Work/main and holding the secondary mouse button previews a whole Comms zone target and moves the same window into Comms/right on release."
         expected_setup_summary="Config: [mouse.zone-snap] policy = 'float-unless-snap', configured-modifier = 'alt', gesture = 'secondary-button-drag', activation-input = 'secondary-button', target = 'zone'"
         expected_config_chip="Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'"
@@ -13067,6 +13075,8 @@ require_float_unless_snap_proof() {
         require_slice_25_sample_manifest "$sample_manifest"
     elif [ "$slice_prefix" = "slice-43" ]; then
         require_slice_43_sample_manifest "$sample_manifest"
+    elif [ "$slice_prefix" = "slice-44" ]; then
+        require_slice_44_sample_manifest "$sample_manifest"
     elif [ "$slice_prefix" = "slice-24" ]; then
         require_slice_24_sample_manifest "$sample_manifest"
     else
@@ -13267,6 +13277,29 @@ require_slice_43_mouse_gesture_configurability_proof() {
     grep -F 'Input: secondary button held' "$annotation_plan" >/dev/null \
         || die "Slice 43 annotations missing visible secondary-button input cue"
     require_slice_43_event_manifest "$(event_manifest_path)"
+}
+
+require_slice_44_drag_overlay_semantics_proof() {
+    require_float_unless_snap_proof slice-44 "Slice 44" slice-44-drag-overlay-semantics 1
+    [ "$(manifest_value "$proof_manifest" drag-policy activation-input)" = secondary-button ] \
+        || die "Slice 44 proof manifest must require activation-input=secondary-button"
+    [ "$(manifest_value "$proof_manifest" drag-policy input-state-evidence)" = secondary-button-events ] \
+        || die "Slice 44 proof manifest must require secondary-button-events input evidence"
+    [ "$(manifest_value "$proof_manifest" drag-target snap-target)" = whole-zone ] \
+        || die "Slice 44 proof manifest must declare snap-target=whole-zone"
+    [ "$(manifest_value "$proof_manifest" drag-target not-snap-target)" = window-within-zone ] \
+        || die "Slice 44 proof manifest must explicitly reject window-within-zone as the target"
+    [ "$(manifest_value "$proof_manifest" drag-target slot-noop)" = "whole-zone target; no window-slot target active" ] \
+        || die "Slice 44 proof manifest must include explicit whole-zone slot-noop semantics"
+    [ "$(manifest_value "$proof_manifest" visual-floor product-overlay-label)" = "Whole zone: Comms" ] \
+        || die "Slice 44 proof manifest must require the product overlay label"
+    require_file "${SCREENSHOTS_DIR}/08-snap-release-slice-44.png"
+    grep -F 'Result: no window-slot target active' "$annotation_plan" >/dev/null \
+        || die "Slice 44 annotations missing visible no-window-slot target result cue"
+    grep -F 'Result: whole-zone snap, not slot snap' "$annotation_plan" >/dev/null \
+        || die "Slice 44 annotations missing visible final whole-zone-not-slot result cue"
+    require_secondary_button_input_evidence "$proof_manifest" "Slice 44"
+    require_slice_44_event_manifest "$(event_manifest_path)"
 }
 
 require_slice_27_window_slot_snap_proof() {
@@ -14730,6 +14763,9 @@ case "$recording_name" in
         ;;
     slice-43-mouse-gesture-configurability)
         require_slice_43_mouse_gesture_configurability_proof
+        ;;
+    slice-44-drag-overlay-semantics)
+        require_slice_44_drag_overlay_semantics_proof
         ;;
     slice-26-zone-divider-drag)
         require_slice_26_zone_divider_drag_proof

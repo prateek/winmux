@@ -15,6 +15,7 @@ CONFIG_GESTURE="${WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE:-drag}"
 CONFIG_TARGET="${WINMUX_E2E_MOUSE_SNAP_CONFIG_TARGET:-zone}"
 PROOF_MODE="${WINMUX_E2E_MOUSE_SNAP_PROOF_MODE:-modifier}"
 PRODUCT_OVERLAY_LABEL="${WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL:-}"
+SLOT_NOOP_LABEL="${WINMUX_E2E_MOUSE_SNAP_SLOT_NOOP_LABEL:-}"
 RUNTIME_SET_POLICY="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_SET_POLICY:-snap-to-zone}"
 RUNTIME_CYCLE_POLICIES="${WINMUX_E2E_MOUSE_SNAP_RUNTIME_CYCLE_POLICIES:-freeform snap-to-zone}"
 SNAP_TARGET_PROFILE=whole-zone
@@ -920,6 +921,9 @@ proof_slice() {
     append_action_schema_value drag-target zone-name "${target_zone_name}" target-zone-name
     append_action_schema_value drag-target snap-target "${snap_target_kind}" snap-target
     append_action_schema_value drag-target not-snap-target "${snap_not_target_kind}" not-snap-target
+    if [ -n "${SLOT_NOOP_LABEL}" ]; then
+        append_action_schema_value drag-target slot-noop "${SLOT_NOOP_LABEL}" slot-noop
+    fi
     if profile_requires_target_window; then
         append_action_schema_value drag-target window-title "${target_title}" target-window-title
         append_action_schema_value drag-target window-id "${target_window_id}" target-window-id

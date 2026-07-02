@@ -101,6 +101,9 @@ fi
 if [ "$ACTION" = "slice-43" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/mouse-gesture-configurability.toml"
 fi
+if [ "$ACTION" = "slice-44" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/drag-overlay-semantics.toml"
+fi
 if [ "$ACTION" = "slice-26" ] || [ "$ACTION" = "slice-32" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
 fi
@@ -172,7 +175,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -551,7 +554,7 @@ warmup_policy_self_test() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44)
             printf '%s\n' "$1"
             ;;
         *)
@@ -584,34 +587,38 @@ require_pre_tart_review_gate_for_action() {
 pre_tart_gate_self_test() {
     local tmp_dir
     local log_path
+    local direct_slice
 
     tmp_dir="$(mktemp -d)"
-    log_path="${tmp_dir}/direct-slice-39.log"
-    if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
-        WINMUX_E2E_RUN_DIR="${tmp_dir}/run" \
-        WINMUX_E2E_SLICE=slice-39 \
-        "${SCRIPT_DIR}/tart-recording-harness" slice-39 >"$log_path" 2>&1; then
-        cat "$log_path" >&2
-        rm -rf "$tmp_dir"
-        die "Pre-Tart gate self-test expected direct slice-39 recording to fail without reviewer reports"
-    fi
-
-    if ! grep -F 'missing pre-Tart freshness manifest' "$log_path" >/dev/null; then
-        cat "$log_path" >&2
-        rm -rf "$tmp_dir"
-        die "Pre-Tart gate self-test did not fail through the review gate"
-    fi
-    grep -F 'phase=pre-tart-review-gate' "${tmp_dir}/run/logs/run-abort-status.txt" >/dev/null \
-        || {
+    for direct_slice in slice-39 slice-44; do
+        rm -rf "${tmp_dir}/run"
+        log_path="${tmp_dir}/direct-${direct_slice}.log"
+        if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
+            WINMUX_E2E_RUN_DIR="${tmp_dir}/run" \
+            WINMUX_E2E_SLICE="$direct_slice" \
+            "${SCRIPT_DIR}/tart-recording-harness" "$direct_slice" >"$log_path" 2>&1; then
             cat "$log_path" >&2
             rm -rf "$tmp_dir"
-            die "Pre-Tart gate self-test missing abort status"
-        }
-    if grep -F 'TART_HOME must be set' "$log_path" >/dev/null; then
-        cat "$log_path" >&2
-        rm -rf "$tmp_dir"
-        die "Pre-Tart gate self-test reached Tart preflight before the review gate"
-    fi
+            die "Pre-Tart gate self-test expected direct ${direct_slice} recording to fail without reviewer reports"
+        fi
+
+        if ! grep -F 'missing pre-Tart freshness manifest' "$log_path" >/dev/null; then
+            cat "$log_path" >&2
+            rm -rf "$tmp_dir"
+            die "Pre-Tart gate self-test did not fail through the review gate for ${direct_slice}"
+        fi
+        grep -F 'phase=pre-tart-review-gate' "${tmp_dir}/run/logs/run-abort-status.txt" >/dev/null \
+            || {
+                cat "$log_path" >&2
+                rm -rf "$tmp_dir"
+                die "Pre-Tart gate self-test missing abort status for ${direct_slice}"
+            }
+        if grep -F 'TART_HOME must be set' "$log_path" >/dev/null; then
+            cat "$log_path" >&2
+            rm -rf "$tmp_dir"
+            die "Pre-Tart gate self-test reached Tart preflight before the review gate for ${direct_slice}"
+        fi
+    done
 
     rm -rf "$tmp_dir"
     log "Pre-Tart gate self-test passed"
@@ -1644,6 +1651,20 @@ write_static_slice_43_annotation_plan() {
 CAPTIONS
 }
 
+write_static_slice_44_annotation_plan() {
+    local captions_path="$1"
+    cat >"$captions_path" <<'CAPTIONS'
+0	8	Drag semantics ready	The mouse policy starts in float-unless-snap mode with a configured secondary-button drag gesture.	Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'
+8	19	Drag normally	Pick up snap-demo.rtf without the secondary button; this stays freeform and shows no snap overlay or slot target.	Action: drag snap-demo.rtf with no secondary button
+19	28	Floating result	The same window is now floating/freeform rather than tiled.	Run: winmux list-windows --monitor all
+28	37	Reset source	Return the same window to Work/main before proving the whole-zone gesture branch.	Action: reset snap-demo.rtf to Work/main tiling
+37	48	Hold gesture and drag	Hold the secondary mouse button while dragging to enter the snap path.	Action: hold secondary button while dragging snap-demo.rtf	Input: secondary button held
+48	59	Whole-zone target	The product overlay targets the entire Comms zone; no window-slot target is active.	Action: target = whole Comms zone	Result: no window-slot target active
+59	68	Release on whole zone	Drop while the active whole-zone target is still visible.	Action: release on Comms zone
+68	78	Inspect snap	The window log proves the same id snapped from Work/main to Comms/right.	Run: winmux list-windows --monitor all	Result: whole-zone snap, not slot snap
+CAPTIONS
+}
+
 write_static_slice_25_annotation_plan() {
     local captions_path="$1"
     cat >"$captions_path" <<'CAPTIONS'
@@ -1893,6 +1914,76 @@ write_timed_slice_43_annotation_plan() {
             emit(target_start, release_start, "Whole-zone target", "The product overlay targets the Comms zone itself, not a window or slot.", "Action: target = whole Comms zone")
             emit(release_start, snap_end + 3, "Release into Comms", "Drop to move the same window to Comms active workspace.", "Action: release on Comms zone")
             emit(snap_end + 3, snap_end + 10, "Inspect snap", "The window log proves the same id snapped from Work/main to Comms/right.", "Run: winmux list-windows --monitor all")
+        }
+    ' >"$captions_path"
+}
+
+write_timed_slice_44_annotation_plan() {
+    local captions_path="$1"
+    local timing_log="${LOGS_DIR}/slice-44-command-timing.log"
+    if [ ! -s "$timing_log" ]; then
+        write_static_slice_44_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    local freeform_start_offset freeform_end_offset snap_start_offset snap_end_offset
+    freeform_start_offset="$(timing_value_from_log freeform-drag-start-offset-seconds "$timing_log")"
+    freeform_end_offset="$(timing_value_from_log freeform-drag-end-offset-seconds "$timing_log")"
+    snap_start_offset="$(timing_value_from_log snap-drag-start-offset-seconds "$timing_log")"
+    snap_end_offset="$(timing_value_from_log snap-drag-end-offset-seconds "$timing_log")"
+    if [ -z "$freeform_start_offset" ] || [ -z "$freeform_end_offset" ] || [ -z "$snap_start_offset" ] || [ -z "$snap_end_offset" ]; then
+        write_static_slice_44_annotation_plan "$captions_path"
+        return 0
+    fi
+
+    /usr/bin/awk \
+        -v base=8 \
+        -v freeform_start_offset="$freeform_start_offset" \
+        -v freeform_end_offset="$freeform_end_offset" \
+        -v snap_start_offset="$snap_start_offset" \
+        -v snap_end_offset="$snap_end_offset" '
+        function max(a, b) { return a > b ? a : b }
+        function min(a, b) { return a < b ? a : b }
+        function emit(start, end, title, body, chip, result) {
+            if (end <= start) {
+                end = start + 1
+            }
+            if (result != "") {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\t%s\n", start, end, title, body, chip, result
+            } else {
+                printf "%.3f\t%.3f\t%s\t%s\t%s\n", start, end, title, body, chip
+            }
+        }
+        BEGIN {
+            freeform_start = base + freeform_start_offset
+            freeform_end = base + freeform_end_offset
+            snap_start = base + snap_start_offset
+            snap_end = base + snap_end_offset
+
+            freeform_pickup_end = min(freeform_start + 5, max(freeform_start + 1, freeform_end - 4))
+            float_result_end = min(max(freeform_end + 3, freeform_pickup_end + 1), snap_start - 3)
+            if (float_result_end <= freeform_pickup_end) {
+                float_result_end = freeform_pickup_end + 1
+            }
+            reset_end = max(snap_start, float_result_end + 1)
+            snap_pickup_end = min(snap_start + 5, snap_end - 5)
+            if (snap_pickup_end <= snap_start) {
+                snap_pickup_end = snap_start + 3
+            }
+            target_start = snap_pickup_end
+            release_start = min(snap_end - 1, target_start + 7)
+            if (release_start <= target_start) {
+                release_start = target_start + 2
+            }
+
+            emit(0, base, "Drag semantics ready", "The mouse policy starts in float-unless-snap mode with a configured secondary-button drag gesture.", "Config: policy='\''float-unless-snap'\''; gesture='\''secondary-button-drag'\''; target='\''zone'\''")
+            emit(freeform_start, freeform_pickup_end, "Drag normally", "Pick up snap-demo.rtf without the secondary button; this stays freeform and shows no snap overlay or slot target.", "Action: drag snap-demo.rtf with no secondary button")
+            emit(freeform_pickup_end, float_result_end, "Floating result", "The same window is now floating/freeform rather than tiled.", "Run: winmux list-windows --monitor all")
+            emit(float_result_end, reset_end, "Reset source", "Return the same window to Work/main before proving the whole-zone gesture branch.", "Action: reset snap-demo.rtf to Work/main tiling")
+            emit(snap_start, snap_pickup_end, "Hold gesture and drag", "Hold the secondary mouse button while dragging to enter the snap path.", "Action: hold secondary button while dragging snap-demo.rtf", "Input: secondary button held")
+            emit(target_start, release_start, "Whole-zone target", "The product overlay targets the entire Comms zone; no window-slot target is active.", "Action: target = whole Comms zone", "Result: no window-slot target active")
+            emit(release_start, snap_end + 3, "Release on whole zone", "Drop while the active whole-zone target is still visible.", "Action: release on Comms zone")
+            emit(snap_end + 3, snap_end + 10, "Inspect snap", "The window log proves the same id snapped from Work/main to Comms/right.", "Run: winmux list-windows --monitor all", "Result: whole-zone snap, not slot snap")
         }
     ' >"$captions_path"
 }
@@ -2298,14 +2389,14 @@ mouse_drag_caption_label() {
             last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
                 printf '%s\n' "$first_list_label"
             ;;
-        slice-24:config|slice-25:config|slice-43:config) caption_label_for_chip "$name" "Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'" ;;
-        slice-24:freeform|slice-25:freeform|slice-43:freeform) caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no secondary button" ;;
-        slice-24:float-result|slice-25:float-result|slice-43:float-result) caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ;;
-        slice-24:reset|slice-25:reset|slice-43:reset) caption_label_for_chip "$name" "Action: reset snap-demo.rtf to Work/main tiling" ;;
-        slice-24:snap|slice-25:snap|slice-43:snap) caption_label_for_chip "$name" "Action: hold secondary button while dragging snap-demo.rtf" ;;
-        slice-24:target|slice-25:target|slice-43:target) caption_label_for_chip "$name" "Action: target = whole Comms zone" ;;
-        slice-24:release|slice-25:release|slice-43:release) caption_label_for_chip "$name" "Action: release on Comms zone" ;;
-        slice-24:list-last|slice-25:list-last|slice-43:list-last)
+        slice-24:config|slice-25:config|slice-43:config|slice-44:config) caption_label_for_chip "$name" "Config: policy='float-unless-snap'; gesture='secondary-button-drag'; target='zone'" ;;
+        slice-24:freeform|slice-25:freeform|slice-43:freeform|slice-44:freeform) caption_label_for_chip "$name" "Action: drag snap-demo.rtf with no secondary button" ;;
+        slice-24:float-result|slice-25:float-result|slice-43:float-result|slice-44:float-result) caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ;;
+        slice-24:reset|slice-25:reset|slice-43:reset|slice-44:reset) caption_label_for_chip "$name" "Action: reset snap-demo.rtf to Work/main tiling" ;;
+        slice-24:snap|slice-25:snap|slice-43:snap|slice-44:snap) caption_label_for_chip "$name" "Action: hold secondary button while dragging snap-demo.rtf" ;;
+        slice-24:target|slice-25:target|slice-43:target|slice-44:target) caption_label_for_chip "$name" "Action: target = whole Comms zone" ;;
+        slice-24:release|slice-25:release|slice-43:release|slice-44:release) caption_label_for_chip "$name" "Action: release on Comms zone" ;;
+        slice-24:list-last|slice-25:list-last|slice-43:list-last|slice-44:list-last)
             first_list_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --monitor all")"
             last_caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" ||
                 printf '%s\n' "$first_list_label"
@@ -2439,6 +2530,10 @@ write_slice_25_event_manifest() {
 
 write_slice_43_event_manifest() {
     write_mouse_drag_event_manifest slice-43 "$1"
+}
+
+write_slice_44_event_manifest() {
+    write_mouse_drag_event_manifest slice-44 "$1"
 }
 
 write_slice_27_event_manifest() {
@@ -3287,6 +3382,9 @@ write_event_manifest() {
         slice-43-mouse-gesture-configurability)
             write_slice_43_event_manifest "$name"
             ;;
+        slice-44-drag-overlay-semantics)
+            write_slice_44_event_manifest "$name"
+            ;;
         slice-26-zone-divider-drag)
             write_slice_26_event_manifest "$name"
             ;;
@@ -3573,6 +3671,9 @@ CAPTIONS
             ;;
         slice-43-mouse-gesture-configurability)
             write_timed_slice_43_annotation_plan "$captions_path"
+            ;;
+        slice-44-drag-overlay-semantics)
+            write_timed_slice_44_annotation_plan "$captions_path"
             ;;
         slice-27-window-slot-snap)
             write_timed_slice_27_annotation_plan "$captions_path"
@@ -3863,6 +3964,7 @@ annotation_preflight() {
         slice-24-secondary-button-snap \
         slice-25-mouse-demo-contract \
         slice-43-mouse-gesture-configurability \
+        slice-44-drag-overlay-semantics \
         slice-26-zone-divider-drag \
         slice-27-window-slot-snap \
         slice-28-export-zone-layout \
@@ -3884,7 +3986,7 @@ annotation_preflight() {
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4160,7 +4262,7 @@ write_semantic_sample_manifest() {
                 "screenshots/${name}.samples/${cycle_caption_label}-boundary-start.png" \
                 "cycle-zone-snap-policy command appears after final placement"
             ;;
-        slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability)
+        slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics)
             local float_caption_label float_caption_start release_caption_label release_caption_start release_path
             local event_manifest="${LOGS_DIR}/${name}.event-manifest.tsv"
             local sample_slice_prefix="slice-22"
@@ -4174,11 +4276,13 @@ write_semantic_sample_manifest() {
             if [ "$name" = "slice-23-product-snap-overlay-label" ]; then
                 sample_slice_prefix="slice-23"
                 snap_hover_description="whole Comms zone overlay and product label are visible before release"
-            elif [ "$name" = "slice-24-secondary-button-snap" ] || [ "$name" = "slice-25-mouse-demo-contract" ] || [ "$name" = "slice-43-mouse-gesture-configurability" ]; then
+            elif [ "$name" = "slice-24-secondary-button-snap" ] || [ "$name" = "slice-25-mouse-demo-contract" ] || [ "$name" = "slice-43-mouse-gesture-configurability" ] || [ "$name" = "slice-44-drag-overlay-semantics" ]; then
                 if [ "$name" = "slice-25-mouse-demo-contract" ]; then
                     sample_slice_prefix="slice-25"
                 elif [ "$name" = "slice-43-mouse-gesture-configurability" ]; then
                     sample_slice_prefix="slice-43"
+                elif [ "$name" = "slice-44-drag-overlay-semantics" ]; then
+                    sample_slice_prefix="slice-44"
                 else
                     sample_slice_prefix="slice-24"
                 fi
@@ -4189,6 +4293,12 @@ write_semantic_sample_manifest() {
                 snap_path_description="secondary-button snap path toward Comms"
                 snap_final_description="same source window is placed in Comms/right after secondary-button snap"
                 snap_hover_description="whole Comms zone overlay and product label are visible before release"
+                if [ "$name" = "slice-44-drag-overlay-semantics" ]; then
+                    no_snap_description="ordinary drag over Comms has no whole-zone snap overlay, product snap label, or window-slot target"
+                    snap_path_description="secondary-button snap path toward Comms without a window-slot target"
+                    snap_final_description="same source window is placed in Comms/right after a whole-zone snap, not a window-slot snap"
+                    snap_hover_description="whole Comms zone overlay and product label are visible before release; no window-slot target is active"
+                fi
             fi
             float_caption_label="$(event_manifest_field "$event_manifest" float-post-state caption-label || caption_label_for_chip "$name" "Run: winmux list-windows --monitor all" || printf 'caption-03\n')"
             float_caption_start="$(event_manifest_field "$event_manifest" float-post-state seconds || caption_start_for_label "$name" "$float_caption_label" || printf 'caption-boundary-start\n')"
@@ -5053,7 +5163,7 @@ zone_log_field() {
 write_mouse_snap_overlay_sentinel() {
     local name="$1"
     case "$name" in
-        slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance|slice-20-zone-snap-policy-switch|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability) ;;
+        slice-12-mouse-zone-snap-drag|slice-16-mouse-snap-affordance|slice-20-zone-snap-policy-switch|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics) ;;
         *) return 0 ;;
     esac
     command -v magick >/dev/null 2>&1 || die "Mouse snap overlay sentinel requires ImageMagick: magick"
@@ -5073,11 +5183,13 @@ write_mouse_snap_overlay_sentinel() {
     elif [ "$name" = "slice-23-product-snap-overlay-label" ]; then
         slice_prefix="slice-23"
         modifier_label="Alt"
-    elif [ "$name" = "slice-24-secondary-button-snap" ] || [ "$name" = "slice-25-mouse-demo-contract" ] || [ "$name" = "slice-43-mouse-gesture-configurability" ]; then
+    elif [ "$name" = "slice-24-secondary-button-snap" ] || [ "$name" = "slice-25-mouse-demo-contract" ] || [ "$name" = "slice-43-mouse-gesture-configurability" ] || [ "$name" = "slice-44-drag-overlay-semantics" ]; then
         if [ "$name" = "slice-25-mouse-demo-contract" ]; then
             slice_prefix="slice-25"
         elif [ "$name" = "slice-43-mouse-gesture-configurability" ]; then
             slice_prefix="slice-43"
+        elif [ "$name" = "slice-44-drag-overlay-semantics" ]; then
+            slice_prefix="slice-44"
         else
             slice_prefix="slice-24"
         fi
@@ -7244,6 +7356,30 @@ run_slice_43_mouse_gesture_configurability() {
         "${LOGS_DIR}/slice-43-run.log"
 }
 
+run_slice_44_drag_overlay_semantics_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=setup WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-44 WINMUX_E2E_RECORDING_NAME=slice-44-drag-overlay-semantics WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 44: drag overlay target semantics' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=float-unless-snap WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE=secondary-button-drag WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=secondary-button WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL='Whole zone: Comms' WINMUX_E2E_MOUSE_SNAP_SLOT_NOOP_LABEL='whole-zone target; no window-slot target active' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-44-setup.log"
+}
+
+run_slice_44_drag_overlay_semantics() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
+    local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_MOUSE_SNAP_PHASE=proof WINMUX_E2E_MOUSE_SNAP_SLICE_PREFIX=slice-44 WINMUX_E2E_RECORDING_NAME=slice-44-drag-overlay-semantics WINMUX_E2E_MOUSE_SNAP_TITLE='WinMux Slice 44: drag overlay target semantics' WINMUX_E2E_MOUSE_SNAP_CONFIG_POLICY=float-unless-snap WINMUX_E2E_MOUSE_SNAP_CONFIG_GESTURE=secondary-button-drag WINMUX_E2E_MOUSE_SNAP_PROOF_MODE=secondary-button WINMUX_E2E_MOUSE_SNAP_PRODUCT_OVERLAY_LABEL='Whole zone: Comms' WINMUX_E2E_MOUSE_SNAP_SLOT_NOOP_LABEL='whole-zone target; no window-slot target active' /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-44-run.log"
+}
+
 run_slice_27_window_slot_snap_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-12-mouse-zone-snap.sh"
     local scenario_path_quoted guest_repo_quoted guest_artifacts_quoted guest_display_quoted
@@ -7793,6 +7929,10 @@ slice_43() {
     run_recorded_scenario "slice-43-mouse-gesture-configurability" "00-before-slice-43" "99-after-slice-43" "run_slice_43_mouse_gesture_configurability" "run_slice_43_mouse_gesture_configurability_setup" "01-ready-slice-43"
 }
 
+slice_44() {
+    run_recorded_scenario "slice-44-drag-overlay-semantics" "00-before-slice-44" "99-after-slice-44" "run_slice_44_drag_overlay_semantics" "run_slice_44_drag_overlay_semantics_setup" "01-ready-slice-44"
+}
+
 slice_26() {
     run_recorded_scenario "slice-26-zone-divider-drag" "00-before-slice-26" "99-after-slice-26" "run_slice_26_zone_divider_drag" "run_slice_26_zone_divider_drag_setup" "01-ready-slice-26"
 }
@@ -7952,6 +8092,9 @@ case "$ACTION" in
         ;;
     slice-43)
         slice_43
+        ;;
+    slice-44)
+        slice_44
         ;;
     slice-26)
         slice_26

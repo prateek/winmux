@@ -8177,7 +8177,7 @@ Non-claims:
 
 ### Slice 44: Drag Overlay and Snap Semantics Polish
 
-Status: planned.
+Status: in progress.
 
 Pre-Slice-44 cleanup from Slice 43 retrospectives:
 
@@ -8195,15 +8195,28 @@ Pre-Slice-44 cleanup from Slice 43 retrospectives:
 - [x] Add a verifier self-test fixture for the Slice 43 regression: an event
   row at release time pointing to a later `caption-*-boundary-start.png` sample
   must fail.
-- [ ] Update the Slice 44 reviewer packet/checklist so every drag branch has
+- [x] Update the Slice 44 reviewer packet/checklist so every drag branch has
   separate required citations for hover target, release-on-active-target, and
   post-drop final placement. The Slice 43 reviewer wording has been corrected as
-  carry-forward guidance, but the Slice 44-specific packet branch still must be
-  added with the Slice 44 harness.
-- [ ] Treat overlay sentinel crops as corroboration only; the primary product
-  frame must visibly show the target label or target semantics.
+  carry-forward guidance, and the Slice 44 packet now requires separate
+  hover, release-boundary, and final-placement citations.
+- [x] Treat overlay sentinel crops as corroboration only; the primary product
+  frame must visibly show the target label or target semantics. The Slice 44
+  reviewer packet and prompt reject crop-only proof.
 - [x] Keep the Slice 43 closeout evidence and `PASS_WITH_NOTES` sidecar note in
   the plan before starting Slice 44 pre-Tart freshness.
+
+Current implementation progress:
+
+- [x] Add `script/e2e/configs/drag-overlay-semantics.toml` and parser coverage
+  for the Slice 44 config.
+- [x] Add `make e2e-slice-44`, recorder action
+  `slice-44-drag-overlay-semantics`, annotation plan, event-manifest rows,
+  semantic samples, overlay-sentinel registration, and verifier dispatch.
+- [x] Add an explicit slot-noop proof-manifest field:
+  `drag-target	slot-noop	whole-zone target; no window-slot target active`.
+- [ ] Run focused local validation, then generate the pre-Tart freshness
+  manifest and three no-context pre-Tart reports before any Tart recording.
 
 Goal: make drag affordances understandable from the video without reading logs:
 what is being dragged, what target will receive it, and whether the target is a
@@ -8221,8 +8234,10 @@ Required scope:
   in-drag screenshots.
 
 Required artifact: a fresh Tart drag video showing at least one whole-zone snap
-and one window-slot snap or explicit slot-noop, with reviewer-visible target
-semantics.
+and an explicit slot-noop. The accepted Slice 27 artifact remains the
+window-slot proof; Slice 44 must instead prove that the new whole-zone hover and
+release affordances are visually distinct from a window-slot target and
+reviewer-visible without reading logs.
 
 Non-claims:
 

@@ -526,6 +526,25 @@ Slice-specific checks:
   placement, whole-zone overlay, Alt-key positive activation, missing release
   frame, logs-only proof, or review that accepts without naming the exact media
   used for ordinary pickup, slot hover, slot release, and final placement.
+- Slice 44 must show drag overlay target semantics for a whole-zone snap and an
+  explicit no-window-slot path. It must use a fresh
+  `slice-44-drag-overlay-semantics` recording, not reused Slice 24, Slice 25,
+  Slice 27, or Slice 43 media. The proof must include separate visible media
+  citations for ordinary pickup, ordinary no-overlay hover, secondary-button
+  pickup/path, product-labeled whole-zone hover, release-boundary frame
+  `08-snap-release-slice-44.png`, and final placement
+  `99-after-slice-44.png`. Inspect
+  `logs/slice-44-drag-overlay-semantics.proof-manifest.tsv` and require
+  `drag-target	snap-target	whole-zone`,
+  `drag-target	not-snap-target	window-within-zone`,
+  `drag-target	slot-noop	whole-zone target; no window-slot target active`,
+  and `visual-floor	product-overlay-label	Whole zone: Comms`. Inspect
+  `logs/slice-44-drag-overlay-semantics.overlay-sentinel.tsv` as corroboration
+  only; crop labels cannot replace full-product hover or release-frame evidence.
+  Reject crop-only proof, final-state-only proof, missing hover/release/final
+  separation, any product-label claim based only on logs or annotations, any
+  active target that appears to be a window slot, and any review that does not
+  state whether target semantics are understandable from the video alone.
 - Slice 28 must show runtime layout export, not automatic persistence. Inspect
   the full video plus `screenshots/02-before-export-resize-slice-28.png`,
   `03-after-runtime-resize-slice-28.png`, `04-export-output-slice-28.png`,
