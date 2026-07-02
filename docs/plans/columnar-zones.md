@@ -36,6 +36,19 @@ Identity rule for call sites:
   mouse approximations, but not for deciding whether a persisted or
   force-assigned workspace is valid.
 
+Input-path rule (added after 2026-07-02 dogfood latency diagnosis):
+
+- input event handlers (global/local mouse and key monitors, event-tap
+  callbacks, hover tracking) must not perform synchronous AX calls,
+  `CGWindowListCopyWindowInfo`, layout passes, or full refresh sessions;
+  they may only read cached state and schedule work;
+- any refresh session that enumerates windows over AX must be bounded by a
+  per-app time budget and must not be triggered by interactions that cannot
+  have changed window state;
+- reviewers must treat a violation of this rule as blocking, the same as a
+  monitor-identity violation. Fixing a correctness bug by adding synchronous
+  window-system queries to an input path is not an acceptable fix.
+
 ## Domain Model
 
 Keep these concepts separate in code, config, tests, and demos:
@@ -9524,7 +9537,13 @@ paths never enumerate or write window frames):
 - suspend winmux's own focus observers around self-initiated raises and add a
   timestamp guard against feedback loops;
 - keep always-on signpost or log instrumentation for input-to-layout latency
-  so regressions are measurable in artifacts.
+  so regressions are measurable in artifacts;
+- add a latency/performance dimension to the pre-Tart and no-context
+  reviewer prompts and the review packet checklist, enforcing the input-path
+  rule in the Decision section: every prior review in this repo was scoped
+  to correctness and artifact proof, which is how the mouse-up AX sweep and
+  the synchronous divider hit test survived (the latter was introduced BY a
+  correctness review fix).
 
 Required artifact: a Tart recording plus before/after latency evidence from
 the new instrumentation (log or signpost export), and a no-context artifact
