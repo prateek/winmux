@@ -9135,7 +9135,7 @@ Non-claims:
 
 ### Slice 50: Beta Packaging and Release Candidate
 
-Status: planned.
+Status: accepted via `artifacts/e2e/slice-50-pre-tart-20260702T135154Z`.
 
 Goal: produce a reproducible beta package that installs and launches outside the
 development harness.
@@ -9260,6 +9260,32 @@ Implementation update, 2026-07-02:
   a report containing an `ACTIONABLE ISSUES` marker if its final line was clean.
   The follow-up fix adds both self-test cases and rejects any pre-Tart report
   containing an actionable marker.
+- `artifacts/e2e/slice-50-pre-tart-20260702T135154Z` is the accepted package
+  artifact. It was built from clean commit
+  `7867a4a3cfd9892e5bc941c3799868b9b7641dd7`, produced
+  `WinMux-0.50.0-20260702T140040Z.zip`, recorded a 3440x1440 guest package
+  install video, and stores package/app/CLI hashes in
+  `logs/package-provenance.env`. The Tart guest installed from the package,
+  launched `/Applications/WinMux.app` without a config override, used
+  `/Users/admin/.config/winmux/winmux.toml`, passed `winmux doctor` and
+  `winmux config --check`, generated `doctor zones --support-bundle`, and
+  schema-checked the support bundle with `result=success`.
+- The accepted Slice 50 post-recording retry summary has `slice-50-run` with
+  one attempt, zero failures, `final_result=success`,
+  `before_recording=no`, `mutation_started=yes`, and `first_mutation_line=2`.
+  Pre-recording privacy/setup retry noise is recorded as setup transport noise,
+  not accepted product mutation evidence.
+- The first no-context artifact review for the accepted artifact was
+  format-invalid because it used the pre-Tart `NO ACTIONABLE ISSUES` convention.
+  It is preserved at `reviews/no-ctx-artifact-review.format-invalid.md` and in
+  `reviews/reviewer-attempts.tsv`. The replacement review at
+  `reviews/no-ctx-artifact-review.md` starts with `PASS:` and ends with
+  `next slice allowed: yes`; `logs/review-lint.log` and
+  `logs/post-review-verify.log` both report `result=success`.
+- Slice 50 closeout evidence includes all three no-context retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`. Their blocking carry-forward items are
+  folded into the Slice 51 pre-slice cleanup list below.
 - `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
   dirty-source packaging smoke. It is useful as implementation evidence, but it
   is not accepted Slice 50 evidence; accepted evidence must come from a clean
@@ -9275,6 +9301,47 @@ Non-claims:
 Status: planned.
 
 Goal: decide whether this fork is ready for daily dogfood and a small beta.
+
+Pre-slice cleanup from Slice 50 retrospectives:
+
+- [ ] Register Slice 51 before its first Tart run in the pre-Tart review gate,
+  package/beta acceptance checker, review packet, artifact-review prompt, and
+  closeout routing. The gate must require three clean no-context pre-Tart
+  reports with current freshness evidence and no hidden `ACTIONABLE ISSUES`
+  marker.
+- [ ] Carry the stateful no-post-recording-retry policy forward to Slice 51:
+  one post-recording attempt after the mutation marker, no retry after product
+  mutation, explicit retry-summary validation, and artifact-review citation of
+  any before-recording setup retry noise.
+- [ ] Keep the support-bundle schema self-test in the pre-Tart floor and ensure
+  it still covers title-only affinity acceptance plus raw app-id, raw app-name,
+  and raw window-title rejection before recording Slice 51.
+- [ ] Make the artifact-review output contract unavoidable for Slice 51. The
+  no-context artifact review must start with `PASS:`, `PASS_WITH_NOTES:`, or
+  `FAIL:` and end with `next slice allowed: yes` or `next slice allowed: no`;
+  pre-Tart `NO ACTIONABLE ISSUES` reviews are wrong-format artifact evidence and
+  must be moved aside, recorded in `reviews/reviewer-attempts.tsv`, and
+  replaced.
+- [ ] Define reviewer-attempt ledger semantics before Slice 51 acceptance. A
+  reviewer attempt should have a terminal status such as `clean`, `failed`,
+  `format-invalid`, or `superseded`, or the accepted review must explicitly cite
+  unresolved `started` rows and explain why they are non-terminal bookkeeping.
+- [ ] Write the Slice 51 storyboard before Tart: fresh package install,
+  permissions/setup, normal launch, live zones, routing, keyboard move,
+  mouse snap, profile toggle, save/relaunch, support-bundle generation, and
+  uninstall/disable. Each beat needs an expected media label and exact
+  user-facing command/action/result chip.
+- [ ] Generate package/beta captions from the actual provenance command and
+  version. Do not use placeholder visible commands like
+  `VERSION=0.50.0-slice50` when `logs/package-provenance.env` records a
+  timestamped package command.
+- [ ] Add a visible package-provenance proof surface for Slice 51 that shows the
+  package zip path, package/app/CLI SHA-256 values, source commit,
+  `PUBLISH=0`, install path, normal config path, signing status, and
+  notarization status in one inspectable frame.
+- [ ] Decide the final desktop policy before the next recording: either end on
+  one consolidated final proof board, or declare in the reviewer packet why
+  multiple proof boards are intentional and not desktop contamination.
 
 Required scope:
 
