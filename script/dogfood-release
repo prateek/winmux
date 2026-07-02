@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Cuts a dogfood release: builds the beta package, publishes a GitHub
+# prerelease, and bumps the winmux cask in the Homebrew tap so machines
+# without a build toolchain pick it up via `brew upgrade --cask winmux`.
+
+RELEASE_REPO="${WINMUX_RELEASE_REPO:-prateek/winmux}"
+TAP_REPO="${WINMUX_TAP_REPO:-prateek/homebrew-tap}"
+RELEASE_REMOTE="${WINMUX_RELEASE_REMOTE:-fork}"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <version>
+
+Example: $(basename "$0") 0.51.0-dogfood.2
+
+Environment overrides:
+  WINMUX_RELEASE_REPO    GitHub repo for releases (default: $RELEASE_REPO)
+  WINMUX_TAP_REPO        Homebrew tap repo to bump (default: $TAP_REPO)
+  WINMUX_RELEASE_REMOTE  git remote for the release repo (default: $RELEASE_REMOTE)
+EOF
+}
+
+die() {
+    printf '[dogfood-release] error: %s\n' "$*" >&2
+    exit 1
+}
+
+log() {
+    printf '[dogfood-release] %s\n' "$*"
+}
+
+[ $# -eq 1 ] || { usage >&2; exit 64; }
+case "$1" in
+    -h|--help) usage; exit 0 ;;
+esac
+VERSION="$1"
+
+cd "$(dirname "$0")/.."
+
+command -v gh >/dev/null || die "gh CLI is required"
+git diff --quiet && git diff --cached --quiet || die "working tree is dirty; commit or stash first"
+
+head_sha="$(git rev-parse HEAD)"
+branch="$(git rev-parse --abbrev-ref HEAD)"
+zip_path=".release/WinMux-${VERSION}.zip"
+tag="v${VERSION}"
+
+gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1 && die "release $tag already exists on $RELEASE_REPO"
+
+log "building beta package $VERSION from $head_sha"
+make beta-package VERSION="$VERSION" PUBLISH=0 >/dev/null
+test -s "$zip_path" || die "expected package at $zip_path"
+zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
+
+log "pushing $branch to $RELEASE_REMOTE"
+git push "$RELEASE_REMOTE" "$branch"
+
+log "creating prerelease $tag on $RELEASE_REPO"
+notes="$(cat <<EOF
+Dogfood build from \`${head_sha}\` (branch \`${branch}\`).
+
+Install or upgrade via the tap:
+
+\`\`\`sh
+brew install --cask prateek/tap/winmux   # or: brew upgrade --cask winmux
+\`\`\`
+
+User guide: [docs/ultrawide-zones.md](https://github.com/${RELEASE_REPO}/blob/${branch}/docs/ultrawide-zones.md)
+
+**Package SHA-256:** \`${zip_sha256}\`
+EOF
+)"
+gh release create "$tag" \
+    --repo "$RELEASE_REPO" \
+    --target "$head_sha" \
+    --prerelease \
+    --title "WinMux zones dogfood ${VERSION}" \
+    --notes "$notes" \
+    "$zip_path"
+
+log "bumping cask in $TAP_REPO"
+tap_dir="$(mktemp -d)"
+trap 'rm -rf "$tap_dir"' EXIT
+gh repo clone "$TAP_REPO" "$tap_dir" -- --depth 1 --quiet
+cask_file="$tap_dir/Casks/winmux.rb"
+test -f "$cask_file" || die "missing $cask_file in $TAP_REPO"
+/usr/bin/sed -i '' \
+    -e "s|^  version \".*\"$|  version \"${VERSION}\"|" \
+    -e "s|^  sha256 \".*\"$|  sha256 \"${zip_sha256}\"|" \
+    "$cask_file"
+grep -q "version \"${VERSION}\"" "$cask_file" || die "version bump failed in $cask_file"
+grep -q "sha256 \"${zip_sha256}\"" "$cask_file" || die "sha256 bump failed in $cask_file"
+git -C "$tap_dir" commit --quiet -am "winmux ${VERSION}"
+git -C "$tap_dir" push --quiet
+
+log "done: $tag published, cask bumped to ${VERSION}"
+log "on the daily driver: brew upgrade --cask winmux"
