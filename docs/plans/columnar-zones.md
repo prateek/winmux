@@ -8412,6 +8412,8 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   `screenshots/slice-45-display-topology-recovery.topology-contact-sheet.jpg`,
   the normal event manifest/contact sheet, and verifier checks that reject
   missing or logs-only topology proof.
+- [x] Register `make e2e-slice-45` with the mandatory pre-Tart review gate and
+  document the target in the E2E README.
 - Local Slice 45 prep validation passed:
   `bash -n script/e2e/tart-recording-harness script/e2e/guest/slice-45-display-topology-recovery.sh script/e2e/verify-artifact script/e2e/write-review-packet`,
   Slice 45 guest `self-test`, `./script/e2e/tart-recording-harness annotation-preflight`,
