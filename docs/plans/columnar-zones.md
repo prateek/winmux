@@ -569,6 +569,21 @@ Compact slice inventory:
 | 34 | Ready-to-use scene binding showcase: `alt-tab` runs scene cycling through `trigger-binding`. |
 | 35 | Starter ultrawide template: first-run config includes a commented, parse-tested zones setup and a Tart demo of uncommenting and validating it. |
 | 36 | Current root demo refresh: package the accepted Slice 32 divider drag plus save/relaunch demo as `demo-columnar-zones.mp4`. |
+| 37 | Starter template onboarding companion: document and demo enabling the ultrawide template from a companion config. |
+| 38 | Normal user readiness walkthrough: prove the normal config path works without harness-only launch overrides. |
+| 39 | Real dogfood install and permissions: install `/Applications/WinMux.app`, prepare permissions, run `doctor`, and relaunch normally. |
+| 40 | Zone setup assistant: generate balanced ultrawide zones from a normal user config with dry-run, write, backup, and validation. |
+| 41 | Beta-hardened app and window affinities: route newly detected windows into zones with dogfood-ready guardrails. |
+| 42 | Zone availability and profile workflows: toggle zones and whole-layout availability profiles through user-facing commands. |
+| 43 | Mouse gesture configurability: prove secondary-button and configurable gesture paths for whole-zone snap. |
+| 44 | Drag overlay and snap semantics polish: make whole-zone snap overlays and release semantics visually unambiguous. |
+| 45 | Multi-monitor, hotplug, and sleep/wake hardening: prove topology recovery and clearly mark deterministic Tart simulation boundaries. |
+| 46 | Persistence, rollback, and config doctor: make saved zone layouts recoverable, auditable, and safe for beta testers. |
+| 47 | Product UI and zone chrome polish: make current zone state readable without a heavy dashboard. |
+| 48 | Support bundle and diagnostics: collect redacted zone/debug state for dogfood and beta reports. |
+| 49 | Ultrawide zones documentation: turn accepted demos and commands into README/docs/sample configs users can follow. |
+| 50 | Beta packaging and release candidate: build, package, verify, and document the beta install path. |
+| 51 | Beta acceptance and dogfood soak: run the package through the end-to-end acceptance path and classify remaining blockers. |
 
 ### Slice 0: Tart Recording Harness
 
@@ -8430,6 +8445,13 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   `swift test --filter MonitorTopologyTest/testZoneWorkspacesSurviveDisplayIdChurnAndResolutionChange`,
   and full `make e2e-pre-tart-checks` including the 201-test focused Swift
   suite.
+- Superseded attempt:
+  `artifacts/e2e/slice-45-pre-tart-20260702T020808Z` produced media but failed
+  `./script/e2e/verify-artifact --check-only` because
+  `logs/slice-45-topology-before.log` did not contain the required
+  `winmux list-windows --all --format ...` audit. The guest script now keeps
+  the visible-window readiness check and then writes the before-state log with
+  the full user-facing all-windows command before generating topology logs.
 
 Goal: make zones survive realistic external-monitor use.
 

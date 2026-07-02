@@ -456,6 +456,7 @@ run_proof() {
 
     "${CLI}" focus-zone Work >/dev/null 2>>"${WAIT_ERR}" || true
     wait_for_textedit_windows 3 "${WINDOWS_BEFORE_LOG}" || semantic_fail 'Before windows are missing'
+    write_windows_log "${WINDOWS_BEFORE_LOG}"
     write_zones_log "${ZONES_BEFORE_LOG}"
     write_topology_log before 'all zones visible before topology event' "${ZONES_BEFORE_LOG}" "${WINDOWS_BEFORE_LOG}" "${TOPOLOGY_BEFORE_LOG}"
     sleep_until_recording_offset 8 16 'topology-before'
