@@ -64,7 +64,8 @@ zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
 
 staging_dir=".release/WinMux-${VERSION}"
 for artifact in "$staging_dir/WinMux.app" "$staging_dir/bin/winmux"; do
-    codesign -dv "$artifact" 2>&1 | grep -Fq "Authority=$SIGN_IDENTITY" \
+    # Untrusted self-signed authorities only appear at -dvvv verbosity.
+    codesign -dvvv "$artifact" 2>&1 | grep -Fq "Authority=$SIGN_IDENTITY" \
         || die "$artifact is not signed by '$SIGN_IDENTITY'; refusing to publish"
 done
 log "artifacts signed by '$SIGN_IDENTITY'"
