@@ -1,6 +1,9 @@
 VERSION ?= 0.0.0-SNAPSHOT
 CODESIGN_IDENTITY ?= Apple Development
 EXPECTED_CODESIGN_AUTHORITY ?= Apple Development: zxzimeng@gmail.com (4F7GA4MB42)
+# beta-package signing identity; "-" is ad-hoc. Dogfood releases pass a stable
+# self-signed identity (script/setup-signing) so TCC grants survive upgrades.
+BETA_CODESIGN_IDENTITY ?= -
 DEVELOPMENT_TEAM ?= W9C2P3N7Q2
 RELEASE_DIR ?= .release
 RELEASE_TAG ?= v$(VERSION)
@@ -584,7 +587,8 @@ beta-package:
 	    "    <true/>" \
 	    "</dict>" \
 	    "</plist>" >"$$app_path/Contents/Info.plist"; \
-	codesign --force --deep --sign - --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
+	codesign --force --deep --sign "$(BETA_CODESIGN_IDENTITY)" --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
+	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$cli_path" >>"$$build_log" 2>&1 || true; \
 	codesign --verify --deep --strict "$$app_path" >>"$$build_log" 2>&1 || true; \
 	ditto -c -k --sequesterRsrc --keepParent "$$staging_dir" "$$zip_path"; \
 	test -s "$$zip_path"; \
