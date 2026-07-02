@@ -1,0 +1,55 @@
+config-version = 2
+auto-reload-config = true
+persistent-workspaces = []
+
+[workspace-sidebar]
+enabled = true
+width = 280
+collapsed-width = 64
+show-date = true
+
+[[zone-layouts]]
+id = 'comms-open'
+layout = 'columns'
+default-zone = 'main'
+columns = [
+  { id = 'left', name = 'Reference', width = 0.20 },
+  { id = 'main', name = 'Work', width = 0.55 },
+  { id = 'right', name = 'Comms', width = 0.25 },
+]
+
+[[zones]]
+monitor = 1
+layout-preset = 'comms-open'
+
+[[zone-availability-sets]]
+id = 'focus-only'
+enabled-zones = ['main']
+
+[[zone-availability-sets]]
+id = 'communications'
+enabled-zones = ['main', 'right']
+
+[[zone-availability-sets]]
+id = 'full-dashboard'
+enabled-zones = ['left', 'main', 'right']
+
+[[zone-styles]]
+id = 'urgent'
+color = '#D3455B'
+
+[[zone-styles]]
+id = 'calm'
+color = '#3EA2FF'
+
+[mode.main.binding]
+alt-z = 'mode zone'
+alt-c = 'focus-zone Comms'
+alt-m = 'use-zone-profile communications'
+alt-y = 'cycle-zone-style Comms urgent calm'
+
+[mode.zone.binding]
+esc = 'mode main'
+l = ['focus-zone next', 'mode main']
+shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
+a = ['cycle-zone-profile focus-only communications full-dashboard', 'mode main']

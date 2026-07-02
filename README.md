@@ -38,13 +38,11 @@ Monitors share the global project/workspace state. Each monitor can be treated a
 Monitors can not be attached to the same workspace at the same time. They can be on the same project at the same time.
 
 ### Columnar Zones
-On ultrawide displays, WinMux can split one physical monitor into named column zones. Each zone acts like its own workspace viewport, so Reference, Work, and Comms can stay visible at the same time without turning the whole display into one huge tiling surface.
+On an ultrawide display, WinMux can split one physical monitor into named zones.
+Each zone behaves like its own workspace viewport, so Reference, Work, and Comms
+can stay visible side by side.
 
-See [demo-columnar-zones.mp4](demo-columnar-zones.mp4) for an
-already-configured zones workflow with runtime divider controls. First-run setup
-uses the CLI commands below.
-
-For a first setup, let WinMux write the starter zones and keep a backup:
+The shortest setup path is the CLI assistant:
 
 ```bash
 winmux zone init --dry-run --preset balanced
@@ -53,114 +51,13 @@ winmux config --check ~/.config/winmux/winmux.toml
 winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'
 ```
 
-Fresh WinMux configs still include the same ultrawide setup as a commented
-template if you prefer to hand-tune the TOML before enabling it.
+Fresh configs also include a commented ultrawide template if you want to edit
+the TOML by hand before enabling it.
 
-```toml
-[[zones]]
-monitor = 1
-layout = 'columns'
-default-zone = 'main'
-columns = [
-  { id = 'left', name = 'Reference', width = 0.25 },
-  { id = 'main', name = 'Work', width = 0.50 },
-  { id = 'right', name = 'Comms', width = 0.25 },
-]
-
-[mode.main.binding]
-alt-z = 'mode zone'
-
-[mode.zone.binding]
-esc = 'mode main'
-h = ['focus-zone prev', 'mode main']
-l = ['focus-zone next', 'mode main']
-shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
-shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
-minus = ['resize-zone current width -10%', 'mode main']
-equal = ['resize-zone current width +10%', 'mode main']
-"0" = ['balance-zones', 'mode main']
-t = ['toggle-zone current', 'mode main']
-space = ['layout floating tiling', 'mode main']
-s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
-```
-
-Use `list-zones` to inspect the active zone state. Zone selectors accept ids or names when they are unique. They also accept `current`, `next`, and `prev`, scoped to the focused physical monitor. If multiple physical monitors reuse the same zone id, qualify the selector with the monitor, such as `1:left`.
-
-You can drag a divider between adjacent zones to resize the columns at runtime.
-Run `winmux save-zone-layout` after a drag to write the new widths back to the
-active config. The new widths are then restored on the next WinMux launch.
-
-For repeatable setups, define layout presets, scenes, availability sets, and styles:
-
-```toml
-[[zone-styles]]
-id = 'urgent'
-color = '#D3455B'
-
-[[zone-styles]]
-id = 'calm'
-color = '#3EA2FF'
-
-[[zone-layouts]]
-id = 'balanced'
-layout = 'columns'
-default-zone = 'main'
-columns = [
-  { id = 'left', name = 'Reference', width = 0.25 },
-  { id = 'main', name = 'Work', width = 0.50 },
-  { id = 'right', name = 'Comms', width = 0.25 },
-]
-
-[[zone-layouts]]
-id = 'focus'
-layout = 'columns'
-default-zone = 'main'
-columns = [
-  { id = 'left', name = 'Queue', width = 0.18 },
-  { id = 'main', name = 'Build', width = 0.64 },
-  { id = 'right', name = 'Notes', width = 0.18 },
-]
-
-[[zone-scenes]]
-id = 'deep-work'
-layout-preset = 'focus'
-workspaces = [
-  { zone = 'left', workspace = 'FocusQueue' },
-  { zone = 'main', workspace = 'FocusBuild' },
-  { zone = 'right', workspace = 'FocusNotes' },
-]
-
-[[zone-availability-sets]]
-id = 'focus-only'
-enabled-zones = ['main']
-
-[[zone-availability-sets]]
-id = 'communications'
-enabled-zones = ['main', 'right']
-
-[[zone-availability-sets]]
-id = 'full-dashboard'
-enabled-zones = ['left', 'main', 'right']
-
-[mode.main.binding]
-alt-1 = 'use-zone-layout focus'
-alt-2 = 'use-zone-scene deep-work'
-
-[mode.zone.binding]
-tab = ['cycle-zone-layout balanced focus', 'mode main']
-a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
-y = ['cycle-zone-style current urgent calm', 'mode main']
-```
-
-Use `use-zone-layout` when you only want to resize the columns. Use `use-zone-scene` when you want to resize columns and switch each zone to a named workspace. The `tab`, `a`, and `y` zone-mode bindings require the matching `[[zone-layouts]]`, `[[zone-availability-sets]]`, and `[[zone-styles]]` entries.
-
-Window rules can route new windows into a zone by using the same command surface:
-
-```toml
-[[on-window-detected]]
-if.window-title-regex-substring = 'Slack|Messages|route-comms'
-run = ['move-node-to-zone Comms --fail-if-noop']
-```
+See [docs/ultrawide-zones.md](docs/ultrawide-zones.md) for keyboard and mouse
+workflows, app affinities, profiles, persistence, troubleshooting, and sample
+configs. The current product demo is [demo-columnar-zones.mp4](demo-columnar-zones.mp4);
+it shows divider drag, saving widths, relaunch, and `list-zones` proof.
 
 #### App Launching
 WinMux supports single-modifer keybindings (e.g. triggering an action on press of `⌘`)

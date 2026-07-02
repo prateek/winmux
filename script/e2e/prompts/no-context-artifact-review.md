@@ -807,6 +807,29 @@ Slice-specific checks:
   retention limits or the unavailable-history line
   `WinMux does not retain a recent window-routing decision log yet`. Reject any
   automatic-upload, unified-log, crash-log, or full live routing-history claim.
+- Slice 49 is a documentation artifact. Inspect the artifact snapshot
+  `README.md`, `docs/ultrawide-zones.md`, every
+  `docs/samples/ultrawide-*.toml` file, `logs/docs-slice-manifest.txt`, and
+  the accepted Tart-derived media paths cited by the manifest. Require the
+  README to present the shortest setup path with
+  `winmux zone init --dry-run --preset balanced`,
+  `winmux zone init --preset balanced --write`,
+  `winmux config --check ~/.config/winmux/winmux.toml`, and `winmux list-zones`.
+  Require the guide to cover install, permissions, setup, starter template,
+  keyboard commands, mouse behavior, profiles/scenes, app affinities,
+  persistence, troubleshooting, support bundles, sample configs, accepted
+  evidence, and known limits. Require all five sample names:
+  `ultrawide-balanced.toml`, `ultrawide-focus-only.toml`,
+  `ultrawide-comms-open.toml`, `ultrawide-dashboard.toml`, and
+  `ultrawide-app-affinities.toml`. Require accepted media references from
+  Slice 27, Slice 36, Slice 37, Slice 38, Slice 39, Slice 40, Slice 41,
+  Slice 42, Slice 45, Slice 46, Slice 47, and Slice 48. The mouse section must
+  distinguish the starter whole-zone `target = 'zone'` flow from the accepted
+  advanced `target = 'window'` flow. Reject docs that claim a new product
+  behavior, omit the beta support-bundle boundary, say window-slot targets are
+  unimplemented, present whole-zone mouse snap and window-slot snap as the same
+  target, imply runtime divider widths auto-persist without `save-zone-layout`,
+  or rely on unparseable sample configs.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

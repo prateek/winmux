@@ -1,0 +1,372 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+RUN_DIR=""
+PACKAGE=0
+REQUIRE_REVIEW=0
+CLOSEOUT=0
+
+samples=(
+    docs/samples/ultrawide-balanced.toml
+    docs/samples/ultrawide-focus-only.toml
+    docs/samples/ultrawide-comms-open.toml
+    docs/samples/ultrawide-dashboard.toml
+    docs/samples/ultrawide-app-affinities.toml
+)
+
+accepted_media=(
+    demo-columnar-zones.mp4
+    artifacts/e2e/slice-27-20260630T043500Z/recordings/slice-27-window-slot-snap.mov
+    artifacts/e2e/slice-27-20260630T043500Z/screenshots/07-slot-hover-right-slice-27.png
+    artifacts/e2e/slice-27-20260630T043500Z/reviews/no-ctx-artifact-review.md
+    artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4
+    artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/recordings/slice-37-starter-onboarding.mov
+    artifacts/e2e/slice-38-pre-tart-20260701T075713Z/recordings/slice-38-user-readiness.mov
+    artifacts/e2e/slice-39-pre-tart-20260701T093003Z/recordings/slice-39-dogfood-install-permissions.mov
+    artifacts/e2e/slice-40-pre-tart-20260701T130717Z/recordings/slice-40-zone-setup-assistant.mov
+    artifacts/e2e/slice-41-20260701T173400Z/recordings/slice-41-zone-affinity-beta.mov
+    artifacts/e2e/slice-42-pre-tart-20260701T210703Z/recordings/slice-42-zone-availability-profiles.mov
+    artifacts/e2e/slice-45-pre-tart-20260702T022831Z/recordings/slice-45-display-topology-recovery.mov
+    artifacts/e2e/slice-46-pre-tart-20260702T045535Z/recordings/slice-46-persistence-rollback-doctor.mov
+    artifacts/e2e/slice-47-pre-tart-20260702T062251Z/recordings/slice-47-zone-chrome-polish.mov
+    artifacts/e2e/slice-48-20260702T094800Z/recordings/slice-48-support-bundle-diagnostics.mov
+)
+
+WINMUX_CLI_PATH="${WINMUX_CLI:-${REPO_ROOT}/.build/debug/winmux}"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--package <run-dir>] [--require-review] [--closeout] [<run-dir>]
+
+Validates Slice 49 docs, sample configs, accepted media references, and optional
+docs artifact review/closeout files.
+EOF
+}
+
+die() {
+    printf '[winmux-docs49] error: %s\n' "$*" >&2
+    exit 1
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+require_file() {
+    local path="$1"
+    [ -s "${REPO_ROOT}/${path}" ] || die "missing file: ${path}"
+}
+
+require_contains() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "${REPO_ROOT}/${path}" >/dev/null \
+        || die "${path} missing required text: ${text}"
+}
+
+require_artifact_contains() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "$path" >/dev/null \
+        || die "${path} missing required text: ${text}"
+}
+
+require_cli() {
+    [ -x "$WINMUX_CLI_PATH" ] || die "missing executable WINMUX_CLI: ${WINMUX_CLI_PATH}"
+}
+
+manifest_path_hash() {
+    local manifest="$1"
+    local path="$2"
+    /usr/bin/awk -F '\t' -v path="$path" '$2 == path { print $1 }' "$manifest"
+}
+
+validate_source_docs() {
+    require_file README.md
+    require_file docs/ultrawide-zones.md
+
+    require_contains README.md "winmux zone init --dry-run --preset balanced"
+    require_contains README.md "winmux zone init --preset balanced --write"
+    require_contains README.md "docs/ultrawide-zones.md"
+    require_contains README.md "demo-columnar-zones.mp4"
+
+    for section in \
+        "## Install" \
+        "## Permissions" \
+        "## Fast Setup" \
+        "## Starter Template" \
+        "## Keyboard Commands" \
+        "## Mouse" \
+        "## Profiles And Scenes" \
+        "## App Affinities" \
+        "## Persistence" \
+        "## Troubleshooting" \
+        "## Support Bundle" \
+        "## Sample Configs" \
+        "## Accepted Evidence"; do
+        require_contains docs/ultrawide-zones.md "$section"
+    done
+
+    for text in \
+        "winmux doctor zones --support-bundle" \
+        "winmux save-zone-layout" \
+        "winmux config --restore-backup" \
+        "winmux use-zone-profile focus-only" \
+        "winmux move-node-to-zone --focus-follows-window Work" \
+        "policy = 'float-unless-snap'" \
+        "target = 'zone'" \
+        "target = 'window'" \
+        "Window slot: Right" \
+        "Mouse snap supports whole-zone and window-slot targets" \
+        "Support bundles do not collect crash logs"; do
+        require_contains docs/ultrawide-zones.md "$text"
+    done
+
+    require_cli
+    for sample in "${samples[@]}"; do
+        require_file "$sample"
+        require_contains docs/ultrawide-zones.md "$(basename "$sample")"
+        "$WINMUX_CLI_PATH" config --check "${REPO_ROOT}/${sample}" >/dev/null
+    done
+
+    for media in "${accepted_media[@]}"; do
+        require_file "$media"
+        case "$media" in
+            demo-columnar-zones.mp4|*/recordings/*)
+                require_contains docs/ultrawide-zones.md "$media"
+                ;;
+        esac
+    done
+
+    git -C "$REPO_ROOT" ls-files --error-unmatch demo-columnar-zones.mp4 >/dev/null \
+        || die "demo-columnar-zones.mp4 must be tracked"
+}
+
+write_manifest() {
+    local manifest="$1"
+    mkdir -p "$(dirname "$manifest")"
+    {
+        printf 'slice=49\n'
+        printf 'kind=docs\n'
+        printf 'readme_sha256=%s\n' "$(sha256_file "${REPO_ROOT}/README.md")"
+        printf 'guide_sha256=%s\n' "$(sha256_file "${REPO_ROOT}/docs/ultrawide-zones.md")"
+        printf 'snapshot_readme_sha256=%s\n' "$(sha256_file "${RUN_DIR}/README.md")"
+        printf 'snapshot_guide_sha256=%s\n' "$(sha256_file "${RUN_DIR}/docs/ultrawide-zones.md")"
+        printf '\n[samples]\n'
+        for sample in "${samples[@]}"; do
+            printf '%s\t%s\n' "$(sha256_file "${REPO_ROOT}/${sample}")" "$sample"
+        done
+        printf '\n[accepted-media]\n'
+        for media in "${accepted_media[@]}"; do
+            printf '%s\t%s\n' "$(sha256_file "${REPO_ROOT}/${media}")" "$media"
+        done
+        printf '\n[validation]\n'
+        printf 'README quickstart: ok\n'
+        printf 'guide required sections: ok\n'
+        printf 'sample config parse checks: ok\n'
+        printf 'accepted media references: ok\n'
+    } >"$manifest"
+}
+
+write_reviewer_packet() {
+    local packet="${RUN_DIR}/reviews/reviewer-packet.md"
+    local checklist="${RUN_DIR}/reviews/reviewer-citation-checklist.tsv"
+    local skeleton="${RUN_DIR}/reviews/no-ctx-artifact-review.skeleton.md"
+    mkdir -p "${RUN_DIR}/reviews"
+
+    cat >"$packet" <<EOF
+# Slice 49 Docs Review Packet
+
+Review the docs artifact without using prior chat context.
+
+## Review Critical Path
+
+1. Read \`README.md\` in this artifact.
+2. Read \`docs/ultrawide-zones.md\`.
+3. Parse-check the five copied sample configs or inspect \`logs/docs-slice-manifest.txt\`.
+4. Compare the docs against accepted Tart-derived media listed in the manifest.
+5. Confirm the docs do not claim new product behavior beyond accepted evidence.
+
+## Required Verdict
+
+First line must start with \`PASS:\` or \`PASS_WITH_NOTES:\`.
+Final line must be exactly \`next slice allowed: yes\`.
+
+## Artifact Paths
+
+- README snapshot: \`${RUN_DIR}/README.md\`
+- Guide snapshot: \`${RUN_DIR}/docs/ultrawide-zones.md\`
+- Samples: \`${RUN_DIR}/docs/samples/\`
+- Manifest: \`${RUN_DIR}/logs/docs-slice-manifest.txt\`
+
+## Required Review Mentions
+
+- Slice 49
+- README.md
+- docs/ultrawide-zones.md
+- all five \`docs/samples/ultrawide-*.toml\` files
+- \`demo-columnar-zones.mp4\`
+- Slice 27 and Slice 36 through Slice 48 accepted media references
+- \`winmux zone init --preset balanced --write\`
+- \`winmux doctor zones --support-bundle\`
+- known limits: column zones, whole-zone and window-slot mouse snap boundaries, explicit save for runtime widths, no automatic support upload
+EOF
+
+    {
+        printf 'kind\tpath\tnote\n'
+        printf 'snapshot\tREADME.md\tREADME quickstart\n'
+        printf 'snapshot\tdocs/ultrawide-zones.md\tdedicated guide\n'
+        for sample in "${samples[@]}"; do
+            printf 'sample\t%s\tparse-checked sample config\n' "$sample"
+        done
+        for media in "${accepted_media[@]}"; do
+            printf 'accepted-media\t%s\tTart-derived evidence\n' "$media"
+        done
+        printf 'manifest\tlogs/docs-slice-manifest.txt\thashes and validation results\n'
+    } >"$checklist"
+
+    cat >"$skeleton" <<EOF
+PASS: Slice 49 ...
+
+No-context posture:
+
+Docs inspected:
+
+Sample configs:
+
+Accepted media comparison:
+
+Known limits:
+
+next slice allowed: yes
+EOF
+}
+
+package_artifact() {
+    [ -n "$RUN_DIR" ] || die "--package requires a run directory"
+    mkdir -p "${RUN_DIR}/docs/samples" "${RUN_DIR}/logs" "${RUN_DIR}/reviews"
+    cp "${REPO_ROOT}/README.md" "${RUN_DIR}/README.md"
+    cp "${REPO_ROOT}/docs/ultrawide-zones.md" "${RUN_DIR}/docs/ultrawide-zones.md"
+    for sample in "${samples[@]}"; do
+        cp "${REPO_ROOT}/${sample}" "${RUN_DIR}/${sample}"
+    done
+    write_manifest "${RUN_DIR}/logs/docs-slice-manifest.txt"
+    write_reviewer_packet
+}
+
+manifest_value() {
+    local manifest="$1"
+    local key="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2) }' "$manifest"
+}
+
+first_nonblank_line() {
+    /usr/bin/awk 'NF { print; exit }' "$1"
+}
+
+last_nonblank_line() {
+    /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+validate_artifact() {
+    [ -n "$RUN_DIR" ] || return 0
+    local manifest="${RUN_DIR}/logs/docs-slice-manifest.txt"
+    [ -s "$manifest" ] || die "missing docs manifest: $manifest"
+    [ -s "${RUN_DIR}/README.md" ] || die "missing README snapshot"
+    [ -s "${RUN_DIR}/docs/ultrawide-zones.md" ] || die "missing guide snapshot"
+    [ -d "${RUN_DIR}/docs/samples" ] || die "missing sample snapshot directory"
+    [ "$(sha256_file "${RUN_DIR}/README.md")" = "$(manifest_value "$manifest" snapshot_readme_sha256)" ] \
+        || die "README snapshot hash does not match manifest"
+    [ "$(sha256_file "${RUN_DIR}/docs/ultrawide-zones.md")" = "$(manifest_value "$manifest" snapshot_guide_sha256)" ] \
+        || die "guide snapshot hash does not match manifest"
+
+    for sample in "${samples[@]}"; do
+        [ -s "${RUN_DIR}/${sample}" ] || die "missing sample snapshot: ${sample}"
+        expected_sample_hash="$(manifest_path_hash "$manifest" "$sample")"
+        [ -n "$expected_sample_hash" ] || die "manifest missing sample hash: ${sample}"
+        [ "$(sha256_file "${RUN_DIR}/${sample}")" = "$expected_sample_hash" ] \
+            || die "sample snapshot hash does not match manifest: ${sample}"
+        require_cli
+        "$WINMUX_CLI_PATH" config --check "${RUN_DIR}/${sample}" >/dev/null
+    done
+
+    if [ "$REQUIRE_REVIEW" -eq 1 ]; then
+        local review="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+        [ -s "$review" ] || die "missing no-context docs review: $review"
+        case "$(first_nonblank_line "$review")" in
+            PASS:*|PASS_WITH_NOTES:*) ;;
+            *) die "review must start with PASS: or PASS_WITH_NOTES:" ;;
+        esac
+        [ "$(last_nonblank_line "$review")" = "next slice allowed: yes" ] \
+            || die "review final line must be: next slice allowed: yes"
+
+        for text in \
+            "Slice 49" \
+            "README.md" \
+            "docs/ultrawide-zones.md" \
+            "docs/samples/ultrawide-balanced.toml" \
+            "docs/samples/ultrawide-focus-only.toml" \
+            "docs/samples/ultrawide-comms-open.toml" \
+            "docs/samples/ultrawide-dashboard.toml" \
+            "docs/samples/ultrawide-app-affinities.toml" \
+            "winmux zone init --preset balanced --write" \
+            "winmux doctor zones --support-bundle"; do
+            require_artifact_contains "$review" "$text"
+        done
+
+        for media in "${accepted_media[@]}"; do
+            require_artifact_contains "$review" "$media"
+        done
+    fi
+
+    if [ "$CLOSEOUT" -eq 1 ]; then
+        [ -s "${RUN_DIR}/logs/review-lint.log" ] || die "missing review lint log"
+        [ -s "${RUN_DIR}/logs/post-review-verify.log" ] || die "missing post-review verify log"
+        for name in process-plan code-harness artifact-product; do
+            [ -s "${RUN_DIR}/retrospectives/${name}.md" ] || die "missing retrospective: ${name}"
+        done
+    fi
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --package)
+            PACKAGE=1
+            shift
+            [ "$#" -gt 0 ] || die "--package requires a run directory"
+            RUN_DIR="$1"
+            ;;
+        --require-review)
+            REQUIRE_REVIEW=1
+            ;;
+        --closeout)
+            CLOSEOUT=1
+            REQUIRE_REVIEW=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            die "unknown option: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "multiple run directories specified"
+            RUN_DIR="$1"
+            ;;
+    esac
+    shift
+done
+
+[ -z "$RUN_DIR" ] || RUN_DIR="$(cd "$(dirname "$RUN_DIR")" && pwd -P)/$(basename "$RUN_DIR")"
+
+validate_source_docs
+if [ "$PACKAGE" -eq 1 ]; then
+    package_artifact
+fi
+validate_artifact
+
+printf 'result=success\n'

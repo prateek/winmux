@@ -303,6 +303,27 @@ configure_slice_requirements() {
                 "script/e2e/guest/slice-48-support-bundle-diagnostics.sh"
             )
             ;;
+        slice-49)
+            required_mentions=(
+                "Slice 49"
+                "docs/plans/columnar-zones.md"
+                "README.md"
+                "docs/ultrawide-zones.md"
+                "docs/samples/ultrawide-balanced.toml"
+                "docs/samples/ultrawide-focus-only.toml"
+                "docs/samples/ultrawide-comms-open.toml"
+                "docs/samples/ultrawide-dashboard.toml"
+                "docs/samples/ultrawide-app-affinities.toml"
+                "makefile"
+                "script/e2e/check-slice-49-docs"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "demo-columnar-zones.mp4"
+                "artifacts/e2e/slice-27-20260630T043500Z"
+                "artifacts/e2e/slice-36-root-current-demo-20260701T004813Z"
+                "artifacts/e2e/slice-48-20260702T094800Z"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;

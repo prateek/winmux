@@ -9018,7 +9018,7 @@ Non-claims:
 
 ### Slice 49: Ultrawide Zones Documentation
 
-Status: planned.
+Status: accepted via `artifacts/e2e/slice-49-docs-20260702T111456Z`.
 
 Goal: turn the accepted demos and command surface into docs a dogfood user can
 follow without reading this plan.
@@ -9052,36 +9052,85 @@ Pre-slice cleanup from Slice 48 retrospectives:
   `artifacts/e2e/slice-48-20260702T090939Z` as superseded before relying on
   sibling-artifact hygiene.
 - [x] Run Slice 48 closeout again and tee it to `logs/closeout-check.log`.
-- [ ] Make the Slice 49 review scope explicit before dispatching no-context
+- [x] Make the Slice 49 review scope explicit before dispatching no-context
   pre-Tart reviewers, including docs snapshot, referenced media, package/docs
-  links, reviewer packet, and verifier rules.
-- [ ] For new contract checks, prefer semantic validators for dispatch,
+  links, reviewer packet, and verifier rules. Implemented by the artifact
+  reviewer packet, `script/e2e/check-slice-49-docs`, the Slice 49 prompt block,
+  and the `slice-49` scope in `script/e2e/check-pre-tart-review-gate`.
+- [x] For new contract checks, prefer semantic validators for dispatch,
   annotation plans, event manifests, retry policy, verifier hooks, and
-  reviewer-lint hooks. Keep literal `source-check` rows only for prose prompts
-  or exact reviewer text.
-- [ ] Centralize the no-post-recording retry policy for future stateful slices
-  so the harness, verifier, reviewer packet, and specs read from one contract.
-- [ ] Stop guest setup scripts from clobbering retry-wrapper metadata; wrapper
-  logs and guest detail logs need separate paths.
-- [ ] Add a reusable support-bundle schema and redaction validator covering the
-  manifest file list, actual files, TSV headers, redaction markers, sentinel
-  leak scan, and `--include-window-titles` behavior.
-- [ ] For text-heavy docs or diagnostics artifacts, add a readable visual
-  summary sidecar before no-context review starts:
+  reviewer-lint hooks. Slice 49 uses `check-slice-49-docs` for source and
+  artifact docs semantics, sample parsing, manifest hash checks, media
+  inventory, and review-lint rules.
+- [x] Triaged the no-post-recording retry policy item for Slice 49. It does not
+  apply to a docs-only artifact, so the actual centralization work is carried
+  into Slice 50 cleanup for the next package/product proof that records media.
+- [x] Triaged the retry-wrapper metadata item for Slice 49. Guest setup scripts
+  did not run for this docs-only artifact, so the wrapper-log/guest-detail-log
+  separation work is carried into Slice 50 cleanup for the next stateful proof.
+- [x] Triaged the reusable support-bundle schema and redaction validator item
+  for Slice 49. It is deferred from this docs-only artifact and carried into
+  Slice 50/51 beta-readiness cleanup.
+- [x] Handled the text-heavy artifact review path for Slice 49 with docs
+  snapshots, manifest hashes, and a docs reviewer packet. Future diagnostics
+  videos still need a readable visual summary sidecar before no-context review:
   `screenshots/<recording>.diagnostic-summary.jpg`,
   `logs/<recording>.diagnostic-summary.tsv`, and
   `logs/<recording>.diagnostic-summary.md`.
-- [ ] Update reviewer packet and prompt shape for long artifacts: put a
+- [x] Update reviewer packet and prompt shape for long artifacts: put a
   "Review Critical Path" before the full citation inventory and instruct
   reviewers not to treat tiny contact-sheet text as sole proof for command
-  output, redaction status, required-file lists, or final audit claims.
-- [ ] Future support demos should show a compact support outcome board in the
-  video and leave dense directory listings to logs and native-scale proof
-  images.
+  output, redaction status, required-file lists, or final audit claims. Slice 49
+  reviewer packets now start from a docs-specific critical path.
+- [x] Recorded the future support-demo outcome-board requirement. It does not
+  apply to Slice 49 docs media and remains a product-video requirement for
+  future diagnostics demos.
+
+Accepted Slice 49 artifact:
+
+- artifact directory: `artifacts/e2e/slice-49-docs-20260702T111456Z`;
+- stale/superseded docs artifact:
+  `artifacts/e2e/slice-49-docs-20260702T105714Z`, superseded because its mouse
+  section said window-slot targets were not implemented and omitted accepted
+  Slice 27 window-slot evidence;
+- docs snapshot: `README.md`, `docs/ultrawide-zones.md`, and all five
+  `docs/samples/ultrawide-*.toml` files;
+- manifest: `logs/docs-slice-manifest.txt`, including hash-pinned README,
+  guide, sample configs, root demo, Slice 27 window-slot evidence, and Slice
+  36-48 accepted media references;
+- pre-slice no-context reviews:
+  `reviews/pre-tart/process-plan.md`, `reviews/pre-tart/code-harness.md`, and
+  `reviews/pre-tart/artifact-product.md`, all clean;
+- no-context docs review: `reviews/no-ctx-artifact-review.md`, first line
+  `PASS:`, final line `next slice allowed: yes`;
+- verifier logs: `logs/docs-check.log`, `logs/pre-tart-checks.log`,
+  `logs/pre-tart-review-gate.log`, `logs/review-lint.log`,
+  `logs/post-review-verify.log`, and `logs/closeout-check.log`;
+- no-context retrospectives:
+  `retrospectives/process-plan.md`, `retrospectives/code-harness.md`, and
+  `retrospectives/artifact-product.md`, all actionable only as Slice 50
+  pre-slice cleanup;
+- closeout command:
+  `make e2e-slice-49-docs-check RUN_DIR=artifacts/e2e/slice-49-docs-20260702T111456Z ARGS=--closeout`.
+
+Accepted claims:
+
+- README now has the shortest ultrawide setup path and links the full guide and
+  root demo;
+- `docs/ultrawide-zones.md` covers install, permissions, setup, starter
+  template, keyboard commands, mouse target modes, profiles, app affinities,
+  persistence, troubleshooting, support bundles, sample configs, accepted
+  evidence, and known limits;
+- all five sample configs parse with the current CLI;
+- mouse docs distinguish starter whole-zone `target = 'zone'` snapping from
+  accepted advanced `target = 'window'` window-slot snapping backed by Slice 27;
+- support-bundle docs keep the Slice 48 local/redacted/no-auto-upload boundary.
 
 Non-claims:
 
 - Slice 49 does not create new product behavior;
+- Slice 49 does not make `artifacts/e2e/slice-49-docs-20260702T105714Z`
+  accepted evidence;
 - Slice 49 does not replace the plan as the implementation source of truth.
 
 ### Slice 50: Beta Packaging and Release Candidate
@@ -9090,6 +9139,61 @@ Status: planned.
 
 Goal: produce a reproducible beta package that installs and launches outside the
 development harness.
+
+Pre-slice cleanup from Slice 49 retrospectives:
+
+- [ ] Read the Slice 49 no-context artifact review and all three Slice 49
+  retrospectives from `artifacts/e2e/slice-49-docs-20260702T111456Z`.
+- [ ] Keep `artifacts/e2e/slice-49-docs-20260702T105714Z` out of accepted
+  provenance except as a superseded docs artifact whose mouse-target section
+  drifted from accepted Slice 27 window-slot evidence.
+- [ ] Route docs-only artifacts through the docs validator in common Makefile
+  gates: detect `logs/docs-slice-manifest.txt` with `kind=docs` and call
+  `script/e2e/check-slice-49-docs --require-review` / `--closeout` instead of
+  `script/e2e/verify-artifact`.
+- [ ] Add artifact-snapshot semantic checks to `script/e2e/check-slice-49-docs`
+  for `target = 'window'`, `Window slot: Right`, Slice 27 media, explicit
+  `save-zone-layout`, and no automatic support upload.
+- [ ] Replace the hard-coded Slice 49 accepted-media array with a reusable
+  provenance index carrying source slice, artifact dir, media path, SHA-256,
+  accepted review path, verdict, decisive proof media, proof intent, and
+  non-claims.
+- [ ] Make sample-config validation inventory-driven from
+  `docs/samples/ultrawide-*.toml` and emit `logs/sample-config-checks.tsv`.
+- [ ] Register Slice 50 pre-Tart/review scope before packaging proof starts:
+  source commit, dirty state, version, package command, package path, package
+  hash, app hash, CLI hash, codesign/notarization or unsigned-install status,
+  normal config path, install proof, launch proof, release notes, and
+  non-claims.
+- [ ] Add or choose a mechanical package verifier that fails on missing package
+  provenance, missing hashes, debug-binary proof, hidden `PUBLISH=1`, missing
+  normal-config launch proof, missing Gatekeeper/quarantine wording for unsigned
+  builds, or public-beta/App-Store-readiness claims.
+- [ ] Add a package-facing product evidence index, for example
+  `logs/product-evidence-index.tsv`, with feature, user-facing claim, recording
+  path, SHA-256, duration, resolution, accepted review path, review verdict,
+  decisive proof frame or contact sheet, and non-claims for every reused Slice
+  27 and Slice 36-48 media item.
+- [ ] Include or cite a static poster/contact-sheet path for the root
+  `demo-columnar-zones.mp4` in the Slice 50 package or release-notes artifact
+  so reviewers can inspect the current ultrawide demo without opening every
+  historical recording.
+- [ ] Polish the README product surface before release-candidate packaging:
+  keep the sidebar/tab-group baseline material, keep `demo-columnar-zones.mp4`
+  as the current ultrawide showcase, and fix stale generic copy or obvious
+  typos in first-viewport sections.
+- [ ] For the next stateful product proof, centralize the no-post-recording
+  retry policy across harness, verifier, reviewer packet, and spec.
+- [ ] For the next stateful product proof, prevent guest setup scripts from
+  clobbering retry-wrapper metadata by keeping wrapper logs and guest detail
+  logs separate.
+- [ ] Carry forward the support-bundle schema/redaction validator work for
+  beta-readiness: manifest file list, actual files, TSV headers, redaction
+  markers, sentinel leak scan, and `--include-window-titles` behavior.
+- [ ] Update the Slice 50 reviewer packet and no-context prompt so reviewers
+  compare package proof against Slice 39 installed-app evidence, Slice 49 docs,
+  and `demo-columnar-zones.mp4`, while preserving that Slice 50 does not start
+  external beta.
 
 Required scope:
 
