@@ -9,7 +9,7 @@ PUBLISH ?= 1
 APP_INSTALL_DIR ?= /Applications
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-review-lint e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-root-demo-closeout-check e2e-package-root-demo e2e-support-bundle-schema-check e2e-slice-49-docs-check e2e-slice-50-package-check e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 e2e-slice-17 e2e-slice-18 e2e-slice-19 e2e-slice-20 e2e-slice-21 e2e-slice-22 e2e-slice-23 e2e-slice-24 e2e-slice-25 e2e-slice-26 e2e-slice-27 e2e-slice-28 e2e-slice-29 e2e-slice-31 e2e-slice-32 e2e-slice-33 e2e-slice-34 e2e-slice-35 e2e-slice-37 e2e-slice-38 e2e-slice-39 e2e-slice-40 e2e-slice-41 e2e-slice-42 e2e-slice-43 e2e-slice-44 e2e-slice-45 e2e-slice-46 e2e-slice-47 e2e-slice-48 release install installed clean
+.PHONY: generate xcodeproj build build-clean run run-clean cli e2e-preflight e2e-smoke e2e-guest-smoke e2e-pre-tart-checks e2e-run-product-slice e2e-verify-slice e2e-review-lint e2e-verify-slice-check e2e-slice-closeout-check e2e-verify-root-demo-check e2e-root-demo-closeout-check e2e-package-root-demo e2e-support-bundle-schema-check e2e-slice-49-docs-check e2e-slice-50-package-check e2e-slice-1 e2e-slice-2 e2e-slice-3 e2e-slice-4 e2e-slice-5 e2e-slice-6 e2e-slice-6b e2e-slice-8 e2e-slice-10 e2e-slice-11a e2e-slice-11b e2e-slice-11c e2e-slice-12 e2e-slice-13 e2e-slice-14 e2e-slice-15 e2e-slice-16 e2e-slice-17 e2e-slice-18 e2e-slice-19 e2e-slice-20 e2e-slice-21 e2e-slice-22 e2e-slice-23 e2e-slice-24 e2e-slice-25 e2e-slice-26 e2e-slice-27 e2e-slice-28 e2e-slice-29 e2e-slice-31 e2e-slice-32 e2e-slice-33 e2e-slice-34 e2e-slice-35 e2e-slice-37 e2e-slice-38 e2e-slice-39 e2e-slice-40 e2e-slice-41 e2e-slice-42 e2e-slice-43 e2e-slice-44 e2e-slice-45 e2e-slice-46 e2e-slice-47 e2e-slice-48 e2e-slice-50 beta-package release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -111,6 +111,7 @@ e2e-pre-tart-checks:
 	bash -n script/e2e/tart-recording-harness && \
 	bash -n script/e2e/annotate-recording && \
 	bash -n script/e2e/package-root-demo && \
+	bash -n script/e2e/package-slice-50 && \
 	bash -n script/e2e/verify-root-demo && \
 	bash -n script/e2e/record-reviewer-attempt && \
 	bash -n script/e2e/write-visible-proof-excerpt && \
@@ -132,7 +133,7 @@ e2e-pre-tart-checks:
 		python3 ./script/check-command-metadata && \
 		git diff --check && \
 		echo "[winmux-e2e] git diff --check PASS" && \
-	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-visible-proof-board script/e2e/check-zone-init-local-validation script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/check-slice-46-contract script/e2e/check-slice-47-contract script/e2e/check-slice-48-contract script/e2e/check-support-bundle-schema script/e2e/check-slice-49-docs script/e2e/check-slice-50-package script/e2e/verify-artifact "$${guest_scripts[@]}" && echo "[winmux-e2e] shellcheck PASS"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck script/e2e/tart-recording-harness script/e2e/annotate-recording script/e2e/package-root-demo script/e2e/package-slice-50 script/e2e/verify-root-demo script/e2e/record-reviewer-attempt script/e2e/write-visible-proof-excerpt script/e2e/root-demo-closeout script/e2e/write-review-packet script/e2e/check-visible-proof-board script/e2e/check-zone-init-local-validation script/e2e/check-generated-version-clean script/e2e/check-pre-tart-review-gate script/e2e/check-slice-46-contract script/e2e/check-slice-47-contract script/e2e/check-slice-48-contract script/e2e/check-support-bundle-schema script/e2e/check-slice-49-docs script/e2e/check-slice-50-package script/e2e/verify-artifact "$${guest_scripts[@]}" && echo "[winmux-e2e] shellcheck PASS"; else echo "warning: shellcheck not installed; skipping shell lint" >&2; fi && \
 	./script/e2e/check-generated-version-clean && \
 	./script/e2e/check-slice-46-contract && \
 	./script/e2e/check-slice-47-contract && \
@@ -186,6 +187,9 @@ e2e-pre-tart-checks:
 	echo "[winmux-e2e] Slice 48 guest self-test START: script/e2e/guest/slice-48-support-bundle-diagnostics.sh" && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE48_PHASE=self-test /bin/bash ./script/e2e/guest/slice-48-support-bundle-diagnostics.sh && \
 	echo "[winmux-e2e] Slice 48 guest self-test PASS: script/e2e/guest/slice-48-support-bundle-diagnostics.sh" && \
+	echo "[winmux-e2e] Slice 50 guest self-test START: script/e2e/guest/slice-50-package-release.sh" && \
+	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE50_PHASE=self-test /bin/bash ./script/e2e/guest/slice-50-package-release.sh && \
+	echo "[winmux-e2e] Slice 50 guest self-test PASS: script/e2e/guest/slice-50-package-release.sh" && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
 	swift test --filter '"'"'AppBundleUtilTest|DoctorCommandTest|ConfigBootstrapTest|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testRenderConfigDoctorLinesForValidZonesConfig|ConfigTest.testRenderConfigDoctorLinesForInvalidZonesConfig|ConfigTest.testRenderConfigDoctorLinesIncludesRuntimeOverlayState|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneRelaunchSavedLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseZoneAffinitiesBetaE2EConfig|ConfigTest.testParseZoneAvailabilityProfilesE2EConfig|ConfigTest.testParseZoneChromePolishE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseMouseGestureConfigurabilityE2EConfig|ConfigTest.testParseDragOverlaySemanticsE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testWorkspaceSidebarKeepsDisabledZoneTargetsReadable|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \
@@ -469,6 +473,78 @@ e2e-slice-47:
 
 e2e-slice-48:
 	$(MAKE) e2e-run-product-slice SLICE=slice-48 ACTION=slice-48 RECORD_SECONDS=76 REQUIRE_PRE_TART_REVIEW=1
+
+e2e-slice-50:
+	$(MAKE) e2e-run-product-slice SLICE=slice-50 ACTION=slice-50 RECORD_SECONDS=100 REQUIRE_PRE_TART_REVIEW=1
+
+beta-package:
+	/bin/bash -lc 'cd "$(CURDIR)" && \
+	set -euo pipefail && \
+	test -n "$(VERSION)" && \
+	if [ "$(PUBLISH)" != "0" ]; then \
+	    echo "beta-package requires PUBLISH=0" >&2; \
+	    exit 64; \
+	fi; \
+	release_dir="$(RELEASE_DIR)"; \
+	staging_dir="$$release_dir/WinMux-$(VERSION)"; \
+	app_path="$$staging_dir/WinMux.app"; \
+	cli_path="$$staging_dir/bin/winmux"; \
+	zip_path="$$release_dir/WinMux-$(VERSION).zip"; \
+	build_log="$$release_dir/WinMux-$(VERSION)-swift-build.log"; \
+	generated_snapshot="$$(mktemp -d)"; \
+	cp Sources/Common/gitHashGenerated.swift "$$generated_snapshot/gitHashGenerated.swift"; \
+	cp Sources/Common/versionGenerated.swift "$$generated_snapshot/versionGenerated.swift"; \
+	restore_generated() { \
+	    cp "$$generated_snapshot/gitHashGenerated.swift" Sources/Common/gitHashGenerated.swift; \
+	    cp "$$generated_snapshot/versionGenerated.swift" Sources/Common/versionGenerated.swift; \
+	    rm -rf "$$generated_snapshot"; \
+	}; \
+	trap restore_generated EXIT; \
+	printf "%s\n" "// FILE IS GENERATED BY Makefile" "public let winMuxAppVersion = \"$(VERSION)\"" > Sources/Common/versionGenerated.swift; \
+	git_hash="$$(git rev-parse HEAD 2>/dev/null || echo SNAPSHOT)"; \
+	git_short_hash="$$(git rev-parse --short HEAD 2>/dev/null || echo SNAPSHOT)"; \
+	printf "%s\n" "// FILE IS GENERATED BY Makefile" "public let gitHash = \"$$git_hash\"" "public let gitShortHash = \"$$git_short_hash\"" > Sources/Common/gitHashGenerated.swift; \
+	source ./script/setup.sh; \
+	rm -rf "$$staging_dir" "$$zip_path"; \
+	mkdir -p "$$release_dir" "$$app_path/Contents/MacOS" "$$app_path/Contents/Resources" "$$(dirname "$$cli_path")"; \
+	{ \
+	    echo "+ swift build -c release --product WinMuxApp"; \
+	    swift build -c release --product WinMuxApp; \
+	    echo "+ swift build -c release --product winmux"; \
+	    swift build -c release --product winmux; \
+	} >"$$build_log" 2>&1; \
+	cp .build/release/WinMuxApp "$$app_path/Contents/MacOS/WinMuxApp"; \
+	cp .build/release/winmux "$$cli_path"; \
+	cp resources/default-config.toml "$$app_path/Contents/Resources/default-config.toml"; \
+	chmod +x "$$app_path/Contents/MacOS/WinMuxApp" "$$cli_path"; \
+	printf "%s\n" \
+	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" \
+	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" \
+	    "<plist version=\"1.0\">" \
+	    "<dict>" \
+	    "    <key>CFBundleExecutable</key>" \
+	    "    <string>WinMuxApp</string>" \
+	    "    <key>CFBundleIdentifier</key>" \
+	    "    <string>com.zimengxiong.winmux</string>" \
+	    "    <key>CFBundleName</key>" \
+	    "    <string>WinMux</string>" \
+	    "    <key>CFBundlePackageType</key>" \
+	    "    <string>APPL</string>" \
+	    "    <key>CFBundleShortVersionString</key>" \
+	    "    <string>$(VERSION)</string>" \
+	    "    <key>CFBundleVersion</key>" \
+	    "    <string>$(VERSION)</string>" \
+	    "    <key>LSUIElement</key>" \
+	    "    <true/>" \
+	    "</dict>" \
+	    "</plist>" >"$$app_path/Contents/Info.plist"; \
+	codesign --force --deep --sign - --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
+	codesign --verify --deep --strict "$$app_path" >>"$$build_log" 2>&1 || true; \
+	ditto -c -k --sequesterRsrc --keepParent "$$staging_dir" "$$zip_path"; \
+	test -s "$$zip_path"; \
+	test -x "$$app_path/Contents/MacOS/WinMuxApp"; \
+	test -x "$$cli_path"; \
+	printf "package_path=%s\napp_path=%s\ncli_path=%s\nbuild_log=%s\n" "$$zip_path" "$$app_path" "$$cli_path" "$$build_log"'
 
 release:
 	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"

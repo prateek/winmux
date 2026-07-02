@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+RUN_DIR="${1:-}"
+
+die() {
+    printf '[winmux-package50-stage] error: %s\n' "$*" >&2
+    exit 1
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+sha256_path() {
+    local path="$1"
+    if [ -f "$path" ]; then
+        sha256_file "$path"
+        return
+    fi
+    [ -d "$path" ] || die "missing hash path: $path"
+    (
+        cd "$path"
+        find . -type f -print0 | /usr/bin/sort -z | while IFS= read -r -d '' file; do
+            /usr/bin/shasum -a 256 "$file"
+        done
+    ) | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
+git_status_sha() {
+    (cd "$REPO_ROOT" && git status --short) | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <slice-50-run-dir>
+
+Builds the Slice 50 beta package with PUBLISH=0, copies package/app/CLI
+artifacts into the run directory, and writes logs/package-host-provenance.env.
+EOF
+}
+
+[ -n "$RUN_DIR" ] || {
+    usage >&2
+    die "missing run directory"
+}
+
+RUN_DIR="$(cd "$(dirname "$RUN_DIR")" && pwd -P)/$(basename "$RUN_DIR")"
+mkdir -p "$RUN_DIR/package" "$RUN_DIR/bin" "$RUN_DIR/logs" "$RUN_DIR/docs"
+
+VERSION="${WINMUX_E2E_PACKAGE_VERSION:-0.50.0-$(date -u +%Y%m%dT%H%M%SZ)}"
+BUILD_RELEASE_DIR="${RUN_DIR}/host-release"
+PACKAGE_COMMAND="make beta-package VERSION=${VERSION} PUBLISH=0 RELEASE_DIR=${BUILD_RELEASE_DIR}"
+PACKAGE_ZIP_NAME="WinMux-${VERSION}.zip"
+SOURCE_COMMIT="$(cd "$REPO_ROOT" && git rev-parse HEAD)"
+GIT_STATUS_SHA="$(git_status_sha)"
+DEMO_CONTACT_SHEET="artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg"
+
+[ -s "${REPO_ROOT}/${DEMO_CONTACT_SHEET}" ] || die "missing root demo contact sheet: ${DEMO_CONTACT_SHEET}"
+
+(
+    cd "$REPO_ROOT"
+    make beta-package VERSION="$VERSION" PUBLISH=0 RELEASE_DIR="$BUILD_RELEASE_DIR"
+) >"${RUN_DIR}/logs/package-build.log" 2>&1
+
+ZIP_SOURCE="${BUILD_RELEASE_DIR}/${PACKAGE_ZIP_NAME}"
+APP_SOURCE="${BUILD_RELEASE_DIR}/WinMux-${VERSION}/WinMux.app"
+CLI_SOURCE="${BUILD_RELEASE_DIR}/WinMux-${VERSION}/bin/winmux"
+
+[ -s "$ZIP_SOURCE" ] || die "package zip was not built: $ZIP_SOURCE"
+[ -x "$APP_SOURCE/Contents/MacOS/WinMuxApp" ] || die "package app was not built: $APP_SOURCE"
+[ -x "$CLI_SOURCE" ] || die "package CLI was not built: $CLI_SOURCE"
+
+rm -rf "${RUN_DIR}/package/WinMux.app" "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}" "${RUN_DIR}/bin/winmux"
+/usr/bin/ditto "$APP_SOURCE" "${RUN_DIR}/package/WinMux.app"
+/bin/cp "$CLI_SOURCE" "${RUN_DIR}/bin/winmux"
+/bin/cp "$ZIP_SOURCE" "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}"
+chmod +x "${RUN_DIR}/bin/winmux"
+cp "${SCRIPT_DIR}/specs/product-evidence-index.tsv" "${RUN_DIR}/logs/product-evidence-index.tsv"
+printf 'kind=package\nslice=50\n' >"${RUN_DIR}/logs/package-slice-manifest.txt"
+
+codesign_status=unsigned
+if /usr/bin/codesign --verify --deep --strict "${RUN_DIR}/package/WinMux.app" >/dev/null 2>&1; then
+    codesign_status=signed
+    if /usr/bin/codesign -dv --verbose=4 "${RUN_DIR}/package/WinMux.app" 2>&1 | /usr/bin/grep -F 'Signature=adhoc' >/dev/null; then
+        codesign_status=unsigned
+    fi
+fi
+
+cat >"${RUN_DIR}/logs/package-host-provenance.env" <<EOF
+source_commit=${SOURCE_COMMIT}
+git_status_sha256=${GIT_STATUS_SHA}
+version=${VERSION}
+package_command=${PACKAGE_COMMAND}
+package_path=package/${PACKAGE_ZIP_NAME}
+package_sha256=$(sha256_path "${RUN_DIR}/package/${PACKAGE_ZIP_NAME}")
+app_path=package/WinMux.app
+app_sha256=$(sha256_path "${RUN_DIR}/package/WinMux.app")
+cli_path=bin/winmux
+cli_sha256=$(sha256_path "${RUN_DIR}/bin/winmux")
+codesign_status=${codesign_status}
+notarization_status=not-notarized
+release_notes_path=docs/release-notes.md
+installed_app_path=/Applications/WinMux.app
+demo_contact_sheet_path=${DEMO_CONTACT_SHEET}
+demo_contact_sheet_sha256=$(sha256_file "${REPO_ROOT}/${DEMO_CONTACT_SHEET}")
+support_bundle_path=logs/slice-50-zone-support-bundle
+support_bundle_schema_log_path=logs/support-bundle-schema.log
+EOF
+
+printf 'result=success\n'

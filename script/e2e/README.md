@@ -130,6 +130,17 @@ without `--config-path`, runs `winmux doctor`, proves the normal config path,
 lists Reference/Work/Comms, relaunches the installed app, and runs
 `winmux focus-zone Comms` after relaunch.
 
+`make e2e-slice-50` records beta package installation and release-candidate
+proof. The host preparation step runs `script/e2e/package-slice-50`, which
+invokes `make beta-package VERSION=<version> PUBLISH=0`, stages the package zip,
+app bundle, CLI, evidence index, and package provenance under the run directory,
+then the guest installs from that package into `/Applications/WinMux.app`. The
+recording launches the packaged app without `--config-path`, runs `winmux
+doctor`, proves the normal config path, validates the config, generates and
+schema-checks a support bundle, lists zones, and writes release notes that name
+supported workflows, known limitations, quarantine handling for unsigned
+internal builds, and the reused demo contact sheet.
+
 `make e2e-slice-40` records the CLI-first setup assistant. It starts from
 `~/.config/winmux/winmux.toml` with no active `[[zones]]`, runs
 `winmux zone init --dry-run --preset balanced` with unchanged config hashes,

@@ -834,7 +834,9 @@ Slice-specific checks:
   `logs/package-slice-manifest.txt`, `logs/package-provenance.env`,
   package/app/CLI paths and hashes,
   `logs/product-evidence-index.tsv`, release notes, install proof, launch proof,
-  support-bundle directory, support-bundle schema-check log, and any reused
+  support-bundle directory, support-bundle schema-check log, the package stage
+  script `script/e2e/package-slice-50`, the guest proof script
+  `script/e2e/guest/slice-50-package-release.sh`, and any reused
   media. Reject missing package slice manifest, missing package provenance,
   missing package/app/CLI hashes, proof from a debug binary instead of the
   package, hidden `PUBLISH=1`, missing

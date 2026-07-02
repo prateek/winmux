@@ -9227,6 +9227,29 @@ hashes, install proof, launch proof, media samples, and no-context review. If
 the package reuses an accepted Tart recording for product behavior, the artifact
 must still verify package provenance and media hashes.
 
+Implementation update, 2026-07-02:
+
+- `make beta-package VERSION=<version> PUBLISH=0` builds a release app bundle,
+  CLI, default config resource, and zip under a caller-provided release
+  directory, with ad-hoc signing when the local release path has no notarized
+  credentials.
+- `script/e2e/package-slice-50` stages the package zip, extracted app, CLI,
+  product evidence index, package manifest, and host provenance into the Slice
+  50 run directory before the guest recording starts.
+- `make e2e-slice-50` records the Tart guest installing from the package,
+  launching `/Applications/WinMux.app` without `--config-path`, running
+  `winmux doctor`, proving the normal config path, validating the config,
+  generating a support bundle, schema-checking it, listing zones, and writing
+  release notes plus install/launch/package provenance logs.
+- `script/e2e/check-slice-50-package` remains the mechanical acceptance gate:
+  the package proof must include hashes, package/install/launch/support-bundle
+  logs, release notes with non-claims, the current demo contact sheet, and a
+  no-context review.
+- `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
+  dirty-source packaging smoke. It is useful as implementation evidence, but it
+  is not accepted Slice 50 evidence; accepted evidence must come from a clean
+  committed candidate with a fresh pre-Tart review gate and Tart recording.
+
 Non-claims:
 
 - Slice 50 does not imply App Store readiness;

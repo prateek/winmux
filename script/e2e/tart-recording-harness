@@ -44,7 +44,7 @@ fi
 if [ "$ACTION" = "slice-34" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-scenes.toml"
 fi
-if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ] || [ "$ACTION" = "slice-40" ]; then
+if [ "$ACTION" = "slice-35" ] || [ "$ACTION" = "slice-37" ] || [ "$ACTION" = "slice-38" ] || [ "$ACTION" = "slice-39" ] || [ "$ACTION" = "slice-40" ] || [ "$ACTION" = "slice-50" ]; then
     DEFAULT_CONFIG_PATH="${REPO_ROOT}/resources/default-config.toml"
 fi
 if [ "$ACTION" = "slice-41" ]; then
@@ -199,7 +199,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47|slice-48>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47|slice-48|slice-50>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -596,7 +596,7 @@ require_slice_48_contract() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47|slice-48)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45|slice-46|slice-47|slice-48|slice-50)
             printf '%s\n' "$1"
             ;;
         *)
@@ -632,7 +632,7 @@ pre_tart_gate_self_test() {
     local direct_slice
 
     tmp_dir="$(mktemp -d)"
-    for direct_slice in slice-39 slice-44 slice-45 slice-46 slice-47 slice-48; do
+    for direct_slice in slice-39 slice-44 slice-45 slice-46 slice-47 slice-48 slice-50; do
         rm -rf "${tmp_dir}/run"
         log_path="${tmp_dir}/direct-${direct_slice}.log"
         if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
@@ -3524,6 +3524,21 @@ final-audit	result	56.100	caption-04	final-audit	screenshots/05-final-support-au
 MANIFEST
 }
 
+write_slice_50_event_manifest() {
+    local name="$1"
+    cat >"${LOGS_DIR}/${name}.event-manifest.tsv" <<'MANIFEST'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+package-ready	context	4.100	caption-01	package-ready	screenshots/01-ready-slice-50.png	status document shows package path version install command and normal config path
+package-launch	action	16.100	caption-02	package-launch	screenshots/02-package-app-launched-slice-50.png	WinMux launches from /Applications/WinMux.app with no config-path override
+doctor-status	diagnostic	28.100	caption-03	doctor-status	screenshots/03-package-doctor-slice-50.png	doctor output shows installed app path normal config path and granted permissions
+config-path	diagnostic	40.100	caption-04	config-path	screenshots/slice-50-package-release.samples/caption-04-boundary-start.png	config --config-path reports ~/.config/winmux/winmux.toml
+config-check	diagnostic	50.100	caption-05	config-check	screenshots/slice-50-package-release.samples/caption-05-boundary-start.png	config --check passes against the normal config path
+support-bundle	diagnostic	60.100	caption-06	support-bundle	screenshots/04-package-support-bundle-slice-50.png	doctor zones --support-bundle generates a schema-validated diagnostics directory
+list-zones	inspection	76.100	caption-07	list-zones	screenshots/slice-50-package-release.samples/caption-07-boundary-start.png	list-zones shows Reference Work and Comms from the packaged install
+package-ready-result	result	90.100	caption-08	package-ready-result	screenshots/05-package-ready-slice-50.png	final board names installed app normal config and support bundle paths
+MANIFEST
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3607,6 +3622,9 @@ write_event_manifest() {
             ;;
         slice-48-support-bundle-diagnostics)
             write_slice_48_event_manifest "$name"
+            ;;
+        slice-50-package-release)
+            write_slice_50_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3841,6 +3859,18 @@ CAPTIONS
 32	48	Inspect bundle contents	Show the files a tester would attach and the redaction summary.	Run: find slice-48-zone-support-bundle	Config: redaction-summary.txt	Config: zone-affinities.tsv
 48	64	Final support audit	The final board names the bundle path, redaction result, and no-upload boundary.	Result: redacted bundle is attachable	Result: no automatic upload
 64	76	No retry policy	The artifact must be discarded and rerun if any post-recording action failed.	Result: no post-recording guest retries
+CAPTIONS
+            ;;
+        slice-50-package-release)
+            cat >"$captions_path" <<'CAPTIONS'
+0	14	Package install ready	The artifact starts from the built beta package, not a debug binary.	Run: make beta-package VERSION=0.50.0-slice50 PUBLISH=0
+14	26	Launch packaged app	Start WinMux from /Applications with no config-path override.	Run: WinMuxApp from /Applications/WinMux.app
+26	38	Check package status	Show the installed app identity, normal config path, and permissions.	Run: winmux doctor
+38	48	Confirm config source	The CLI reports the editable user config path.	Run: winmux config --config-path
+48	58	Validate normal config	Check the same user config path through the packaged server.	Run: winmux config --check ~/.config/winmux/winmux.toml
+58	74	Generate support bundle	Create the attachable diagnostics directory from the packaged CLI.	Run: winmux doctor zones --support-bundle
+74	88	Inspect packaged zones	Reference, Work, and Comms come from the packaged install.	Run: winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}'
+88	100	Ready for beta acceptance	The package, install proof, launch proof, and support bundle are stored.	Result: package install path is ready
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -4207,14 +4237,15 @@ annotation_preflight() {
         slice-45-display-topology-recovery \
         slice-46-persistence-rollback-doctor \
         slice-47-zone-chrome-polish \
-        slice-48-support-bundle-diagnostics
+        slice-48-support-bundle-diagnostics \
+        slice-50-package-release
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor|slice-47-zone-chrome-polish|slice-48-support-bundle-diagnostics)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery|slice-46-persistence-rollback-doctor|slice-47-zone-chrome-polish|slice-48-support-bundle-diagnostics|slice-50-package-release)
                 if [ "$name" = "slice-46-persistence-rollback-doctor" ]; then
                     require_slice_46_contract
                 fi
@@ -5187,6 +5218,32 @@ write_semantic_sample_manifest() {
             append_sample_manifest_row "$manifest_path" semantic final-audit screenshot screenshot \
                 "screenshots/05-final-support-audit-slice-48.png" \
                 "final screenshot shows attachable redacted bundle result and no automatic upload non-claim"
+            ;;
+        slice-50-package-release)
+            append_sample_manifest_row "$manifest_path" semantic package-ready screenshot screenshot \
+                "screenshots/01-ready-slice-50.png" \
+                "ready screenshot shows package path, version, install command, and normal config path"
+            append_sample_manifest_row "$manifest_path" semantic package-launch screenshot screenshot \
+                "screenshots/02-package-app-launched-slice-50.png" \
+                "launch screenshot follows /Applications/WinMux.app startup with no config override"
+            append_sample_manifest_row "$manifest_path" semantic doctor-status screenshot screenshot \
+                "screenshots/03-package-doctor-slice-50.png" \
+                "doctor screenshot shows installed app identity, normal config path, and permissions"
+            append_sample_manifest_row "$manifest_path" semantic config-path caption-04 38.100 \
+                "screenshots/${name}.samples/caption-04-boundary-start.png" \
+                "config-path caption exposes the exact command for the normal config path"
+            append_sample_manifest_row "$manifest_path" semantic config-check caption-05 48.100 \
+                "screenshots/${name}.samples/caption-05-boundary-start.png" \
+                "config-check caption exposes the exact validation command"
+            append_sample_manifest_row "$manifest_path" semantic support-bundle screenshot screenshot \
+                "screenshots/04-package-support-bundle-slice-50.png" \
+                "support bundle screenshot shows doctor zones --support-bundle and stored file list"
+            append_sample_manifest_row "$manifest_path" semantic list-zones caption-07 74.100 \
+                "screenshots/${name}.samples/caption-07-boundary-start.png" \
+                "list-zones caption exposes the exact package inspection command"
+            append_sample_manifest_row "$manifest_path" semantic package-ready-result screenshot screenshot \
+                "screenshots/05-package-ready-slice-50.png" \
+                "final screenshot shows installed app, normal config, support bundle, and package readiness"
             ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
@@ -7203,6 +7260,44 @@ run_slice_39_dogfood_install_permissions() {
         "${LOGS_DIR}/slice-39-run.log"
 }
 
+prepare_slice_50_package_artifact() {
+    local stage_log="${LOGS_DIR}/slice-50-package-stage.log"
+    [ -x "${SCRIPT_DIR}/package-slice-50" ] || die "Missing executable package stage script: ${SCRIPT_DIR}/package-slice-50"
+    if ! "${SCRIPT_DIR}/package-slice-50" "${RUN_DIR}" >"${stage_log}" 2>&1; then
+        cat "${stage_log}" >&2 || true
+        die "Slice 50 package staging failed"
+    fi
+    cat "${stage_log}"
+}
+
+run_slice_50_package_release_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-50-package-release.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE50_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-50-setup.log"
+}
+
+run_slice_50_package_release() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-50-package-release.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} WINMUX_E2E_SLICE50_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-50-run.log"
+}
+
 run_slice_40_zone_setup_assistant_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-40-zone-setup-assistant.sh"
     local scenario_path_quoted
@@ -8176,11 +8271,16 @@ run_recorded_scenario() {
     local scenario_fn="$4"
     local setup_fn="${5:-}"
     local ready_name="${6:-}"
+    local host_prepare_fn="${7:-}"
 
     require_pre_tart_review_gate_for_action
     RUN_PHASE="preflight"
     trap recorded_scenario_exit EXIT
     preflight
+    if [ -n "$host_prepare_fn" ]; then
+        RUN_PHASE="host-slice-prep"
+        "$host_prepare_fn"
+    fi
     local generated_version_snapshot="${LOGS_DIR}/host-build-generated-version-snapshot"
     RUN_PHASE="host-build"
     snapshot_generated_version_files "$generated_version_snapshot"
@@ -8324,6 +8424,10 @@ slice_38() {
 
 slice_39() {
     run_recorded_scenario "slice-39-dogfood-install-permissions" "00-before-slice-39" "99-after-slice-39" "run_slice_39_dogfood_install_permissions" "run_slice_39_dogfood_install_permissions_setup" "01-dogfood-install-status-slice-39"
+}
+
+slice_50() {
+    run_recorded_scenario "slice-50-package-release" "00-before-slice-50" "99-after-slice-50" "run_slice_50_package_release" "run_slice_50_package_release_setup" "01-ready-slice-50" "prepare_slice_50_package_artifact"
 }
 
 slice_40() {
@@ -8612,6 +8716,9 @@ case "$ACTION" in
         ;;
     slice-48)
         slice_48
+        ;;
+    slice-50)
+        slice_50
         ;;
     slice-26)
         slice_26

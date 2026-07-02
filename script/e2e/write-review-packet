@@ -404,6 +404,27 @@ write_reviewer_citation_checklist() {
         ' "$reviewer_attempts" >>"$reviewer_citation_checklist"
     fi
 
+    for package_file in \
+        "${LOGS_DIR}/package-slice-manifest.txt" \
+        "${LOGS_DIR}/package-host-provenance.env" \
+        "${LOGS_DIR}/package-provenance.env" \
+        "${LOGS_DIR}/product-evidence-index.tsv" \
+        "${LOGS_DIR}/install-proof.log" \
+        "${LOGS_DIR}/launch-proof.log" \
+        "${LOGS_DIR}/support-bundle-schema.log" \
+        "${LOGS_DIR}/slice-50-package-stage.log" \
+        "${LOGS_DIR}/slice-50-support-bundle-command.log" \
+        "${RUN_DIR}/docs/release-notes.md" \
+        "${RUN_DIR}/package/WinMux.app" \
+        "${RUN_DIR}/bin/winmux"; do
+        if [ -e "$package_file" ]; then
+            add_citation_checklist_row "package" "$(basename "$package_file")" "$package_file" "cite exact package proof path"
+        fi
+    done
+    if [ -d "${LOGS_DIR}/slice-50-zone-support-bundle" ]; then
+        add_citation_checklist_row "package" "slice-50-zone-support-bundle" "${LOGS_DIR}/slice-50-zone-support-bundle" "cite support bundle directory and schema result"
+    fi
+
     add_baseline_citation_row "${REPO_ROOT}/demo.mp4"
     add_baseline_citation_row "${REPO_ROOT}/demo2.mp4"
     add_baseline_citation_row "${REPO_ROOT}/demo3.mp4"
@@ -795,6 +816,25 @@ EOF
 - Inspect `logs/guest-script-retry-summary.tsv`; require `slice-48-run` to have one attempt, zero failures, `final_result=success`, and `before_recording=no`. Reject any post-recording failure/retry; this slice must be discarded and rerun instead.
 - Compare against accepted Slice 36-47 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, and readable support-flow pacing used in the accepted demos.
 - State explicitly that Slice 48 proves a local, user-run `doctor zones --support-bundle` command that creates an attachable, redacted zone diagnostics directory with useful topology/routing/config files. It does not prove automatic upload, crash-log collection, unified-log collection, or full live routing-history retention.
+EOF
+            ;;
+        slice-50-package-release)
+            cat <<'EOF'
+- Slice 50 beta package proof: inspect the annotated recording first, then raw recording, contact sheet, semantic sample manifest, event manifest, caption-boundary frames, package manifest, package provenance, product evidence index, release notes, install proof, launch proof, support-bundle directory, and support-bundle schema log.
+- Confirm the recording is a fresh Slice 50 artifact named `slice-50-package-release`. It must show the package install path, launch from `/Applications/WinMux.app`, `winmux doctor`, normal config path checks, `doctor zones --support-bundle`, `list-zones`, and a final package-ready board on a clean desktop.
+- Inspect `logs/package-slice-manifest.txt`; require `kind=package` and `slice=50`.
+- Inspect `logs/package-host-provenance.env` and `logs/package-provenance.env`; require `package_command` to include `PUBLISH=0`, no `PUBLISH=1`, package/app/CLI paths, `package_sha256`, `app_sha256`, `cli_sha256`, `guest_user`, `normal_config_path`, `install_proof_path`, `launch_proof_path`, `demo_contact_sheet_path`, `demo_contact_sheet_sha256`, `support_bundle_path`, and `support_bundle_schema_log_path`.
+- Inspect the package/app/CLI paths named in provenance and confirm the hashes match. Reject any proof that installs or launches `.debug`, `.build/debug`, `debug/WinMuxApp`, `debug/winmux`, or `swift run`.
+- Inspect `logs/install-proof.log`; require `install_result=success`, `clean_guest=1`, the clean `guest_user`, package path, packaged app path, `/Applications/WinMux.app`, and `installed_app_exists=true`.
+- Inspect `logs/launch-proof.log`; require `launch_result=success`, `launched_app_path=/Applications/WinMux.app`, the normal guest config path under `/Users/<guest_user>/.config/winmux/winmux.toml`, `doctor_result=success`, `permission_status_result=success`, `accessibility=granted`, and `screen-recording=granted`.
+- Inspect `docs/release-notes.md`; require `Supported workflows`, `Known limitations`, `xattr -dr com.apple.quarantine` for unsigned packages, `doctor zones --support-bundle`, the exact `demo-columnar-zones.contact-sheet.jpg` citation, `does not start external beta`, and `does not imply App Store readiness`.
+- Inspect `logs/product-evidence-index.tsv`; require accepted reused media rows and no superseded Slice 49 docs artifact. Compare against Slice 39 installed-app evidence, Slice 49 docs, `demo-columnar-zones.mp4`, and `demo-columnar-zones.contact-sheet.jpg`.
+- Inspect `logs/slice-50-zone-support-bundle` and `logs/support-bundle-schema.log`; require schema result success and redaction-compatible support-bundle contents.
+- Inspect `logs/slice-50-command-timing.log`; cite launch, doctor, config-path, config-check, support-bundle, list-zones, and result offsets. Reject command beats that happen outside their matching caption chips.
+- Inspect `logs/slice-50-package-release.event-manifest.tsv`; require `package-ready`, `package-launch`, `doctor-status`, `config-path`, `config-check`, `support-bundle`, `list-zones`, and `package-ready-result` in order with concrete media paths.
+- Inspect `logs/guest-script-retry-summary.tsv`; require post-recording guest work to have no failures or retries. Reject any package proof patched after recording.
+- Compare against accepted Slice 36-49 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, and readable product pacing used in the accepted demos.
+- State explicitly that Slice 50 proves a reproducible internal beta package installs and launches from the packaged app path with stored provenance. It does not start external beta, does not imply App Store readiness, and does not prove notarization unless provenance says `notarization_status=notarized`.
 EOF
             ;;
         slice-8-window-routing)
