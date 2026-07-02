@@ -851,7 +851,10 @@ Slice-specific checks:
   public release, or external beta start. The review must compare package proof
   against Slice 39 installed-app evidence, Slice 49 docs, and
   `demo-columnar-zones.mp4`, and it must state that Slice 50 does not start
-  external beta.
+  external beta. Inspect `logs/guest-script-retry-summary.tsv` and require
+  `slice-50-run` to have one attempt, zero failures, `final_result=success`,
+  `before_recording=no`, `mutation_started=yes`, and a non-empty
+  `first_mutation_line`.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

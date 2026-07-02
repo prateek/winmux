@@ -136,7 +136,7 @@ if [ "$ACTION" = "slice-31" ]; then
 fi
 CONFIG_PATH="${WINMUX_E2E_CONFIG:-${DEFAULT_CONFIG_PATH}}"
 ACTIVE_CONFIG_HASH_POLICY="${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-immutable}"
-if { [ "$ACTION" = "slice-29" ] || [ "$ACTION" = "slice-31" ] || [ "$ACTION" = "slice-32" ] || [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-48" ]; } && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
+if { [ "$ACTION" = "slice-29" ] || [ "$ACTION" = "slice-31" ] || [ "$ACTION" = "slice-32" ] || [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-48" ] || [ "$ACTION" = "slice-50" ]; } && [ -z "${WINMUX_E2E_ACTIVE_CONFIG_HASH_POLICY:-}" ]; then
     ACTIVE_CONFIG_HASH_POLICY=mutates
 fi
 RELOAD_CONFIG_PATH="${WINMUX_E2E_RELOAD_CONFIG:-${SCRIPT_DIR}/configs/column-zones-shifted.toml}"
@@ -930,7 +930,7 @@ guest_script_retry() {
     local attempt=1
     local failure_count=0
     local max_attempts="$GUEST_ACTION_ATTEMPTS"
-    if { [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-47" ] || [ "$ACTION" = "slice-48" ]; } && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
+    if { [ "$ACTION" = "slice-46" ] || [ "$ACTION" = "slice-47" ] || [ "$ACTION" = "slice-48" ] || [ "$ACTION" = "slice-50" ]; } && [ "${GUEST_RECORDING_ACTIVE:-0}" = "1" ]; then
         max_attempts=1
     fi
 
@@ -1014,7 +1014,7 @@ has_post_recording_guest_retry_failures() {
 
 require_no_post_recording_guest_retry_failures() {
     case "$ACTION" in
-        slice-46|slice-47|slice-48) ;;
+        slice-46|slice-47|slice-48|slice-50) ;;
         *) return 0 ;;
     esac
 

@@ -66,6 +66,7 @@ SUPPORT_DOC="${DOC_DIR}/package-support-bundle.rtf"
 RESULT_DOC="${DOC_DIR}/package-result.rtf"
 
 uid="$(/usr/bin/id -u)"
+mutation_marked=0
 
 semantic_fail() {
     echo "$*" >&2
@@ -115,6 +116,13 @@ capture_guest_screenshot() {
 copy_runtime_logs() {
     /bin/cp "${APP_LOG_LOCAL}" "${APP_LOG}" >/dev/null 2>&1 || true
     /bin/cp "${STARTUP_TRACE_LOCAL}" "${STARTUP_TRACE}" >/dev/null 2>&1 || true
+}
+
+mark_mutation_once() {
+    if [ "${mutation_marked}" = "0" ]; then
+        echo "${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
+        mutation_marked=1
+    fi
 }
 
 uncomment_template_in_place() {
@@ -421,6 +429,7 @@ run_proof() {
 
     sleep_until_recording_offset 14 26 "Run: WinMuxApp from /Applications/WinMux.app"
     echo "launch-offset-seconds=${SECONDS}" >>"${TIMING_LOG}"
+    mark_mutation_once
     launch_winmux_installed
     echo '$ WinMuxApp from /Applications/WinMux.app' | tee -a "${CLI_LOG}"
     capture_guest_screenshot '02-package-app-launched-slice-50'

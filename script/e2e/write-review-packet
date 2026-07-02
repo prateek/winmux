@@ -832,7 +832,7 @@ EOF
 - Inspect `logs/slice-50-zone-support-bundle` and `logs/support-bundle-schema.log`; require schema result success and redaction-compatible support-bundle contents.
 - Inspect `logs/slice-50-command-timing.log`; cite launch, doctor, config-path, config-check, support-bundle, list-zones, and result offsets. Reject command beats that happen outside their matching caption chips.
 - Inspect `logs/slice-50-package-release.event-manifest.tsv`; require `package-ready`, `package-launch`, `doctor-status`, `config-path`, `config-check`, `support-bundle`, `list-zones`, and `package-ready-result` in order with concrete media paths.
-- Inspect `logs/guest-script-retry-summary.tsv`; require post-recording guest work to have no failures or retries. Reject any package proof patched after recording.
+- Inspect `logs/guest-script-retry-summary.tsv`; require `slice-50-run` to have one attempt, zero failures, `final_result=success`, `before_recording=no`, `mutation_started=yes`, and a non-empty `first_mutation_line`. Reject any package proof patched after recording.
 - Compare against accepted Slice 36-49 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, and readable product pacing used in the accepted demos.
 - State explicitly that Slice 50 proves a reproducible internal beta package installs and launches from the packaged app path with stored provenance. It does not start external beta, does not imply App Store readiness, and does not prove notarization unless provenance says `notarization_status=notarized`.
 EOF

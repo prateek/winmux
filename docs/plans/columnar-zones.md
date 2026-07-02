@@ -9244,7 +9244,10 @@ Implementation update, 2026-07-02:
 - `script/e2e/check-slice-50-package` remains the mechanical acceptance gate:
   the package proof must include hashes, package/install/launch/support-bundle
   logs, release notes with non-claims, the current demo contact sheet, and a
-  no-context review.
+  no-context review. After the first Slice 50 pre-Tart review blocked on a
+  retry-policy gap, the gate now also requires `slice-50-run` to be a single
+  post-recording attempt with zero failures, `mutation_started=yes`, and a
+  non-empty `first_mutation_line`.
 - `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
   dirty-source packaging smoke. It is useful as implementation evidence, but it
   is not accepted Slice 50 evidence; accepted evidence must come from a clean

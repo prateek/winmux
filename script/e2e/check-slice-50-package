@@ -205,6 +205,74 @@ validate_support_bundle() {
     "$SUPPORT_BUNDLE_CHECKER" "${RUN_DIR}/${support_bundle_path}" >/dev/null
 }
 
+summary_value() {
+    local path="$1"
+    local phase="$2"
+    local column="$3"
+    /usr/bin/awk -F'\t' -v phase="$phase" -v column="$column" '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                name = $i
+                sub(/^# /, "", name)
+                column_index[name] = i
+            }
+            next
+        }
+        $1 == phase {
+            if (!(column in column_index)) {
+                exit 2
+            }
+            print $(column_index[column])
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "$path"
+}
+
+validate_retry_summary() {
+    local summary="${RUN_DIR}/logs/guest-script-retry-summary.tsv"
+    local attempts failures final_result before_recording attempt_statuses mutation_started first_mutation_line
+    require_file_under_run "logs/guest-script-retry-summary.tsv"
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            failures = $4 + 0
+            if ($6 == "no" && failures > 0) {
+                printf("post-recording retry failure row: %s\n", $0) > "/dev/stderr"
+                found = 1
+            }
+        }
+        END { exit(found ? 1 : 0) }
+    ' "$summary" || die "Slice 50 artifact contains post-recording guest failures/retries"
+
+    attempts="$(summary_value "$summary" slice-50-run attempts)"
+    failures="$(summary_value "$summary" slice-50-run failures)"
+    final_result="$(summary_value "$summary" slice-50-run final_result)"
+    before_recording="$(summary_value "$summary" slice-50-run before_recording)"
+    attempt_statuses="$(summary_value "$summary" slice-50-run attempt_statuses)"
+    mutation_started="$(summary_value "$summary" slice-50-run mutation_started)"
+    first_mutation_line="$(summary_value "$summary" slice-50-run first_mutation_line)"
+    [ "$attempts" = "1" ] \
+        || die "Slice 50 post-recording proof must run once and be discarded on failure; attempts=${attempts}"
+    [ "$failures" = "0" ] \
+        || die "Slice 50 post-recording proof had failures; discard and rerun artifact"
+    [ "$final_result" = "success" ] \
+        || die "Slice 50 post-recording proof did not succeed cleanly: ${final_result}"
+    [ "$before_recording" = "no" ] \
+        || die "Slice 50 run row must be after recording started, got before_recording=${before_recording}"
+    [ "$attempt_statuses" = "success" ] \
+        || die "Slice 50 run row must record a single successful attempt, got: ${attempt_statuses}"
+    [ "$mutation_started" = "yes" ] \
+        || die "Slice 50 run row must report mutation_started=yes"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 50 run row must report first_mutation_line"
+}
+
 validate_demo_contact_sheet() {
     local demo_contact_sheet_path="$1"
     local demo_contact_sheet_sha="$2"
@@ -307,6 +375,7 @@ validate_package_artifact() {
     require_artifact_text "$launch_proof" "screen-recording=granted"
     validate_demo_contact_sheet "$demo_contact_sheet_path" "$demo_contact_sheet_sha"
     validate_support_bundle "$provenance"
+    validate_retry_summary
     validate_release_notes "$release_notes" "$codesign_status" "$demo_contact_sheet_path"
     validate_product_evidence_index
 }
@@ -441,6 +510,11 @@ run_self_test() {
     printf 'zip\n' >"$tmp/WinMux-test.zip"
     cp "$EVIDENCE_INDEX" "$tmp/logs/product-evidence-index.tsv"
     printf 'kind=package\nslice=50\n' >"$tmp/logs/package-slice-manifest.txt"
+    cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-50-setup	logs/slice-50-setup.log	1	0	success	yes	success	-	-	no	-
+slice-50-run	logs/slice-50-run.log	1	0	success	no	success	-	-	yes	4
+EOF
     write_support_bundle_fixture "$tmp/logs/slice-50-zone-support-bundle"
     "$SUPPORT_BUNDLE_CHECKER" "$tmp/logs/slice-50-zone-support-bundle" >"$tmp/logs/support-bundle-schema.log"
     demo_contact_sheet_path="artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg"
@@ -524,6 +598,29 @@ EOF
         die "self-test expected launch proof doctor_result rejection"
     fi
     /usr/bin/perl -0pi -e 's/doctor_result=skipped/doctor_result=success/' "$tmp/${launch_proof}"
+
+    cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-50-setup	logs/slice-50-setup.log	1	0	success	yes	success	-	-	no	-
+slice-50-run	logs/slice-50-run.log	2	1	failure	no	failure,success	boom	boom	yes	4
+EOF
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected post-recording retry rejection"
+    fi
+
+    cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-50-setup	logs/slice-50-setup.log	1	0	success	yes	success	-	-	no	-
+slice-50-run	logs/slice-50-run.log	1	0	success	no	success	-	-	no	-
+EOF
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected missing mutation marker rejection"
+    fi
+    cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-50-setup	logs/slice-50-setup.log	1	0	success	yes	success	-	-	no	-
+slice-50-run	logs/slice-50-run.log	1	0	success	no	success	-	-	yes	4
+EOF
 
     printf 'Public release starts today.\n' >>"$tmp/${release_notes}"
     if ( validate_package_artifact ) >/dev/null 2>&1; then
