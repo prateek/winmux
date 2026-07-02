@@ -8418,6 +8418,10 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   Slice 45 required-mentions registry entry and self-test coverage, so the
   first pre-Tart run can write a Slice 45 freshness manifest instead of failing
   as an unregistered slice.
+  Follow-up hardening: `script/e2e/tart-recording-harness pre-tart-gate-self-test`
+  now probes direct `slice-45` invocation too, so the direct recorder path must
+  stop at the no-context pre-Tart gate before Tart preflight when reports are
+  absent.
 - Local Slice 45 prep validation passed:
   `bash -n script/e2e/tart-recording-harness script/e2e/guest/slice-45-display-topology-recovery.sh script/e2e/verify-artifact script/e2e/write-review-packet`,
   Slice 45 guest `self-test`, `./script/e2e/tart-recording-harness annotation-preflight`,

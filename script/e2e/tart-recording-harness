@@ -596,7 +596,7 @@ pre_tart_gate_self_test() {
     local direct_slice
 
     tmp_dir="$(mktemp -d)"
-    for direct_slice in slice-39 slice-44; do
+    for direct_slice in slice-39 slice-44 slice-45; do
         rm -rf "${tmp_dir}/run"
         log_path="${tmp_dir}/direct-${direct_slice}.log"
         if WINMUX_E2E_RUN_ID=pre-tart-gate-self-test \
