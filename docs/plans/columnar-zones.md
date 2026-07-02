@@ -8308,14 +8308,14 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
 - [x] Run `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-44-pre-tart-20260702T003639Z`
   after this plan update and tee it to `logs/closeout-check.log`; do not begin
   Slice 45 implementation until it passes.
-- [ ] Before Slice 45 Tart, update `script/e2e/verify-artifact` so
+- [x] Before Slice 45 Tart, update `script/e2e/verify-artifact` so
   `require_mouse_snap_overlay_sentinel` derives source screenshot freshness
   from the recording name or manifest paths instead of a hard-coded case list,
   covering Slice 25, Slice 43, and Slice 44. Add a self-test that touches or
   swaps a source hover screenshot after overlay crops are generated and fails
   unless the overlay crop, labeled crop, and sentinel TSV are fresher than the
   source frames.
-- [ ] Before Slice 45 reviewer closeout, extend `require_review_freshness` with
+- [x] Before Slice 45 reviewer closeout, extend `require_review_freshness` with
   current-recording evidence dependencies when present:
   `logs/${recording_name}.proof-manifest.tsv`,
   `logs/${recording_name}.overlay-sentinel.tsv`,
@@ -8325,7 +8325,7 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   reset/after window logs. Add a review-freshness self-test that writes a
   passing review, touches one proof-manifest field, and expects `--review-lint`
   or `--require-review` check-only verification to fail as stale.
-- [ ] Before Slice 45 Tart if hotplug, monitor identity, or multi-monitor
+- [x] Before Slice 45 Tart if hotplug, monitor identity, or multi-monitor
   behavior is touched, add a local pre-Tart self-test for overlay crop geometry
   using a synthetic zones log with a non-zero physical monitor origin and a
   generated screenshot. The test should fail until crop code normalizes global
@@ -8333,6 +8333,23 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   records/crops from an all-display screenshot. If Slice 45 remains
   single-display, state hotplug/multi-monitor behavior as a non-claim in the
   plan and reviewer packet.
+  Done as a verifier guard: overlay sentinel crop geometry must fit inside the
+  cited source screenshot, and the self-test rejects a non-zero-origin global
+  crop against a display-local source. Slice 45 Tart must therefore emit
+  display-local crop coordinates or cite all-display source screenshots before
+  the artifact can pass.
+- Validation after this cleanup:
+  `bash -n script/e2e/verify-artifact`,
+  `./script/e2e/verify-artifact --self-test`,
+  `./script/e2e/verify-artifact --check-only --require-review artifacts/e2e/slice-43-pre-tart-20260701T223610Z`,
+  and
+  `./script/e2e/verify-artifact --check-only --require-review artifacts/e2e/slice-44-pre-tart-20260702T003639Z`
+  all passed. `make e2e-pre-tart-checks` also passed end to end, including
+  shellcheck, verifier self-test, guest-script self-tests, CLI build, and the
+  filtered 200-test Swift suite. Slice 25 full artifact verification remains
+  blocked by historical expected-chip drift/FinderInfo noise outside the
+  overlay-sentinel change; the verifier self-test now exercises Slice 25,
+  Slice 43, and Slice 44 overlay source lookup directly.
 - [ ] Define the exact topology transition path before scenario code:
   Tart-simulated display change if available; otherwise deterministic topology
   harness plus real-machine video. Record why the chosen path can prove

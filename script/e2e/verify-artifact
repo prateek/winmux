@@ -953,6 +953,85 @@ EOF
     if ( require_event_manifest_matches_mouse_events "$missing_affordance_manifest" snap-first-affordance ) >/dev/null 2>&1; then
         die "Mouse event self-test expected missing snap-first-affordance manifest rejection"
     fi
+
+    recording_name="slice-44-drag-overlay-semantics"
+    mouse_events="${LOGS_DIR}/${recording_name}.mouse-events.tsv"
+    mouse_event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
+    local overlay_sentinel_dir="${SCREENSHOTS_DIR}/${recording_name}.overlay-sentinel"
+    local overlay_sentinel_manifest="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
+    local overlay_source_freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-slice-44.png"
+    local overlay_source_snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-slice-44.png"
+    mkdir -p "$overlay_sentinel_dir"
+    magick -size 120x90 xc:'#20242C' "$overlay_source_freeform"
+    magick -size 120x90 xc:'#2D3748' "$overlay_source_snap"
+    magick -size 120x90 xc:'#20242C' "${overlay_sentinel_dir}/freeform-target-zone.png"
+    magick -size 120x90 xc:'#3B82F6' "${overlay_sentinel_dir}/snap-target-zone.png"
+    magick -size 120x90 xc:'#111827' "${overlay_sentinel_dir}/target-zone-label.png"
+    cat >"$mouse_event_manifest" <<'EOF'
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-hover	drag	12.000	caption-02	freeform-hover-no-overlay	screenshots/03-freeform-hover-no-overlay-slice-44.png	freeform hover has no overlay
+snap-first-affordance	overlay	20.000	caption-07	snap-hover-comms	screenshots/07-snap-hover-comms-slice-44.png	whole-zone target overlay is visible
+EOF
+    cat >"$overlay_sentinel_manifest" <<'EOF'
+# label	value	minimum	path	note
+overlay-rmse-normalized	0.500	0.025	-	self-test overlay delta
+target-semantics	whole-zone		screenshots/07-snap-hover-comms-slice-44.png	self-test whole-zone target
+target-zone-crop	120x90+0+0		logs/slice-44-zones.log	self-test target crop
+freeform-target-zone-crop	-	-	screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/freeform-target-zone.png	self-test freeform crop
+snap-target-zone-crop	-	-	screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/snap-target-zone.png	self-test snap crop
+target-label	WHOLE ZONE TARGET: COMMS		screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/target-zone-label.png	self-test label crop
+EOF
+    require_mouse_snap_overlay_sentinel "$overlay_sentinel_manifest"
+    touch -t 203001010101 "$overlay_source_snap"
+    if ( require_mouse_snap_overlay_sentinel "$overlay_sentinel_manifest" ) >/dev/null 2>&1; then
+        die "Mouse snap overlay self-test expected stale crop/manifest rejection after source screenshot changed"
+    fi
+    touch -t 202601010000 "$overlay_source_snap"
+    cat >"$overlay_sentinel_manifest.outside" <<'EOF'
+# label	value	minimum	path	note
+overlay-rmse-normalized	0.500	0.025	-	self-test overlay delta
+target-semantics	whole-zone		screenshots/07-snap-hover-comms-slice-44.png	self-test whole-zone target
+target-zone-crop	120x90+3440+0		logs/slice-44-zones.log	self-test target crop outside source
+freeform-target-zone-crop	-	-	screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/freeform-target-zone.png	self-test freeform crop
+snap-target-zone-crop	-	-	screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/snap-target-zone.png	self-test snap crop
+target-label	WHOLE ZONE TARGET: COMMS		screenshots/slice-44-drag-overlay-semantics.overlay-sentinel/target-zone-label.png	self-test label crop
+EOF
+    if ( require_mouse_snap_overlay_sentinel "$overlay_sentinel_manifest.outside" ) >/dev/null 2>&1; then
+        die "Mouse snap overlay self-test expected non-zero-origin crop geometry rejection"
+    fi
+    local overlay_fixture_name overlay_fixture_prefix
+    for overlay_fixture_name in \
+        slice-25-mouse-demo-contract \
+        slice-43-mouse-gesture-configurability; do
+        recording_name="$overlay_fixture_name"
+        overlay_fixture_prefix="$(recording_slice_prefix "$recording_name")"
+        mouse_event_manifest="${LOGS_DIR}/${recording_name}.event-manifest.tsv"
+        overlay_sentinel_dir="${SCREENSHOTS_DIR}/${recording_name}.overlay-sentinel"
+        overlay_sentinel_manifest="${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv"
+        overlay_source_freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${overlay_fixture_prefix}.png"
+        overlay_source_snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-${overlay_fixture_prefix}.png"
+        mkdir -p "$overlay_sentinel_dir"
+        magick -size 120x90 xc:'#20242C' "$overlay_source_freeform"
+        magick -size 120x90 xc:'#2D3748' "$overlay_source_snap"
+        magick -size 120x90 xc:'#20242C' "${overlay_sentinel_dir}/freeform-target-zone.png"
+        magick -size 120x90 xc:'#3B82F6' "${overlay_sentinel_dir}/snap-target-zone.png"
+        magick -size 120x90 xc:'#111827' "${overlay_sentinel_dir}/snap-target-zone-labeled.png"
+        cat >"$mouse_event_manifest" <<EOF
+# event-id	kind	seconds	caption-label	sample-label	path	expected
+float-drag-hover	drag	12.000	caption-02	freeform-hover-no-overlay	screenshots/03-freeform-hover-no-overlay-${overlay_fixture_prefix}.png	freeform hover has no overlay
+snap-first-affordance	overlay	20.000	caption-07	snap-hover-comms	screenshots/07-snap-hover-comms-${overlay_fixture_prefix}.png	whole-zone target overlay is visible
+EOF
+        cat >"$overlay_sentinel_manifest" <<EOF
+# label	value	minimum	path	note
+overlay-rmse-normalized	0.500	0.025	-	self-test overlay delta
+target-semantics	whole-zone		screenshots/07-snap-hover-comms-${overlay_fixture_prefix}.png	self-test whole-zone target
+target-zone-crop	120x90+0+0		logs/${overlay_fixture_prefix}-zones.log	self-test target crop
+freeform-target-zone-crop	-	-	screenshots/${recording_name}.overlay-sentinel/freeform-target-zone.png	self-test freeform crop
+snap-target-zone-crop	-	-	screenshots/${recording_name}.overlay-sentinel/snap-target-zone.png	self-test snap crop
+target-label	WHOLE ZONE TARGET: COMMS		screenshots/${recording_name}.overlay-sentinel/snap-target-zone-labeled.png	self-test label crop
+EOF
+        require_mouse_snap_overlay_sentinel "$overlay_sentinel_manifest"
+    done
     LOGS_DIR="$old_logs_dir"
     SCREENSHOTS_DIR="$old_screenshots_dir"
     recording_name="$old_recording_name"
@@ -1019,6 +1098,59 @@ EOF
     fi
     require_review_mentions_target_semantics "$cited_target_semantics_review" "$target_semantics_manifest" \
         || die "Review target-semantics self-test expected semantics/path citation to pass"
+
+    local freshness_old_run_dir="${RUN_DIR:-}"
+    local freshness_old_logs_dir="${LOGS_DIR:-}"
+    local freshness_old_screenshots_dir="${SCREENSHOTS_DIR:-}"
+    local freshness_old_recordings_dir="${RECORDINGS_DIR:-}"
+    local freshness_old_recording_name="${recording_name:-}"
+    local freshness_old_recording_path="${recording_path:-}"
+    local freshness_old_contact_sheet="${contact_sheet:-}"
+    RUN_DIR="${tmp_dir}/review-freshness-run"
+    LOGS_DIR="${RUN_DIR}/logs"
+    SCREENSHOTS_DIR="${RUN_DIR}/screenshots"
+    RECORDINGS_DIR="${RUN_DIR}/recordings"
+    recording_name="slice-44-drag-overlay-semantics"
+    recording_path="${RECORDINGS_DIR}/${recording_name}.mov"
+    contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.contact-sheet.jpg"
+    mkdir -p "$LOGS_DIR" "$SCREENSHOTS_DIR" "$RECORDINGS_DIR" "${RUN_DIR}/reviews"
+    local freshness_review="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    local freshness_proof_manifest="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+    local freshness_dependency
+    for freshness_dependency in \
+        "$recording_path" \
+        "${RUN_DIR}/reviews/reviewer-packet.md" \
+        "$contact_sheet" \
+        "$freshness_proof_manifest" \
+        "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv" \
+        "${LOGS_DIR}/${recording_name}.mouse-events.tsv" \
+        "${LOGS_DIR}/slice-44-command-timing.log" \
+        "${LOGS_DIR}/slice-44-mouse-zone-snap-action.log" \
+        "${LOGS_DIR}/slice-44-windows-before.log" \
+        "${LOGS_DIR}/slice-44-windows-after-freeform.log" \
+        "${LOGS_DIR}/slice-44-windows-after-reset.log" \
+        "${LOGS_DIR}/slice-44-windows-after-snap.log"; do
+        printf 'freshness fixture\n' >"$freshness_dependency"
+        touch -t 202601010000 "$freshness_dependency"
+    done
+    cat >"$freshness_review" <<'EOF'
+PASS: review freshness fixture
+
+next slice allowed: yes
+EOF
+    touch -t 202601010001 "$freshness_review"
+    require_review_freshness "$freshness_review"
+    touch -t 203001010101 "$freshness_proof_manifest"
+    if ( require_review_freshness "$freshness_review" ) >/dev/null 2>&1; then
+        die "Review freshness self-test expected stale review rejection after proof manifest changed"
+    fi
+    RUN_DIR="$freshness_old_run_dir"
+    LOGS_DIR="$freshness_old_logs_dir"
+    SCREENSHOTS_DIR="$freshness_old_screenshots_dir"
+    RECORDINGS_DIR="$freshness_old_recordings_dir"
+    recording_name="$freshness_old_recording_name"
+    recording_path="$freshness_old_recording_path"
+    contact_sheet="$freshness_old_contact_sheet"
 
     local slice_37_nonclaim_review="${tmp_dir}/slice-37-nonclaim-review.md"
     local slice_37_positive_gui_review="${tmp_dir}/slice-37-positive-gui-review.md"
@@ -2846,6 +2978,124 @@ require_fresh_derived_file() {
         || die "${label} is stale relative to ${source}: ${path}"
 }
 
+recording_slice_prefix() {
+    local name="${1:-${recording_name:-}}"
+    printf '%s\n' "$name" | /usr/bin/sed -n 's/^\(slice-[0-9][0-9]*\)-.*/\1/p'
+}
+
+artifact_existing_path_for_relative() {
+    local relative_path="$1"
+    local candidate
+
+    case "$relative_path" in
+        ""|"-") return 1 ;;
+        /*|*../*) die "Artifact-relative path must stay inside the run: $relative_path" ;;
+        screenshots/*|logs/*|recordings/*|reviews/*|config/*)
+            candidate="${RUN_DIR}/${relative_path}"
+            ;;
+        *)
+            candidate="${SCREENSHOTS_DIR}/${relative_path}"
+            ;;
+    esac
+    [ -s "$candidate" ] || return 1
+    printf '%s\n' "$candidate"
+}
+
+event_manifest_path_for_sample_label() {
+    local sample_label="$1"
+    local manifest_path
+    manifest_path="$(event_manifest_path)"
+    [ -s "$manifest_path" ] || return 1
+    /usr/bin/awk -F'\t' -v sample_label="$sample_label" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $5 == sample_label && $6 != "-" {
+            print $6
+            exit
+        }
+    ' "$manifest_path"
+}
+
+proof_manifest_drag_screenshot_path() {
+    local label="$1"
+    local manifest_path="${LOGS_DIR}/${recording_name}.proof-manifest.tsv"
+    [ -s "$manifest_path" ] || return 1
+    /usr/bin/awk -F'\t' -v label="$label" '
+        $1 == "drag-screenshots" && $2 == label {
+            print $3
+            exit
+        }
+    ' "$manifest_path"
+}
+
+mouse_snap_overlay_source_path() {
+    local role="$1"
+    local event_sample_label proof_label fallback_basename
+    case "$role" in
+        freeform)
+            event_sample_label=freeform-hover-no-overlay
+            proof_label=freeform-hover
+            fallback_basename=03-freeform-hover-no-overlay
+            ;;
+        snap)
+            event_sample_label=snap-hover-comms
+            proof_label=hover
+            fallback_basename=07-snap-hover-comms
+            ;;
+        *) die "Unknown mouse snap overlay source role: $role" ;;
+    esac
+
+    local relative_path candidate slice_prefix
+    relative_path="$(event_manifest_path_for_sample_label "$event_sample_label" || true)"
+    if [ -n "$relative_path" ] && candidate="$(artifact_existing_path_for_relative "$relative_path")"; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    relative_path="$(proof_manifest_drag_screenshot_path "$proof_label" || true)"
+    if [ -n "$relative_path" ] && candidate="$(artifact_existing_path_for_relative "$relative_path")"; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    slice_prefix="$(recording_slice_prefix)"
+    if [ -n "$slice_prefix" ]; then
+        candidate="${SCREENSHOTS_DIR}/${fallback_basename}-${slice_prefix}.png"
+        [ -s "$candidate" ] || return 1
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+
+    return 1
+}
+
+require_crop_geometry_inside_source() {
+    local crop_geometry="$1"
+    local source_path="$2"
+    local label="$3"
+    local crop_parts source_dimensions source_width source_height crop_width crop_height crop_left crop_top
+
+    crop_parts="$(printf '%s\n' "$crop_geometry" | /usr/bin/sed -n 's/^\([0-9][0-9]*\)x\([0-9][0-9]*\)+\([0-9][0-9]*\)+\([0-9][0-9]*\)$/\1 \2 \3 \4/p')"
+    [ -n "$crop_parts" ] || die "${label} has invalid crop geometry: $crop_geometry"
+    # shellcheck disable=SC2086
+    set -- $crop_parts
+    crop_width="$1"
+    crop_height="$2"
+    crop_left="$3"
+    crop_top="$4"
+
+    source_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$source_path")" \
+        || die "${label} source is not readable image media: $source_path"
+    case "$source_dimensions" in
+        *x*) ;;
+        *) die "${label} source has no readable dimensions: $source_path" ;;
+    esac
+    source_width="${source_dimensions%x*}"
+    source_height="${source_dimensions#*x}"
+
+    [ $((crop_left + crop_width)) -le "$source_width" ] && [ $((crop_top + crop_height)) -le "$source_height" ] \
+        || die "${label} crop ${crop_geometry} is outside source ${source_dimensions}: $source_path"
+}
+
 require_sample_manifest_shape_and_timing() {
     local manifest_path="$1"
     local captions_path="${2:-}"
@@ -3033,6 +3283,15 @@ require_edge_crop_manifest() {
     [ "$row_count" -gt 0 ] || die "Edge crop manifest has no crop rows: $manifest_path"
 }
 
+require_review_fresh_dependency() {
+    local review_path="$1"
+    local dependency="$2"
+    local label="$3"
+    [ -s "$dependency" ] || return 0
+    [ "$review_path" -nt "$dependency" ] \
+        || die "Review is stale relative to ${label}: $dependency"
+}
+
 require_review_freshness() {
     local review_path="$1"
     local dependency
@@ -3048,14 +3307,30 @@ require_review_freshness() {
         "$(event_manifest_path)" \
         "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
         "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
-        [ -s "$dependency" ] || continue
-        [ "$review_path" -nt "$dependency" ] \
-            || die "Review is stale relative to artifact dependency: $dependency"
+        require_review_fresh_dependency "$review_path" "$dependency" "artifact dependency"
     done
     dependency="${RUN_DIR}/reviews/reviewer-citation-checklist.tsv"
-    if [ -s "$dependency" ]; then
-        [ "$review_path" -nt "$dependency" ] \
-            || die "Review is stale relative to artifact dependency: $dependency"
+    require_review_fresh_dependency "$review_path" "$dependency" "artifact dependency"
+
+    for dependency in \
+        "${LOGS_DIR}/${recording_name}.proof-manifest.tsv" \
+        "${LOGS_DIR}/${recording_name}.overlay-sentinel.tsv" \
+        "${LOGS_DIR}/${recording_name}.mouse-events.tsv"; do
+        require_review_fresh_dependency "$review_path" "$dependency" "current recording evidence dependency"
+    done
+
+    local slice_prefix
+    slice_prefix="$(recording_slice_prefix)"
+    if [ -n "$slice_prefix" ]; then
+        for dependency in \
+            "${LOGS_DIR}/${slice_prefix}-command-timing.log" \
+            "${LOGS_DIR}/${slice_prefix}-mouse-zone-snap-action.log" \
+            "${LOGS_DIR}/${slice_prefix}-windows-before.log" \
+            "${LOGS_DIR}/${slice_prefix}-windows-after-freeform.log" \
+            "${LOGS_DIR}/${slice_prefix}-windows-after-reset.log" \
+            "${LOGS_DIR}/${slice_prefix}-windows-after-snap.log"; do
+            require_review_fresh_dependency "$review_path" "$dependency" "current slice evidence dependency"
+        done
     fi
 
     if [ "${recording_name:-}" = "slice-31-relaunch-saved-layout" ]; then
@@ -3090,9 +3365,7 @@ require_review_freshness() {
             "${SCREENSHOTS_DIR}/04-after-quit-slice-31.png" \
             "${SCREENSHOTS_DIR}/05-after-relaunch-slice-31.png" \
             "${SCREENSHOTS_DIR}/99-after-slice-31.png"; do
-            [ -s "$dependency" ] || continue
-            [ "$review_path" -nt "$dependency" ] \
-                || die "Review is stale relative to Slice 31 evidence dependency: $dependency"
+            require_review_fresh_dependency "$review_path" "$dependency" "Slice 31 evidence dependency"
         done
     fi
     if [ "${recording_name:-}" = "slice-32-divider-save-relaunch" ]; then
@@ -11617,26 +11890,18 @@ require_mouse_snap_overlay_sentinel() {
     [ "$target_label_dimensions" = "$expected_dimensions" ] \
         || die "Mouse snap target label crop dimensions ${target_label_dimensions} do not match ${expected_dimensions}"
 
-    local slice_prefix source_freeform source_snap
-    case "$recording_name" in
-        slice-12-*) slice_prefix="slice-12" ;;
-        slice-16-*) slice_prefix="slice-16" ;;
-        slice-20-*) slice_prefix="slice-20" ;;
-        slice-22-*) slice_prefix="slice-22" ;;
-        slice-23-*) slice_prefix="slice-23" ;;
-        slice-24-*) slice_prefix="slice-24" ;;
-        *) slice_prefix="" ;;
-    esac
-    if [ -n "$slice_prefix" ]; then
-        source_freeform="${SCREENSHOTS_DIR}/03-freeform-hover-no-overlay-${slice_prefix}.png"
-        source_snap="${SCREENSHOTS_DIR}/07-snap-hover-comms-${slice_prefix}.png"
-        require_file "$source_freeform"
-        require_file "$source_snap"
-        require_fresh_derived_file "${RUN_DIR}/${freeform_crop}" "$source_freeform" "Mouse snap freeform overlay crop"
-        require_fresh_derived_file "${RUN_DIR}/${snap_crop}" "$source_snap" "Mouse snap snap overlay crop"
-        require_fresh_derived_file "${RUN_DIR}/${target_label_crop}" "$source_snap" "Mouse snap labeled target crop"
-        require_fresh_derived_file "$manifest_path" "$source_snap" "Mouse snap overlay sentinel"
-    fi
+    local source_freeform source_snap
+    source_freeform="$(mouse_snap_overlay_source_path freeform || true)"
+    source_snap="$(mouse_snap_overlay_source_path snap || true)"
+    [ -n "$source_freeform" ] \
+        || die "Mouse snap overlay sentinel could not find source freeform hover screenshot for ${recording_name}"
+    [ -n "$source_snap" ] \
+        || die "Mouse snap overlay sentinel could not find source snap hover screenshot for ${recording_name}"
+    require_crop_geometry_inside_source "$crop_geometry" "$source_snap" "Mouse snap overlay sentinel"
+    require_fresh_derived_file "${RUN_DIR}/${freeform_crop}" "$source_freeform" "Mouse snap freeform overlay crop"
+    require_fresh_derived_file "${RUN_DIR}/${snap_crop}" "$source_snap" "Mouse snap snap overlay crop"
+    require_fresh_derived_file "${RUN_DIR}/${target_label_crop}" "$source_snap" "Mouse snap labeled target crop"
+    require_fresh_derived_file "$manifest_path" "$source_snap" "Mouse snap overlay sentinel"
 
     awk -v rmse="$rmse" -v minimum="$minimum" 'BEGIN { exit(rmse + 0 >= minimum + 0 ? 0 : 1) }' \
         || die "Mouse snap overlay RMSE ${rmse} is below required ${minimum}"
