@@ -1,0 +1,343 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BUNDLE_DIR=""
+MODE="redacted"
+SELF_TEST=0
+SELF_TEST_TMP_DIR=""
+
+EXPECTED_FILES_CSV="active-workspaces.tsv,command-failures.tsv,config-doctor.txt,config-redacted.toml,logs.txt,manifest.txt,monitor-topology.tsv,node-zone-bindings.tsv,permissions.txt,recent-window-routing-decisions.tsv,redaction-summary.txt,zone-affinities.tsv,zone-runtime-overlay.tsv"
+EXPECTED_FILES=(
+    active-workspaces.tsv
+    command-failures.tsv
+    config-doctor.txt
+    config-redacted.toml
+    logs.txt
+    manifest.txt
+    monitor-topology.tsv
+    node-zone-bindings.tsv
+    permissions.txt
+    recent-window-routing-decisions.tsv
+    redaction-summary.txt
+    zone-affinities.tsv
+    zone-runtime-overlay.tsv
+)
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--mode redacted|include-window-titles] <bundle-dir>
+       $(basename "$0") --self-test
+
+Validates a winmux doctor zones --support-bundle directory: manifest, required
+files, TSV headers, redaction markers, and sensitive sentinel leaks.
+EOF
+}
+
+die() {
+    printf '[winmux-support-bundle] error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_file() {
+    local path="$1"
+    [ -s "${BUNDLE_DIR}/${path}" ] || die "missing bundle file: ${path}"
+}
+
+require_contains() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "${BUNDLE_DIR}/${path}" >/dev/null \
+        || die "${path} missing required text: ${text}"
+}
+
+reject_contains() {
+    local path="$1"
+    local text="$2"
+    if /usr/bin/grep -F -- "$text" "${BUNDLE_DIR}/${path}" >/dev/null; then
+        die "${path} contains forbidden text: ${text}"
+    fi
+}
+
+manifest_value() {
+    local key="$1"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2) }' "${BUNDLE_DIR}/manifest.txt"
+}
+
+expected_header() {
+    case "$1" in
+        active-workspaces.tsv)
+            printf '%s\n' $'monitor-id\tzone-id\tzone-name\tphysical-identity\tactive-workspace\tworkspace-visible'
+            ;;
+        command-failures.tsv)
+            printf '%s\n' $'source\tcommand\tstatus\tdebug'
+            ;;
+        monitor-topology.tsv)
+            printf '%s\n' $'kind\tmonitor-id\tname\tphysical-identity\tx\ty\twidth\theight\tvisible-x\tvisible-y\tvisible-width\tvisible-height\tzone-id\tzone-name\tlayout-id\tavailability-set-id\tstyle-id\tstyle-color\tdefault-zone'
+            ;;
+        node-zone-bindings.tsv)
+            printf '%s\n' $'node-id\tnode-type\twindow-ids\ttitle\tzone\tzone-name\tworkspace\tmonitor\tphysical'
+            ;;
+        recent-window-routing-decisions.tsv)
+            printf '%s\n' $'source\tindex-or-node\tzone\tworkspace\tmatched\tdebug'
+            ;;
+        zone-affinities.tsv)
+            printf '%s\n' $'index\tzone\tapp-id-configured\tapp-name-configured\twindow-title-configured\tworkspace\tstartup\tfocus-follows-window\tfail-if-noop\tcheck-further-callbacks'
+            ;;
+        zone-runtime-overlay.tsv)
+            printf '%s\n' $'physical-identity\tactive-layout\tactive-scene\tactive-availability\tsnap-policy\tdisabled-zones\tparked-workspaces\twidth-overrides\tstyle-overrides\ttoggle-restore-zone'
+            ;;
+        *)
+            die "no TSV header registered for $1"
+            ;;
+    esac
+}
+
+is_expected_file() {
+    local candidate="$1"
+    local expected
+    for expected in "${EXPECTED_FILES[@]}"; do
+        [ "$candidate" != "$expected" ] || return 0
+    done
+    return 1
+}
+
+validate_manifest() {
+    require_file manifest.txt
+    [ "$(/usr/bin/head -1 "${BUNDLE_DIR}/manifest.txt")" = "winmux-zone-support-bundle" ] \
+        || die "manifest first line must be winmux-zone-support-bundle"
+    [ "$(manifest_value schema-version)" = "1" ] || die "manifest schema-version must be 1"
+    [ "$(manifest_value command)" = "doctor zones --support-bundle" ] \
+        || die "manifest command must be doctor zones --support-bundle"
+    [ "$(manifest_value files)" = "$EXPECTED_FILES_CSV" ] \
+        || die "manifest files list changed or is incomplete"
+
+    local expected actual basename
+    for expected in "${EXPECTED_FILES[@]}"; do
+        require_file "$expected"
+    done
+
+    while IFS= read -r actual; do
+        basename="$(basename "$actual")"
+        is_expected_file "$basename" || die "unexpected bundle file: ${basename}"
+    done < <(find "$BUNDLE_DIR" -maxdepth 1 -type f -print)
+}
+
+validate_tsv_headers() {
+    local file header expected
+    for file in \
+        active-workspaces.tsv \
+        command-failures.tsv \
+        monitor-topology.tsv \
+        node-zone-bindings.tsv \
+        recent-window-routing-decisions.tsv \
+        zone-affinities.tsv \
+        zone-runtime-overlay.tsv; do
+        header="$(/usr/bin/head -1 "${BUNDLE_DIR}/${file}")"
+        expected="$(expected_header "$file")"
+        [ "$header" = "$expected" ] || die "${file} header changed"
+    done
+}
+
+validate_required_text() {
+    require_contains permissions.txt $'permission\tstatus\tnote'
+    require_contains command-failures.tsv "WinMux does not retain command failure history yet"
+    require_contains logs.txt "Slice 48 support bundles do not query macOS unified logs yet"
+    require_contains recent-window-routing-decisions.tsv "live window match history is not retained"
+    require_contains config-doctor.txt "zones:"
+    require_contains config-redacted.toml "<redacted>"
+}
+
+validate_redaction() {
+    require_contains redaction-summary.txt "home-paths=<home>"
+    require_contains redaction-summary.txt "usernames=<user>"
+    require_contains redaction-summary.txt "app-identifiers=<redacted-app-identifier>"
+    require_contains redaction-summary.txt "secret-like-config-values=<redacted>"
+    require_contains redaction-summary.txt "non-config-paths=<path-redacted>"
+    require_contains zone-affinities.tsv "true:<redacted-app-identifier>"
+
+    if [ "$MODE" = "redacted" ]; then
+        require_contains redaction-summary.txt "window-titles=<redacted-window-title>"
+        require_contains zone-affinities.tsv "true:<redacted-window-title>"
+        require_contains redaction-summary.txt "<redacted-window-title>"
+    else
+        require_contains redaction-summary.txt "window-titles=included by --include-window-titles"
+        require_contains zone-affinities.tsv "true:configured"
+        reject_contains zone-affinities.tsv "true:<redacted-window-title>"
+    fi
+}
+
+reject_sensitive_leaks() {
+    local sentinel
+    local sentinels=(
+        "com.secret.Mail"
+        "super-secret-token"
+        "/Users/prateek"
+    )
+    [ -z "${HOME:-}" ] || sentinels+=("$HOME")
+    [ -z "${USER:-}" ] || sentinels+=("$USER")
+    if [ "$MODE" = "redacted" ]; then
+        sentinels+=("Secret Board")
+    fi
+
+    for sentinel in "${sentinels[@]}"; do
+        [ -n "$sentinel" ] || continue
+        if /usr/bin/grep -R -F -- "$sentinel" "$BUNDLE_DIR" >/dev/null; then
+            die "support bundle leaked sensitive sentinel: ${sentinel}"
+        fi
+    done
+}
+
+validate_bundle() {
+    [ -d "$BUNDLE_DIR" ] || die "bundle directory does not exist: ${BUNDLE_DIR}"
+    validate_manifest
+    validate_tsv_headers
+    validate_required_text
+    validate_redaction
+    reject_sensitive_leaks
+}
+
+write_bundle_fixture() {
+    local dir="$1"
+    local window_titles="$2"
+    mkdir -p "$dir"
+    cat >"${dir}/manifest.txt" <<EOF
+winmux-zone-support-bundle
+schema-version=1
+generated-at=2026-07-02T00:00:00Z
+winmux-git=selftest
+command=doctor zones --support-bundle
+bundle-directory=<path-redacted>
+config-path=<home>/.config/winmux/winmux.toml
+app-path=<path-redacted>
+executable-path=<path-redacted>
+files=${EXPECTED_FILES_CSV}
+EOF
+    cat >"${dir}/redaction-summary.txt" <<EOF
+Zone support bundle redaction
+generated-at=2026-07-02T00:00:00Z
+home-paths=<home>
+usernames=<user>
+window-titles=${window_titles}
+app-identifiers=<redacted-app-identifier>
+secret-like-config-values=<redacted>
+non-config-paths=<path-redacted>
+EOF
+    cat >"${dir}/config-redacted.toml" <<'EOF'
+config-version = 2
+# token = "<redacted>"
+# app-id = "<redacted>"
+# private-path = "<home>/Secret"
+EOF
+    printf 'zones:\n  ok\n' >"${dir}/config-doctor.txt"
+    cat >"${dir}/permissions.txt" <<'EOF'
+permission	status	note
+accessibility	granted	required
+screen-recording	granted	tab previews and radius estimation
+EOF
+    cat >"${dir}/active-workspaces.tsv" <<'EOF'
+monitor-id	zone-id	zone-name	physical-identity	active-workspace	workspace-visible
+1	main	Work	physical:0.0,0.0	1	true
+EOF
+    cat >"${dir}/command-failures.tsv" <<'EOF'
+source	command	status	debug
+unavailable		unretained	WinMux does not retain command failure history yet
+EOF
+    cat >"${dir}/logs.txt" <<'EOF'
+source	status	debug
+unified-log	not-collected	Slice 48 support bundles do not query macOS unified logs yet
+EOF
+    cat >"${dir}/monitor-topology.tsv" <<'EOF'
+kind	monitor-id	name	physical-identity	x	y	width	height	visible-x	visible-y	visible-width	visible-height	zone-id	zone-name	layout-id	availability-set-id	style-id	style-color	default-zone
+physical	1	Main	physical:0.0,0.0	0	0	1200	800	0	0	1200	800							false
+EOF
+    cat >"${dir}/node-zone-bindings.tsv" <<'EOF'
+node-id	node-type	window-ids	title	zone	zone-name	workspace	monitor	physical
+none								
+EOF
+    cat >"${dir}/recent-window-routing-decisions.tsv" <<'EOF'
+source	index-or-node	zone	workspace	matched	debug
+zone-affinity-config	0	Comms	work	not-evaluated	rule configured; live window match history is not retained
+EOF
+    cat >"${dir}/zone-runtime-overlay.tsv" <<'EOF'
+physical-identity	active-layout	active-scene	active-availability	snap-policy	disabled-zones	parked-workspaces	width-overrides	style-overrides	toggle-restore-zone
+none									
+EOF
+}
+
+run_self_test() {
+    local redacted include_mode
+    SELF_TEST_TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$SELF_TEST_TMP_DIR"' EXIT
+
+    redacted="${SELF_TEST_TMP_DIR}/redacted"
+    write_bundle_fixture "$redacted" "<redacted-window-title>"
+    cat >"${redacted}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+0	Comms	true:<redacted-app-identifier>	false	true:<redacted-window-title>	work		true	false	false
+EOF
+    BUNDLE_DIR="$redacted"
+    MODE="redacted"
+    validate_bundle
+    printf 'Secret Board\n' >>"${redacted}/config-redacted.toml"
+    if ( validate_bundle ) >/dev/null 2>&1; then
+        die "self-test expected redacted mode to reject Secret Board"
+    fi
+
+    include_mode="${SELF_TEST_TMP_DIR}/include-window-titles"
+    write_bundle_fixture "$include_mode" "included by --include-window-titles"
+    cat >"${include_mode}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+0	Comms	true:<redacted-app-identifier>	false	true:configured	work		true	false	false
+EOF
+    printf '# window-title-regex-substring = "Secret Board"\n' >>"${include_mode}/config-redacted.toml"
+    BUNDLE_DIR="$include_mode"
+    MODE="include-window-titles"
+    validate_bundle
+    printf '# app-id = "com.secret.Mail"\n' >>"${include_mode}/config-redacted.toml"
+    if ( validate_bundle ) >/dev/null 2>&1; then
+        die "self-test expected app-id leak rejection"
+    fi
+
+    printf '[winmux-support-bundle] self-test PASS\n'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --mode)
+            shift
+            [ "$#" -gt 0 ] || die "--mode requires a value"
+            MODE="$1"
+            ;;
+        --self-test)
+            SELF_TEST=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            die "unknown option: $1"
+            ;;
+        *)
+            [ -z "$BUNDLE_DIR" ] || die "multiple bundle directories specified"
+            BUNDLE_DIR="$1"
+            ;;
+    esac
+    shift
+done
+
+case "$MODE" in
+    redacted|include-window-titles) ;;
+    *) die "unsupported mode: ${MODE}" ;;
+esac
+
+if [ "$SELF_TEST" -eq 1 ]; then
+    [ -z "$BUNDLE_DIR" ] || die "--self-test does not accept a bundle directory"
+    run_self_test
+    exit 0
+fi
+
+[ -n "$BUNDLE_DIR" ] || die "missing bundle directory"
+BUNDLE_DIR="$(cd "$(dirname "$BUNDLE_DIR")" && pwd -P)/$(basename "$BUNDLE_DIR")"
+validate_bundle
+printf 'result=success\n'

@@ -1,0 +1,581 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+EVIDENCE_INDEX="${SCRIPT_DIR}/specs/product-evidence-index.tsv"
+SUPPORT_BUNDLE_CHECKER="${SCRIPT_DIR}/check-support-bundle-schema"
+
+RUN_DIR=""
+REQUIRE_REVIEW=0
+CLOSEOUT=0
+SELF_TEST=0
+SELF_TEST_TMP_DIR=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--require-review] [--closeout] <run-dir>
+       $(basename "$0") --self-test
+
+Validates a Slice 50 beta package artifact: provenance, package/app/CLI hashes,
+install and launch proof, release notes, reused product evidence, and optional
+review/closeout files.
+EOF
+}
+
+die() {
+    printf '[winmux-package50] error: %s\n' "$*" >&2
+    exit 1
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+sha256_path() {
+    local path="$1"
+    if [ -f "$path" ]; then
+        sha256_file "$path"
+        return
+    fi
+    [ -d "$path" ] || die "missing hash path: $path"
+    (
+        cd "$path"
+        find . -type f -print0 | /usr/bin/sort -z | while IFS= read -r -d '' file; do
+            /usr/bin/shasum -a 256 "$file"
+        done
+    ) | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
+first_nonblank_line() {
+    /usr/bin/awk 'NF { print; exit }' "$1"
+}
+
+last_nonblank_line() {
+    /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+env_value() {
+    local key="$1"
+    local file="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2) }' "$file"
+}
+
+require_env_value() {
+    local key="$1"
+    local file="$2"
+    local value
+    value="$(env_value "$key" "$file")"
+    [ -n "$value" ] || die "missing package provenance key: $key"
+    printf '%s\n' "$value"
+}
+
+require_file_under_run() {
+    local path="$1"
+    [ -s "${RUN_DIR}/${path}" ] || die "missing artifact file: ${path}"
+}
+
+require_repo_file() {
+    local path="$1"
+    [ -s "${REPO_ROOT}/${path}" ] || die "missing repo evidence file: ${path}"
+}
+
+reject_debug_proof() {
+    local path="$1"
+    if /usr/bin/grep -Eiq '(^|[[:space:]])swift run|\.debug/|\.build/debug|/debug/WinMuxApp|/debug/winmux' "${RUN_DIR}/${path}"; then
+        die "proof must come from the packaged app/CLI, not a debug binary: ${path}"
+    fi
+}
+
+require_artifact_text() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "${RUN_DIR}/${path}" >/dev/null \
+        || die "${path} missing required text: ${text}"
+}
+
+validate_release_notes() {
+    local path="$1"
+    local codesign_status="$2"
+    local demo_contact_sheet_path="$3"
+    require_file_under_run "$path"
+    if /usr/bin/grep -Eiq 'is App Store ready|means App Store readiness|public beta started|external beta started|public release starts|public release has started|starts public release|is a public release|is a release-ready distribution' "${RUN_DIR}/${path}"; then
+        die "release notes contain forbidden public-beta/App-Store readiness claim"
+    fi
+    if [ "$codesign_status" = "unsigned" ]; then
+        /usr/bin/grep -Eiq 'unsigned|not signed' "${RUN_DIR}/${path}" \
+            || die "unsigned package release notes must say the build is unsigned"
+        /usr/bin/grep -F 'xattr -dr com.apple.quarantine' "${RUN_DIR}/${path}" >/dev/null \
+            || die "unsigned package release notes must include quarantine removal wording"
+    fi
+    /usr/bin/grep -F "$demo_contact_sheet_path" "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must cite the root ultrawide demo contact sheet"
+    /usr/bin/grep -F 'doctor zones --support-bundle' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must tell testers how to generate a support bundle"
+    /usr/bin/grep -F 'Supported workflows' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must name supported workflows"
+    /usr/bin/grep -F 'Known limitations' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must name known limitations"
+    /usr/bin/grep -F 'does not start external beta' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must say Slice 50 does not start external beta"
+    /usr/bin/grep -F 'does not imply App Store readiness' "${RUN_DIR}/${path}" >/dev/null \
+        || die "release notes must say Slice 50 does not imply App Store readiness"
+}
+
+validate_normal_config_path() {
+    local normal_config_path="$1"
+    local guest_user="$2"
+    case "$normal_config_path" in
+        /Users/*/.config/winmux/winmux.toml) ;;
+        *) die "normal_config_path must be a guest/user config path like /Users/admin/.config/winmux/winmux.toml, got: ${normal_config_path}" ;;
+    esac
+    [ "$normal_config_path" = "/Users/${guest_user}/.config/winmux/winmux.toml" ] \
+        || die "normal_config_path must match guest_user=${guest_user}, got: ${normal_config_path}"
+    [ "$normal_config_path" != "$HOME/.config/winmux/winmux.toml" ] \
+        || die "normal_config_path must come from the clean guest, not the verifier host"
+    [ -z "${USER:-}" ] || [ "$guest_user" != "$USER" ] \
+        || die "guest_user must identify the clean guest, not the verifier host user"
+}
+
+validate_product_evidence_index() {
+    local artifact_index="${RUN_DIR}/logs/product-evidence-index.tsv"
+    local header feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims
+    local row_count=0
+    local root_demo_contact_sheet_seen=0
+    [ -s "$artifact_index" ] || die "missing package product evidence index: logs/product-evidence-index.tsv"
+    [ "$(sha256_file "$artifact_index")" = "$(sha256_file "$EVIDENCE_INDEX")" ] \
+        || die "package product evidence index differs from source index"
+
+    header="$(/usr/bin/head -1 "$artifact_index")"
+    [ "$header" = $'feature\tuser_claim\trecording_path\trecording_sha256\tduration_seconds\tresolution\taccepted_review_path\treview_verdict\tdecisive_proof_path\tnon_claims' ] \
+        || die "package product evidence index header changed"
+
+    while IFS=$'\t' read -r feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims || [ -n "${feature:-}" ]; do
+        [ "$feature" != "feature" ] || continue
+        [ -n "${feature:-}" ] || continue
+        case "$recording_path $review_path $proof_path" in
+            *slice-49-docs-20260702T105714Z*) die "superseded Slice 49 docs artifact must not be package evidence: ${feature}" ;;
+        esac
+        require_repo_file "$recording_path"
+        require_repo_file "$review_path"
+        require_repo_file "$proof_path"
+        [ "$(sha256_file "${REPO_ROOT}/${recording_path}")" = "$recording_sha" ] \
+            || die "package product evidence recording hash mismatch: ${recording_path}"
+        case "$verdict" in
+            PASS|PASS_WITH_NOTES) ;;
+            *) die "unsupported package evidence review verdict for ${feature}: ${verdict}" ;;
+        esac
+        case "$(first_nonblank_line "${REPO_ROOT}/${review_path}")" in
+            "${verdict}:"*) ;;
+            *) die "review verdict does not match package evidence index for ${feature}: ${review_path}" ;;
+        esac
+        [ "$(last_nonblank_line "${REPO_ROOT}/${review_path}")" = "next slice allowed: yes" ] \
+            || die "accepted review final line is not next slice allowed: yes for package evidence ${feature}"
+        [ -n "$user_claim" ] || die "package evidence missing user claim for ${feature}"
+        [ -n "$duration" ] || die "package evidence missing duration for ${feature}"
+        [ -n "$resolution" ] || die "package evidence missing resolution for ${feature}"
+        [ -n "$non_claims" ] || die "package evidence missing non-claims for ${feature}"
+        if [ "$feature" = "root-demo" ] && [ "$proof_path" = "artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg" ]; then
+            root_demo_contact_sheet_seen=1
+        fi
+        row_count=$((row_count + 1))
+    done <"$artifact_index"
+    [ "$row_count" -gt 0 ] || die "package product evidence index has no evidence rows"
+    [ "$root_demo_contact_sheet_seen" -eq 1 ] || die "package evidence index must include the root demo contact sheet"
+}
+
+validate_package_manifest() {
+    local manifest="${RUN_DIR}/logs/package-slice-manifest.txt"
+    [ -s "$manifest" ] || die "missing package slice manifest: logs/package-slice-manifest.txt"
+    /usr/bin/grep -Fx 'kind=package' "$manifest" >/dev/null \
+        || die "package slice manifest must contain kind=package"
+    /usr/bin/grep -Fx 'slice=50' "$manifest" >/dev/null \
+        || die "package slice manifest must contain slice=50"
+}
+
+validate_support_bundle() {
+    local provenance="$1"
+    local support_bundle_path support_bundle_schema_log
+    support_bundle_path="$(require_env_value support_bundle_path "$provenance")"
+    support_bundle_schema_log="$(require_env_value support_bundle_schema_log_path "$provenance")"
+    [ -d "${RUN_DIR}/${support_bundle_path}" ] || die "missing support bundle directory: ${support_bundle_path}"
+    require_file_under_run "$support_bundle_schema_log"
+    /usr/bin/grep -F 'result=success' "${RUN_DIR}/${support_bundle_schema_log}" >/dev/null \
+        || die "support bundle schema log must contain result=success"
+    "$SUPPORT_BUNDLE_CHECKER" "${RUN_DIR}/${support_bundle_path}" >/dev/null
+}
+
+validate_demo_contact_sheet() {
+    local demo_contact_sheet_path="$1"
+    local demo_contact_sheet_sha="$2"
+    local full_path
+
+    if [ -s "${RUN_DIR}/${demo_contact_sheet_path}" ]; then
+        full_path="${RUN_DIR}/${demo_contact_sheet_path}"
+    elif [ -s "${REPO_ROOT}/${demo_contact_sheet_path}" ]; then
+        full_path="${REPO_ROOT}/${demo_contact_sheet_path}"
+    else
+        die "missing demo contact sheet path: ${demo_contact_sheet_path}"
+    fi
+
+    case "$demo_contact_sheet_path" in
+        *demo-columnar-zones.contact-sheet.jpg) ;;
+        *) die "demo_contact_sheet_path must name demo-columnar-zones.contact-sheet.jpg, got: ${demo_contact_sheet_path}" ;;
+    esac
+    [ "$(sha256_file "$full_path")" = "$demo_contact_sheet_sha" ] \
+        || die "demo contact sheet hash mismatch: ${demo_contact_sheet_path}"
+}
+
+validate_package_artifact() {
+    local provenance="${RUN_DIR}/logs/package-provenance.env"
+    validate_package_manifest
+    [ -s "$provenance" ] || die "missing package provenance: logs/package-provenance.env"
+
+    local source_commit git_status_sha version package_command
+    source_commit="$(require_env_value source_commit "$provenance")"
+    git_status_sha="$(require_env_value git_status_sha256 "$provenance")"
+    version="$(require_env_value version "$provenance")"
+    package_command="$(require_env_value package_command "$provenance")"
+    [ -n "$source_commit" ] && [ -n "$git_status_sha" ] && [ -n "$version" ] || die "empty provenance"
+    case "$package_command" in
+        *PUBLISH=1*) die "package command must not publish: ${package_command}" ;;
+    esac
+    case "$package_command" in
+        *PUBLISH=0*) ;;
+        *) die "package command must make PUBLISH=0 explicit: ${package_command}" ;;
+    esac
+
+    local package_path package_sha app_path app_sha cli_path cli_sha
+    package_path="$(require_env_value package_path "$provenance")"
+    package_sha="$(require_env_value package_sha256 "$provenance")"
+    app_path="$(require_env_value app_path "$provenance")"
+    app_sha="$(require_env_value app_sha256 "$provenance")"
+    cli_path="$(require_env_value cli_path "$provenance")"
+    cli_sha="$(require_env_value cli_sha256 "$provenance")"
+    [ -e "${RUN_DIR}/${package_path}" ] || die "missing package path: ${package_path}"
+    [ -e "${RUN_DIR}/${app_path}" ] || die "missing app path: ${app_path}"
+    [ -e "${RUN_DIR}/${cli_path}" ] || die "missing CLI path: ${cli_path}"
+    [ "$(sha256_path "${RUN_DIR}/${package_path}")" = "$package_sha" ] \
+        || die "package hash mismatch: ${package_path}"
+    [ "$(sha256_path "${RUN_DIR}/${app_path}")" = "$app_sha" ] \
+        || die "app hash mismatch: ${app_path}"
+    [ "$(sha256_path "${RUN_DIR}/${cli_path}")" = "$cli_sha" ] \
+        || die "CLI hash mismatch: ${cli_path}"
+
+    local codesign_status notarization_status normal_config_path install_proof launch_proof release_notes installed_app_path guest_user
+    local demo_contact_sheet_path demo_contact_sheet_sha
+    codesign_status="$(require_env_value codesign_status "$provenance")"
+    notarization_status="$(require_env_value notarization_status "$provenance")"
+    guest_user="$(require_env_value guest_user "$provenance")"
+    normal_config_path="$(require_env_value normal_config_path "$provenance")"
+    install_proof="$(require_env_value install_proof_path "$provenance")"
+    launch_proof="$(require_env_value launch_proof_path "$provenance")"
+    release_notes="$(require_env_value release_notes_path "$provenance")"
+    installed_app_path="$(require_env_value installed_app_path "$provenance")"
+    demo_contact_sheet_path="$(require_env_value demo_contact_sheet_path "$provenance")"
+    demo_contact_sheet_sha="$(require_env_value demo_contact_sheet_sha256 "$provenance")"
+    case "$codesign_status" in
+        signed|unsigned) ;;
+        *) die "codesign_status must be signed or unsigned, got: ${codesign_status}" ;;
+    esac
+    case "$notarization_status" in
+        notarized|not-notarized|not-supported) ;;
+        *) die "unsupported notarization_status: ${notarization_status}" ;;
+    esac
+    validate_normal_config_path "$normal_config_path" "$guest_user"
+    [ "$installed_app_path" = "/Applications/WinMux.app" ] \
+        || die "installed_app_path must be /Applications/WinMux.app, got: ${installed_app_path}"
+    require_file_under_run "$install_proof"
+    require_file_under_run "$launch_proof"
+    reject_debug_proof "$install_proof"
+    reject_debug_proof "$launch_proof"
+    require_artifact_text "$install_proof" "install_result=success"
+    require_artifact_text "$install_proof" "guest_user=${guest_user}"
+    require_artifact_text "$install_proof" "clean_guest=1"
+    require_artifact_text "$install_proof" "package_path=${package_path}"
+    require_artifact_text "$install_proof" "packaged_app_path=${app_path}"
+    require_artifact_text "$install_proof" "installed_app_path=${installed_app_path}"
+    require_artifact_text "$install_proof" "installed_app_exists=true"
+    require_artifact_text "$launch_proof" "launch_result=success"
+    require_artifact_text "$launch_proof" "guest_user=${guest_user}"
+    require_artifact_text "$launch_proof" "clean_guest=1"
+    require_artifact_text "$launch_proof" "launched_app_path=${installed_app_path}"
+    require_artifact_text "$launch_proof" "normal_config_path=${normal_config_path}"
+    require_artifact_text "$launch_proof" "doctor_result=success"
+    require_artifact_text "$launch_proof" "permission_status_result=success"
+    require_artifact_text "$launch_proof" "accessibility=granted"
+    require_artifact_text "$launch_proof" "screen-recording=granted"
+    validate_demo_contact_sheet "$demo_contact_sheet_path" "$demo_contact_sheet_sha"
+    validate_support_bundle "$provenance"
+    validate_release_notes "$release_notes" "$codesign_status" "$demo_contact_sheet_path"
+    validate_product_evidence_index
+}
+
+validate_review() {
+    local review="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    [ -s "$review" ] || die "missing package no-context review"
+    case "$(first_nonblank_line "$review")" in
+        PASS:*|PASS_WITH_NOTES:*) ;;
+        *) die "package review must start with PASS: or PASS_WITH_NOTES:" ;;
+    esac
+    [ "$(last_nonblank_line "$review")" = "next slice allowed: yes" ] \
+        || die "package review final line must be: next slice allowed: yes"
+    for text in \
+        "Slice 50" \
+        "package-slice-manifest.txt" \
+        "package-provenance.env" \
+        "package_sha256" \
+        "app_sha256" \
+        "cli_sha256" \
+        "normal config path" \
+        "guest_user" \
+        "install_proof_path" \
+        "installed_app_path" \
+        "demo_contact_sheet_path" \
+        "demo_contact_sheet_sha256" \
+        "PUBLISH=0" \
+        "Slice 39" \
+        "Slice 49" \
+        "demo-columnar-zones.mp4" \
+        "demo-columnar-zones.contact-sheet.jpg" \
+        "doctor zones --support-bundle" \
+        "support_bundle_path" \
+        "support_bundle_schema_log_path" \
+        "does not start external beta" \
+        "does not imply App Store readiness"; do
+        /usr/bin/grep -F -- "$text" "$review" >/dev/null \
+            || die "package review missing required text: ${text}"
+    done
+}
+
+validate_closeout() {
+    [ -s "${RUN_DIR}/logs/review-lint.log" ] || die "missing package review lint log"
+    [ -s "${RUN_DIR}/logs/post-review-verify.log" ] || die "missing package post-review verifier log"
+    for name in process-plan code-harness artifact-product; do
+        [ -s "${RUN_DIR}/retrospectives/${name}.md" ] || die "missing package retrospective: ${name}"
+    done
+}
+
+write_support_bundle_fixture() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat >"${dir}/manifest.txt" <<'EOF'
+winmux-zone-support-bundle
+schema-version=1
+generated-at=2026-07-02T00:00:00Z
+winmux-git=selftest
+command=doctor zones --support-bundle
+bundle-directory=<path-redacted>
+config-path=<home>/.config/winmux/winmux.toml
+app-path=<path-redacted>
+executable-path=<path-redacted>
+files=active-workspaces.tsv,command-failures.tsv,config-doctor.txt,config-redacted.toml,logs.txt,manifest.txt,monitor-topology.tsv,node-zone-bindings.tsv,permissions.txt,recent-window-routing-decisions.tsv,redaction-summary.txt,zone-affinities.tsv,zone-runtime-overlay.tsv
+EOF
+    cat >"${dir}/redaction-summary.txt" <<'EOF'
+Zone support bundle redaction
+generated-at=2026-07-02T00:00:00Z
+home-paths=<home>
+usernames=<user>
+window-titles=<redacted-window-title>
+app-identifiers=<redacted-app-identifier>
+secret-like-config-values=<redacted>
+non-config-paths=<path-redacted>
+EOF
+    cat >"${dir}/config-redacted.toml" <<'EOF'
+config-version = 2
+# token = "<redacted>"
+# app-id = "<redacted>"
+# private-path = "<home>/Secret"
+EOF
+    printf 'zones:\n  ok\n' >"${dir}/config-doctor.txt"
+    cat >"${dir}/permissions.txt" <<'EOF'
+permission	status	note
+accessibility	granted	required
+screen-recording	granted	tab previews and radius estimation
+EOF
+    cat >"${dir}/active-workspaces.tsv" <<'EOF'
+monitor-id	zone-id	zone-name	physical-identity	active-workspace	workspace-visible
+1	main	Work	physical:0.0,0.0	1	true
+EOF
+    cat >"${dir}/command-failures.tsv" <<'EOF'
+source	command	status	debug
+unavailable		unretained	WinMux does not retain command failure history yet
+EOF
+    cat >"${dir}/logs.txt" <<'EOF'
+source	status	debug
+unified-log	not-collected	Slice 48 support bundles do not query macOS unified logs yet
+EOF
+    cat >"${dir}/monitor-topology.tsv" <<'EOF'
+kind	monitor-id	name	physical-identity	x	y	width	height	visible-x	visible-y	visible-width	visible-height	zone-id	zone-name	layout-id	availability-set-id	style-id	style-color	default-zone
+physical	1	Main	physical:0.0,0.0	0	0	1200	800	0	0	1200	800							false
+EOF
+    cat >"${dir}/node-zone-bindings.tsv" <<'EOF'
+node-id	node-type	window-ids	title	zone	zone-name	workspace	monitor	physical
+none								
+EOF
+    cat >"${dir}/recent-window-routing-decisions.tsv" <<'EOF'
+source	index-or-node	zone	workspace	matched	debug
+zone-affinity-config	0	Comms	work	not-evaluated	rule configured; live window match history is not retained
+EOF
+    cat >"${dir}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+0	Comms	true:<redacted-app-identifier>	false	true:<redacted-window-title>	work		true	false	false
+EOF
+    cat >"${dir}/zone-runtime-overlay.tsv" <<'EOF'
+physical-identity	active-layout	active-scene	active-availability	snap-policy	disabled-zones	parked-workspaces	width-overrides	style-overrides	toggle-restore-zone
+none									
+EOF
+}
+
+run_self_test() {
+    local tmp release_notes launch_proof provenance
+    local install_proof demo_contact_sheet_path demo_contact_sheet_sha normal_config_path
+    tmp="$(mktemp -d)"
+    SELF_TEST_TMP_DIR="$tmp"
+    trap 'rm -rf "$SELF_TEST_TMP_DIR"' EXIT
+    RUN_DIR="$tmp"
+    mkdir -p "$tmp/package/WinMux.app/Contents" "$tmp/bin" "$tmp/logs" "$tmp/docs" "$tmp/reviews" "$tmp/retrospectives"
+    printf 'app\n' >"$tmp/package/WinMux.app/Contents/PkgInfo"
+    printf 'cli\n' >"$tmp/bin/winmux"
+    chmod +x "$tmp/bin/winmux"
+    printf 'zip\n' >"$tmp/WinMux-test.zip"
+    cp "$EVIDENCE_INDEX" "$tmp/logs/product-evidence-index.tsv"
+    printf 'kind=package\nslice=50\n' >"$tmp/logs/package-slice-manifest.txt"
+    write_support_bundle_fixture "$tmp/logs/slice-50-zone-support-bundle"
+    "$SUPPORT_BUNDLE_CHECKER" "$tmp/logs/slice-50-zone-support-bundle" >"$tmp/logs/support-bundle-schema.log"
+    demo_contact_sheet_path="artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg"
+    demo_contact_sheet_sha="$(sha256_file "${REPO_ROOT}/${demo_contact_sheet_path}")"
+    release_notes="docs/release-notes.md"
+    install_proof="logs/install-proof.log"
+    launch_proof="logs/launch-proof.log"
+    normal_config_path="/Users/admin/.config/winmux/winmux.toml"
+    cat >"$tmp/${release_notes}" <<'EOF'
+Unsigned beta package. Run:
+xattr -dr com.apple.quarantine /Applications/WinMux.app
+Generate diagnostics with: winmux doctor zones --support-bundle
+This does not imply App Store readiness and does not start external beta.
+Supported workflows: install, launch, permissions, ultrawide zones, support bundle.
+Known limitations: unsigned build, no public beta, no App Store readiness.
+EOF
+    printf 'Inspect the current ultrawide demo poster: %s\n' "$demo_contact_sheet_path" >>"$tmp/${release_notes}"
+    {
+        printf 'install_result=success\n'
+        printf 'guest_user=admin\n'
+        printf 'clean_guest=1\n'
+        printf 'package_path=WinMux-test.zip\n'
+        printf 'packaged_app_path=package/WinMux.app\n'
+        printf 'installed_app_path=/Applications/WinMux.app\n'
+        printf 'installed_app_exists=true\n'
+    } >"$tmp/${install_proof}"
+    {
+        printf 'launch_result=success\n'
+        printf 'guest_user=admin\n'
+        printf 'clean_guest=1\n'
+        printf 'launched_app_path=/Applications/WinMux.app\n'
+        printf 'normal_config_path=%s\n' "$normal_config_path"
+        printf 'doctor_result=success\n'
+        printf 'permission_status_result=success\n'
+        printf 'accessibility=granted\n'
+        printf 'screen-recording=granted\n'
+    } >"$tmp/${launch_proof}"
+    provenance="$tmp/logs/package-provenance.env"
+    cat >"$provenance" <<EOF
+source_commit=self-test
+git_status_sha256=self-test
+version=0.0.0-self-test
+package_command=make release VERSION=0.0.0-self-test PUBLISH=0
+package_path=WinMux-test.zip
+package_sha256=$(sha256_path "$tmp/WinMux-test.zip")
+app_path=package/WinMux.app
+app_sha256=$(sha256_path "$tmp/package/WinMux.app")
+cli_path=bin/winmux
+cli_sha256=$(sha256_path "$tmp/bin/winmux")
+codesign_status=unsigned
+notarization_status=not-notarized
+guest_user=admin
+normal_config_path=${normal_config_path}
+install_proof_path=${install_proof}
+launch_proof_path=${launch_proof}
+release_notes_path=${release_notes}
+installed_app_path=/Applications/WinMux.app
+demo_contact_sheet_path=${demo_contact_sheet_path}
+demo_contact_sheet_sha256=${demo_contact_sheet_sha}
+support_bundle_path=logs/slice-50-zone-support-bundle
+support_bundle_schema_log_path=logs/support-bundle-schema.log
+EOF
+    validate_package_artifact
+
+    mv "$tmp/logs/package-slice-manifest.txt" "$tmp/logs/package-slice-manifest.txt.bak"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected missing package slice manifest rejection"
+    fi
+    mv "$tmp/logs/package-slice-manifest.txt.bak" "$tmp/logs/package-slice-manifest.txt"
+
+    /usr/bin/perl -0pi -e "s|normal_config_path=/Users/admin/\\.config/winmux/winmux\\.toml|normal_config_path=$HOME/.config/winmux/winmux.toml|" "$provenance"
+    /usr/bin/perl -0pi -e "s|normal_config_path=/Users/admin/\\.config/winmux/winmux\\.toml|normal_config_path=$HOME/.config/winmux/winmux.toml|" "$tmp/${launch_proof}"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected host-only normal config rejection"
+    fi
+    /usr/bin/perl -0pi -e "s|normal_config_path=$HOME/\\.config/winmux/winmux\\.toml|normal_config_path=/Users/admin/.config/winmux/winmux.toml|" "$provenance"
+    /usr/bin/perl -0pi -e "s|normal_config_path=$HOME/\\.config/winmux/winmux\\.toml|normal_config_path=/Users/admin/.config/winmux/winmux.toml|" "$tmp/${launch_proof}"
+
+    /usr/bin/perl -0pi -e 's/doctor_result=success/doctor_result=skipped/' "$tmp/${launch_proof}"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected launch proof doctor_result rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/doctor_result=skipped/doctor_result=success/' "$tmp/${launch_proof}"
+
+    printf 'Public release starts today.\n' >>"$tmp/${release_notes}"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected public release claim rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/Public release starts today\\.\\n//' "$tmp/${release_notes}"
+
+    /usr/bin/perl -0pi -e 's/PUBLISH=0/PUBLISH=1/' "$provenance"
+    if ( validate_package_artifact ) >/dev/null 2>&1; then
+        die "self-test expected PUBLISH=1 rejection"
+    fi
+    printf '[winmux-package50] self-test PASS\n'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --require-review)
+            REQUIRE_REVIEW=1
+            ;;
+        --closeout)
+            CLOSEOUT=1
+            REQUIRE_REVIEW=1
+            ;;
+        --self-test)
+            SELF_TEST=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            die "unknown option: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "multiple run directories specified"
+            RUN_DIR="$1"
+            ;;
+    esac
+    shift
+done
+
+if [ "$SELF_TEST" -eq 1 ]; then
+    [ -z "$RUN_DIR" ] || die "--self-test does not accept a run directory"
+    run_self_test
+    exit 0
+fi
+
+[ -n "$RUN_DIR" ] || die "missing run directory"
+RUN_DIR="$(cd "$(dirname "$RUN_DIR")" && pwd -P)/$(basename "$RUN_DIR")"
+
+validate_package_artifact
+[ "$REQUIRE_REVIEW" -eq 0 ] || validate_review
+[ "$CLOSEOUT" -eq 0 ] || validate_closeout
+
+printf 'result=success\n'

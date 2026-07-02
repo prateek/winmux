@@ -3,37 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+EVIDENCE_INDEX="${SCRIPT_DIR}/specs/product-evidence-index.tsv"
 
 RUN_DIR=""
 PACKAGE=0
 REQUIRE_REVIEW=0
 CLOSEOUT=0
 
-samples=(
-    docs/samples/ultrawide-balanced.toml
-    docs/samples/ultrawide-focus-only.toml
-    docs/samples/ultrawide-comms-open.toml
-    docs/samples/ultrawide-dashboard.toml
-    docs/samples/ultrawide-app-affinities.toml
-)
-
-accepted_media=(
-    demo-columnar-zones.mp4
-    artifacts/e2e/slice-27-20260630T043500Z/recordings/slice-27-window-slot-snap.mov
-    artifacts/e2e/slice-27-20260630T043500Z/screenshots/07-slot-hover-right-slice-27.png
-    artifacts/e2e/slice-27-20260630T043500Z/reviews/no-ctx-artifact-review.md
-    artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/recordings/demo-columnar-zones.mp4
-    artifacts/e2e/slice-37-starter-onboarding-20260701T045012Z/recordings/slice-37-starter-onboarding.mov
-    artifacts/e2e/slice-38-pre-tart-20260701T075713Z/recordings/slice-38-user-readiness.mov
-    artifacts/e2e/slice-39-pre-tart-20260701T093003Z/recordings/slice-39-dogfood-install-permissions.mov
-    artifacts/e2e/slice-40-pre-tart-20260701T130717Z/recordings/slice-40-zone-setup-assistant.mov
-    artifacts/e2e/slice-41-20260701T173400Z/recordings/slice-41-zone-affinity-beta.mov
-    artifacts/e2e/slice-42-pre-tart-20260701T210703Z/recordings/slice-42-zone-availability-profiles.mov
-    artifacts/e2e/slice-45-pre-tart-20260702T022831Z/recordings/slice-45-display-topology-recovery.mov
-    artifacts/e2e/slice-46-pre-tart-20260702T045535Z/recordings/slice-46-persistence-rollback-doctor.mov
-    artifacts/e2e/slice-47-pre-tart-20260702T062251Z/recordings/slice-47-zone-chrome-polish.mov
-    artifacts/e2e/slice-48-20260702T094800Z/recordings/slice-48-support-bundle-diagnostics.mov
-)
+samples=()
+while IFS= read -r sample; do
+    samples+=("$sample")
+done < <(cd "$REPO_ROOT" && find docs/samples -maxdepth 1 -type f -name 'ultrawide-*.toml' | /usr/bin/sort)
 
 WINMUX_CLI_PATH="${WINMUX_CLI:-${REPO_ROOT}/.build/debug/winmux}"
 
@@ -63,7 +43,13 @@ require_file() {
 require_contains() {
     local path="$1"
     local text="$2"
-    /usr/bin/grep -F -- "$text" "${REPO_ROOT}/${path}" >/dev/null \
+    require_path_contains "${REPO_ROOT}/${path}" "$text"
+}
+
+require_path_contains() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "$path" >/dev/null \
         || die "${path} missing required text: ${text}"
 }
 
@@ -82,6 +68,88 @@ manifest_path_hash() {
     local manifest="$1"
     local path="$2"
     /usr/bin/awk -F '\t' -v path="$path" '$2 == path { print $1 }' "$manifest"
+}
+
+evidence_recording_paths() {
+    /usr/bin/awk -F '\t' 'NR > 1 && NF >= 10 { print $3 }' "$EVIDENCE_INDEX"
+}
+
+validate_evidence_index() {
+    require_file "${EVIDENCE_INDEX#"${REPO_ROOT}"/}"
+    local header
+    header="$(/usr/bin/head -1 "$EVIDENCE_INDEX")"
+    [ "$header" = $'feature\tuser_claim\trecording_path\trecording_sha256\tduration_seconds\tresolution\taccepted_review_path\treview_verdict\tdecisive_proof_path\tnon_claims' ] \
+        || die "product evidence index header changed"
+
+    local feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims
+    local row_count=0
+    while IFS=$'\t' read -r feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims || [ -n "${feature:-}" ]; do
+        [ "$feature" != "feature" ] || continue
+        [ -n "${feature:-}" ] || continue
+        case "$recording_path $review_path $proof_path" in
+            *slice-49-docs-20260702T105714Z*) die "superseded Slice 49 docs artifact must not be accepted evidence: ${feature}" ;;
+        esac
+        require_file "$recording_path"
+        require_file "$review_path"
+        require_file "$proof_path"
+        [ "$(sha256_file "${REPO_ROOT}/${recording_path}")" = "$recording_sha" ] \
+            || die "recording hash mismatch in product evidence index: ${recording_path}"
+        case "$verdict" in
+            PASS|PASS_WITH_NOTES) ;;
+            *) die "unsupported review verdict in product evidence index for ${feature}: ${verdict}" ;;
+        esac
+        case "$(first_nonblank_line "${REPO_ROOT}/${review_path}")" in
+            "${verdict}:"*) ;;
+            *) die "review verdict does not match product evidence index for ${feature}: ${review_path}" ;;
+        esac
+        [ "$(last_nonblank_line "${REPO_ROOT}/${review_path}")" = "next slice allowed: yes" ] \
+            || die "accepted review final line is not next slice allowed: yes for ${feature}"
+        [ -n "$user_claim" ] || die "product evidence index missing user claim for ${feature}"
+        [ -n "$duration" ] || die "product evidence index missing duration for ${feature}"
+        [ -n "$resolution" ] || die "product evidence index missing resolution for ${feature}"
+        [ -n "$non_claims" ] || die "product evidence index missing non-claims for ${feature}"
+        row_count=$((row_count + 1))
+    done <"$EVIDENCE_INDEX"
+    [ "$row_count" -gt 0 ] || die "product evidence index has no evidence rows"
+}
+
+validate_guide_semantics() {
+    local guide_path="$1"
+    for text in \
+        "winmux doctor zones --support-bundle" \
+        "winmux save-zone-layout" \
+        "winmux config --restore-backup" \
+        "winmux use-zone-profile focus-only" \
+        "winmux move-node-to-zone --focus-follows-window Work" \
+        "policy = 'float-unless-snap'" \
+        "target = 'zone'" \
+        "target = 'window'" \
+        "Window slot: Right" \
+        "Mouse snap supports whole-zone and window-slot targets" \
+        "Runtime changes do not rewrite the config unless you ask WinMux to save them." \
+        "not upload anything." \
+        "Support bundles do not collect crash logs"; do
+        require_path_contains "$guide_path" "$text"
+    done
+}
+
+sample_checks_log_path() {
+    [ -n "$RUN_DIR" ] && [ "$PACKAGE" -eq 1 ] || return 0
+    printf '%s/logs/sample-config-checks.tsv\n' "$RUN_DIR"
+}
+
+write_sample_check_header() {
+    local log_path="$1"
+    [ -n "$log_path" ] || return 0
+    mkdir -p "$(dirname "$log_path")"
+    printf 'path\tsha256\tcli\tresult\n' >"$log_path"
+}
+
+append_sample_check() {
+    local log_path="$1"
+    local sample="$2"
+    [ -n "$log_path" ] || return 0
+    printf '%s\t%s\t%s\tok\n' "$sample" "$(sha256_file "${REPO_ROOT}/${sample}")" "$WINMUX_CLI_PATH" >>"$log_path"
 }
 
 validate_source_docs() {
@@ -110,36 +178,30 @@ validate_source_docs() {
         require_contains docs/ultrawide-zones.md "$section"
     done
 
-    for text in \
-        "winmux doctor zones --support-bundle" \
-        "winmux save-zone-layout" \
-        "winmux config --restore-backup" \
-        "winmux use-zone-profile focus-only" \
-        "winmux move-node-to-zone --focus-follows-window Work" \
-        "policy = 'float-unless-snap'" \
-        "target = 'zone'" \
-        "target = 'window'" \
-        "Window slot: Right" \
-        "Mouse snap supports whole-zone and window-slot targets" \
-        "Support bundles do not collect crash logs"; do
-        require_contains docs/ultrawide-zones.md "$text"
-    done
+    validate_guide_semantics "${REPO_ROOT}/docs/ultrawide-zones.md"
+    validate_evidence_index
 
     require_cli
+    [ "${#samples[@]}" -gt 0 ] || die "no docs/samples/ultrawide-*.toml files found"
+    local sample_log
+    sample_log="$(sample_checks_log_path || true)"
+    write_sample_check_header "$sample_log"
     for sample in "${samples[@]}"; do
         require_file "$sample"
         require_contains docs/ultrawide-zones.md "$(basename "$sample")"
         "$WINMUX_CLI_PATH" config --check "${REPO_ROOT}/${sample}" >/dev/null
+        append_sample_check "$sample_log" "$sample"
     done
 
-    for media in "${accepted_media[@]}"; do
+    local media
+    while IFS= read -r media; do
         require_file "$media"
         case "$media" in
             demo-columnar-zones.mp4|*/recordings/*)
                 require_contains docs/ultrawide-zones.md "$media"
                 ;;
         esac
-    done
+    done < <(evidence_recording_paths)
 
     git -C "$REPO_ROOT" ls-files --error-unmatch demo-columnar-zones.mp4 >/dev/null \
         || die "demo-columnar-zones.mp4 must be tracked"
@@ -160,9 +222,11 @@ write_manifest() {
             printf '%s\t%s\n' "$(sha256_file "${REPO_ROOT}/${sample}")" "$sample"
         done
         printf '\n[accepted-media]\n'
-        for media in "${accepted_media[@]}"; do
+        while IFS= read -r media; do
             printf '%s\t%s\n' "$(sha256_file "${REPO_ROOT}/${media}")" "$media"
-        done
+        done < <(evidence_recording_paths)
+        printf '\n[product-evidence-index]\n'
+        printf 'path=logs/product-evidence-index.tsv\n'
         printf '\n[validation]\n'
         printf 'README quickstart: ok\n'
         printf 'guide required sections: ok\n'
@@ -201,6 +265,8 @@ Final line must be exactly \`next slice allowed: yes\`.
 - Guide snapshot: \`${RUN_DIR}/docs/ultrawide-zones.md\`
 - Samples: \`${RUN_DIR}/docs/samples/\`
 - Manifest: \`${RUN_DIR}/logs/docs-slice-manifest.txt\`
+- Sample checks: \`${RUN_DIR}/logs/sample-config-checks.tsv\`
+- Product evidence index: \`${RUN_DIR}/logs/product-evidence-index.tsv\`
 
 ## Required Review Mentions
 
@@ -222,9 +288,9 @@ EOF
         for sample in "${samples[@]}"; do
             printf 'sample\t%s\tparse-checked sample config\n' "$sample"
         done
-        for media in "${accepted_media[@]}"; do
+        while IFS= read -r media; do
             printf 'accepted-media\t%s\tTart-derived evidence\n' "$media"
-        done
+        done < <(evidence_recording_paths)
         printf 'manifest\tlogs/docs-slice-manifest.txt\thashes and validation results\n'
     } >"$checklist"
 
@@ -254,6 +320,7 @@ package_artifact() {
         cp "${REPO_ROOT}/${sample}" "${RUN_DIR}/${sample}"
     done
     write_manifest "${RUN_DIR}/logs/docs-slice-manifest.txt"
+    cp "$EVIDENCE_INDEX" "${RUN_DIR}/logs/product-evidence-index.tsv"
     write_reviewer_packet
 }
 
@@ -278,6 +345,7 @@ validate_artifact() {
     [ -s "${RUN_DIR}/README.md" ] || die "missing README snapshot"
     [ -s "${RUN_DIR}/docs/ultrawide-zones.md" ] || die "missing guide snapshot"
     [ -d "${RUN_DIR}/docs/samples" ] || die "missing sample snapshot directory"
+    validate_guide_semantics "${RUN_DIR}/docs/ultrawide-zones.md"
     [ "$(sha256_file "${RUN_DIR}/README.md")" = "$(manifest_value "$manifest" snapshot_readme_sha256)" ] \
         || die "README snapshot hash does not match manifest"
     [ "$(sha256_file "${RUN_DIR}/docs/ultrawide-zones.md")" = "$(manifest_value "$manifest" snapshot_guide_sha256)" ] \
@@ -292,6 +360,11 @@ validate_artifact() {
         require_cli
         "$WINMUX_CLI_PATH" config --check "${RUN_DIR}/${sample}" >/dev/null
     done
+
+    if [ -s "${RUN_DIR}/logs/product-evidence-index.tsv" ]; then
+        [ "$(sha256_file "${RUN_DIR}/logs/product-evidence-index.tsv")" = "$(sha256_file "$EVIDENCE_INDEX")" ] \
+            || die "artifact product evidence index differs from source index"
+    fi
 
     if [ "$REQUIRE_REVIEW" -eq 1 ]; then
         local review="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
@@ -317,9 +390,10 @@ validate_artifact() {
             require_artifact_contains "$review" "$text"
         done
 
-        for media in "${accepted_media[@]}"; do
+        local media
+        while IFS= read -r media; do
             require_artifact_contains "$review" "$media"
-        done
+        done < <(evidence_recording_paths)
     fi
 
     if [ "$CLOSEOUT" -eq 1 ]; then

@@ -9142,55 +9142,70 @@ development harness.
 
 Pre-slice cleanup from Slice 49 retrospectives:
 
-- [ ] Read the Slice 49 no-context artifact review and all three Slice 49
+- [x] Read the Slice 49 no-context artifact review and all three Slice 49
   retrospectives from `artifacts/e2e/slice-49-docs-20260702T111456Z`.
-- [ ] Keep `artifacts/e2e/slice-49-docs-20260702T105714Z` out of accepted
+- [x] Keep `artifacts/e2e/slice-49-docs-20260702T105714Z` out of accepted
   provenance except as a superseded docs artifact whose mouse-target section
   drifted from accepted Slice 27 window-slot evidence.
-- [ ] Route docs-only artifacts through the docs validator in common Makefile
+- [x] Route docs-only artifacts through the docs validator in common Makefile
   gates: detect `logs/docs-slice-manifest.txt` with `kind=docs` and call
   `script/e2e/check-slice-49-docs --require-review` / `--closeout` instead of
   `script/e2e/verify-artifact`.
-- [ ] Add artifact-snapshot semantic checks to `script/e2e/check-slice-49-docs`
+- [x] Add artifact-snapshot semantic checks to `script/e2e/check-slice-49-docs`
   for `target = 'window'`, `Window slot: Right`, Slice 27 media, explicit
   `save-zone-layout`, and no automatic support upload.
-- [ ] Replace the hard-coded Slice 49 accepted-media array with a reusable
+- [x] Replace the hard-coded Slice 49 accepted-media array with a reusable
   provenance index carrying source slice, artifact dir, media path, SHA-256,
   accepted review path, verdict, decisive proof media, proof intent, and
   non-claims.
-- [ ] Make sample-config validation inventory-driven from
+- [x] Make sample-config validation inventory-driven from
   `docs/samples/ultrawide-*.toml` and emit `logs/sample-config-checks.tsv`.
-- [ ] Register Slice 50 pre-Tart/review scope before packaging proof starts:
+- [x] Register Slice 50 pre-Tart/review scope before packaging proof starts:
   source commit, dirty state, version, package command, package path, package
   hash, app hash, CLI hash, codesign/notarization or unsigned-install status,
-  normal config path, install proof, launch proof, release notes, and
+  clean guest user, installed app path, normal config path, install proof,
+  launch proof, release notes, demo contact-sheet path/hash, support bundle path/schema log, and
   non-claims.
-- [ ] Add or choose a mechanical package verifier that fails on missing package
-  provenance, missing hashes, debug-binary proof, hidden `PUBLISH=1`, missing
-  normal-config launch proof, missing Gatekeeper/quarantine wording for unsigned
-  builds, or public-beta/App-Store-readiness claims.
-- [ ] Add a package-facing product evidence index, for example
+- [x] Add or choose a mechanical package verifier that fails on missing package
+  slice manifest, missing package provenance, missing hashes, missing
+  install-success proof, missing launch-success proof, missing clean-guest
+  identity, missing permission/status proof, debug-binary proof, hidden
+  `PUBLISH=1`, missing normal-config launch proof, missing
+  Gatekeeper/quarantine wording for unsigned builds, stale reused evidence,
+  release notes without supported workflows/known limitations, or
+  public-beta/App-Store-readiness claims. Common Makefile gates now classify
+  `slice-50*` run directories and package manifests as package artifacts before
+  looking for `package-provenance.env`.
+- [x] Add a package-facing product evidence index, for example
   `logs/product-evidence-index.tsv`, with feature, user-facing claim, recording
   path, SHA-256, duration, resolution, accepted review path, review verdict,
   decisive proof frame or contact sheet, and non-claims for every reused Slice
   27 and Slice 36-48 media item.
-- [ ] Include or cite a static poster/contact-sheet path for the root
-  `demo-columnar-zones.mp4` in the Slice 50 package or release-notes artifact
-  so reviewers can inspect the current ultrawide demo without opening every
-  historical recording.
-- [ ] Polish the README product surface before release-candidate packaging:
+- [x] Require the Slice 50 package or release-notes artifact to cite a static
+  poster/contact-sheet path for the root `demo-columnar-zones.mp4` so reviewers
+  can inspect the current ultrawide demo without opening every historical
+  recording. `script/e2e/check-slice-50-package` now rejects release notes that
+  omit `demo-columnar-zones.contact-sheet.jpg`.
+- [x] Polish the README product surface before release-candidate packaging:
   keep the sidebar/tab-group baseline material, keep `demo-columnar-zones.mp4`
   as the current ultrawide showcase, and fix stale generic copy or obvious
   typos in first-viewport sections.
-- [ ] For the next stateful product proof, centralize the no-post-recording
-  retry policy across harness, verifier, reviewer packet, and spec.
-- [ ] For the next stateful product proof, prevent guest setup scripts from
+- [x] For the next stateful product proof, centralize the no-post-recording
+  retry policy across harness, verifier, reviewer packet, and spec. The harness
+  emits `review_retry_policy=post-recording-analysis` and
+  `guest-script-retry-summary.tsv`, while the verifier rejects failed
+  post-recording guest retries for opted-in stateful slices.
+- [x] For the next stateful product proof, prevent guest setup scripts from
   clobbering retry-wrapper metadata by keeping wrapper logs and guest detail
-  logs separate.
-- [ ] Carry forward the support-bundle schema/redaction validator work for
+  logs separate. The Tart harness keeps setup/run logs and retry-wrapper
+  summaries distinct, and the Slice 50 package proof must preserve that shape.
+- [x] Carry forward the support-bundle schema/redaction validator work for
   beta-readiness: manifest file list, actual files, TSV headers, redaction
   markers, sentinel leak scan, and `--include-window-titles` behavior.
-- [ ] Update the Slice 50 reviewer packet and no-context prompt so reviewers
+  `script/e2e/check-support-bundle-schema` validates the default redacted bundle
+  and self-tests the include-window-titles mode; `script/e2e/check-slice-50-package`
+  now requires a support bundle path plus successful schema-check log.
+- [x] Update the Slice 50 reviewer packet and no-context prompt so reviewers
   compare package proof against Slice 39 installed-app evidence, Slice 49 docs,
   and `demo-columnar-zones.mp4`, while preserving that Slice 50 does not start
   external beta.

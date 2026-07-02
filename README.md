@@ -5,16 +5,17 @@
 
 # WinMux
 
-<p align="left">A powerful sidebar-first window manager for macOS.</p>
+<p align="left">A sidebar-first window manager for macOS.</p>
 
 https://github.com/user-attachments/assets/51983568-a168-494f-8ae3-5f50ca1efce1
 
 ## Highlights
 ### Projects
-Projects are collection of workspaces. Think of it like a parent/child hiearchy, you can switch between projects. Each project has it's own set of workspaces.
+Projects are collections of workspaces. Each project has its own workspace set,
+so you can switch between contexts without flattening everything into one list.
 
 ### Sidebar
-The sidebar is a more interactively-performant and useful alternative to [Sketchybar](https://github.com/felixkratz/sketchybar) and traditional workspace menu bar dropdowns for most everyday tasks. It provides better visibility into spaces and spatial awareness on the desktop.
+The sidebar is an interactive alternative to [Sketchybar](https://github.com/felixkratz/sketchybar) and traditional workspace menu bar dropdowns for everyday workspace navigation. It provides better visibility into spaces and spatial awareness on the desktop.
 
 You can drag windows in and out of the sidebar from and to the current workspace. You can rearrange windows across all spaces using the sidebar, including tab groups.
 

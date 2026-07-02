@@ -830,6 +830,26 @@ Slice-specific checks:
   unimplemented, present whole-zone mouse snap and window-slot snap as the same
   target, imply runtime divider widths auto-persist without `save-zone-layout`,
   or rely on unparseable sample configs.
+- Slice 50 is a beta packaging artifact. Inspect
+  `logs/package-slice-manifest.txt`, `logs/package-provenance.env`,
+  package/app/CLI paths and hashes,
+  `logs/product-evidence-index.tsv`, release notes, install proof, launch proof,
+  support-bundle directory, support-bundle schema-check log, and any reused
+  media. Reject missing package slice manifest, missing package provenance,
+  missing package/app/CLI hashes, proof from a debug binary instead of the
+  package, hidden `PUBLISH=1`, missing
+  install proof, missing clean guest identity, missing installed-app identity,
+  missing normal-config launch proof, missing permission/status proof, missing
+  Gatekeeper/quarantine wording for unsigned
+  packages, missing `doctor zones --support-bundle` proof, missing
+  `demo-columnar-zones.contact-sheet.jpg` release-note citation, missing
+  `demo_contact_sheet_sha256`, stale/missing reused media, support-bundle
+  redaction/schema failures, release notes that omit supported workflows or
+  known limitations, or any claim that Slice 50 means App Store readiness,
+  public release, or external beta start. The review must compare package proof
+  against Slice 39 installed-app evidence, Slice 49 docs, and
+  `demo-columnar-zones.mp4`, and it must state that Slice 50 does not start
+  external beta.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.
