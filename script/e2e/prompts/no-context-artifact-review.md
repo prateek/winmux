@@ -857,6 +857,30 @@ Slice-specific checks:
   `slice-50-run` to have one attempt, zero failures, `final_result=success`,
   `before_recording=no`, `mutation_started=yes`, and a non-empty
   `first_mutation_line`.
+- Slice 51 is a beta acceptance and dogfood-soak artifact. Inspect the
+  annotated recording first, then raw recording, contact sheet, semantic
+  sample manifest, event manifest, caption-boundary frames,
+  `logs/beta-acceptance-manifest.txt`, `logs/package-provenance.env`,
+  `logs/beta-acceptance-proof.env`, `logs/guest-script-retry-summary.tsv`,
+  dogfood notes, blocker classification, docs update proof, install proof,
+  launch proof, support-bundle directory, and support-bundle schema log.
+  Require `kind=beta-acceptance`, `slice=51`, package provenance with
+  `PUBLISH=0` and matching package/app/CLI hashes, and proof from the beta
+  package rather than a debug binary. The video must visibly cover fresh
+  install, permissions/setup, normal launch, routing, keyboard movement,
+  mouse snap, profile or layout sizing, save and relaunch, support bundle
+  generation, and uninstall or disable on a clean desktop. Require the
+  blocker classification to contain `dogfood blockers:`, `beta blockers:`,
+  `known limitations:`, and `later enhancements:`. Reject untriaged crashes,
+  untriaged permission failures, untriaged config corruption, broad public
+  release claims, external beta start claims, App Store readiness claims, or
+  release-ready distribution claims. Inspect `logs/guest-script-retry-summary.tsv`
+  and require `slice-51-run` to have one attempt, zero failures,
+  `final_result=success`, `before_recording=no`, `attempt_statuses=success`,
+  `mutation_started=yes`, and a non-empty `first_mutation_line`; cite any
+  setup retry noise separately. The review must compare against accepted
+  Slice 36-50 artifacts, repo root videos, README guidance, and product
+  screenshots, and must state that Slice 51 does not mean broad public release.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-48 accepted; Slices 49-51 planned
+Status: slices 0-50 accepted; Slice 51 in progress
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 
@@ -9305,21 +9305,28 @@ Non-claims:
 
 ### Slice 51: Beta Acceptance and Dogfood Soak
 
-Status: planned.
+Status: in progress; source registration and beta-acceptance gates are being
+wired before the first Tart run.
 
 Goal: decide whether this fork is ready for daily dogfood and a small beta.
 
 Pre-slice cleanup from Slice 50 retrospectives:
 
-- [ ] Register Slice 51 before its first Tart run in the pre-Tart review gate,
+- [x] Register Slice 51 before its first Tart run in the pre-Tart review gate,
   package/beta acceptance checker, review packet, artifact-review prompt, and
   closeout routing. The gate must require three clean no-context pre-Tart
   reports with current freshness evidence and no hidden `ACTIONABLE ISSUES`
-  marker.
-- [ ] Carry the stateful no-post-recording-retry policy forward to Slice 51:
+  marker. Source registration now routes `slice-51*` and
+  `kind=beta-acceptance` artifacts through
+  `script/e2e/check-slice-51-beta-acceptance`, `make e2e-slice-51`, the
+  pre-Tart review gate, `write-review-packet`, and the no-context artifact
+  prompt.
+- [x] Carry the stateful no-post-recording-retry policy forward to Slice 51:
   one post-recording attempt after the mutation marker, no retry after product
   mutation, explicit retry-summary validation, and artifact-review citation of
-  any before-recording setup retry noise.
+  any before-recording setup retry noise. The Slice 51 checker rejects
+  post-recording retries, missing mutation markers, and wrong final review
+  format in its self-test fixture.
 - [ ] Keep the support-bundle schema self-test in the pre-Tart floor and ensure
   it still covers title-only affinity acceptance plus raw app-id, raw app-name,
   and raw window-title rejection before recording Slice 51.
@@ -9333,15 +9340,18 @@ Pre-slice cleanup from Slice 50 retrospectives:
   reviewer attempt should have a terminal status such as `clean`, `failed`,
   `format-invalid`, or `superseded`, or the accepted review must explicitly cite
   unresolved `started` rows and explain why they are non-terminal bookkeeping.
-- [ ] Write the Slice 51 storyboard before Tart: fresh package install,
+- [x] Write the Slice 51 storyboard before Tart: fresh package install,
   permissions/setup, normal launch, live zones, routing, keyboard move,
   mouse snap, profile toggle, save/relaunch, support-bundle generation, and
   uninstall/disable. Each beat needs an expected media label and exact
-  user-facing command/action/result chip.
-- [ ] Generate package/beta captions from the actual provenance command and
+  user-facing command/action/result chip. The harness registers
+  `slice-51-beta-acceptance` captions and event-manifest rows for each beat.
+- [x] Generate package/beta captions from the actual provenance command and
   version. Do not use placeholder visible commands like
   `VERSION=0.50.0-slice50` when `logs/package-provenance.env` records a
-  timestamped package command.
+  timestamped package command. Slice 51 annotation reads
+  `package_command` from `logs/package-provenance.env` and requires
+  `PUBLISH=0`.
 - [ ] Add a visible package-provenance proof surface for Slice 51 that shows the
   package zip path, package/app/CLI SHA-256 values, source commit,
   `PUBLISH=0`, install path, normal config path, signing status, and
@@ -9367,6 +9377,11 @@ Required artifact: a beta-readiness artifact with a fresh acceptance recording
 or a reviewed set of recordings, support bundle, package hashes, dogfood notes,
 issue links or local issue records, no-context artifact review, review lint,
 post-review verifier, closeout, and retrospectives.
+
+Current implementation note: Slice 51 is registered in the source gates and
+has a self-tested checker/storyboard. The Tart guest proof script still needs
+the real beta-acceptance workflow before the first recording; the placeholder
+fails setup/proof modes intentionally until that work is complete.
 
 Non-claims:
 

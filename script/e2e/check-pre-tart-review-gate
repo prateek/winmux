@@ -362,6 +362,42 @@ configure_slice_requirements() {
                 "does not imply App Store readiness"
             )
             ;;
+        slice-51)
+            required_mentions=(
+                "Slice 51"
+                "docs/plans/columnar-zones.md"
+                "makefile"
+                "beta-package"
+                "script/e2e/package-slice-50"
+                "script/e2e/guest/slice-51-beta-acceptance.sh"
+                "script/e2e/check-slice-51-beta-acceptance"
+                "script/e2e/check-support-bundle-schema"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "beta-acceptance-manifest.txt"
+                "package-provenance.env"
+                "beta-acceptance-proof.env"
+                "guest-script-retry-summary.tsv"
+                "fresh install"
+                "permissions"
+                "normal launch"
+                "routing"
+                "keyboard"
+                "mouse"
+                "profile"
+                "save and relaunch"
+                "support bundle"
+                "uninstall or disable"
+                "dogfood blockers"
+                "beta blockers"
+                "known limitations"
+                "later enhancements"
+                "PUBLISH=0"
+                "does not mean broad public release"
+            )
+            ;;
         *)
             die "pre-Tart review gate has no registered requirements for slice: ${slice_id}"
             ;;
@@ -659,6 +695,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-50 >/dev/null
+
+    configure_slice_requirements slice-51
+    write_freshness_manifest "$run_dir" slice-51 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-51 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

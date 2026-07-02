@@ -406,15 +406,22 @@ write_reviewer_citation_checklist() {
 
     for package_file in \
         "${LOGS_DIR}/package-slice-manifest.txt" \
+        "${LOGS_DIR}/beta-acceptance-manifest.txt" \
         "${LOGS_DIR}/package-host-provenance.env" \
         "${LOGS_DIR}/package-provenance.env" \
+        "${LOGS_DIR}/beta-acceptance-proof.env" \
         "${LOGS_DIR}/product-evidence-index.tsv" \
         "${LOGS_DIR}/install-proof.log" \
         "${LOGS_DIR}/launch-proof.log" \
         "${LOGS_DIR}/support-bundle-schema.log" \
         "${LOGS_DIR}/slice-50-package-stage.log" \
+        "${LOGS_DIR}/slice-51-package-stage.log" \
         "${LOGS_DIR}/slice-50-support-bundle-command.log" \
+        "${LOGS_DIR}/slice-51-support-bundle-command.log" \
         "${RUN_DIR}/docs/release-notes.md" \
+        "${RUN_DIR}/docs/dogfood-notes.md" \
+        "${RUN_DIR}/docs/blocker-classification.md" \
+        "${RUN_DIR}/docs/beta-readiness-docs.md" \
         "${RUN_DIR}/package/WinMux.app" \
         "${RUN_DIR}/bin/winmux"; do
         if [ -e "$package_file" ]; then
@@ -423,6 +430,9 @@ write_reviewer_citation_checklist() {
     done
     if [ -d "${LOGS_DIR}/slice-50-zone-support-bundle" ]; then
         add_citation_checklist_row "package" "slice-50-zone-support-bundle" "${LOGS_DIR}/slice-50-zone-support-bundle" "cite support bundle directory and schema result"
+    fi
+    if [ -d "${LOGS_DIR}/slice-51-zone-support-bundle" ]; then
+        add_citation_checklist_row "beta-acceptance" "slice-51-zone-support-bundle" "${LOGS_DIR}/slice-51-zone-support-bundle" "cite support bundle directory and schema result"
     fi
 
     add_baseline_citation_row "${REPO_ROOT}/demo.mp4"
@@ -835,6 +845,20 @@ EOF
 - Inspect `logs/guest-script-retry-summary.tsv`; require `slice-50-run` to have one attempt, zero failures, `final_result=success`, `before_recording=no`, `mutation_started=yes`, and a non-empty `first_mutation_line`. Reject any package proof patched after recording.
 - Compare against accepted Slice 36-49 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, and readable product pacing used in the accepted demos.
 - State explicitly that Slice 50 proves a reproducible internal beta package installs and launches from the packaged app path with stored provenance. It does not start external beta, does not imply App Store readiness, and does not prove notarization unless provenance says `notarization_status=notarized`.
+EOF
+            ;;
+        slice-51-beta-acceptance)
+            cat <<'EOF'
+- Slice 51 beta acceptance proof: inspect the annotated recording first, then raw recording, contact sheet, semantic sample manifest, event manifest, caption-boundary frames, `logs/beta-acceptance-manifest.txt`, `logs/package-provenance.env`, `logs/beta-acceptance-proof.env`, `logs/guest-script-retry-summary.tsv`, dogfood notes, blocker classification, docs update proof, install proof, launch proof, support-bundle directory, and support-bundle schema log.
+- Confirm the recording is a fresh Slice 51 artifact named `slice-51-beta-acceptance`. It must show package provenance, fresh install, permissions/setup, normal launch, routing, keyboard movement, mouse snap, profile/layout sizing, save and relaunch, support bundle generation, and uninstall or disable on a clean desktop.
+- Inspect `logs/beta-acceptance-manifest.txt`; require `kind=beta-acceptance` and `slice=51`. Inspect `logs/package-provenance.env`; require `package_command` to include `PUBLISH=0`, no `PUBLISH=1`, package/app/CLI paths, and matching `package_sha256`, `app_sha256`, and `cli_sha256`.
+- Inspect `logs/beta-acceptance-proof.env`; require `package_source=beta-package`, an `acceptance_path` covering `fresh-install`, `permissions`, `setup`, `normal-launch`, `routing`, `keyboard`, `mouse`, `profile`, `save-relaunch`, and `support-bundle`, plus install proof, launch proof, support-bundle path, support-bundle schema log, dogfood notes, blocker classification, docs update proof, package provenance screenshot, final screenshot, and `uninstall_or_disable=uninstall` or `disable`.
+- Inspect blocker classification and dogfood notes. Require sections for `dogfood blockers:`, `beta blockers:`, `known limitations:`, and `later enhancements:`. Reject untriaged crashes, untriaged permission failures, untriaged config corruption, or any claim that Slice 51 means broad public release, external beta start, App Store readiness, or release-ready distribution.
+- Inspect `logs/guest-script-retry-summary.tsv`; require `slice-51-run` to have one attempt, zero failures, `final_result=success`, `before_recording=no`, `attempt_statuses=success`, `mutation_started=yes`, and a non-empty `first_mutation_line`. Cite any before-recording setup retries explicitly, and reject any post-recording retry or patched proof.
+- Inspect `logs/slice-51-beta-acceptance.event-manifest.tsv`; require `package-provenance`, `fresh-install`, `permissions-setup`, `normal-launch`, `routing-keyboard`, `mouse-snap`, `profile-layout`, `save-relaunch`, `support-bundle`, and `disable-close` in order with concrete media paths.
+- Inspect `docs/beta-readiness-docs.md` and require it to cite README and release notes updates. Confirm the docs make beta status conditional on Slice 51 evidence and do not claim broad public release.
+- Compare against accepted Slice 36-50 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, legible acceptance boards, and product-demo pacing used in accepted demos.
+- State explicitly that Slice 51 decides daily dogfood and small-beta readiness for this fork only. It does not mean broad public release, App Store readiness, notarization, automatic support upload, or that known limitations are untriaged blockers.
 EOF
             ;;
         slice-8-window-routing)

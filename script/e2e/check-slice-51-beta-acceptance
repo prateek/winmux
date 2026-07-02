@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_DIR=""
+REQUIRE_REVIEW=0
+CLOSEOUT=0
+SELF_TEST=0
+SELF_TEST_TMP_DIR=""
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--require-review] [--closeout] <run-dir>
+       $(basename "$0") --self-test
+
+Validates a Slice 51 beta-acceptance artifact: package provenance, acceptance
+path proof, stateful retry policy, blocker classification, support-bundle
+evidence, review format, and closeout files.
+EOF
+}
+
+die() {
+    printf '[winmux-slice51] error: %s\n' "$*" >&2
+    exit 1
+}
+
+sha256_file() {
+    /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{ print $1 }'
+}
+
+first_nonblank_line() {
+    /usr/bin/awk 'NF { print; exit }' "$1"
+}
+
+last_nonblank_line() {
+    /usr/bin/awk 'NF { line = $0 } END { print line }' "$1"
+}
+
+env_value() {
+    local key="$1"
+    local file="$2"
+    /usr/bin/awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$file"
+}
+
+require_env_value() {
+    local key="$1"
+    local file="$2"
+    local value
+    value="$(env_value "$key" "$file")"
+    [ -n "$value" ] || die "missing ${file#"$RUN_DIR"/} key: $key"
+    printf '%s\n' "$value"
+}
+
+require_file_under_run() {
+    local path="$1"
+    [ -s "${RUN_DIR}/${path}" ] || die "missing artifact file: ${path}"
+}
+
+require_dir_under_run() {
+    local path="$1"
+    [ -d "${RUN_DIR}/${path}" ] || die "missing artifact directory: ${path}"
+}
+
+require_text() {
+    local path="$1"
+    local text="$2"
+    /usr/bin/grep -F -- "$text" "${RUN_DIR}/${path}" >/dev/null \
+        || die "${path} missing required text: ${text}"
+}
+
+reject_text_regex() {
+    local path="$1"
+    local regex="$2"
+    if /usr/bin/grep -Eiq "$regex" "${RUN_DIR}/${path}"; then
+        die "${path} contains forbidden text matching: ${regex}"
+    fi
+}
+
+summary_value() {
+    local path="$1"
+    local phase="$2"
+    local column="$3"
+    /usr/bin/awk -F'\t' -v phase="$phase" -v column="$column" '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                name = $i
+                sub(/^# /, "", name)
+                column_index[name] = i
+            }
+            next
+        }
+        $1 == phase {
+            if (!(column in column_index)) {
+                exit 2
+            }
+            print $(column_index[column])
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "$path"
+}
+
+validate_manifest() {
+    local manifest="${RUN_DIR}/logs/beta-acceptance-manifest.txt"
+    [ -s "$manifest" ] || die "missing beta acceptance manifest: logs/beta-acceptance-manifest.txt"
+    /usr/bin/grep -Fx 'kind=beta-acceptance' "$manifest" >/dev/null \
+        || die "Slice 51 manifest must contain kind=beta-acceptance"
+    /usr/bin/grep -Fx 'slice=51' "$manifest" >/dev/null \
+        || die "Slice 51 manifest must contain slice=51"
+}
+
+validate_package_provenance() {
+    local provenance="${RUN_DIR}/logs/package-provenance.env"
+    local package_command package_path package_sha app_path app_sha cli_path cli_sha
+    [ -s "$provenance" ] || die "missing package provenance: logs/package-provenance.env"
+    package_command="$(require_env_value package_command "$provenance")"
+    case "$package_command" in
+        *PUBLISH=1*) die "package command must not publish: ${package_command}" ;;
+    esac
+    case "$package_command" in
+        *PUBLISH=0*) ;;
+        *) die "package command must make PUBLISH=0 explicit: ${package_command}" ;;
+    esac
+    package_path="$(require_env_value package_path "$provenance")"
+    package_sha="$(require_env_value package_sha256 "$provenance")"
+    app_path="$(require_env_value app_path "$provenance")"
+    app_sha="$(require_env_value app_sha256 "$provenance")"
+    cli_path="$(require_env_value cli_path "$provenance")"
+    cli_sha="$(require_env_value cli_sha256 "$provenance")"
+    require_file_under_run "$package_path"
+    [ -e "${RUN_DIR}/${app_path}" ] || die "missing packaged app path: ${app_path}"
+    require_file_under_run "$cli_path"
+    [ "$(sha256_file "${RUN_DIR}/${package_path}")" = "$package_sha" ] \
+        || die "package hash mismatch: ${package_path}"
+    [ "$(find "${RUN_DIR}/${app_path}" -type f -print0 | /usr/bin/sort -z | xargs -0 /usr/bin/shasum -a 256 | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }')" = "$app_sha" ] \
+        || die "app hash mismatch: ${app_path}"
+    [ "$(sha256_file "${RUN_DIR}/${cli_path}")" = "$cli_sha" ] \
+        || die "CLI hash mismatch: ${cli_path}"
+}
+
+validate_retry_summary() {
+    local summary="${RUN_DIR}/logs/guest-script-retry-summary.tsv"
+    local attempts failures final_result before_recording attempt_statuses mutation_started first_mutation_line
+    require_file_under_run "logs/guest-script-retry-summary.tsv"
+    /usr/bin/awk -F'\t' '
+        $0 == "" || $1 ~ /^#/ { next }
+        {
+            failures = $4 + 0
+            if ($6 == "no" && failures > 0) {
+                printf("post-recording retry failure row: %s\n", $0) > "/dev/stderr"
+                found = 1
+            }
+        }
+        END { exit(found ? 1 : 0) }
+    ' "$summary" || die "Slice 51 artifact contains post-recording guest failures/retries"
+
+    attempts="$(summary_value "$summary" slice-51-run attempts)"
+    failures="$(summary_value "$summary" slice-51-run failures)"
+    final_result="$(summary_value "$summary" slice-51-run final_result)"
+    before_recording="$(summary_value "$summary" slice-51-run before_recording)"
+    attempt_statuses="$(summary_value "$summary" slice-51-run attempt_statuses)"
+    mutation_started="$(summary_value "$summary" slice-51-run mutation_started)"
+    first_mutation_line="$(summary_value "$summary" slice-51-run first_mutation_line)"
+    [ "$attempts" = "1" ] || die "Slice 51 post-recording proof must run once; attempts=${attempts}"
+    [ "$failures" = "0" ] || die "Slice 51 post-recording proof had failures; discard and rerun artifact"
+    [ "$final_result" = "success" ] || die "Slice 51 post-recording proof did not succeed: ${final_result}"
+    [ "$before_recording" = "no" ] || die "Slice 51 run row must be after recording started"
+    [ "$attempt_statuses" = "success" ] || die "Slice 51 run row must record one successful attempt"
+    [ "$mutation_started" = "yes" ] || die "Slice 51 run row must report mutation_started=yes"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 51 run row must report first_mutation_line"
+}
+
+validate_acceptance_proof() {
+    local proof="${RUN_DIR}/logs/beta-acceptance-proof.env"
+    local support_bundle support_schema dogfood_notes blockers docs_update provenance_frame final_frame uninstall_or_disable
+    [ -s "$proof" ] || die "missing beta acceptance proof: logs/beta-acceptance-proof.env"
+    [ "$(require_env_value package_source "$proof")" = "beta-package" ] \
+        || die "Slice 51 must run against the beta package"
+    case "$(require_env_value acceptance_path "$proof")" in
+        *fresh-install*permissions*setup*normal-launch*routing*keyboard*mouse*profile*save-relaunch*support-bundle*) ;;
+        *) die "acceptance_path must name the full Slice 51 acceptance workflow" ;;
+    esac
+    uninstall_or_disable="$(require_env_value uninstall_or_disable "$proof")"
+    case "$uninstall_or_disable" in
+        uninstall|disable) ;;
+        *) die "uninstall_or_disable must be uninstall or disable" ;;
+    esac
+    require_file_under_run "$(require_env_value install_proof_path "$proof")"
+    require_file_under_run "$(require_env_value launch_proof_path "$proof")"
+    support_bundle="$(require_env_value support_bundle_path "$proof")"
+    support_schema="$(require_env_value support_bundle_schema_log_path "$proof")"
+    dogfood_notes="$(require_env_value dogfood_notes_path "$proof")"
+    blockers="$(require_env_value blocker_classification_path "$proof")"
+    docs_update="$(require_env_value docs_update_path "$proof")"
+    provenance_frame="$(require_env_value provenance_surface_screenshot "$proof")"
+    final_frame="$(require_env_value final_screenshot "$proof")"
+    require_dir_under_run "$support_bundle"
+    require_file_under_run "$support_schema"
+    /usr/bin/grep -F 'result=success' "${RUN_DIR}/${support_schema}" >/dev/null \
+        || die "support bundle schema log must contain result=success"
+    require_file_under_run "$dogfood_notes"
+    require_file_under_run "$blockers"
+    require_file_under_run "$docs_update"
+    require_file_under_run "$provenance_frame"
+    require_file_under_run "$final_frame"
+    require_text "$blockers" 'dogfood blockers:'
+    require_text "$blockers" 'beta blockers:'
+    require_text "$blockers" 'known limitations:'
+    require_text "$blockers" 'later enhancements:'
+    require_text "$docs_update" 'README'
+    require_text "$docs_update" 'release notes'
+    reject_text_regex "$dogfood_notes" 'public beta started|external beta started|public release|App Store ready|release-ready distribution'
+    reject_text_regex "$blockers" 'untriaged crash|untriaged permission failure|untriaged config corruption'
+}
+
+validate_review() {
+    local review="${RUN_DIR}/reviews/no-ctx-artifact-review.md"
+    [ -s "$review" ] || die "missing Slice 51 no-context review"
+    case "$(first_nonblank_line "$review")" in
+        PASS:*|PASS_WITH_NOTES:*) ;;
+        *) die "Slice 51 review must start with PASS: or PASS_WITH_NOTES:" ;;
+    esac
+    [ "$(last_nonblank_line "$review")" = "next slice allowed: yes" ] \
+        || die "Slice 51 review final line must be: next slice allowed: yes"
+    for text in \
+        "Slice 51" \
+        "beta-acceptance-manifest.txt" \
+        "package-provenance.env" \
+        "beta-acceptance-proof.env" \
+        "guest-script-retry-summary.tsv" \
+        "PUBLISH=0" \
+        "support bundle" \
+        "dogfood blockers" \
+        "beta blockers" \
+        "known limitations" \
+        "does not mean broad public release"; do
+        /usr/bin/grep -F -- "$text" "$review" >/dev/null \
+            || die "Slice 51 review missing required text: ${text}"
+    done
+}
+
+validate_closeout() {
+    require_file_under_run "logs/review-lint.log"
+    require_file_under_run "logs/post-review-verify.log"
+    for name in process-plan code-harness artifact-product; do
+        require_file_under_run "retrospectives/${name}.md"
+    done
+}
+
+validate_artifact() {
+    validate_manifest
+    validate_package_provenance
+    validate_acceptance_proof
+    validate_retry_summary
+}
+
+run_self_test() {
+    local tmp package_path app_dir cli_path package_sha app_sha cli_sha
+    tmp="$(mktemp -d)"
+    SELF_TEST_TMP_DIR="$tmp"
+    trap 'rm -rf "$SELF_TEST_TMP_DIR"' EXIT
+    RUN_DIR="$tmp"
+    mkdir -p "$tmp/logs" "$tmp/package/WinMux.app/Contents" "$tmp/bin" "$tmp/docs" "$tmp/screenshots" "$tmp/reviews" "$tmp/retrospectives"
+    printf 'package\n' >"$tmp/WinMux-test.zip"
+    printf 'app\n' >"$tmp/package/WinMux.app/Contents/PkgInfo"
+    printf 'cli\n' >"$tmp/bin/winmux"
+    package_path="WinMux-test.zip"
+    app_dir="package/WinMux.app"
+    cli_path="bin/winmux"
+    package_sha="$(sha256_file "$tmp/$package_path")"
+    app_sha="$(find "$tmp/$app_dir" -type f -print0 | /usr/bin/sort -z | xargs -0 /usr/bin/shasum -a 256 | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }')"
+    cli_sha="$(sha256_file "$tmp/$cli_path")"
+    printf 'kind=beta-acceptance\nslice=51\n' >"$tmp/logs/beta-acceptance-manifest.txt"
+    cat >"$tmp/logs/package-provenance.env" <<EOF
+source_commit=self-test
+git_status_sha256=self-test
+version=0.51.0-self-test
+package_command=make beta-package VERSION=0.51.0-self-test PUBLISH=0
+package_path=${package_path}
+package_sha256=${package_sha}
+app_path=${app_dir}
+app_sha256=${app_sha}
+cli_path=${cli_path}
+cli_sha256=${cli_sha}
+codesign_status=unsigned
+notarization_status=not-notarized
+EOF
+    mkdir -p "$tmp/logs/slice-51-zone-support-bundle"
+    printf 'result=success\n' >"$tmp/logs/support-bundle-schema.log"
+    printf 'install_result=success\n' >"$tmp/logs/install-proof.log"
+    printf 'launch_result=success\n' >"$tmp/logs/launch-proof.log"
+    printf 'dogfood notes: self-test\n' >"$tmp/docs/dogfood-notes.md"
+    cat >"$tmp/docs/blocker-classification.md" <<'EOF'
+dogfood blockers: none
+beta blockers: none
+known limitations: unsigned internal build
+later enhancements: settings UI
+EOF
+    printf 'README updated\nrelease notes updated\n' >"$tmp/docs/beta-readiness-docs.md"
+    printf 'png\n' >"$tmp/screenshots/02-package-provenance-slice-51.png"
+    printf 'png\n' >"$tmp/screenshots/10-final-beta-acceptance-slice-51.png"
+    cat >"$tmp/logs/beta-acceptance-proof.env" <<'EOF'
+package_source=beta-package
+acceptance_path=fresh-install-permissions-setup-normal-launch-routing-keyboard-mouse-profile-save-relaunch-support-bundle
+install_proof_path=logs/install-proof.log
+launch_proof_path=logs/launch-proof.log
+support_bundle_path=logs/slice-51-zone-support-bundle
+support_bundle_schema_log_path=logs/support-bundle-schema.log
+dogfood_notes_path=docs/dogfood-notes.md
+blocker_classification_path=docs/blocker-classification.md
+docs_update_path=docs/beta-readiness-docs.md
+provenance_surface_screenshot=screenshots/02-package-provenance-slice-51.png
+final_screenshot=screenshots/10-final-beta-acceptance-slice-51.png
+uninstall_or_disable=disable
+EOF
+    cat >"$tmp/logs/guest-script-retry-summary.tsv" <<'EOF'
+# phase	log	attempts	failures	final_result	before_recording	attempt_statuses	first_failure_reason	last_failure_reason	mutation_started	first_mutation_line
+slice-51-setup	logs/slice-51-setup.log	1	0	success	yes	success	-	-	no	-
+slice-51-run	logs/slice-51-run.log	1	0	success	no	success	-	-	yes	7
+EOF
+    cat >"$tmp/reviews/no-ctx-artifact-review.md" <<'EOF'
+PASS: Slice 51 beta acceptance artifact is internally consistent.
+Slice 51 cites beta-acceptance-manifest.txt, package-provenance.env, beta-acceptance-proof.env, guest-script-retry-summary.tsv, PUBLISH=0, support bundle, dogfood blockers, beta blockers, known limitations, and does not mean broad public release.
+next slice allowed: yes
+EOF
+    printf 'result=success\n' >"$tmp/logs/review-lint.log"
+    printf 'result=success\n' >"$tmp/logs/post-review-verify.log"
+    printf 'ok\n' >"$tmp/retrospectives/process-plan.md"
+    printf 'ok\n' >"$tmp/retrospectives/code-harness.md"
+    printf 'ok\n' >"$tmp/retrospectives/artifact-product.md"
+    validate_artifact
+    REQUIRE_REVIEW=1
+    validate_review
+    CLOSEOUT=1
+    validate_closeout
+
+    /usr/bin/perl -0pi -e 's/(slice-51-run[^\n]*\t)yes(\t7)/${1}no${2}/' "$tmp/logs/guest-script-retry-summary.tsv"
+    if ( validate_artifact ) >/dev/null 2>&1; then
+        die "self-test expected missing mutation marker rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/(slice-51-run[^\n]*\t)no(\t7)/${1}yes${2}/' "$tmp/logs/guest-script-retry-summary.tsv"
+    /usr/bin/perl -0pi -e 's/next slice allowed: yes/NO ACTIONABLE ISSUES/' "$tmp/reviews/no-ctx-artifact-review.md"
+    if ( validate_review ) >/dev/null 2>&1; then
+        die "self-test expected wrong review final-line rejection"
+    fi
+    printf '[winmux-slice51] self-test PASS\n'
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --self-test)
+            SELF_TEST=1
+            shift
+            ;;
+        --require-review)
+            REQUIRE_REVIEW=1
+            shift
+            ;;
+        --closeout)
+            CLOSEOUT=1
+            REQUIRE_REVIEW=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --*)
+            die "unknown option: $1"
+            ;;
+        *)
+            [ -z "$RUN_DIR" ] || die "only one run directory is supported"
+            RUN_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+if [ "$SELF_TEST" -eq 1 ]; then
+    [ -z "$RUN_DIR" ] || die "--self-test does not accept a run directory"
+    run_self_test
+    exit 0
+fi
+
+[ -n "$RUN_DIR" ] || die "missing run directory"
+RUN_DIR="$(cd "$RUN_DIR" && pwd -P)"
+validate_artifact
+if [ "$REQUIRE_REVIEW" -eq 1 ]; then
+    validate_review
+fi
+if [ "$CLOSEOUT" -eq 1 ]; then
+    validate_closeout
+fi
+printf '[winmux-slice51] PASS: %s\n' "$RUN_DIR"
