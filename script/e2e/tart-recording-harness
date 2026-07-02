@@ -104,6 +104,9 @@ fi
 if [ "$ACTION" = "slice-44" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/drag-overlay-semantics.toml"
 fi
+if [ "$ACTION" = "slice-45" ]; then
+    DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/column-zones.toml"
+fi
 if [ "$ACTION" = "slice-26" ] || [ "$ACTION" = "slice-32" ]; then
     DEFAULT_CONFIG_PATH="${SCRIPT_DIR}/configs/zone-divider-drag.toml"
 fi
@@ -129,6 +132,9 @@ BUILD_PATH="${WINMUX_E2E_BUILD_PATH:-${REPO_ROOT}/.debug/WinMuxApp}"
 DISPLAY_ID="${WINMUX_E2E_DISPLAY_ID:-1}"
 GUEST_DISPLAY_ID="${WINMUX_E2E_GUEST_DISPLAY_ID:-$DISPLAY_ID}"
 RECORD_SECONDS="${WINMUX_E2E_RECORD_SECONDS:-12}"
+if [ "$ACTION" = "slice-45" ] && [ -z "${WINMUX_E2E_RECORD_SECONDS:-}" ]; then
+    RECORD_SECONDS=100
+fi
 VIDEO_FPS="${WINMUX_E2E_VIDEO_FPS:-10}"
 FFMPEG_SCREEN_DEVICE="${WINMUX_E2E_FFMPEG_SCREEN_DEVICE:-Capture screen 0}"
 FFMPEG_ENCODER="${WINMUX_E2E_FFMPEG_ENCODER:-h264_videotoolbox}"
@@ -175,7 +181,7 @@ VM_IP=""
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44>
+Usage: $(basename "$0") <preflight|annotation-preflight|abort-status-self-test|pre-tart-gate-self-test|refresh-annotation-artifact|mark-superseded|warmup-policy-self-test|smoke|slice-0|slice-1|slice-2|slice-3|slice-4|slice-5|slice-6|slice-6b|slice-8|slice-10|slice-11a|slice-11b|slice-11c|slice-12|slice-13|slice-14|slice-15|slice-16|slice-17|slice-18|slice-19|slice-20|slice-21|slice-22|slice-23|slice-24|slice-25|slice-26|slice-27|slice-28|slice-29|slice-31|slice-32|slice-33|slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45>
 
 Environment:
   TART_HOME                         Required. Must point at the external SSD-backed Tart home.
@@ -554,7 +560,7 @@ warmup_policy_self_test() {
 
 pre_tart_review_slice_for_action() {
     case "$1" in
-        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44)
+        slice-34|slice-35|slice-37|slice-38|slice-39|slice-40|slice-41|slice-42|slice-43|slice-44|slice-45)
             printf '%s\n' "$1"
             ;;
         *)
@@ -3358,6 +3364,56 @@ write_slice_42_event_manifest() {
     [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
 }
 
+write_slice_45_event_manifest() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.event-manifest.tsv"
+    local config_label before_label loss_label recovery_label return_label after_label final_windows_label final_result_label
+    config_label="$(caption_label_for_chip "$name" "Config: zones bind to physical monitor; display ids may churn")"
+    before_label="$(caption_label_for_chip "$name" "Run: winmux list-zones --format")"
+    loss_label="$(caption_label_for_chip "$name" "Action: disconnect ultrawide")"
+    recovery_label="$(caption_label_for_chip "$name" "Result: windows recover on the remaining display")"
+    return_label="$(caption_label_for_chip "$name" "Action: reconnect ultrawide at 3440x1440")"
+    after_label="$(last_caption_label_for_chip "$name" "Run: winmux list-zones --format")"
+    final_windows_label="$(caption_label_for_chip "$name" "Run: winmux list-windows --all --format")"
+    final_result_label="$(caption_label_for_chip "$name" "Result: Reference | Work | Comms restored; no offscreen windows")"
+
+    : >"$manifest_path"
+    printf '# event-id\tkind\tseconds\tcaption-label\tsample-label\tpath\texpected\n' >>"$manifest_path"
+    append_event_manifest_row "$manifest_path" topology-contract context \
+        "$(caption_start_for_label "$name" "$config_label")" "$config_label" topology-contract \
+        "screenshots/01-ready-slice-45.png" \
+        "ready frame labels the deterministic Tart simulation and hardware-video boundary"
+    append_event_manifest_row "$manifest_path" topology-before context \
+        "$(caption_start_for_label "$name" "$before_label")" "$before_label" topology-before \
+        "screenshots/02-topology-before-slice-45.png" \
+        "before board shows physical monitor identity, zones, active workspaces, and windows"
+    append_event_manifest_row "$manifest_path" simulated-loss action \
+        "$(caption_start_for_label "$name" "$loss_label")" "$loss_label" simulated-loss \
+        "screenshots/03-simulated-loss-slice-45.png" \
+        "display-loss board visibly labels the deterministic simulation"
+    append_event_manifest_row "$manifest_path" recovery-visible recovery \
+        "$(caption_start_for_label "$name" "$recovery_label")" "$recovery_label" recovery-visible \
+        "screenshots/04-recovery-visible-slice-45.png" \
+        "recovery board shows remaining-display state and no offscreen visible windows"
+    append_event_manifest_row "$manifest_path" simulated-return action \
+        "$(caption_start_for_label "$name" "$return_label")" "$return_label" simulated-return \
+        "screenshots/05-simulated-return-slice-45.png" \
+        "return board labels reconnect at 3440x1440 and display-id churn policy"
+    append_event_manifest_row "$manifest_path" topology-after inspection \
+        "$(caption_start_for_label "$name" "$after_label")" "$after_label" topology-after \
+        "screenshots/06-topology-after-slice-45.png" \
+        "after board shows restored Reference, Work, and Comms zones"
+    append_event_manifest_row "$manifest_path" final-windows-audit command \
+        "$(caption_start_for_label "$name" "$final_windows_label")" "$final_windows_label" final-windows-audit \
+        "screenshots/07-final-recoverability-slice-45.png" \
+        "final board shows exact list-windows audit output"
+    append_event_manifest_row "$manifest_path" final-recoverability result \
+        "$(caption_start_for_label "$name" "$final_result_label")" "$final_result_label" final-recoverability \
+        "screenshots/07-final-recoverability-slice-45.png" \
+        "final board states zones restored, no offscreen windows, and hardware non-claim"
+    [ -s "$manifest_path" ] || die "Event manifest did not produce a non-empty file: $manifest_path"
+}
+
 write_event_manifest() {
     local name="$1"
     case "$name" in
@@ -3429,6 +3485,9 @@ write_event_manifest() {
             ;;
         slice-42-zone-availability-profiles)
             write_slice_42_event_manifest "$name"
+            ;;
+        slice-45-display-topology-recovery)
+            write_slice_45_event_manifest "$name"
             ;;
         *)
             ;;
@@ -3617,6 +3676,18 @@ CAPTIONS
 84	104	Full dashboard	Restore every zone through the full-dashboard profile.	Run: winmux use-zone-profile full-dashboard
 104	116	Final zones audit	Show the exact formatted zone inspection command as a legible sequence.	Run: winmux list-zones --format	Config: zone=%{monitor-zone-id}|name=%{monitor-zone-name}	Config: enabled=%{monitor-zone-enabled}|availability=%{monitor-zone-availability-set-id}	Config: workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}	Config: physical=%{monitor-physical-id}
 116	132	Final windows audit	Show the exact formatted all-windows inspection command as a legible sequence.	Run: winmux list-windows --all --format	Config: %{window-id}|%{window-title}|zone=%{monitor-zone-id}	Config: workspace=%{workspace}|monitor=%{monitor-name}
+CAPTIONS
+            ;;
+        slice-45-display-topology-recovery)
+            cat >"$captions_path" <<'CAPTIONS'
+0	8	Topology recovery contract	The recording labels deterministic Tart simulation and the hardware-video boundary.	Config: zones bind to physical monitor; display ids may churn
+8	18	Topology before	Reference, Work, and Comms are visible before the display topology event.	Run: winmux list-zones --format
+18	32	Disconnect ultrawide	The board shows the simulated display-loss action and recovery policy.	Action: disconnect ultrawide
+32	48	Recovery visible	The remaining-display audit shows the windows remain recoverable and visible.	Result: windows recover on the remaining display
+48	64	Reconnect ultrawide	The board shows the simulated return at the target ultrawide resolution.	Action: reconnect ultrawide at 3440x1440
+64	80	Topology after	The restored zones keep physical identity, zone names, and workspaces.	Run: winmux list-zones --format	Config: physical=%{monitor-physical-id}|zone=%{monitor-zone-id}	Config: name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}	Config: left=%{monitor-left}|width=%{monitor-width}
+80	92	Final windows audit	The all-windows audit shows the restored window/zone/workspace state.	Run: winmux list-windows --all --format	Config: %{window-id}|%{window-title}|zone=%{monitor-zone-id}	Config: workspace=%{workspace}|monitor=%{monitor-name}
+92	100	No offscreen windows	Final proof states the result and the real-hardware non-claim.	Result: Reference | Work | Comms restored; no offscreen windows
 CAPTIONS
             ;;
         slice-8-window-routing)
@@ -3979,14 +4050,15 @@ annotation_preflight() {
         slice-39-dogfood-install-permissions \
         slice-40-zone-setup-assistant \
         slice-41-zone-affinity-beta \
-        slice-42-zone-availability-profiles
+        slice-42-zone-availability-profiles \
+        slice-45-display-topology-recovery
     do
         captions="${tmp_dir}/logs/${name}.annotations.tsv"
         output="${tmp_dir}/recordings/${name}.mov"
         render_log="${tmp_dir}/logs/${name}.annotation.log"
         write_annotation_plan "$name" "$captions"
         case "$name" in
-            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles)
+            slice-20-zone-snap-policy-switch|slice-21-zone-mode-v2|slice-22-float-unless-snap|slice-23-product-snap-overlay-label|slice-24-secondary-button-snap|slice-25-mouse-demo-contract|slice-43-mouse-gesture-configurability|slice-44-drag-overlay-semantics|slice-26-zone-divider-drag|slice-27-window-slot-snap|slice-28-export-zone-layout|slice-29-save-zone-layout|slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-33-cycle-zone-scene|slice-34-zone-mode-scene|slice-35-starter-ultrawide-template|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery)
                 write_event_manifest "$name"
                 [ -s "${LOGS_DIR}/${name}.event-manifest.tsv" ] \
                     || die "Annotation preflight did not produce the required event manifest for ${name}"
@@ -4868,6 +4940,29 @@ write_semantic_sample_manifest() {
                 "screenshots/06-final-availability-proof-slice-42.png" \
                 "final audit board shows the exact formatted list-windows --all command"
             ;;
+        slice-45-display-topology-recovery)
+            append_sample_manifest_row "$manifest_path" semantic topology-contract screenshot screenshot \
+                "screenshots/01-ready-slice-45.png" \
+                "ready frame labels the deterministic Tart simulation and hardware-video boundary"
+            append_sample_manifest_row "$manifest_path" semantic topology-before screenshot screenshot \
+                "screenshots/02-topology-before-slice-45.png" \
+                "before board shows physical monitor identity, zones, active workspaces, and windows"
+            append_sample_manifest_row "$manifest_path" semantic simulated-loss screenshot screenshot \
+                "screenshots/03-simulated-loss-slice-45.png" \
+                "display-loss board visibly labels the deterministic simulation"
+            append_sample_manifest_row "$manifest_path" semantic recovery-visible screenshot screenshot \
+                "screenshots/04-recovery-visible-slice-45.png" \
+                "recovery board shows remaining-display state and no offscreen visible windows"
+            append_sample_manifest_row "$manifest_path" semantic simulated-return screenshot screenshot \
+                "screenshots/05-simulated-return-slice-45.png" \
+                "return board labels reconnect at 3440x1440 and display-id churn policy"
+            append_sample_manifest_row "$manifest_path" semantic topology-after screenshot screenshot \
+                "screenshots/06-topology-after-slice-45.png" \
+                "after board shows restored Reference, Work, and Comms zones"
+            append_sample_manifest_row "$manifest_path" semantic final-recoverability screenshot screenshot \
+                "screenshots/07-final-recoverability-slice-45.png" \
+                "final board shows list-zones/list-windows audits, no-offscreen status, and non-claim boundary"
+            ;;
         slice-19-zone-style-cycle)
             append_sample_manifest_row "$manifest_path" semantic before-style screenshot screenshot \
                 "screenshots/02-before-style-slice-19.png" \
@@ -5576,6 +5671,52 @@ generate_event_manifest_contact_sheet() {
     rm -rf "$tmp_dir"
 }
 
+generate_topology_event_contact_sheet() {
+    local name="$1"
+    local manifest_path="${LOGS_DIR}/${name}.topology-event-manifest.tsv"
+    [ -s "$manifest_path" ] || return 0
+    command -v magick >/dev/null 2>&1 || die "Topology event contact sheet requires ImageMagick: magick"
+
+    local contact_sheet="${SCREENSHOTS_DIR}/${name}.topology-contact-sheet.jpg"
+    local tmp_dir="${SCREENSHOTS_DIR}/${name}.topology-contact-sheet.tmp"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir"
+
+    local index=0 event_id kind seconds caption_label sample_label relative_path expected
+    while IFS=$'\t' read -r event_id kind seconds caption_label sample_label relative_path expected; do
+        case "${event_id:-}" in
+            ""|\#*) continue ;;
+        esac
+        case "${relative_path:-}" in
+            ""|-) continue ;;
+        esac
+        index=$((index + 1))
+        append_event_contact_sheet_image "$tmp_dir" "$index" "$(event_contact_sheet_label "$event_id" "$sample_label")" "$relative_path"
+    done <"$manifest_path"
+
+    local images=()
+    local image_path
+    while IFS= read -r image_path; do
+        images+=("$image_path")
+    done < <(find "$tmp_dir" -maxdepth 1 -type f -name '*.png' | sort)
+    [ "${#images[@]}" -gt 0 ] || die "Topology event contact sheet has no image rows: $manifest_path"
+    local label_font="${WINMUX_E2E_EVENT_CONTACT_SHEET_FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}"
+    [ -f "$label_font" ] || label_font="/System/Library/Fonts/Helvetica.ttc"
+    magick montage \
+        -font "$label_font" \
+        -pointsize 22 \
+        -label '%t' \
+        "${images[@]}" \
+        -thumbnail '720x405>' \
+        -geometry '720x405+16+48' \
+        -tile 2x \
+        -background '#F4F2ED' \
+        -fill '#101820' \
+        "$contact_sheet"
+    [ -s "$contact_sheet" ] || die "Topology event contact sheet did not produce a non-empty file: $contact_sheet"
+    rm -rf "$tmp_dir"
+}
+
 generate_recording_samples() {
     local name="$1"
     local path="${RECORDINGS_DIR}/${name}.mov"
@@ -5701,6 +5842,7 @@ generate_recording_samples() {
     fi
     [ -s "$contact_sheet" ] || die "Contact sheet did not produce a non-empty file: $contact_sheet"
     generate_event_manifest_contact_sheet "$name"
+    generate_topology_event_contact_sheet "$name"
 }
 
 write_caption_tail_manifest() {
@@ -6920,6 +7062,36 @@ run_slice_42_zone_availability_profiles() {
         "${LOGS_DIR}/slice-42-run.log"
 }
 
+run_slice_45_display_topology_recovery_setup() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-45-display-topology-recovery.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE45_PHASE=setup /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-45-setup.log"
+}
+
+run_slice_45_display_topology_recovery() {
+    local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-45-display-topology-recovery.sh"
+    local scenario_path_quoted
+    local guest_repo_quoted
+    local guest_artifacts_quoted
+    local guest_display_quoted
+    scenario_path_quoted="$(shell_quote "$scenario_path")"
+    guest_repo_quoted="$(shell_quote "$GUEST_REPO_DIR")"
+    guest_artifacts_quoted="$(shell_quote "$GUEST_ARTIFACTS_DIR")"
+    guest_display_quoted="$(shell_quote "$GUEST_DISPLAY_ID")"
+    guest_script_retry \
+        "REPO_DIR=${guest_repo_quoted} ARTIFACTS_DIR=${guest_artifacts_quoted} GUEST_DISPLAY_ID=${guest_display_quoted} WINMUX_E2E_SLICE45_PHASE=proof /bin/bash ${scenario_path_quoted}" \
+        "${LOGS_DIR}/slice-45-run.log"
+}
+
 run_slice_8_window_routing_setup() {
     local scenario_path="${GUEST_REPO_DIR}/script/e2e/guest/slice-8-window-routing.sh"
     local scenario_path_quoted
@@ -7933,6 +8105,10 @@ slice_44() {
     run_recorded_scenario "slice-44-drag-overlay-semantics" "00-before-slice-44" "99-after-slice-44" "run_slice_44_drag_overlay_semantics" "run_slice_44_drag_overlay_semantics_setup" "01-ready-slice-44"
 }
 
+slice_45() {
+    run_recorded_scenario "slice-45-display-topology-recovery" "00-before-slice-45" "99-after-slice-45" "run_slice_45_display_topology_recovery" "run_slice_45_display_topology_recovery_setup" "01-ready-slice-45"
+}
+
 slice_26() {
     run_recorded_scenario "slice-26-zone-divider-drag" "00-before-slice-26" "99-after-slice-26" "run_slice_26_zone_divider_drag" "run_slice_26_zone_divider_drag_setup" "01-ready-slice-26"
 }
@@ -8095,6 +8271,9 @@ case "$ACTION" in
         ;;
     slice-44)
         slice_44
+        ;;
+    slice-45)
+        slice_45
         ;;
     slice-26)
         slice_26

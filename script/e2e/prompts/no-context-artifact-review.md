@@ -31,6 +31,10 @@ Slice:
   <artifact-dir>/logs/<recording>.mouse-events.tsv
 - event contact sheet, required when the reviewer packet lists one:
   <artifact-dir>/screenshots/<recording>.event-contact-sheet.jpg
+- topology event manifest, required when the reviewer packet lists one:
+  <artifact-dir>/logs/<recording>.topology-event-manifest.tsv
+- topology contact sheet, required when the reviewer packet lists one:
+  <artifact-dir>/screenshots/<recording>.topology-contact-sheet.jpg
 - copied config: <artifact-dir>/config/winmux.toml
 - guest transport summary, required for product-slice acceptance:
   <artifact-dir>/logs/guest-transport-summary.tsv
@@ -733,6 +737,28 @@ Slice-specific checks:
   changes. Require reviewers to compare against accepted
   Slice 36-41 artifacts and the repo root/product media before allowing the next
   slice.
+- Slice 45 must show display-topology recoverability as a deterministic Tart
+  simulation, not a real hardware hotplug claim. Inspect the primary annotated
+  recording first, then the raw recording, contact sheet, semantic sample
+  manifest, event manifest, topology event manifest, topology contact sheet,
+  caption-boundary frames, edge crops, proof manifest, topology logs, and final
+  command logs. Require event ids `topology-contract`, `topology-before`,
+  `simulated-loss`, `recovery-visible`, `simulated-return`, `topology-after`,
+  `final-windows-audit`, and `final-recoverability`, plus topology rows
+  `topology-before`, `simulated-loss`, `recovery-visible`,
+  `simulated-return`, `topology-after`, and `final-recoverability` with concrete
+  full-frame screenshot paths. Require exact non-claim evidence
+  `topology-proof	hardware-hotplug-claim	no`,
+  `topology-proof	real-machine-supplement-required	yes-before-real-disconnect-claim`,
+  `tart_topology_mode=deterministic-simulation`, and
+  `hardware_hotplug_claim=no`. Confirm final command logs show the full exact
+  formatted `winmux list-zones --format ...` and
+  `winmux list-windows --all --format ...` commands, Reference/left, Work/main,
+  Comms/right, and the three `slice45-*-topology.rtf` documents restored with no
+  offscreen-window claim. Reject final-state-only proof, logs-only topology
+  proof, missing topology contact sheet, vague command captions, and any review
+  that claims real physical display unplug/replug support without a supplemental
+  real-machine artifact.
 
 Verdict rules:
 - Use FAIL for any hard FAIL condition. Do not use PASS_WITH_NOTES for blockers.

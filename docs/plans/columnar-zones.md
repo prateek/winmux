@@ -8350,18 +8350,37 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   blocked by historical expected-chip drift/FinderInfo noise outside the
   overlay-sentinel change; the verifier self-test now exercises Slice 25,
   Slice 43, and Slice 44 overlay source lookup directly.
-- [ ] Define the exact topology transition path before scenario code:
+- [x] Define the exact topology transition path before scenario code:
   Tart-simulated display change if available; otherwise deterministic topology
   harness plus real-machine video. Record why the chosen path can prove
   disconnect/reconnect or resolution/id churn.
-- [ ] Define the topology-event storyboard before implementation. Required
+  Slice 45 will use a deterministic Tart topology harness first: the guest
+  records a visible topology board with real `winmux list-zones` and
+  `winmux list-windows --all` output for before, simulated-loss, recovery,
+  simulated-return/resolution-change, after, and final recoverability beats.
+  This proves the recoverability policy, window-zone/workspace state, and no
+  offscreen windows in the reproducible Tart pipeline. If Tart cannot perform a
+  real display disconnect/reconnect, true hardware hotplug remains a
+  supplemental real-machine artifact requirement before claiming real physical
+  disconnect/reconnect support.
+- [x] Define the topology-event storyboard before implementation. Required
   media: topology-before, display-loss or simulated-loss, recovery-visible,
   display-return or resolution-change, topology-after, and final
   recoverability. Generate `logs/<recording>.topology-event-manifest.tsv` and
   `screenshots/<recording>.topology-contact-sheet.jpg`; the reviewer packet
   must name exact full-frame screenshot paths for every row and reject
   final-state-only or logs-only topology proof.
-- [ ] Add Slice 45 caption chips before wiring the harness:
+  Storyboard beats are:
+  `topology-before` (`screenshots/02-topology-before-slice-45.png`),
+  `simulated-loss` (`screenshots/03-simulated-loss-slice-45.png`),
+  `recovery-visible` (`screenshots/04-recovery-visible-slice-45.png`),
+  `simulated-return` (`screenshots/05-simulated-return-slice-45.png`),
+  `topology-after` (`screenshots/06-topology-after-slice-45.png`), and
+  `final-recoverability` (`screenshots/07-final-recoverability-slice-45.png`).
+  Each beat must be backed by a topology event manifest row, a full-frame
+  screenshot, and visible board text that names physical monitor identity,
+  resolution, active zones, active workspaces, and recoverability status.
+- [x] Add Slice 45 caption chips before wiring the harness:
   `Config: zones bind to physical monitor; display ids may churn`,
   `Action: disconnect ultrawide`,
   `Result: windows recover on the remaining display`,
@@ -8369,17 +8388,38 @@ Pre-Slice-45 cleanup from Slice 44 retrospectives:
   `Run: winmux list-zones --format 'physical=%{monitor-physical-id}|zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}'`,
   `Run: winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'`,
   and `Result: Reference | Work | Comms restored; no offscreen windows`.
-- [ ] Add a visible topology board or product overlay to the Slice 45 proof
+- [x] Add a visible topology board or product overlay to the Slice 45 proof
   frames. During before/loss/recovery/return/after beats, the full frame must
   show physical monitor identity, resolution, active zone names, active
   workspaces, and recoverability status. Crops, support logs, and topology logs
   may corroborate only.
-- [ ] The required no-context review question for Slice 45 is: "Could a
+  The Slice 45 guest script now writes a visible TextEdit topology board for
+  each proof beat with the simulation boundary, full `list-zones` /
+  `list-windows` command surfaces, topology log path, zone state, and window
+  state.
+- [x] The required no-context review question for Slice 45 is: "Could a
   reviewer understand the display topology transition from the video alone
   before reading logs?" The accepted review must answer yes with exact media
   paths.
-- [ ] The final media must include a topology contact sheet and an event contact
-  sheet that read as a storyboard without opening logs.
+  The no-context artifact review prompt and generated reviewer packet now make
+  video-alone topology comprehension, exact media citations, and the
+  deterministic-simulation/non-hardware-hotplug boundary hard requirements.
+- [x] Wire the final-media gate so Slice 45 must include a topology contact
+  sheet and an event contact sheet that read as a storyboard without opening
+  logs.
+  The harness now generates
+  `logs/slice-45-display-topology-recovery.topology-event-manifest.tsv`,
+  `screenshots/slice-45-display-topology-recovery.topology-contact-sheet.jpg`,
+  the normal event manifest/contact sheet, and verifier checks that reject
+  missing or logs-only topology proof.
+- Local Slice 45 prep validation passed:
+  `bash -n script/e2e/tart-recording-harness script/e2e/guest/slice-45-display-topology-recovery.sh script/e2e/verify-artifact script/e2e/write-review-packet`,
+  Slice 45 guest `self-test`, `./script/e2e/tart-recording-harness annotation-preflight`,
+  `./script/e2e/verify-artifact --self-test`,
+  `shellcheck script/e2e/tart-recording-harness script/e2e/guest/slice-45-display-topology-recovery.sh script/e2e/verify-artifact script/e2e/write-review-packet`,
+  `swift test --filter MonitorTopologyTest/testZoneWorkspacesSurviveDisplayIdChurnAndResolutionChange`,
+  and full `make e2e-pre-tart-checks` including the 201-test focused Swift
+  suite.
 
 Goal: make zones survive realistic external-monitor use.
 

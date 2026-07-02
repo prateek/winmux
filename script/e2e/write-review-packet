@@ -67,6 +67,8 @@ contact_sheet_manifest="${LOGS_DIR}/${recording_name}.contact-sheet-manifest.tsv
 samples_dir="${SCREENSHOTS_DIR}/${recording_name}.samples"
 sample_manifest="${LOGS_DIR}/${recording_name}.sample-manifest.tsv"
 event_contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.event-contact-sheet.jpg"
+topology_event_manifest="${LOGS_DIR}/${recording_name}.topology-event-manifest.tsv"
+topology_contact_sheet="${SCREENSHOTS_DIR}/${recording_name}.topology-contact-sheet.jpg"
 edge_crops_dir="${SCREENSHOTS_DIR}/${recording_name}.edge-crops"
 edge_crops_manifest="${LOGS_DIR}/${recording_name}.edge-crops.tsv"
 transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
@@ -124,6 +126,16 @@ if [ -s "$event_contact_sheet" ]; then
     event_contact_sheet_label="$event_contact_sheet"
 else
     event_contact_sheet_label="not applicable"
+fi
+if [ -s "$topology_event_manifest" ]; then
+    topology_event_manifest_label="$topology_event_manifest"
+else
+    topology_event_manifest_label="not applicable"
+fi
+if [ -s "$topology_contact_sheet" ]; then
+    topology_contact_sheet_label="$topology_contact_sheet"
+else
+    topology_contact_sheet_label="not applicable"
 fi
 if [ -s "$caption_tail" ]; then
     caption_tail_label="$caption_tail"
@@ -287,11 +299,13 @@ write_reviewer_citation_checklist() {
     add_file_citation_row_if_present media raw-recording "$raw_recording_path"
     add_file_citation_row_if_present media contact-sheet "$contact_sheet"
     add_file_citation_row_if_present media event-contact-sheet "$event_contact_sheet"
+    add_file_citation_row_if_present media topology-contact-sheet "$topology_contact_sheet"
     add_file_citation_row_if_present media before-screenshot "$before_screenshot"
     add_file_citation_row_if_present media ready-screenshot "$ready_screenshot"
     add_file_citation_row_if_present media after-screenshot "$after_screenshot"
     add_file_citation_row_if_present manifest sample-manifest "$sample_manifest"
     add_file_citation_row_if_present manifest event-manifest "$event_manifest"
+    add_file_citation_row_if_present manifest topology-event-manifest "$topology_event_manifest"
     add_file_citation_row_if_present manifest expected-chips "$expected_chips"
     add_file_citation_row_if_present manifest edge-crops "$edge_crops_manifest"
     add_file_citation_row_if_present manifest proof-manifest "$proof_manifest"
@@ -318,6 +332,15 @@ write_reviewer_citation_checklist() {
                 printf("event\t%s\t%s\tcite event id, caption label, path, and expected state\n", $1, $6)
             }
         ' "$event_manifest" >>"$reviewer_citation_checklist"
+    fi
+
+    if [ -s "$topology_event_manifest" ]; then
+        /usr/bin/awk -F'\t' '
+            $0 == "" || $1 ~ /^#/ { next }
+            {
+                printf("topology-event\t%s\t%s\tcite topology event id, caption label, path, and expected state\n", $1, $6)
+            }
+        ' "$topology_event_manifest" >>"$reviewer_citation_checklist"
     fi
 
     if [ -s "$expected_chips" ]; then
@@ -700,6 +723,20 @@ EOF
 - Reject proof-phase `move-node-to-zone`, manual workspace reassignment, hidden cleanup, final-state-only proof, logs-only proof, stale final screenshots, unreadable command captions, or any review that does not cite `manual-move-node-to-zone-during-proof=no`.
 - Compare against accepted Slice 36-41 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, and restrained command-chip style used in the accepted demos.
 - State explicitly that Slice 42 proves zone-level hide/restore plus whole-layout profile switching through zone-profile aliases while preserving parked workspace/window ids. It does not prove scene replacement or a visual profile editor.
+EOF
+            ;;
+        slice-45-display-topology-recovery)
+            cat <<'EOF'
+- Inspect the annotated recording first, then the raw recording, contact sheet, semantic sample manifest, event manifest, topology event manifest, topology contact sheet, caption-boundary frames, edge crops, proof manifest, topology logs, and final command logs.
+- Confirm the recording is a fresh Slice 45 artifact named `slice-45-display-topology-recovery`, not reused Slice 42, Slice 43, or Slice 44 media. It must show the full topology storyboard: before, simulated display loss, recovery visible, simulated return/resolution churn, topology after, and final recoverability.
+- Confirm captions expose the user-facing surface and actions: `Config: zones bind to physical monitor; display ids may churn`, `Action: disconnect ultrawide`, `Result: windows recover on the remaining display`, `Action: reconnect ultrawide at 3440x1440`, the ordered segmented `Run: winmux list-zones --format` command sequence, the ordered segmented `Run: winmux list-windows --all --format` command sequence, and `Result: Reference | Work | Comms restored; no offscreen windows`.
+- Inspect `logs/slice-45-display-topology-recovery.topology-event-manifest.tsv` and `screenshots/slice-45-display-topology-recovery.topology-contact-sheet.jpg`; require rows for `topology-before`, `simulated-loss`, `recovery-visible`, `simulated-return`, `topology-after`, and `final-recoverability`, each citing a concrete full-frame screenshot path.
+- Inspect `logs/slice-45-display-topology-recovery.event-manifest.tsv`; require `topology-contract`, `topology-before`, `simulated-loss`, `recovery-visible`, `simulated-return`, `topology-after`, `final-windows-audit`, and `final-recoverability` in order with concrete media paths. Reject final-state-only proof or logs-only topology proof.
+- Inspect `logs/slice-45-display-topology-recovery.proof-manifest.tsv` and every `logs/slice-45-topology-*.log`; require `topology-proof	hardware-hotplug-claim	no`, `topology-proof	real-machine-supplement-required	yes-before-real-disconnect-claim`, `tart_topology_mode=deterministic-simulation`, and `hardware_hotplug_claim=no`. Reject any review that claims real hardware disconnect/reconnect support from this Tart artifact alone.
+- Inspect `logs/slice-45-final-zones.log` and `logs/slice-45-final-windows.log`; require the full exact formatted `winmux list-zones --format ...` and `winmux list-windows --all --format ...` commands, `zone=left|name=Reference`, `zone=main|name=Work`, `zone=right|name=Comms`, and window rows for `slice45-reference-topology.rtf`, `slice45-work-topology.rtf`, and `slice45-comms-topology.rtf` in the restored zones.
+- Inspect `logs/slice-45-command-timing.log`; cite `topology-before-offset-seconds`, `simulated-loss-offset-seconds`, `recovery-visible-offset-seconds`, `simulated-return-offset-seconds`, `topology-after-offset-seconds`, and `final-recoverability-offset-seconds`, and reject if action/result captions appear after the visual transition they claim.
+- Compare against accepted Slice 36-42 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, and restrained command-chip style used in the accepted demos.
+- State explicitly that Slice 45 proves deterministic Tart topology recoverability policy and command-surface audits across simulated topology churn. It does not prove real physical display unplug/replug until a supplemental real-machine video is recorded and reviewed.
 EOF
             ;;
         slice-8-window-routing)
@@ -1085,6 +1122,8 @@ $(drag_screenshot_lines)
 - expected caption chips: ${expected_chips:-not present}
 - proof manifest: ${proof_manifest_label}
 - event manifest: ${event_manifest_label}
+- topology event manifest: ${topology_event_manifest_label}
+- topology contact sheet: ${topology_contact_sheet_label}
 - mouse event timings: ${mouse_events_label}
 - color sentinel manifest: ${color_sentinel_label}
 - overlay sentinel manifest: ${overlay_sentinel_label}

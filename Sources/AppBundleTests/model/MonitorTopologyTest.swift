@@ -382,6 +382,67 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
     }
 
+    func testZoneWorkspacesSurviveDisplayIdChurnAndResolutionChange() {
+        let originalUltrawide = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 7,
+            name: "Studio Ultrawide",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 3440, height: 1440),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 24, width: 3440, height: 1416),
+            isMain: true,
+        )
+        setMonitorsForTests([originalUltrawide])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [
+            ZoneConfig(
+                monitor: MonitorDescription.caseSensitivePattern("Studio Ultrawide"),
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.20),
+                    ZoneColumnConfig(id: "main", name: "Work", width: 0.60),
+                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.20),
+                ],
+            ),
+        ]
+        let originalViewports = workspaceViewports
+        XCTAssertEqual(originalViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(originalViewports.map(\.monitorAppKitNsScreenScreensId), [7, 7, 7])
+
+        let reference = Workspace.get(byName: "reference-after-id-churn")
+        let work = Workspace.get(byName: "work-after-id-churn")
+        let comms = Workspace.get(byName: "comms-after-id-churn")
+        XCTAssertTrue(originalViewports[0].setActiveWorkspace(reference))
+        XCTAssertTrue(originalViewports[1].setActiveWorkspace(work))
+        XCTAssertTrue(originalViewports[2].setActiveWorkspace(comms))
+
+        let returnedUltrawide = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 42,
+            name: "Studio Ultrawide",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 3000, height: 1200),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 24, width: 3000, height: 1176),
+            isMain: true,
+        )
+        setMonitorsForTests([returnedUltrawide])
+        Workspace.reconcileWorkspaceState()
+        let returnedViewports = workspaceViewports
+
+        XCTAssertEqual(returnedViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(returnedViewports.map(\.monitorAppKitNsScreenScreensId), [42, 42, 42])
+        XCTAssertEqual(returnedViewports.map(\.physicalMonitor.name), ["Studio Ultrawide", "Studio Ultrawide", "Studio Ultrawide"])
+        assertRectsEqual(returnedViewports.map(\.rect), [
+            Rect(topLeftX: 0, topLeftY: 24, width: 600, height: 1176),
+            Rect(topLeftX: 600, topLeftY: 24, width: 1800, height: 1176),
+            Rect(topLeftX: 2400, topLeftY: 24, width: 600, height: 1176),
+        ])
+        XCTAssertTrue(MonitorViewportId(originalViewports[0]).hasSameStableIdentity(as: MonitorViewportId(returnedViewports[0])))
+        XCTAssertTrue(MonitorViewportId(originalViewports[1]).hasSameStableIdentity(as: MonitorViewportId(returnedViewports[1])))
+        XCTAssertTrue(MonitorViewportId(originalViewports[2]).hasSameStableIdentity(as: MonitorViewportId(returnedViewports[2])))
+        XCTAssertTrue(returnedViewports[0].activeWorkspace === reference)
+        XCTAssertTrue(returnedViewports[1].activeWorkspace === work)
+        XCTAssertTrue(returnedViewports[2].activeWorkspace === comms)
+    }
+
     func testDisabledMiddleZoneReflowsRemainingColumnsAndCanBeRestored() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,

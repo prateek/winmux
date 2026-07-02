@@ -2372,6 +2372,18 @@ ensure_review_packet() {
             "${relative_run_dir}/screenshots/${recording_name}.event-contact-sheet.jpg" \
             || die "Review packet missing event contact sheet path"
     fi
+    if [ -s "${LOGS_DIR}/${recording_name}.topology-event-manifest.tsv" ]; then
+        review_packet_contains_any "$packet_path" \
+            "${LOGS_DIR}/${recording_name}.topology-event-manifest.tsv" \
+            "${absolute_run_dir}/logs/${recording_name}.topology-event-manifest.tsv" \
+            "${relative_run_dir}/logs/${recording_name}.topology-event-manifest.tsv" \
+            || die "Review packet missing topology event manifest path"
+        review_packet_contains_any "$packet_path" \
+            "${SCREENSHOTS_DIR}/${recording_name}.topology-contact-sheet.jpg" \
+            "${absolute_run_dir}/screenshots/${recording_name}.topology-contact-sheet.jpg" \
+            "${relative_run_dir}/screenshots/${recording_name}.topology-contact-sheet.jpg" \
+            || die "Review packet missing topology contact sheet path"
+    fi
     local transport_summary="${LOGS_DIR}/guest-transport-summary.tsv"
     if [ -s "$transport_summary" ]; then
         review_packet_contains_any "$packet_path" \
@@ -2577,6 +2589,14 @@ event_manifest_path() {
 
 event_contact_sheet_path() {
     printf '%s/%s.event-contact-sheet.jpg\n' "$SCREENSHOTS_DIR" "$recording_name"
+}
+
+topology_event_manifest_path() {
+    printf '%s/%s.topology-event-manifest.tsv\n' "$LOGS_DIR" "$recording_name"
+}
+
+topology_contact_sheet_path() {
+    printf '%s/%s.topology-contact-sheet.jpg\n' "$SCREENSHOTS_DIR" "$recording_name"
 }
 
 event_manifest_value() {
@@ -3303,8 +3323,10 @@ require_review_freshness() {
         "$(demo_recording_path)" \
         "$(demo_cut_manifest_path)" \
         "$(event_contact_sheet_path)" \
+        "$(topology_contact_sheet_path)" \
         "$(sample_manifest_path)" \
         "$(event_manifest_path)" \
+        "$(topology_event_manifest_path)" \
         "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
         "${LOGS_DIR}/${recording_name}.edge-crops.tsv"; do
         require_review_fresh_dependency "$review_path" "$dependency" "artifact dependency"
@@ -3686,6 +3708,43 @@ require_review_freshness() {
             [ -s "$dependency" ] || continue
             [ "$review_path" -nt "$dependency" ] \
                 || die "Review is stale relative to Slice 42 evidence dependency: $dependency"
+        done
+    fi
+    if [ "${recording_name:-}" = "slice-45-display-topology-recovery" ]; then
+        for dependency in \
+            "${LOGS_DIR}/slice-45-setup.log" \
+            "${LOGS_DIR}/slice-45-config.toml" \
+            "${LOGS_DIR}/slice-45-windows-ready.log" \
+            "${LOGS_DIR}/slice-45-zones-ready.log" \
+            "${LOGS_DIR}/slice-45-windows-before.log" \
+            "${LOGS_DIR}/slice-45-zones-before.log" \
+            "${LOGS_DIR}/slice-45-topology-before.log" \
+            "${LOGS_DIR}/slice-45-topology-simulated-loss.log" \
+            "${LOGS_DIR}/slice-45-windows-recovery-visible.log" \
+            "${LOGS_DIR}/slice-45-zones-recovery-visible.log" \
+            "${LOGS_DIR}/slice-45-topology-recovery-visible.log" \
+            "${LOGS_DIR}/slice-45-topology-simulated-return.log" \
+            "${LOGS_DIR}/slice-45-windows-after.log" \
+            "${LOGS_DIR}/slice-45-zones-after.log" \
+            "${LOGS_DIR}/slice-45-topology-after.log" \
+            "${LOGS_DIR}/slice-45-final-windows.log" \
+            "${LOGS_DIR}/slice-45-final-zones.log" \
+            "${LOGS_DIR}/slice-45-topology-final-recoverability.log" \
+            "${LOGS_DIR}/slice-45-command-timing.log" \
+            "${LOGS_DIR}/slice-45-display-topology-recovery.topology-event-manifest.tsv" \
+            "${SCREENSHOTS_DIR}/slice-45-display-topology-recovery.topology-contact-sheet.jpg" \
+            "${SCREENSHOTS_DIR}/00-before-slice-45.png" \
+            "${SCREENSHOTS_DIR}/01-ready-slice-45.png" \
+            "${SCREENSHOTS_DIR}/02-topology-before-slice-45.png" \
+            "${SCREENSHOTS_DIR}/03-simulated-loss-slice-45.png" \
+            "${SCREENSHOTS_DIR}/04-recovery-visible-slice-45.png" \
+            "${SCREENSHOTS_DIR}/05-simulated-return-slice-45.png" \
+            "${SCREENSHOTS_DIR}/06-topology-after-slice-45.png" \
+            "${SCREENSHOTS_DIR}/07-final-recoverability-slice-45.png" \
+            "${SCREENSHOTS_DIR}/99-after-slice-45.png"; do
+            [ -s "$dependency" ] || continue
+            [ "$review_path" -nt "$dependency" ] \
+                || die "Review is stale relative to Slice 45 evidence dependency: $dependency"
         done
     fi
 }
@@ -5242,6 +5301,105 @@ EOF
         || die "Slice 42 review must discuss parked workspace/window-id restoration"
 }
 
+require_review_mentions_slice_45_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-45-display-topology-recovery) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+$(topology_event_manifest_path)	topology event manifest
+$(topology_contact_sheet_path)	topology contact sheet
+${LOGS_DIR}/${recording_name}.proof-manifest.tsv	proof manifest
+${LOGS_DIR}/${recording_name}.expected-chips.txt	expected caption chips
+${LOGS_DIR}/slice-45-setup.log	setup log
+${LOGS_DIR}/slice-45-windows-ready.log	ready visible windows log
+${LOGS_DIR}/slice-45-zones-ready.log	ready zones log
+${LOGS_DIR}/slice-45-topology-before.log	topology before log
+${LOGS_DIR}/slice-45-topology-simulated-loss.log	simulated display-loss log
+${LOGS_DIR}/slice-45-topology-recovery-visible.log	recovery visible log
+${LOGS_DIR}/slice-45-topology-simulated-return.log	simulated return log
+${LOGS_DIR}/slice-45-topology-after.log	topology after log
+${LOGS_DIR}/slice-45-topology-final-recoverability.log	final recoverability log
+${LOGS_DIR}/slice-45-final-zones.log	final list-zones log
+${LOGS_DIR}/slice-45-final-windows.log	final list-windows log
+${LOGS_DIR}/slice-45-command-timing.log	command timing log
+${SCREENSHOTS_DIR}/00-before-slice-45.png	clean desktop before screenshot
+${SCREENSHOTS_DIR}/01-ready-slice-45.png	ready screenshot
+${SCREENSHOTS_DIR}/02-topology-before-slice-45.png	topology before screenshot
+${SCREENSHOTS_DIR}/03-simulated-loss-slice-45.png	simulated display-loss screenshot
+${SCREENSHOTS_DIR}/04-recovery-visible-slice-45.png	recovery visible screenshot
+${SCREENSHOTS_DIR}/05-simulated-return-slice-45.png	simulated return screenshot
+${SCREENSHOTS_DIR}/06-topology-after-slice-45.png	topology after screenshot
+${SCREENSHOTS_DIR}/07-final-recoverability-slice-45.png	final recoverability screenshot
+${SCREENSHOTS_DIR}/99-after-slice-45.png	final product-view screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 45 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 45 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    for event_id in \
+        topology-contract \
+        topology-before \
+        simulated-loss \
+        recovery-visible \
+        simulated-return \
+        topology-after \
+        final-windows-audit \
+        final-recoverability; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 45 review must cite event: $event_id"
+    done
+    for timing_key in \
+        topology-before-offset-seconds \
+        simulated-loss-offset-seconds \
+        recovery-visible-offset-seconds \
+        simulated-return-offset-seconds \
+        topology-after-offset-seconds \
+        final-recoverability-offset-seconds; do
+        grep -F "$timing_key" "$review_path" >/dev/null \
+            || die "Slice 45 review must cite timing value key: $timing_key"
+    done
+    for exact in \
+        'hardware_hotplug_claim=no' \
+        'tart_topology_mode=deterministic-simulation' \
+        'topology-proof	hardware-hotplug-claim	no' \
+        'topology-proof	real-machine-supplement-required	yes-before-real-disconnect-claim' \
+        'Config: zones bind to physical monitor; display ids may churn' \
+        'Action: disconnect ultrawide' \
+        'Result: windows recover on the remaining display' \
+        'Action: reconnect ultrawide at 3440x1440' \
+        'Result: Reference | Work | Comms restored; no offscreen windows' \
+        'slice45-reference-topology.rtf' \
+        'slice45-work-topology.rtf' \
+        'slice45-comms-topology.rtf'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 45 review must cite exact evidence text: $exact"
+    done
+    grep -Eiq 'simulation|simulated' "$review_path" \
+        || die "Slice 45 review must identify the deterministic simulation boundary"
+    grep -Eiq 'real-machine|hardware' "$review_path" \
+        || die "Slice 45 review must identify the real hardware supplement boundary"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -5290,7 +5448,7 @@ require_review_mentions_packet_baselines() {
     local candidate_path
     local exact_local_baselines=0
     case "${recording_name:-}" in
-        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles) exact_local_baselines=1 ;;
+        slice-31-relaunch-saved-layout|slice-32-divider-save-relaunch|slice-37-starter-onboarding|slice-38-user-readiness|slice-39-dogfood-install-permissions|slice-40-zone-setup-assistant|slice-41-zone-affinity-beta|slice-42-zone-availability-profiles|slice-45-display-topology-recovery) exact_local_baselines=1 ;;
     esac
     while IFS= read -r candidate; do
         [ -n "$candidate" ] || continue
@@ -5594,6 +5752,7 @@ run_review_lint() {
     require_review_mentions_slice_40_evidence "$review_path"
     require_review_mentions_slice_41_evidence "$review_path"
     require_review_mentions_slice_42_evidence "$review_path"
+    require_review_mentions_slice_45_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -9438,6 +9597,176 @@ require_slice_42_zone_availability_profiles_proof() {
     done
 }
 
+require_slice_45_display_topology_recovery_proof() {
+    local proof="${RUN_DIR}/slice-45-display-topology-recovery-proof.txt"
+    local done="${LOGS_DIR}/slice-45-display-topology-recovery.done"
+    local setup_log="${LOGS_DIR}/slice-45-setup.log"
+    local ready_windows="${LOGS_DIR}/slice-45-windows-ready.log"
+    local ready_zones="${LOGS_DIR}/slice-45-zones-ready.log"
+    local before_windows="${LOGS_DIR}/slice-45-windows-before.log"
+    local before_zones="${LOGS_DIR}/slice-45-zones-before.log"
+    local recovery_windows="${LOGS_DIR}/slice-45-windows-recovery-visible.log"
+    local recovery_zones="${LOGS_DIR}/slice-45-zones-recovery-visible.log"
+    local after_windows="${LOGS_DIR}/slice-45-windows-after.log"
+    local after_zones="${LOGS_DIR}/slice-45-zones-after.log"
+    local final_windows="${LOGS_DIR}/slice-45-final-windows.log"
+    local final_zones="${LOGS_DIR}/slice-45-final-zones.log"
+    local timing_log="${LOGS_DIR}/slice-45-command-timing.log"
+    local topology_manifest
+    local topology_contact_sheet
+    topology_manifest="$(topology_event_manifest_path)"
+    topology_contact_sheet="$(topology_contact_sheet_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 45"
+    require_file "$setup_log"
+    require_file "$ready_windows"
+    require_file "$ready_zones"
+    require_file "$before_windows"
+    require_file "$before_zones"
+    require_file "$recovery_windows"
+    require_file "$recovery_zones"
+    require_file "$after_windows"
+    require_file "$after_zones"
+    require_file "$final_windows"
+    require_file "$final_zones"
+    require_file "$timing_log"
+    require_file "$proof_manifest"
+    require_file "$topology_manifest"
+    require_file "$topology_contact_sheet"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/02-topology-before-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/03-simulated-loss-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/04-recovery-visible-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/05-simulated-return-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/06-topology-after-slice-45.png"
+    require_file "${SCREENSHOTS_DIR}/07-final-recoverability-slice-45.png"
+
+    grep -F 'PASS: deterministic Tart topology simulation shows the before/loss/recovery/return/after/final storyboard' "$proof" >/dev/null \
+        || die "Slice 45 proof missing deterministic topology PASS claim"
+    grep -F 'does not claim a real hardware disconnect without a supplemental real-machine video' "$proof" >/dev/null \
+        || die "Slice 45 proof missing real hardware non-claim"
+    grep -F 'Proof mode: deterministic Tart simulation; real hardware disconnect requires supplemental video before claim.' "$setup_log" >/dev/null \
+        || die "Slice 45 setup log missing proof-mode boundary"
+
+    [ "$(manifest_value "$proof_manifest" topology-proof mode)" = deterministic-tart-simulation ] \
+        || die "Slice 45 proof manifest must declare deterministic Tart simulation mode"
+    [ "$(manifest_value "$proof_manifest" topology-proof hardware-hotplug-claim)" = no ] \
+        || die "Slice 45 proof manifest must declare hardware-hotplug-claim=no"
+    [ "$(manifest_value "$proof_manifest" topology-proof real-machine-supplement-required)" = yes-before-real-disconnect-claim ] \
+        || die "Slice 45 proof manifest must require a real-machine supplement before a real disconnect claim"
+
+    local manifest_key expected_path
+    for manifest_key in \
+        topology-before:screenshots/02-topology-before-slice-45.png \
+        simulated-loss:screenshots/03-simulated-loss-slice-45.png \
+        recovery-visible:screenshots/04-recovery-visible-slice-45.png \
+        simulated-return:screenshots/05-simulated-return-slice-45.png \
+        topology-after:screenshots/06-topology-after-slice-45.png \
+        final-recoverability:screenshots/07-final-recoverability-slice-45.png; do
+        expected_path="${manifest_key#*:}"
+        manifest_key="${manifest_key%%:*}"
+        [ "$(manifest_value "$proof_manifest" topology-screenshots "$manifest_key")" = "$expected_path" ] \
+            || die "Slice 45 proof manifest missing screenshot row for ${manifest_key}"
+        require_file "${RUN_DIR}/${expected_path}"
+    done
+
+    local topology_log
+    for topology_log in \
+        "${LOGS_DIR}/slice-45-topology-before.log" \
+        "${LOGS_DIR}/slice-45-topology-simulated-loss.log" \
+        "${LOGS_DIR}/slice-45-topology-recovery-visible.log" \
+        "${LOGS_DIR}/slice-45-topology-simulated-return.log" \
+        "${LOGS_DIR}/slice-45-topology-after.log" \
+        "${LOGS_DIR}/slice-45-topology-final-recoverability.log"; do
+        require_file "$topology_log"
+        grep -F 'tart_topology_mode=deterministic-simulation' "$topology_log" >/dev/null \
+            || die "Slice 45 topology log missing deterministic simulation marker: $topology_log"
+        grep -F 'hardware_hotplug_claim=no' "$topology_log" >/dev/null \
+            || die "Slice 45 topology log missing hardware non-claim marker: $topology_log"
+        grep -F 'winmux list-zones --format' "$topology_log" >/dev/null \
+            || die "Slice 45 topology log missing list-zones audit: $topology_log"
+        grep -F 'winmux list-windows --all --format' "$topology_log" >/dev/null \
+            || die "Slice 45 topology log missing list-windows audit: $topology_log"
+    done
+
+    grep -F "$ winmux list-zones --format 'physical=%{monitor-physical-id}|zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}|left=%{monitor-left}|width=%{monitor-width}'" "$final_zones" >/dev/null \
+        || die "Slice 45 final zones log missing exact formatted list-zones command"
+    grep -F "$ winmux list-windows --all --format '%{window-id}|%{window-title}|zone=%{monitor-zone-id}|workspace=%{workspace}|monitor=%{monitor-name}'" "$final_windows" >/dev/null \
+        || die "Slice 45 final windows log missing exact formatted list-windows command"
+
+    local expected_text
+    for expected_text in \
+        'zone=left|name=Reference' \
+        'zone=main|name=Work' \
+        'zone=right|name=Comms'; do
+        grep -F "$expected_text" "$final_zones" >/dev/null \
+            || die "Slice 45 final zones log missing restored zone text: $expected_text"
+    done
+    for expected_text in \
+        'slice45-reference-topology.rtf|zone=left' \
+        'slice45-work-topology.rtf|zone=main' \
+        'slice45-comms-topology.rtf|zone=right'; do
+        grep -F "$expected_text" "$final_windows" >/dev/null \
+            || die "Slice 45 final windows log missing restored window text: $expected_text"
+    done
+
+    local timing_key
+    for timing_key in \
+        topology-before-offset-seconds \
+        simulated-loss-offset-seconds \
+        recovery-visible-offset-seconds \
+        simulated-return-offset-seconds \
+        topology-after-offset-seconds \
+        final-recoverability-offset-seconds; do
+        [ -n "$(value_from_log "$timing_key" "$timing_log")" ] \
+            || die "Slice 45 timing log missing $timing_key"
+    done
+    require_annotation_chip_index_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format" \
+        1 \
+        "$(value_from_log topology-before-offset-seconds "$timing_log")" \
+        "Slice 45 before audit must happen while the first list-zones caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: disconnect ultrawide" \
+        "$(value_from_log simulated-loss-offset-seconds "$timing_log")" \
+        "Slice 45 simulated loss must happen while its action caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Result: windows recover on the remaining display" \
+        "$(value_from_log recovery-visible-offset-seconds "$timing_log")" \
+        "Slice 45 recovery must happen while its result caption is visible"
+    require_annotation_chip_covers_offset "$annotation_plan" \
+        "Action: reconnect ultrawide at 3440x1440" \
+        "$(value_from_log simulated-return-offset-seconds "$timing_log")" \
+        "Slice 45 simulated return must happen while its action caption is visible"
+    require_annotation_chip_index_covers_offset "$annotation_plan" \
+        "Run: winmux list-zones --format" \
+        2 \
+        "$(value_from_log topology-after-offset-seconds "$timing_log")" \
+        "Slice 45 after audit must happen while the second list-zones caption is visible"
+
+    local chip
+    for chip in \
+        "Config: zones bind to physical monitor; display ids may churn" \
+        "Run: winmux list-zones --format" \
+        "Action: disconnect ultrawide" \
+        "Result: windows recover on the remaining display" \
+        "Action: reconnect ultrawide at 3440x1440" \
+        "Config: physical=%{monitor-physical-id}|zone=%{monitor-zone-id}" \
+        "Config: name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}" \
+        "Config: left=%{monitor-left}|width=%{monitor-width}" \
+        "Run: winmux list-windows --all --format" \
+        "Config: %{window-id}|%{window-title}|zone=%{monitor-zone-id}" \
+        "Config: workspace=%{workspace}|monitor=%{monitor-name}" \
+        "Result: Reference | Work | Comms restored; no offscreen windows"; do
+        grep -F "$chip" "$annotation_plan" >/dev/null \
+            || die "Slice 45 annotations missing chip: $chip"
+    done
+
+    require_slice_45_event_manifest "$(event_manifest_path)"
+    require_slice_45_topology_event_manifest "$topology_manifest"
+}
+
 require_slice_8_window_routing_proof() {
     local proof="${RUN_DIR}/slice-8-window-routing-proof.txt"
     local done="${LOGS_DIR}/slice-8-window-routing.done"
@@ -13037,6 +13366,106 @@ require_slice_42_event_manifest() {
     done
 }
 
+require_topology_event_manifest_paths() {
+    local manifest_path="$1"
+    require_file "$manifest_path"
+
+    local event_id relative_path
+    while IFS=$'\t' read -r event_id _kind _seconds _caption _sample relative_path _expected; do
+        case "${event_id:-}" in
+            ""|\#*) continue ;;
+        esac
+        [ -n "${relative_path:-}" ] || continue
+        [ "$relative_path" != "-" ] || continue
+        case "$relative_path" in
+            /*|*../*) die "Topology event manifest path must be run-relative and stay inside the artifact: $relative_path" ;;
+        esac
+        require_file "${RUN_DIR}/${relative_path}"
+    done <"$manifest_path"
+}
+
+require_slice_45_topology_event_manifest() {
+    local manifest_path="$1"
+    require_topology_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" topology-before context
+    require_event_manifest_event "$manifest_path" simulated-loss action
+    require_event_manifest_event "$manifest_path" recovery-visible recovery
+    require_event_manifest_event "$manifest_path" simulated-return action
+    require_event_manifest_event "$manifest_path" topology-after inspection
+    require_event_manifest_event "$manifest_path" final-recoverability result
+
+    require_event_sample_label "$manifest_path" topology-before topology-before
+    require_event_sample_label "$manifest_path" simulated-loss simulated-loss
+    require_event_sample_label "$manifest_path" recovery-visible recovery-visible
+    require_event_sample_label "$manifest_path" simulated-return simulated-return
+    require_event_sample_label "$manifest_path" topology-after topology-after
+    require_event_sample_label "$manifest_path" final-recoverability final-recoverability
+
+    require_event_before "$manifest_path" topology-before simulated-loss \
+        "Slice 45 topology manifest must show before state before simulated loss"
+    require_event_before "$manifest_path" simulated-loss recovery-visible \
+        "Slice 45 topology manifest must show simulated loss before recovery"
+    require_event_before "$manifest_path" recovery-visible simulated-return \
+        "Slice 45 topology manifest must show recovery before simulated return"
+    require_event_before "$manifest_path" simulated-return topology-after \
+        "Slice 45 topology manifest must show simulated return before after state"
+    require_event_before "$manifest_path" topology-after final-recoverability \
+        "Slice 45 topology manifest must show after state before final recoverability"
+}
+
+require_slice_45_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+
+    require_event_manifest_event "$manifest_path" topology-contract context
+    require_event_manifest_event "$manifest_path" topology-before context
+    require_event_manifest_event "$manifest_path" simulated-loss action
+    require_event_manifest_event "$manifest_path" recovery-visible recovery
+    require_event_manifest_event "$manifest_path" simulated-return action
+    require_event_manifest_event "$manifest_path" topology-after inspection
+    require_event_manifest_event "$manifest_path" final-windows-audit command
+    require_event_manifest_event "$manifest_path" final-recoverability result
+
+    require_event_sample_label "$manifest_path" topology-contract topology-contract
+    require_event_sample_label "$manifest_path" topology-before topology-before
+    require_event_sample_label "$manifest_path" simulated-loss simulated-loss
+    require_event_sample_label "$manifest_path" recovery-visible recovery-visible
+    require_event_sample_label "$manifest_path" simulated-return simulated-return
+    require_event_sample_label "$manifest_path" topology-after topology-after
+    require_event_sample_label "$manifest_path" final-windows-audit final-windows-audit
+    require_event_sample_label "$manifest_path" final-recoverability final-recoverability
+
+    require_event_before "$manifest_path" topology-contract topology-before \
+        "Slice 45 event manifest must show topology contract before before-state audit"
+    require_event_before "$manifest_path" topology-before simulated-loss \
+        "Slice 45 event manifest must show before state before simulated loss"
+    require_event_before "$manifest_path" simulated-loss recovery-visible \
+        "Slice 45 event manifest must show simulated loss before recovery"
+    require_event_before "$manifest_path" recovery-visible simulated-return \
+        "Slice 45 event manifest must show recovery before simulated return"
+    require_event_before "$manifest_path" simulated-return topology-after \
+        "Slice 45 event manifest must show simulated return before topology after"
+    require_event_before "$manifest_path" topology-after final-windows-audit \
+        "Slice 45 event manifest must show topology after before final windows audit"
+    require_event_before "$manifest_path" final-windows-audit final-recoverability \
+        "Slice 45 event manifest must show final windows audit before final result"
+
+    local event_id path
+    for event_id in \
+        topology-contract \
+        topology-before \
+        simulated-loss \
+        recovery-visible \
+        simulated-return \
+        topology-after \
+        final-windows-audit \
+        final-recoverability; do
+        path="$(require_event_manifest_value "$manifest_path" "$event_id" path)"
+        [ "$path" != "-" ] || die "Slice 45 event ${event_id} must cite concrete media"
+    done
+}
+
 require_slice_21_event_manifest() {
     local manifest_path="$1"
     require_event_manifest_paths "$manifest_path"
@@ -14969,6 +15398,9 @@ case "$recording_name" in
     slice-42-zone-availability-profiles)
         require_slice_42_zone_availability_profiles_proof
         ;;
+    slice-45-display-topology-recovery)
+        require_slice_45_display_topology_recovery_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -15083,6 +15515,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_40_evidence "$review_path"
     require_review_mentions_slice_41_evidence "$review_path"
     require_review_mentions_slice_42_evidence "$review_path"
+    require_review_mentions_slice_45_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
