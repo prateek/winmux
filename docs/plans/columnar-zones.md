@@ -9248,6 +9248,11 @@ Implementation update, 2026-07-02:
   retry-policy gap, the gate now also requires `slice-50-run` to be a single
   post-recording attempt with zero failures, `mutation_started=yes`, and a
   non-empty `first_mutation_line`.
+- `artifacts/e2e/slice-50-pre-tart-20260702T132706Z` produced a discarded Tart
+  attempt that correctly stopped after a post-mutation support-bundle schema
+  failure. The follow-up checker fix keeps app/app-name redaction strict when
+  those matchers are configured, but allows normal default-config support
+  bundles whose affinity rule only has a window-title matcher.
 - `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
   dirty-source packaging smoke. It is useful as implementation evidence, but it
   is not accepted Slice 50 evidence; accepted evidence must come from a clean

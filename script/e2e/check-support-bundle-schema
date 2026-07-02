@@ -147,22 +147,48 @@ validate_required_text() {
     require_contains config-redacted.toml "<redacted>"
 }
 
+validate_zone_affinity_redaction() {
+    local expected_title_value="$1"
+    /usr/bin/awk -F'\t' -v expected_title_value="$expected_title_value" '
+        NR == 1 { next }
+        {
+            app_id = $3
+            app_name = $4
+            title = $5
+            if (app_id != "false" && app_id != "true:<redacted-app-identifier>") {
+                printf("unexpected app-id redaction value: %s\n", app_id) > "/dev/stderr"
+                exit 1
+            }
+            if (app_name != "false" && app_name != "true:<redacted-app-identifier>") {
+                printf("unexpected app-name redaction value: %s\n", app_name) > "/dev/stderr"
+                exit 1
+            }
+            if (title != "false" && title != expected_title_value) {
+                printf("unexpected window-title redaction value: %s\n", title) > "/dev/stderr"
+                exit 1
+            }
+        }
+    ' "${BUNDLE_DIR}/zone-affinities.tsv" \
+        || die "zone-affinities.tsv has invalid redaction values"
+}
+
 validate_redaction() {
     require_contains redaction-summary.txt "home-paths=<home>"
     require_contains redaction-summary.txt "usernames=<user>"
     require_contains redaction-summary.txt "app-identifiers=<redacted-app-identifier>"
     require_contains redaction-summary.txt "secret-like-config-values=<redacted>"
     require_contains redaction-summary.txt "non-config-paths=<path-redacted>"
-    require_contains zone-affinities.tsv "true:<redacted-app-identifier>"
 
     if [ "$MODE" = "redacted" ]; then
         require_contains redaction-summary.txt "window-titles=<redacted-window-title>"
         require_contains zone-affinities.tsv "true:<redacted-window-title>"
         require_contains redaction-summary.txt "<redacted-window-title>"
+        validate_zone_affinity_redaction "true:<redacted-window-title>"
     else
         require_contains redaction-summary.txt "window-titles=included by --include-window-titles"
         require_contains zone-affinities.tsv "true:configured"
         reject_contains zone-affinities.tsv "true:<redacted-window-title>"
+        validate_zone_affinity_redaction "true:configured"
     fi
 }
 
@@ -278,6 +304,11 @@ EOF
     BUNDLE_DIR="$redacted"
     MODE="redacted"
     validate_bundle
+    /usr/bin/perl -0pi -e 's/true:<redacted-app-identifier>/true:com.secret.Mail/' "${redacted}/zone-affinities.tsv"
+    if ( validate_bundle ) >/dev/null 2>&1; then
+        die "self-test expected raw app identifier in affinity TSV rejection"
+    fi
+    /usr/bin/perl -0pi -e 's/true:com.secret.Mail/true:<redacted-app-identifier>/' "${redacted}/zone-affinities.tsv"
     printf 'Secret Board\n' >>"${redacted}/config-redacted.toml"
     if ( validate_bundle ) >/dev/null 2>&1; then
         die "self-test expected redacted mode to reject Secret Board"
