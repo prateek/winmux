@@ -9253,6 +9253,13 @@ Implementation update, 2026-07-02:
   failure. The follow-up checker fix keeps app/app-name redaction strict when
   those matchers are configured, but allows normal default-config support
   bundles whose affinity rule only has a window-title matcher.
+- `artifacts/e2e/slice-50-pre-tart-20260702T134128Z` is a blocked pre-Tart
+  candidate. Review found two gate-hardening gaps before Tart: the
+  support-bundle checker self-test did not explicitly cover title-only affinity
+  acceptance or raw app-name rejection, and the pre-Tart review gate could pass
+  a report containing an `ACTIONABLE ISSUES` marker if its final line was clean.
+  The follow-up fix adds both self-test cases and rejects any pre-Tart report
+  containing an actionable marker.
 - `artifacts/e2e/slice-50-local-package-20260702T130658Z` was only a local
   dirty-source packaging smoke. It is useful as implementation evidence, but it
   is not accepted Slice 50 evidence; accepted evidence must come from a clean

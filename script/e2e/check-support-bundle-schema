@@ -309,6 +309,15 @@ EOF
         die "self-test expected raw app identifier in affinity TSV rejection"
     fi
     /usr/bin/perl -0pi -e 's/true:com.secret.Mail/true:<redacted-app-identifier>/' "${redacted}/zone-affinities.tsv"
+    /usr/bin/perl -0pi -e 's/true:<redacted-app-identifier>\tfalse\ttrue:<redacted-window-title>/true:<redacted-app-identifier>\ttrue:Secret Mail\ttrue:<redacted-window-title>/' "${redacted}/zone-affinities.tsv"
+    if ( validate_bundle ) >/dev/null 2>&1; then
+        die "self-test expected raw app name in affinity TSV rejection"
+    fi
+    cat >"${redacted}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+0	Comms	false	false	true:<redacted-window-title>	work		true	false	false
+EOF
+    validate_bundle
     printf 'Secret Board\n' >>"${redacted}/config-redacted.toml"
     if ( validate_bundle ) >/dev/null 2>&1; then
         die "self-test expected redacted mode to reject Secret Board"

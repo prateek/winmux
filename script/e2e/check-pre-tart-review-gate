@@ -519,6 +519,9 @@ validate_gate() {
         [ "$last_non_empty" = "NO ACTIONABLE ISSUES" ] \
             || die "pre-Tart report must end with NO ACTIONABLE ISSUES: $path"
 
+        if /usr/bin/grep -Eq '^[[:space:]]*ACTIONABLE ISSUES([[:space:][:punct:]]|$)' "$path"; then
+            die "pre-Tart report contains actionable issues marker: $path"
+        fi
         if /usr/bin/grep -Eiq '^Verdict:[[:space:]]*BLOCKED\b' "$path"; then
             die "pre-Tart report is blocked: $path"
         fi
@@ -679,6 +682,21 @@ run_self_test() {
     } >"${report_dir}/artifact-product.md"
     if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
         die "self-test expected blocked verdict to fail"
+    fi
+
+    write_clean_self_test_reports "$report_dir"
+    {
+        printf 'Verdict: CLEAN\n\n'
+        for mention in "${required_mentions[@]}"; do
+            printf -- '- %s\n' "$mention"
+        done
+        printf '\nFreshness:\n'
+        /bin/cat "$WINMUX_PRE_TART_SELF_TEST_FRESHNESS"
+        printf '\nACTIONABLE ISSUES\n'
+        printf '\nNO ACTIONABLE ISSUES\n'
+    } >"${report_dir}/artifact-product.md"
+    if bash "$script_path" "$run_dir" slice-34 >/dev/null 2>&1; then
+        die "self-test expected actionable marker to fail"
     fi
 
     write_clean_self_test_reports "$report_dir"
