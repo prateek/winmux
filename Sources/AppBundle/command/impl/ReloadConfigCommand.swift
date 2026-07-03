@@ -32,6 +32,7 @@ struct ReloadConfigCommand: Command {
                 resetHotKeys()
                 config = parsedConfig
                 configUrl = url
+                remapColumnDecksOntoCurrentScenes()
                 UpdaterBridge.shared.applyConfig()
                 try await activateMode(activeMode)
                 syncStartAtLogin()

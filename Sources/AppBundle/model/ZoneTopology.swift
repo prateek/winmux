@@ -425,6 +425,18 @@ func applySceneRuntimeOverlay(sceneId: String, layoutId: String, for physicalMon
     refreshZoneTopologySnapshot()
 }
 
+/// Drops a display back to its implicit scene: clears the active scene and its backing layout so
+/// deck keys revert to display identity. Used when the last scene on a display is removed.
+@MainActor
+func clearActiveSceneOverlay(for physicalMonitor: Monitor) {
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor.physicalMonitor)
+    guard var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] else { return }
+    runtimeOverlay.activeSceneId = nil
+    runtimeOverlay.activeLayoutId = nil
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+    refreshZoneTopologySnapshot()
+}
+
 @MainActor
 func restoreZoneRuntimeOverlaysAfterRollback(_ snapshot: [String: ZoneRuntimeOverlay]) {
     zoneRuntimeOverlaysByPhysicalIdentity = snapshot

@@ -228,6 +228,8 @@ struct ZoneColumnConfig: ConvenienceCopyable, Equatable, Sendable {
     var id: String = ""
     var name: String?
     var width: Double = 0
+    /// Chrome tint (divider, sidebar accent, expose border).
+    var color: String?
 }
 
 enum DefaultContainerOrientation: String {

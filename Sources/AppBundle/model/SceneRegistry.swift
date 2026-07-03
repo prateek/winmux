@@ -58,6 +58,26 @@ func activeSceneDeckKeyComponent(for monitor: Monitor) -> String {
     )
 }
 
+/// Cycles the display to the next scene in its declared order, wrapping. With no scene active
+/// (the implicit scene, or a stale selector) it activates the display's default (first) scene.
+@MainActor
+func cycleScene(for physicalMonitor: Monitor) -> Result<SceneActivationResult, String> {
+    let targetPhysical = physicalMonitor.physicalMonitor
+    let declared = scenes(on: targetPhysical)
+    guard !declared.isEmpty else {
+        return .failure("No scenes are declared for monitor \(targetPhysical.monitorId_oneBased ?? 0)")
+    }
+    let nextIndex: Int
+    if let currentId = activeSceneId(for: targetPhysical),
+       let currentIndex = declared.firstIndex(where: { $0.id == currentId })
+    {
+        nextIndex = (currentIndex + 1) % declared.count
+    } else {
+        nextIndex = 0
+    }
+    return setActiveScene(declared[nextIndex].id, for: targetPhysical)
+}
+
 /// Switches a display to a named scene by rebuilding its columns through the zone-layout path
 /// and revealing each column's deck. A scene switch changes which columns exist (scenes differ
 /// in count and widths), so it is not a workspace-pointer swap: the incoming layout activates,
@@ -137,6 +157,40 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
         columnIds: sceneViewports.map { $0.zoneId.orDie() },
         restoredCards: restoredCards,
     ))
+}
+
+/// Reconciles decks after a config reload changes which scenes exist. A display whose active
+/// scene was removed promotes to the new default (first declared) scene, or drops to its implicit
+/// scene when its last scene is gone. Every deck keyed by a removed scene merges, order preserved,
+/// into the owning display's default column — the same orphan-merge rule hotplug uses. Run before
+/// the reload's reconcile so the promoted scene's columns read the merged decks.
+@MainActor
+func remapColumnDecksOntoCurrentScenes() {
+    guard !winMuxWorkspaceState.columnDecks.decksByColumnKey.isEmpty else { return }
+    let validSceneIds = Set(config.scenes.map(\.id))
+
+    var displayForRemovedScene: [String: Monitor] = [:]
+    for physicalMonitor in sortedPhysicalMonitors {
+        guard let activeId = activeSceneId(for: physicalMonitor), !validSceneIds.contains(activeId) else { continue }
+        displayForRemovedScene[activeId] = physicalMonitor
+    }
+
+    for physicalMonitor in displayForRemovedScene.values {
+        if let promoted = scenes(on: physicalMonitor).first {
+            applySceneRuntimeOverlay(sceneId: promoted.id, layoutId: promoted.layoutId, for: physicalMonitor)
+        } else {
+            clearActiveSceneOverlay(for: physicalMonitor)
+        }
+    }
+
+    for deckKey in winMuxWorkspaceState.columnDecks.decksByColumnKey.keys.sorted() {
+        guard let (sceneKey, _) = splitColumnDeckKey(deckKey), sceneKey.hasPrefix(sceneDeckKeyPrefix) else { continue }
+        let sceneId = String(sceneKey.dropFirst(sceneDeckKeyPrefix.count))
+        guard !validSceneIds.contains(sceneId) else { continue }
+        let display = displayForRemovedScene[sceneId] ?? mainMonitor.physicalMonitor
+        let targetColumnKey = columnDeckKey(for: display.defaultWorkspaceViewport)
+        winMuxWorkspaceState.columnDecks.mergeDeck(from: deckKey, into: targetColumnKey)
+    }
 }
 
 @MainActor

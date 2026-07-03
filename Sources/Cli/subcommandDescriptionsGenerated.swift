@@ -55,6 +55,7 @@ let subcommandDescriptions = [
     ["  resize", "Resize the focused window"],
     ["  resize-zone", "Adjust runtime width of a configured zone"],
     ["  save-zone-layout", "Persist current runtime zone widths to the active config"],
+    ["  scene", "Switch, cycle, or name scenes on the focused display"],
     ["  set-zone-snap-policy", "Set runtime mouse zone snap policy"],
     ["  set-zone-style", "Apply a configured style token to a zone"],
     ["  split", "Split focused window"],

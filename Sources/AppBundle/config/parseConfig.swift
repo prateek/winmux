@@ -37,6 +37,7 @@ func readConfig(forceConfigUrl: URL? = nil) -> Result<(Config, URL), String> {
 
 private let keyMappingConfigRootKey = "key-mapping"
 private let modeConfigRootKey = "mode"
+private let sceneConfigRootKey = "scene"
 private let persistentWorkspacesKey = "persistent-workspaces"
 
 // For every new config option you add, think:
@@ -70,6 +71,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
 
     keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
     modeConfigRootKey: Parser(\.modes, skipParsing(Config().modes)), // Parsed manually
+    sceneConfigRootKey: Parser(\.scenes, skipParsing(Config().scenes)), // Parsed manually (needs declaration order + synthesis)
 
     "auto-add-new-windows-to-tab-group": Parser(\.autoAddNewWindowsToTabGroup, parseBool),
     "gaps": Parser(\.gaps, parseGaps),
@@ -175,6 +177,10 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
             }
             + (config.workspaceToMonitorForceAssignment).keys)
             .toOrderedSet()
+    }
+
+    if let rawScene = rawTable[sceneConfigRootKey] {
+        applyParsedScenes(rawToml, rawScene, &config, &errors)
     }
 
     validateZoneLayoutReferences(config, &errors)

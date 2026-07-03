@@ -227,6 +227,11 @@ let trigger_binding_help_generated = """
 let unbind_node_zone_binding_help_generated = """
     USAGE: unbind-node-zone-binding [-h|--help] [--window-id <window-id>]
     """
+let scene_help_generated = """
+    USAGE: scene [-h|--help] [--monitor <monitor-pattern>] <name>
+       OR: scene [-h|--help] [--monitor <monitor-pattern>] next
+       OR: scene [-h|--help] [--monitor <monitor-pattern>] new <name>
+    """
 let use_zone_availability_help_generated = """
     USAGE: use-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>
     """

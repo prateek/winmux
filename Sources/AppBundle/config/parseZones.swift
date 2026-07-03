@@ -83,6 +83,9 @@ private let zoneColumnParser: [String: any ParserProtocol<ZoneColumnConfig>] = [
         parseString(raw, backtrace).map(Optional.some)
     },
     "width": Parser(\.width, parseZoneColumnWidth),
+    "color": Parser(\.color) { raw, backtrace in
+        parseZoneStyleColor(raw, backtrace).map(Optional.some)
+    },
 ]
 
 func parseZones(
@@ -205,7 +208,7 @@ func parseZoneAvailabilitySets(
     return sets
 }
 
-private func parseZoneColumns(
+func parseZoneColumns(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
     _ errors: inout [TomlParseError],
@@ -259,7 +262,7 @@ private func parseZoneSceneWorkspaces(
     }
 }
 
-private func parseZoneId(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<String> {
+func parseZoneId(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<String> {
     parseString(raw, backtrace)
         .filter(.semantic(backtrace, "Must not be empty")) { !$0.isEmpty }
         .filter(.semantic(backtrace, "Use only letters, numbers, hyphens, and underscores")) { rawId in
@@ -597,7 +600,7 @@ func validateZoneAvailabilitySetReferences(_ config: Config, _ errors: inout [To
     }
 }
 
-private func monitorDescriptionLabel(_ monitor: MonitorDescription) -> String {
+func monitorDescriptionLabel(_ monitor: MonitorDescription) -> String {
     switch monitor {
         case .sequenceNumber(let number): "\(number)"
         case .main: "main"

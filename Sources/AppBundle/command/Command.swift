@@ -73,6 +73,7 @@ extension Command {
                  is ProjectCommand,
                  is ResizeCommand,
                  is ResizeZoneCommand,
+                 is SceneCommand,
                  is SetZoneStyleCommand,
                  is SplitCommand,
                  is StackWithCommand,
