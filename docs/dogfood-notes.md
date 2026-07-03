@@ -39,15 +39,17 @@ display. Zone workflows not yet exercised; ultrawide dogfood pending.
 - **Dogfood blocker — general input lag.** Interactions feel slow; the
   clearest repro is clicking the desktop wallpaper (macOS Show Desktop
   gesture), which responds noticeably late. Root cause traced (planned fix:
-  Slice 53): every global left mouse up runs a full-refresh barrier that
-  enumerates all windows of all apps over AX and can block on a slow app's
-  AX thread; a desktop click additionally fires a second refresh via the
-  Finder activation notification; divider-proximity clicks also run
-  `CGWindowListCopyWindowInfo` synchronously on the main thread. All of it
-  contends on the main actor with 60-120 Hz pointer monitors, so one blocked
-  refresh stalls subsequent input. FlashSpace comparison confirmed the
-  pattern to avoid: its hot paths never enumerate or write window frames,
-  and it skips apps with hostile AX behavior.
+  Slice 53; full analysis in `docs/perf-comparison.md`): the fork inherits
+  AeroSpace's refresh-heavy event model — mouse-up and app-activation both
+  schedule complete refreshes that await enumeration of all apps before any
+  layout, and zones multiply the per-session layout cost — and adds its own
+  main-actor load: pointer-rate sidebar/divider hover handling on every
+  mouse event, a synchronous `CGWindowListCopyWindowInfo` on
+  divider-proximity clicks, and a 60 Hz animation driver. AX itself runs on
+  per-app threads (upstream's v0.18 model is already in the fork), so this
+  is session latency plus fork-added standing load, not AX blocking the
+  main thread. FlashSpace comparison confirmed the pattern to avoid: its
+  hot paths never enumerate or write window frames.
 - **Dogfood blocker — zone dividers are draggable in normal use.** Divider
   hover chrome and drag affordances appear during default interaction with
   the balanced layout. Expected: zone resizing is an explicit action (zone

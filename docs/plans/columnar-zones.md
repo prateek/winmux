@@ -9505,21 +9505,26 @@ Prioritize ahead of Slice 52.
 Goal: ordinary interactions (desktop click, focus changes, typing while
 overlays animate) respond instantly; no full AX sweep runs on the input path.
 
-Diagnosis this slice must fix (see `docs/dogfood-notes.md`):
+Diagnosis this slice must fix (see `docs/dogfood-notes.md` and
+`docs/perf-comparison.md`; note the fork already has upstream's
+thread-per-app AX model, so AX enumeration does not block the main thread —
+the costs below are session latency and fork-added main-actor load):
 
-- every global left mouse up schedules `.globalObserverLeftMouseUp`, whose
-  refresh barrier runs a full `refresh()` — an AX enumeration of every window
-  of every app plus a `getNativeFocusedWindow` call that can block up to the
-  AX messaging timeout on a slow app (`GlobalObserver.swift`,
-  `refresh.swift`);
-- a desktop click also fires `didActivateApplication` for Finder, so one
-  click runs two overlapping refresh sessions with double `layoutWorkspaces`;
+- the inherited refresh-heavy event model: every global left mouse up runs a
+  light session then schedules a complete refresh, every app activation
+  schedules another with an optimistic double `layoutWorkspaces`, and each
+  session awaits enumeration of all apps before layouting (upstream issue
+  #1615); zones multiply the per-session layout cost because every zone is
+  a viewport;
+- fork-added pointer-rate main-actor work on every mouse move/drag/scroll:
+  sidebar cursor trapping and divider hover tracking
+  (`GlobalObserver.swift`, `onPointerActivityMain`);
 - clicks within the divider hit slop run `CGWindowListCopyWindowInfo`
   synchronously on the main thread before refresh starts
   (`ZoneDividerDragController.swift`);
-- all of this shares the main actor with the 60-120 Hz pointer monitors and
-  the 60 Hz `DisplayRefreshDriver`, so a blocked refresh stalls every
-  subsequent input event.
+- a 60 Hz main-actor `DisplayRefreshDriver` during overlay/sidebar
+  animations, plus tab-group/sidebar view-model rebuilds inside every
+  session, contending with the above.
 
 Required scope, informed by the FlashSpace comparison (fast because its hot
 paths never enumerate or write window frames):
