@@ -1,15 +1,16 @@
 # Agent Guide
 
 WinMux fork adding columnar zones for ultrawide monitors. A zone is a
-monitor-like workspace viewport (`ZoneMonitor`); the design, slice history,
-and acceptance state live in `docs/plans/columnar-zones.md` — read its
-status header and the current slice before doing anything.
+monitor-like workspace viewport (`ZoneMonitor`); the design, slice
+inventory, and current status live in `docs/plans/columnar-zones.md` —
+read its status section before doing anything.
 
 ## Read first
 
-- `docs/plans/columnar-zones.md` — source of truth: design decisions, slice
-  ladder, acceptance status, required gates.
-- `HANDOFF.md` — the operative instructions for finishing Slice 51.
+- `docs/plans/columnar-zones.md` — source of truth: design, slice
+  inventory, acceptance status, and remaining work.
+  `columnar-zones-history.md` is the shipped per-slice record;
+  `slice-56-domain-model.md` is the active redesign.
 - `docs/dogfood-notes.md` — live findings from real-machine dogfooding,
   classified as dogfood blocker / beta blocker / known limitation / later
   enhancement. Append new findings there; Slice 51 acceptance cites it.
@@ -27,7 +28,10 @@ status header and the current slice before doing anything.
   gate (three clean no-context reviewers with current freshness), Tart
   recording, no-context artifact review, review lint, post-review verifier,
   closeout, and retrospectives. `make e2e-slice-<n>` drives it; checkers
-  live in `script/e2e/`.
+  live in `script/e2e/`. The recording must be real product evidence —
+  playable annotated and raw video, contact sheet, sample and event
+  manifests, expected command chips, and required screenshots — never
+  logs-only proof.
 - `artifacts/e2e/` is deliberately untracked evidence, referenced from the
   plan by path. Do not commit it; do not delete accepted artifact dirs.
 - Accessibility-only with SIP intact is a product constraint; do not add
