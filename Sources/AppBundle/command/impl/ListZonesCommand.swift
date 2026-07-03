@@ -5,13 +5,13 @@ struct ListZonesCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        let configuredZones = getCurrentZoneTopologySnapshot().configuredZones(for: sortedPhysicalMonitors)
+        let configuredZones = getCurrentColumnTopologySnapshot().configuredZones(for: sortedPhysicalMonitors)
         if args.outputOnlyCount {
             return io.out("\(configuredZones.count)")
         } else {
-            let activeZoneMonitors = sortedMonitors.filter { $0.zoneId != nil }
+            let activeColumnMonitors = sortedMonitors.filter { $0.zoneId != nil }
             let rows = configuredZones.map { zone in
-                let activeMonitor = activeZoneMonitors.first {
+                let activeMonitor = activeColumnMonitors.first {
                     $0.zoneId == zone.zoneId &&
                         $0.physicalMonitor.rect.topLeftCorner == zone.physicalMonitor.rect.topLeftCorner
                 }

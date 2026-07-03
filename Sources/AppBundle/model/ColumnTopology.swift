@@ -1,8 +1,8 @@
 import AppKit
 import Common
 
-struct ZoneTopologySnapshot: Sendable {
-    static let empty = ZoneTopologySnapshot(
+struct ColumnTopologySnapshot: Sendable {
+    static let empty = ColumnTopologySnapshot(
         zones: [],
         zoneStyles: [],
         zoneLayouts: [],
@@ -61,11 +61,11 @@ struct ZoneTopologySnapshot: Sendable {
             }) else {
                 return [physicalMonitor]
             }
-            return zoneMonitors(for: physicalMonitor, zoneConfig: zoneConfig, sortedPhysicalMonitors: sortedPhysicalMonitors)
+            return columnMonitors(for: physicalMonitor, zoneConfig: zoneConfig, sortedPhysicalMonitors: sortedPhysicalMonitors)
         }
     }
 
-    private func zoneMonitors(
+    private func columnMonitors(
         for physicalMonitor: Monitor,
         zoneConfig: ZoneConfig,
         sortedPhysicalMonitors: [Monitor],
@@ -93,7 +93,7 @@ struct ZoneTopologySnapshot: Sendable {
             let rect = Rect(topLeftX: nextLeft, topLeftY: baseRect.topLeftY, width: width, height: baseRect.height)
             let style = style(for: physicalMonitor, zoneId: column.id)
             nextLeft += width
-            return ZoneMonitor(
+            return ColumnMonitor(
                 physicalMonitor: physicalMonitor,
                 zoneLayoutId: zoneLayout.id,
                 zoneAvailabilitySetId: activeAvailabilitySetId,
@@ -124,11 +124,11 @@ struct ZoneTopologySnapshot: Sendable {
             let activeAvailabilitySetId = runtimeOverlay(for: physicalMonitor).activeAvailabilitySetId
             let effectiveColumns = resolvedEffectiveColumns(for: physicalMonitor, zoneLayout: zoneLayout)
             let enabledColumns = effectiveColumns.filter { !disabledZoneIds.contains($0.column.id) }
-            let activeZoneMonitors = zoneMonitors(for: physicalMonitor, zoneConfig: zoneConfig, sortedPhysicalMonitors: sortedPhysicalMonitors)
+            let activeColumnMonitors = columnMonitors(for: physicalMonitor, zoneConfig: zoneConfig, sortedPhysicalMonitors: sortedPhysicalMonitors)
             let defaultZoneId = effectiveDefaultZoneId(zoneLayout: zoneLayout, enabledColumns: enabledColumns)
             return effectiveColumns.map { effectiveColumn in
                 let column = effectiveColumn.column
-                let activeZoneMonitor = activeZoneMonitors.first { $0.zoneId == column.id }
+                let activeColumnMonitor = activeColumnMonitors.first { $0.zoneId == column.id }
                 let style = style(for: physicalMonitor, zoneId: column.id)
                 return ConfiguredZoneSummary(
                     physicalMonitor: physicalMonitor,
@@ -141,10 +141,10 @@ struct ZoneTopologySnapshot: Sendable {
                     configuredWidth: column.width,
                     effectiveWidth: effectiveColumn.effectiveWidth,
                     runtimeWidthOverride: effectiveColumn.runtimeWidthOverride,
-                    left: activeZoneMonitor?.rect.topLeftX,
-                    top: activeZoneMonitor?.rect.topLeftY,
-                    pixelWidth: activeZoneMonitor?.rect.width,
-                    pixelHeight: activeZoneMonitor?.rect.height,
+                    left: activeColumnMonitor?.rect.topLeftX,
+                    top: activeColumnMonitor?.rect.topLeftY,
+                    pixelWidth: activeColumnMonitor?.rect.width,
+                    pixelHeight: activeColumnMonitor?.rect.height,
                     isDefaultZone: column.id == defaultZoneId,
                     isEnabled: !disabledZoneIds.contains(column.id),
                 )
@@ -303,7 +303,7 @@ struct ZoneTopologySnapshot: Sendable {
     }
 }
 
-private struct ZoneMonitor: Monitor {
+private struct ColumnMonitor: Monitor {
     let physicalMonitor: Monitor
     let zoneLayoutId: String?
     let zoneAvailabilitySetId: String?
@@ -383,7 +383,7 @@ struct ZoneRuntimeOverlay: Sendable, Equatable {
 }
 
 nonisolated(unsafe) private var zoneRuntimeOverlaysByPhysicalIdentity: [String: ZoneRuntimeOverlay] = [:]
-nonisolated(unsafe) private var currentZoneTopologySnapshot: ZoneTopologySnapshot = .empty
+nonisolated(unsafe) private var currentColumnTopologySnapshot: ColumnTopologySnapshot = .empty
 
 func zoneRuntimeOverlaysSnapshot() -> [String: ZoneRuntimeOverlay] {
     zoneRuntimeOverlaysByPhysicalIdentity
@@ -422,7 +422,7 @@ func applySceneRuntimeOverlay(sceneId: String, layoutId: String, for physicalMon
     runtimeOverlay.activeLayoutId = layoutId
     runtimeOverlay.activeSceneId = sceneId
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 }
 
 /// Drops a display back to its implicit scene: clears the active scene and its backing layout so
@@ -434,13 +434,13 @@ func clearActiveSceneOverlay(for physicalMonitor: Monitor) {
     runtimeOverlay.activeSceneId = nil
     runtimeOverlay.activeLayoutId = nil
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 }
 
 @MainActor
 func restoreZoneRuntimeOverlaysAfterRollback(_ snapshot: [String: ZoneRuntimeOverlay]) {
     zoneRuntimeOverlaysByPhysicalIdentity = snapshot
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 }
 
 func activeZoneSnapPolicyOverridesSnapshot() -> [String: ZoneSnapPolicy] {
@@ -464,12 +464,12 @@ func zoneRuntimeLayoutIdentity(_ layoutId: String?) -> String {
 @MainActor
 func resetActiveZoneLayoutSelectionsForTests() {
     zoneRuntimeOverlaysByPhysicalIdentity = [:]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 }
 
 @MainActor
-func refreshZoneTopologySnapshot() {
-    setCurrentZoneTopologySnapshot(ZoneTopologySnapshot(config))
+func refreshColumnTopologySnapshot() {
+    setCurrentColumnTopologySnapshot(ColumnTopologySnapshot(config))
     invalidateMonitorCaches()
 }
 
@@ -497,7 +497,7 @@ func setActiveZoneLayout(_ layoutId: String, for physicalMonitor: Monitor) -> Re
     runtimeOverlay.activeLayoutId = layoutId
     runtimeOverlay.activeSceneId = nil
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
     return .success(())
 }
@@ -634,11 +634,11 @@ func setZoneAvailability(
         }
         runtimeOverlay.activeAvailabilitySetId = nil
         zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         restoreDeckWorkspace(for: resolved)
         Workspace.reconcileWorkspaceState()
     } else {
-        let enabledZonesOnMonitor = getCurrentZoneTopologySnapshot()
+        let enabledZonesOnMonitor = getCurrentColumnTopologySnapshot()
             .configuredZones(for: sortedPhysicalMonitors)
             .filter {
                 $0.physicalMonitor.rect.topLeftCorner == resolved.physicalMonitor.rect.topLeftCorner &&
@@ -654,7 +654,7 @@ func setZoneAvailability(
         }
         runtimeOverlay.activeAvailabilitySetId = nil
         zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         Workspace.reconcileWorkspaceState()
         if let hiddenWorkspaceId, focus.workspace.id == hiddenWorkspaceId {
             _ = resolved.physicalMonitor.activeWorkspace.focusWorkspace()
@@ -750,7 +750,7 @@ func setZoneStyle(
     var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
     runtimeOverlay.styleOverridesByZoneId[resolved.zoneId] = style.id
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
 
     return .success(ZoneStyleChangeResult(
@@ -860,7 +860,7 @@ private func applyZoneAvailabilitySet(
     runtimeOverlay.activeAvailabilitySetId = availabilitySet.id
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
 
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 
     for zone in newlyRestoredZones {
         restoreDeckWorkspace(for: resolvedConfiguredZone(from: zone))
@@ -936,7 +936,7 @@ func cycleZoneLayout(_ layoutIds: [String], for physicalMonitor: Monitor) -> Res
     }
 
     let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor)
-    let currentLayoutId = getCurrentZoneTopologySnapshot()
+    let currentLayoutId = getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .first { $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.physicalMonitor.rect.topLeftCorner }?
         .zoneLayoutId
@@ -972,7 +972,7 @@ func setZoneSnapPolicy(_ policy: ZoneSnapPolicy, for physicalMonitor: Monitor) -
     var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
     runtimeOverlay.zoneSnapPolicyOverride = policy
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 
     return .success(ZoneSnapPolicyChangeResult(
         physicalMonitor: targetPhysicalMonitor,
@@ -1027,7 +1027,7 @@ func invalidateZoneDividerHandlesCache() {
 @MainActor
 private func configuredZones(on physicalMonitor: Monitor) -> [ConfiguredZoneSummary] {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
-    return getCurrentZoneTopologySnapshot()
+    return getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetTopLeft }
 }
@@ -1182,7 +1182,7 @@ private func updateZoneWidths(
     operation: ZoneWidthOperation,
 ) -> Result<ZoneWidthChangeResult, String> {
     let targetPhysicalMonitor = physicalMonitor.physicalMonitor
-    let configuredZones = getCurrentZoneTopologySnapshot()
+    let configuredZones = getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetPhysicalMonitor.rect.topLeftCorner }
     guard !configuredZones.isEmpty else {
@@ -1378,10 +1378,10 @@ private func applyZoneWidthOverrides(
     runtimeOverlay.widthOverridesByLayoutIdentity[layoutIdentity] = overrides
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
 
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
 
-    return getCurrentZoneTopologySnapshot()
+    return getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetPhysicalMonitor.rect.topLeftCorner }
 }
@@ -1452,7 +1452,7 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
     func rollback(_ message: String) -> Result<ZoneSceneActivationResult, String> {
         winMuxWorkspaceState = workspaceStateBefore
         zoneRuntimeOverlaysByPhysicalIdentity = zoneRuntimeOverlaysBefore
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         checkWorkspaceHierarchyInvariants()
         return .failure(message)
     }
@@ -1465,19 +1465,19 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
 
     let targetPhysicalMonitor = physicalMonitor.physicalMonitor
     let targetTopLeft = targetPhysicalMonitor.rect.topLeftCorner
-    let zoneMonitors = sortMonitorsBySpatialOrder(monitors.filter {
+    let columnMonitors = sortMonitorsBySpatialOrder(monitors.filter {
         $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
     })
 
     var appliedBindings: [(zone: String, workspace: String)] = []
     for binding in scene.workspaces {
         let workspaceName = binding.workspace.orDie().raw
-        guard let zoneMonitor = zoneMonitors.first(where: { $0.zoneId == binding.zone }) else {
+        guard let columnMonitor = columnMonitors.first(where: { $0.zoneId == binding.zone }) else {
             return rollback("Zone scene '\(sceneId)' references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
         }
 
         let workspace = Workspace.get(byName: workspaceName)
-        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: zoneMonitor) else {
+        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: columnMonitor) else {
             return rollback("Can't activate workspace '\(workspaceName)' in zone '\(binding.zone)'")
         }
         appliedBindings.append((zone: binding.zone, workspace: workspaceName))
@@ -1487,7 +1487,7 @@ func setActiveZoneScene(_ sceneId: String, for physicalMonitor: Monitor) -> Resu
     var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
     runtimeOverlay.activeSceneId = sceneId
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
     return .success(ZoneSceneActivationResult(sceneId: sceneId, layoutId: layoutId, bindings: appliedBindings))
 }
@@ -1533,7 +1533,7 @@ func cycleZoneScene(_ sceneIds: [String], for physicalMonitor: Monitor) -> Resul
 private func zoneSceneMatchesCurrentState(_ scene: ZoneSceneConfig, on physicalMonitor: Monitor) -> Bool {
     guard let layoutPreset = scene.layoutPreset else { return false }
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
-    let configuredZones = getCurrentZoneTopologySnapshot()
+    let configuredZones = getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetTopLeft }
     guard configuredZones.first?.zoneLayoutId == layoutPreset else { return false }
@@ -1554,10 +1554,10 @@ private func zoneSceneMatchesCurrentState(_ scene: ZoneSceneConfig, on physicalM
 func applyZoneBindings(for physicalMonitor: Monitor) -> Result<ZoneBindingActivationResult, String> {
     let targetPhysicalMonitor = physicalMonitor.physicalMonitor
     let targetTopLeft = targetPhysicalMonitor.rect.topLeftCorner
-    let zoneMonitors = sortMonitorsBySpatialOrder(monitors.filter {
+    let columnMonitors = sortMonitorsBySpatialOrder(monitors.filter {
         $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
     })
-    guard !zoneMonitors.isEmpty else {
+    guard !columnMonitors.isEmpty else {
         return .failure("No active zones on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
     }
 
@@ -1568,7 +1568,7 @@ func applyZoneBindings(for physicalMonitor: Monitor) -> Result<ZoneBindingActiva
             }
             return applyResolvedZoneBindings(
                 bindings,
-                to: zoneMonitors,
+                to: columnMonitors,
                 on: targetPhysicalMonitor,
             )
         case .failure(let message):
@@ -1579,25 +1579,25 @@ func applyZoneBindings(for physicalMonitor: Monitor) -> Result<ZoneBindingActiva
 @MainActor
 private func applyResolvedZoneBindings(
     _ bindings: [ZoneBindingConfig],
-    to zoneMonitors: [Monitor],
+    to columnMonitors: [Monitor],
     on targetPhysicalMonitor: Monitor,
 ) -> Result<ZoneBindingActivationResult, String> {
-    var preparedBindings: [(zone: String, workspaceName: String, zoneMonitor: Monitor)] = []
+    var preparedBindings: [(zone: String, workspaceName: String, columnMonitor: Monitor)] = []
     for binding in bindings {
         guard let workspaceName = binding.workspace?.raw else {
             return .failure("Zone binding for zone '\(binding.zone)' is missing a workspace name")
         }
-        guard let zoneMonitor = zoneMonitors.first(where: { $0.zoneId == binding.zone }) else {
+        guard let columnMonitor = columnMonitors.first(where: { $0.zoneId == binding.zone }) else {
             return .failure("Zone binding references zone '\(binding.zone)' that is not active on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
         }
-        preparedBindings.append((zone: binding.zone, workspaceName: workspaceName, zoneMonitor: zoneMonitor))
+        preparedBindings.append((zone: binding.zone, workspaceName: workspaceName, columnMonitor: columnMonitor))
     }
 
     let workspaceStateBefore = winMuxWorkspaceState
     var appliedBindings: [(zone: String, workspace: String)] = []
     for binding in preparedBindings {
         let workspace = Workspace.get(byName: binding.workspaceName)
-        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: binding.zoneMonitor) else {
+        guard overrideWorkspaceOnMonitorBySwappingActiveViewports(workspace, targetMonitor: binding.columnMonitor) else {
             winMuxWorkspaceState = workspaceStateBefore
             checkWorkspaceHierarchyInvariants()
             return .failure("Can't activate workspace '\(binding.workspaceName)' in zone '\(binding.zone)'")
@@ -1676,13 +1676,13 @@ func zoneLayoutPhysicalIdentity(for monitor: Monitor) -> String {
     return "physical:\(topLeft.x),\(topLeft.y)"
 }
 
-func setCurrentZoneTopologySnapshot(_ snapshot: ZoneTopologySnapshot) {
-    currentZoneTopologySnapshot = snapshot
+func setCurrentColumnTopologySnapshot(_ snapshot: ColumnTopologySnapshot) {
+    currentColumnTopologySnapshot = snapshot
     invalidateZoneDividerHandlesCache()
 }
 
-func getCurrentZoneTopologySnapshot() -> ZoneTopologySnapshot {
-    currentZoneTopologySnapshot
+func getCurrentColumnTopologySnapshot() -> ColumnTopologySnapshot {
+    currentColumnTopologySnapshot
 }
 
 func sortMonitorsBySpatialOrder(_ monitors: [Monitor]) -> [Monitor] {

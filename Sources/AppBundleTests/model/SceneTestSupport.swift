@@ -35,7 +35,7 @@ func configureScenesFromToml(_ toml: String, file: StaticString = #filePath, lin
     config.scenes = parsed.scenes
     config.zoneLayouts = parsed.zoneLayouts
     config.zones = parsed.zones
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
     return main
 }

@@ -239,7 +239,7 @@ private func configureThreeColumns() -> [String: Monitor] {
             ],
         ),
     ]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
     })

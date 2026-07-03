@@ -129,7 +129,7 @@ private func applyTwoDisplayScenes(_ toml: String) {
     config.scenes = parsed.scenes
     config.zoneLayouts = parsed.zoneLayouts
     config.zones = parsed.zones
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
 }
 
 @MainActor
@@ -140,7 +140,7 @@ private func removeScenesKeeping(_ toml: String) {
     config.scenes = parsed.scenes
     config.zoneLayouts = parsed.zoneLayouts
     config.zones = parsed.zones
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     remapColumnDecksOntoCurrentScenes(previousScenes: previousScenes)
     Workspace.reconcileWorkspaceState()
 }

@@ -125,7 +125,7 @@ private struct Cell<T> {
 private func configuredZoneSummary(for monitor: Monitor) -> ConfiguredZoneSummary? {
     guard let zoneId = monitor.zoneId else { return nil }
     let physicalTopLeft = monitor.physicalMonitor.rect.topLeftCorner
-    return getCurrentZoneTopologySnapshot()
+    return getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .first {
             $0.zoneId == zoneId &&

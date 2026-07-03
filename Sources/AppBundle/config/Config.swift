@@ -78,7 +78,7 @@ var defaultConfigUrl: URL {
 }()
 @MainActor var config: Config = defaultConfig { // todo move to Ctx?
     didSet {
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
     }
 }
 @MainActor var configUrl: URL = defaultConfigUrl

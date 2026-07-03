@@ -216,7 +216,7 @@ func remapColumnDecksOntoCurrentDisplays() {
     // Disabled zones keep their decks: a configured column exists even while it is hidden
     // from the viewport list.
     let configuredZonesByPhysicalTopLeft = Dictionary(
-        grouping: getCurrentZoneTopologySnapshot().configuredZones(for: currentPhysicalMonitors),
+        grouping: getCurrentColumnTopologySnapshot().configuredZones(for: currentPhysicalMonitors),
         by: { $0.physicalMonitor.rect.topLeftCorner },
     )
     for physicalMonitor in currentPhysicalMonitors {

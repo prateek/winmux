@@ -218,7 +218,7 @@ private func configureTwoScenes() -> Monitor {
         SceneConfig(id: "desk", monitor: .sequenceNumber(1), layoutId: "desk-layout", defaultColumn: "main"),
         SceneConfig(id: "focus", monitor: .sequenceNumber(1), layoutId: "focus-layout"),
     ]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
     return main
 }

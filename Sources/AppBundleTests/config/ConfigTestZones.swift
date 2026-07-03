@@ -637,7 +637,7 @@ extension ConfigTest {
         ])
     }
 
-    func testRejectDuplicateZoneMonitorSelectors() {
+    func testRejectDuplicateColumnMonitorSelectors() {
         let (_, errors) = parseConfig(
             """
             [[zones]]

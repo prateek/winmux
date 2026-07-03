@@ -1634,7 +1634,7 @@ final class ZoneCommandTest: XCTestCase {
             ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
             ZoneStyleConfig(id: "muted", color: "#8A8F98"),
         ]
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         let comms = Workspace.get(byName: "comms")
         XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
 
@@ -1656,7 +1656,7 @@ final class ZoneCommandTest: XCTestCase {
             ZoneStyleConfig(id: "urgent", color: "#D3455B"),
             ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
         ]
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         let primaryLeft = Workspace.get(byName: "primary-left")
         let primaryMain = Workspace.get(byName: "primary-main")
         let secondaryLeft = Workspace.get(byName: "secondary-left")
@@ -2138,7 +2138,7 @@ private func configureThreeZonesWithStyles() -> [String: Monitor] {
         ZoneStyleConfig(id: "urgent", color: "#D3455B"),
         ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
     ]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     return zones
 }
 

@@ -85,7 +85,7 @@ final class SceneCommandTest: XCTestCase {
                 ],
             ),
         ]
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         Workspace.reconcileWorkspaceState()
 
         switch buildSceneBlock(named: "desk", on: main) {

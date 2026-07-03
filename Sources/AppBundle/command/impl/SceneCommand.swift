@@ -137,7 +137,7 @@ private func createScene(named name: String, on physicalMonitor: Monitor, io: Cm
 @MainActor
 private func liveSceneColumns(on physicalMonitor: Monitor) -> (columns: [SceneBlockColumn], defaultColumn: String?) {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
-    let rows = getCurrentZoneTopologySnapshot()
+    let rows = getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetTopLeft && $0.isEnabled }
     guard !rows.isEmpty else {

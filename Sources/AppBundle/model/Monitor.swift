@@ -157,7 +157,7 @@ private func computePhysicalMonitors() -> [Monitor] {
 }
 
 private func computeWorkspaceViewports() -> [Monitor] {
-    getCurrentZoneTopologySnapshot().workspaceViewports(for: computePhysicalMonitors())
+    getCurrentColumnTopologySnapshot().workspaceViewports(for: computePhysicalMonitors())
 }
 
 func invalidateMonitorCaches() {
@@ -198,11 +198,11 @@ var sortedPhysicalMonitors: [Monitor] {
 
 var workspaceViewports: [Monitor] {
     if isUnitTest {
-        return getCurrentZoneTopologySnapshot().workspaceViewports(for: physicalMonitors)
+        return getCurrentColumnTopologySnapshot().workspaceViewports(for: physicalMonitors)
     }
     guard Thread.isMainThread else { return computeWorkspaceViewports() }
     if let cached = monitorsCache { return cached }
-    let computed = getCurrentZoneTopologySnapshot().workspaceViewports(for: physicalMonitors)
+    let computed = getCurrentColumnTopologySnapshot().workspaceViewports(for: physicalMonitors)
     monitorsCache = computed
     return computed
 }

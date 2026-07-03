@@ -103,7 +103,7 @@ func resolveConfiguredZoneSelector(
     }
 
     let scopeTopLeftCorners = Set(physicalScope.map(\.rect.topLeftCorner))
-    let configuredZones = getCurrentZoneTopologySnapshot()
+    let configuredZones = getCurrentColumnTopologySnapshot()
         .configuredZones(for: sortedPhysicalMonitors)
         .filter { scopeTopLeftCorners.contains($0.physicalMonitor.rect.topLeftCorner) }
     guard !configuredZones.isEmpty else {

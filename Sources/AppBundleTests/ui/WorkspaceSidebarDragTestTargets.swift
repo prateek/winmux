@@ -548,7 +548,7 @@ private func configureWorkspaceSidebarThreeZones(defaultZone: String = "main") -
             ],
         ),
     ]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         monitor.zoneId.map { ($0, monitor) }
     })
@@ -601,7 +601,7 @@ private func configureWorkspaceSidebarDuplicateZonesByScope() -> (
             ],
         ),
     ]
-    refreshZoneTopologySnapshot()
+    refreshColumnTopologySnapshot()
     let mainScope = workspaceSidebarMonitorScopeId(for: main)
     let secondaryScope = workspaceSidebarMonitorScopeId(for: secondary)
     return (

@@ -503,7 +503,7 @@ final class MonitorTopologyTest: XCTestCase {
         ])
         XCTAssertEqual(workspaceViewports.map(\.isMain), [true, false])
         XCTAssertEqual(
-            getCurrentZoneTopologySnapshot().configuredZones(for: sortedPhysicalMonitors).map { "\($0.zoneId):\($0.isDefaultZone):\($0.isEnabled)" },
+            getCurrentColumnTopologySnapshot().configuredZones(for: sortedPhysicalMonitors).map { "\($0.zoneId):\($0.isDefaultZone):\($0.isEnabled)" },
             ["left:true:true", "main:false:false", "right:false:true"],
         )
 
@@ -593,7 +593,7 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [threeColumnZoneConfig(monitor: .sequenceNumber(2))]
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
 
         let rightZone = monitors.first { $0.zoneId == "right" }.orDie()
         let mainZone = monitors.first { $0.zoneId == "main" }.orDie()
@@ -628,7 +628,7 @@ final class MonitorTopologyTest: XCTestCase {
                 ],
             ),
         ]
-        refreshZoneTopologySnapshot()
+        refreshColumnTopologySnapshot()
         remapColumnDecksOntoCurrentDisplays()
 
         let newMainKey = "display-geometry:2560.0,0.0/column:main"

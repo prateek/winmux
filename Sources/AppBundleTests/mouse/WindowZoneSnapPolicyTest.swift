@@ -573,7 +573,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertFalse(fixture.window.isFloating)
     }
 
-    func testFloatUnlessSnapDoesNotFloatOnNonZoneMonitor() {
+    func testFloatUnlessSnapDoesNotFloatOnNonColumnMonitor() {
         setUpWorkspacesForTests()
         let monitor = TestMonitor(
             monitorAppKitNsScreenScreensId: 11,

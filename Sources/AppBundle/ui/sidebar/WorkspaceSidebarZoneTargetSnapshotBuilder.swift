@@ -7,12 +7,12 @@ func buildWorkspaceSidebarZoneTargetViewModels(
     currentFocus: LiveFocus,
 ) -> [WorkspaceSidebarZoneTargetViewModel] {
     let physicalMonitors = workspaceSidebarPhysicalMonitors(from: sortedMonitors)
-    let activeZoneMonitors = sortedMonitors.filter { $0.zoneId != nil }
-    return getCurrentZoneTopologySnapshot()
+    let activeColumnMonitors = sortedMonitors.filter { $0.zoneId != nil }
+    return getCurrentColumnTopologySnapshot()
         .configuredZones(for: physicalMonitors)
         .map { zone in
             let monitorScopeId = workspaceSidebarMonitorScopeId(for: zone.physicalMonitor)
-            let activeWorkspace = activeZoneMonitors
+            let activeWorkspace = activeColumnMonitors
                 .first {
                     $0.zoneId == zone.zoneId &&
                         $0.physicalMonitor.rect.topLeftCorner == zone.physicalMonitor.rect.topLeftCorner

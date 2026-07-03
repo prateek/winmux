@@ -1,3 +1,8 @@
+// Glossary (Slice 56): "Card" is the user-facing name for Workspace, the
+// upstream AeroSpace type kept under its original name for merge parity.
+// A card lives in exactly one column's deck. Column = the fork's
+// viewport-monitor (`ColumnMonitor`); Deck = a column's ordered card list
+// (`ColumnDeckStore`).
 import Foundation
 
 let sidebarDraftWorkspacePrefix = "__sidebar_draft_workspace_"

@@ -16,7 +16,7 @@ struct ExportZoneLayoutCommand: Command {
             targetPhysicalMonitor = focus.workspace.workspaceMonitor.physicalMonitor
         }
 
-        let rows = getCurrentZoneTopologySnapshot()
+        let rows = getCurrentColumnTopologySnapshot()
             .configuredZones(for: sortedPhysicalMonitors)
             .filter { samePhysicalMonitor($0.physicalMonitor, targetPhysicalMonitor) }
 

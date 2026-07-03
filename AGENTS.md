@@ -1,9 +1,32 @@
 # Agent Guide
 
-WinMux fork adding columnar zones for ultrawide monitors. A zone is a
-monitor-like workspace viewport (`ZoneMonitor`); the design, slice
+WinMux fork adding columnar zones for ultrawide monitors. A column is a
+monitor-like workspace viewport (`ColumnMonitor`); Slice 56 renames the
+user-facing surface to five nouns (see Glossary). The design, slice
 inventory, and current status live in `docs/plans/columnar-zones.md` —
 read its status section before doing anything.
+
+## Glossary
+
+Slice 56 (`docs/plans/slice-56-domain-model.md`) fixes the vocabulary to
+five nouns. Fork-authored types take these names; upstream-inherited
+AeroSpace types keep their names so merges stay cheap.
+
+- **Card** = `Workspace` (the upstream type). A named window group that
+  lives in exactly one column's deck.
+- **Column** = the fork's monitor-like viewport (`ColumnMonitor`,
+  `ColumnTopologySnapshot`). Each column behaves as its own small monitor
+  to the runtime.
+- **Deck** = a column's stable ordered card list (`ColumnDeckStore`). Not
+  a separate noun, just the column's contents.
+- **Scene** = a named arrangement of columns a display switches between
+  (`SceneRegistry`, `[scene.*]` config).
+- **Rule** = a window-match → card mapping (`[[rules]]`).
+
+The rename is deliberately partial: config structs (`ZoneConfig`,
+`ZoneLayoutConfig`, `ZoneColumnConfig`), the `Monitor.zoneId` column-id
+property, the command types, and the mouse/divider and sidebar layers
+still carry zone-era names. Treat "zone" in the code as "column".
 
 ## Read first
 
