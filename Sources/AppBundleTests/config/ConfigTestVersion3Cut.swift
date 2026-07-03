@@ -159,7 +159,7 @@ extension ConfigTest {
             [mouse]
                 column-divider-drag = 'column-mode'
             [mouse.column-snap]
-                policy = 'float-unless-snap'
+                policy = 'snap-to-column'
                 target = 'column'
             """,
         )
@@ -169,8 +169,9 @@ extension ConfigTest {
         XCTAssertTrue(parsed.workspaceSidebar.enabled)
         XCTAssertEqual(parsed.workspaceSidebar.width, 240)
         XCTAssertEqual(parsed.mouse.zoneDividerDrag, .zoneMode)
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        // 'column' is the version-3 surface spelling; the internal case keeps its upstream name.
+        // 'snap-to-column' and 'column' are the version-3 surface spellings; the internal cases
+        // keep their upstream names until the internals rename.
+        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .snapToZone)
         XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
     }
 
