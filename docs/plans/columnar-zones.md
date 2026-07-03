@@ -9705,9 +9705,10 @@ Non-claims:
 
 ### Slice 56: Domain Model Simplification
 
-Status: design in progress; dogfood feedback 2026-07-02. The user-facing
-model is being redesigned before external beta; runtime architecture
-(zone = viewport hosting a workspace) is explicitly not changing.
+Status: design decided 2026-07-03; implementation pending. The
+user-facing model is being redesigned before external beta; runtime
+architecture (zone = viewport hosting a workspace) is explicitly not
+changing.
 
 Problem: the user-facing surface has roughly twelve nouns (monitor, zone,
 workspace, zone-layout, zone-scene, zone-availability-set, zone-binding,
@@ -9724,23 +9725,37 @@ Usage constraints from dogfood (2026-07-02):
   different times;
 - both per-column switching and whole-display switching are wanted.
 
-Proposed model (five nouns; being pressure-tested by three independent
-no-context design proposals before commitment):
+Decided model, 2026-07-03. Method: three independent no-context design
+proposals (newcomer, power-user, and orthogonality lenses) converged on
+the same skeleton; the owner settled the remaining forks. Five nouns:
 
-- `Monitor`: physical display.
-- `Layout`: per-monitor column count, widths, and which columns are open
-  (absorbs ZoneAvailabilitySet and save-zone-layout).
-- `Column`: named spatial slot (today's zone); style is an attribute, not
-  an entity.
-- `Space`: what a column shows; each column has a deck of spaces, paged
-  per column. A space has a home column but can be summoned to another.
-  Today's global workspace pool becomes implementation detail.
-- `Arrangement`: named whole-display state — layout plus which space each
-  column shows (absorbs ZoneScene). Whole-display switching (`alt-1..9`)
-  switches arrangements; paging a column is the local motion.
-- `Pin`: app or window routed to a column (absorbs zone-bindings and
-  zone-affinities; `on-window-detected` stays as the undocumented escape
-  hatch).
+- `Display`: physical monitor; owns an ordered list of columns.
+- `Column`: named vertical slice that behaves as its own small monitor:
+  shows exactly one card, holds a stable ordered deck of cards, has width
+  and a style attribute (zone-style dies as an entity).
+- `Card`: named window group, the unit of content (runtime = workspace).
+  STRICT CONTAINMENT: a card lives in exactly one column's deck, always;
+  summoning a card into another column IS moving it there; there is no
+  hidden pool and no free-floating content — the sidebar never lies about
+  where things are. (A remembered `home` column was considered and
+  explicitly deferred: "strict for now".) Projects and tab groups die as
+  domain nouns — a card is the grouping; in-card tabbing is layout.
+- `Scene`: named FULL SNAPSHOT of a display — open columns, widths, and
+  which card each column shows. `scene save` captures live state; applying
+  a scene restores it exactly (no partial/patch scenes). Absorbs
+  zone-layout, zone-availability-set, zone-scene, and save-zone-layout.
+  Whole-display switching (`alt-1..9`) switches scenes.
+- `Rule`: declarative window match routed to a card, never to a place.
+  Absorbs zone-affinities and on-window-detected; zone-bindings die with
+  strict containment (the deck IS the binding).
+
+Verbs: `card next|prev` pages the focused column's stable deck (chosen
+over MRU rings for positional muscle memory); `card go <name>` jumps to a
+card where it lives; `card move <column>` / summon moves it between
+decks; window moves use the existing monitor machinery; `column resize`,
+`column collapse|expand`; `scene save` / `scene <name>`. Laptop: one
+implicit column whose deck is all cards — exact classic workspace
+switching with zero config and no new vocabulary.
 
 UI consequences: the sidebar becomes column-sectioned (a section per
 column listing its deck and windows); the settings window gains a
