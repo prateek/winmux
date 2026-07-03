@@ -347,9 +347,10 @@ final names. Each phase ends green and dogfood-releasable.
   ids, debounced save, load before first reconciliation.
 - Survival predicate rewrite (`WorkspaceLifecycle.swift:196-207`), TDD
   table first: visible / has windows / configured-persistent / sole card
-  in deck / retained deck slot. A deck is never empty, so a sole card
-  survives even when it is an auto-created blank; blanks are prunable
-  only while the deck holds something else. Deletes zone parking
+  in deck / retained deck slot / hidden active card of a disabled column
+  (so re-enabling restores the exact card it was showing). A deck is
+  never empty, so a sole card survives even when it is an auto-created
+  blank; blanks are prunable only while the deck holds something else. Deletes zone parking
   (`parkedWorkspaceByZoneId`, `ZoneTopology.swift:380`) and project
   sole-survivor; `WorkspaceRetainedEmptySlot` rekeys to column.
 - Invariants in `checkWorkspaceHierarchyInvariants`
