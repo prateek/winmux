@@ -19,12 +19,14 @@ func moveCardToSceneColumn(_ card: Workspace, sceneId: String, columnId: String)
     let targetDeckKey = columnDeckKey(sceneKey: sceneDeckKeyPrefix + sceneId, columnId: columnId)
 
     if let targetMonitor = liveColumnViewport(sceneId: sceneId, columnId: columnId) {
-        let wasFocused = focus.workspace == card
+        let previouslyFocused = focus.workspace
         guard overrideWorkspaceOnMonitorBySwappingActiveViewports(card, targetMonitor: targetMonitor) else {
             return .failure("Can't move card '\(card.name)' into scene '\(sceneId)' column '\(columnId)'")
         }
         Workspace.reconcileWorkspaceState()
-        if wasFocused {
+        // Focus follows visibility: re-home to the moved card whenever the previously focused card
+        // is no longer visible, whether it was the moved card or one the move displaced offscreen.
+        if !previouslyFocused.isVisible {
             _ = card.focusWorkspace()
         }
         return .success(())
@@ -67,6 +69,10 @@ private func moveCardOffstage(_ card: Workspace, toDeckKey targetDeckKey: String
     let wasFocused = focus.workspace == card
 
     winMuxWorkspaceState.columnDecks.transfer(card.id, to: targetDeckKey)
+    // The moved card becomes the offstage column's active card. This both makes it the card the
+    // scene reveals on return and satisfies the survival branch, so an empty card landing behind
+    // an anchor is not pruned before its scene comes back on screen.
+    winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[targetDeckKey] = card.id
 
     var replacement: Workspace?
     if let sourceMonitor {

@@ -36,6 +36,68 @@ final class SceneRemovalTest: XCTestCase {
         assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: ref.id), "scene:focus/column:main")
     }
 
+    func testRemovingNeverActivatedSceneMergesIntoItsOwnDisplayNotMain() {
+        let left = TestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Left",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        let right = TestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "Right",
+            rect: Rect(topLeftX: 1200, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 1200, topLeftY: 0, width: 1200, height: 800),
+            isMain: false,
+        )
+        setMonitorsForTests([left, right])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+
+        // 'extraB' is a secondary scene on display 2 (the non-main display) that is never switched to.
+        applyTwoDisplayScenes("""
+            [scene.deskA]
+            display = 1
+            columns = [ { id = 'main', name = 'Work', width = 1.0 } ]
+
+            [scene.deskB]
+            display = 2
+            default-column = 'mainB'
+            columns = [ { id = 'mainB', name = 'WorkB', width = 1.0 } ]
+
+            [scene.extraB]
+            display = 2
+            columns = [ { id = 'sideB', name = 'SideB', width = 1.0 } ]
+            """)
+        Workspace.reconcileWorkspaceState()
+        assertSucc(setActiveScene("deskA", for: left))
+        assertSucc(setActiveScene("deskB", for: right))
+
+        // Park a window-bearing card in display 2's never-activated 'extraB' scene deck.
+        let parked = occupyCard("Parked", windowId: 1, on: sceneColumnMonitors()["mainB"].orDie())
+        assertSucc(moveCardToSceneColumn(parked, sceneId: "extraB", columnId: "sideB"))
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: parked.id), "scene:extraB/column:sideB")
+
+        // Reload drops [scene.extraB]; deskA (display 1) and deskB (display 2) remain.
+        let previousScenes = config.scenes
+        applyTwoDisplayScenes("""
+            [scene.deskA]
+            display = 1
+            columns = [ { id = 'main', name = 'Work', width = 1.0 } ]
+
+            [scene.deskB]
+            display = 2
+            default-column = 'mainB'
+            columns = [ { id = 'mainB', name = 'WorkB', width = 1.0 } ]
+            """)
+        remapColumnDecksOntoCurrentScenes(previousScenes: previousScenes)
+        Workspace.reconcileWorkspaceState()
+
+        // The orphaned deck merges into display 2's default scene, not display 1 / main.
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: parked.id), "scene:deskB/column:mainB")
+    }
+
     func testRemovingLastSceneRestoresImplicitScene() {
         let deskOnly = """
             [scene.desk]
@@ -61,13 +123,24 @@ final class SceneRemovalTest: XCTestCase {
 }
 
 @MainActor
-private func removeScenesKeeping(_ toml: String) {
+private func applyTwoDisplayScenes(_ toml: String) {
     let (parsed, errors) = parseConfig(toml)
     XCTAssertTrue(errors.isEmpty, "\(errors.descriptions)")
     config.scenes = parsed.scenes
     config.zoneLayouts = parsed.zoneLayouts
     config.zones = parsed.zones
     refreshZoneTopologySnapshot()
-    remapColumnDecksOntoCurrentScenes()
+}
+
+@MainActor
+private func removeScenesKeeping(_ toml: String) {
+    let (parsed, errors) = parseConfig(toml)
+    XCTAssertTrue(errors.isEmpty, "\(errors.descriptions)")
+    let previousScenes = config.scenes
+    config.scenes = parsed.scenes
+    config.zoneLayouts = parsed.zoneLayouts
+    config.zones = parsed.zones
+    refreshZoneTopologySnapshot()
+    remapColumnDecksOntoCurrentScenes(previousScenes: previousScenes)
     Workspace.reconcileWorkspaceState()
 }

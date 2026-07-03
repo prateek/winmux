@@ -33,18 +33,19 @@ final class SceneRegistryTest: XCTestCase {
         let work = occupy("Work", windowId: 2, on: columns["main"].orDie())
         let comms = occupy("Comms", windowId: 3, on: columns["comms"].orDie())
 
-        // A second card joins the main deck but Work stays the one on screen.
+        // Notes joins the main deck second and stays the card on screen. Restoring it on return
+        // can then only come from hidden-active memory: the deck-order fallback would surface
+        // Work (first in the deck), so this pins the exact-card restoration path.
         let notes = occupy("Notes", windowId: 4, on: columns["main"].orDie())
-        XCTAssertTrue(columns["main"].orDie().setActiveWorkspace(work))
         Workspace.reconcileWorkspaceState()
 
         XCTAssertEqual(columnDeckKey(for: columns["main"].orDie()), "scene:desk/column:main")
         XCTAssertEqual(deckCardNames("scene:desk/column:main"), ["Work", "Notes"])
-        XCTAssertEqual(activeCardsByColumn(), ["ref": "Ref", "main": "Work", "comms": "Comms"])
+        XCTAssertEqual(activeCardsByColumn(), ["ref": "Ref", "main": "Notes", "comms": "Comms"])
 
         activate("focus", on: main)
         // A card from the hidden scene keeps its column deck; it just stops rendering.
-        XCTAssertFalse(work.isVisible)
+        XCTAssertFalse(notes.isVisible)
         XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: work.id), "scene:desk/column:main")
         XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: comms.id), "scene:desk/column:comms")
         XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: ref.id), "scene:desk/column:ref")
@@ -57,7 +58,7 @@ final class SceneRegistryTest: XCTestCase {
         activate("desk", on: main)
         columns = sceneColumns()
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 600, 360])
-        XCTAssertEqual(activeCardsByColumn(), ["ref": "Ref", "main": "Work", "comms": "Comms"])
+        XCTAssertEqual(activeCardsByColumn(), ["ref": "Ref", "main": "Notes", "comms": "Comms"])
         XCTAssertEqual(deckCardNames("scene:desk/column:main"), ["Work", "Notes"])
 
         // The focus scene's card survived the round trip in its own deck.
@@ -126,6 +127,20 @@ final class SceneRegistryTest: XCTestCase {
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 600, 360])
         XCTAssertEqual(activeCardsByColumn()["main"], "Work")
         XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: work.id), "scene:desk/column:main")
+    }
+
+    // A configured display must run its default scene once config is applied, before any manual
+    // `scene` command, so early cards key by scene and match the persisted scene:* decks instead
+    // of stranding in an implicit deck.
+    func testConfiguredDisplayActivatesDefaultSceneSoEarlyCardsKeyByScene() {
+        let main = configureTwoScenes()
+        XCTAssertNil(activeSceneId(for: main))
+
+        activateDefaultScenesForConfiguredDisplays()
+        XCTAssertEqual(activeSceneId(for: main), "desk")
+
+        let fresh = Workspace.get(byName: "Fresh")
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: fresh.id)?.hasPrefix("scene:desk/"), true)
     }
 }
 

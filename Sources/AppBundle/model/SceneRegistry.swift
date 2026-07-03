@@ -162,20 +162,27 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
 /// Reconciles decks after a config reload changes which scenes exist. A display whose active
 /// scene was removed promotes to the new default (first declared) scene, or drops to its implicit
 /// scene when its last scene is gone. Every deck keyed by a removed scene merges, order preserved,
-/// into the owning display's default column — the same orphan-merge rule hotplug uses. Run before
-/// the reload's reconcile so the promoted scene's columns read the merged decks.
+/// into its owning display's default-scene default column — the same orphan-merge rule hotplug
+/// uses. A removed scene that was never activated still belongs to its declared display, recovered
+/// from `previousScenes` (the pre-reload config), so its decks follow that display instead of
+/// dropping to main. Run before the reload's reconcile so the promoted scene's columns read the
+/// merged decks.
 @MainActor
-func remapColumnDecksOntoCurrentScenes() {
+func remapColumnDecksOntoCurrentScenes(previousScenes: [SceneConfig]) {
     guard !winMuxWorkspaceState.columnDecks.decksByColumnKey.isEmpty else { return }
     let validSceneIds = Set(config.scenes.map(\.id))
+    let sortedPhysicals = sortedPhysicalMonitors
 
+    // Only a display whose *active* scene was removed promotes; key by the removed scene id so
+    // its decks route back to the same display below.
     var displayForRemovedScene: [String: Monitor] = [:]
-    for physicalMonitor in sortedPhysicalMonitors {
+    var displaysToPromote: [Monitor] = []
+    for physicalMonitor in sortedPhysicals {
         guard let activeId = activeSceneId(for: physicalMonitor), !validSceneIds.contains(activeId) else { continue }
         displayForRemovedScene[activeId] = physicalMonitor
+        displaysToPromote.append(physicalMonitor)
     }
-
-    for physicalMonitor in displayForRemovedScene.values {
+    for physicalMonitor in displaysToPromote {
         if let promoted = scenes(on: physicalMonitor).first {
             applySceneRuntimeOverlay(sceneId: promoted.id, layoutId: promoted.layoutId, for: physicalMonitor)
         } else {
@@ -183,13 +190,49 @@ func remapColumnDecksOntoCurrentScenes() {
         }
     }
 
+    // Never-activated removed scenes have no runtime overlay to read their display from; recover
+    // it from the pre-reload config so their orphaned decks still find their own display.
+    for scene in previousScenes where !validSceneIds.contains(scene.id) && displayForRemovedScene[scene.id] == nil {
+        guard let description = scene.monitor,
+              let resolved = description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicals)
+        else { continue }
+        displayForRemovedScene[scene.id] = resolved
+    }
+
     for deckKey in winMuxWorkspaceState.columnDecks.decksByColumnKey.keys.sorted() {
         guard let (sceneKey, _) = splitColumnDeckKey(deckKey), sceneKey.hasPrefix(sceneDeckKeyPrefix) else { continue }
         let sceneId = String(sceneKey.dropFirst(sceneDeckKeyPrefix.count))
         guard !validSceneIds.contains(sceneId) else { continue }
         let display = displayForRemovedScene[sceneId] ?? mainMonitor.physicalMonitor
-        let targetColumnKey = columnDeckKey(for: display.defaultWorkspaceViewport)
+        let targetColumnKey = defaultSceneDefaultColumnDeckKey(forDisplay: display)
+            ?? columnDeckKey(for: display.defaultWorkspaceViewport)
         winMuxWorkspaceState.columnDecks.mergeDeck(from: deckKey, into: targetColumnKey)
+    }
+}
+
+/// Computed from config, not the active viewport, so it stays correct even before that scene is
+/// activated; `nil` when the display has no scenes (it runs its implicit scene).
+@MainActor
+private func defaultSceneDefaultColumnDeckKey(forDisplay physicalMonitor: Monitor) -> String? {
+    guard let defaultScene = scenes(on: physicalMonitor.physicalMonitor).first,
+          let layout = config.zoneLayouts.first(where: { $0.id == defaultScene.layoutId }),
+          let columnId = defaultScene.defaultColumn ?? layout.columns.first?.id
+    else { return nil }
+    return columnDeckKey(sceneKey: sceneDeckKeyPrefix + defaultScene.id, columnId: columnId)
+}
+
+/// Activates each configured display's default (first-declared) scene when none is active, so a
+/// configured display keys its columns by scene from the first card instead of stranding early
+/// cards in implicit decks that never match the persisted `scene:*` keys. Runs during config
+/// application, before the persisted-deck load and first reconcile. Idempotent: a display already
+/// running a scene is left untouched, so a runtime reload never overrides a live non-default scene.
+@MainActor
+func activateDefaultScenesForConfiguredDisplays() {
+    for physicalMonitor in sortedPhysicalMonitors {
+        guard activeSceneId(for: physicalMonitor) == nil,
+              let defaultScene = scenes(on: physicalMonitor).first
+        else { continue }
+        applySceneRuntimeOverlay(sceneId: defaultScene.id, layoutId: defaultScene.layoutId, for: physicalMonitor)
     }
 }
 

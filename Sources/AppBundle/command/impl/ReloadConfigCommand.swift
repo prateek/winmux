@@ -30,9 +30,11 @@ struct ReloadConfigCommand: Command {
         case .success(let (parsedConfig, url)):
             if !args.dryRun {
                 resetHotKeys()
+                let previousScenes = config.scenes
                 config = parsedConfig
                 configUrl = url
-                remapColumnDecksOntoCurrentScenes()
+                remapColumnDecksOntoCurrentScenes(previousScenes: previousScenes)
+                activateDefaultScenesForConfiguredDisplays()
                 UpdaterBridge.shared.applyConfig()
                 try await activateMode(activeMode)
                 syncStartAtLogin()

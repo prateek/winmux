@@ -44,6 +44,51 @@ final class SceneCardMoveTest: XCTestCase {
         assertEquals(sceneActiveCards()["comms"], "Work")
     }
 
+    func testEmptyCardMovedBehindAnAnchorInOffstageSceneSurvives() {
+        let main = configureScenesFromToml(twoSceneToml)
+        assertSucc(setActiveScene("desk", for: main))
+
+        // Anchor the offstage 'focus' scene's main column with a window-bearing card.
+        let anchor = occupyCard("Anchor", windowId: 1, on: sceneColumnMonitors()["main"].orDie())
+        assertSucc(moveCardToSceneColumn(anchor, sceneId: "focus", columnId: "main"))
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: anchor.id), "scene:focus/column:main")
+
+        // An empty card moved into that same offstage column lands second, behind the anchor, so
+        // it is neither visible nor the deck's sole card: only the survival branch keeps it.
+        let empty = Workspace.get(byName: "Empty")
+        assertSucc(moveCardToSceneColumn(empty, sceneId: "focus", columnId: "main"))
+        Workspace.reconcileWorkspaceState()
+
+        XCTAssertNotNil(Workspace.existing(byName: "Empty"))
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: empty.id), "scene:focus/column:main")
+        assertEquals(sceneDeckCardNames("scene:focus/column:main"), ["Anchor", "Empty"])
+    }
+
+    func testMoveIntoVisibleColumnRehomesFocusOffADisplacedCard() {
+        let main = configureScenesFromToml(twoSceneToml)
+        assertSucc(setActiveScene("desk", for: main))
+
+        let columns = sceneColumnMonitors()
+        // 'Comms' shows in the comms column and holds focus.
+        let comms = occupyCard("Comms", windowId: 1, on: columns["comms"].orDie())
+        // 'Mover' parks offstage in the ref column's deck behind 'RefCard', so moving it takes the
+        // plain reveal path and cleanly displaces whatever the target column was showing.
+        let mover = occupyCard("Mover", windowId: 2, on: columns["ref"].orDie())
+        _ = occupyCard("RefCard", windowId: 3, on: columns["ref"].orDie())
+        XCTAssertTrue(comms.focusWorkspace())
+        Workspace.reconcileWorkspaceState()
+        XCTAssertFalse(mover.isVisible)
+
+        // Moving 'Mover' into the visible comms column displaces the focused 'Comms' card.
+        assertSucc(moveCardToSceneColumn(mover, sceneId: "desk", columnId: "comms"))
+
+        XCTAssertFalse(comms.isVisible)
+        XCTAssertTrue(mover.isVisible)
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: mover.id), "scene:desk/column:comms")
+        // Focus followed to a visible card instead of stranding on the now-hidden 'Comms'.
+        XCTAssertTrue(focus.workspace === mover, "focus must follow visibility off the displaced card")
+    }
+
     func testMoveMissingCardByNameCreatesItInSceneDefaultColumn() {
         let main = configureScenesFromToml(twoSceneToml)
         assertSucc(setActiveScene("desk", for: main))

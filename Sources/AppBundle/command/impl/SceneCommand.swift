@@ -54,11 +54,34 @@ func buildSceneBlock(named name: String, on physicalMonitor: Monitor) -> Result<
         return .failure("Scene '\(name)' already exists")
     }
     let monitorId = physicalMonitor.monitorId_oneBased ?? 0
+    if displayIsGovernedByUserZones(physicalMonitor) {
+        return .failure("Monitor \(monitorId) is configured by [[zones]]; migrate it to [scene.*] before creating scenes")
+    }
     let snapshot = liveSceneColumns(on: physicalMonitor)
     guard !snapshot.columns.isEmpty else {
         return .failure("No columns to capture on monitor \(monitorId)")
     }
     return .success(renderSceneConfigBlock(name: name, display: monitorId, defaultColumn: snapshot.defaultColumn, columns: snapshot.columns))
+}
+
+/// Whether a physical monitor is governed by a user `[[zones]]` entry rather than a scene's
+/// synthesized backing zone. Scenes append one `ZoneConfig` per display keyed to the scene's
+/// backing layout id; those are not user zones. Everything else targeting the monitor is a user
+/// `[[zones]]` block, matched by physical identity so a `1`-vs-`'main'` selector mismatch between a
+/// `[[zones]]` entry and a scene `display` still collides.
+@MainActor
+private func displayIsGovernedByUserZones(_ physicalMonitor: Monitor) -> Bool {
+    let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
+    let sortedPhysicals = sortedPhysicalMonitors
+    let sceneBackingLayoutIds = Set(config.scenes.map(\.layoutId))
+    return config.zones.contains { zone in
+        guard let description = zone.monitor,
+              let resolved = description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicals),
+              resolved.rect.topLeftCorner == targetTopLeft
+        else { return false }
+        if let preset = zone.layoutPreset, sceneBackingLayoutIds.contains(preset) { return false }
+        return true
+    }
 }
 
 @MainActor
