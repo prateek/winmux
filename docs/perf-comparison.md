@@ -76,6 +76,27 @@ earned their keep — app blacklists, per-window frame caches, move-event
 debouncing, watcher suppression around self-initiated writes, hard
 wall-clock bailouts — are all workarounds for the missing threading model.
 
+**Commercial zone managers (BentoBox, BetterStage; binary-inspected, no
+source).** Both are public-AX-only with SIP intact — no private SkyLight
+symbols — so their per-operation window-move cost is identical to ours;
+the differentiation is scope and mitigation. BentoBox (v1.1.8) is a
+FancyZones-style snap helper: no AX observers, no event tap, no window
+state ownership — it sleeps until a modifier-drag or hotkey, issues a few
+AX setFrames, and goes back to sleep. It cannot lag because it is not
+running between user actions. BetterStage (v1.2.3) is the closest
+commercial analog to winmux's ambitions: up to 9 "stages" (virtual
+workspaces spanning monitors) implemented by hiding/stashing non-active
+windows and batch-restoring frames via AX — explicitly not macOS Spaces,
+marketed as "&lt;16 ms, no animation." It is the only system in this whole
+comparison that ships `AXUIElementSetMessagingTimeout` (their changelog:
+"a slow or unresponsive app is far less likely to hold things up"), plus
+batched AX reads (`AXUIElementCopyMultipleAttributeValues`) and per-app
+operation routing ("one slow app can't hold up the rest", claimed ~50%
+latency win on busy stages). Their scar tissue matches our rule exactly:
+v1.1.2 fixed system-wide typing stutter caused by a periodic task holding
+up their active CGEventTap's hand-off. Both ship Sparkle 2.8 with EdDSA
+appcasts.
+
 **winmux (this fork)** inherits AeroSpace's refresh-heavy model AND its
 thread-per-app fix, then adds zone and tab-group machinery on top, several
 pieces of which run at pointer rate on the main actor: global+local
@@ -170,6 +191,22 @@ From the Hammerspoon ecosystem (what its scars prove):
   frames must be rare and batched;
 - real macOS Spaces integration is a dead end (Mission Control AX-clicking
   with busy-waits); the zones/virtual-viewport choice is validated.
+
+From the commercial zone managers:
+- `AXUIElementSetMessagingTimeout` is shipped, marketed, and
+  changelog-proven by BetterStage; winmux setting no AX timeout anywhere is
+  a gap with an off-the-shelf fix;
+- batch AX reads with `AXUIElementCopyMultipleAttributeValues` where we
+  fetch several attributes per window;
+- BetterStage's typing-stutter regression (periodic work on the event-tap
+  thread) is the exact failure mode the plan's input-path rule forbids;
+- react to less: BentoBox's zero-standing-cost model is unreachable for a
+  tiler, but every event class we can stop reacting to (Slice 54's divider
+  gating, dropping no-op refresh triggers) moves us toward it;
+- Accessibility-only with SIP intact is table stakes in this product
+  category and worth preserving as a hard constraint;
+- Sparkle with EdDSA appcasts is the standard update path in this market
+  (BentoBox, BetterStage, Ghostty), reinforcing Slice 52's design.
 
 Fork-specific must-fixes with no comparator equivalent to copy:
 - divider veto off the click path (async or cached);
