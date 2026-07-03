@@ -146,6 +146,19 @@ extension ConfigTest {
         ])
     }
 
+    func testParseDefaultConfigTemplate() throws {
+        let (parsed, errors) = parseConfig(
+            try String(contentsOf: getDefaultConfigUrlFromProject(), encoding: .utf8)
+        )
+        assertEquals(errors, [])
+        XCTAssertNotNil(parsed.modes[mainModeId])
+        XCTAssertNotNil(parsed.modes[zoneModeId])
+        XCTAssertTrue(
+            parsed.modes[mainModeId]?.bindings.values
+                .contains { $0.descriptionWithKeyNotation == "ctrl-up" } == true
+        )
+    }
+
     func testParseZoneNodeBindingsE2EConfig() throws {
         var fixtureUrl = getDefaultConfigUrlFromProject()
         fixtureUrl.deleteLastPathComponent()
