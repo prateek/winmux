@@ -1,8 +1,28 @@
 # Columnar Zones Plan
 
-Status: slices 0-50 accepted; Slices 51-55 in progress
-Base decision: zone == virtual monitor
-Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
+Base decision: zone == virtual monitor.
+Scope: make ultrawide monitors ergonomic by letting one physical display
+expose several named workspace viewports.
+
+This document holds the design (Decision through Core Invariants) and the
+per-slice acceptance record (Implementation Slices onward). The slice
+sections below are a historical ledger of accepted evidence, kept as
+provenance for the Tart acceptance gates; they are not forward plans.
+
+## Status and remaining work
+
+- Slices 0-50 are Tart-accepted.
+- Slices 51-55 have shipped implementations but no accepted Tart artifact.
+  Their acceptance is batched into the Tart phase below so recordings
+  capture the final Slice 56 vocabulary.
+- Slice 56 is a user-facing domain-model redesign (see
+  `docs/plans/slice-56-domain-model.md`). Its runtime phases A-D are done;
+  the vocabulary cut (E), sidebar and settings rework (F), and docs plus
+  the slice-56 proof (G) remain.
+- After Slice 56, the Tart acceptance phase runs for Slices 51-56 as one
+  batch, followed by the beta-readiness decision after a multi-day dogfood
+  soak on the ultrawide. Slice 51 has open pre-slice items in its section
+  that gate its recording.
 
 ## Decision
 
@@ -36,7 +56,7 @@ Identity rule for call sites:
   mouse approximations, but not for deciding whether a persisted or
   force-assigned workspace is valid.
 
-Input-path rule (added after 2026-07-02 dogfood latency diagnosis):
+Input-path rule:
 
 - input event handlers (global/local mouse and key monitors, event-tap
   callbacks, hover tracking) must not perform synchronous AX calls,
@@ -9705,9 +9725,11 @@ Non-claims:
 
 ### Slice 56: Domain Model Simplification
 
-Status: design approved; implementation pending. The full approved plan —
-model, policies, config v3, command reference, phases A-G, risks, and
-verification — lives in `docs/plans/slice-56-domain-model.md`. The
+The full plan — model, policies, config v3, command reference, phases
+A-G, risks, and verification — lives in
+`docs/plans/slice-56-domain-model.md`. Runtime phases A-D (deck store,
+navigation, scenes, rules) are implemented; the vocabulary cut (E),
+sidebar and settings rework (F), and docs plus proof (G) remain. The
 runtime architecture (zone = viewport hosting a workspace) does not
 change.
 
