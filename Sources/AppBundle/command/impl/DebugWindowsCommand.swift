@@ -106,6 +106,12 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     }
     result["WinMux.on-window-detected"] = .array(matchingCallbacks)
 
+    var rules: [Json] = []
+    for (index, rule) in config.rules.enumerated() {
+        rules.append(try await rule.evaluate(index: index, window: window).debugJson)
+    }
+    result["WinMux.rules"] = .array(rules)
+
     var zoneAffinities: [Json] = []
     for (index, affinity) in config.zoneAffinities.enumerated() {
         zoneAffinities.append(try await affinity.evaluate(index: index, window: window).debugJson)

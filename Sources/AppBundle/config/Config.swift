@@ -121,6 +121,7 @@ struct Config: ConvenienceCopyable {
     var zoneAvailabilitySets: [ZoneAvailabilitySetConfig] = []
     var zones: [ZoneConfig] = []
     var scenes: [SceneConfig] = []
+    var rules: [RuleConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
@@ -208,6 +209,16 @@ struct ZoneAffinityConfig: ConvenienceCopyable, Equatable {
     var checkFurtherCallbacks: Bool = false
     var focusFollowsWindow: Bool = false
     var failIfNoop: Bool = false
+}
+
+/// A `[[rules]]` entry: a window match dealing new windows onto a card by name. Rules address
+/// content (the card), never a place; a rule naming a card that does not exist yet creates it in
+/// the active scene's default column, so the rule stays independent of where focus happens to be.
+struct RuleConfig: ConvenienceCopyable, Equatable {
+    var matcher: WindowDetectedCallbackMatcher = WindowDetectedCallbackMatcher()
+    var card: String?
+    var focus: Bool = false
+    var checkFurtherRules: Bool = false
 }
 
 struct ZoneStyleConfig: ConvenienceCopyable, Equatable, Sendable {

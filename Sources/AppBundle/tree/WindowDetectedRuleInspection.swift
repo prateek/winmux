@@ -72,6 +72,50 @@ enum ZoneAffinityTargetEvaluation: Equatable {
     }
 }
 
+struct RuleEvaluation: Equatable {
+    let index: Int
+    let card: String
+    let matcher: WindowDetectedMatcherEvaluation
+    let target: RuleCardTargetEvaluation
+    let focus: Bool
+    let checkFurtherRules: Bool
+
+    var matched: Bool { matcher.matched }
+
+    var debugJson: Json {
+        .dict([
+            "index": .int(index),
+            "card": .string(card),
+            "matched": .bool(matched),
+            "matcher": matcher.debugJson,
+            "target": target.debugJson,
+            "focus": .bool(focus),
+            "check-further-rules": .bool(checkFurtherRules),
+        ])
+    }
+}
+
+enum RuleCardTargetEvaluation: Equatable {
+    case existing(columnKey: String?)
+    case willCreate(columnKey: String)
+
+    var debugJson: Json {
+        switch self {
+            case .existing(let columnKey):
+                return .dict([
+                    "state": .string("existing"),
+                    "column-key": .stringOrNull(columnKey),
+                ])
+            case .willCreate(let columnKey):
+                return .dict([
+                    "state": .string("will-create"),
+                    "column-key": .string(columnKey),
+                    "reason": .string("card does not exist yet; a match creates it in the active scene's default column"),
+                ])
+        }
+    }
+}
+
 extension WindowDetectedCallbackMatcher {
     @MainActor
     func evaluate(_ window: Window) async throws -> WindowDetectedMatcherEvaluation {
@@ -147,6 +191,32 @@ extension ZoneAffinityConfig {
             failIfNoop: failIfNoop,
         )
     }
+}
+
+extension RuleConfig {
+    @MainActor
+    func evaluate(index: Int, window: Window) async throws -> RuleEvaluation {
+        let cardName = card ?? "<missing>"
+        return RuleEvaluation(
+            index: index,
+            card: cardName,
+            matcher: try await matcher.evaluate(window),
+            target: card.map { evaluateRuleCardTarget($0, forWindow: window) } ?? .willCreate(columnKey: "<unresolved: missing required 'card' key>"),
+            focus: focus,
+            checkFurtherRules: checkFurtherRules,
+        )
+    }
+}
+
+@MainActor
+private func evaluateRuleCardTarget(_ cardName: String, forWindow window: Window) -> RuleCardTargetEvaluation {
+    if let existing = Workspace.existing(byName: cardName) {
+        return .existing(columnKey: winMuxWorkspaceState.columnDecks.columnKey(of: existing.id))
+    }
+    guard let display = window.nodeMonitor else {
+        return .willCreate(columnKey: "<unresolved: window has no monitor>")
+    }
+    return .willCreate(columnKey: ruleCardColumnDeckKey(onDisplay: display))
 }
 
 @MainActor

@@ -86,6 +86,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "zone-affinities": Parser(\.zoneAffinities, parseZoneAffinities),
     "zone-availability-sets": Parser(\.zoneAvailabilitySets, parseZoneAvailabilitySets),
     "zones": Parser(\.zones, parseZones),
+    "rules": Parser(\.rules, parseRules),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
     "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
