@@ -66,7 +66,8 @@ test -s "$SPARKLE_PUB_FILE" || die "missing Sparkle public key $SPARKLE_PUB_FILE
 
 log "building beta package $VERSION from $head_sha"
 SPARKLE_PUBLIC_ED_KEY="$(cat "$SPARKLE_PUB_FILE")" \
-    make beta-package VERSION="$VERSION" PUBLISH=0 BETA_CODESIGN_IDENTITY="$SIGN_IDENTITY" >/dev/null
+    make beta-package VERSION="$VERSION" PUBLISH=0 BETA_CODESIGN_IDENTITY="$SIGN_IDENTITY" \
+        SPARKLE_FEED_URL="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/appcast.xml" >/dev/null
 test -s "$zip_path" || die "expected package at $zip_path"
 zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
 
@@ -80,6 +81,19 @@ for artifact in "$staging_dir/WinMux.app" "$staging_dir/bin/winmux"; do
         || die "$artifact is not signed by '$SIGN_IDENTITY'; refusing to publish"
 done
 log "artifacts signed by '$SIGN_IDENTITY'"
+
+log "generating Sparkle feed artifacts"
+mkdir -p "$SPARKLE_FEED_DIR"
+sparkle_zip="$SPARKLE_FEED_DIR/WinMux-Sparkle-${VERSION}.zip"
+# generate_appcast wants exactly one app bundle at each archive's root, so the Sparkle
+# enclosure is an app-only zip, separate from the full package zip above.
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir/WinMux.app" "$sparkle_zip"
+"$SPARKLE_BIN/generate_appcast" \
+    --ed-key-file "$SPARKLE_KEY_FILE" \
+    --download-url-prefix "https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/" \
+    --maximum-deltas 0 \
+    -o "$SPARKLE_FEED_DIR/appcast.xml" \
+    "$SPARKLE_FEED_DIR"
 
 log "pushing $branch to $RELEASE_REMOTE"
 git push "$RELEASE_REMOTE" "$branch"
@@ -108,21 +122,12 @@ gh release create "$tag" \
     "$zip_path"
 
 log "updating Sparkle feed on the rolling '$SPARKLE_FEED_TAG' release"
-mkdir -p "$SPARKLE_FEED_DIR"
-sparkle_zip="$SPARKLE_FEED_DIR/WinMux-Sparkle-${VERSION}.zip"
-# generate_appcast wants exactly one app bundle at each archive's root, so the Sparkle
-# enclosure is an app-only zip, separate from the full package zip above.
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir/WinMux.app" "$sparkle_zip"
-"$SPARKLE_BIN/generate_appcast" \
-    --ed-key-file "$SPARKLE_KEY_FILE" \
-    --download-url-prefix "https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/" \
-    --maximum-deltas 0 \
-    -o "$SPARKLE_FEED_DIR/appcast.xml" \
-    "$SPARKLE_FEED_DIR"
-gh release view "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1 \
-    || gh release create "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --prerelease \
-        --title "Sparkle update feed" \
-        --notes "Rolling Sparkle appcast and update archives. Installed apps update from here; humans should use the versioned releases."
+# Create-first is idempotent: when the rolling release already exists the create fails and
+# the upload proceeds; view-then-create would race a concurrent release.
+gh release create "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --prerelease \
+    --title "Sparkle update feed" \
+    --notes "Rolling Sparkle appcast and update archives. Installed apps update from here; humans should use the versioned releases." \
+    2>/dev/null || true
 gh release upload "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --clobber \
     "$SPARKLE_FEED_DIR/appcast.xml" "$sparkle_zip"
 

@@ -289,8 +289,43 @@ final class MacApp: AbstractApp {
         MacWindow.allWindows.filter { $0.macApp === self }.map(\.windowId)
     }
 
+    static func shouldServeBenchedCache(
+        isFrontmost: Bool,
+        penaltyUntil: ContinuousClock.Instant?,
+        now: ContinuousClock.Instant,
+    ) -> Bool {
+        // The frontmost app is exempt: the user is interacting with it, so its windows must
+        // stay current even when it is slow.
+        guard !isFrontmost, let penaltyUntil else { return false }
+        return now < penaltyUntil
+    }
+
+    static func penaltyAfterRefresh(
+        elapsed: Duration,
+        hasServableCache: Bool,
+        now: ContinuousClock.Instant,
+    ) -> ContinuousClock.Instant? {
+        // Never bench without a servable cache: benching an app whose enumeration timed out
+        // empty (typical during launch or a beachball that dropped its windows) would make its
+        // windows invisible for the whole penalty instead of one slow refresh.
+        guard elapsed > slowAxRefreshBudget, hasServableCache else { return nil }
+        return now + slowAxPenaltyDuration
+    }
+
     @MainActor
-    static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
+    func isBenched(frontmostAppPid: pid_t?) -> Bool {
+        Self.shouldServeBenchedCache(
+            isFrontmost: pid == frontmostAppPid,
+            penaltyUntil: slowAxPenaltyUntil,
+            now: ContinuousClock.now,
+        )
+    }
+
+    @MainActor
+    static func refreshAllAndGetAliveWindowIds(
+        frontmostAppBundleId: String?,
+        frontmostAppPid: pid_t?,
+    ) async throws -> [MacApp: [UInt32]] {
         for (_, app) in MacApp.allAppsMap { // gc dead apps
             try checkCancellation()
             if app.nsApp.isTerminated {
@@ -301,20 +336,29 @@ final class MacApp: AbstractApp {
             func refreshTheApp(_ nsApp: NSRunningApplication) {
                 group.addTask { @Sendable @MainActor in
                     guard let app = try await MacApp.getOrRegister(nsApp) else { return (nsApp.processIdentifier, []) }
-                    // The frontmost app is exempt: the user is interacting with it, so its
-                    // windows must stay current even when it is slow.
-                    let isFrontmost = nsApp.bundleIdentifier != nil && nsApp.bundleIdentifier == frontmostAppBundleId
-                    if !isFrontmost, let penaltyUntil = app.slowAxPenaltyUntil, ContinuousClock.now < penaltyUntil {
+                    if app.isBenched(frontmostAppPid: frontmostAppPid) {
                         return (nsApp.processIdentifier, app.knownWindowIdsFromTree)
                     }
                     let start = ContinuousClock.now
-                    let windowIds = try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId)
-                    if start.duration(to: ContinuousClock.now) > slowAxRefreshBudget {
-                        app.slowAxPenaltyUntil = ContinuousClock.now + slowAxPenaltyDuration
-                    } else {
-                        app.slowAxPenaltyUntil = nil
+                    do {
+                        let windowIds = try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId)
+                        app.slowAxPenaltyUntil = Self.penaltyAfterRefresh(
+                            elapsed: start.duration(to: ContinuousClock.now),
+                            hasServableCache: !windowIds.isEmpty,
+                            now: ContinuousClock.now,
+                        )
+                        return (nsApp.processIdentifier, windowIds)
+                    } catch {
+                        // Session cancellation must not launder a proven-slow app: an
+                        // over-budget refresh that got cancelled still earns the bench when a
+                        // cached window set exists to serve.
+                        app.slowAxPenaltyUntil = Self.penaltyAfterRefresh(
+                            elapsed: start.duration(to: ContinuousClock.now),
+                            hasServableCache: !app.knownWindowIdsFromTree.isEmpty,
+                            now: ContinuousClock.now,
+                        )
+                        throw error
                     }
-                    return (nsApp.processIdentifier, windowIds)
                 }
             }
             // Register new apps

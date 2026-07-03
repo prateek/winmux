@@ -58,7 +58,8 @@ build:
 	rm -rf .debug && \
 	mkdir .debug && \
 	cp -r .build/debug/winmux .debug && \
-	cp -r .build/debug/WinMuxApp .debug'
+	cp -r .build/debug/WinMuxApp .debug && \
+	cp -R .build/debug/Sparkle.framework .debug/Sparkle.framework'
 
 build-clean:
 	/bin/bash -lc 'cd "$(CURDIR)" && rm -rf .build .debug'
@@ -606,7 +607,7 @@ beta-package:
 	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$sparkle_fw" >>"$$build_log" 2>&1 || true; \
 	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
 	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$cli_path" >>"$$build_log" 2>&1 || true; \
-	codesign --verify --deep --strict "$$app_path" >>"$$build_log" 2>&1 || true; \
+	codesign --verify --deep --strict "$$app_path" >>"$$build_log" 2>&1; \
 	ditto -c -k --sequesterRsrc --keepParent "$$staging_dir" "$$zip_path"; \
 	test -s "$$zip_path"; \
 	test -x "$$app_path/Contents/MacOS/WinMuxApp"; \

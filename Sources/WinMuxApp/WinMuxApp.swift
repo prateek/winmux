@@ -19,10 +19,14 @@ struct WinMuxApp: App {
 
     init() {
         initAppBundle()
-        let updater = Self.updaterController
-        UpdaterBridge.shared.checkForUpdates = { updater.checkForUpdates(nil) }
-        UpdaterBridge.shared.setAutomaticChecksEnabled = { updater.updater.automaticallyChecksForUpdates = $0 }
-        UpdaterBridge.shared.applyConfig()
+        // Raw-executable runs (swift build output, debug harness) have no bundle for Sparkle
+        // to update; leaving the bridge unset hides the menu item and skips updater startup.
+        if Bundle.main.bundleIdentifier != nil {
+            let updater = Self.updaterController
+            UpdaterBridge.shared.checkForUpdates = { updater.checkForUpdates(nil) }
+            UpdaterBridge.shared.setAutomaticChecksEnabled = { updater.updater.automaticallyChecksForUpdates = $0 }
+            UpdaterBridge.shared.applyConfig()
+        }
     }
 
     var body: some Scene {

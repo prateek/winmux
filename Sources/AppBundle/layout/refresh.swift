@@ -307,7 +307,11 @@ func refreshModel() {
 @MainActor
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
-    let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    let frontmostApp = NSWorkspace.shared.frontmostApplication
+    let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(
+        frontmostAppBundleId: frontmostApp?.bundleIdentifier,
+        frontmostAppPid: frontmostApp?.processIdentifier,
+    )
     let aliveWindowIds = mapping.values.flatMap { $0 }.toSet()
 
     for window in MacWindow.allWindows {
@@ -319,6 +323,10 @@ private func refresh() async throws {
     // a single slow app no longer delays every other app's window registration.
     try await withThrowingTaskGroup(of: Void.self) { group in
         for (app, windowIds) in mapping {
+            // A benched app's ids came from the tree, so every window is already registered
+            // and getOrRegister would only re-fetch rects over its slow AX; layout keeps using
+            // the cached rects instead.
+            if app.isBenched(frontmostAppPid: frontmostApp?.processIdentifier) { continue }
             group.addTask { @Sendable @MainActor in
                 for windowId in windowIds {
                     try await MacWindow.getOrRegister(windowId: windowId, macApp: app)

@@ -42,8 +42,10 @@ final class ZoneExposePreviewCache {
     /// zone/workspace arrangement actually changed since the last capture.
     func noteRefreshCompleted() {
         guard armed else { return }
-        guard CGPreflightScreenCaptureAccess() else { return }
         guard #available(macOS 14.0, *) else { return }
+        // Never capture while the overview covers the display, or the first armed capture
+        // poisons every zone preview with a screenshot of the overlay itself.
+        guard !ZoneExposePanelController.shared.isVisible else { return }
         let physical = focus.workspace.workspaceMonitor.physicalMonitor
         let zones = zoneViewports(onPhysicalMonitor: physical)
         let captureKey = zones.map {
@@ -54,6 +56,9 @@ final class ZoneExposePreviewCache {
             )
         }.joined(separator: ";")
         guard captureKey != lastCaptureKey, !captureInFlight else { return }
+        // Preflight last: it is an out-of-process TCC check, so unchanged arrangements and
+        // permission-denied installs must not pay it on every session end.
+        guard CGPreflightScreenCaptureAccess() else { return }
         captureInFlight = true
         let displayRect = physical.rect
         let crops = zones.map { (key: Self.previewKey(
@@ -210,6 +215,12 @@ final class ZoneExposePanelController: ObservableObject {
         tile.select()
     }
 
+    func setTilesForTests(_ tiles: [ZoneExposeTile], scope: ZoneExposeScope) {
+        self.scope = scope
+        self.tiles = tiles
+        selectedIndex = 0
+    }
+
     private func buildTiles(scope: ZoneExposeScope) -> [ZoneExposeTile] {
         switch scope {
             case .display:
@@ -265,8 +276,11 @@ private func focusWindowFromExpose(_ window: Window) {
     Task { @MainActor in
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await runLightSession(.menuBarButton, token) {
-            _ = window.focusWindow()
-            window.nativeFocus()
+            // Tiles freeze window references at open time; re-resolve so selecting a
+            // since-closed window no-ops instead of raising a zombie.
+            guard let liveWindow = Window.get(byId: window.windowId) else { return }
+            _ = liveWindow.focusWindow()
+            liveWindow.nativeFocus()
         }
     }
 }

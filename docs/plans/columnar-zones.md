@@ -1,6 +1,6 @@
 # Columnar Zones Plan
 
-Status: slices 0-50 accepted; Slice 51 in progress
+Status: slices 0-50 accepted; Slices 51-55 in progress
 Base decision: zone == virtual monitor
 Scope: make ultrawide monitors ergonomic by letting one physical display expose several named workspace viewports.
 

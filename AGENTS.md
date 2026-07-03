@@ -49,6 +49,11 @@ Real installs run on the user's daily driver via Homebrew:
   casually; a new certificate resets the user's permission grants once.
 - `make beta-package` defaults to ad-hoc signing so e2e lanes are
   unaffected; only `dogfood-release` passes the identity.
+- The Sparkle EdDSA private key lives at
+  `~/.config/winmux-signing/sparkle-ed25519-key` (created by
+  `script/setup-sparkle-keys`). Never delete or regenerate it: installed
+  builds validate updates against their embedded `SUPublicEDKey`, so a new
+  key silently orphans every existing install.
 - Builds are not notarized: installs need a quarantine launder plus a
   per-version Gatekeeper "Open Anyway" (documented in the cask caveats).
   Slice 52 (Sparkle) removes this for upgrades.

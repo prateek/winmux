@@ -30,7 +30,9 @@ if [ -s "$PRIVATE_KEY_FILE" ] && [ -s "$PUBLIC_KEY_FILE" ]; then
     log "keypair already present at $PRIVATE_KEY_FILE"
     exit 0
 fi
-[ -s "$PRIVATE_KEY_FILE" ] || [ ! -e "$PRIVATE_KEY_FILE" ] || die "empty $PRIVATE_KEY_FILE; refusing to guess"
+if [ -e "$PRIVATE_KEY_FILE" ] || [ -e "$PUBLIC_KEY_FILE" ]; then
+    die "partial keypair state in $CONFIG_DIR; restore both files, or delete both plus the 'winmux-dogfood' login-keychain entry before regenerating (a new key orphans every installed build)"
+fi
 
 [ -x "$SPARKLE_BIN/generate_keys" ] || die "missing $SPARKLE_BIN/generate_keys; run 'swift build --product WinMuxApp' first"
 
