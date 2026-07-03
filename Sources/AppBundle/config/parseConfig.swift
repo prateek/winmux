@@ -39,6 +39,7 @@ private let keyMappingConfigRootKey = "key-mapping"
 private let modeConfigRootKey = "mode"
 private let sceneConfigRootKey = "scene"
 private let persistentWorkspacesKey = "persistent-workspaces"
+private let persistentCardsKey = "persistent-cards"
 
 // For every new config option you add, think:
 // 1. Does it make sense to have different value
@@ -66,6 +67,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "shortcuts-preset": Parser(\.shortcutsPreset, parseShortcutsPreset),
     "tab-group-padding": Parser(\.tabGroupPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
+    persistentCardsKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces), // config-version 3 spelling
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),
 
@@ -78,6 +80,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "mouse": Parser(\.mouse, parseMouseConfig),
     "updates": Parser(\.updates, parseUpdatesConfig),
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
+    "sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar), // config-version 3 spelling
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
     "zone-styles": Parser(\.zoneStyles, parseZoneStyles),
     "zone-layouts": Parser(\.zoneLayouts, parseZoneLayouts),
@@ -180,15 +183,26 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
             .toOrderedSet()
     }
 
+    let errorCountBeforeDeadKeyCheck = errors.count
+    if config.configVersion >= 3 {
+        reportConfigVersion3DeadKeys(rawTable, &errors)
+    }
+    let hasConfigVersion3DeadKeys = errors.count != errorCountBeforeDeadKeyCheck
+
     if let rawScene = rawTable[sceneConfigRootKey] {
         applyParsedScenes(rawToml, rawScene, &config, &errors)
     }
 
-    validateZoneLayoutReferences(config, &errors)
-    validateZoneSceneReferences(config, &errors)
-    validateZoneBindingReferences(config, &errors)
-    validateZoneAffinityReferences(config, &errors)
-    validateZoneAvailabilitySetReferences(config, &errors)
+    // A config-version-3 config that names a retired zone key is already rejected. Skip the zone
+    // reference validators in that case so the one-line replacement hint is the only diagnostic,
+    // instead of stacking "unknown zone" noise from the now-dead parser onto it.
+    if !hasConfigVersion3DeadKeys {
+        validateZoneLayoutReferences(config, &errors)
+        validateZoneSceneReferences(config, &errors)
+        validateZoneBindingReferences(config, &errors)
+        validateZoneAffinityReferences(config, &errors)
+        validateZoneAvailabilitySetReferences(config, &errors)
+    }
 
     if config.enableNormalizationFlattenContainers {
         let containsSplitCommand = config.modes.values.lazy.flatMap { $0.bindings.values }
@@ -221,9 +235,61 @@ func parseIndentForNestedContainersWithTheSameOrientation(
 
 func parseConfigVersion(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Int> {
     let min = 1
-    let max = 2
+    let max = 3
     return parseInt(raw, backtrace)
         .filter(.semantic(backtrace, "Must be in [\(min), \(max)] range")) { (min ... max).contains($0) }
+}
+
+// MARK: - Config-version-3 vocabulary cut
+//
+// The domain-model rewrite retires the fork's zone-era vocabulary. Under `config-version = 3` each
+// dead or renamed key is a hard error whose message names its replacement, so an old config fails
+// loudly rather than parsing into a concept that no longer exists. The runtime structs and the
+// `[scene.*]`/`[[rules]]` parsers that reuse them (ZoneConfig, ZoneLayoutConfig, ...) are untouched;
+// only these top-level and nested config keys become errors.
+
+/// Retired top-level keys, paired with the one-line hint naming their replacement.
+private let configVersion3DeadTopLevelKeys: [(key: String, hint: String)] = [
+    ("zones", "'zones' was replaced by [scene.*] (config-version 3)"),
+    ("zone-layouts", "'zone-layouts' was replaced by [scene.*] (config-version 3)"),
+    ("zone-scenes", "'zone-scenes' was replaced by [scene.*] (config-version 3)"),
+    ("zone-availability-sets", "'zone-availability-sets' was replaced by [scene.*] (config-version 3)"),
+    ("zone-styles", "'zone-styles' was replaced by the column 'color' attribute (config-version 3)"),
+    ("zone-affinities", "'zone-affinities' was replaced by [[rules]] (config-version 3)"),
+    ("zone-bindings", "'zone-bindings' was removed; column decks record card membership (config-version 3)"),
+    ("workspace-sidebar", "'workspace-sidebar' was renamed to 'sidebar' (config-version 3)"),
+    ("persistent-workspaces", "'persistent-workspaces' was renamed to 'persistent-cards' (config-version 3)"),
+]
+
+/// Renamed `[mouse]` sub-keys.
+private let configVersion3DeadMouseKeys: [(key: String, hint: String)] = [
+    ("zone-snap", "'mouse.zone-snap' was renamed to 'mouse.column-snap' (config-version 3)"),
+    ("zone-divider-drag", "'mouse.zone-divider-drag' was renamed to 'mouse.column-divider-drag' (config-version 3)"),
+]
+
+/// Project-scoped `[sidebar]` sub-keys that went away with projects.
+private let configVersion3DeadSidebarKeys: [(key: String, hint: String)] = [
+    ("project-deletion-action", "'sidebar.project-deletion-action' was removed; projects are gone in config-version 3"),
+    ("project-labels", "'sidebar.project-labels' was removed; projects are gone in config-version 3"),
+    ("project-colors", "'sidebar.project-colors' was removed; projects are gone in config-version 3"),
+]
+
+private func reportConfigVersion3DeadKeys(_ rawTable: TOMLTable, _ errors: inout [TomlParseError]) {
+    for (key, hint) in configVersion3DeadTopLevelKeys where rawTable.contains(key: key) {
+        errors.append(.semantic(.rootKey(key), hint))
+    }
+    if let mouseTable = rawTable["mouse"]?.table {
+        for (key, hint) in configVersion3DeadMouseKeys where mouseTable.contains(key: key) {
+            errors.append(.semantic(.rootKey("mouse") + .key(key), hint))
+        }
+    }
+    // Only the renamed `[sidebar]` block carries project keys; a legacy `[workspace-sidebar]` block
+    // is already rejected wholesale above.
+    if let sidebarTable = rawTable["sidebar"]?.table {
+        for (key, hint) in configVersion3DeadSidebarKeys where sidebarTable.contains(key: key) {
+            errors.append(.semantic(.rootKey("sidebar") + .key(key), hint))
+        }
+    }
 }
 
 func parseInt(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Int> {

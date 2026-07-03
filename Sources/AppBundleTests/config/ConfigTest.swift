@@ -121,7 +121,7 @@ final class ConfigTest: XCTestCase {
             config-version = 0
             """,
         )
-        assertEquals(errors.descriptions, ["config-version: Must be in [1, 2] range"])
+        assertEquals(errors.descriptions, ["config-version: Must be in [1, 3] range"])
     }
 
     func testExecOnWorkspaceChangeDifferentTypesError() {
