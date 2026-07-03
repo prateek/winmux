@@ -32,7 +32,9 @@ status header and the current slice before doing anything.
   plan by path. Do not commit it; do not delete accepted artifact dirs.
 - Accessibility-only with SIP intact is a product constraint; do not add
   private-API dependencies without an explicit plan decision.
-- Tart runs need the external SSD: `TART_HOME=/Volumes/RiftTartVMs/tart`.
+- Tart runs need the external SSD: `TART_HOME=/Volumes/TartVMs/tart`. The
+  host shell auto-exports this when the drive is mounted; set it explicitly
+  only if it isn't already in the environment.
 
 ## Dogfood distribution
 

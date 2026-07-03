@@ -78,8 +78,9 @@ Suggested next command sequence:
 4. Run Slice 50 replacement closeout if not already present:
    `make e2e-slice-closeout-check RUN_DIR=artifacts/e2e/slice-50-round2-review-20260702T175701Z > artifacts/e2e/slice-50-round2-review-20260702T175701Z/logs/closeout-check.log 2>&1`
 
-5. Start a fresh Slice 51 pre-Tart run with a new run id. Use the external SSD Tart home:
-   `TART_HOME=/Volumes/RiftTartVMs/tart WINMUX_E2E_RUN_ID=slice-51-<timestamp> make e2e-slice-51`
+5. Start a fresh Slice 51 pre-Tart run with a new run id. Use the external SSD Tart home
+   (the shell auto-exports this when the drive is mounted; set it explicitly if not):
+   `TART_HOME=/Volumes/TartVMs/tart WINMUX_E2E_RUN_ID=slice-51-<timestamp> make e2e-slice-51`
 
 Expected first run behavior:
 - It should run pre-Tart checks, write `reviews/pre-tart/freshness.env`, then stop until the three no-context pre-Tart reports exist.
