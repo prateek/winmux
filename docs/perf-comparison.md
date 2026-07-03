@@ -1,10 +1,11 @@
-# Performance Comparison: winmux vs AeroSpace vs FlashSpace
+# Performance Comparison: winmux vs AeroSpace vs FlashSpace vs Rift vs Hammerspoon WMs
 
 Code-path analysis, 2026-07-02, motivated by dogfood lag reports
 (`docs/dogfood-notes.md`). Sources: this tree at `f36ee615`; upstream
-AeroSpace at `cfd4eab` (v0.21.1-Beta, 2026-07-01); FlashSpace at `main`.
-This is architectural comparison with file-level evidence, not empirical
-benchmarking.
+AeroSpace at `cfd4eab` (v0.21.1-Beta, 2026-07-01); FlashSpace at `main`;
+Rift (acsandmann/rift) at v0.4.3-beta; PaperWM.spoon, hhtwm, and
+Hammerspoon core at `main`. This is architectural comparison with
+file-level evidence, not empirical benchmarking.
 
 ## Lineage note
 
@@ -38,6 +39,43 @@ Acknowledged remaining costs: refresh awaits all apps before layouting
 (issue #1615, unshipped), full enumeration is never incremental, corner
 parking survives (issue #235).
 
+**Rift** is, in its author's words, "essentially AeroSpace but implemented
+in a yabai style" — and it is the existence proof that an AX-writing tiler
+can feel instant without disabling SIP. Its window *writes* are the same AX
+`set_position`/`set_size` calls every tiler makes (no private setFrame
+exists below the SIP line). The speed is pure architecture: a dedicated
+input thread owns the CGEventTap so tap callbacks are never stalled by
+layout or IPC; a reactor thread owns authoritative state and the layout
+engine; one thread per managed app runs that app's AX so a beachballing app
+stalls only itself; mouse-moved handling is throttled (8 ms / 2 px);
+per-window transaction IDs let the reactor discard echo notifications from
+its own frame writes; reads and change events come from bulk private
+SkyLight queries (`SLSWindowQueryWindows`, connection notifications) that
+beat AX latency; and workspaces are virtual (the same corner-parking trick
+as AeroSpace), never round-tripping through Mission Control. Animations are
+off by default because animating through AX is the slow path. Costs: ~70
+undocumented SkyLight externs and hand-packed event records that need
+per-macOS-release maintenance.
+
+**Hammerspoon WMs (PaperWM.spoon, hhtwm, on hs.window/hs.window.filter)**
+are the cautionary tale: every AX read and write is synchronous IPC on one
+shared main thread that also runs the Lua VM, the event taps, and all
+timers. One slow AX server (WebKit, Firefox, Electron) freezes the whole
+WM for up to the ~6 s system AX timeout — Hammerspoon core carries a
+hardcoded `SKIP_APPS` blacklist and a profiling helper (`_timed_allWindows`)
+just to find the offender, and a blocked in-process CGEventTap gets
+disabled by the OS system-wide. One logical `setFrame` costs up to six AX
+round-trips (enhanced-UI toggle plus the size/position/size dance);
+animation is a 60 Hz Lua timer issuing full AX transactions per window per
+tick, which is why the ecosystem-wide advice is `animationDuration = 0`.
+PaperWM tried debouncing its tiling and reverted it because focus got
+slower; its space switching literally opens Mission Control, busy-waits,
+and AX-clicks (or drags thumbnails matched by title substring). hhtwm
+re-enumerates every window of every app on every change. The defenses that
+earned their keep — app blacklists, per-window frame caches, move-event
+debouncing, watcher suppression around self-initiated writes, hard
+wall-clock bailouts — are all workarounds for the missing threading model.
+
 **winmux (this fork)** inherits AeroSpace's refresh-heavy model AND its
 thread-per-app fix, then adds zone and tab-group machinery on top, several
 pieces of which run at pointer rate on the main actor: global+local
@@ -54,17 +92,19 @@ activation path still does the inherited optimistic double layout.
 
 ## Issue-by-issue
 
-| Issue | FlashSpace | AeroSpace v0.21.1 | winmux |
-| --- | --- | --- | --- |
-| Refresh on every mouse-up | No such concept | Yes, inherited design; coalesced + cancellable + off-main AX | Yes, same model (light session then scheduled complete refresh) |
-| Double session on app activation | N/A | Yes (`optimisticallyPreLayoutWorkspaces` double layout, cancellable) | Yes, inherited |
-| Await-all-apps before layout | N/A (no layout) | Yes; maintainer's issue #1615, unshipped | Yes, inherited |
-| Pointer-rate main-thread work | None (gesture tap is pass-through) | Only opt-in focus-follows-mouse, off-main probe, per-event cancel | Always-on: sidebar cursor trap + divider hover per event, main actor |
-| Sync window-system query on click path | None | None | `CGWindowListCopyWindowInfo` on divider-proximity mouse down |
-| Animation timers | None | None (zero display-link/timer hits) | 60 Hz main-actor driver while overlays/sidebar animate |
-| Workspace switch mechanics | raise/hide apps, no frame writes | Corner-park invisible windows, per-window AX moves async | Same corner parking; zones add per-viewport layout passes |
-| Slow-app defense | Hard blacklist (pygame) | Cancellable jobs; focus-path AX dodges; no timeout/budget | Same as upstream base; no budget |
-| Instrumentation | None | Always-on signposts around every AX call and session | Signposts on sessions; doctor per-app AX latency probe |
+| Issue | FlashSpace | Rift | AeroSpace v0.21.1 | winmux | Hammerspoon WMs |
+| --- | --- | --- | --- | --- | --- |
+| Window writes | None (raise/hide only) | AX setFrame, batched, per-app threads | AX setFrame, per-app threads | Same as upstream | AX setFrame, main thread, up to 6 round-trips per set |
+| Change detection | NSWorkspace activation only | SkyLight connection notifications + AX observers | AX observers + NSWorkspace + refresh sweeps | Same as upstream | AX observers (window.filter) or full re-enumeration (hhtwm) |
+| Refresh on every mouse-up | No such concept | No — event-driven deltas only | Yes; coalesced + cancellable + off-main AX | Yes, same model | N/A (no global refresh concept) |
+| Await-all-apps before layout | N/A | No — reactor reacts per delta | Yes (issue #1615, unshipped) | Yes, inherited | N/A |
+| Input handling isolation | Gesture-only pass-through tap | Dedicated input thread owns the tap; 8 ms/2 px mouse throttle | Two NSEvent monitors, off-main probes | Pointer-rate main-actor work, always on | Tap callbacks run Lua on main thread; OS disables tap when blocked |
+| Sync window query on click path | None | None (bulk SLS reads, cached) | None | `CGWindowListCopyWindowInfo` on divider clicks | Common (windows() per action) |
+| Animation | None | Off by default; AX tween is known slow path | None | 60 Hz main-actor driver while chrome animates | 60 Hz Lua timer, full AX transaction per window per tick |
+| Workspace switch | raise/hide apps | Corner-park via batched AX, no Mission Control | Corner-park, async per-window | Corner-park + zone-multiplied layout | Real Spaces via Mission Control AX-clicking + busy-waits |
+| Self-event suppression | Observer pause + timestamp guard | Per-window transaction IDs | Session coalescing | Same as upstream | Stop watcher, setFrame, restart on timer |
+| Slow-app defense | Hard blacklist | Per-app threads isolate stalls | Cancellable jobs, focus AX dodges; no budget | Same as upstream; no budget | SKIP_APPS blacklist, AX timeout knob, profiling helper |
+| Instrumentation | None | None found | Always-on signposts | Signposts + doctor AX probe | `_timed_allWindows` profiler |
 
 ## Where winmux lag actually comes from (corrected)
 
@@ -106,7 +146,32 @@ From FlashSpace:
 - suspend own observers around self-initiated operations plus a timestamp
   guard, rather than reacting to our own events.
 
-Fork-specific must-fixes with no upstream/FlashSpace equivalent to copy:
+From Rift (the architecture target for an AX tiler; all SIP-safe, most of
+it needs no private APIs):
+- never let layout or IPC share a thread with input-event callbacks;
+- throttle mouse-moved handling (Rift: 8 ms / 2 px) instead of processing
+  every event;
+- per-window transaction IDs to drop echo notifications from our own frame
+  writes, instead of watcher stop/restart dances;
+- prefer event-driven deltas over scheduled full re-enumeration; Rift has
+  no mouse-up-refresh concept at all and stays correct via WindowServer
+  notifications plus AX observers;
+- optional, higher-risk: bulk SkyLight window queries and connection
+  notifications where AX latency hurts most (AeroSpace also ships some
+  private calls; weigh fragility per call).
+
+From the Hammerspoon ecosystem (what its scars prove):
+- the ~6 s AX stall from one hostile app is real and recurring (WebKit,
+  Firefox, Electron); a messaging-timeout budget plus a skip-list is table
+  stakes, and even Hammerspoon exposes `AXUIElementSetMessagingTimeout`;
+- re-enumerating the world per change (hhtwm) is the anti-pattern our
+  inherited mouse-up refresh approximates; delta models win;
+- animating through AX at 60 Hz is unshippable; if zones ever animate,
+  frames must be rare and batched;
+- real macOS Spaces integration is a dead end (Mission Control AX-clicking
+  with busy-waits); the zones/virtual-viewport choice is validated.
+
+Fork-specific must-fixes with no comparator equivalent to copy:
 - divider veto off the click path (async or cached);
 - divider hover tracking gated to zone mode (Slice 54 removes most of the
   pointer-rate work for free);
