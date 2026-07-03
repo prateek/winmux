@@ -1,0 +1,196 @@
+import AppKit
+import Common
+
+/// A named arrangement a display can switch to: a set of columns with widths, plus the column
+/// where rule-created cards land. Scenes are the fork's live-context selector. Switching to a
+/// scene rebuilds the display's columns and reveals each column's deck; the outgoing scene keeps
+/// its column membership and simply stops rendering. Nothing is a snapshot: leaving and
+/// returning shows the scene exactly as it was.
+///
+/// Config-v3 `[scene.*]` parsing populates `config.scenes` (Builder 2's surface); each scene
+/// references a zone-layout preset that supplies its columns and widths, and a `config.zones`
+/// entry must target the display so the layout can activate. This phase keeps config-version 2,
+/// so the field is additive and empty by default.
+struct SceneConfig: ConvenienceCopyable, Equatable, Sendable {
+    var id: String = ""
+    var monitor: MonitorDescription?
+    var layoutId: String = ""
+    var defaultColumn: String?
+}
+
+/// The prefix that marks a deck key's scene component as a named scene rather than an implicit
+/// display identity, so the two namespaces never collide and geometry remapping skips scenes.
+let sceneDeckKeyPrefix = "scene:"
+
+struct SceneActivationResult {
+    let sceneId: String
+    let layoutId: String
+    let physicalMonitor: Monitor
+    let columnIds: [String]
+    let restoredCards: [(column: String, card: String)]
+}
+
+/// The scenes declared for a display, in declared order. The first is the display's default.
+@MainActor
+func scenes(on physicalMonitor: Monitor) -> [SceneConfig] {
+    let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
+    let sortedPhysicals = sortedPhysicalMonitors
+    return config.scenes.filter { scene in
+        guard let description = scene.monitor,
+              let resolved = description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicals)
+        else { return false }
+        return resolved.rect.topLeftCorner == targetTopLeft
+    }
+}
+
+/// The deck-key scene component for a display: the active named scene, else the implicit display
+/// identity. Each named scene owns distinct column decks, so a card stays in its scene's deck
+/// while other scenes render on the same display.
+@MainActor
+func activeSceneDeckKeyComponent(for monitor: Monitor) -> String {
+    let physical = monitor.physicalMonitor
+    if let sceneId = activeSceneId(for: physical) {
+        return sceneDeckKeyPrefix + sceneId
+    }
+    return implicitSceneDeckKey(
+        displayName: physical.name,
+        physicalTopLeftCorner: physical.rect.topLeftCorner,
+    )
+}
+
+/// Switches a display to a named scene by rebuilding its columns through the zone-layout path
+/// and revealing each column's deck. A scene switch changes which columns exist (scenes differ
+/// in count and widths), so it is not a workspace-pointer swap: the incoming layout activates,
+/// then every surviving or created column shows the card its deck records as active. The whole
+/// operation is an edit transaction, so a structural failure leaves the prior scene intact.
+@MainActor
+func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<SceneActivationResult, String> {
+    let targetPhysical = physicalMonitor.physicalMonitor
+    let monitorLabel = targetPhysical.monitorId_oneBased ?? 0
+
+    guard let scene = scenes(on: targetPhysical).first(where: { $0.id == sceneId }) else {
+        return .failure("Unknown scene '\(sceneId)' on monitor \(monitorLabel)")
+    }
+    guard config.zoneLayouts.contains(where: { $0.id == scene.layoutId }) else {
+        return .failure("Scene '\(sceneId)' references unknown layout preset '\(scene.layoutId)'")
+    }
+    // Layout activation is a no-op unless a zone config targets the display, so a scene with no
+    // backing zone config would silently produce zero columns.
+    let sortedPhysicals = sortMonitorsBySpatialOrder(physicalMonitors)
+    let hasZoneConfig = config.zones.contains { zone in
+        guard let description = zone.monitor,
+              let resolved = description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicals)
+        else { return false }
+        return resolved.rect.topLeftCorner == targetPhysical.rect.topLeftCorner
+    }
+    guard hasZoneConfig else {
+        return .failure("No column config targets monitor \(monitorLabel)")
+    }
+
+    if activeSceneId(for: targetPhysical) == sceneId {
+        let columnIds = sceneColumnViewports(on: targetPhysical).map { $0.zoneId.orDie() }
+        return .success(SceneActivationResult(
+            sceneId: sceneId,
+            layoutId: scene.layoutId,
+            physicalMonitor: targetPhysical,
+            columnIds: columnIds,
+            restoredCards: [],
+        ))
+    }
+
+    let workspaceStateBefore = winMuxWorkspaceState
+    let overlaysBefore = zoneRuntimeOverlaysSnapshot()
+    func rollback(_ message: String) -> Result<SceneActivationResult, String> {
+        winMuxWorkspaceState = workspaceStateBefore
+        restoreZoneRuntimeOverlaysAfterRollback(overlaysBefore)
+        checkWorkspaceHierarchyInvariants()
+        return .failure(message)
+    }
+
+    // The outgoing scene's per-column active cards become that scene's hidden-active memory:
+    // switching back reveals the exact cards, and the memory keeps a hidden active card alive
+    // through reconciliation while its whole scene is offstage.
+    rememberActiveCardsForActiveScene(on: targetPhysical)
+
+    // Rebuild the columns and switch the deck-key namespace in one step, so the restore below
+    // reads the incoming scene's decks.
+    applySceneRuntimeOverlay(sceneId: sceneId, layoutId: scene.layoutId, for: targetPhysical)
+
+    let sceneViewports = sceneColumnViewports(on: targetPhysical)
+    guard !sceneViewports.isEmpty else {
+        return rollback("Scene '\(sceneId)' produced no columns on monitor \(monitorLabel)")
+    }
+
+    var restoredCards: [(column: String, card: String)] = []
+    for viewport in sceneViewports {
+        guard let card = restoreSceneColumnActiveCard(for: viewport) else {
+            return rollback("Can't reveal a card for column '\(viewport.zoneId ?? "")' in scene '\(sceneId)'")
+        }
+        restoredCards.append((column: viewport.zoneId.orDie(), card: card.name))
+    }
+
+    Workspace.reconcileWorkspaceState()
+    return .success(SceneActivationResult(
+        sceneId: sceneId,
+        layoutId: scene.layoutId,
+        physicalMonitor: targetPhysical,
+        columnIds: sceneViewports.map { $0.zoneId.orDie() },
+        restoredCards: restoredCards,
+    ))
+}
+
+@MainActor
+private func sceneColumnViewports(on physicalMonitor: Monitor) -> [Monitor] {
+    let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
+    return sortMonitorsBySpatialOrder(monitors.filter {
+        $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
+    })
+}
+
+@MainActor
+private func rememberActiveCardsForActiveScene(on physicalMonitor: Monitor) {
+    let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
+    for viewport in monitors where viewport.zoneId != nil && viewport.physicalMonitor.rect.topLeftCorner == targetTopLeft {
+        guard let activeId = winMuxWorkspaceState.monitorViewportsById[MonitorViewportId(viewport)]?.activeWorkspaceId else { continue }
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[columnDeckKey(for: viewport)] = activeId
+    }
+}
+
+/// Reveals a column's incoming card, always displacing the outgoing scene's card. A scene's
+/// first visit has an empty deck, so a fresh blank is created rather than leaving the outgoing
+/// card on screen.
+@MainActor
+private func restoreSceneColumnActiveCard(for viewport: Monitor) -> Workspace? {
+    let viewportId = MonitorViewportId(viewport)
+    let columnKey = columnDeckKey(for: viewport)
+
+    if let activeId = winMuxWorkspaceState.monitorViewportsById[viewportId]?.activeWorkspaceId,
+       winMuxWorkspaceState.columnDecks.columnKey(of: activeId) == columnKey,
+       let active = winMuxWorkspaceState.workspaceById[activeId]
+    {
+        return active
+    }
+
+    if let hiddenId = winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[columnKey],
+       let hidden = winMuxWorkspaceState.workspaceById[hiddenId],
+       winMuxWorkspaceState.columnDecks.columnKey(of: hiddenId) == columnKey,
+       !winMuxWorkspaceState.isWorkspaceActive(hiddenId, outside: viewportId),
+       viewport.setActiveWorkspace(hidden)
+    {
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey.removeValue(forKey: columnKey)
+        return hidden
+    }
+
+    if let card = orderedDeckWorkspaces(inColumn: columnKey).first(where: {
+        !winMuxWorkspaceState.isWorkspaceActive($0.id, outside: viewportId)
+    }), viewport.setActiveWorkspace(card) {
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey.removeValue(forKey: columnKey)
+        return card
+    }
+
+    let projectId = winMuxWorkspaceState.monitorViewportsById[viewportId]?.activeWorkspaceId
+        .flatMap { winMuxWorkspaceState.workspaceById[$0]?.projectId } ?? workspaceProjectDefaultId
+    let blank = createBlankWorkspace(projectId: projectId, monitor: viewport)
+    guard viewport.setActiveWorkspace(blank) else { return nil }
+    return blank
+}

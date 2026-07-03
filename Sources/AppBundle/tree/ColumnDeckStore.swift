@@ -3,11 +3,12 @@ import AppKit
 /// Column id used for the single implicit column of a display that has no configured zones.
 let implicitColumnDeckColumnId = "__implicit-column__"
 
-/// A deck key names one column of one scene. Scenes are not a runtime concept yet, so every
-/// display runs its implicit scene and the scene component keys by display identity: the
-/// display name when the hardware reports one, physical geometry otherwise. Configured zone
-/// columns key by their config-declared zone id, so the key survives display reorder and
-/// resolution changes.
+/// A deck key names one column of one scene. A display running a named scene keys by the scene
+/// id (`activeSceneDeckKeyComponent`), so each scene's columns own distinct decks and a card
+/// stays in its scene's deck while other scenes render. A display with no active scene runs its
+/// implicit scene, whose component is the display identity: the display name when the hardware
+/// reports one, physical geometry otherwise. Configured columns key by their config-declared id,
+/// so the key survives display reorder and resolution changes.
 func columnDeckKey(sceneKey: String, columnId: String) -> String {
     "\(sceneKey)/column:\(columnId)"
 }
@@ -41,12 +42,8 @@ func geometrySceneKeyPoint(_ sceneKey: String) -> CGPoint? {
 
 @MainActor
 func columnDeckKey(for monitor: Monitor) -> String {
-    let physicalMonitor = monitor.physicalMonitor
-    return columnDeckKey(
-        sceneKey: implicitSceneDeckKey(
-            displayName: physicalMonitor.name,
-            physicalTopLeftCorner: physicalMonitor.rect.topLeftCorner,
-        ),
+    columnDeckKey(
+        sceneKey: activeSceneDeckKeyComponent(for: monitor),
         columnId: monitor.zoneId ?? implicitColumnDeckColumnId,
     )
 }

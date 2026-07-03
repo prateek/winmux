@@ -120,6 +120,7 @@ struct Config: ConvenienceCopyable {
     var zoneAffinities: [ZoneAffinityConfig] = []
     var zoneAvailabilitySets: [ZoneAvailabilitySetConfig] = []
     var zones: [ZoneConfig] = []
+    var scenes: [SceneConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []

@@ -407,6 +407,30 @@ func activeZoneSceneSelectionsSnapshot() -> [String: String] {
     zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.activeSceneId)
 }
 
+/// The named scene currently active on a display, the authoritative scene selector that also
+/// scopes the display's column decks. `nil` means the display runs its implicit scene.
+func activeSceneId(for physicalMonitor: Monitor) -> String? {
+    zoneRuntimeOverlaysByPhysicalIdentity[zoneLayoutPhysicalIdentity(for: physicalMonitor.physicalMonitor)]?.activeSceneId
+}
+
+/// Points a display at a scene's backing layout and marks the scene active in one step, so the
+/// column viewports and the deck-key scene namespace change together.
+@MainActor
+func applySceneRuntimeOverlay(sceneId: String, layoutId: String, for physicalMonitor: Monitor) {
+    let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor.physicalMonitor)
+    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
+    runtimeOverlay.activeLayoutId = layoutId
+    runtimeOverlay.activeSceneId = sceneId
+    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
+    refreshZoneTopologySnapshot()
+}
+
+@MainActor
+func restoreZoneRuntimeOverlaysAfterRollback(_ snapshot: [String: ZoneRuntimeOverlay]) {
+    zoneRuntimeOverlaysByPhysicalIdentity = snapshot
+    refreshZoneTopologySnapshot()
+}
+
 func activeZoneSnapPolicyOverridesSnapshot() -> [String: ZoneSnapPolicy] {
     zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.zoneSnapPolicyOverride)
 }
