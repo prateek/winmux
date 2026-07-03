@@ -48,8 +48,12 @@ private func createNextTransientBlankWorkspaceForMoveIfAllowed(
     usesStdin: Bool,
 ) -> Workspace? {
     guard isNext, !wrapAround, !usesStdin else { return nil }
-    let nextWorkspaceIndex = scopedAutomaticDisplayWorkspaces(current: current).count + 1
-    return createAdjacentTransientBlankWorkspaceIfAllowed(named: String(nextWorkspaceIndex), from: current)
+    let scopedWorkspaces = scopedAutomaticDisplayWorkspaces(current: current)
+    return createAdjacentTransientBlankWorkspaceIfAllowed(
+        named: String(scopedWorkspaces.count + 1),
+        from: current,
+        among: scopedWorkspaces,
+    )
 }
 
 @MainActor
@@ -59,10 +63,11 @@ private func resolveMoveTargetWorkspace(
     sourceMonitor: Monitor,
 ) -> Workspace? {
     if let targetIndex = parsePositiveWorkspaceDisplayIndex(workspaceName) {
-        if let workspace = scopedAutomaticDisplayWorkspaces(current: sourceWorkspace).getOrNil(atIndex: targetIndex - 1) {
+        let scopedWorkspaces = scopedAutomaticDisplayWorkspaces(current: sourceWorkspace)
+        if let workspace = scopedWorkspaces.getOrNil(atIndex: targetIndex - 1) {
             return workspace
         }
-        return createAdjacentTransientBlankWorkspaceIfAllowed(named: workspaceName, from: sourceWorkspace)
+        return createAdjacentTransientBlankWorkspaceIfAllowed(named: workspaceName, from: sourceWorkspace, among: scopedWorkspaces)
     }
 
     let existedBefore = Workspace.existing(byName: workspaceName) != nil

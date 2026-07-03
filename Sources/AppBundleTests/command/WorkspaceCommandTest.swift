@@ -20,13 +20,14 @@ final class WorkspaceCommandTest: XCTestCase {
         testParseCommandSucc("workspace --no-stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, false))
     }
 
-    func testDirectWorkspaceFocusDoesNotCreateMissingWorkspace() async throws {
+    func testDirectWorkspaceFocusDoesNotCreateBeyondDeckEdge() async throws {
         let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+            args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
-        XCTAssertNil(Workspace.existing(byName: "2"))
+        XCTAssertNil(Workspace.existing(byName: "3"))
+        XCTAssertEqual(Workspace.all, [focus.workspace])
     }
 
     func testDirectWorkspaceFocusCreatesNextBlankNumericWorkspace() async throws {
@@ -249,7 +250,7 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertEqual(workspaceDisplayName("1"), "Workspace 1")
     }
 
-    func testDirectWorkspaceShortcutPrefersActiveProjectDisplayIndex() async throws {
+    func testDirectWorkspaceShortcutAddressesDeckPositionAcrossProjects() async throws {
         let defaultWorkspace = Workspace.get(byName: "1")
         defaultWorkspace.markAsAutomaticallyNamed()
         _ = TestWindow.new(id: 51, parent: defaultWorkspace.rootTilingContainer)
@@ -262,9 +263,7 @@ final class WorkspaceCommandTest: XCTestCase {
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
-        XCTAssertTrue(focus.workspace === projectWorkspace)
-        XCTAssertEqual(focus.workspace.projectId, project.id)
-        XCTAssertEqual(workspaceDisplayName(focus.workspace.name), "Workspace 1")
+        XCTAssertTrue(focus.workspace === defaultWorkspace, "workspace 1 is the deck's first card, whatever its project")
     }
 
     func testDirectWorkspaceShortcutCreatesNextWorkspaceInsideActiveProject() async throws {
@@ -279,13 +278,13 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertTrue(TestWindow.new(id: 57, parent: firstProjectWorkspace.rootTilingContainer).focusWindow())
 
         let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+            args: WorkspaceCmdArgs(target: .direct(.parse("4").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
         XCTAssertEqual(focus.workspace.projectId, project.id)
         XCTAssertFalse(focus.workspace === defaultWorkspace2)
-        XCTAssertEqual(workspaceDisplayName(focus.workspace.name), "Workspace 2")
+        XCTAssertTrue(focus.workspace.isEffectivelyEmpty)
     }
 
     func testWorkspaceNextCreatesWorkspaceInsideActiveProject() async throws {
@@ -327,25 +326,30 @@ final class WorkspaceCommandTest: XCTestCase {
     func testDirectWorkspaceFocusDoesNotCreateConfiguredPersistentWorkspace() async throws {
         config.persistentWorkspaces = ["2"]
 
+        // The deck edge is position 2, so a transient blank is created there, but the
+        // configured-persistent workspace '2' is never materialized by navigation.
         let result = try await WorkspaceCommand(
             args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
-        assertEquals(result.exitCode, 1)
+        assertEquals(result.exitCode, 0)
         XCTAssertNil(Workspace.existing(byName: "2"))
+        XCTAssertTrue(focus.workspace.isEffectivelyEmpty)
     }
 
     func testDirectWorkspaceFocusIgnoresWorkspaceWithOnlyMacosFullscreenWindows() async throws {
-        let initialWorkspace = focus.workspace
         let hiddenWorkspace = Workspace.get(byName: "2")
         _ = TestWindow.new(id: 10, parent: hiddenWorkspace.macOsNativeFullscreenWindowsContainer)
 
+        // The fullscreen-only workspace occupies no deck position, so position 2 is the deck
+        // edge: a fresh blank is created instead of revealing the fullscreen-only workspace.
         let result = try await WorkspaceCommand(
             args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
-        assertEquals(result.exitCode, 1)
-        XCTAssertEqual(focus.workspace, initialWorkspace)
+        assertEquals(result.exitCode, 0)
+        XCTAssertFalse(focus.workspace === hiddenWorkspace)
+        XCTAssertFalse(hiddenWorkspace.isVisible)
     }
 
     func testWorkspaceSwitchRefreshesClosedWindowsCacheVisibleWorkspaceSnapshot() async throws {

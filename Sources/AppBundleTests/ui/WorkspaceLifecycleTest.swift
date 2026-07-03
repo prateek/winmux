@@ -41,23 +41,25 @@ final class WorkspaceLifecycleTest: XCTestCase {
         XCTAssertEqual(Workspace.all, [visible])
     }
 
-    func testFallbackWorkspaceGettersScopeTheRetainedSlotToTheRequestedProject() {
-        let retainedSlot = focus.workspace
-        XCTAssertEqual(retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: mainMonitor)), retainedSlot.id)
+    func testFallbackWorkspaceDrawsFromColumnDeckWhileAdjacentBlankScopesToProject() {
+        let deckCard = focus.workspace
+        XCTAssertEqual(retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: mainMonitor)), deckCard.id)
         let project = createWorkspaceProject()
 
-        let fallback = getOrCreateFallbackWorkspace(projectId: project.id, monitor: mainMonitor, excluding: nil)
-        XCTAssertFalse(fallback === retainedSlot)
-        XCTAssertEqual(fallback.projectId, project.id)
-
-        let blank = getOrCreateAdjacentBlankWorkspace(projectId: project.id, monitor: mainMonitor)
-        XCTAssertFalse(blank === retainedSlot)
-        XCTAssertEqual(blank.projectId, project.id)
-
+        // Fallback synthesis draws from the column's deck, whatever project is requested.
         XCTAssertTrue(
-            getOrCreateFallbackWorkspace(projectId: retainedSlot.projectId, monitor: mainMonitor, excluding: nil)
-                === retainedSlot,
+            getOrCreateFallbackWorkspace(projectId: project.id, monitor: mainMonitor, excluding: nil)
+                === deckCard,
         )
+        XCTAssertTrue(
+            getOrCreateFallbackWorkspace(projectId: deckCard.projectId, monitor: mainMonitor, excluding: nil)
+                === deckCard,
+        )
+
+        // The sidebar's adjacent-blank getter still scopes the retained slot to the project.
+        let blank = getOrCreateAdjacentBlankWorkspace(projectId: project.id, monitor: mainMonitor)
+        XCTAssertFalse(blank === deckCard)
+        XCTAssertEqual(blank.projectId, project.id)
     }
 
     func testFocusedAdjacentBlankWorkspaceCreationReusesExistingEmptySlot() async throws {
@@ -195,7 +197,12 @@ final class WorkspaceLifecycleTest: XCTestCase {
         XCTAssertFalse(secondary.activeWorkspace === workspace)
         XCTAssertEqual(secondary.activeWorkspace.projectId, workspaceProjectDefaultId)
         XCTAssertTrue(secondary.activeWorkspace.isOrdinaryEmptySlot)
-        XCTAssertEqual(Workspace.all.filter { $0.projectId == workspaceProjectDefaultId && !$0.isArchived }.count, 2)
+        // The setUp workspace lingers as the sole card of the replaced test display's deck,
+        // so count only the cards visible on the current displays.
+        XCTAssertEqual(
+            Workspace.all.filter { $0.projectId == workspaceProjectDefaultId && !$0.isArchived && $0.isVisible }.count,
+            2,
+        )
     }
 
     func testReconcileRepairsCurrentMonitorViewportWithMissingActiveWorkspace() {

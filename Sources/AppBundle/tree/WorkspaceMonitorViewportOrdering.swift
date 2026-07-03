@@ -28,37 +28,12 @@ import AppKit
 }
 
 @MainActor
-func getOrCreateMonitorViewportFallbackWorkspace(forPoint point: CGPoint) -> Workspace {
-    let monitor = point.monitorApproximation
-    return getOrCreateFallbackWorkspace(
-        projectId: activeWorkspaceProjectId(for: monitor),
-        monitor: monitor,
-        excluding: nil,
-    )
-}
-
-@MainActor
 func getOrCreateFallbackWorkspace(
     projectId: WorkspaceProjectId,
     monitor: Monitor,
     excluding excludedWorkspace: Workspace?,
 ) -> Workspace {
-    if let workspaceId = retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: monitor)),
-       let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
-       workspace.projectId == projectId,
-       workspace != excludedWorkspace,
-       workspaceIsAvailableForMonitor(workspace, monitor: monitor)
-    {
-        return workspace
-    }
-    if let workspace = projectWorkspaces(projectId: projectId)
-        .first(where: {
-            $0 != excludedWorkspace &&
-                $0.isEffectivelyEmpty &&
-                !$0.isArchived &&
-                workspaceIsAvailableForMonitor($0, monitor: monitor)
-        })
-    {
+    if let workspace = deckFallbackWorkspace(for: monitor, excluding: excludedWorkspace) {
         return workspace
     }
     let workspace = Workspace.get(byName: nextAutomaticWorkspaceName(projectId: projectId, monitor: monitor))
@@ -66,6 +41,28 @@ func getOrCreateFallbackWorkspace(
     workspace.assignProject(projectId)
     workspace.seedMonitorIfNeeded(monitor)
     return workspace
+}
+
+/// The deck's next card after the departing one (wrapping), or the column's active card
+/// when nothing departs.
+@MainActor
+private func deckFallbackWorkspace(for monitor: Monitor, excluding excludedWorkspace: Workspace?) -> Workspace? {
+    let viewport = monitor.defaultWorkspaceViewport
+    let deck = orderedDeckWorkspaces(inColumn: columnDeckKey(for: viewport))
+    guard !deck.isEmpty else { return nil }
+    let start: Int = if let excludedWorkspace, let excludedIndex = deck.firstIndex(of: excludedWorkspace) {
+        excludedIndex + 1
+    } else if let activeCard = winMuxWorkspaceState.visibleWorkspace(for: viewport),
+              let activeIndex = deck.firstIndex(of: activeCard)
+    {
+        activeIndex
+    } else {
+        0
+    }
+    let candidates = Array(deck[start...]) + Array(deck[..<start])
+    return candidates.first {
+        $0 != excludedWorkspace && workspaceIsAvailableForMonitor($0, monitor: viewport)
+    }
 }
 
 @MainActor

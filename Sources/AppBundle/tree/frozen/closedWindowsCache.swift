@@ -139,7 +139,13 @@ func restoreFrozenWorldIfNeeded(_ frozenWorld: FrozenWorld, newlyDetectedWindow:
         {
             targetWorkspace = existingVisibleWorkspace
         } else {
-            targetWorkspace = getOrCreateMonitorViewportFallbackWorkspace(for: targetMonitor)
+            // The recorded visible workspace was empty (empty workspaces aren't frozen), so it
+            // wasn't restored. Stand in an empty workspace rather than the deck's next card:
+            // the restored-hidden cards must stay hidden, as recorded.
+            targetWorkspace = getOrCreateAdjacentBlankWorkspace(
+                projectId: activeWorkspaceProjectId(for: targetMonitor),
+                monitor: targetMonitor,
+            )
         }
         _ = targetMonitor.setActiveWorkspace(targetWorkspace)
     }

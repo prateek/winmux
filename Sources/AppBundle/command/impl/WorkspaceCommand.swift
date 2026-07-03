@@ -57,7 +57,11 @@ struct WorkspaceCommand: Command {
         if args.autoBackAndForth && focusedWs.name == workspaceName {
             return .backAndForth
         }
-        guard let workspace = createAdjacentTransientBlankWorkspaceIfAllowed(named: workspaceName, from: focusedWs) else {
+        guard let workspace = createAdjacentTransientBlankWorkspaceIfAllowed(
+            named: workspaceName,
+            from: focusedWs,
+            among: deckNavigationWorkspaces(from: focusedWs),
+        ) else {
             _ = io.err("Workspace '\(workspaceName)' doesn't exist")
             return .error
         }
@@ -89,14 +93,27 @@ private func createNextTransientBlankWorkspaceIfAllowed(
     usesStdin: Bool,
 ) -> Workspace? {
     guard isNext, !wrapAround, !usesStdin else { return nil }
-    let nextWorkspaceIndex = scopedAutomaticDisplayWorkspaces(current: current).count + 1
-    return createAdjacentTransientBlankWorkspaceIfAllowed(named: String(nextWorkspaceIndex), from: current)
+    let deckWorkspaces = deckNavigationWorkspaces(from: current)
+    return createAdjacentTransientBlankWorkspaceIfAllowed(
+        named: String(deckWorkspaces.count + 1),
+        from: current,
+        among: deckWorkspaces,
+    )
+}
+
+/// The current card's column deck, filtered to user-facing cards. Equals the focused
+/// column's deck whenever the current card is visible.
+@MainActor
+private func deckNavigationWorkspaces(from current: Workspace) -> [Workspace] {
+    let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: current.id)
+        ?? columnDeckKey(for: current.workspaceMonitor)
+    return userFacingWorkspaces(orderedDeckWorkspaces(inColumn: columnKey), focusedWorkspace: current)
 }
 
 @MainActor
 private func findDirectWorkspaceTarget(named workspaceName: String, from current: Workspace) -> Workspace? {
     if let targetIndex = parsePositiveWorkspaceDisplayIndex(workspaceName) {
-        if let workspace = scopedAutomaticDisplayWorkspaces(current: current).getOrNil(atIndex: targetIndex - 1) {
+        if let workspace = deckNavigationWorkspaces(from: current).getOrNil(atIndex: targetIndex - 1) {
             return workspace
         }
         guard let workspace = Workspace.existing(byName: workspaceName),
@@ -143,7 +160,7 @@ private func resolveRelativeWorkspaceCandidates(current: Workspace, stdin: Strin
             }
     }
 
-    return orderedUserFacingWorkspaces(in: current.projectId, focusedWorkspace: current)
+    return deckNavigationWorkspaces(from: current)
 }
 
 @MainActor
