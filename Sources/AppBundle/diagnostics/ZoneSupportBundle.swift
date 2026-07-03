@@ -197,7 +197,9 @@ private struct ZoneSupportBundleWriter {
                 overlay.activeAvailabilitySetId ?? "",
                 overlay.zoneSnapPolicyOverride?.rawValue ?? "",
                 overlay.disabledZoneIds.sorted().joined(separator: ","),
-                overlay.parkedWorkspaceByZoneId.keys.sorted().map { "\($0):\(overlay.parkedWorkspaceByZoneId[$0]?.description ?? "")" }.joined(separator: ","),
+                // Zone parking is gone (decks own hidden cards), but the parked-workspaces
+                // column stays in the frozen support-bundle schema, so emit an empty cell.
+                "",
                 widthOverrideSummary(overlay.widthOverridesByLayoutIdentity),
                 overlay.styleOverridesByZoneId.keys.sorted().map { "\($0):\(overlay.styleOverridesByZoneId[$0] ?? "")" }.joined(separator: ","),
                 overlay.currentToggleRestoreZoneId ?? "",

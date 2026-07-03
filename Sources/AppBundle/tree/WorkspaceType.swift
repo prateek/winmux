@@ -26,8 +26,9 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         if let existing = winMuxWorkspaceState.workspace(named: name) {
             return existing
         } else {
+            let columnKey = columnDeckKeyForNewWorkspace()
             let workspace = Workspace(name)
-            winMuxWorkspaceState.registerWorkspace(workspace)
+            winMuxWorkspaceState.registerWorkspace(workspace, inDeck: columnKey)
             return workspace
         }
     }
@@ -68,8 +69,10 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
             workspace.refreshEmptyLifecycle()
         }
         winMuxWorkspaceState.pruneProjectWorkspaceIndexes()
+        reconcileColumnDecks()
         repairInvalidVisibleWorkspaceAssignments()
         rearrangeWorkspacesOnMonitors()
+        alignActiveCardsWithColumnDecks()
         pruneEmptyWorkspaces()
         clearOrphanedWorkspaceSidebarLabels()
         ensureVisibleActiveProjectWorkspaces()

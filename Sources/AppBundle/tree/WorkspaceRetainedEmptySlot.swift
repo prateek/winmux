@@ -1,21 +1,22 @@
 @MainActor
 func workspaceIsRetainedEmptySlot(_ workspace: Workspace) -> Bool {
-    retainedEmptyWorkspaceIdsByScope()[WorkspaceScope(projectId: workspace.projectId)] == workspace.id
+    guard let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id) else { return false }
+    return retainedEmptyWorkspaceId(inColumn: columnKey) == workspace.id
 }
 
 @MainActor
-func retainedEmptyWorkspaceIdsByScope() -> [WorkspaceScope: WorkspaceId] {
-    let scopes = Set(Workspace.all.filter { !$0.isArchived }.map { WorkspaceScope(projectId: $0.projectId) })
+func retainedEmptyWorkspaceIdsByColumn() -> [String: WorkspaceId] {
+    let columnKeys = Set(Workspace.all.filter { !$0.isArchived }.compactMap { winMuxWorkspaceState.columnDecks.columnKey(of: $0.id) })
     return Dictionary(
-        uniqueKeysWithValues: scopes.compactMap { scope in
-            retainedEmptyWorkspaceId(in: scope).map { (scope, $0) }
+        uniqueKeysWithValues: columnKeys.compactMap { columnKey in
+            retainedEmptyWorkspaceId(inColumn: columnKey).map { (columnKey, $0) }
         },
     )
 }
 
 @MainActor
-func retainedEmptyWorkspaceId(in scope: WorkspaceScope) -> WorkspaceId? {
-    let orderedWorkspaces = orderedWorkspaces(in: scope)
+func retainedEmptyWorkspaceId(inColumn columnKey: String) -> WorkspaceId? {
+    let orderedWorkspaces = orderedDeckWorkspaces(inColumn: columnKey)
     let ordinaryEmptyWorkspaces = orderedWorkspaces.filter(\.isOrdinaryEmptySlot).sorted {
         if $0.lifecycle != $1.lifecycle {
             return $0.lifecycle == .durable
@@ -35,15 +36,6 @@ func retainedEmptyWorkspaceId(in scope: WorkspaceScope) -> WorkspaceId? {
         return visibleEmptyWorkspace.id
     }
     return nil
-}
-
-@MainActor
-func workspaceScopeIsVisibleActiveProject(_ scope: WorkspaceScope) -> Bool {
-    winMuxWorkspaceState.monitorViewportsById.values.contains { viewport in
-        viewport.activeWorkspaceId
-            .flatMap { winMuxWorkspaceState.workspaceById[$0] }?
-            .projectId == scope.projectId
-    }
 }
 
 @MainActor

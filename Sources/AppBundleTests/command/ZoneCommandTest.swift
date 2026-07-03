@@ -2285,7 +2285,7 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(missingZone.stderr.joined(separator: "\n").contains("references zones not present"))
     }
 
-    func testZoneAvailabilitySetClearsDeletedParkedWorkspaceOnRestore() async throws {
+    func testZoneAvailabilityRestoreSkipsDeletedDeckCard() async throws {
         let zones = configureThreeZones()
         config.zoneAvailabilitySets = [
             ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
@@ -2301,18 +2301,19 @@ final class ZoneCommandTest: XCTestCase {
 
         let focusOnly = try await parseCommand("use-zone-availability focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(focusOnly.exitCode, 0)
-        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.contains { $0.parkedWorkspaceByZoneId["right"] == comms.id })
+        XCTAssertFalse(comms.isVisible)
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: comms.id)?.hasSuffix("/column:right"), true)
 
         removeWorkspaceFromRegistry(comms)
         let communications = try await parseCommand("use-zone-availability communications").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(communications.exitCode, 0)
         XCTAssertNil(Workspace.existing(byName: "comms"))
-        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.allSatisfy { $0.parkedWorkspaceByZoneId.isEmpty })
+        XCTAssertNil(winMuxWorkspaceState.columnDecks.columnKey(of: comms.id))
         XCTAssertFalse(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
     }
 
-    func testZoneAvailabilitySetClearsParkedWorkspaceThatIsActiveElsewhereOnRestore() async throws {
+    func testZoneAvailabilityRestoreSkipsDeckCardThatMovedToAnotherColumn() async throws {
         let zones = configureThreeZones()
         config.zoneAvailabilitySets = [
             ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
@@ -2337,7 +2338,7 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(communications.exitCode, 0)
         XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === comms)
         XCTAssertFalse(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
-        XCTAssertTrue(zoneRuntimeOverlaysSnapshot().values.allSatisfy { $0.parkedWorkspaceByZoneId.isEmpty })
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: comms.id)?.hasSuffix("/column:main"), true)
     }
 
     func testCycleZoneLayoutKeepsRuntimeWidthOverridesPerLayout() async throws {

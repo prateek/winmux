@@ -16,6 +16,8 @@ struct WinMuxWorkspaceState {
         workspaceProjectDefaultId: WorkspaceProject(id: workspaceProjectDefaultId, name: "Default", order: 0),
     ]
     var monitorViewportsById: [MonitorViewportId: MonitorViewport] = [:]
+    var columnDecks = ColumnDeckStore()
+    var focusedColumnDeckKeyHint: String?
 
     private var nextWorkspaceCounter = 1
     private var nextProjectCounter = 1
@@ -41,6 +43,8 @@ struct WinMuxWorkspaceState {
         workspaceById = [:]
         workspaceIdByName = [:]
         monitorViewportsById = [:]
+        columnDecks = ColumnDeckStore()
+        focusedColumnDeckKeyHint = nil
         projectsById = [
             workspaceProjectDefaultId: WorkspaceProject(id: workspaceProjectDefaultId, name: defaultProjectName, order: 0),
         ]
@@ -82,9 +86,10 @@ struct WinMuxWorkspaceState {
         workspaceIdByName[name].flatMap { workspaceById[$0] }
     }
 
-    mutating func registerWorkspace(_ workspace: Workspace) {
+    mutating func registerWorkspace(_ workspace: Workspace, inDeck columnKey: String) {
         workspaceById[workspace.id] = workspace
         workspaceIdByName[workspace.name] = workspace.id
+        columnDecks.adopt(workspace.id, into: columnKey)
         ensureProjectExists(workspace.projectId)
         insertWorkspace(workspace.id, intoProject: workspace.projectId)
     }
@@ -92,6 +97,7 @@ struct WinMuxWorkspaceState {
     mutating func removeWorkspace(_ workspace: Workspace) -> MonitorViewportId? {
         workspaceById.removeValue(forKey: workspace.id)
         workspaceIdByName.removeValue(forKey: workspace.name)
+        columnDecks.remove(workspace.id)
         removeWorkspaceFromProjectIndexes(workspace.id)
 
         var removedViewport: MonitorViewportId?
@@ -143,7 +149,7 @@ struct WinMuxWorkspaceState {
         }
     }
 
-    mutating func setActiveWorkspace(_ workspace: Workspace, on viewportId: MonitorViewportId) -> Bool {
+    mutating func setActiveWorkspace(_ workspace: Workspace, on viewportId: MonitorViewportId, deckColumnKey: String) -> Bool {
         ensureMonitorViewportExists(viewportId)
         ensureProjectExists(workspace.projectId)
 
@@ -154,6 +160,8 @@ struct WinMuxWorkspaceState {
         viewport.activeWorkspaceId = workspace.id
         viewport.lastActiveWorkspaceByProject[workspace.projectId] = workspace.id
         monitorViewportsById[viewportId] = viewport
+        // Showing a card in a column moves it into that column's deck (summoning is moving).
+        columnDecks.transfer(workspace.id, to: deckColumnKey)
         return true
     }
 

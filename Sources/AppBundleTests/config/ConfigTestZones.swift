@@ -493,7 +493,6 @@ extension ConfigTest {
         overlay.activeAvailabilitySetId = "focus-only"
         overlay.zoneSnapPolicyOverride = .snapToZone
         overlay.disabledZoneIds = ["right", "left"]
-        overlay.parkedWorkspaceByZoneId = ["right": WorkspaceId("workspace-right")]
         overlay.widthOverridesByLayoutIdentity = ["balanced": ["main": 0.7, "left": 0.3]]
         overlay.styleOverridesByZoneId = ["right": "urgent"]
         overlay.currentToggleRestoreZoneId = "right"
@@ -507,7 +506,6 @@ extension ConfigTest {
         XCTAssertTrue(lines.contains("  runtime overlays:"))
         XCTAssertTrue(lines.contains("    physical:0,0: active-layout=balanced active-scene=triage active-availability=focus-only snap-policy=snap-to-zone"))
         XCTAssertTrue(lines.contains("      disabled=left,right"))
-        XCTAssertTrue(lines.contains("      parked=right:workspace-right"))
         XCTAssertTrue(lines.contains("      width-overrides=balanced[left=0.3000,main=0.7000]"))
         XCTAssertTrue(lines.contains("      styles=right:urgent"))
         XCTAssertTrue(lines.contains("      toggle-restore-zone=right"))

@@ -32,7 +32,7 @@ extension Monitor {
         guard !winMuxWorkspaceState.isWorkspaceActive(workspace.id, outside: viewportId) else {
             return false
         }
-        _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: viewportId)
+        _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: viewportId, deckColumnKey: columnDeckKey(for: viewport))
         checkWorkspaceHierarchyInvariants()
         return true
     }
@@ -86,12 +86,12 @@ func overrideWorkspaceOnMonitorBySwappingActiveViewports(_ workspace: Workspace,
         targetMonitor: targetMonitor,
     )
     if let sourceReplacement {
-        _ = winMuxWorkspaceState.setActiveWorkspace(sourceReplacement, on: MonitorViewportId(sourceMonitor))
+        _ = winMuxWorkspaceState.setActiveWorkspace(sourceReplacement, on: MonitorViewportId(sourceMonitor), deckColumnKey: columnDeckKey(for: sourceMonitor))
     } else {
         let fallback = createBlankWorkspace(projectId: workspace.projectId, monitor: sourceMonitor)
-        _ = winMuxWorkspaceState.setActiveWorkspace(fallback, on: MonitorViewportId(sourceMonitor))
+        _ = winMuxWorkspaceState.setActiveWorkspace(fallback, on: MonitorViewportId(sourceMonitor), deckColumnKey: columnDeckKey(for: sourceMonitor))
     }
-    _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: MonitorViewportId(targetMonitor))
+    _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: MonitorViewportId(targetMonitor), deckColumnKey: columnDeckKey(for: targetMonitor))
     checkWorkspaceHierarchyInvariants()
     return true
 }
@@ -124,22 +124,6 @@ func gcMonitors() {
     rearrangeWorkspacesOnMonitors()
 }
 
-extension CGPoint {
-    @MainActor
-    func setActiveWorkspace(_ workspace: Workspace) -> Bool {
-        if !isValidAssignment(workspace: workspace, screen: self) {
-            return false
-        }
-        let viewportId = MonitorViewportId(topLeftCorner: self)
-        guard !winMuxWorkspaceState.isWorkspaceActive(workspace.id, outside: viewportId) else {
-            return false
-        }
-        _ = winMuxWorkspaceState.setActiveWorkspace(workspace, on: viewportId)
-        checkWorkspaceHierarchyInvariants()
-        return true
-    }
-}
-
 @MainActor
 func checkWorkspaceHierarchyInvariants(requireActiveMonitorViewports: Bool = false) {
     for workspace in Workspace.all {
@@ -156,7 +140,30 @@ func checkWorkspaceHierarchyInvariants(requireActiveMonitorViewports: Bool = fal
         }
     }
 
+    let columnDecks = winMuxWorkspaceState.columnDecks
+    for workspace in Workspace.all where !workspace.isArchived {
+        check(columnDecks.columnKey(of: workspace.id) != nil, "Workspace '\(workspace.name)' belongs to no column deck")
+    }
+    for (columnKey, deck) in columnDecks.decksByColumnKey {
+        for cardId in deck {
+            check(winMuxWorkspaceState.workspaceById[cardId] != nil, "Column deck '\(columnKey)' references missing workspace '\(cardId)'")
+            check(columnDecks.columnKey(of: cardId) == columnKey, "Workspace '\(cardId)' is present in more than one column deck")
+        }
+        check(Set(deck).count == deck.count, "Column deck '\(columnKey)' contains duplicate cards")
+    }
+
     guard requireActiveMonitorViewports else { return }
+    // Deck keys follow display names while viewport identities follow geometry, so viewport
+    // and deck can disagree between a display swap and the next reconciliation
+    // (alignActiveCardsWithColumnDecks). Check the agreement only at the reconciled gate.
+    for monitor in monitors {
+        let viewportId = MonitorViewportId(monitor)
+        guard let activeWorkspaceId = winMuxWorkspaceState.monitorViewportsById[viewportId]?.activeWorkspaceId else { continue }
+        check(
+            columnDecks.columnKey(of: activeWorkspaceId) == columnDeckKey(for: monitor),
+            "Display viewport '\(viewportId)' shows workspace '\(activeWorkspaceId)' that is not in its column's deck",
+        )
+    }
     for monitor in monitors {
         let viewportId = MonitorViewportId(monitor)
         guard let viewport = winMuxWorkspaceState.monitorViewportsById[viewportId],

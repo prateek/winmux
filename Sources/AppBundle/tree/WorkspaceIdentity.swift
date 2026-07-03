@@ -125,14 +125,6 @@ struct MonitorViewportId: Hashable, Sendable, Codable, CustomStringConvertible {
 
 typealias MonitorKey = MonitorViewportId
 
-struct WorkspaceScope: Hashable, Sendable {
-    let projectId: WorkspaceProjectId
-
-    init(projectId: WorkspaceProjectId) {
-        self.projectId = projectId
-    }
-}
-
 enum WorkspaceLifecycle: String, Codable, Sendable {
     case durable
     case transient

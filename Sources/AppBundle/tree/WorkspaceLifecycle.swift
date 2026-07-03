@@ -42,8 +42,7 @@ func createBlankWorkspace(projectId: WorkspaceProjectId, monitor: Monitor) -> Wo
 
 @MainActor
 func getOrCreateAdjacentBlankWorkspace(projectId: WorkspaceProjectId, monitor: Monitor) -> Workspace {
-    let scope = WorkspaceScope(projectId: projectId)
-    if let workspaceId = retainedEmptyWorkspaceId(in: scope),
+    if let workspaceId = retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: monitor)),
        let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
        isValidAssignment(workspace: workspace, screen: monitor.rect.topLeftCorner)
     {
@@ -154,7 +153,7 @@ func removeWorkspaceFromRegistry(_ workspace: Workspace) {
 
 @MainActor
 func pruneEmptyWorkspaces() {
-    let retainedEmptyWorkspaceIds = retainedEmptyWorkspaceIdsByScope()
+    let retainedEmptyWorkspaceIds = retainedEmptyWorkspaceIdsByColumn()
     let focusedWorkspaceBeforePrune = focus.workspace
     let workspacesToRemove = Workspace.all.filter {
         !workspaceShouldSurviveReconciliation($0, retainedEmptyWorkspaceIds: retainedEmptyWorkspaceIds)
@@ -195,36 +194,43 @@ func focusReplacementForPrunedWorkspace(_ workspace: Workspace) -> Workspace? {
 @MainActor
 func workspaceShouldSurviveReconciliation(
     _ workspace: Workspace,
-    retainedEmptyWorkspaceIds: [WorkspaceScope: WorkspaceId],
+    retainedEmptyWorkspaceIds: [String: WorkspaceId],
 ) -> Bool {
     guard !workspace.isArchived else { return false }
-    return workspace.isVisible ||
+    if workspace.isVisible ||
         workspaceHasLifecycleWindows(workspace) ||
-        workspace.isConfiguredPersistent ||
-        zoneParkedWorkspaceIdsSnapshot().contains(workspace.id) ||
-        projectWorkspaces(projectId: workspace.projectId).filter { !$0.isArchived }.count == 1 ||
-        retainedEmptyWorkspaceIds[WorkspaceScope(projectId: workspace.projectId)] == workspace.id
+        workspace.isConfiguredPersistent
+    {
+        return true
+    }
+    guard let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id) else { return false }
+    // A deck is never empty: its sole card survives even as an auto-created blank.
+    return winMuxWorkspaceState.columnDecks.deck(forColumnKey: columnKey).count == 1 ||
+        retainedEmptyWorkspaceIds[columnKey] == workspace.id
 }
 
 @MainActor
 func replacementWorkspaceForPrunedWorkspace(
     _ workspace: Workspace,
-    retainedEmptyWorkspaceIds: [WorkspaceScope: WorkspaceId],
+    retainedEmptyWorkspaceIds: [String: WorkspaceId],
 ) -> Workspace? {
-    let scope = WorkspaceScope(projectId: workspace.projectId)
-    if let retainedWorkspaceId = retainedEmptyWorkspaceIds[scope],
+    let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id)
+    if let columnKey,
+       let retainedWorkspaceId = retainedEmptyWorkspaceIds[columnKey],
        retainedWorkspaceId != workspace.id,
        let retainedWorkspace = winMuxWorkspaceState.workspaceById[retainedWorkspaceId],
        workspaceIsAvailableForMonitor(retainedWorkspace, monitor: workspace.workspaceMonitor)
     {
         return retainedWorkspace
     }
-    if let candidate = orderedWorkspaces(in: scope).first(where: {
-        $0.id != workspace.id &&
-            workspaceShouldSurviveReconciliation($0, retainedEmptyWorkspaceIds: retainedEmptyWorkspaceIds) &&
-            (workspaceHasSidebarVisibleWindows($0) || $0.isConfiguredPersistent) &&
-            workspaceIsAvailableForMonitor($0, monitor: workspace.workspaceMonitor)
-    }) {
+    if let columnKey,
+       let candidate = orderedDeckWorkspaces(inColumn: columnKey).first(where: {
+           $0.id != workspace.id &&
+               workspaceShouldSurviveReconciliation($0, retainedEmptyWorkspaceIds: retainedEmptyWorkspaceIds) &&
+               (workspaceHasSidebarVisibleWindows($0) || $0.isConfiguredPersistent) &&
+               workspaceIsAvailableForMonitor($0, monitor: workspace.workspaceMonitor)
+       })
+    {
         return candidate
     }
     if workspace.isVisible {

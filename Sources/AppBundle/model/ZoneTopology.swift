@@ -377,7 +377,6 @@ struct ZoneRuntimeOverlay: Sendable, Equatable {
     var activeAvailabilitySetId: String?
     var zoneSnapPolicyOverride: ZoneSnapPolicy?
     var disabledZoneIds: Set<String> = []
-    var parkedWorkspaceByZoneId: [String: WorkspaceId] = [:]
     var widthOverridesByLayoutIdentity: [String: [String: Double]] = [:]
     var styleOverridesByZoneId: [String: String] = [:]
     var currentToggleRestoreZoneId: String?
@@ -410,10 +409,6 @@ func activeZoneSceneSelectionsSnapshot() -> [String: String] {
 
 func activeZoneSnapPolicyOverridesSnapshot() -> [String: ZoneSnapPolicy] {
     zoneRuntimeOverlaysByPhysicalIdentity.compactMapValues(\.zoneSnapPolicyOverride)
-}
-
-func zoneParkedWorkspaceIdsSnapshot() -> Set<WorkspaceId> {
-    Set(zoneRuntimeOverlaysByPhysicalIdentity.values.flatMap(\.parkedWorkspaceByZoneId.values))
 }
 
 @MainActor
@@ -604,7 +599,7 @@ func setZoneAvailability(
         runtimeOverlay.activeAvailabilitySetId = nil
         zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
         refreshZoneTopologySnapshot()
-        restoreParkedWorkspace(physicalIdentity: physicalIdentity, resolved: resolved)
+        restoreDeckWorkspace(for: resolved)
         Workspace.reconcileWorkspaceState()
     } else {
         let enabledZonesOnMonitor = getCurrentZoneTopologySnapshot()
@@ -616,9 +611,7 @@ func setZoneAvailability(
         guard enabledZonesOnMonitor.count > 1 else {
             return .failure("Cannot disable zone '\(resolved.displayName)'; at least one zone must stay enabled on monitor \(resolved.physicalMonitor.monitorId_oneBased ?? 0)")
         }
-        if let parkedWorkspaceId = parkWorkspace(for: resolved) {
-            runtimeOverlay.parkedWorkspaceByZoneId[resolved.zoneId] = parkedWorkspaceId
-        }
+        let hiddenWorkspaceId = hideActiveWorkspaceForDisabledZone(for: resolved)
         runtimeOverlay.disabledZoneIds.insert(resolved.zoneId)
         if isCurrentToggle {
             runtimeOverlay.currentToggleRestoreZoneId = resolved.zoneId
@@ -627,9 +620,7 @@ func setZoneAvailability(
         zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
         refreshZoneTopologySnapshot()
         Workspace.reconcileWorkspaceState()
-        if let parkedWorkspaceId = runtimeOverlay.parkedWorkspaceByZoneId[resolved.zoneId],
-           focus.workspace.id == parkedWorkspaceId
-        {
+        if let hiddenWorkspaceId, focus.workspace.id == hiddenWorkspaceId {
             _ = resolved.physicalMonitor.activeWorkspace.focusWorkspace()
         }
     }
@@ -823,9 +814,8 @@ private func applyZoneAvailabilitySet(
 
     for zone in newlyHiddenZones {
         let resolved = resolvedConfiguredZone(from: zone)
-        if let parkedWorkspaceId = parkWorkspace(for: resolved) {
-            runtimeOverlay.parkedWorkspaceByZoneId[zone.zoneId] = parkedWorkspaceId
-            hiddenFocusedWorkspaceIds.insert(parkedWorkspaceId)
+        if let hiddenWorkspaceId = hideActiveWorkspaceForDisabledZone(for: resolved) {
+            hiddenFocusedWorkspaceIds.insert(hiddenWorkspaceId)
         }
     }
 
@@ -837,7 +827,7 @@ private func applyZoneAvailabilitySet(
     refreshZoneTopologySnapshot()
 
     for zone in newlyRestoredZones {
-        restoreParkedWorkspace(physicalIdentity: physicalIdentity, resolved: resolvedConfiguredZone(from: zone))
+        restoreDeckWorkspace(for: resolvedConfiguredZone(from: zone))
     }
     Workspace.reconcileWorkspaceState()
     if hiddenFocusedWorkspaceIds.contains(focus.workspace.id) {
@@ -1361,7 +1351,7 @@ private func applyZoneWidthOverrides(
 }
 
 @MainActor
-private func parkWorkspace(for resolved: ResolvedConfiguredZoneSelector) -> WorkspaceId? {
+private func hideActiveWorkspaceForDisabledZone(for resolved: ResolvedConfiguredZoneSelector) -> WorkspaceId? {
     guard let activeMonitor = sortedMonitors.first(where: {
         $0.zoneId == resolved.zoneId &&
             $0.physicalMonitor.rect.topLeftCorner == resolved.physicalMonitor.rect.topLeftCorner
@@ -1376,31 +1366,16 @@ private func parkWorkspace(for resolved: ResolvedConfiguredZoneSelector) -> Work
 }
 
 @MainActor
-private func restoreParkedWorkspace(physicalIdentity: String, resolved: ResolvedConfiguredZoneSelector) {
-    guard let parkedWorkspaceId = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity]?
-        .parkedWorkspaceByZoneId[resolved.zoneId]
-    else { return }
-    guard let workspace = winMuxWorkspaceState.workspaceById[parkedWorkspaceId] else {
-        clearParkedWorkspace(physicalIdentity: physicalIdentity, zoneId: resolved.zoneId)
-        return
-    }
+private func restoreDeckWorkspace(for resolved: ResolvedConfiguredZoneSelector) {
     guard let restoredMonitor = sortedMonitors.first(where: {
         $0.zoneId == resolved.zoneId &&
             $0.physicalMonitor.rect.topLeftCorner == resolved.physicalMonitor.rect.topLeftCorner
     }) else { return }
     let restoredViewportId = MonitorViewportId(restoredMonitor)
-    guard !winMuxWorkspaceState.isWorkspaceActive(parkedWorkspaceId, outside: restoredViewportId) else {
-        clearParkedWorkspace(physicalIdentity: physicalIdentity, zoneId: resolved.zoneId)
-        return
-    }
+    guard let workspace = orderedDeckWorkspaces(inColumn: columnDeckKey(for: restoredMonitor))
+        .first(where: { !winMuxWorkspaceState.isWorkspaceActive($0.id, outside: restoredViewportId) })
+    else { return }
     _ = restoredMonitor.setActiveWorkspace(workspace)
-    clearParkedWorkspace(physicalIdentity: physicalIdentity, zoneId: resolved.zoneId)
-}
-
-private func clearParkedWorkspace(physicalIdentity: String, zoneId: String) {
-    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
-    runtimeOverlay.parkedWorkspaceByZoneId.removeValue(forKey: zoneId)
-    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
 }
 
 struct ZoneSceneActivationResult {

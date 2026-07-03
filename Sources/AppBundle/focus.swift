@@ -130,11 +130,16 @@ func replaceWorkspaceNameInFocusState(oldName: String, newName: String) {
 
 @MainActor func setFocus(to newFocus: LiveFocus) -> Bool {
     if _focus == newFocus.frozen {
-        return newFocus.workspace.isVisible || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
+        let status = newFocus.workspace.isVisible || newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
+        if status {
+            recordFocusedColumnDeckKeyHint(newFocus.workspace)
+        }
+        return status
     }
     let oldFocus = focus
     let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
     guard status else { return false }
+    recordFocusedColumnDeckKeyHint(newFocus.workspace)
 
     // Normalize mruWindow when focus away from a workspace
     if oldFocus.workspace != newFocus.workspace {

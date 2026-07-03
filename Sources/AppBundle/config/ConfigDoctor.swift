@@ -52,7 +52,6 @@ private func renderRuntimeOverlayLines(_ runtimeOverlays: [String: ZoneRuntimeOv
         guard let overlay = runtimeOverlays[physicalIdentity] else { continue }
         lines.append("    \(physicalIdentity): active-layout=\(overlay.activeLayoutId ?? "none") active-scene=\(overlay.activeSceneId ?? "none") active-availability=\(overlay.activeAvailabilitySetId ?? "none") snap-policy=\(overlay.zoneSnapPolicyOverride?.rawValue ?? "none")")
         lines.append("      disabled=\(renderStringSet(overlay.disabledZoneIds))")
-        lines.append("      parked=\(renderZoneWorkspaceMap(overlay.parkedWorkspaceByZoneId))")
         lines.append("      width-overrides=\(renderWidthOverrides(overlay.widthOverridesByLayoutIdentity))")
         lines.append("      styles=\(renderStringMap(overlay.styleOverridesByZoneId))")
         lines.append("      toggle-restore-zone=\(overlay.currentToggleRestoreZoneId ?? "none")")
@@ -69,13 +68,6 @@ private func renderStringMap(_ values: [String: String]) -> String {
     guard !values.isEmpty else { return "none" }
     return values.keys.sorted().map { key in
         "\(key):\(values[key] ?? "")"
-    }.joined(separator: ",")
-}
-
-private func renderZoneWorkspaceMap(_ values: [String: WorkspaceId]) -> String {
-    guard !values.isEmpty else { return "none" }
-    return values.keys.sorted().map { key in
-        "\(key):\(values[key]?.description ?? "")"
     }.joined(separator: ",")
 }
 
