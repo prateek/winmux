@@ -73,4 +73,5 @@ let subcommandDescriptions = [
     ["  workspace-back-and-forth", "Switch between the focused workspace and previously focused workspace back and forth"],
     ["  workspace", "Focus the specified workspace"],
     ["  zone", "Initialize ultrawide zone config presets"],
+    ["  zone-expose", "Show an overview of zones on the display or windows in the focused zone"],
 ]

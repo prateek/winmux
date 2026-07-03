@@ -110,6 +110,23 @@ winmux use-zone-profile communications
 winmux cycle-zone-style current urgent calm
 ```
 
+## Overview (Exposé)
+
+The starter template binds Ctrl+Up to a zone overview of the focused display
+and Ctrl+Down to a window overview of the focused zone:
+
+```toml
+ctrl-up = 'zone-expose display'
+ctrl-down = 'zone-expose zone'
+```
+
+Select a tile with arrows and Return, a number key, or a click; Escape
+closes. Zone previews come from cached screenshots captured after workspace
+transitions and need the Screen Recording permission (the first overview use
+prompts once); without it tiles show labels only. macOS's own Mission
+Control shortcuts may shadow Ctrl+Up/Down — disable them in System Settings
+> Keyboard > Shortcuts > Mission Control if nothing happens.
+
 ## Mouse
 
 For a one-handed mouse flow, use secondary-button drag:

@@ -255,3 +255,7 @@ let zone_help_generated = """
     USAGE: zone [-h|--help] init [--dry-run|--write] [--replace-existing] [--preset <preset>]
                 [--monitor <monitor-pattern>]
     """
+
+let zone_expose_help_generated = """
+    USAGE: zone-expose [-h|--help] (display|zone)
+    """

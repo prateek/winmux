@@ -46,6 +46,10 @@ on-mode-changed = []
 [mode.main.binding]
     ctrl-f = 'open-sidebar'
     alt-z = 'mode zone'
+    # macOS's own Mission Control shortcuts may shadow these two; disable them in
+    # System Settings > Keyboard > Shortcuts > Mission Control if nothing happens.
+    ctrl-up = 'zone-expose display'
+    ctrl-down = 'zone-expose zone'
     alt-space = 'layout horizontal vertical'
     alt-h = 'focus left'
     alt-j = 'focus down'

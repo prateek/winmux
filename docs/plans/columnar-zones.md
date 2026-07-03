@@ -9655,7 +9655,24 @@ Non-claims:
 
 ### Slice 55: Zone Exposé Overview
 
-Status: planned; later enhancement from 2026-07-02 daily-driver feedback.
+Status: in progress; implementation landed 2026-07-02, formal artifact
+pending. Later enhancement from 2026-07-02 daily-driver feedback.
+
+Implementation update, 2026-07-02:
+
+- `zone-expose (display|zone)` command, bound to `ctrl-up`/`ctrl-down` in the
+  starter template (with a note that macOS Mission Control shortcuts may
+  shadow them).
+- Display scope shows one tile per zone viewport on the focused display with
+  a cached screenshot preview; zone scope lists the focused workspace's
+  windows as icon+title tiles (no thumbnails, per the non-claims). Arrows,
+  digits, Return, click, and Escape drive selection.
+- `ZoneExposePreviewCache` captures the display via ScreenCaptureKit when a
+  refresh settles, crops per zone, and stays fully disarmed until the first
+  overview use — zero standing cost otherwise, and no capture ever happens
+  at open time. Requires Screen Recording; the first use prompts once and
+  tiles degrade to labels without it. macOS 14+ for captures (deployment
+  target is 13; the capture path is availability-gated).
 
 Goal: Ctrl+Up shows a whole-display overview of workspaces and zones;
 Ctrl+Down shows an overview of the focused zone's windows; selecting a tile

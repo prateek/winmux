@@ -1332,6 +1332,13 @@ final class ZoneCommandTest: XCTestCase {
         controller.cancel()
     }
 
+    func testParseZoneExposeCommand() {
+        XCTAssertTrue(parseCommand("zone-expose display").cmdOrNil is ZoneExposeCommand)
+        XCTAssertTrue(parseCommand("zone-expose zone").cmdOrNil is ZoneExposeCommand)
+        XCTAssertNil(parseCommand("zone-expose").cmdOrNil)
+        XCTAssertNil(parseCommand("zone-expose everything").cmdOrNil)
+    }
+
     func testMouseUpRefreshEventClassifiesDesktopVsWindowClicks() {
         let zones = configureThreeZones()
         let work = Workspace.get(byName: "work")
