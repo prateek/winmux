@@ -1131,6 +1131,31 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }
 
+    func testReenabledZoneRestoresTheExactCardItWasShowing() async throws {
+        let zones = configureThreeZones()
+        let rightZone = zones["right"].orDie()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        _ = TestWindow.new(id: 86, parent: work.rootTilingContainer)
+        XCTAssertTrue(work.focusWorkspace())
+        let commsAnchor = Workspace.get(byName: "comms-anchor")
+        _ = TestWindow.new(id: 87, parent: commsAnchor.rootTilingContainer)
+        winMuxWorkspaceState.columnDecks.adopt(commsAnchor.id, into: columnDeckKey(for: rightZone))
+        // The zone shows an empty, non-sole card: without the hidden-active record it would
+        // be pruned while hidden and re-enable would surface commsAnchor instead.
+        let commsEmpty = Workspace.get(byName: "comms-empty")
+        XCTAssertTrue(rightZone.setActiveWorkspace(commsEmpty))
+
+        let disable = try await parseCommand("disable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(disable.exitCode, 0)
+        Workspace.reconcileWorkspaceState()
+        XCTAssertTrue(Workspace.existing(byName: "comms-empty") === commsEmpty)
+
+        let enable = try await parseCommand("enable-zone Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(enable.exitCode, 0)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === commsEmpty)
+    }
+
     func testResizeZoneRejectsDisabledZoneAndBalanceUsesEnabledZonesOnly() async throws {
         _ = configureThreeZones()
 

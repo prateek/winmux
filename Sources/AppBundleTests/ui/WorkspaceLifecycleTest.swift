@@ -41,6 +41,25 @@ final class WorkspaceLifecycleTest: XCTestCase {
         XCTAssertEqual(Workspace.all, [visible])
     }
 
+    func testFallbackWorkspaceGettersScopeTheRetainedSlotToTheRequestedProject() {
+        let retainedSlot = focus.workspace
+        XCTAssertEqual(retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: mainMonitor)), retainedSlot.id)
+        let project = createWorkspaceProject()
+
+        let fallback = getOrCreateFallbackWorkspace(projectId: project.id, monitor: mainMonitor, excluding: nil)
+        XCTAssertFalse(fallback === retainedSlot)
+        XCTAssertEqual(fallback.projectId, project.id)
+
+        let blank = getOrCreateAdjacentBlankWorkspace(projectId: project.id, monitor: mainMonitor)
+        XCTAssertFalse(blank === retainedSlot)
+        XCTAssertEqual(blank.projectId, project.id)
+
+        XCTAssertTrue(
+            getOrCreateFallbackWorkspace(projectId: retainedSlot.projectId, monitor: mainMonitor, excluding: nil)
+                === retainedSlot,
+        )
+    }
+
     func testFocusedAdjacentBlankWorkspaceCreationReusesExistingEmptySlot() async throws {
         let occupied = Workspace.get(byName: "1")
         occupied.markAsAutomaticallyNamed()

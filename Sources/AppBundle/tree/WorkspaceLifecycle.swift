@@ -44,6 +44,7 @@ func createBlankWorkspace(projectId: WorkspaceProjectId, monitor: Monitor) -> Wo
 func getOrCreateAdjacentBlankWorkspace(projectId: WorkspaceProjectId, monitor: Monitor) -> Workspace {
     if let workspaceId = retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: monitor)),
        let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
+       workspace.projectId == projectId,
        isValidAssignment(workspace: workspace, screen: monitor.rect.topLeftCorner)
     {
         return workspace
@@ -204,8 +205,10 @@ func workspaceShouldSurviveReconciliation(
         return true
     }
     guard let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id) else { return false }
-    // A deck is never empty: its sole card survives even as an auto-created blank.
+    // A deck is never empty: its sole card survives even as an auto-created blank. A card
+    // hidden by disabling its zone also survives, so re-enabling can bring the same card back.
     return winMuxWorkspaceState.columnDecks.deck(forColumnKey: columnKey).count == 1 ||
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[columnKey] == workspace.id ||
         retainedEmptyWorkspaceIds[columnKey] == workspace.id
 }
 

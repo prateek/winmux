@@ -79,6 +79,9 @@ func finalizePersistedFrozenWorldAfterRefresh(aliveWindowIds: Set<UInt32>) {
     {
         pendingPersistedFrozenWorld = nil
         didRestorePersistedFrozenWorldDuringCurrentSession = false
+        // Startup deck hints only serve the frozen-world restore's by-name card
+        // recreations; they must not outlive the pending world.
+        winMuxWorkspaceState.deckColumnKeyHintsByCardName = [:]
         try? FileManager.default.removeItem(at: persistedFrozenWorldUrl())
     }
 }

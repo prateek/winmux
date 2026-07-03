@@ -6,6 +6,7 @@ private let persistedDeckStateFilename = "deck-state.json"
 private let persistedDeckStateSaveDebounceSeconds = 1.0
 @MainActor private var persistedDeckStateSavesEnabled = false
 @MainActor private var persistedDeckStateSaveGeneration = 0
+@MainActor var persistedDeckStateDirectoryOverrideForTests: URL?
 
 /// One column's persisted deck. Cards persist by name (not by session workspace id) so a
 /// restart can rebuild deck membership for workspaces that get fresh ids.
@@ -22,6 +23,9 @@ struct PersistedDeckState: Codable, Equatable, Sendable {
 
 @MainActor
 private func persistedDeckStateUrl() throws -> URL {
+    if let directory = persistedDeckStateDirectoryOverrideForTests {
+        return directory.appendingPathComponent(persistedDeckStateFilename, isDirectory: false)
+    }
     let appSupport = try FileManager.default.url(
         for: .applicationSupportDirectory,
         in: .userDomainMask,
@@ -60,6 +64,12 @@ func enablePersistedDeckStateSaves() {
 }
 
 @MainActor
+func disablePersistedDeckStateSavesForTests() {
+    persistedDeckStateSavesEnabled = false
+    persistedDeckStateSaveGeneration += 1
+}
+
+@MainActor
 func schedulePersistedDeckStateSave() {
     guard persistedDeckStateSavesEnabled else { return }
     persistedDeckStateSaveGeneration += 1
@@ -83,6 +93,12 @@ func persistDeckStateIfPossible() {
     }
 }
 
+/// The version is probed before the full decode so a future-version file (whose shape may not
+/// decode at all) can still be recognized and moved aside.
+private struct PersistedDeckStateVersionProbe: Codable {
+    let version: Int
+}
+
 @discardableResult
 @MainActor
 func loadPersistedDeckStateForStartupIfPresent() -> Bool {
@@ -90,8 +106,15 @@ func loadPersistedDeckStateForStartupIfPresent() -> Bool {
         let url = try persistedDeckStateUrl()
         guard FileManager.default.fileExists(atPath: url.path) else { return false }
         let data = try Data(contentsOf: url)
+        let probedVersion = try JSONDecoder().decode(PersistedDeckStateVersionProbe.self, from: data).version
+        guard probedVersion == persistedDeckStateVersion else {
+            // A downgraded build must not let its armed saves clobber newer data.
+            let backupUrl = url.appendingPathExtension("v\(probedVersion).bak")
+            try? FileManager.default.removeItem(at: backupUrl)
+            try FileManager.default.moveItem(at: url, to: backupUrl)
+            return false
+        }
         let state = try JSONDecoder().decode(PersistedDeckState.self, from: data)
-        guard state.version == persistedDeckStateVersion else { return false }
         adoptPersistedDeckState(state)
         return true
     } catch {
@@ -101,16 +124,24 @@ func loadPersistedDeckStateForStartupIfPresent() -> Bool {
 
 /// Placement hints stick around after adoption because reconciliation may prune a restored
 /// empty card before its windows are detected (the frozen-world restore recreates it by name
-/// later); the hint sends the recreated card back to its recorded column.
+/// later); the hint sends the recreated card back to its recorded column. Their lifetime is
+/// tied to the pending frozen world, their only consumer. No hint is seeded for a card that
+/// was already live before adoption (it needs no recreation) or for an automatic integer name
+/// (those are minted freely for fresh viewports, which would teleport an unrelated card).
 @MainActor
 func adoptPersistedDeckState(_ state: PersistedDeckState) {
     var seenCardNames: Set<String> = []
     for column in state.columns {
         for cardName in column.cardNames {
             guard !cardName.isEmpty, seenCardNames.insert(cardName).inserted else { continue }
+            let cardWasAlreadyLive = Workspace.existing(byName: cardName) != nil
             let workspace = Workspace.get(byName: cardName)
             winMuxWorkspaceState.columnDecks.adopt(workspace.id, into: column.columnKey)
-            winMuxWorkspaceState.deckColumnKeyHintsByCardName[cardName] = column.columnKey
+            if cardWasAlreadyLive || parsePositiveWorkspaceDisplayIndex(cardName) != nil {
+                winMuxWorkspaceState.deckColumnKeyHintsByCardName.removeValue(forKey: cardName)
+            } else {
+                winMuxWorkspaceState.deckColumnKeyHintsByCardName[cardName] = column.columnKey
+            }
         }
     }
     for column in state.columns {

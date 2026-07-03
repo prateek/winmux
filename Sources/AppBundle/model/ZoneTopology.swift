@@ -1362,6 +1362,7 @@ private func hideActiveWorkspaceForDisabledZone(for resolved: ResolvedConfigured
     else { return nil }
     viewport.activeWorkspaceId = nil
     winMuxWorkspaceState.monitorViewportsById[viewportId] = viewport
+    winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[columnDeckKey(for: activeMonitor)] = activeWorkspaceId
     return activeWorkspaceId
 }
 
@@ -1372,7 +1373,16 @@ private func restoreDeckWorkspace(for resolved: ResolvedConfiguredZoneSelector) 
             $0.physicalMonitor.rect.topLeftCorner == resolved.physicalMonitor.rect.topLeftCorner
     }) else { return }
     let restoredViewportId = MonitorViewportId(restoredMonitor)
-    guard let workspace = orderedDeckWorkspaces(inColumn: columnDeckKey(for: restoredMonitor))
+    let columnKey = columnDeckKey(for: restoredMonitor)
+    if let hiddenCardId = winMuxWorkspaceState.hiddenActiveCardIdByColumnKey.removeValue(forKey: columnKey),
+       let hiddenCard = winMuxWorkspaceState.workspaceById[hiddenCardId],
+       winMuxWorkspaceState.columnDecks.columnKey(of: hiddenCardId) == columnKey,
+       !winMuxWorkspaceState.isWorkspaceActive(hiddenCardId, outside: restoredViewportId)
+    {
+        _ = restoredMonitor.setActiveWorkspace(hiddenCard)
+        return
+    }
+    guard let workspace = orderedDeckWorkspaces(inColumn: columnKey)
         .first(where: { !winMuxWorkspaceState.isWorkspaceActive($0.id, outside: restoredViewportId) })
     else { return }
     _ = restoredMonitor.setActiveWorkspace(workspace)

@@ -45,6 +45,7 @@ func getOrCreateFallbackWorkspace(
 ) -> Workspace {
     if let workspaceId = retainedEmptyWorkspaceId(inColumn: columnDeckKey(for: monitor)),
        let workspace = winMuxWorkspaceState.workspaceById[workspaceId],
+       workspace.projectId == projectId,
        workspace != excludedWorkspace,
        workspaceIsAvailableForMonitor(workspace, monitor: monitor)
     {

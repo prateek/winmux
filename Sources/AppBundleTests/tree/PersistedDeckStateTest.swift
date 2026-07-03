@@ -112,6 +112,62 @@ final class PersistedDeckStateTest: XCTestCase {
         XCTAssertEqual(rightZone.activeWorkspace.name, "chat")
     }
 
+    func testAdoptSeedsHintsOnlyForRecreatableExplicitNames() {
+        let zones = configureThreeColumns()
+        let rightKey = columnDeckKey(for: zones["right"].orDie())
+
+        let alreadyLive = Workspace.get(byName: "already-live")
+        adoptPersistedDeckState(PersistedDeckState(
+            version: 1,
+            columns: [
+                PersistedColumnDeck(columnKey: rightKey, cardNames: ["already-live", "3", "roaming"], activeCardName: nil),
+            ],
+        ))
+
+        XCTAssertEqual(winMuxWorkspaceState.deckColumnKeyHintsByCardName, ["roaming": rightKey])
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: alreadyLive.id), rightKey)
+    }
+
+    func testLoadMovesFutureVersionFileAsideInsteadOfLeavingItToBeClobbered() throws {
+        let tempDir = try makeTempDeckStateDirectory()
+        defer { cleanUpDeckStateOverrides(tempDir) }
+        let fileUrl = tempDir.appendingPathComponent("deck-state.json")
+        let futureData = Data(#"{"version":2,"decks":[{"unknown":"shape"}]}"#.utf8)
+        try futureData.write(to: fileUrl)
+
+        XCTAssertFalse(loadPersistedDeckStateForStartupIfPresent())
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileUrl.path))
+        let backupUrl = tempDir.appendingPathComponent("deck-state.json.v2.bak")
+        XCTAssertEqual(try Data(contentsOf: backupUrl), futureData)
+    }
+
+    func testSaveTriggersWriteNothingUntilArmedAndDebouncedSaveWritesDeckState() async throws {
+        let zones = configureThreeColumns()
+        let mainZone = zones["main"].orDie()
+        let tempDir = try makeTempDeckStateDirectory()
+        defer { cleanUpDeckStateOverrides(tempDir) }
+        let fileUrl = tempDir.appendingPathComponent("deck-state.json")
+
+        XCTAssertTrue(mainZone.setActiveWorkspace(Workspace.get(byName: "work")))
+        persistDeckStateIfPossible()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileUrl.path))
+
+        enablePersistedDeckStateSaves()
+        XCTAssertTrue(mainZone.setActiveWorkspace(Workspace.get(byName: "chat")))
+        try await Task.sleep(for: .seconds(1.5))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileUrl.path))
+        let saved = try JSONDecoder().decode(PersistedDeckState.self, from: Data(contentsOf: fileUrl))
+        let mainColumn = saved.columns.first { $0.columnKey == columnDeckKey(for: mainZone) }.orDie()
+        XCTAssertEqual(mainColumn.cardNames, ["work", "chat"])
+        XCTAssertEqual(mainColumn.activeCardName, "chat")
+
+        // The termination hook saves directly, without waiting out the debounce.
+        try FileManager.default.removeItem(at: fileUrl)
+        persistDeckStateIfPossible()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileUrl.path))
+    }
+
     func testRecordedColumnHintSendsRecreatedCardBackToItsColumn() {
         let zones = configureThreeColumns()
         let mainZone = zones["main"].orDie()
@@ -141,6 +197,22 @@ final class PersistedDeckStateTest: XCTestCase {
             columnDeckKey(for: mainZone),
         )
     }
+}
+
+@MainActor
+private func makeTempDeckStateDirectory() throws -> URL {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("winmux-deck-state-test-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    persistedDeckStateDirectoryOverrideForTests = tempDir
+    return tempDir
+}
+
+@MainActor
+private func cleanUpDeckStateOverrides(_ tempDir: URL) {
+    disablePersistedDeckStateSavesForTests()
+    persistedDeckStateDirectoryOverrideForTests = nil
+    try? FileManager.default.removeItem(at: tempDir)
 }
 
 @MainActor

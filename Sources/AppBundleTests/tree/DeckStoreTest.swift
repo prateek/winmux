@@ -220,22 +220,36 @@ final class DeckStoreTest: XCTestCase {
 
     // MARK: Survival matrix
 
+    // Each row is arranged so exactly one predicate branch carries it: deleting or inverting
+    // that branch must flip the row. In particular the visible and sole-card rows are kept out
+    // of the retained-slot rule's reach so it cannot shadow them.
     func testSurvivalMatrix() {
         let zones = configureThreeColumns()
         let mainZone = zones["main"].orDie()
         let rightZone = zones["right"].orDie()
+        let mainKey = columnDeckKey(for: mainZone)
+        let rightKey = columnDeckKey(for: rightZone)
 
-        // visible empty card
+        // visible empty card; its deck has an anchor, but not adjacent, so the retained-slot
+        // rule (visible empties qualify only next to an anchor) cannot select it
         let visibleEmpty = Workspace.get(byName: "visible-empty")
         XCTAssertTrue(mainZone.setActiveWorkspace(visibleEmpty))
+        let mainAnchor = Workspace.get(byName: "main-anchor")
+        _ = TestWindow.new(id: 1, parent: mainAnchor.rootTilingContainer)
+        let mainSpacer = Workspace.get(byName: "main-spacer")
+        winMuxWorkspaceState.columnDecks.adopt(mainAnchor.id, into: mainKey, at: 0)
+        winMuxWorkspaceState.columnDecks.adopt(mainSpacer.id, into: mainKey, at: 1)
 
-        // hidden card with a window
-        let hiddenOccupied = Workspace.get(byName: "hidden-occupied")
-        _ = TestWindow.new(id: 1, parent: hiddenOccupied.rootTilingContainer)
-
-        // hidden empty configured-persistent card
+        // hidden card with a window, a hidden empty card next to it, and a hidden
+        // configured-persistent card, all sharing one deck
+        let anchored = Workspace.get(byName: "anchored-occupied")
+        _ = TestWindow.new(id: 2, parent: anchored.rootTilingContainer)
+        let anchoredEmpty = Workspace.get(byName: "anchored-empty")
         config.persistentWorkspaces = ["hidden-persistent"]
         let hiddenPersistent = Workspace.get(byName: "hidden-persistent")
+        winMuxWorkspaceState.columnDecks.adopt(anchored.id, into: rightKey)
+        winMuxWorkspaceState.columnDecks.adopt(anchoredEmpty.id, into: rightKey)
+        winMuxWorkspaceState.columnDecks.adopt(hiddenPersistent.id, into: rightKey)
 
         // hidden sole card in a deck; survives even as an auto-created blank
         let soleBlank = Workspace.get(byName: "sole-blank")
@@ -249,27 +263,31 @@ final class DeckStoreTest: XCTestCase {
         winMuxWorkspaceState.columnDecks.adopt(retainedEmpty.id, into: "display-name:Main/column:offstage-2")
         winMuxWorkspaceState.columnDecks.adopt(plainEmpty.id, into: "display-name:Main/column:offstage-2")
 
-        // plain empty non-sole card next to an anchor
-        let anchored = Workspace.get(byName: "anchored-occupied")
-        _ = TestWindow.new(id: 2, parent: anchored.rootTilingContainer)
-        let anchoredEmpty = Workspace.get(byName: "anchored-empty")
-        let rightKey = columnDeckKey(for: rightZone)
-        winMuxWorkspaceState.columnDecks.adopt(anchored.id, into: rightKey)
-        winMuxWorkspaceState.columnDecks.adopt(anchoredEmpty.id, into: rightKey)
+        // hidden active card of a disabled zone: empty, non-sole, next to an anchor
+        let hiddenActive = Workspace.get(byName: "hidden-active")
+        let hiddenActiveAnchor = Workspace.get(byName: "hidden-active-anchor")
+        _ = TestWindow.new(id: 3, parent: hiddenActiveAnchor.rootTilingContainer)
+        let disabledZoneKey = "display-name:Main/column:offstage-3"
+        winMuxWorkspaceState.columnDecks.adopt(hiddenActive.id, into: disabledZoneKey)
+        winMuxWorkspaceState.columnDecks.adopt(hiddenActiveAnchor.id, into: disabledZoneKey)
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[disabledZoneKey] = hiddenActive.id
 
         let retainedIds = retainedEmptyWorkspaceIdsByColumn()
-        let matrix: [(workspace: Workspace, shouldSurvive: Bool, row: String)] = [
-            (visibleEmpty, true, "visible empty card survives"),
-            (hiddenOccupied, true, "hidden card with windows survives"),
-            (hiddenPersistent, true, "configured-persistent card survives"),
-            (soleBlank, true, "sole card in deck survives even as auto-created blank"),
-            (retainedEmpty, true, "retained deck slot survives"),
-            (plainEmpty, false, "plain empty non-sole card is pruned"),
-            (anchoredEmpty, false, "hidden empty card next to an occupied card is pruned"),
+        let matrix: [(workspace: Workspace, retainedIds: [String: WorkspaceId], shouldSurvive: Bool, row: String)] = [
+            (visibleEmpty, retainedIds, true, "visible empty card survives"),
+            (anchored, retainedIds, true, "hidden card with windows survives"),
+            (hiddenPersistent, retainedIds, true, "configured-persistent card survives"),
+            // an empty retained map proves the sole-card branch alone carries this row
+            (soleBlank, [:], true, "sole card in deck survives even as auto-created blank"),
+            (hiddenActive, retainedIds, true, "hidden active card of a disabled zone survives"),
+            (retainedEmpty, retainedIds, true, "retained deck slot survives"),
+            (plainEmpty, retainedIds, false, "plain empty non-sole card is pruned"),
+            (mainSpacer, retainedIds, false, "hidden empty card not adjacent to an anchor is pruned"),
+            (anchoredEmpty, retainedIds, false, "hidden empty card next to an occupied card is pruned"),
         ]
         for row in matrix {
             XCTAssertEqual(
-                workspaceShouldSurviveReconciliation(row.workspace, retainedEmptyWorkspaceIds: retainedIds),
+                workspaceShouldSurviveReconciliation(row.workspace, retainedEmptyWorkspaceIds: row.retainedIds),
                 row.shouldSurvive,
                 row.row,
             )

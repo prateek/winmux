@@ -63,6 +63,10 @@ import Foundation
         Workspace.reconcileWorkspaceState() // init workspaces
         _ = Workspace.all.first?.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()
+        if !didLoadPersistedFrozenWorld {
+            // Deck hints only serve the frozen-world restore; without one they are dead state.
+            winMuxWorkspaceState.deckColumnKeyHintsByCardName = [:]
+        }
         traceE2EStartup("persisted frozen world loaded: \(didLoadPersistedFrozenWorld)")
         traceE2EStartup("startup refresh started")
         try await runRefreshSessionBlocking(.startup, layoutWorkspaces: false)

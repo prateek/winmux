@@ -25,8 +25,13 @@ struct WinMuxWorkspaceState {
     /// Card name -> recorded column key, seeded from the persisted deck state at startup and
     /// consumed when a card with that name is created (WorkspaceLifecycle can prune a restored
     /// empty card before its windows are detected; the hint sends its by-name recreation back
-    /// to its recorded column instead of the focused one).
+    /// to its recorded column instead of the focused one). Cleared once the pending frozen
+    /// world — the only recreation source — is gone.
     var deckColumnKeyHintsByCardName: [String: String] = [:]
+    /// Column key -> the card that was showing when the column's zone was disabled. Consumed
+    /// on re-enable so the same card returns; the survival predicate keeps the card alive
+    /// while it hides, as long as it stays a member of the recorded column's deck.
+    var hiddenActiveCardIdByColumnKey: [String: WorkspaceId] = [:]
 
     private var nextWorkspaceCounter = 1
     private var nextProjectCounter = 1
@@ -55,6 +60,7 @@ struct WinMuxWorkspaceState {
         columnDecks = ColumnDeckStore()
         focusedColumnDeckKeyHint = nil
         deckColumnKeyHintsByCardName = [:]
+        hiddenActiveCardIdByColumnKey = [:]
         projectsById = [
             workspaceProjectDefaultId: WorkspaceProject(id: workspaceProjectDefaultId, name: defaultProjectName, order: 0),
         ]
@@ -108,6 +114,9 @@ struct WinMuxWorkspaceState {
         workspaceById.removeValue(forKey: workspace.id)
         workspaceIdByName.removeValue(forKey: workspace.name)
         columnDecks.remove(workspace.id)
+        hiddenActiveCardIdByColumnKey = hiddenActiveCardIdByColumnKey.filter { _, cardId in
+            cardId != workspace.id
+        }
         removeWorkspaceFromProjectIndexes(workspace.id)
 
         var removedViewport: MonitorViewportId?
