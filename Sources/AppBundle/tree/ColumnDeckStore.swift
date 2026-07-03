@@ -18,6 +18,27 @@ func implicitSceneDeckKey(displayName: String, physicalTopLeftCorner: CGPoint) -
         : "display-name:\(displayName)"
 }
 
+private let columnDeckKeySeparator = "/column:"
+private let geometrySceneKeyPrefix = "display-geometry:"
+
+func splitColumnDeckKey(_ columnKey: String) -> (sceneKey: String, columnId: String)? {
+    guard let separatorRange = columnKey.range(of: columnDeckKeySeparator, options: .backwards) else { return nil }
+    return (
+        String(columnKey[..<separatorRange.lowerBound]),
+        String(columnKey[separatorRange.upperBound...]),
+    )
+}
+
+func geometrySceneKeyPoint(_ sceneKey: String) -> CGPoint? {
+    guard sceneKey.hasPrefix(geometrySceneKeyPrefix) else { return nil }
+    let components = sceneKey.dropFirst(geometrySceneKeyPrefix.count).split(separator: ",")
+    guard components.count == 2,
+          let x = Double(components[0]),
+          let y = Double(components[1])
+    else { return nil }
+    return CGPoint(x: x, y: y)
+}
+
 @MainActor
 func columnDeckKey(for monitor: Monitor) -> String {
     let physicalMonitor = monitor.physicalMonitor
@@ -73,6 +94,13 @@ struct ColumnDeckStore: Equatable, Sendable {
         deck.remove(at: currentIndex)
         deck.insert(cardId, at: min(max(index, 0), deck.count))
         decksByColumnKey[columnKey] = deck
+    }
+
+    mutating func mergeDeck(from sourceColumnKey: String, into targetColumnKey: String) {
+        guard sourceColumnKey != targetColumnKey else { return }
+        for cardId in decksByColumnKey[sourceColumnKey] ?? [] {
+            adopt(cardId, into: targetColumnKey)
+        }
     }
 
     mutating func remove(_ cardId: WorkspaceId) {
@@ -150,17 +178,87 @@ func alignActiveCardsWithColumnDecks() {
     }
 }
 
-/// The deck that adopts newly created workspaces: the focused column's deck. The hint is
+/// The deck that adopts newly created workspaces: the card's recorded column when the
+/// persisted deck state knows the name, else the focused column's deck. The focus hint is
 /// recorded on focus changes instead of reading the focus state here because `Workspace.get`
 /// runs inside the lazy initialization of the focus globals.
 @MainActor
-func columnDeckKeyForNewWorkspace() -> String {
+func columnDeckKeyForNewWorkspace(named name: String) -> String {
+    if let recordedColumnKey = winMuxWorkspaceState.deckColumnKeyHintsByCardName.removeValue(forKey: name) {
+        return recordedColumnKey
+    }
     if let hint = winMuxWorkspaceState.focusedColumnDeckKeyHint,
        monitors.contains(where: { columnDeckKey(for: $0) == hint })
     {
         return hint
     }
     return columnDeckKey(for: mainMonitor.defaultWorkspaceViewport)
+}
+
+/// Re-keys implicit-scene decks after a display topology change, the deck-key analog of the
+/// viewport remap in `rearrangeWorkspacesOnMonitors`. Name-keyed scenes are stable across
+/// hotplug and linger while their display is away, so only geometry-keyed scenes can be
+/// orphaned (a resolution or arrangement change moves the corner they are keyed by). Each
+/// orphaned deck follows its display to the nearest current geometry-keyed scene: the deck is
+/// re-keyed when that display still has the column, and merges, order preserved, into the
+/// display's default column's deck when it does not. Decks of columns that are merely absent
+/// from a current scene (disabled zones, cards parked offstage) are left alone.
+@MainActor
+func remapColumnDecksOntoCurrentDisplays() {
+    let store = winMuxWorkspaceState.columnDecks
+    guard !store.decksByColumnKey.isEmpty else { return }
+
+    struct CurrentScene {
+        let sceneKey: String
+        let geometryPoint: CGPoint?
+        var columnIds: Set<String>
+        let defaultColumnKey: String
+    }
+    var currentScenesByKey: [String: CurrentScene] = [:]
+    let currentPhysicalMonitors = sortedPhysicalMonitors
+    // Disabled zones keep their decks: a configured column exists even while it is hidden
+    // from the viewport list.
+    let configuredZonesByPhysicalTopLeft = Dictionary(
+        grouping: getCurrentZoneTopologySnapshot().configuredZones(for: currentPhysicalMonitors),
+        by: { $0.physicalMonitor.rect.topLeftCorner },
+    )
+    for physicalMonitor in currentPhysicalMonitors {
+        let sceneKey = implicitSceneDeckKey(
+            displayName: physicalMonitor.name,
+            physicalTopLeftCorner: physicalMonitor.rect.topLeftCorner,
+        )
+        var columnIds: Set<String> = []
+        for viewport in monitors where viewport.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner {
+            columnIds.insert(viewport.zoneId ?? implicitColumnDeckColumnId)
+        }
+        for zone in configuredZonesByPhysicalTopLeft[physicalMonitor.rect.topLeftCorner] ?? [] {
+            columnIds.insert(zone.zoneId)
+        }
+        if var existing = currentScenesByKey[sceneKey] {
+            existing.columnIds.formUnion(columnIds)
+            currentScenesByKey[sceneKey] = existing
+        } else {
+            currentScenesByKey[sceneKey] = CurrentScene(
+                sceneKey: sceneKey,
+                geometryPoint: physicalMonitor.name.isEmpty ? physicalMonitor.rect.topLeftCorner : nil,
+                columnIds: columnIds,
+                defaultColumnKey: columnDeckKey(for: physicalMonitor.defaultWorkspaceViewport),
+            )
+        }
+    }
+
+    let geometryScenes = currentScenesByKey.values.filter { $0.geometryPoint != nil }
+    for deckKey in store.decksByColumnKey.keys.sorted() {
+        guard let (sceneKey, columnId) = splitColumnDeckKey(deckKey),
+              currentScenesByKey[sceneKey] == nil,
+              let orphanedPoint = geometrySceneKeyPoint(sceneKey),
+              let targetScene = geometryScenes.minBy({ ($0.geometryPoint.orDie() - orphanedPoint).vectorLength })
+        else { continue }
+        let targetColumnKey = targetScene.columnIds.contains(columnId)
+            ? columnDeckKey(sceneKey: targetScene.sceneKey, columnId: columnId)
+            : targetScene.defaultColumnKey
+        winMuxWorkspaceState.columnDecks.mergeDeck(from: deckKey, into: targetColumnKey)
+    }
 }
 
 @MainActor

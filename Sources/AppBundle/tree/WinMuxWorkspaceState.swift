@@ -16,8 +16,17 @@ struct WinMuxWorkspaceState {
         workspaceProjectDefaultId: WorkspaceProject(id: workspaceProjectDefaultId, name: "Default", order: 0),
     ]
     var monitorViewportsById: [MonitorViewportId: MonitorViewport] = [:]
-    var columnDecks = ColumnDeckStore()
+    var columnDecks = ColumnDeckStore() {
+        didSet {
+            if columnDecks != oldValue { schedulePersistedDeckStateSave() }
+        }
+    }
     var focusedColumnDeckKeyHint: String?
+    /// Card name -> recorded column key, seeded from the persisted deck state at startup and
+    /// consumed when a card with that name is created (WorkspaceLifecycle can prune a restored
+    /// empty card before its windows are detected; the hint sends its by-name recreation back
+    /// to its recorded column instead of the focused one).
+    var deckColumnKeyHintsByCardName: [String: String] = [:]
 
     private var nextWorkspaceCounter = 1
     private var nextProjectCounter = 1
@@ -45,6 +54,7 @@ struct WinMuxWorkspaceState {
         monitorViewportsById = [:]
         columnDecks = ColumnDeckStore()
         focusedColumnDeckKeyHint = nil
+        deckColumnKeyHintsByCardName = [:]
         projectsById = [
             workspaceProjectDefaultId: WorkspaceProject(id: workspaceProjectDefaultId, name: defaultProjectName, order: 0),
         ]
@@ -162,6 +172,9 @@ struct WinMuxWorkspaceState {
         monitorViewportsById[viewportId] = viewport
         // Showing a card in a column moves it into that column's deck (summoning is moving).
         columnDecks.transfer(workspace.id, to: deckColumnKey)
+        // The per-column active card is part of the persisted deck state, and paging a deck
+        // doesn't necessarily mutate deck membership.
+        schedulePersistedDeckStateSave()
         return true
     }
 

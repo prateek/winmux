@@ -26,7 +26,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         if let existing = winMuxWorkspaceState.workspace(named: name) {
             return existing
         } else {
-            let columnKey = columnDeckKeyForNewWorkspace()
+            let columnKey = columnDeckKeyForNewWorkspace(named: name)
             let workspace = Workspace(name)
             winMuxWorkspaceState.registerWorkspace(workspace, inDeck: columnKey)
             return workspace

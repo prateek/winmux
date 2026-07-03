@@ -6,9 +6,13 @@ MODE="redacted"
 SELF_TEST=0
 SELF_TEST_TMP_DIR=""
 
-EXPECTED_FILES_CSV="active-workspaces.tsv,command-failures.tsv,config-doctor.txt,config-redacted.toml,logs.txt,manifest.txt,monitor-topology.tsv,node-zone-bindings.tsv,permissions.txt,recent-window-routing-decisions.tsv,redaction-summary.txt,zone-affinities.tsv,zone-runtime-overlay.tsv"
+EXPECTED_FILES_CSV="active-workspaces.tsv,column-decks.tsv,command-failures.tsv,config-doctor.txt,config-redacted.toml,logs.txt,manifest.txt,monitor-topology.tsv,node-zone-bindings.tsv,permissions.txt,recent-window-routing-decisions.tsv,redaction-summary.txt,zone-affinities.tsv,zone-runtime-overlay.tsv"
+# Bundles produced before Slice 56 added column-decks.tsv (e.g. the accepted slice-48
+# artifact re-validated by preflight) stay valid.
+LEGACY_EXPECTED_FILES_CSV="active-workspaces.tsv,command-failures.tsv,config-doctor.txt,config-redacted.toml,logs.txt,manifest.txt,monitor-topology.tsv,node-zone-bindings.tsv,permissions.txt,recent-window-routing-decisions.tsv,redaction-summary.txt,zone-affinities.tsv,zone-runtime-overlay.tsv"
 EXPECTED_FILES=(
     active-workspaces.tsv
+    column-decks.tsv
     command-failures.tsv
     config-doctor.txt
     config-redacted.toml
@@ -22,6 +26,7 @@ EXPECTED_FILES=(
     zone-affinities.tsv
     zone-runtime-overlay.tsv
 )
+BUNDLE_HAS_COLUMN_DECKS=1
 
 usage() {
     cat <<EOF
@@ -86,6 +91,9 @@ expected_header() {
         zone-runtime-overlay.tsv)
             printf '%s\n' $'physical-identity\tactive-layout\tactive-scene\tactive-availability\tsnap-policy\tdisabled-zones\tparked-workspaces\twidth-overrides\tstyle-overrides\ttoggle-restore-zone'
             ;;
+        column-decks.tsv)
+            printf '%s\n' $'scene-id\tcolumn-key\tdeck-order\tactive-card'
+            ;;
         *)
             die "no TSV header registered for $1"
             ;;
@@ -108,11 +116,23 @@ validate_manifest() {
     [ "$(manifest_value schema-version)" = "1" ] || die "manifest schema-version must be 1"
     [ "$(manifest_value command)" = "doctor zones --support-bundle" ] \
         || die "manifest command must be doctor zones --support-bundle"
-    [ "$(manifest_value files)" = "$EXPECTED_FILES_CSV" ] \
-        || die "manifest files list changed or is incomplete"
+    case "$(manifest_value files)" in
+        "$EXPECTED_FILES_CSV")
+            BUNDLE_HAS_COLUMN_DECKS=1
+            ;;
+        "$LEGACY_EXPECTED_FILES_CSV")
+            BUNDLE_HAS_COLUMN_DECKS=0
+            ;;
+        *)
+            die "manifest files list changed or is incomplete"
+            ;;
+    esac
 
     local expected actual basename
     for expected in "${EXPECTED_FILES[@]}"; do
+        if [ "$expected" = "column-decks.tsv" ] && [ "$BUNDLE_HAS_COLUMN_DECKS" -eq 0 ]; then
+            continue
+        fi
         require_file "$expected"
     done
 
@@ -123,15 +143,20 @@ validate_manifest() {
 }
 
 validate_tsv_headers() {
+    local files=(
+        active-workspaces.tsv
+        command-failures.tsv
+        monitor-topology.tsv
+        node-zone-bindings.tsv
+        recent-window-routing-decisions.tsv
+        zone-affinities.tsv
+        zone-runtime-overlay.tsv
+    )
+    if [ "$BUNDLE_HAS_COLUMN_DECKS" -eq 1 ]; then
+        files+=(column-decks.tsv)
+    fi
     local file header expected
-    for file in \
-        active-workspaces.tsv \
-        command-failures.tsv \
-        monitor-topology.tsv \
-        node-zone-bindings.tsv \
-        recent-window-routing-decisions.tsv \
-        zone-affinities.tsv \
-        zone-runtime-overlay.tsv; do
+    for file in "${files[@]}"; do
         header="$(/usr/bin/head -1 "${BUNDLE_DIR}/${file}")"
         expected="$(expected_header "$file")"
         [ "$header" = "$expected" ] || die "${file} header changed"
@@ -298,7 +323,11 @@ zone-affinity-config	0	Comms	work	not-evaluated	rule configured; live window mat
 EOF
     cat >"${dir}/zone-runtime-overlay.tsv" <<'EOF'
 physical-identity	active-layout	active-scene	active-availability	snap-policy	disabled-zones	parked-workspaces	width-overrides	style-overrides	toggle-restore-zone
-none									
+none
+EOF
+    cat >"${dir}/column-decks.tsv" <<'EOF'
+scene-id	column-key	deck-order	active-card
+display-name:Main	display-name:Main/column:main	work,scratch	work
 EOF
 }
 
@@ -327,6 +356,17 @@ source	index-or-node	zone	workspace	matched	debug
 unavailable				not-retained	WinMux does not retain a recent window-routing decision log yet
 EOF
     BUNDLE_DIR="$no_affinity"
+    MODE="redacted"
+    validate_bundle
+    legacy="${SELF_TEST_TMP_DIR}/legacy"
+    write_bundle_fixture "$legacy" "<redacted-window-title>"
+    cat >"${legacy}/zone-affinities.tsv" <<'EOF'
+index	zone	app-id-configured	app-name-configured	window-title-configured	workspace	startup	focus-follows-window	fail-if-noop	check-further-callbacks
+none
+EOF
+    rm "${legacy}/column-decks.tsv"
+    /usr/bin/perl -0pi -e "s/^files=.*\$/files=${LEGACY_EXPECTED_FILES_CSV}/m" "${legacy}/manifest.txt"
+    BUNDLE_DIR="$legacy"
     MODE="redacted"
     validate_bundle
     BUNDLE_DIR="$redacted"

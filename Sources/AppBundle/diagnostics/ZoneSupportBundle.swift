@@ -46,6 +46,7 @@ private struct ZoneSupportBundleWriter {
         try writeFile("permissions.txt", permissionsText())
         try writeFile("monitor-topology.tsv", monitorTopologyText())
         try writeFile("active-workspaces.tsv", activeWorkspacesText())
+        try writeFile("column-decks.tsv", columnDecksText())
         try writeFile("zone-runtime-overlay.tsv", runtimeOverlayText())
         try writeFile("zone-affinities.tsv", zoneAffinitiesText())
         try writeFile("node-zone-bindings.tsv", nodeZoneBindingsText())
@@ -180,6 +181,32 @@ private struct ZoneSupportBundleWriter {
         }
         return (["monitor-id\tzone-id\tzone-name\tphysical-identity\tactive-workspace\tworkspace-visible"] + rows)
             .joined(separator: "\n")
+    }
+
+    private func columnDecksText() -> String {
+        let header = "scene-id\tcolumn-key\tdeck-order\tactive-card"
+        var activeCardNameByColumnKey: [String: String] = [:]
+        for monitor in sortedMonitors {
+            guard let activeWorkspaceId = winMuxWorkspaceState.monitorViewportsById[MonitorViewportId(monitor)]?.activeWorkspaceId,
+                  let workspace = winMuxWorkspaceState.workspaceById[activeWorkspaceId]
+            else { continue }
+            activeCardNameByColumnKey[columnDeckKey(for: monitor)] = workspace.name
+        }
+        let columnDecks = winMuxWorkspaceState.columnDecks
+        guard !columnDecks.decksByColumnKey.isEmpty else {
+            return [header, "none\t\t\t"].joined(separator: "\n")
+        }
+        let rows = columnDecks.decksByColumnKey.keys.sorted().map { columnKey in
+            tsv([
+                splitColumnDeckKey(columnKey)?.sceneKey ?? "",
+                columnKey,
+                columnDecks.deck(forColumnKey: columnKey)
+                    .compactMap { winMuxWorkspaceState.workspaceById[$0]?.name }
+                    .joined(separator: ","),
+                activeCardNameByColumnKey[columnKey] ?? "",
+            ])
+        }
+        return ([header] + rows).joined(separator: "\n")
     }
 
     private func runtimeOverlayText() -> String {

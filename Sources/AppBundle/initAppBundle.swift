@@ -57,6 +57,9 @@ import Foundation
         traceE2EStartup("unix socket server started")
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()
+        let didLoadPersistedDeckState = loadPersistedDeckStateForStartupIfPresent()
+        enablePersistedDeckStateSaves()
+        traceE2EStartup("persisted deck state loaded: \(didLoadPersistedDeckState)")
         Workspace.reconcileWorkspaceState() // init workspaces
         _ = Workspace.all.first?.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()

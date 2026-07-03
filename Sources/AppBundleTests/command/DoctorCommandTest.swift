@@ -37,6 +37,7 @@ final class DoctorCommandTest: XCTestCase {
                 Set(bundleFiles),
                 Set([
                     "active-workspaces.tsv",
+                    "column-decks.tsv",
                     "command-failures.tsv",
                     "config-doctor.txt",
                     "config-redacted.toml",
@@ -71,6 +72,7 @@ final class DoctorCommandTest: XCTestCase {
             XCTAssertTrue(allText.contains(#"#app-id = "<redacted>""#))
             XCTAssertTrue(allText.contains(#"api-token = "<redacted>""#))
             XCTAssertTrue(allText.contains("monitor-id\tzone-id\tzone-name\tphysical-identity\tactive-workspace"))
+            XCTAssertTrue(allText.contains("scene-id\tcolumn-key\tdeck-order\tactive-card"))
             XCTAssertTrue(allText.contains("zone-support-bundle") || allText.contains("winmux-zone-support-bundle"))
         }
     }

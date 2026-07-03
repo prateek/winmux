@@ -25,6 +25,7 @@ func initTerminationHandler() {
 
 private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
+        persistDeckStateIfPossible()
         persistFrozenWorldForRestartIfPossible()
         try await makeAllWindowsVisibleAndRestoreSize()
         await toggleReleaseServerIfDebug(.on)

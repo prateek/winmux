@@ -524,6 +524,162 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertEqual(workspaceViewports.map(\.isMain), [false, true, false])
     }
 
+    func testGeometryKeyedImplicitDeckFollowsDisplayAcrossOriginChange() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            isMain: true,
+        )
+        let unnamed = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "",
+            rect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([main, unnamed])
+        let unnamedViewport = monitors.first { $0.physicalMonitor.name.isEmpty }.orDie()
+        let oldKey = columnDeckKey(for: unnamedViewport)
+        XCTAssertEqual(oldKey, "display-geometry:1920.0,0.0/column:\(implicitColumnDeckColumnId)")
+
+        let active = Workspace.get(byName: "geo-active")
+        XCTAssertTrue(unnamedViewport.setActiveWorkspace(active))
+        let occupied = Workspace.get(byName: "geo-occupied")
+        _ = TestWindow.new(id: 1, parent: occupied.rootTilingContainer)
+        winMuxWorkspaceState.columnDecks.adopt(occupied.id, into: oldKey)
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.deck(forColumnKey: oldKey), [active.id, occupied.id])
+
+        // Main grows wider, so the unnamed display's origin (its deck key) moves.
+        let widerMain = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 2560, height: 1440),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 2560, height: 1440),
+            isMain: true,
+        )
+        let movedUnnamed = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "",
+            rect: Rect(topLeftX: 2560, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 2560, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([widerMain, movedUnnamed])
+        Workspace.reconcileWorkspaceState()
+
+        let newKey = "display-geometry:2560.0,0.0/column:\(implicitColumnDeckColumnId)"
+        XCTAssertNil(winMuxWorkspaceState.columnDecks.decksByColumnKey[oldKey])
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.deck(forColumnKey: newKey), [active.id, occupied.id])
+    }
+
+    func testOrphanedGeometryColumnDeckMergesIntoDefaultColumnDeckOrderPreserving() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            isMain: true,
+        )
+        let unnamed = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "",
+            rect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([main, unnamed])
+        config.gaps = .zero
+        config.workspaceSidebar.enabled = false
+        config.zones = [threeColumnZoneConfig(monitor: .sequenceNumber(2))]
+        refreshZoneTopologySnapshot()
+
+        let rightZone = monitors.first { $0.zoneId == "right" }.orDie()
+        let mainZone = monitors.first { $0.zoneId == "main" }.orDie()
+        let work = Workspace.get(byName: "merge-work")
+        _ = TestWindow.new(id: 1, parent: work.rootTilingContainer)
+        XCTAssertTrue(mainZone.setActiveWorkspace(work))
+        let commsA = Workspace.get(byName: "merge-comms-a")
+        _ = TestWindow.new(id: 2, parent: commsA.rootTilingContainer)
+        let commsB = Workspace.get(byName: "merge-comms-b")
+        _ = TestWindow.new(id: 3, parent: commsB.rootTilingContainer)
+        winMuxWorkspaceState.columnDecks.adopt(commsA.id, into: columnDeckKey(for: rightZone))
+        winMuxWorkspaceState.columnDecks.adopt(commsB.id, into: columnDeckKey(for: rightZone))
+
+        // The display moves and its config loses the right column: the right deck's cards
+        // follow the display into its default column's deck, order preserved.
+        let movedUnnamed = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "",
+            rect: Rect(topLeftX: 2560, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 2560, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([main, movedUnnamed])
+        config.zones = [
+            ZoneConfig(
+                monitor: .sequenceNumber(2),
+                layout: .columns,
+                defaultZone: "main",
+                columns: [
+                    ZoneColumnConfig(id: "left", name: "Left", width: 0.5),
+                    ZoneColumnConfig(id: "main", name: "Main", width: 0.5),
+                ],
+            ),
+        ]
+        refreshZoneTopologySnapshot()
+        remapColumnDecksOntoCurrentDisplays()
+
+        let newMainKey = "display-geometry:2560.0,0.0/column:main"
+        let deckNames = winMuxWorkspaceState.columnDecks.deck(forColumnKey: newMainKey)
+            .compactMap { winMuxWorkspaceState.workspaceById[$0]?.name }
+        XCTAssertEqual(deckNames, ["merge-work", "merge-comms-a", "merge-comms-b"])
+        XCTAssertNil(winMuxWorkspaceState.columnDecks.decksByColumnKey["display-geometry:1920.0,0.0/column:right"])
+
+        // The full reconciliation pass (which runs the same remap) keeps every card alive.
+        Workspace.reconcileWorkspaceState()
+        XCTAssertNotNil(Workspace.existing(byName: "merge-work"))
+        XCTAssertNotNil(Workspace.existing(byName: "merge-comms-a"))
+        XCTAssertNotNil(Workspace.existing(byName: "merge-comms-b"))
+    }
+
+    func testNamedDisplayDecksLingerWhileTheDisplayIsAway() {
+        let main = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080),
+            isMain: true,
+        )
+        let side = MonitorTopologyTestMonitor(
+            monitorAppKitNsScreenScreensId: 2,
+            name: "Side",
+            rect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            visibleRect: Rect(topLeftX: 1920, topLeftY: 0, width: 1920, height: 1080),
+            isMain: false,
+        )
+        setMonitorsForTests([main, side])
+        let sideViewport = monitors.first { $0.physicalMonitor.name == "Side" }.orDie()
+        let sideKey = columnDeckKey(for: sideViewport)
+        let sideCard = Workspace.get(byName: "side-card")
+        _ = TestWindow.new(id: 1, parent: sideCard.rootTilingContainer)
+        XCTAssertTrue(sideViewport.setActiveWorkspace(sideCard))
+
+        setMonitorsForTests([main])
+        Workspace.reconcileWorkspaceState()
+
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.deck(forColumnKey: sideKey), [sideCard.id])
+
+        setMonitorsForTests([main, side])
+        Workspace.reconcileWorkspaceState()
+
+        // The returning display may activate a fallback card into its deck; the lingering
+        // card keeps its membership and its position at the head of the deck.
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.deck(forColumnKey: sideKey).first, sideCard.id)
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: sideCard.id), sideKey)
+    }
+
     func testMonitorViewportIdDecodesLegacyPointOnlyIdentity() throws {
         let data = #"{"topLeftCorner":[10,20]}"#.data(using: .utf8).orDie()
 

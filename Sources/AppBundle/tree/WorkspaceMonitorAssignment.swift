@@ -193,6 +193,8 @@ func rearrangeWorkspacesOnMonitors() {
         return
     }
 
+    remapColumnDecksOntoCurrentDisplays()
+
     var oldVisibleMonitors: Set<MonitorViewportId> = oldViewportsById.compactMap { viewportId, viewport in
         guard let activeWorkspaceId = viewport.activeWorkspaceId,
               winMuxWorkspaceState.workspaceById[activeWorkspaceId] != nil
