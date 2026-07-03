@@ -368,6 +368,37 @@ extension ConfigTest {
         )
     }
 
+    func testRenderConfigDoctorLinesWarnsWhenZoneModePolicyIsUnreachable() {
+        let noZoneMode = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: "config-version = 2",
+            runtimeOverlays: [:],
+        )
+        XCTAssertTrue(noZoneMode.contains { $0.contains("mouse.zone-divider-drag = 'zone-mode' but no [mode.zone.binding] exists") })
+
+        let withZoneMode = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: """
+            config-version = 2
+            [mode.zone.binding]
+                h = ['focus-zone prev', 'mode main']
+            """,
+            runtimeOverlays: [:],
+        )
+        XCTAssertFalse(withZoneMode.contains { $0.contains("zone-divider-drag") })
+
+        let policyOff = renderConfigDoctorLines(
+            configPath: "/tmp/winmux.toml",
+            configText: """
+            config-version = 2
+            [mouse]
+                zone-divider-drag = 'off'
+            """,
+            runtimeOverlays: [:],
+        )
+        XCTAssertFalse(policyOff.contains { $0.contains("zone-divider-drag = 'zone-mode'") })
+    }
+
     func testRenderConfigDoctorLinesForValidZonesConfig() {
         let lines = renderConfigDoctorLines(
             configPath: "/tmp/winmux.toml",
@@ -414,6 +445,7 @@ extension ConfigTest {
             "  zones: inline=1 inline-columns=0 layouts=1 layout-columns=3 styles=1 scenes=1 bindings=1 affinities=0 availability-sets=1",
             "  zone layout sums: OK",
             "  zone references: OK",
+            "  warning: mouse.zone-divider-drag = 'zone-mode' but no [mode.zone.binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'",
             "  runtime overlays: none",
         ])
     }

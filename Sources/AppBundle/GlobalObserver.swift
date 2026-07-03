@@ -153,15 +153,12 @@ enum GlobalObserver {
                 guard let token: RunSessionGuard = .isServerEnabled else { return }
                 try await resetManipulatedWithMouseIfPossible()
                 let clickedMonitor = mouseLocation.monitorApproximation
-                // The barrier refresh exists to catch close-button clicks on unfocused windows
-                // (kAXUIElementDestroyedNotification is unreliable) and delayed new-window
-                // detection — both require the click to land on a window. A click over empty
-                // desktop can skip the barrier; the cached-frame check costs no AX. A stale
-                // cache can misclassify at worst one click, and the next real window event
-                // schedules a barrier refresh anyway.
-                let mouseUpEvent: RefreshSessionEvent = cachedWindowFrameCandidates(at: mouseLocation).isEmpty
-                    ? .globalObserverLeftMouseUpOutsideWindows
-                    : .globalObserverLeftMouseUp
+                // A window whose registration was deferred because the button was down has no
+                // cached rects yet, so the click on it would classify as outside-windows;
+                // escalate to the barrier, which is the registration retry path.
+                let mouseUpEvent: RefreshSessionEvent = takeWindowRegistrationDeferredDuringMouseDown()
+                    ? .globalObserverLeftMouseUp
+                    : mouseUpRefreshEvent(at: mouseLocation)
                 switch true {
                     // Detect clicks on desktop of different monitors
                     case clickedMonitor.activeWorkspace != focus.workspace:
@@ -170,6 +167,9 @@ enum GlobalObserver {
                         }
                     default:
                         scheduleRefreshSession(mouseUpEvent)
+                }
+                if case .globalObserverLeftMouseUpOutsideWindows = mouseUpEvent {
+                    armTrailingBarrierRefresh()
                 }
             }
         })
@@ -231,5 +231,20 @@ enum GlobalObserver {
     @MainActor private static func retainEventMonitor(_ monitor: Any?) {
         guard let monitor else { return }
         eventMonitorTokens.append(monitor)
+    }
+
+    // Mouse-initiated closes that don't land on the closed window (menu items, the Dock) still
+    // need the barrier's zombie-window cleanup. Run it debounced off the perceived input path
+    // instead of on every click.
+    @MainActor private static var trailingBarrierRefreshTask: Task<Void, Never>?
+
+    @MainActor private static func armTrailingBarrierRefresh() {
+        trailingBarrierRefreshTask?.cancel()
+        trailingBarrierRefreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            trailingBarrierRefreshTask = nil
+            scheduleRefreshSession(.globalObserverLeftMouseUp)
+        }
     }
 }

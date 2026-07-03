@@ -1332,6 +1332,60 @@ final class ZoneCommandTest: XCTestCase {
         controller.cancel()
     }
 
+    func testMouseUpRefreshEventClassifiesDesktopVsWindowClicks() {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        let window = TestWindow.new(id: 460, parent: work.rootTilingContainer, rect: nil)
+        window.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 400, topLeftY: 100, width: 200, height: 200)
+
+        XCTAssertEqual(mouseUpRefreshEvent(at: CGPoint(x: 500, y: 150)).description, "globalObserverLeftMouseUp")
+        XCTAssertEqual(mouseUpRefreshEvent(at: CGPoint(x: 50, y: 700)).description, "globalObserverLeftMouseUpOutsideWindows")
+    }
+
+    func testMouseUpRefreshEventFailsSafeForWindowWithoutCachedRects() {
+        let zones = configureThreeZones()
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        // No cached rect anywhere: the click cannot be proven to miss this window, so even a
+        // far-away point must keep the barrier.
+        _ = TestWindow.new(id: 461, parent: work.rootTilingContainer, rect: nil)
+
+        XCTAssertEqual(mouseUpRefreshEvent(at: CGPoint(x: 50, y: 700)).description, "globalObserverLeftMouseUp")
+    }
+
+    func testZoneDividerAmbientClickConsultsLiveFramesSnapshot() {
+        let zones = configureThreeZones()
+        config.mouse.zoneDividerDrag = .always
+        let work = Workspace.get(byName: "work")
+        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
+        // rect: nil leaves currentFrameForHitTesting() nil, like a real MacWindow, so the veto
+        // falls through to the snapshot lookup.
+        let window = TestWindow.new(id: 462, parent: work.rootTilingContainer, rect: nil)
+        window.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200)
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+        let dividerPoint = CGPoint(x: 900, y: 150)
+        XCTAssertNotNil(zoneDividerHandle(at: dividerPoint, hitSlop: 16))
+
+        // Snapshot says the window moved away: the stale cached rect must not veto the drag.
+        controller.setLiveFramesSnapshotForTests([462: Rect(topLeftX: 100, topLeftY: 100, width: 80, height: 200)])
+        XCTAssertTrue(controller.handleMouseDown(at: dividerPoint))
+        XCTAssertTrue(controller.isDragging)
+        controller.cancel()
+
+        // Snapshot confirms the window covers the point: veto.
+        controller.setLiveFramesSnapshotForTests([462: Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200)])
+        XCTAssertFalse(controller.handleMouseDown(at: dividerPoint))
+        XCTAssertFalse(controller.isDragging)
+
+        // No snapshot at all: fail conservative, veto.
+        controller.setLiveFramesSnapshotForTests(nil)
+        XCTAssertFalse(controller.handleMouseDown(at: dividerPoint))
+        XCTAssertFalse(controller.isDragging)
+        controller.cancel()
+    }
+
     func testZoneDividerDragRequiresZoneModeByDefault() {
         _ = configureThreeZones()
         let controller = ZoneDividerDragController.shared

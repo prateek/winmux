@@ -1,5 +1,8 @@
 config-version = 2
 auto-reload-config = false
+
+[mouse]
+zone-divider-drag = 'always'
 persistent-workspaces = []
 
 [[zone-layouts]]

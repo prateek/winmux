@@ -24,6 +24,8 @@ struct EnableCommand: Command {
             TrayMenuModel.shared.isWorkspaceSidebarExpanded = false
             clearPendingWindowDragIntent()
             cancelManipulatedWithMouseState()
+            // noteModeChanged only revokes policy-gated dragging; 'always' needs this too.
+            ZoneDividerDragController.shared.cancel()
         }
         WorkspaceSidebarPanel.refreshAll()
         WindowTabStripPanelController.shared.refresh()

@@ -224,6 +224,9 @@ on-mode-changed = []
 # if.window-title-regex-substring = 'Slack|Messages|Mail'
 # fail-if-noop = false
 
+# [mouse]
+# zone-divider-drag = 'zone-mode' # 'always' = draggable in every mode, 'off' = disabled
+
 # [mouse.zone-snap]
 # policy = 'freeform'
 # modifier = 'alt'

@@ -14,6 +14,14 @@ final class ZoneDividerDragPolicyTest: XCTestCase {
         XCTAssertFalse(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: nil))
     }
 
+    func testDeferredWindowRegistrationFlagIsReadAndCleared() {
+        _ = takeWindowRegistrationDeferredDuringMouseDown()
+        XCTAssertFalse(takeWindowRegistrationDeferredDuringMouseDown())
+        noteWindowRegistrationDeferredDuringMouseDown()
+        XCTAssertTrue(takeWindowRegistrationDeferredDuringMouseDown())
+        XCTAssertFalse(takeWindowRegistrationDeferredDuringMouseDown())
+    }
+
     func testDesktopMouseUpEventSkipsWindowRefreshBarrier() {
         // A mouse up over empty desktop must not trigger the heavy refresh path: no window
         // enumeration barrier and no re-assertion of hidden window frames.

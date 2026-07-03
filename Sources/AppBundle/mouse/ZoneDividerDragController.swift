@@ -1,4 +1,5 @@
 import AppKit
+import Common
 
 private struct ZoneDividerDragSession {
     let handle: ZoneDividerHandle
@@ -216,8 +217,30 @@ func isZoneDividerDragAllowed(policy: ZoneDividerDragPolicy, activeMode: String?
     switch policy {
         case .always: true
         case .off: false
-        case .zoneMode: activeMode == "zone"
+        case .zoneMode: activeMode == zoneModeId
     }
+}
+
+/// Chooses the refresh event for a global left mouse up. The barrier exists for clicks that land
+/// on windows (close-button presses AX never reports, delayed new-window pickup), so a click the
+/// cache can prove missed every window may skip it. The proof must fail SAFE: a window with no
+/// cached rect at all (floating/fullscreen windows lose them on AX timeouts) makes the click
+/// unclassifiable and keeps the barrier.
+@MainActor
+func mouseUpRefreshEvent(at point: CGPoint) -> RefreshSessionEvent {
+    let provablyOutsideAllWindows = Workspace.all
+        .filter(\.isVisible)
+        .flatMap(\.allLeafWindowsRecursive)
+        .allSatisfy { window in
+            guard !window.isHiddenInCorner else { return true }
+            let rects = [
+                window.lastKnownActualRect,
+                window.lastAppliedLayoutPhysicalRect,
+                window.lastAppliedLayoutVirtualRect,
+            ].compactMap { $0 }
+            return !rects.isEmpty && !rects.contains { $0.contains(point) }
+        }
+    return provablyOutsideAllWindows ? .globalObserverLeftMouseUpOutsideWindows : .globalObserverLeftMouseUp
 }
 
 @MainActor

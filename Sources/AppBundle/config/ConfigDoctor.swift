@@ -1,3 +1,4 @@
+import Common
 import Foundation
 
 @MainActor
@@ -30,6 +31,9 @@ func renderConfigDoctorLines(
     lines.append("  \(renderZoneCounts(parsedConfig))")
     lines.append("  zone layout sums: OK")
     lines.append("  zone references: OK")
+    if parsedConfig.mouse.zoneDividerDrag == .zoneMode, parsedConfig.modes[zoneModeId] == nil {
+        lines.append("  warning: mouse.zone-divider-drag = 'zone-mode' but no [mode.\(zoneModeId).binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'")
+    }
     lines += renderRuntimeOverlayLines(runtimeOverlays)
     return lines
 }

@@ -5,6 +5,7 @@ import Foundation
 public let socketPath = "/tmp/\(winMuxAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
 public let mainModeId = "main"
+public let zoneModeId = "zone"
 
 @TaskLocal
 public var refreshSessionEvent: RefreshSessionEvent? = nil
