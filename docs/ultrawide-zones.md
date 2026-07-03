@@ -142,6 +142,14 @@ drag inside the current zone unless you configure a zone target or move command
 for the cross-zone flow.
 
 You can drag the divider between adjacent zones to change widths at runtime.
+By default divider dragging is armed only while zone mode is active
+(`alt-z`), so boundaries are inert during normal work. Configure this with:
+
+```toml
+[mouse]
+zone-divider-drag = 'zone-mode' # or 'always', 'off'
+```
+
 Run `winmux save-zone-layout` to persist the new widths:
 
 ```bash

@@ -9499,8 +9499,29 @@ Non-claims:
 
 ### Slice 53: Input Latency and Refresh Diet
 
-Status: planned; dogfood blocker from 2026-07-02 daily-driver feedback.
-Prioritize ahead of Slice 52.
+Status: in progress; core implementation landed 2026-07-02, formal artifact
+pending. Dogfood blocker from 2026-07-02 daily-driver feedback. Prioritize
+ahead of Slice 52.
+
+Implementation update, 2026-07-02:
+
+- mouse ups over empty desktop now schedule
+  `.globalObserverLeftMouseUpOutsideWindows` (no window refresh barrier,
+  last-applied frames reused), decided by a cached-frame check with no AX
+  cost; clicks on windows keep the barrier for close-button and delayed
+  new-window detection. This also removes the per-click force re-assertion
+  of every hidden window's corner position that
+  `canReuseLastAppliedWindowFrames = false` used to cause.
+- the divider window-frame veto no longer runs `CGWindowListCopyWindowInfo`
+  synchronously on the click path: hover captures an async snapshot
+  (hovering always precedes an ambient divider click), and mouse down
+  consults the snapshot or falls back to the conservative cached answer.
+- the per-app AX messaging timeout (1s, vs the 6s system default) already
+  existed in `MacApp` app-thread registration; it predates this slice.
+- still open: the activation-path optimistic double layout, per-app slow-AX
+  skip-list, pointer-move throttling (largely mooted by Slice 54's hover
+  gating), the reviewer-prompt latency dimension, and the Tart artifact
+  with before/after latency evidence.
 
 Goal: ordinary interactions (desktop click, focus changes, typing while
 overlays animate) respond instantly; no full AX sweep runs on the input path.
@@ -9562,8 +9583,16 @@ Non-claims:
 
 ### Slice 54: Explicit Zone Resize Affordance
 
-Status: planned; dogfood blocker from 2026-07-02 daily-driver feedback.
-Prioritize ahead of Slice 52.
+Status: in progress; implementation landed 2026-07-02, formal artifact
+pending. Dogfood blocker from 2026-07-02 daily-driver feedback. Prioritize
+ahead of Slice 52.
+
+Implementation update, 2026-07-02: `mouse.zone-divider-drag` config policy
+(`zone-mode` default, `always`, `off`); hover chrome, the hit panel, and
+both ambient and chrome mouse downs are gated on the policy, and a mode
+change that revokes interactivity hides any lingering chrome.
+`docs/ultrawide-zones.md` documents the behavior. Parse, policy-matrix, and
+controller gating tests cover it. Still open: the Tart artifact.
 
 Goal: zone dividers are not draggable during normal use; resizing requires
 explicit intent.

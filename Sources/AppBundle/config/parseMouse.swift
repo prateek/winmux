@@ -4,6 +4,7 @@ import TOMLKit
 
 private let mouseParser: [String: any ParserProtocol<MouseConfig>] = [
     "zone-snap": Parser(\.zoneSnap, parseZoneSnapConfig),
+    "zone-divider-drag": Parser(\.zoneDividerDrag, parseZoneDividerDragPolicy),
 ]
 
 private let zoneSnapParser: [String: any ParserProtocol<ZoneSnapConfig>] = [
@@ -36,6 +37,16 @@ private func parseZoneSnapPolicy(
     parseString(raw, backtrace).flatMap { rawValue in
         ZoneSnapPolicy(rawValue: rawValue)
             .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneSnapPolicy.self)))
+    }
+}
+
+private func parseZoneDividerDragPolicy(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+) -> ParsedToml<ZoneDividerDragPolicy> {
+    parseString(raw, backtrace).flatMap { rawValue in
+        ZoneDividerDragPolicy(rawValue: rawValue)
+            .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneDividerDragPolicy.self)))
     }
 }
 

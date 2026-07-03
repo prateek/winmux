@@ -71,6 +71,10 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     case configAutoReload
     case globalObserver(String)
     case globalObserverLeftMouseUp
+    /// Mouse up over empty desktop (no cached window frame contains the point): the click can't
+    /// be a close-button press or spawn a window, so skip the heavy window refresh barrier and
+    /// keep last-applied frames instead of re-asserting every hidden window.
+    case globalObserverLeftMouseUpOutsideWindows
     case menuBarButton
     case hotkeyBinding
     case startup
@@ -96,7 +100,8 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
                 notif == NSWorkspace.didActivateApplicationNotification.rawValue
             case .hotkeyBinding, .menuBarButton, .socketServer, .onModeChanged:
                 true
-            case .onFocusedMonitorChanged, .onFocusChanged, .onTabSwitched:
+            case .onFocusedMonitorChanged, .onFocusChanged, .onTabSwitched,
+                 .globalObserverLeftMouseUpOutsideWindows:
                 true
             case .configAutoReload, .globalObserverLeftMouseUp, .startup,
                  .resetManipulatedWithMouse:
@@ -110,7 +115,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
                 notif != kAXFocusedWindowChangedNotification as String
             case .globalObserver(let notif):
                 notif != NSWorkspace.didActivateApplicationNotification.rawValue
-            case .onTabSwitched:
+            case .onTabSwitched, .globalObserverLeftMouseUpOutsideWindows:
                 false
             case .configAutoReload, .globalObserverLeftMouseUp, .menuBarButton, .hotkeyBinding,
                  .startup, .socketServer, .resetManipulatedWithMouse, .onFocusedMonitorChanged,
@@ -129,6 +134,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .configAutoReload: "configAutoReload"
             case .globalObserver(let str): "globalObserver(\(str))"
             case .globalObserverLeftMouseUp: "globalObserverLeftMouseUp"
+            case .globalObserverLeftMouseUpOutsideWindows: "globalObserverLeftMouseUpOutsideWindows"
             case .hotkeyBinding: "hotkeyBinding"
             case .menuBarButton: "menuBarButton"
             case .resetManipulatedWithMouse: "resetManipulatedWithMouse"

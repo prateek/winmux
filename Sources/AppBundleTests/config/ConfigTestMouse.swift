@@ -151,6 +151,34 @@ extension ConfigTest {
         XCTAssertEqual(parsed.mouse.zoneSnap.target, .window)
     }
 
+    func testParseZoneDividerDragPolicy() {
+        XCTAssertEqual(parseConfig("").0.mouse.zoneDividerDrag, .zoneMode)
+        XCTAssertEqual(
+            parseConfig("[mouse]\n    zone-divider-drag = 'always'").0.mouse.zoneDividerDrag,
+            .always,
+        )
+        XCTAssertEqual(
+            parseConfig("[mouse]\n    zone-divider-drag = 'off'").0.mouse.zoneDividerDrag,
+            .off,
+        )
+        XCTAssertEqual(
+            parseConfig("[mouse]\n    zone-divider-drag = 'zone-mode'").0.mouse.zoneDividerDrag,
+            .zoneMode,
+        )
+    }
+
+    func testRejectInvalidZoneDividerDragPolicy() {
+        let (_, errors) = parseConfig(
+            """
+            [mouse]
+                zone-divider-drag = 'hover'
+            """,
+        )
+        assertEquals(errors.descriptions, [
+            "mouse.zone-divider-drag: Possible values: zone-mode, always, off",
+        ])
+    }
+
     func testRejectInvalidMouseZoneSnapConfig() {
         let (_, errors) = parseConfig(
             """

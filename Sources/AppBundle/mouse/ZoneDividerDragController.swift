@@ -17,6 +17,33 @@ final class ZoneDividerDragController {
     private let hitSlop: CGFloat = 16
     private var session: ZoneDividerDragSession?
 
+    // Live window frames may only be captured off the input path (see the plan's input-path
+    // rule). Hovering a divider always precedes an ambient click on it, so the snapshot taken
+    // on hover is fresh by mouse-down time.
+    private static let liveFramesSnapshotLifetime: TimeInterval = 1.0
+    private var liveFramesSnapshot: (frames: [UInt32: Rect], capturedAt: TimeInterval)?
+    private var liveFramesRefreshInFlight = false
+
+    private var liveFramesSnapshotIfFresh: [UInt32: Rect]? {
+        guard let snapshot = liveFramesSnapshot,
+              ProcessInfo.processInfo.systemUptime - snapshot.capturedAt < Self.liveFramesSnapshotLifetime
+        else { return nil }
+        return snapshot.frames
+    }
+
+    private func refreshLiveFramesSnapshotIfStale() {
+        guard !liveFramesRefreshInFlight, liveFramesSnapshotIfFresh == nil else { return }
+        liveFramesRefreshInFlight = true
+        Task.detached(priority: .userInitiated) {
+            let frames = liveOnScreenWindowFramesById()
+            let capturedAt = ProcessInfo.processInfo.systemUptime
+            await MainActor.run {
+                ZoneDividerDragController.shared.liveFramesSnapshot = (frames, capturedAt)
+                ZoneDividerDragController.shared.liveFramesRefreshInFlight = false
+            }
+        }
+    }
+
     private init() {}
 
     var isDragging: Bool {
@@ -25,7 +52,7 @@ final class ZoneDividerDragController {
 
     @discardableResult
     func updateHover(at point: CGPoint) -> Bool {
-        guard session == nil, TrayMenuModel.shared.isEnabled else {
+        guard session == nil, TrayMenuModel.shared.isEnabled, isDragAllowed else {
             if session == nil {
                 ZoneDividerOverlayPanelController.shared.hide(after: 0.08)
             }
@@ -35,8 +62,20 @@ final class ZoneDividerDragController {
             ZoneDividerOverlayPanelController.shared.hide(after: 0.08)
             return false
         }
+        refreshLiveFramesSnapshotIfStale()
         show(handle: handle, state: .hover, deltaPixels: 0)
         return true
+    }
+
+    /// Hide any lingering hover chrome when a mode change revokes divider interactivity.
+    func noteModeChanged() {
+        if !isDragAllowed {
+            cancel()
+        }
+    }
+
+    private var isDragAllowed: Bool {
+        isZoneDividerDragAllowed(policy: config.mouse.zoneDividerDrag, activeMode: activeMode)
     }
 
     @discardableResult
@@ -45,10 +84,11 @@ final class ZoneDividerDragController {
         source: ZoneDividerMouseDownSource = .ambient,
     ) -> Bool {
         guard TrayMenuModel.shared.isEnabled,
+              isDragAllowed,
               session == nil,
               let handle = zoneDividerHandle(at: point, hitSlop: hitSlop)
         else { return false }
-        guard source == .dividerChrome || !isPointInsideKnownWindowFrame(point) else {
+        guard source == .dividerChrome || !isPointInsideKnownWindowFrame(point, liveFrames: liveFramesSnapshotIfFresh) else {
             logWindowDragLive(
                 "zoneDivider.start skipped reason=window-content point=\(point) boundary=\(handle.boundaryX)"
             )
@@ -123,6 +163,10 @@ final class ZoneDividerDragController {
         ZoneDividerOverlayPanelController.shared.hide()
     }
 
+    func setLiveFramesSnapshotForTests(_ frames: [UInt32: Rect]?) {
+        liveFramesSnapshot = frames.map { ($0, ProcessInfo.processInfo.systemUptime) }
+    }
+
     private func show(
         handle: ZoneDividerHandle,
         state: ZoneDividerOverlayState,
@@ -168,9 +212,17 @@ final class ZoneDividerDragController {
     }
 }
 
+func isZoneDividerDragAllowed(policy: ZoneDividerDragPolicy, activeMode: String?) -> Bool {
+    switch policy {
+        case .always: true
+        case .off: false
+        case .zoneMode: activeMode == "zone"
+    }
+}
+
 @MainActor
-private func isPointInsideKnownWindowFrame(_ point: CGPoint) -> Bool {
-    let candidates = Workspace.all
+func cachedWindowFrameCandidates(at point: CGPoint) -> [Window] {
+    Workspace.all
         .filter(\.isVisible)
         .flatMap(\.allLeafWindowsRecursive)
         .filter { window in
@@ -179,12 +231,20 @@ private func isPointInsideKnownWindowFrame(_ point: CGPoint) -> Bool {
                 .compactMap { $0 }
                 .contains { $0.contains(point) }
         }
+}
+
+@MainActor
+private func isPointInsideKnownWindowFrame(_ point: CGPoint, liveFrames: [UInt32: Rect]?) -> Bool {
+    let candidates = cachedWindowFrameCandidates(at: point)
     guard !candidates.isEmpty else { return false }
-    let liveFrames = liveOnScreenWindowFramesById()
     return candidates.contains { window in
         if let frame = window.currentFrameForHitTesting() {
             return frame.contains(point)
         }
+        // Without a fresh snapshot, trust the cached candidate: a spurious veto only delays a
+        // divider drag by one hover cycle, while a spurious pass would start a drag through a
+        // window the user meant to click.
+        guard let liveFrames else { return true }
         return liveFrames[window.windowId]?.contains(point) == true
     }
 }

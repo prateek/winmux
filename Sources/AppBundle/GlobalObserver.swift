@@ -153,16 +153,23 @@ enum GlobalObserver {
                 guard let token: RunSessionGuard = .isServerEnabled else { return }
                 try await resetManipulatedWithMouseIfPossible()
                 let clickedMonitor = mouseLocation.monitorApproximation
+                // The barrier refresh exists to catch close-button clicks on unfocused windows
+                // (kAXUIElementDestroyedNotification is unreliable) and delayed new-window
+                // detection — both require the click to land on a window. A click over empty
+                // desktop can skip the barrier; the cached-frame check costs no AX. A stale
+                // cache can misclassify at worst one click, and the next real window event
+                // schedules a barrier refresh anyway.
+                let mouseUpEvent: RefreshSessionEvent = cachedWindowFrameCandidates(at: mouseLocation).isEmpty
+                    ? .globalObserverLeftMouseUpOutsideWindows
+                    : .globalObserverLeftMouseUp
                 switch true {
                     // Detect clicks on desktop of different monitors
                     case clickedMonitor.activeWorkspace != focus.workspace:
-                        _ = try await runLightSession(.globalObserverLeftMouseUp, token) {
+                        _ = try await runLightSession(mouseUpEvent, token) {
                             clickedMonitor.activeWorkspace.focusWorkspace()
                         }
-                    // Detect close button clicks for unfocused windows. Yes, kAXUIElementDestroyedNotification is that unreliable
-                    //  And trigger new window detection that could be delayed due to mouseDown event
                     default:
-                        scheduleRefreshSession(.globalObserverLeftMouseUp)
+                        scheduleRefreshSession(mouseUpEvent)
                 }
             }
         })

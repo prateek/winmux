@@ -1266,6 +1266,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerAmbientClickDoesNotStartInsideKnownWindowFrame() {
         let zones = configureThreeZones()
+        config.mouse.zoneDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         TestWindow.new(
@@ -1287,6 +1288,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerAmbientClickUsesLiveFrameBeforeVetoingStaleCachedFrame() {
         let zones = configureThreeZones()
+        config.mouse.zoneDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         let window = TestWindow.new(
@@ -1307,6 +1309,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerChromeCanStartInsideFullHeightTiledWindowFrame() {
         let zones = configureThreeZones()
+        config.mouse.zoneDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         TestWindow.new(
@@ -1325,6 +1328,28 @@ final class ZoneCommandTest: XCTestCase {
             at: CGPoint(x: 900, y: 400),
             source: .dividerChrome,
         ))
+        XCTAssertTrue(controller.isDragging)
+        controller.cancel()
+    }
+
+    func testZoneDividerDragRequiresZoneModeByDefault() {
+        _ = configureThreeZones()
+        let controller = ZoneDividerDragController.shared
+        controller.cancel()
+        let dividerPoint = CGPoint(x: 900, y: 20)
+        XCTAssertNotNil(zoneDividerHandle(at: dividerPoint, hitSlop: 16))
+
+        let previousMode = activeMode
+        defer { activeMode = previousMode }
+
+        activeMode = mainModeId
+        XCTAssertFalse(controller.updateHover(at: dividerPoint))
+        XCTAssertFalse(controller.handleMouseDown(at: dividerPoint))
+        XCTAssertFalse(controller.handleMouseDown(at: dividerPoint, source: .dividerChrome))
+        XCTAssertFalse(controller.isDragging)
+
+        activeMode = "zone"
+        XCTAssertTrue(controller.handleMouseDown(at: dividerPoint))
         XCTAssertTrue(controller.isDragging)
         controller.cancel()
     }
@@ -1349,6 +1374,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerDragIgnoresStaleFramesFromInactiveWorkspaces() {
         _ = configureThreeZones()
+        config.mouse.zoneDividerDrag = .always
         let inactiveWorkspace = Workspace.get(byName: "inactive-with-stale-frame")
         TestWindow.new(
             id: 452,

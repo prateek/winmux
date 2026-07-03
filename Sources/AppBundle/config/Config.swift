@@ -127,6 +127,15 @@ struct Config: ConvenienceCopyable {
 
 struct MouseConfig: ConvenienceCopyable, Equatable, Sendable {
     var zoneSnap = ZoneSnapConfig()
+    var zoneDividerDrag: ZoneDividerDragPolicy = .zoneMode
+}
+
+enum ZoneDividerDragPolicy: String, CaseIterable, Equatable, Sendable {
+    /// Divider hover chrome and drags are available only while the binding mode named "zone"
+    /// is active, so boundaries are inert during normal work.
+    case zoneMode = "zone-mode"
+    case always
+    case off
 }
 
 struct ZoneSnapConfig: ConvenienceCopyable, Equatable, Sendable {
