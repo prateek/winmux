@@ -1,5 +1,18 @@
 # Handoff Prompt
 
+Read `AGENTS.md` first. State update since this prompt was written
+(2026-07-02, later the same day): the working tree is clean at `e8b5173a`
+on `codex-columns`, pushed to the `fork` remote (`prateek/winmux`, now the
+default branch). Dogfood distribution, signing, and release tooling exist
+(`script/dogfood-release`, `script/setup-signing`; see AGENTS.md), the
+user is dogfooding `0.51.0-dogfood.2` on real hardware, and
+`docs/dogfood-notes.md` records classified findings. Slices 52-55 are
+planned from that feedback; Slices 53 and 54 are dogfood blockers that
+take priority over Slice 52. The Slice 51 instructions below remain the
+operative path to beta acceptance and are unchanged except that the
+"previous agent" checkpoint commit `250abd66` now has further commits on
+top of it (docs, plan slices, release tooling — no product-code changes).
+
 Use this prompt with a fresh agent:
 
 ```text
