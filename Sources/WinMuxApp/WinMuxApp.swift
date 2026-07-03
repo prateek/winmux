@@ -1,4 +1,5 @@
 import AppBundle
+import Sparkle
 import SwiftUI
 
 // This file is shared between SPM and xcode project
@@ -10,8 +11,18 @@ struct WinMuxApp: App {
     @StateObject var shortcutSettingsModel = ShortcutSettingsModel.shared
     @Environment(\.openWindow) var openWindow: OpenWindowAction
 
+    private static let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil,
+    )
+
     init() {
         initAppBundle()
+        let updater = Self.updaterController
+        UpdaterBridge.shared.checkForUpdates = { updater.checkForUpdates(nil) }
+        UpdaterBridge.shared.setAutomaticChecksEnabled = { updater.updater.automaticallyChecksForUpdates = $0 }
+        UpdaterBridge.shared.applyConfig()
     }
 
     var body: some Scene {

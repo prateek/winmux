@@ -167,6 +167,18 @@ extension ConfigTest {
         )
     }
 
+    func testParseUpdatesConfig() {
+        XCTAssertFalse(parseConfig("").0.updates.automaticCheck)
+        let (parsed, errors) = parseConfig(
+            """
+            [updates]
+                automatic-check = true
+            """,
+        )
+        assertEquals(errors, [])
+        XCTAssertTrue(parsed.updates.automaticCheck)
+    }
+
     func testRejectInvalidZoneDividerDragPolicy() {
         let (_, errors) = parseConfig(
             """

@@ -9447,7 +9447,29 @@ Non-claims:
 
 ### Slice 52: Sparkle Auto-Update Channel
 
-Status: planned; do not start before Slice 51 is accepted.
+Status: in progress; implementation landed 2026-07-02, formal artifact
+pending (the in-place update proof).
+
+Implementation update, 2026-07-02:
+
+- Sparkle 2.9.3 via SwiftPM on the WinMuxApp executable target only — the
+  CLI shares AppBundle and must not require the framework at dyld time.
+  AppBundle reaches the updater through `UpdaterBridge`, wired by the app at
+  startup; the menu gains "Check for Updates..." when wired.
+- `[updates] automatic-check` config key, default false, applied on config
+  reload; harness lanes never phone the appcast.
+- `make beta-package` embeds `Sparkle.framework` (XPC services stripped —
+  the app is unsandboxed), signs it inside-out with the beta identity, and
+  writes `SUPublicEDKey`/`SUFeedURL`/`SUEnableAutomaticChecks=false`.
+  `CFBundleVersion` is now the git commit count: Sparkle's version
+  comparator stops at the first dash, so `-dogfood.N` strings all tie.
+- `script/setup-sparkle-keys` mints the EdDSA keypair as files beside the
+  other signing material (headless-safe); regeneration is refused because it
+  orphans installed builds.
+- `script/dogfood-release` builds an app-only Sparkle zip (generate_appcast
+  requires one bundle per archive root), regenerates `appcast.xml` with
+  `--ed-key-file`, and uploads both to the rolling `dogfood` release tag.
+  The cask is marked `auto_updates`.
 
 Goal: let installed dogfood/beta builds update themselves from the fork's
 GitHub releases, removing the per-version Gatekeeper and manual-upgrade

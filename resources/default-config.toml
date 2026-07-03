@@ -227,6 +227,9 @@ on-mode-changed = []
 # [mouse]
 # zone-divider-drag = 'zone-mode' # 'always' = draggable in every mode, 'off' = disabled
 
+# [updates]
+# automatic-check = false # true = Sparkle checks the update feed in the background
+
 # [mouse.zone-snap]
 # policy = 'freeform'
 # modifier = 'alt'

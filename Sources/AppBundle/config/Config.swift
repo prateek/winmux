@@ -110,6 +110,7 @@ struct Config: ConvenienceCopyable {
     var autoAddNewWindowsToTabGroup: Bool = false
     var gaps: Gaps = .zero
     var mouse = MouseConfig()
+    var updates = UpdatesConfig()
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
     var zoneStyles: [ZoneStyleConfig] = []
@@ -128,6 +129,12 @@ struct Config: ConvenienceCopyable {
 struct MouseConfig: ConvenienceCopyable, Equatable, Sendable {
     var zoneSnap = ZoneSnapConfig()
     var zoneDividerDrag: ZoneDividerDragPolicy = .zoneMode
+}
+
+struct UpdatesConfig: ConvenienceCopyable, Equatable, Sendable {
+    /// Off by default so harness lanes and fresh installs never phone the appcast without an
+    /// explicit opt-in; the menu's user-initiated check works regardless.
+    var automaticCheck = false
 }
 
 enum ZoneDividerDragPolicy: String, CaseIterable, Equatable, Sendable {

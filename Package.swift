@@ -23,6 +23,7 @@ let package = Package(
         .package(url: "https://github.com/rxhanson/MASShortcut", revision: "2f9fbb3f959b7a683c6faaf9638d22afad37a235"),
         .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
         .package(url: "https://github.com/soffes/HotKey.git", exact: "0.2.1"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.3"),
     ],
     // Targets are the basic building blocks of a package, defining a module or a test suite.
     // Targets can depend on other targets in this package and products from dependencies.
@@ -55,10 +56,16 @@ let package = Package(
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
             ],
         ),
+        // Sparkle hangs off the app executable only: the CLI also links AppBundle and must not
+        // require the framework at dyld time.
         .executableTarget(
             name: "WinMuxApp",
             dependencies: [
                 .target(name: "AppBundle"),
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
             ],
         ),
         .executableTarget(

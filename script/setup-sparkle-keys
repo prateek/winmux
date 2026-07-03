@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Creates the Sparkle EdDSA signing keypair if it does not exist.
+#
+# Sparkle validates update archives against the EdDSA public key embedded in the app's
+# Info.plist (SUPublicEDKey), which is what lets a self-signed, non-notarized app update
+# itself safely. The private key lives as a file beside the other winmux signing material so
+# releases work headlessly (generate_appcast --ed-key-file), not in the login keychain.
+# Regenerating the key orphans every installed build (their embedded public key stops
+# matching new appcasts), so this script refuses to replace an existing key.
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing"
+PRIVATE_KEY_FILE="$CONFIG_DIR/sparkle-ed25519-key"
+PUBLIC_KEY_FILE="$CONFIG_DIR/sparkle-ed25519-key.pub"
+SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+
+die() {
+    printf '[setup-sparkle-keys] error: %s\n' "$*" >&2
+    exit 1
+}
+
+log() {
+    printf '[setup-sparkle-keys] %s\n' "$*"
+}
+
+cd "$(dirname "$0")/.."
+
+if [ -s "$PRIVATE_KEY_FILE" ] && [ -s "$PUBLIC_KEY_FILE" ]; then
+    log "keypair already present at $PRIVATE_KEY_FILE"
+    exit 0
+fi
+[ -s "$PRIVATE_KEY_FILE" ] || [ ! -e "$PRIVATE_KEY_FILE" ] || die "empty $PRIVATE_KEY_FILE; refusing to guess"
+
+[ -x "$SPARKLE_BIN/generate_keys" ] || die "missing $SPARKLE_BIN/generate_keys; run 'swift build --product WinMuxApp' first"
+
+umask 077
+mkdir -p "$CONFIG_DIR"
+log "generating EdDSA keypair"
+"$SPARKLE_BIN/generate_keys" --account winmux-dogfood >/dev/null
+"$SPARKLE_BIN/generate_keys" --account winmux-dogfood -x "$PRIVATE_KEY_FILE"
+"$SPARKLE_BIN/generate_keys" --account winmux-dogfood -p > "$PUBLIC_KEY_FILE"
+test -s "$PRIVATE_KEY_FILE" || die "private key export failed"
+test -s "$PUBLIC_KEY_FILE" || die "public key export failed"
+log "done: public key $(cat "$PUBLIC_KEY_FILE")"

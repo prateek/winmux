@@ -4,6 +4,11 @@ EXPECTED_CODESIGN_AUTHORITY ?= Apple Development: zxzimeng@gmail.com (4F7GA4MB42
 # beta-package signing identity; "-" is ad-hoc. Dogfood releases pass a stable
 # self-signed identity (script/setup-signing) so TCC grants survive upgrades.
 BETA_CODESIGN_IDENTITY ?= -
+# Sparkle stops comparing versions at the first dash, so 0.51.0-dogfood.N strings all tie;
+# CFBundleVersion needs a monotonic dash-free number. Commit count works while releases are
+# cut from one append-only branch.
+BUILD_NUMBER ?= $(shell git rev-list --count HEAD 2>/dev/null || echo 1)
+SPARKLE_FEED_URL ?= https://github.com/prateek/winmux/releases/download/dogfood/appcast.xml
 DEVELOPMENT_TEAM ?= W9C2P3N7Q2
 RELEASE_DIR ?= .release
 RELEASE_TAG ?= v$(VERSION)
@@ -552,6 +557,9 @@ beta-package:
 	cp .build/release/WinMuxApp "$$app_path/Contents/MacOS/WinMuxApp"; \
 	cp .build/release/winmux "$$cli_path"; \
 	cp resources/default-config.toml "$$app_path/Contents/Resources/default-config.toml"; \
+	mkdir -p "$$app_path/Contents/Frameworks"; \
+	cp -R .build/release/Sparkle.framework "$$app_path/Contents/Frameworks/Sparkle.framework"; \
+	rm -rf "$$app_path/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices"; \
 	printf "%s\n" \
 	    "# WinMux Beta Package Docs Links" \
 	    "" \
@@ -582,12 +590,21 @@ beta-package:
 	    "    <key>CFBundleShortVersionString</key>" \
 	    "    <string>$(VERSION)</string>" \
 	    "    <key>CFBundleVersion</key>" \
-	    "    <string>$(VERSION)</string>" \
+	    "    <string>$(BUILD_NUMBER)</string>" \
 	    "    <key>LSUIElement</key>" \
 	    "    <true/>" \
+	    "    <key>SUEnableAutomaticChecks</key>" \
+	    "    <false/>" \
+	    $${SPARKLE_PUBLIC_ED_KEY:+"    <key>SUPublicEDKey</key>" "    <string>$$SPARKLE_PUBLIC_ED_KEY</string>"} \
+	    "    <key>SUFeedURL</key>" \
+	    "    <string>$(SPARKLE_FEED_URL)</string>" \
 	    "</dict>" \
 	    "</plist>" >"$$app_path/Contents/Info.plist"; \
-	codesign --force --deep --sign "$(BETA_CODESIGN_IDENTITY)" --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
+	sparkle_fw="$$app_path/Contents/Frameworks/Sparkle.framework"; \
+	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$sparkle_fw/Versions/B/Autoupdate" >>"$$build_log" 2>&1 || true; \
+	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$sparkle_fw/Versions/B/Updater.app" >>"$$build_log" 2>&1 || true; \
+	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$sparkle_fw" >>"$$build_log" 2>&1 || true; \
+	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" --entitlements resources/WinMux.entitlements "$$app_path" >>"$$build_log" 2>&1 || true; \
 	codesign --force --sign "$(BETA_CODESIGN_IDENTITY)" "$$cli_path" >>"$$build_log" 2>&1 || true; \
 	codesign --verify --deep --strict "$$app_path" >>"$$build_log" 2>&1 || true; \
 	ditto -c -k --sequesterRsrc --keepParent "$$staging_dir" "$$zip_path"; \

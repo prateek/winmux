@@ -264,6 +264,16 @@ If a saved layout is wrong, restore the backup named by `save-zone-layout`:
 winmux config --restore-backup /path/to/winmux.toml.backup-YYYYMMDDTHHMMSSZ
 ```
 
+## Updates
+
+The menu bar's "Check for Updates..." fetches the dogfood appcast on demand.
+Background checks are off unless you opt in:
+
+```toml
+[updates]
+automatic-check = true
+```
+
 ## Support Bundle
 
 For beta reports, generate a local support bundle:

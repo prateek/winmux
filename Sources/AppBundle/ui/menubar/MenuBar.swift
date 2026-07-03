@@ -25,6 +25,7 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
         OpenShortcutSettingsButton()
         openConfigButton()
         reloadConfigButton()
+        checkForUpdatesButton()
         Button("GitHub Repository") {
             openURLString(winmuxRepositoryURL)
         }
@@ -81,6 +82,13 @@ func reloadConfigButton(showShortcutGroup: Bool = false) -> some View {
         } else {
             button
         }
+    }
+}
+
+@MainActor @ViewBuilder
+func checkForUpdatesButton() -> some View {
+    if let checkForUpdates = UpdaterBridge.shared.checkForUpdates {
+        Button("Check for Updates...") { checkForUpdates() }
     }
 }
 

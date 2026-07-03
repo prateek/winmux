@@ -6,6 +6,9 @@ name: WinMux
 packages:
   WinMuxPackage:
     path: .
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.3
 
 configs:
   Debug: debug
@@ -22,6 +25,8 @@ targets:
     dependencies:
       - package: WinMuxPackage
         product: AppBundle
+      - package: Sparkle
+        product: Sparkle
     # https://developer.apple.com/documentation/xcode/build-settings-reference
     settings:
       base:

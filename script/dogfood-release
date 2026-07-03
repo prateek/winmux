@@ -11,6 +11,11 @@ RELEASE_REMOTE="${WINMUX_RELEASE_REMOTE:-fork}"
 SIGN_IDENTITY="${WINMUX_SIGN_IDENTITY:-WinMux Dogfood Signing}"
 SIGN_KEYCHAIN="$HOME/Library/Keychains/winmux-signing.keychain-db"
 SIGN_PASS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/keychain-pass"
+SPARKLE_KEY_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/sparkle-ed25519-key"
+SPARKLE_PUB_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/sparkle-ed25519-key.pub"
+SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
+SPARKLE_FEED_TAG="dogfood"
+SPARKLE_FEED_DIR=".release/sparkle-feed"
 
 usage() {
     cat <<EOF
@@ -56,9 +61,12 @@ gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1 && die "release $t
 ./script/setup-signing
 test -s "$SIGN_PASS_FILE" || die "missing keychain password file $SIGN_PASS_FILE"
 security unlock-keychain -p "$(cat "$SIGN_PASS_FILE")" "$SIGN_KEYCHAIN"
+./script/setup-sparkle-keys
+test -s "$SPARKLE_PUB_FILE" || die "missing Sparkle public key $SPARKLE_PUB_FILE"
 
 log "building beta package $VERSION from $head_sha"
-make beta-package VERSION="$VERSION" PUBLISH=0 BETA_CODESIGN_IDENTITY="$SIGN_IDENTITY" >/dev/null
+SPARKLE_PUBLIC_ED_KEY="$(cat "$SPARKLE_PUB_FILE")" \
+    make beta-package VERSION="$VERSION" PUBLISH=0 BETA_CODESIGN_IDENTITY="$SIGN_IDENTITY" >/dev/null
 test -s "$zip_path" || die "expected package at $zip_path"
 zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
 
@@ -98,6 +106,25 @@ gh release create "$tag" \
     --title "WinMux zones dogfood ${VERSION}" \
     --notes "$notes" \
     "$zip_path"
+
+log "updating Sparkle feed on the rolling '$SPARKLE_FEED_TAG' release"
+mkdir -p "$SPARKLE_FEED_DIR"
+sparkle_zip="$SPARKLE_FEED_DIR/WinMux-Sparkle-${VERSION}.zip"
+# generate_appcast wants exactly one app bundle at each archive's root, so the Sparkle
+# enclosure is an app-only zip, separate from the full package zip above.
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir/WinMux.app" "$sparkle_zip"
+"$SPARKLE_BIN/generate_appcast" \
+    --ed-key-file "$SPARKLE_KEY_FILE" \
+    --download-url-prefix "https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/" \
+    --maximum-deltas 0 \
+    -o "$SPARKLE_FEED_DIR/appcast.xml" \
+    "$SPARKLE_FEED_DIR"
+gh release view "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1 \
+    || gh release create "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --prerelease \
+        --title "Sparkle update feed" \
+        --notes "Rolling Sparkle appcast and update archives. Installed apps update from here; humans should use the versioned releases."
+gh release upload "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --clobber \
+    "$SPARKLE_FEED_DIR/appcast.xml" "$sparkle_zip"
 
 log "bumping cask in $TAP_REPO"
 tap_dir="$(mktemp -d)"

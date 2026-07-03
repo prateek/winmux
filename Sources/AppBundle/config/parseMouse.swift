@@ -22,6 +22,18 @@ func parseMouseConfig(
     parseTable(raw, MouseConfig(), mouseParser, backtrace, &errors)
 }
 
+private let updatesParser: [String: any ParserProtocol<UpdatesConfig>] = [
+    "automatic-check": Parser(\.automaticCheck, parseBool),
+]
+
+func parseUpdatesConfig(
+    _ raw: TOMLValueConvertible,
+    _ backtrace: TomlBacktrace,
+    _ errors: inout [TomlParseError],
+) -> UpdatesConfig {
+    parseTable(raw, UpdatesConfig(), updatesParser, backtrace, &errors)
+}
+
 private func parseZoneSnapConfig(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,

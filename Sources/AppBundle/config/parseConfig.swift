@@ -74,6 +74,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "auto-add-new-windows-to-tab-group": Parser(\.autoAddNewWindowsToTabGroup, parseBool),
     "gaps": Parser(\.gaps, parseGaps),
     "mouse": Parser(\.mouse, parseMouseConfig),
+    "updates": Parser(\.updates, parseUpdatesConfig),
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
     "zone-styles": Parser(\.zoneStyles, parseZoneStyles),
