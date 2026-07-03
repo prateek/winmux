@@ -1,6 +1,12 @@
 import AppKit
 import Common
 
+// The per-call AX messaging timeout is 1s, so a struggling app's refresh (several calls) can
+// take multiple seconds. Anything over the budget benches the app; the penalty is long enough
+// to ride out a beachball but short enough that recovery is automatic.
+let slowAxRefreshBudget: Duration = .seconds(1)
+let slowAxPenaltyDuration: Duration = .seconds(30)
+
 // Potential alternative implementation
 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0392-custom-actor-executors.md
 // (only available since macOS 14)
@@ -17,6 +23,10 @@ final class MacApp: AbstractApp {
     private var thread: Thread?
     private var setFrameJobs: [UInt32: RunLoopJob] = [:]
     @MainActor private static var focusJob: RunLoopJob? = nil
+    // Apps whose refresh blew past the budget get benched: refresh sessions serve their cached
+    // window ids instead of re-enumerating over AX, so one beachballing app can't slow every
+    // refresh for the penalty duration. AX notifications still arrive; only enumeration waits.
+    @MainActor var slowAxPenaltyUntil: ContinuousClock.Instant? = nil
 
     /*conforms*/ var name: String? { nsApp.localizedName }
     /*conforms*/ var execPath: String? { nsApp.executableURL?.path }
@@ -275,6 +285,11 @@ final class MacApp: AbstractApp {
     }
 
     @MainActor
+    var knownWindowIdsFromTree: [UInt32] {
+        MacWindow.allWindows.filter { $0.macApp === self }.map(\.windowId)
+    }
+
+    @MainActor
     static func refreshAllAndGetAliveWindowIds(frontmostAppBundleId: String?) async throws -> [MacApp: [UInt32]] {
         for (_, app) in MacApp.allAppsMap { // gc dead apps
             try checkCancellation()
@@ -286,7 +301,20 @@ final class MacApp: AbstractApp {
             func refreshTheApp(_ nsApp: NSRunningApplication) {
                 group.addTask { @Sendable @MainActor in
                     guard let app = try await MacApp.getOrRegister(nsApp) else { return (nsApp.processIdentifier, []) }
-                    return (nsApp.processIdentifier, try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId))
+                    // The frontmost app is exempt: the user is interacting with it, so its
+                    // windows must stay current even when it is slow.
+                    let isFrontmost = nsApp.bundleIdentifier != nil && nsApp.bundleIdentifier == frontmostAppBundleId
+                    if !isFrontmost, let penaltyUntil = app.slowAxPenaltyUntil, ContinuousClock.now < penaltyUntil {
+                        return (nsApp.processIdentifier, app.knownWindowIdsFromTree)
+                    }
+                    let start = ContinuousClock.now
+                    let windowIds = try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId)
+                    if start.duration(to: ContinuousClock.now) > slowAxRefreshBudget {
+                        app.slowAxPenaltyUntil = ContinuousClock.now + slowAxPenaltyDuration
+                    } else {
+                        app.slowAxPenaltyUntil = nil
+                    }
+                    return (nsApp.processIdentifier, windowIds)
                 }
             }
             // Register new apps

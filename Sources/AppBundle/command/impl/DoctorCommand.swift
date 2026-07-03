@@ -77,19 +77,21 @@ struct DoctorCommand: Command {
         // Per-app AX latency: time a trivial round-trip to each app's AX thread. Apps near the
         // 1s messaging timeout are the ones that make the whole system feel slow.
         io.out("Per-app AX latency (slowest first):")
-        var rows: [(name: String, ms: Double, windows: Int)] = []
+        var rows: [(name: String, ms: Double, windows: Int, benched: Bool)] = []
         for (_, app) in MacApp.allAppsMap {
             let name = app.nsApp.localizedName ?? app.rawAppBundleId ?? String(app.pid)
             let start = ContinuousClock.now
             let windowCount = (try? await app.getAxWindowsCount()) ?? -1
             let elapsed = start.duration(to: ContinuousClock.now)
             let ms = Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
-            rows.append((name, ms, windowCount))
+            let benched = app.slowAxPenaltyUntil.map { ContinuousClock.now < $0 } ?? false
+            rows.append((name, ms, windowCount, benched))
         }
         for row in rows.sorted(by: { $0.ms > $1.ms }) {
             let flag = row.ms > 100 ? "  <-- SLOW" : ""
+            let benched = row.benched ? "  [benched: refresh over budget, serving cached windows]" : ""
             let windows = row.windows >= 0 ? "\(row.windows)" : "error"
-            io.out("  \(String(format: "%7.1f", row.ms))ms  \(row.name) (\(windows) ax windows)\(flag)")
+            io.out("  \(String(format: "%7.1f", row.ms))ms  \(row.name) (\(windows) ax windows)\(flag)\(benched)")
         }
         return true
     }

@@ -56,6 +56,15 @@ Required checks:
 0a. In the review body, state whether you were launched with no chat history
     (`fork_context=false` or equivalent). If you were given prior implementation
     conversation or cannot tell, FAIL the review.
+0b. Latency and input-path dimension: if the slice's diff touches input event
+    handling, refresh scheduling, or overlay/hover code, verify it against the
+    input-path rule in `docs/plans/columnar-zones.md` (Decision section): no
+    synchronous AX, `CGWindowListCopyWindowInfo`, layout, or refresh work in
+    input event handlers. Treat a violation as a blocking finding even when
+    the recording looks correct — a correctness fix that adds synchronous
+    window-system queries to an input path is not an acceptable fix. When the
+    slice claims a latency improvement, require measurable evidence
+    (signposts, timing logs) in the artifact, not just a smooth-looking video.
 0. For a product-slice acceptance review, `reviews/reviewer-packet.md` must
    exist. Read it first. Treat it as the filled path/index packet for this
    artifact, but still apply every rule in this prompt. Treat the packet's

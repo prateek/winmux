@@ -9518,10 +9518,24 @@ Implementation update, 2026-07-02:
   consults the snapshot or falls back to the conservative cached answer.
 - the per-app AX messaging timeout (1s, vs the 6s system default) already
   existed in `MacApp` app-thread registration; it predates this slice.
-- still open: the activation-path optimistic double layout, per-app slow-AX
-  skip-list, pointer-move throttling (largely mooted by Slice 54's hover
-  gating), the reviewer-prompt latency dimension, and the Tart artifact
-  with before/after latency evidence.
+- the first no-context diff review (4 dimensions, adversarial verification)
+  confirmed 11 findings, all fixed: the outside-windows classification now
+  fails safe (windows with no cached rect keep the barrier,
+  `lastAppliedLayoutVirtualRect` counts as evidence), registrations deferred
+  during mouse down escalate the next mouse up to the barrier, and
+  outside-window clicks arm a debounced trailing barrier so menu/Dock closes
+  still get zombie cleanup off the input path.
+- per-app slow-AX bench: an app whose refresh exceeds a 1s budget serves
+  cached window ids for 30s instead of re-enumerating (frontmost app exempt);
+  `winmux doctor` marks benched apps.
+- the no-context artifact review prompt gained the latency/input-path
+  dimension (check 0b).
+- decided: the activation-path optimistic pre-layout stays. It runs with
+  `canReuseLastAppliedWindowFrames = true` (no AX writes when nothing moved),
+  sessions coalesce, and it is what makes cmd-tab to another workspace feel
+  immediate. Pointer-move throttling is mooted by Slice 54's hover gating.
+- still open: the Tart artifact with before/after latency evidence
+  (signposts already distinguish the event names).
 
 Goal: ordinary interactions (desktop click, focus changes, typing while
 overlays animate) respond instantly; no full AX sweep runs on the input path.
