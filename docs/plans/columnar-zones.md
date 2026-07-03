@@ -9703,6 +9703,62 @@ Non-claims:
 - Slice 55 does not implement live window previews or per-window thumbnails;
 - Slice 55 does not add trackpad gesture bindings.
 
+### Slice 56: Domain Model Simplification
+
+Status: design in progress; dogfood feedback 2026-07-02. The user-facing
+model is being redesigned before external beta; runtime architecture
+(zone = viewport hosting a workspace) is explicitly not changing.
+
+Problem: the user-facing surface has roughly twelve nouns (monitor, zone,
+workspace, zone-layout, zone-scene, zone-availability-set, zone-binding,
+zone-affinity, on-window-detected, zone-style, project, tab group) with
+three of them — workspace, zone, scene — competing to be the primary
+organizing concept. Direct dogfood feedback: "a zone is pinned to a
+workspace but you can have multiple workspaces"; the sidebar is
+workspace-flat; the settings window has no zones surface.
+
+Usage constraints from dogfood (2026-07-02):
+
+- the user pages within a column and also moves content across columns;
+- the same content must be able to appear in different columns at
+  different times;
+- both per-column switching and whole-display switching are wanted.
+
+Proposed model (five nouns; being pressure-tested by three independent
+no-context design proposals before commitment):
+
+- `Monitor`: physical display.
+- `Layout`: per-monitor column count, widths, and which columns are open
+  (absorbs ZoneAvailabilitySet and save-zone-layout).
+- `Column`: named spatial slot (today's zone); style is an attribute, not
+  an entity.
+- `Space`: what a column shows; each column has a deck of spaces, paged
+  per column. A space has a home column but can be summoned to another.
+  Today's global workspace pool becomes implementation detail.
+- `Arrangement`: named whole-display state — layout plus which space each
+  column shows (absorbs ZoneScene). Whole-display switching (`alt-1..9`)
+  switches arrangements; paging a column is the local motion.
+- `Pin`: app or window routed to a column (absorbs zone-bindings and
+  zone-affinities; `on-window-detected` stays as the undocumented escape
+  hatch).
+
+UI consequences: the sidebar becomes column-sectioned (a section per
+column listing its deck and windows); the settings window gains a
+Columns/Arrangements/Pins pane; docs and the starter template speak the
+five nouns.
+
+Required scope (after the design is committed): config-v3 sugar and
+migration mapping from the current keys, command vocabulary aligned to
+the verbs (page column, summon space, switch arrangement, pin), sidebar
+and settings rework, docs/template rewrite, and a Tart artifact proving
+the model end to end.
+
+Non-claims:
+
+- Slice 56 does not change the viewport/monitor runtime architecture;
+- Slice 56 does not remove the underlying workspace pool from the
+  implementation, only from the primary user surface.
+
 ## Call-Site Audit
 
 The first implementation should touch these seams deliberately:

@@ -55,6 +55,15 @@ display. Zone workflows not yet exercised; ultrawide dogfood pending.
   the balanced layout. Expected: zone resizing is an explicit action (zone
   mode, a setting, or a command), not an always-on affordance near zone
   boundaries.
+- **Beta blocker — the user-facing domain model is conflated.** Direct
+  feedback after real use: zones, workspaces, layouts, scenes, availability
+  sets, bindings, and affinities overlap; "a zone is pinned to a workspace
+  but you can have multiple workspaces" has no clean answer. The sidebar is
+  workspace-flat (needs column sections) and the menu-bar settings window
+  has no zones surface at all. Usage answers that constrain the redesign:
+  the user pages within a column AND moves content across columns; the same
+  content should appear in different columns at different times; both
+  per-column and whole-display switching are wanted. Planned fix: Slice 56.
 - **Later enhancement — Exposé-style overview gestures.** Requested
   bindings: Ctrl+Up for a whole-display overview (Mission Control analog)
   and Ctrl+Down for an overview of the focused zone's windows; three/four
