@@ -116,6 +116,83 @@ final class DeckNavigationCommandTest: XCTestCase {
         XCTAssertTrue(rightZone.activeWorkspace === commsExtra, "the vacated column shows its deck's next card")
     }
 
+    func testPagingAwayAndBackActivatesSummonedCardOnItsCurrentDeckColumn() async throws {
+        let (mainZone, rightZone, alpha, comms, commsExtra) = try await summonCommsIntoMainDeck()
+
+        let away = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+            .run(.defaultEnv, .emptyStdin)
+        assertEquals(away.exitCode, 0)
+        XCTAssertTrue(focus.workspace === alpha)
+
+        let back = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+            .run(.defaultEnv, .emptyStdin)
+        assertEquals(back.exitCode, 0)
+
+        XCTAssertTrue(focus.workspace === comms)
+        XCTAssertTrue(mainZone.activeWorkspace === comms, "a hidden card activates on its deck's column, not its creation column")
+        XCTAssertEqual(
+            winMuxWorkspaceState.columnDecks.columnKey(of: comms.id),
+            columnDeckKey(for: mainZone),
+            "paging back must not move the card to another deck",
+        )
+        XCTAssertTrue(rightZone.activeWorkspace === commsExtra, "the creation column's visible card is untouched")
+    }
+
+    func testWorkspaceBackAndForthReturnsToSummonedCardOnItsCurrentDeckColumn() async throws {
+        let (mainZone, rightZone, alpha, comms, commsExtra) = try await summonCommsIntoMainDeck()
+        let away = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+            .run(.defaultEnv, .emptyStdin)
+        assertEquals(away.exitCode, 0)
+        XCTAssertTrue(focus.workspace === alpha)
+
+        let result = try await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 0)
+        XCTAssertTrue(focus.workspace === comms)
+        XCTAssertTrue(mainZone.activeWorkspace === comms, "back-and-forth returns the card to its deck's column")
+        XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: comms.id), columnDeckKey(for: mainZone))
+        XCTAssertTrue(rightZone.activeWorkspace === commsExtra, "the creation column's visible card is untouched")
+    }
+
+    // MARK: move-node-to-workspace next|prev
+
+    func testMoveNodeToWorkspaceNextAtDeckEdgeCreatesBlankInSubjectDeck() async throws {
+        let zones = configureThreeZones()
+        let mainZone = zones["main"].orDie()
+        let rightZone = zones["right"].orDie()
+        let alpha = Workspace.get(byName: "alpha")
+        alpha.markAsAutomaticallyNamed()
+        _ = TestWindow.new(id: 31, parent: alpha.rootTilingContainer)
+        XCTAssertTrue(mainZone.setActiveWorkspace(alpha))
+        XCTAssertTrue(alpha.focusWorkspace())
+        let beta = Workspace.get(byName: "beta")
+        beta.markAsAutomaticallyNamed()
+        let betaWindow = TestWindow.new(id: 32, parent: beta.rootTilingContainer)
+        // A blank showing at the tail of ANOTHER column: project-scoped edge creation would
+        // see the project's automatic list end in an empty slot and refuse to create.
+        let comms = Workspace.get(byName: "comms")
+        comms.markAsAutomaticallyNamed()
+        XCTAssertTrue(rightZone.setActiveWorkspace(comms))
+        _ = betaWindow.focusWindow()
+
+        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
+            .run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 0)
+        let target = try XCTUnwrap(betaWindow.nodeWorkspace)
+        XCTAssertFalse(target === beta)
+        XCTAssertEqual(
+            winMuxWorkspaceState.columnDecks.columnKey(of: target.id),
+            columnDeckKey(for: mainZone),
+            "the blank is created at the edge of the subject's deck",
+        )
+        XCTAssertEqual(
+            winMuxWorkspaceState.columnDecks.deck(forColumnKey: columnDeckKey(for: mainZone)).last,
+            target.id,
+        )
+        XCTAssertTrue(rightZone.activeWorkspace === comms, "the other column's deck is untouched")
+    }
+
     // MARK: move-workspace-to-monitor
 
     func testMoveWorkspaceToMonitorTransfersDeckAndFocusFollowsToVisibleDestination() async throws {
@@ -184,6 +261,11 @@ final class DeckNavigationCommandTest: XCTestCase {
                 === beta,
         )
         XCTAssertTrue(
+            getOrCreateFallbackWorkspace(projectId: workspaceProjectDefaultId, monitor: mainZone, excluding: beta)
+                === gamma,
+            "the rotation starts after the departing card, not at the deck's head",
+        )
+        XCTAssertTrue(
             getOrCreateFallbackWorkspace(projectId: workspaceProjectDefaultId, monitor: mainZone, excluding: gamma)
                 === alpha,
             "the rotation wraps past the deck's end",
@@ -223,6 +305,30 @@ final class DeckNavigationCommandTest: XCTestCase {
         _ = TestWindow.new(id: 13, parent: comms.rootTilingContainer)
         XCTAssertTrue(rightZone.setActiveWorkspace(comms))
         return (mainZone, alpha, beta, comms)
+    }
+
+    /// Creates comms in the right column with the production creation seed
+    /// (`createBlankWorkspace` seeds `preferredMonitorPoint` at the birth column), then
+    /// summons it into main's deck. The right column shows comms-extra afterwards.
+    private func summonCommsIntoMainDeck() async throws -> (mainZone: Monitor, rightZone: Monitor, alpha: Workspace, comms: Workspace, commsExtra: Workspace) {
+        let zones = configureThreeZones()
+        let mainZone = zones["main"].orDie()
+        let rightZone = zones["right"].orDie()
+        let alpha = Workspace.get(byName: "alpha")
+        _ = TestWindow.new(id: 21, parent: alpha.rootTilingContainer)
+        XCTAssertTrue(mainZone.setActiveWorkspace(alpha))
+        XCTAssertTrue(alpha.focusWorkspace())
+        let comms = Workspace.get(byName: "comms")
+        _ = TestWindow.new(id: 22, parent: comms.rootTilingContainer)
+        comms.seedMonitorIfNeeded(rightZone)
+        XCTAssertTrue(rightZone.setActiveWorkspace(comms))
+        let commsExtra = Workspace.get(byName: "comms-extra")
+        _ = TestWindow.new(id: 23, parent: commsExtra.rootTilingContainer)
+        winMuxWorkspaceState.columnDecks.adopt(commsExtra.id, into: columnDeckKey(for: rightZone))
+        let summon = try await parseCommand("summon-workspace comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(summon.exitCode, 0)
+        XCTAssertTrue(focus.workspace === comms)
+        return (mainZone, rightZone, alpha, comms, commsExtra)
     }
 }
 

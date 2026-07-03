@@ -104,7 +104,7 @@ private func createNextTransientBlankWorkspaceIfAllowed(
 /// The current card's column deck, filtered to user-facing cards. Equals the focused
 /// column's deck whenever the current card is visible.
 @MainActor
-private func deckNavigationWorkspaces(from current: Workspace) -> [Workspace] {
+func deckNavigationWorkspaces(from current: Workspace) -> [Workspace] {
     let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: current.id)
         ?? columnDeckKey(for: current.workspaceMonitor)
     return userFacingWorkspaces(orderedDeckWorkspaces(inColumn: columnKey), focusedWorkspace: current)

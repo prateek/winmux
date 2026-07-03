@@ -153,9 +153,19 @@ extension Workspace {
     var workspaceMonitor: Monitor {
         visibleMonitor ??
             forceAssignedMonitor ??
+            deckColumnMonitor ??
             preferredMonitorPoint?.monitorApproximation ??
             focus.workspace.visibleMonitor ??
             mainMonitor
+    }
+
+    // A hidden card activates on the column that currently owns it in the deck store, not on
+    // the column it happened to be created in: summon and move transfer deck membership but
+    // never rewrite preferredMonitorPoint, so that seed goes stale the moment a card moves.
+    @MainActor
+    private var deckColumnMonitor: Monitor? {
+        guard let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: id) else { return nil }
+        return monitors.first { columnDeckKey(for: $0) == columnKey }
     }
 
     @MainActor

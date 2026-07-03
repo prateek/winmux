@@ -168,6 +168,7 @@ final class WorkspaceLifecycleTest: XCTestCase {
     }
 
     func testConnectingSecondMonitorCreatesVisibleWorkspaceForDefaultProject() {
+        let setUpWorkspace = focus.workspace
         let main = WorkspaceNamingTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -197,10 +198,10 @@ final class WorkspaceLifecycleTest: XCTestCase {
         XCTAssertFalse(secondary.activeWorkspace === workspace)
         XCTAssertEqual(secondary.activeWorkspace.projectId, workspaceProjectDefaultId)
         XCTAssertTrue(secondary.activeWorkspace.isOrdinaryEmptySlot)
-        // The setUp workspace lingers as the sole card of the replaced test display's deck,
-        // so count only the cards visible on the current displays.
+        // The setUp workspace lingers as the sole card of the replaced test display's deck;
+        // every other live workspace must be one of the two visible ones.
         XCTAssertEqual(
-            Workspace.all.filter { $0.projectId == workspaceProjectDefaultId && !$0.isArchived && $0.isVisible }.count,
+            Workspace.all.filter { !$0.isArchived && $0 !== setUpWorkspace }.count,
             2,
         )
     }

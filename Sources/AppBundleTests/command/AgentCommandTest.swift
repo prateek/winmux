@@ -244,7 +244,11 @@ final class AgentCommandTest: XCTestCase {
         )
         setMonitorsForTests([main, secondary])
         let source = Workspace.get(byName: "source")
-        source.seedMonitorIfNeeded(secondary)
+        // A source whose windows the user is looking at is visible and focused on its display;
+        // focusing it on the secondary column is the model-faithful way to place it there
+        // (activation is a deck transfer), matching how nodeMonitor resolves in production.
+        XCTAssertTrue(secondary.setActiveWorkspace(source))
+        XCTAssertTrue(source.focusWorkspace())
         _ = TestWindow.new(id: 11, parent: source.rootTilingContainer)
         _ = TestWindow.new(id: 12, parent: source.rootTilingContainer)
 

@@ -48,11 +48,14 @@ private func createNextTransientBlankWorkspaceForMoveIfAllowed(
     usesStdin: Bool,
 ) -> Workspace? {
     guard isNext, !wrapAround, !usesStdin else { return nil }
-    let scopedWorkspaces = scopedAutomaticDisplayWorkspaces(current: current)
+    // The relative traversal is deck-scoped (getNextPrevWorkspace), so the edge-creation must
+    // scope to the same deck; project-scoped candidates could see another column's trailing
+    // blank and refuse to create.
+    let deckWorkspaces = deckNavigationWorkspaces(from: current)
     return createAdjacentTransientBlankWorkspaceIfAllowed(
-        named: String(scopedWorkspaces.count + 1),
+        named: String(deckWorkspaces.count + 1),
         from: current,
-        among: scopedWorkspaces,
+        among: deckWorkspaces,
     )
 }
 
