@@ -160,10 +160,7 @@ final class ConfigBootstrapTest: XCTestCase {
         let zoneBindingMap = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
             ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
         } ?? [])
-        XCTAssertEqual(zoneBindingMap["tab"], "cycle-zone-layout balanced focus; mode main")
-        XCTAssertEqual(zoneBindingMap["a"], "cycle-zone-availability focus-only communications full-dashboard; mode main")
         XCTAssertEqual(zoneBindingMap["y"], "cycle-zone-style current urgent calm; mode main")
-        XCTAssertEqual(zoneBindingMap["c"], "cycle-zone-scene triage deep-work; mode main")
     }
 
     func testEnsureBootstrapConfigCopiesLegacyConfig() throws {

@@ -330,52 +330,6 @@ extension WorkspaceSidebarDragTest {
     }
 
     @MainActor
-    func testWorkspaceSidebarKeepsDisabledZoneTargetsReadable() async throws {
-        setUpWorkspacesForTests()
-        defer { setUpWorkspacesForTests() }
-        let zones = configureWorkspaceSidebarThreeZones()
-        config.zoneStyles = [ZoneStyleConfig(id: "urgent", color: "#D3455B")]
-        config.zoneAvailabilitySets = [
-            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
-            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
-        ]
-        refreshZoneTopologySnapshot()
-
-        let reference = Workspace.get(byName: "reference")
-        let work = Workspace.get(byName: "work")
-        let comms = Workspace.get(byName: "comms")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
-        XCTAssertTrue(work.focusWorkspace())
-        let styleResult = try await parseCommand("set-zone-style Comms urgent").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(styleResult.exitCode, 0)
-        let profileResult = try await parseCommand("use-zone-profile focus-only").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(profileResult.exitCode, 0)
-
-        let targets = buildWorkspaceSidebarZoneTargetViewModels(
-            sortedMonitors: sortedMonitors,
-            currentFocus: focus,
-        )
-
-        XCTAssertEqual(targets.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(targets.map(\.isEnabled), [false, true, false])
-        XCTAssertEqual(Set(targets.compactMap(\.availabilitySetId)), ["focus-only"])
-        let referenceTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "left" })
-        let workTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "main" })
-        let commsTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "right" })
-        XCTAssertNil(referenceTarget.activeWorkspaceName)
-        XCTAssertEqual(referenceTarget.activeWorkspaceDisplayName, "Hidden")
-        XCTAssertEqual(workTarget.activeWorkspaceName, "work")
-        XCTAssertEqual(workTarget.activeWorkspaceDisplayName, "work")
-        XCTAssertEqual(workTarget.isFocused, true)
-        XCTAssertNil(commsTarget.activeWorkspaceName)
-        XCTAssertEqual(commsTarget.activeWorkspaceDisplayName, "Hidden")
-        XCTAssertEqual(commsTarget.styleId, "urgent")
-        XCTAssertEqual(commsTarget.styleColorHex, "#D3455B")
-    }
-
-    @MainActor
     func testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat() {
         setUpWorkspacesForTests()
         defer { setUpWorkspacesForTests() }

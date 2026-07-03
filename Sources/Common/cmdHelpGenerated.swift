@@ -2,17 +2,11 @@
 // Keep parser manifests, help strings, and CLI descriptions in sync.
 // Validate with: python3 script/check-command-metadata
 
-let apply_zone_bindings_help_generated = """
-    USAGE: apply-zone-bindings [-h|--help] [--monitor <monitor-pattern>]
-    """
 let balance_sizes_help_generated = """
     USAGE: balance-sizes [-h|--help] [--workspace <workspace>]
     """
 let balance_zones_help_generated = """
     USAGE: balance-zones [-h|--help] [--monitor <monitor-pattern>]
-    """
-let bind_node_to_zone_help_generated = """
-    USAGE: bind-node-to-zone [-h|--help] [--window-id <window-id>] <zone>
     """
 let close_all_windows_but_current_help_generated = """
     USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]
@@ -27,18 +21,6 @@ let config_help_generated = """
        OR: config [-h|--help] --config-path
        OR: config [-h|--help] --check <path>
        OR: config [-h|--help] --restore-backup <path>
-    """
-let cycle_zone_availability_help_generated = """
-    USAGE: cycle-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>...
-    """
-let cycle_zone_layout_help_generated = """
-    USAGE: cycle-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>...
-    """
-let cycle_zone_profile_help_generated = """
-    USAGE: cycle-zone-profile [-h|--help] [--monitor <monitor-pattern>] <profile-id>...
-    """
-let cycle_zone_scene_help_generated = """
-    USAGE: cycle-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>...
     """
 let cycle_zone_snap_policy_help_generated = """
     USAGE: cycle-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>...
@@ -131,9 +113,6 @@ let list_workspaces_help_generated = """
        OR: list-workspaces [-h|--help] --all [--format <output-format>] [--count] [--json]
        OR: list-workspaces [-h|--help] --focused [--format <output-format>] [--count] [--json]
     """
-let list_zone_bindings_help_generated = """
-    USAGE: list-zone-bindings [-h|--help] [--count]
-    """
 let list_zones_help_generated = """
     USAGE: list-zones [-h|--help] [--format <output-format>] [--count] [--json]
     """
@@ -157,10 +136,6 @@ let move_node_to_monitor_help_generated = """
        OR: move-node-to-monitor [-h|--help] [--window-id <window-id>] [--focus-follows-window]
                                 [--fail-if-noop] <monitor-pattern>...
     """
-let move_node_to_project_help_generated = """
-    USAGE: move-node-to-project [-h|--help] [--window-id <window-id>] [--focus-follows-window]
-                                [--wrap-around] [--fail-if-noop] (<project-index>|next|prev)
-    """
 let move_node_to_workspace_help_generated = """
     USAGE: move-node-to-workspace [-h|--help] [--focus-follows-window] [--wrap-around]
                                   [--stdin|--no-stdin]
@@ -179,9 +154,6 @@ let move_workspace_to_monitor_help_generated = """
     """
 let move_help_generated = """
     USAGE: move [-h|--help] [--window-id <window-id>] [--boundaries <boundary>] [--boundaries-action <boundary-action>] (left|down|up|right)
-    """
-let project_help_generated = """
-    USAGE: project [-h|--help] [--wrap-around] [--fail-if-noop] (<project-index>|next|prev)
     """
 let reload_config_help_generated = """
     USAGE: reload-config [-h|--help] [--no-gui] [--dry-run]
@@ -224,25 +196,10 @@ let toggle_zone_help_generated = """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>
     """
-let unbind_node_zone_binding_help_generated = """
-    USAGE: unbind-node-zone-binding [-h|--help] [--window-id <window-id>]
-    """
 let scene_help_generated = """
     USAGE: scene [-h|--help] [--monitor <monitor-pattern>] <name>
        OR: scene [-h|--help] [--monitor <monitor-pattern>] next
        OR: scene [-h|--help] [--monitor <monitor-pattern>] new <name>
-    """
-let use_zone_availability_help_generated = """
-    USAGE: use-zone-availability [-h|--help] [--monitor <monitor-pattern>] <set-id>
-    """
-let use_zone_layout_help_generated = """
-    USAGE: use-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
-    """
-let use_zone_profile_help_generated = """
-    USAGE: use-zone-profile [-h|--help] [--monitor <monitor-pattern>] <profile-id>
-    """
-let use_zone_scene_help_generated = """
-    USAGE: use-zone-scene [-h|--help] [--monitor <monitor-pattern>] <scene-id>
     """
 let volume_help_generated = """
     USAGE: volume [-h|--help] (up|down) [--no-gui]

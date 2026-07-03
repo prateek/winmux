@@ -159,29 +159,6 @@ extension ConfigTest {
         )
     }
 
-    func testParseZoneNodeBindingsE2EConfig() throws {
-        var fixtureUrl = getDefaultConfigUrlFromProject()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.append(path: "script/e2e/configs/zone-node-bindings.toml")
-
-        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
-
-        assertEquals(errors, [])
-        XCTAssertTrue(parsed.windowTabs.enabled)
-        assertEquals(parsed.zoneLayouts.map(\.id), ["balanced"])
-        assertEquals(parsed.zones.map(\.layoutPreset), ["balanced"])
-        assertEquals(
-            parsed.modes["main"]?.bindings.values
-                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" }
-                .sorted(),
-            [
-                "alt-b=bind-node-to-zone Comms",
-                "alt-u=unbind-node-zone-binding",
-            ],
-        )
-    }
-
     func testParseZoneAffinitiesE2EConfig() throws {
         var fixtureUrl = getDefaultConfigUrlFromProject()
         fixtureUrl.deleteLastPathComponent()
@@ -311,74 +288,6 @@ extension ConfigTest {
             ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
             ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
         ])
-    }
-
-    func testParseZoneAvailabilityProfilesE2EConfig() throws {
-        var fixtureUrl = getDefaultConfigUrlFromProject()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.append(path: "script/e2e/configs/zone-availability-profiles.toml")
-
-        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
-
-        assertEquals(errors, [])
-        assertEquals(parsed.zoneLayouts.map(\.id), ["balanced"])
-        assertEquals(parsed.zones.map(\.layoutPreset), ["balanced"])
-        assertEquals(parsed.zoneAvailabilitySets, [
-            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
-            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
-            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
-        ])
-        XCTAssertEqual(parsed.workspaceSidebar.enabled, true)
-        XCTAssertEqual(
-            parsed.modes["main"]?.bindings.values
-                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" }
-                .sorted(),
-            [
-                "alt-a=cycle-zone-profile focus-only communications full-dashboard",
-                "alt-c=toggle-zone Comms",
-                "alt-d=use-zone-profile full-dashboard",
-                "alt-f=use-zone-profile focus-only",
-                "alt-m=use-zone-profile communications",
-            ],
-        )
-    }
-
-    func testParseZoneChromePolishE2EConfig() throws {
-        var fixtureUrl = getDefaultConfigUrlFromProject()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.append(path: "script/e2e/configs/zone-chrome-polish.toml")
-
-        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
-
-        assertEquals(errors, [])
-        assertEquals(parsed.zoneStyles, [
-            ZoneStyleConfig(id: "urgent", color: "#D3455B"),
-            ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
-        ])
-        assertEquals(parsed.zoneLayouts.map(\.id), ["balanced"])
-        assertEquals(parsed.zones.map(\.layoutPreset), ["balanced"])
-        assertEquals(parsed.zoneAvailabilitySets, [
-            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
-            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
-            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
-        ])
-        XCTAssertEqual(parsed.workspaceSidebar.enabled, true)
-        XCTAssertEqual(
-            parsed.modes["main"]?.bindings.values
-                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" }
-                .sorted(),
-            [
-                "alt-a=cycle-zone-profile focus-only communications full-dashboard",
-                "alt-c=focus-zone Comms",
-                "alt-f=use-zone-profile focus-only",
-                "alt-m=use-zone-profile communications",
-                "alt-r=focus-zone Reference",
-                "alt-w=focus-zone Work",
-                "alt-y=cycle-zone-style current urgent calm",
-            ],
-        )
     }
 
     func testRenderConfigDoctorLinesWarnsWhenZoneModePolicyIsUnreachable() {

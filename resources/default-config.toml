@@ -84,19 +84,8 @@ on-mode-changed = []
     ctrl-cmd-shift-k = 'stack-with up'
     ctrl-cmd-shift-l = 'stack-with right'
     cmd-shift-i = 'balance-sizes'
-    alt-cmd-h = 'project prev'
     alt-cmd-j = 'swap down'
     alt-cmd-k = 'swap up'
-    alt-cmd-l = 'project next'
-    alt-cmd-1 = 'project 1'
-    alt-cmd-2 = 'project 2'
-    alt-cmd-3 = 'project 3'
-    alt-cmd-4 = 'project 4'
-    alt-cmd-5 = 'project 5'
-    alt-cmd-6 = 'project 6'
-    alt-cmd-7 = 'project 7'
-    alt-cmd-8 = 'project 8'
-    alt-cmd-9 = 'project 9'
     ctrl-0 = 'workspace 10'
     ctrl-1 = 'workspace 1'
     ctrl-2 = 'workspace 2'
@@ -128,17 +117,6 @@ on-mode-changed = []
     ctrl-shift-0 = 'move-node-to-workspace 10'
     ctrl-shift-h = 'move-node-to-workspace --focus-follows-window prev'
     ctrl-shift-l = 'move-node-to-workspace --focus-follows-window next'
-    alt-cmd-shift-h = 'move-node-to-project prev'
-    alt-cmd-shift-l = 'move-node-to-project next'
-    alt-cmd-shift-1 = 'move-node-to-project 1'
-    alt-cmd-shift-2 = 'move-node-to-project 2'
-    alt-cmd-shift-3 = 'move-node-to-project 3'
-    alt-cmd-shift-4 = 'move-node-to-project 4'
-    alt-cmd-shift-5 = 'move-node-to-project 5'
-    alt-cmd-shift-6 = 'move-node-to-project 6'
-    alt-cmd-shift-7 = 'move-node-to-project 7'
-    alt-cmd-shift-8 = 'move-node-to-project 8'
-    alt-cmd-shift-9 = 'move-node-to-project 9'
 
 [mode.zone.binding]
     esc = 'mode main'
@@ -156,10 +134,7 @@ on-mode-changed = []
     # Reference, Work, and Comms zones. Tune the widths and workspace names to
     # match your desk.
     # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
-    # tab = ['cycle-zone-layout balanced focus', 'mode main']
-    # a = ['cycle-zone-availability focus-only communications full-dashboard', 'mode main']
     # y = ['cycle-zone-style current urgent calm', 'mode main']
-    # c = ['cycle-zone-scene triage deep-work', 'mode main']
 
 # [[zone-styles]]
 # id = 'urgent'
