@@ -62,9 +62,12 @@ private func resolveRuleCard(named cardName: String, forWindow window: Window) -
     if let existing = Workspace.existing(byName: cardName) {
         return existing
     }
-    if let display = window.nodeMonitor {
-        winMuxWorkspaceState.deckColumnKeyHintsByCardName[cardName] = ruleCardColumnDeckKey(onDisplay: display)
-    }
+    // nodeMonitor is nil for windows whose ancestry runs through the minimized-windows
+    // container, which tryOnWindowDetected still routes here; mainMonitor keeps placement
+    // deterministic instead of falling through to Workspace.get(byName:)'s focused-column
+    // default, which would violate "rules must not depend on focus."
+    let display = window.nodeMonitor ?? mainMonitor
+    winMuxWorkspaceState.deckColumnKeyHintsByCardName[cardName] = ruleCardColumnDeckKey(onDisplay: display)
     return Workspace.get(byName: cardName)
 }
 
