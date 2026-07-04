@@ -86,6 +86,8 @@ func handleWorkspaceSidebarAction(
             moveWindowToNewWorkspaceFromSidebar(windowId, projectId: projectId, monitorScopeId: monitorScopeId)
         case .moveTabGroupToNewWorkspace(let windowId, let projectId, let monitorScopeId):
             moveTabGroupToNewWorkspaceFromSidebar(windowId, projectId: projectId, monitorScopeId: monitorScopeId)
+        case .moveCard(let cardName, let target):
+            moveCardFromSidebar(cardName, to: target)
         case .previewWindowDrop(let windowId, let target):
             previewWorkspaceSidebarDrop(windowId, subject: .window, target: target)
         case .previewTabGroupDrop(let windowId, let target):

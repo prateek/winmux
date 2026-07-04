@@ -63,6 +63,10 @@ struct WorkspaceSidebarDropDelegate: DropDelegate {
                 actions.send(.previewWindowDrop(windowId, target: target))
             case .tabGroup(let representativeWindowId):
                 actions.send(.previewTabGroupDrop(representativeWindowId, target: target))
+            case .card:
+                // The card drag drives its own highlight through the drop-target registry, not the
+                // window drop-preview overlay.
+                break
         }
     }
 

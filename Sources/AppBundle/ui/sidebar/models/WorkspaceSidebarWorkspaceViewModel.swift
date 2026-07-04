@@ -36,6 +36,16 @@ struct WorkspaceSidebarZoneTargetViewModel: Hashable, Identifiable {
     let styleColorHex: String?
 }
 
+/// A scene a display can switch to, surfaced in the sidebar's scene switcher. Non-active scenes are
+/// card drop targets: dropping a card on one transfers it into that scene's default column.
+struct WorkspaceSidebarSceneTargetViewModel: Hashable, Identifiable {
+    let id: String
+    let monitorScopeId: String
+    let sceneId: String
+    let displayName: String
+    let isActive: Bool
+}
+
 /// One column of the focused display's active scene, rendered as a sidebar section listing its
 /// deck's cards in deck order. The showing card is highlighted. A display with no configured scene
 /// runs its implicit one-column scene, which produces a single `title == nil` section: it renders

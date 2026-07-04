@@ -3,11 +3,15 @@ import UniformTypeIdentifiers
 
 let workspaceSidebarWindowDragPrefix = "window:"
 let workspaceSidebarTabGroupDragPrefix = "tab-group:"
+let workspaceSidebarCardDragPrefix = "card:"
 let workspaceSidebarDragPayloadType = UTType(exportedAs: "dev.winmux.sidebar-drag-payload")
 
 enum WorkspaceSidebarDragPayload: Equatable, Sendable {
     case window(UInt32)
     case tabGroup(UInt32)
+    /// A whole card (workspace) dragged by name, so the drop reorders or transfers the card
+    /// itself rather than moving a window into it.
+    case card(String)
 
     var encodedValue: String {
         switch self {
@@ -15,6 +19,8 @@ enum WorkspaceSidebarDragPayload: Equatable, Sendable {
                 "\(workspaceSidebarWindowDragPrefix)\(windowId)"
             case .tabGroup(let representativeWindowId):
                 "\(workspaceSidebarTabGroupDragPrefix)\(representativeWindowId)"
+            case .card(let cardName):
+                "\(workspaceSidebarCardDragPrefix)\(cardName)"
         }
     }
 
@@ -25,6 +31,8 @@ enum WorkspaceSidebarDragPayload: Equatable, Sendable {
         } else if encodedValue.hasPrefix(workspaceSidebarTabGroupDragPrefix),
                   let rawValue = UInt32(encodedValue.dropFirst(workspaceSidebarTabGroupDragPrefix.count)) {
             self = .tabGroup(rawValue)
+        } else if encodedValue.hasPrefix(workspaceSidebarCardDragPrefix) {
+            self = .card(String(encodedValue.dropFirst(workspaceSidebarCardDragPrefix.count)))
         } else {
             return nil
         }

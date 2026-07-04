@@ -164,6 +164,9 @@ extension WorkspaceSidebarWorkspaceSection {
                 actions.send(.moveWindow(windowId, toWorkspace: workspace.name))
             case .tabGroup(let representativeWindowId):
                 actions.send(.moveTabGroup(representativeWindowId, toWorkspace: workspace.name))
+            case .card:
+                // A card row is not a card drop destination; reorder uses the section's slot targets.
+                actions.send(.clearDropPreview)
         }
     }
 }
@@ -176,6 +179,8 @@ private func workspaceSidebarPayload(_ payload: WorkspaceSidebarDragPayload, com
         case .tabGroup(let representativeWindowId):
             guard let window = Window.get(byId: representativeWindowId) else { return false }
             return dragSubjectNode(for: window, subject: .group).nodeWorkspace?.name == workspaceName
+        case .card(let cardName):
+            return cardName == workspaceName
     }
 }
 extension WorkspaceSidebarWorkspaceSection {

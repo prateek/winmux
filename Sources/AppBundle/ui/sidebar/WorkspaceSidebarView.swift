@@ -933,6 +933,8 @@ extension WorkspaceSidebarView {
                                         projectId: projectId,
                                         monitorScopeId: createMonitorScopeId,
                                     ))
+                                case .card:
+                                    actions.send(.clearDropPreview)
                             }
                         },
                         actions: actions,

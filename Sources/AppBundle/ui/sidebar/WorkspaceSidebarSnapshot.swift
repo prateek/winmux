@@ -7,6 +7,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
     var monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
     var zoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
     var columnSections: [WorkspaceSidebarColumnSectionViewModel] = []
+    var sceneSwitchTargets: [WorkspaceSidebarSceneTargetViewModel] = []
     var selectedMonitorScopeId: String
     var targetMonitorScopeId: String
     var focusedMonitorScopeId: String
@@ -22,6 +23,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
         monitorScopes: [],
         zoneTargets: [],
         columnSections: [],
+        sceneSwitchTargets: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
         targetMonitorScopeId: workspaceSidebarDefaultScopeId,
         focusedMonitorScopeId: "",
@@ -69,6 +71,7 @@ enum WorkspaceSidebarAction: Equatable {
     case moveTabGroupToZone(UInt32, monitorScopeId: String, zoneId: String)
     case moveWindowToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
     case moveTabGroupToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
+    case moveCard(String, target: WorkspaceSidebarDropTargetKind)
     case previewWindowDrop(UInt32, target: WorkspaceSidebarDropTargetKind)
     case previewTabGroupDrop(UInt32, target: WorkspaceSidebarDropTargetKind)
     case clearDropPreview

@@ -29,6 +29,9 @@ func isActionableSidebarWorkspaceDropTarget(
             return true
         case .newWorkspace:
             return true
+        case .cardSlot, .scene:
+            // Card-drag destinations; a window drag never resolves to one (it filters them out).
+            return false
         case nil:
             return false
     }
@@ -39,7 +42,7 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
     let sourceLabel = sidebarDragSourceTitle(for: sourceWindow, subject: subject)
     let isGroup = subject == .group
     let sourceWorkspaceName = dragSubjectNode(for: sourceWindow, subject: subject).nodeWorkspace?.name
-    if let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop),
+    if let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop, matching: { !$0.isCardDropKind }),
        isActionableSidebarWorkspaceDropTarget(sourceWorkspaceName: sourceWorkspaceName, targetKind: target.kind)
     {
         switch target.kind {
@@ -95,6 +98,8 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
                     previewGeometry: .rounded,
                     isGroup: isGroup,
                 )
+            case .cardSlot, .scene:
+                return nil
         }
     }
     return nil

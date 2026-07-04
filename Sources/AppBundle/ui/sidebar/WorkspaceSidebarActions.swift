@@ -718,7 +718,7 @@ private func postWorkspaceSidebarDragPointerNotification(_ name: Notification.Na
 private func workspaceSidebarDragTarget(for sourceWindow: Window, subject: WindowDragSubject) -> WorkspaceSidebarDropTargetKind? {
     let point = MousePointerTracker.shared.currentSample.point
     guard WorkspaceSidebarPanel.panel(containing: point) != nil else { return nil }
-    guard let target = workspaceSidebarDropTarget(at: point)?.kind else { return nil }
+    guard let target = workspaceSidebarDropTarget(at: point, matching: { !$0.isCardDropKind })?.kind else { return nil }
     guard isActionableSidebarDropTarget(sourceWindow: sourceWindow, subject: subject, target: target) else { return nil }
     return target
 }
@@ -780,6 +780,8 @@ private func commitActiveWorkspaceSidebarDragIfPossible() -> Bool {
             }
             return true
         case .monitor:
+            return false
+        case .cardSlot, .scene:
             return false
     }
 }

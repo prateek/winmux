@@ -17,6 +17,7 @@ public final class TrayMenuModel: ObservableObject {
     @Published var workspaceSidebarMonitorScopes: [WorkspaceSidebarMonitorScopeViewModel] = []
     @Published var workspaceSidebarZoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
     @Published var workspaceSidebarColumnSections: [WorkspaceSidebarColumnSectionViewModel] = []
+    @Published var workspaceSidebarSceneSwitchTargets: [WorkspaceSidebarSceneTargetViewModel] = []
     /// Panel-local UI state. The shared model keeps this only as a compatibility default for legacy callers.
     @Published var workspaceSidebarSelectedMonitorScopeId: String = workspaceSidebarDefaultScopeId
     @Published var workspaceSidebarTargetMonitorScopeId: String = workspaceSidebarDefaultScopeId

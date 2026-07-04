@@ -7,6 +7,7 @@ struct WorkspaceSidebarModelState {
     let monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
     let zoneTargets: [WorkspaceSidebarZoneTargetViewModel]
     let columnSections: [WorkspaceSidebarColumnSectionViewModel]
+    let sceneSwitchTargets: [WorkspaceSidebarSceneTargetViewModel]
     let focusedMonitorScopeId: String
     let showsMonitorSelector: Bool
     let topPadding: CGFloat

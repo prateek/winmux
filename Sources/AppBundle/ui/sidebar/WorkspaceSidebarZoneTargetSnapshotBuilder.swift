@@ -37,6 +37,28 @@ func buildWorkspaceSidebarZoneTargetViewModels(
         }
 }
 
+/// The scenes declared for each display, in declared order, tagged with which one is active. The
+/// non-active scenes are the sidebar's cross-scene card drop targets; an implicit display declares
+/// no scenes and contributes none.
+@MainActor
+func buildWorkspaceSidebarSceneSwitchTargetViewModels(
+    sortedMonitors: [Monitor],
+) -> [WorkspaceSidebarSceneTargetViewModel] {
+    workspaceSidebarPhysicalMonitors(from: sortedMonitors).flatMap { physicalMonitor -> [WorkspaceSidebarSceneTargetViewModel] in
+        let monitorScopeId = workspaceSidebarMonitorScopeId(for: physicalMonitor)
+        let activeId = activeSceneId(for: physicalMonitor)
+        return scenes(on: physicalMonitor).map { scene in
+            WorkspaceSidebarSceneTargetViewModel(
+                id: "\(monitorScopeId):scene:\(scene.id)",
+                monitorScopeId: monitorScopeId,
+                sceneId: scene.id,
+                displayName: scene.id,
+                isActive: scene.id == activeId,
+            )
+        }
+    }
+}
+
 private func workspaceSidebarPhysicalMonitors(from monitors: [Monitor]) -> [Monitor] {
     var seenTopLeftCorners = Set<CGPoint>()
     return sortMonitorsBySpatialOrder(monitors.map(\.physicalMonitor))
