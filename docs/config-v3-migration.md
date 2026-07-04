@@ -217,7 +217,7 @@ internally). Update the command name, keep the tokens:
 | Old | New |
 |---|---|
 | `list-zones --format '...'` | `list-columns --format '...'` |
-| `list-workspaces --format '...'` | `list-cards --format '...'` |
+| `list-workspaces --format '...'` | `list-cards --all --format '...'` |
 
 Useful tokens, by list command:
 

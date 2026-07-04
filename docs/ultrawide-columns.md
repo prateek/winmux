@@ -56,7 +56,7 @@ the way you used to switch workspaces:
 Deck positions are stable, so muscle memory holds. Inspect the deck at any time:
 
 ```bash
-winmux list-cards                 # one card name per line (the '%{workspace}' token)
+winmux list-cards --all           # one card name per line (the '%{workspace}' token)
 winmux list-cards --focused
 ```
 

@@ -216,7 +216,7 @@ list_columns_snapshot() {
 }
 
 list_cards_snapshot() {
-    "${CLI}" list-cards \
+    "${CLI}" list-cards --all \
         --format 'card=%{workspace}|column=%{monitor-zone-id}' \
         >"$1" 2>>"${WAIT_ERR}"
 }
