@@ -13,7 +13,7 @@ CLOSEOUT=0
 samples=()
 while IFS= read -r sample; do
     samples+=("$sample")
-done < <(cd "$REPO_ROOT" && find docs/samples -maxdepth 1 -type f -name 'ultrawide-*.toml' | /usr/bin/sort)
+done < <(cd "$REPO_ROOT" && find docs/samples -maxdepth 1 -type f -name '*.toml' | /usr/bin/sort)
 
 WINMUX_CLI_PATH="${WINMUX_CLI:-${REPO_ROOT}/.build/debug/winmux}"
 
@@ -116,19 +116,15 @@ validate_evidence_index() {
 validate_guide_semantics() {
     local guide_path="$1"
     for text in \
-        "winmux doctor zones --support-bundle" \
-        "winmux save-zone-layout" \
-        "winmux config --restore-backup" \
-        "winmux use-zone-profile focus-only" \
-        "winmux move-node-to-zone --focus-follows-window Work" \
-        "policy = 'float-unless-snap'" \
-        "target = 'zone'" \
-        "target = 'window'" \
-        "Window slot: Right" \
-        "Mouse snap supports whole-zone and window-slot targets" \
-        "Runtime changes do not rewrite the config unless you ask WinMux to save them." \
-        "not upload anything." \
-        "Support bundles do not collect crash logs"; do
+        "winmux column init" \
+        "winmux card new" \
+        "winmux card summon" \
+        "winmux move-node-to-card" \
+        "winmux scene" \
+        "winmux expose" \
+        "persistent-cards" \
+        "config-version = 3" \
+        "config --check"; do
         require_path_contains "$guide_path" "$text"
     done
 }
@@ -154,41 +150,42 @@ append_sample_check() {
 
 validate_source_docs() {
     require_file README.md
-    require_file docs/ultrawide-zones.md
+    require_file docs/ultrawide-columns.md
 
-    require_contains README.md "winmux zone init --dry-run --preset balanced"
-    require_contains README.md "winmux zone init --preset balanced --write"
-    require_contains README.md "docs/ultrawide-zones.md"
+    require_contains README.md "winmux column init --dry-run --preset balanced"
+    require_contains README.md "winmux column init --preset balanced --write"
+    require_contains README.md "docs/ultrawide-columns.md"
     require_contains README.md "demo-columnar-zones.mp4"
 
     for section in \
         "## Install" \
         "## Permissions" \
-        "## Fast Setup" \
-        "## Starter Template" \
-        "## Keyboard Commands" \
-        "## Mouse" \
-        "## Profiles And Scenes" \
-        "## App Affinities" \
+        "## From Zero: The Laptop Case" \
+        "## Splitting an Ultrawide Into Columns" \
+        "## Multiple Scenes on One Display" \
+        "## Day to Day" \
+        "## Rules: Dealing Windows Onto Cards" \
+        "## Overview (Exposé)" \
         "## Persistence" \
         "## Troubleshooting" \
         "## Support Bundle" \
         "## Sample Configs" \
-        "## Accepted Evidence"; do
-        require_contains docs/ultrawide-zones.md "$section"
+        "## Updates" \
+        "## Known Limits"; do
+        require_contains docs/ultrawide-columns.md "$section"
     done
 
-    validate_guide_semantics "${REPO_ROOT}/docs/ultrawide-zones.md"
+    validate_guide_semantics "${REPO_ROOT}/docs/ultrawide-columns.md"
     validate_evidence_index
 
     require_cli
-    [ "${#samples[@]}" -gt 0 ] || die "no docs/samples/ultrawide-*.toml files found"
+    [ "${#samples[@]}" -gt 0 ] || die "no docs/samples/*.toml files found"
     local sample_log
     sample_log="$(sample_checks_log_path || true)"
     write_sample_check_header "$sample_log"
     for sample in "${samples[@]}"; do
         require_file "$sample"
-        require_contains docs/ultrawide-zones.md "$(basename "$sample")"
+        require_contains docs/ultrawide-columns.md "$(basename "$sample")"
         "$WINMUX_CLI_PATH" config --check "${REPO_ROOT}/${sample}" >/dev/null
         append_sample_check "$sample_log" "$sample"
     done
@@ -198,7 +195,7 @@ validate_source_docs() {
         require_file "$media"
         case "$media" in
             demo-columnar-zones.mp4|*/recordings/*)
-                require_contains docs/ultrawide-zones.md "$media"
+                require_contains README.md "$media"
                 ;;
         esac
     done < <(evidence_recording_paths)
