@@ -1,5 +1,9 @@
 # Slice 56: Domain Model Simplification
 
+Status: implemented across phases A–G and shipping. This document is the
+authoritative design — the Model, Policies, Config v3, and Commands sections
+describe the behavior that ships; the Phases section records how it was built.
+
 ## Context
 
 winmux's user surface grew to ~12 overlapping nouns, and three of them
@@ -397,7 +401,7 @@ final names. Each phase ends green and dogfood-releasable.
 - `[scene.*]` parsing; `command/impl/SceneCommand.swift`
   (`scene <name>|next|new`). `scene new` writes a skeleton block from
   live columns and widths through the managed-edit machinery
-  (`ZoneLayoutConfigEdits.swift`, precedent: SaveZoneLayoutCommand). Cross-scene
+  (`ZoneLayoutConfigEdits.swift`), backing up the config first. Cross-scene
   `card move <scene>:<column>` is a deck transfer.
 
 **D — Rules**
