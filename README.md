@@ -38,27 +38,29 @@ Monitors share the global project/workspace state. Each monitor can be treated a
 
 Monitors can not be attached to the same workspace at the same time. They can be on the same project at the same time.
 
-### Columnar Zones
-On an ultrawide display, WinMux can split one physical monitor into named zones.
-Each zone behaves like its own workspace viewport, so Reference, Work, and Comms
-can stay visible side by side.
+### Ultrawide Columns
+On an ultrawide display, WinMux can split one physical monitor into named
+columns (a scene). Each column behaves like its own workspace viewport with its
+own deck of cards, so Reference, Work, and Comms can stay visible side by side.
 
 The shortest setup path is the CLI assistant:
 
 ```bash
-winmux zone init --dry-run --preset balanced
-winmux zone init --preset balanced --write
+winmux column init --dry-run --preset balanced
+winmux column init --preset balanced --write
 winmux config --check ~/.config/winmux/winmux.toml
-winmux list-zones --format 'zone=%{monitor-zone-id}|name=%{monitor-zone-name}|workspace=%{monitor-active-workspace}'
+winmux list-columns
 ```
 
-Fresh configs also include a commented ultrawide template if you want to edit
-the TOML by hand before enabling it.
+Fresh configs also include a commented ultrawide scenes example if you want to
+edit the TOML by hand before enabling it.
 
-See [docs/ultrawide-zones.md](docs/ultrawide-zones.md) for keyboard and mouse
-workflows, app affinities, profiles, persistence, troubleshooting, and sample
-configs. The current product demo is [demo-columnar-zones.mp4](demo-columnar-zones.mp4);
-it shows divider drag, saving widths, relaunch, and `list-zones` proof.
+See [docs/ultrawide-columns.md](docs/ultrawide-columns.md) for the full model,
+keyboard and mouse workflows, rules, scenes, persistence, troubleshooting, and
+sample configs. Upgrading an older config? [docs/config-v3-migration.md](docs/config-v3-migration.md)
+maps every retired `zone-*` key and command to its replacement. The current
+product demo is [demo-columnar-zones.mp4](demo-columnar-zones.mp4); it shows
+divider drag and runtime width changes.
 
 #### App Launching
 WinMux supports single-modifer keybindings (e.g. triggering an action on press of `⌘`)
