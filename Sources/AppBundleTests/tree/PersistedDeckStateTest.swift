@@ -29,6 +29,29 @@ final class PersistedDeckStateTest: XCTestCase {
         XCTAssertEqual(decoded, state)
     }
 
+    // An offstage scene's per-column showing card lives in hiddenActiveCardIdByColumnKey, not on a
+    // live viewport. Save must record it and adopt must seed it back, or "shows it exactly as you
+    // left it" fails across a relaunch for any non-active scene.
+    func testOffstageColumnActiveCardSurvivesSnapshotAndAdopt() {
+        _ = configureThreeColumns()
+        let offstageKey = columnDeckKey(sceneKey: sceneDeckKeyPrefix + "offstage", columnId: "main")
+        XCTAssertNil(monitors.first { columnDeckKey(for: $0) == offstageKey }, "offstage column has no live viewport")
+
+        let parked = Workspace.get(byName: "parked")
+        winMuxWorkspaceState.columnDecks.adopt(parked.id, into: offstageKey)
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[offstageKey] = parked.id
+
+        let offstageColumn = snapshotCurrentDeckState().columns.first { $0.columnKey == offstageKey }.orDie()
+        XCTAssertEqual(offstageColumn.activeCardName, "parked")
+
+        winMuxWorkspaceState.hiddenActiveCardIdByColumnKey.removeAll()
+        adoptPersistedDeckState(PersistedDeckState(version: 1, columns: [
+            PersistedColumnDeck(columnKey: offstageKey, cardNames: ["parked"], activeCardName: "parked"),
+        ]))
+        let reparked = Workspace.existing(byName: "parked").orDie()
+        XCTAssertEqual(winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[offstageKey], reparked.id)
+    }
+
     func testSnapshotCurrentDeckStateRecordsCardNamesInOrderAndActiveCards() {
         let zones = configureThreeColumns()
         let mainZone = zones["main"].orDie()

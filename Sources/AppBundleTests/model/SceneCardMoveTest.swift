@@ -132,6 +132,26 @@ final class SceneCardMoveTest: XCTestCase {
         assertEquals(sceneActiveCards()["comms"], "Work")
     }
 
+    // `card go <name>` reveals a card that lives in an offstage scene by switching the owning
+    // display to that scene — it must NOT drag the card into the active scene (which would break
+    // strict containment). Pre-fix, focusing the offstage card transferred it into the active
+    // scene's default column and never switched scenes.
+    func testCardGoRevealsAnOffstageSceneWithoutMovingTheCard() async throws {
+        let main = configureScenesFromToml(twoSceneToml)
+        assertSucc(setActiveScene("desk", for: main))
+        let build = occupyCard("Build", windowId: 1, on: sceneColumnMonitors()["main"].orDie())
+        let deskColumnKey = winMuxWorkspaceState.columnDecks.columnKey(of: build.id)
+        assertSucc(setActiveScene("focus", for: main))
+        XCTAssertFalse(build.isVisible, "Build is offstage once focus is the active scene")
+
+        let result = try await parseCommand("card go Build").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 0)
+        assertEquals(activeSceneId(for: main), "desk")
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: build.id), deskColumnKey)
+        XCTAssertTrue(focus.workspace === build)
+    }
+
     // `card move <scene>:<column>` must transfer the focused card into another scene's deck.
     func testCardMoveSceneColumnRoutesCrossScene() async throws {
         let main = configureScenesFromToml(twoSceneToml)

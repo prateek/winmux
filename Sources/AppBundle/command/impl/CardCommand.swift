@@ -157,7 +157,18 @@ struct CardCommand: Command {
     @MainActor
     private func resolveDirectWorkspaceTarget(named workspaceName: String, from focusedWs: Workspace, io: CmdIo) -> ResolvedWorkspaceTarget {
         if let workspace = findDirectWorkspaceTarget(named: workspaceName, from: focusedWs) {
-            return args.autoBackAndForth && workspace == focusedWs ? .backAndForth : .focus(workspace)
+            if args.autoBackAndForth && workspace == focusedWs {
+                return .backAndForth
+            }
+            // `card go <name>` reveals the card wherever it lives: if it sits in an offstage named
+            // scene, switch the owning display to that scene first, so focusing it leaves the card
+            // in its own column instead of transferring it into the active scene. Numeric
+            // `card <N>` addresses the focused column's deck and must never switch scenes.
+            if parsePositiveWorkspaceDisplayIndex(workspaceName) == nil,
+               !revealCardSceneIfOffstage(workspace, io: io) {
+                return .error
+            }
+            return .focus(workspace)
         }
         if args.autoBackAndForth && focusedWs.name == workspaceName {
             return .backAndForth
@@ -179,6 +190,27 @@ struct CardCommand: Command {
             return .error
         }
         return .focus(workspace)
+    }
+
+    // Switches the owning display to the card's scene when that scene is offstage, so a subsequent
+    // focus keeps the card in its own column and deck. A card in the active scene, an implicit
+    // (unnamed) scene, or an unresolvable display needs no switch. Returns false only when the
+    // scene switch itself fails.
+    @MainActor
+    private func revealCardSceneIfOffstage(_ card: Workspace, io: CmdIo) -> Bool {
+        guard let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: card.id),
+              let split = splitColumnDeckKey(columnKey),
+              split.sceneKey.hasPrefix(sceneDeckKeyPrefix)
+        else { return true }
+        let sceneId = String(split.sceneKey.dropFirst(sceneDeckKeyPrefix.count))
+        guard let owningDisplay = config.scenes.first(where: { $0.id == sceneId })?
+            .monitor?.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors),
+            activeSceneId(for: owningDisplay) != sceneId
+        else { return true }
+        switch setActiveScene(sceneId, for: owningDisplay) {
+            case .success: return true
+            case .failure(let msg): return io.err(msg)
+        }
     }
 }
 
@@ -205,8 +237,12 @@ private func focusOrReportNoop(
     return workspace.focusWorkspace()
 }
 
+// Shared by `card next` and `move-node-to-card next`: paging past the end of a deck creates a
+// trailing blank. The relative traversal is deck-scoped (getNextPrevWorkspace), so edge-creation
+// must scope to the same deck; project-scoped candidates could see another column's trailing blank
+// and refuse to create.
 @MainActor
-private func createNextTransientBlankWorkspaceIfAllowed(
+func createNextTransientBlankWorkspaceIfAllowed(
     from current: Workspace,
     isNext: Bool,
     wrapAround: Bool,

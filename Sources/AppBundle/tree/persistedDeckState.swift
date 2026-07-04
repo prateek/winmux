@@ -49,7 +49,11 @@ func snapshotCurrentDeckState() -> PersistedDeckState {
         let deck = state.columnDecks.deck(forColumnKey: columnKey)
         let cardNames = deck.compactMap { state.workspaceById[$0]?.name }
         guard !cardNames.isEmpty else { return nil }
-        let activeCardName = activeCardIdByColumnKey[columnKey]
+        // A live viewport's active card wins; an offstage scene or disabled column has no live
+        // viewport, so its remembered showing card lives in hiddenActiveCardIdByColumnKey. Recording
+        // it keeps "shows it exactly as you left it" true across a relaunch, not just a scene switch.
+        let activeCardId = activeCardIdByColumnKey[columnKey] ?? state.hiddenActiveCardIdByColumnKey[columnKey]
+        let activeCardName = activeCardId
             .flatMap { activeId in deck.contains(activeId) ? state.workspaceById[activeId]?.name : nil }
         return PersistedColumnDeck(columnKey: columnKey, cardNames: cardNames, activeCardName: activeCardName)
     }
@@ -148,9 +152,14 @@ func adoptPersistedDeckState(_ state: PersistedDeckState) {
         guard let activeCardName = column.activeCardName,
               column.cardNames.contains(activeCardName),
               let workspace = Workspace.existing(byName: activeCardName),
-              winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id) == column.columnKey,
-              let monitor = monitors.first(where: { columnDeckKey(for: $0) == column.columnKey })
+              winMuxWorkspaceState.columnDecks.columnKey(of: workspace.id) == column.columnKey
         else { continue }
-        _ = monitor.setActiveWorkspace(workspace)
+        if let monitor = monitors.first(where: { columnDeckKey(for: $0) == column.columnKey }) {
+            _ = monitor.setActiveWorkspace(workspace)
+        } else {
+            // Offstage scene or disabled column: no live viewport to point at now, so remember the
+            // showing card and let a later scene switch or column re-enable reveal it.
+            winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[column.columnKey] = workspace.id
+        }
     }
 }

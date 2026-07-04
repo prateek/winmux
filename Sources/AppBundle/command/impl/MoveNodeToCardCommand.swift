@@ -18,7 +18,7 @@ struct MoveNodeToCardCommand: Command {
                     wrapAround: args.wrapAround,
                     stdin: args.useStdin ? io.readStdin() : nil,
                 )
-                    ?? createNextTransientBlankWorkspaceForMoveIfAllowed(
+                    ?? createNextTransientBlankWorkspaceIfAllowed(
                         from: subjectWs,
                         isNext: nextPrev == .next,
                         wrapAround: args.wrapAround,
@@ -40,24 +40,6 @@ struct MoveNodeToCardCommand: Command {
     }
 }
 
-@MainActor
-private func createNextTransientBlankWorkspaceForMoveIfAllowed(
-    from current: Workspace,
-    isNext: Bool,
-    wrapAround: Bool,
-    usesStdin: Bool,
-) -> Workspace? {
-    guard isNext, !wrapAround, !usesStdin else { return nil }
-    // The relative traversal is deck-scoped (getNextPrevWorkspace), so the edge-creation must
-    // scope to the same deck; project-scoped candidates could see another column's trailing
-    // blank and refuse to create.
-    let deckWorkspaces = deckNavigationWorkspaces(from: current)
-    return createAdjacentTransientBlankWorkspaceIfAllowed(
-        named: String(deckWorkspaces.count + 1),
-        from: current,
-        among: deckWorkspaces,
-    )
-}
 
 @MainActor
 private func resolveMoveTargetWorkspace(
