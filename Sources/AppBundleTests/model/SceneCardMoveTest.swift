@@ -114,4 +114,35 @@ final class SceneCardMoveTest: XCTestCase {
             case .failure(let message): assertTrue(message.contains("has no column 'comms'"))
         }
     }
+
+    // `card move <column-id>` must reach the deck-transfer primitive, not the physical-monitor
+    // matcher: the command was folded from move-workspace-to-monitor and initially misrouted a
+    // bare column id through monitor-pattern resolution.
+    func testCardMoveColumnIdRoutesToActiveSceneColumn() async throws {
+        let main = configureScenesFromToml(twoSceneToml)
+        assertSucc(setActiveScene("desk", for: main))
+        let work = occupyCard("Work", windowId: 1, on: sceneColumnMonitors()["main"].orDie())
+        XCTAssertTrue(work.focusWorkspace())
+        Workspace.reconcileWorkspaceState()
+
+        let result = try await parseCommand("card move comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: work.id), "scene:desk/column:comms")
+        assertEquals(sceneActiveCards()["comms"], "Work")
+    }
+
+    // `card move <scene>:<column>` must transfer the focused card into another scene's deck.
+    func testCardMoveSceneColumnRoutesCrossScene() async throws {
+        let main = configureScenesFromToml(twoSceneToml)
+        assertSucc(setActiveScene("desk", for: main))
+        let work = occupyCard("Work", windowId: 1, on: sceneColumnMonitors()["main"].orDie())
+        XCTAssertTrue(work.focusWorkspace())
+        Workspace.reconcileWorkspaceState()
+
+        let result = try await parseCommand("card move focus:main").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        XCTAssertEqual(result.exitCode, 0)
+        assertEquals(winMuxWorkspaceState.columnDecks.columnKey(of: work.id), "scene:focus/column:main")
+    }
 }

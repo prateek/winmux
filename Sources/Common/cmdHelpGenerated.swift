@@ -14,7 +14,7 @@ let card_help_generated = """
        OR: card [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
        OR: card [-h|--help] back-and-forth
        OR: card [-h|--help] [--fail-if-noop] summon <card-name>
-       OR: card [-h|--help] [--workspace <card>] [--wrap-around] move (left|down|up|right|next|prev|<monitor-pattern>)
+       OR: card [-h|--help] [--workspace <card>] [--wrap-around] move (left|right|<column-id>|<scene>:<column>)
     """
 let close_all_windows_but_current_help_generated = """
     USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]

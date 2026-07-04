@@ -754,7 +754,7 @@ func balanceZoneWidths(monitorDescription: MonitorDescription? = nil) -> Result<
 
 @MainActor
 func setZoneSnapPolicy(_ policyId: String, for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
-    guard let policy = ZoneSnapPolicy(rawValue: policyId) else {
+    guard let policy = ZoneSnapPolicy.fromV3Identifier(policyId) else {
         return .failure("Unknown zone snap policy '\(policyId)'. Expected one of: \(ZoneSnapPolicy.unionLiteral)")
     }
     return setZoneSnapPolicy(policy, for: physicalMonitor)
@@ -794,7 +794,7 @@ func cycleZoneSnapPolicy(_ policyIds: [String], for physicalMonitor: Monitor) ->
 
     var policies: [ZoneSnapPolicy] = []
     for policyId in policyIds {
-        guard let policy = ZoneSnapPolicy(rawValue: policyId) else {
+        guard let policy = ZoneSnapPolicy.fromV3Identifier(policyId) else {
             return .failure("Unknown zone snap policy '\(policyId)'. Expected one of: \(ZoneSnapPolicy.unionLiteral)")
         }
         policies.append(policy)

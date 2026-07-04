@@ -16,6 +16,32 @@ struct CardCommand: Command {
                 return runSummon(name: name, io: io)
             case .move(let monitorTarget):
                 return runMove(monitorTarget: monitorTarget, env: env, io: io)
+            case .moveToColumn(let columnId):
+                return runMoveToColumn(columnId: columnId, env: env, io: io)
+            case .moveToSceneColumn(let scene, let column):
+                return runMoveToSceneColumn(sceneId: scene, columnId: column, env: env, io: io)
+        }
+    }
+
+    @MainActor
+    private func runMoveToColumn(columnId: String, env: CmdEnv, io: CmdIo) -> Bool {
+        guard let target = args.resolveTargetOrReportError(env, io) else { return false }
+        let card = target.workspace
+        guard let sceneId = activeSceneId(for: card.workspaceMonitor.physicalMonitor) else {
+            return io.err("'card move \(columnId)' needs a named scene on the focused display; use a scene:column target or left|right instead")
+        }
+        switch moveCardToSceneColumn(card, sceneId: sceneId, columnId: columnId) {
+            case .success: return true
+            case .failure(let msg): return io.err(msg)
+        }
+    }
+
+    @MainActor
+    private func runMoveToSceneColumn(sceneId: String, columnId: String, env: CmdEnv, io: CmdIo) -> Bool {
+        guard let target = args.resolveTargetOrReportError(env, io) else { return false }
+        switch moveCardToSceneColumn(target.workspace, sceneId: sceneId, columnId: columnId) {
+            case .success: return true
+            case .failure(let msg): return io.err(msg)
         }
     }
 

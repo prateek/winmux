@@ -11,8 +11,14 @@ public enum CardTarget: Equatable, Sendable {
     case backAndForth
     /// `card summon <name>` — move the named card into the focused column.
     case summon(WorkspaceName)
-    /// `card move left|right|<monitor-pattern>` — move the focused card to another column.
+    /// `card move left|right` — move the focused card to the adjacent column, clamped at the
+    /// display edge (reuses the move-workspace-to-monitor path across the adjacent viewport).
     case move(MonitorTarget)
+    /// `card move <column-id>` — move the focused card to a column of the display's active scene.
+    case moveToColumn(String)
+    /// `card move <scene>:<column>` — move the focused card into another scene's column (a
+    /// cross-scene deck transfer).
+    case moveToSceneColumn(scene: String, column: String)
 
     public var isRelative: Bool {
         switch self {
@@ -21,6 +27,8 @@ public enum CardTarget: Equatable, Sendable {
         }
     }
 
+    /// Only the directional `card move left|right` form takes --wrap-around; the absolute
+    /// column and scene:column forms address a fixed destination.
     public var isMove: Bool {
         switch self {
             case .move: true
@@ -100,11 +108,24 @@ private func parseCardTarget(i: PosArgParserInput) -> ParsedCliArgs<CardTarget> 
             }
             return .init(WorkspaceName.parse(name).map(CardTarget.summon), advanceBy: 2)
         case "move":
-            guard i.getOrNil(relativeIndex: 1) != nil else {
-                return .fail("'card move' requires \(MonitorTarget.cases.joinedCliArgs)", advanceBy: 1)
+            guard let moveArg = i.getOrNil(relativeIndex: 1), !moveArg.starts(with: "-") else {
+                return .fail("'card move' requires left|right, <column-id>, or <scene>:<column>", advanceBy: 1)
             }
-            let parsed = parseTarget(i: PosArgParserInput(index: i.index + 1, args: i.args))
-            return .init(parsed.value.map(CardTarget.move), advanceBy: 1 + parsed.advanceBy)
+            if let colon = moveArg.firstIndex(of: ":") {
+                let scene = String(moveArg[..<colon])
+                let column = String(moveArg[moveArg.index(after: colon)...])
+                guard !scene.isEmpty, !column.isEmpty else {
+                    return .fail("'card move <scene>:<column>' requires both a scene and a column", advanceBy: 2)
+                }
+                return .succ(.moveToSceneColumn(scene: scene, column: column), advanceBy: 2)
+            }
+            // left|right|next|prev keep the monitor-adjacent grammar (edge-clamped column move);
+            // any other bare token is a column id in the display's active scene.
+            if MonitorTarget.casesExceptPatterns.contains(moveArg) {
+                let parsed = parseTarget(i: PosArgParserInput(index: i.index + 1, args: i.args))
+                return .init(parsed.value.map(CardTarget.move), advanceBy: 1 + parsed.advanceBy)
+            }
+            return .succ(.moveToColumn(moveArg), advanceBy: 2)
         default:
             return .init(WorkspaceName.parse(i.arg).map(CardTarget.direct), advanceBy: 1)
     }

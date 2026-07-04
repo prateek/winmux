@@ -159,6 +159,13 @@ enum ZoneSnapPolicy: String, CaseIterable, Equatable, Sendable {
     case snapOnModifier = "snap-on-modifier"
     case snapToZone = "snap-to-zone"
     case floatUnlessSnap = "float-unless-snap"
+
+    /// 'snap-to-column' is the config-version-3 surface spelling; the case keeps its upstream-era
+    /// 'snap-to-zone' raw value until the internals rename. Resolving through here lets both config
+    /// parsing and the snap-policy commands accept the documented v3 value.
+    static func fromV3Identifier(_ raw: String) -> ZoneSnapPolicy? {
+        ZoneSnapPolicy(rawValue: raw == "snap-to-column" ? snapToZone.rawValue : raw)
+    }
 }
 
 enum ZoneSnapGesture: String, CaseIterable, Equatable, Sendable {

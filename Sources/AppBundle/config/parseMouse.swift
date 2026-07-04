@@ -49,10 +49,7 @@ private func parseZoneSnapPolicy(
     _ backtrace: TomlBacktrace,
 ) -> ParsedToml<ZoneSnapPolicy> {
     parseString(raw, backtrace).flatMap { rawValue in
-        // 'snap-to-column' is the config-version-3 spelling; the policy case keeps its
-        // upstream-era name until the internals rename.
-        let normalized = rawValue == "snap-to-column" ? ZoneSnapPolicy.snapToZone.rawValue : rawValue
-        return ZoneSnapPolicy(rawValue: normalized)
+        ZoneSnapPolicy.fromV3Identifier(rawValue)
             .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneSnapPolicy.self)))
     }
 }

@@ -1148,20 +1148,6 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === assigned)
     }
 
-    func testPatternMoveWorkspaceToMonitorNoopsWhenWorkspaceIsInAnotherZoneOnSamePhysicalMonitor() async throws {
-        let zones = configureThreeZones()
-        let assigned = Workspace.get(byName: "assigned-to-display-one")
-        let work = Workspace.get(byName: "work")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(assigned))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(assigned.focusWorkspace())
-
-        let result = try await parseCommand("card move 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
-
-        XCTAssertEqual(result.exitCode, 0)
-        XCTAssertTrue(zones["left"].orDie().activeWorkspace === assigned)
-        XCTAssertTrue(zones["main"].orDie().activeWorkspace === work)
-    }
 
     func testMoveZoneDividerClampsAtMinimumShare() async throws {
         let zones = configureThreeZones()
