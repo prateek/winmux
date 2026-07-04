@@ -6,6 +6,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
     var activeProjectId: WorkspaceProjectId
     var monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
     var zoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
+    var columnSections: [WorkspaceSidebarColumnSectionViewModel] = []
     var selectedMonitorScopeId: String
     var targetMonitorScopeId: String
     var focusedMonitorScopeId: String
@@ -20,6 +21,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
         activeProjectId: workspaceProjectDefaultId,
         monitorScopes: [],
         zoneTargets: [],
+        columnSections: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
         targetMonitorScopeId: workspaceSidebarDefaultScopeId,
         focusedMonitorScopeId: "",

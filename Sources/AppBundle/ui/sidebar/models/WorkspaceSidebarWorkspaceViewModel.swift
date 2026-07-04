@@ -35,3 +35,30 @@ struct WorkspaceSidebarZoneTargetViewModel: Hashable, Identifiable {
     let styleId: String?
     let styleColorHex: String?
 }
+
+/// One column of the focused display's active scene, rendered as a sidebar section listing its
+/// deck's cards in deck order. The showing card is highlighted. A display with no configured scene
+/// runs its implicit one-column scene, which produces a single `title == nil` section: it renders
+/// headerless, so the laptop's flat card list is visually unchanged.
+struct WorkspaceSidebarColumnSectionViewModel: Hashable, Identifiable {
+    let id: String
+    let monitorScopeId: String
+    let columnId: String
+    /// The column's display name, shown as the section header. `nil` for the single implicit
+    /// column, which renders headerless for parity with the pre-scenes flat list.
+    let title: String?
+    /// The column's chrome tint (a `column color` runtime override or the scene column's declared
+    /// `color`), used to accent the section header.
+    let colorHex: String?
+    let isDefaultColumn: Bool
+    let isEnabled: Bool
+    /// True when the column hosts the focused card.
+    let isFocusedColumn: Bool
+    /// The column's deck: its cards, in stable deck order.
+    let cardNames: [String]
+    /// The card currently showing in the column's viewport, highlighted in the section.
+    let showingCardName: String?
+
+    /// A headerless section: the single implicit column of a display with no configured scene.
+    var isImplicit: Bool { title == nil }
+}

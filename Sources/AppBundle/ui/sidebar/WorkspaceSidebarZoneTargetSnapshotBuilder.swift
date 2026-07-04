@@ -46,3 +46,92 @@ private func workspaceSidebarPhysicalMonitors(from monitors: [Monitor]) -> [Moni
 func workspaceSidebarZoneDisplayName(_ monitor: Monitor) -> String {
     monitor.zoneName?.takeIf { !$0.isEmpty } ?? monitor.zoneId ?? "Zone"
 }
+
+/// The sidebar's grouping: one section per column of each display's active scene, in spatial
+/// order, each carrying its column's deck (cards in deck order) and the card currently showing.
+/// A display with no configured scene runs its implicit one-column scene and yields a single
+/// headerless section holding all its cards, so the flat pre-scenes list is unchanged.
+@MainActor
+func buildWorkspaceSidebarColumnSectionViewModels(
+    sortedMonitors: [Monitor],
+    currentFocus: LiveFocus,
+) -> [WorkspaceSidebarColumnSectionViewModel] {
+    let physicalMonitors = workspaceSidebarPhysicalMonitors(from: sortedMonitors)
+    let activeColumnViewports = sortedMonitors.filter { $0.zoneId != nil }
+    let configuredColumnsByDisplay = Dictionary(
+        grouping: getCurrentColumnTopologySnapshot().configuredZones(for: physicalMonitors),
+        by: { $0.physicalMonitor.rect.topLeftCorner },
+    )
+    return physicalMonitors.flatMap { physicalMonitor -> [WorkspaceSidebarColumnSectionViewModel] in
+        let monitorScopeId = workspaceSidebarMonitorScopeId(for: physicalMonitor)
+        let configuredColumns = configuredColumnsByDisplay[physicalMonitor.rect.topLeftCorner] ?? []
+        guard !configuredColumns.isEmpty else {
+            return [workspaceSidebarImplicitColumnSection(
+                physicalMonitor: physicalMonitor,
+                monitorScopeId: monitorScopeId,
+                currentFocus: currentFocus,
+            )]
+        }
+        return configuredColumns.map { column in
+            workspaceSidebarConfiguredColumnSection(
+                column: column,
+                physicalMonitor: physicalMonitor,
+                monitorScopeId: monitorScopeId,
+                activeColumnViewports: activeColumnViewports,
+                currentFocus: currentFocus,
+            )
+        }
+    }
+}
+
+@MainActor
+private func workspaceSidebarConfiguredColumnSection(
+    column: ConfiguredZoneSummary,
+    physicalMonitor: Monitor,
+    monitorScopeId: String,
+    activeColumnViewports: [Monitor],
+    currentFocus: LiveFocus,
+) -> WorkspaceSidebarColumnSectionViewModel {
+    let viewport = activeColumnViewports.first {
+        $0.zoneId == column.zoneId &&
+            $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
+    }
+    // A disabled column has no live viewport, but its deck survives; key it by scene + column id.
+    let columnKey = viewport.map { columnDeckKey(for: $0) }
+        ?? columnDeckKey(sceneKey: activeSceneDeckKeyComponent(for: physicalMonitor), columnId: column.zoneId)
+    let showingCard = viewport?.activeWorkspace
+    return WorkspaceSidebarColumnSectionViewModel(
+        id: "\(monitorScopeId):\(column.zoneId)",
+        monitorScopeId: monitorScopeId,
+        columnId: column.zoneId,
+        title: column.displayName,
+        colorHex: column.zoneStyleColorHex,
+        isDefaultColumn: column.isDefaultZone,
+        isEnabled: column.isEnabled,
+        isFocusedColumn: showingCard.map { currentFocus.workspace === $0 } ?? false,
+        cardNames: orderedDeckWorkspaces(inColumn: columnKey).map(\.name),
+        showingCardName: showingCard?.name,
+    )
+}
+
+@MainActor
+private func workspaceSidebarImplicitColumnSection(
+    physicalMonitor: Monitor,
+    monitorScopeId: String,
+    currentFocus: LiveFocus,
+) -> WorkspaceSidebarColumnSectionViewModel {
+    let viewport = physicalMonitor.defaultWorkspaceViewport
+    let showingCard = viewport.activeWorkspace
+    return WorkspaceSidebarColumnSectionViewModel(
+        id: "\(monitorScopeId):\(implicitColumnDeckColumnId)",
+        monitorScopeId: monitorScopeId,
+        columnId: implicitColumnDeckColumnId,
+        title: nil,
+        colorHex: nil,
+        isDefaultColumn: true,
+        isEnabled: true,
+        isFocusedColumn: currentFocus.workspace === showingCard,
+        cardNames: orderedDeckWorkspaces(inColumn: columnDeckKey(for: viewport)).map(\.name),
+        showingCardName: showingCard.name,
+    )
+}

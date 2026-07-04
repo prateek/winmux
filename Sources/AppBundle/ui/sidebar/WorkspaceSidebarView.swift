@@ -693,26 +693,6 @@ extension WorkspaceSidebarView {
         .zIndex(100)
     }
 
-    func zoneTargetSection(
-        targets: [WorkspaceSidebarZoneTargetViewModel],
-        expansionProgress: CGFloat,
-        leadingInset: CGFloat,
-        trailingInset: CGFloat,
-        topPadding: CGFloat,
-    ) -> some View {
-        WorkspaceSidebarZoneTargetSection(
-            targets: targets,
-            dragPreview: snapshot.dropPreview,
-            expansionProgress: expansionProgress,
-            layout: snapshot.configuration,
-            actions: actions,
-        )
-        .padding(.leading, leadingInset)
-        .padding(.trailing, trailingInset)
-        .padding(.top, topPadding)
-        .padding(.bottom, workspaceSidebarSectionGap)
-    }
-
     func workspaceSidebarTopSectionWidth(expansionProgress: CGFloat) -> CGFloat {
         if browsedProjectId != nil {
             return workspaceSidebarSplitSectionWidth(expansionProgress: expansionProgress)
@@ -1013,7 +993,7 @@ extension WorkspaceSidebarView {
     }
 
     @ViewBuilder
-    private func workspaceSection(
+    func workspaceSection(
         workspace: WorkspaceSidebarWorkspaceViewModel,
         expansionProgress: CGFloat,
         emitsDropTarget: Bool,

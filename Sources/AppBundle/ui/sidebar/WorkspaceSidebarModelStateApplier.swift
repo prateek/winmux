@@ -11,6 +11,9 @@ func clearWorkspaceSidebarModelState() {
     if !TrayMenuModel.shared.workspaceSidebarZoneTargets.isEmpty {
         TrayMenuModel.shared.workspaceSidebarZoneTargets = []
     }
+    if !TrayMenuModel.shared.workspaceSidebarColumnSections.isEmpty {
+        TrayMenuModel.shared.workspaceSidebarColumnSections = []
+    }
     if !TrayMenuModel.shared.workspaceSidebarProjects.isEmpty {
         TrayMenuModel.shared.workspaceSidebarProjects = []
     }
@@ -25,7 +28,8 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
         TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId != state.focusedMonitorScopeId ||
         TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector != state.showsMonitorSelector
     let didZoneTargetChange =
-        TrayMenuModel.shared.workspaceSidebarZoneTargets != state.zoneTargets
+        TrayMenuModel.shared.workspaceSidebarZoneTargets != state.zoneTargets ||
+        TrayMenuModel.shared.workspaceSidebarColumnSections != state.columnSections
     let didProjectChange =
         TrayMenuModel.shared.workspaceSidebarProjects != state.projects ||
         TrayMenuModel.shared.workspaceSidebarActiveProjectId != state.activeProjectId
@@ -56,6 +60,7 @@ private func updateWorkspaceSidebarTrayModel(with state: WorkspaceSidebarModelSt
     TrayMenuModel.shared.workspaceSidebarActiveProjectId = state.activeProjectId
     TrayMenuModel.shared.workspaceSidebarMonitorScopes = state.monitorScopes
     TrayMenuModel.shared.workspaceSidebarZoneTargets = state.zoneTargets
+    TrayMenuModel.shared.workspaceSidebarColumnSections = state.columnSections
     TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId = state.focusedMonitorScopeId
     TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector = state.showsMonitorSelector
 }

@@ -8,6 +8,7 @@ func workspaceSidebarSnapshot(from model: TrayMenuModel) -> WorkspaceSidebarSnap
         activeProjectId: model.workspaceSidebarActiveProjectId,
         monitorScopes: model.workspaceSidebarMonitorScopes,
         zoneTargets: model.workspaceSidebarZoneTargets,
+        columnSections: model.workspaceSidebarColumnSections,
         selectedMonitorScopeId: model.workspaceSidebarSelectedMonitorScopeId,
         targetMonitorScopeId: model.workspaceSidebarTargetMonitorScopeId,
         focusedMonitorScopeId: model.workspaceSidebarFocusedMonitorScopeId,

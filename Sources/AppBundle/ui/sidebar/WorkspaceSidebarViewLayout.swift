@@ -8,8 +8,9 @@ extension WorkspaceSidebarView {
         let leadingInset = workspaceSidebarOuterLeadingPadding(isCompact: isCompact)
         let trailingInset = workspaceSidebarOuterTrailingPadding(isCompact: isCompact)
         let showsMonitorSelector = !isCompact && shouldShowTopFilterBar
-        let panelZoneTargets = zoneTargetsForPanel()
-        let showsZoneTargets = !isCompact && !panelZoneTargets.isEmpty
+        // A configured display groups its cards by column deck; the implicit one-column display
+        // stays on the flat pager path, so the laptop is unchanged.
+        let usesColumnDeckSections = panelUsesColumnDeckSections
         let projectSwipeDirection = workspaceSidebarProjectSwipeDirection(
             horizontalTranslation: projectSwipeTranslation,
             verticalTranslation: 0,
@@ -53,16 +54,6 @@ extension WorkspaceSidebarView {
                 )
             }
 
-            if showsZoneTargets {
-                zoneTargetSection(
-                    targets: panelZoneTargets,
-                    expansionProgress: expansionProgress,
-                    leadingInset: leadingInset,
-                    trailingInset: trailingInset,
-                    topPadding: showsMonitorSelector ? 0 : snapshot.configuration.topPadding,
-                )
-            }
-
             if !isCompact, !searchText.isEmpty {
                 sidebarSearchSection(
                     expansionProgress: expansionProgress,
@@ -71,36 +62,47 @@ extension WorkspaceSidebarView {
                 )
             }
 
-            projectPagerContent(
-                expansionProgress: expansionProgress,
-                leadingInset: leadingInset,
-                trailingInset: trailingInset,
-                topPadding: showsMonitorSelector || showsZoneTargets ? 0 : snapshot.configuration.topPadding,
-                visibleWorkspacesByProject: filteredWorkspacesByProject,
-                swipeDirection: projectSwipeDirection,
-            )
-            .frame(
-                width: workspaceSidebarContentFrameWidth(expansionProgress: expansionProgress),
-                alignment: .topLeading
-            )
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-
-            if (isSidebarCollapsing && !isCompact) || (isSidebarExpanding && isCompact) {
-                let compactProjectReserveHeight = min(
-                    max(CGFloat(snapshot.projects.count) * workspaceSidebarProjectDotFrameHeight, workspaceSidebarPagerHeight),
-                    workspaceSidebarProjectDotFrameHeight * 5
-                )
-                Color.clear
-                    .frame(height: isCompact ? compactProjectReserveHeight + 8 : workspaceSidebarCollapseReservedProjectPagerHeight)
-            } else {
-                projectPagerSection(
+            if usesColumnDeckSections {
+                columnDeckSectionsContent(
                     expansionProgress: expansionProgress,
                     leadingInset: leadingInset,
                     trailingInset: trailingInset,
-                    swipeDirection: projectSwipeDirection,
-                    switchProgress: projectSwitchProgress,
-                    edgeProgress: projectSwipeProgress,
+                    topPadding: showsMonitorSelector ? 0 : snapshot.configuration.topPadding,
                 )
+                .frame(width: max(snapshot.visibleWidth, 0), alignment: .topLeading)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                projectPagerContent(
+                    expansionProgress: expansionProgress,
+                    leadingInset: leadingInset,
+                    trailingInset: trailingInset,
+                    topPadding: showsMonitorSelector ? 0 : snapshot.configuration.topPadding,
+                    visibleWorkspacesByProject: filteredWorkspacesByProject,
+                    swipeDirection: projectSwipeDirection,
+                )
+                .frame(
+                    width: workspaceSidebarContentFrameWidth(expansionProgress: expansionProgress),
+                    alignment: .topLeading
+                )
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+
+                if (isSidebarCollapsing && !isCompact) || (isSidebarExpanding && isCompact) {
+                    let compactProjectReserveHeight = min(
+                        max(CGFloat(snapshot.projects.count) * workspaceSidebarProjectDotFrameHeight, workspaceSidebarPagerHeight),
+                        workspaceSidebarProjectDotFrameHeight * 5
+                    )
+                    Color.clear
+                        .frame(height: isCompact ? compactProjectReserveHeight + 8 : workspaceSidebarCollapseReservedProjectPagerHeight)
+                } else {
+                    projectPagerSection(
+                        expansionProgress: expansionProgress,
+                        leadingInset: leadingInset,
+                        trailingInset: trailingInset,
+                        swipeDirection: projectSwipeDirection,
+                        switchProgress: projectSwitchProgress,
+                        edgeProgress: projectSwipeProgress,
+                    )
+                }
             }
 
             statusSection(
@@ -147,10 +149,6 @@ extension WorkspaceSidebarView {
         let hasFocusFilter = snapshot.monitorScopes.contains { $0.id == workspaceSidebarFocusedScopeId }
         let hasOtherProjects = snapshot.projects.contains { $0.id != snapshot.activeProjectId }
         return hasFocusFilter || hasOtherProjects
-    }
-
-    func zoneTargetsForPanel() -> [WorkspaceSidebarZoneTargetViewModel] {
-        snapshot.zoneTargets.filter { $0.monitorScopeId == snapshot.targetMonitorScopeId }
     }
 
     func workspaceSidebarSplitSectionWidth(expansionProgress: CGFloat) -> CGFloat {
