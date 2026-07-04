@@ -1087,7 +1087,7 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertFalse(controller.handleMouseDown(at: dividerPoint, source: .dividerChrome))
         XCTAssertFalse(controller.isDragging)
 
-        activeMode = "zone"
+        activeMode = zoneModeId
         XCTAssertTrue(controller.handleMouseDown(at: dividerPoint))
         XCTAssertTrue(controller.isDragging)
         controller.cancel()

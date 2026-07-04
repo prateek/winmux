@@ -273,13 +273,13 @@ extension ConfigTest {
             configText: "config-version = 2",
             runtimeOverlays: [:],
         )
-        XCTAssertTrue(noZoneMode.contains { $0.contains("mouse.zone-divider-drag = 'zone-mode' but no [mode.zone.binding] exists") })
+        XCTAssertTrue(noZoneMode.contains { $0.contains("mouse.zone-divider-drag = 'zone-mode' but no [mode.column.binding] exists") })
 
         let withZoneMode = renderConfigDoctorLines(
             configPath: "/tmp/winmux.toml",
             configText: """
             config-version = 2
-            [mode.zone.binding]
+            [mode.column.binding]
                 h = ['focus-column prev', 'mode main']
             """,
             runtimeOverlays: [:],
@@ -344,7 +344,7 @@ extension ConfigTest {
             "  zones: inline=1 inline-columns=0 layouts=1 layout-columns=3 styles=1 scenes=1 bindings=1 affinities=0 availability-sets=1",
             "  zone layout sums: OK",
             "  zone references: OK",
-            "  warning: mouse.zone-divider-drag = 'zone-mode' but no [mode.zone.binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'",
+            "  warning: mouse.zone-divider-drag = 'zone-mode' but no [mode.column.binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'",
             "  runtime overlays: none",
         ])
     }

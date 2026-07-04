@@ -24,9 +24,9 @@ final class ZoneDividerDragPolicyTest: XCTestCase {
         XCTAssertTrue(isZoneDividerDragAllowed(policy: .always, activeMode: "main"))
         XCTAssertTrue(isZoneDividerDragAllowed(policy: .always, activeMode: nil))
 
-        XCTAssertFalse(isZoneDividerDragAllowed(policy: .off, activeMode: "zone"))
+        XCTAssertFalse(isZoneDividerDragAllowed(policy: .off, activeMode: "column"))
 
-        XCTAssertTrue(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: "zone"))
+        XCTAssertTrue(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: "column"))
         XCTAssertFalse(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: "main"))
         XCTAssertFalse(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: nil))
     }

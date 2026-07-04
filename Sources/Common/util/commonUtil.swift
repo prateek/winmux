@@ -5,7 +5,10 @@ import Foundation
 public let socketPath = "/tmp/\(winMuxAppId)-\(unixUserName).sock"
 public let unixUserName = NSUserName()
 public let mainModeId = "main"
-public let zoneModeId = "zone"
+// The binding mode the template ships for column controls; the divider-drag 'column-mode' policy
+// and its ConfigDoctor reachability check key off this name. The divider TYPES keep zone-era
+// names (see AGENTS glossary); this is the user-facing mode string, which the model names 'column'.
+public let zoneModeId = "column"
 
 @TaskLocal
 public var refreshSessionEvent: RefreshSessionEvent? = nil
