@@ -171,7 +171,7 @@ together or the dividers will arm in a mode your bindings do not use.
 | `cycle-zone-snap-policy <policy>...` | `cycle-column-snap-policy <policy>...` |
 | `zone-expose zone` | `expose card` |
 | `zone-expose display` | `expose display` |
-| `workspace <name>` | `card go <name>` |
+| `workspace <name>` | `card go <name>` to reveal an existing card, `card new <name>` to create one. Unlike `workspace`, `card go` never creates — an unknown name is an error. |
 | `workspace <N>` | `card <N>` (deck position in the focused column) |
 | `workspace next\|prev` | `card next\|prev` |
 | `workspace-back-and-forth` | `card back-and-forth` |

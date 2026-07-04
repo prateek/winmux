@@ -60,17 +60,18 @@ winmux list-cards --all           # one card name per line (the '%{workspace}' t
 winmux list-cards --focused
 ```
 
-Cards are born, not declared. New windows join the focused card. To make a fresh
-card, send a window to a new name (this creates the card if it does not exist):
+Cards are born, not declared. New windows join the focused card. Make a fresh one
+with `card new`, or send a window to a new name (which creates the card if it does
+not exist):
 
 ```bash
-winmux move-node-to-card Scratch  # creates 'Scratch' and moves the focused window into it
+winmux card new Scratch           # empty card at the top of the focused column
+winmux move-node-to-card Scratch  # moves the focused window into 'Scratch', creating it if needed
 ```
 
 Rules (below) create cards automatically, and `persistent-cards` keeps named
-cards alive even when empty. There is no bare "empty card" command; a card comes
-into being when a window or a rule puts something in it, or when you page past
-the end of the deck.
+cards alive even when empty. `card go` never creates — it only reveals a card that
+already exists, so a mistyped name is an error, not a stray empty card.
 
 ## Splitting an Ultrawide Into Columns
 
@@ -399,5 +400,5 @@ automatic-check = true
   arbitrary freeform grid cells.
 - Removing a scene is a config edit (there is no delete-scene command yet); its
   cards merge into the display's default scene's default column.
-- Cards are created by rules, `move-node-to-card <name>`, a numbered deck slot,
-  or `persistent-cards`; there is no standalone "new empty card" command.
+- Cards are created by `card new <name>`, rules, `move-node-to-card <name>`, a
+  numbered deck slot, or `persistent-cards`. `card go` never creates.

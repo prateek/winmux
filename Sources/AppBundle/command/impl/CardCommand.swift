@@ -10,6 +10,8 @@ struct CardCommand: Command {
         switch args.target.val {
             case .relative, .direct:
                 return runNavigate(env, io)
+            case .new(let name):
+                return runNew(name: name, io: io)
             case .backAndForth:
                 return prevFocusedWorkspace?.focusWorkspace() ?? false
             case .summon(let name):
@@ -43,6 +45,20 @@ struct CardCommand: Command {
             case .success: return true
             case .failure(let msg): return io.err(msg)
         }
+    }
+
+    @MainActor
+    private func runNew(name: WorkspaceName, io: CmdIo) -> Bool {
+        if Workspace.existing(byName: name.raw) != nil {
+            return io.err("Card '\(name.raw)' already exists")
+        }
+        let card = Workspace.get(byName: name.raw)
+        // Workspace.get adopts the new card into the focused column's deck by appending; the plan
+        // seats a freshly created card at the top of that deck.
+        if let columnKey = winMuxWorkspaceState.columnDecks.columnKey(of: card.id) {
+            winMuxWorkspaceState.columnDecks.adopt(card.id, into: columnKey, at: 0)
+        }
+        return card.focusWorkspace()
     }
 
     @MainActor
@@ -145,6 +161,14 @@ struct CardCommand: Command {
         }
         if args.autoBackAndForth && focusedWs.name == workspaceName {
             return .backAndForth
+        }
+        // A numeric target is a deck position: paging past the end creates a transient blank,
+        // like `card next`. A named target never creates — an unknown card name is an error, so a
+        // typo like `card go Buld` fails instead of spawning an empty card. Creation belongs to
+        // `card new`, rules, and scene activation.
+        guard parsePositiveWorkspaceDisplayIndex(workspaceName) != nil else {
+            _ = io.err("Card '\(workspaceName)' doesn't exist. Create it with 'card new \(workspaceName)'.")
+            return .error
         }
         guard let workspace = createAdjacentTransientBlankWorkspaceIfAllowed(
             named: workspaceName,

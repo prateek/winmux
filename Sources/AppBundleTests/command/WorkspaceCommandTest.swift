@@ -9,7 +9,9 @@ final class WorkspaceCommandTest: XCTestCase {
     func testParseCardCommand() {
         testParseCommandFail("card my mail", msg: "ERROR: Unknown argument 'mail'")
         testParseCommandFail("card 'my mail'", msg: "ERROR: Whitespace characters are forbidden in workspace names")
-        assertEquals(parseCommand("card").errorOrNil, "ERROR: Argument '(go <name>|next|prev|<N>|back-and-forth|summon <name>|move <target>)' is mandatory")
+        assertEquals(parseCommand("card").errorOrNil, "ERROR: Argument '(go <name>|new <name>|next|prev|<N>|back-and-forth|summon <name>|move <target>)' is mandatory")
+        assertEquals(parseCommand("card new").errorOrNil, "ERROR: 'card new' requires a card name")
+        testParseCommandSucc("card new Scratch", CardCmdArgs(target: .new(.parse("Scratch").getOrDie())))
         testParseCommandSucc("card next", CardCmdArgs(target: .relative(.next)))
         testParseCommandSucc("card --auto-back-and-forth W", CardCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
         assertEquals(parseCommand("card --wrap-around W").errorOrNil, "--wrap-around requires using (next|prev) or 'move' argument")
@@ -28,6 +30,35 @@ final class WorkspaceCommandTest: XCTestCase {
         assertEquals(result.exitCode, 1)
         XCTAssertNil(Workspace.existing(byName: "3"))
         XCTAssertEqual(Workspace.all, [focus.workspace])
+    }
+
+    func testCardGoUnknownNameErrorsWithoutCreating() async throws {
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("Nonexistent").getOrDie())),
+        ).run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 1)
+        XCTAssertNil(Workspace.existing(byName: "Nonexistent"))
+    }
+
+    func testCardNewCreatesEmptyCardInFocusedColumn() async throws {
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .new(.parse("Scratch").getOrDie())),
+        ).run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 0)
+        let scratch = try XCTUnwrap(Workspace.existing(byName: "Scratch"))
+        XCTAssertTrue(focus.workspace === scratch)
+        XCTAssertNotNil(winMuxWorkspaceState.columnDecks.columnKey(of: scratch.id))
+    }
+
+    func testCardNewErrorsWhenCardAlreadyExists() async throws {
+        _ = Workspace.get(byName: "Scratch")
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .new(.parse("Scratch").getOrDie())),
+        ).run(.defaultEnv, .emptyStdin)
+
+        assertEquals(result.exitCode, 1)
     }
 
     func testDirectWorkspaceFocusCreatesNextBlankNumericWorkspace() async throws {

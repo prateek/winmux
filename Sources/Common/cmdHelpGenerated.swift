@@ -10,6 +10,7 @@ let balance_sizes_help_generated = """
     """
 let card_help_generated = """
     USAGE: card [-h|--help] [--auto-back-and-forth] [--fail-if-noop] go <card-name>
+       OR: card [-h|--help] new <card-name>
        OR: card [-h|--help] <deck-position>
        OR: card [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
        OR: card [-h|--help] back-and-forth

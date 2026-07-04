@@ -5,8 +5,11 @@
 public enum CardTarget: Equatable, Sendable {
     /// `card next` / `card prev` — page the focused column's deck.
     case relative(NextPrev)
-    /// `card go <name>` or bare `card <N>` — reveal a card by name or deck position.
+    /// `card go <name>` or bare `card <N>` — reveal a card by name or deck position. Never
+    /// creates: an unknown name or out-of-range position is an error.
     case direct(WorkspaceName)
+    /// `card new <name>` — create an empty card at the top of the focused column's deck.
+    case new(WorkspaceName)
     /// `card back-and-forth` — bounce between the last two cards.
     case backAndForth
     /// `card summon <name>` — move the named card into the focused column.
@@ -87,7 +90,7 @@ extension CardCmdArgs {
     public var useStdin: Bool { explicitStdinFlag ?? false }
 }
 
-let cardTargetPlaceholder = "(go <name>|next|prev|<N>|back-and-forth|summon <name>|move <target>)"
+let cardTargetPlaceholder = "(go <name>|new <name>|next|prev|<N>|back-and-forth|summon <name>|move <target>)"
 
 private func parseCardTarget(i: PosArgParserInput) -> ParsedCliArgs<CardTarget> {
     switch i.arg {
@@ -102,6 +105,11 @@ private func parseCardTarget(i: PosArgParserInput) -> ParsedCliArgs<CardTarget> 
                 return .fail("'card go' requires a card name", advanceBy: 1)
             }
             return .init(WorkspaceName.parse(name).map(CardTarget.direct), advanceBy: 2)
+        case "new":
+            guard let name = i.getOrNil(relativeIndex: 1), !name.starts(with: "-") else {
+                return .fail("'card new' requires a card name", advanceBy: 1)
+            }
+            return .init(WorkspaceName.parse(name).map(CardTarget.new), advanceBy: 2)
         case "summon":
             guard let name = i.getOrNil(relativeIndex: 1), !name.starts(with: "-") else {
                 return .fail("'card summon' requires a card name", advanceBy: 1)
