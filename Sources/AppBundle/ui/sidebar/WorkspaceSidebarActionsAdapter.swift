@@ -47,23 +47,6 @@ func handleWorkspaceSidebarAction(
             overrideWorkspaceInUseFromSidebar(name, targetMonitorScopeId: targetMonitorScopeId)
         case .selectWindow(let windowId):
             focusWindowFromSidebar(windowId)
-        case .selectProject(let projectId):
-            debugWorkspaceSidebarProjectLog(
-                "adapterSelectProject project=\(projectId.rawValue) targetScope=\(targetMonitorScopeId ?? "nil") modelActive=\(viewModel.workspaceSidebarActiveProjectId.rawValue)"
-            )
-            selectWorkspaceSidebarProject(projectId, viewModel: viewModel, targetMonitorScopeId: targetMonitorScopeId)
-        case .createProject:
-            createWorkspaceSidebarProject(viewModel: viewModel, targetMonitorScopeId: targetMonitorScopeId)
-        case .renameProject(let projectId, let displayName):
-            renameWorkspaceSidebarProject(projectId, displayName: displayName)
-        case .setProjectColor(let projectId, let colorHex):
-            if let project = workspaceSidebarProjectViewModel(projectId) {
-                setWorkspaceSidebarProjectColor(project, colorHex: colorHex)
-            }
-        case .deleteProject(let projectId):
-            if let project = workspaceSidebarProjectViewModel(projectId) {
-                deleteWorkspaceSidebarProject(project, viewModel: viewModel)
-            }
         case .selectMonitorScope(let scopeId):
             selectWorkspaceSidebarMonitorScope(scopeId, viewModel: viewModel)
         case .createWorkspace(let projectId, let monitorScopeId):
@@ -95,11 +78,6 @@ func handleWorkspaceSidebarAction(
         case .clearDropPreview:
             clearWorkspaceSidebarDropPreview()
     }
-}
-
-@MainActor
-private func workspaceSidebarProjectViewModel(_ id: WorkspaceProjectId) -> WorkspaceSidebarProjectViewModel? {
-    TrayMenuModel.shared.workspaceSidebarProjects.first { $0.id == id }
 }
 
 @MainActor

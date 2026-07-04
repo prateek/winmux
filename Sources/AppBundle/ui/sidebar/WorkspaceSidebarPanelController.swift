@@ -120,8 +120,6 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         viewModel.isEnabled = TrayMenuModel.shared.isEnabled
         viewModel.workspaces = TrayMenuModel.shared.workspaces
         viewModel.workspaceSidebarWorkspaces = TrayMenuModel.shared.workspaceSidebarWorkspaces
-        viewModel.workspaceSidebarProjects = TrayMenuModel.shared.workspaceSidebarProjects
-        viewModel.workspaceSidebarActiveProjectId = resolvedLocalActiveProjectId()
         viewModel.workspaceSidebarMonitorScopes = TrayMenuModel.shared.workspaceSidebarMonitorScopes
         viewModel.workspaceSidebarZoneTargets = TrayMenuModel.shared.workspaceSidebarZoneTargets
         viewModel.workspaceSidebarColumnSections = TrayMenuModel.shared.workspaceSidebarColumnSections
@@ -137,11 +135,6 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         viewModel.experimentalUISettings = TrayMenuModel.shared.experimentalUISettings
         viewModel.workspaceSidebarVisibleWidth = visibleWidth
         viewModel.isWorkspaceSidebarExpanded = isExpanded
-    }
-
-    private func resolvedLocalActiveProjectId() -> WorkspaceProjectId {
-        let monitor = workspaceSidebarMonitor(forScopeId: monitorScopeId)
-        return monitor.map { activeWorkspaceProjectId(for: $0) } ?? workspaceProjectDefaultId
     }
 
     private func resolvedLocalSelectedMonitorScopeId() -> String {

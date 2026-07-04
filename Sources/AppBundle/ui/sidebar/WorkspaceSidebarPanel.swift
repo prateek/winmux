@@ -36,38 +36,16 @@ let workspaceSidebarWorkspaceRowHeight: CGFloat = 24
 let workspaceSidebarWorkspaceSectionHeightCompact: CGFloat = 32
 let workspaceSidebarWorkspaceSectionHeightExpanded: CGFloat = 32
 let workspaceSidebarInUseOverrideEmptySectionMinHeight: CGFloat = 76
-let workspaceSidebarProjectDotFrameHeight: CGFloat = 32
 let workspaceSidebarMenuRowHeight: CGFloat = 28
 let workspaceSidebarMenuRowSpacing: CGFloat = 3
 let workspaceSidebarMenuRowHorizontalPadding: CGFloat = 10
 let workspaceSidebarHoverAnimation: Animation = MotionToken.hover
 let workspaceSidebarReducedMotionHoverAnimation: Animation = MotionToken.quick
-let workspaceSidebarProjectSwipeIntentThreshold: CGFloat = 5
-let workspaceSidebarProjectSwipeNavigateThreshold: CGFloat = 44
-let workspaceSidebarProjectSwipeCreateThreshold: CGFloat = 104
-let workspaceSidebarProjectSwipeFormationStart: CGFloat = 22
 let workspaceSidebarHoverOpenThresholdFraction: CGFloat = 0.75
 let workspaceSidebarDisplayEdgeCompactionMargin: CGFloat = 12
 @MainActor
 var workspaceSidebarDropTargets: [WorkspaceSidebarDropTarget] = []
 
-struct WorkspaceSidebarProjectColorPreset: Hashable, Identifiable {
-    let name: String
-    let hex: String
-
-    var id: String { hex }
-}
-
-let workspaceSidebarProjectColorPresets: [WorkspaceSidebarProjectColorPreset] = [
-    WorkspaceSidebarProjectColorPreset(name: "Blue", hex: "#7BA3C9"),
-    WorkspaceSidebarProjectColorPreset(name: "Cyan", hex: "#6FBAB4"),
-    WorkspaceSidebarProjectColorPreset(name: "Green", hex: "#7DBF8E"),
-    WorkspaceSidebarProjectColorPreset(name: "Yellow", hex: "#C9B97A"),
-    WorkspaceSidebarProjectColorPreset(name: "Orange", hex: "#C4956E"),
-    WorkspaceSidebarProjectColorPreset(name: "Red", hex: "#C48181"),
-    WorkspaceSidebarProjectColorPreset(name: "Pink", hex: "#BF8AAE"),
-    WorkspaceSidebarProjectColorPreset(name: "Violet", hex: "#9B8FC4"),
-]
 extension WorkspaceSidebarPanel {
     func animateVisibleSidebarWidth(_ width: CGFloat, animation: Animation) {
         debugWorkspaceSidebarHoverLog("animateWidth panel=\(monitorScopeId) from=\(viewModel.workspaceSidebarVisibleWidth) to=\(width) frame=\(frame) mouse=\(NSEvent.mouseLocation) ignores=\(ignoresMouseEvents) expanded=\(viewModel.isWorkspaceSidebarExpanded)")

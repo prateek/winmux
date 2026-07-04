@@ -2,8 +2,6 @@ import CoreGraphics
 
 struct WorkspaceSidebarSnapshot: Equatable {
     var workspaces: [WorkspaceSidebarWorkspaceViewModel]
-    var projects: [WorkspaceSidebarProjectViewModel]
-    var activeProjectId: WorkspaceProjectId
     var monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
     var zoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
     var columnSections: [WorkspaceSidebarColumnSectionViewModel] = []
@@ -18,8 +16,6 @@ struct WorkspaceSidebarSnapshot: Equatable {
 
     static let empty = WorkspaceSidebarSnapshot(
         workspaces: [],
-        projects: [],
-        activeProjectId: workspaceProjectDefaultId,
         monitorScopes: [],
         zoneTargets: [],
         columnSections: [],
@@ -56,11 +52,6 @@ enum WorkspaceSidebarAction: Equatable {
     case selectWorkspace(String)
     case overrideWorkspaceInUse(String)
     case selectWindow(UInt32)
-    case selectProject(WorkspaceProjectId)
-    case createProject
-    case renameProject(WorkspaceProjectId, displayName: String)
-    case setProjectColor(WorkspaceProjectId, colorHex: String?)
-    case deleteProject(WorkspaceProjectId)
     case selectMonitorScope(String)
     case createWorkspace(projectId: WorkspaceProjectId, monitorScopeId: String)
     case renameWorkspace(String, displayName: String)

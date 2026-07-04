@@ -12,8 +12,6 @@ public final class TrayMenuModel: ObservableObject {
     @Published var isEnabled: Bool = true
     @Published var workspaces: [WorkspaceViewModel] = []
     @Published var workspaceSidebarWorkspaces: [WorkspaceSidebarWorkspaceViewModel] = []
-    @Published var workspaceSidebarProjects: [WorkspaceSidebarProjectViewModel] = []
-    @Published var workspaceSidebarActiveProjectId: WorkspaceProjectId = workspaceProjectDefaultId
     @Published var workspaceSidebarMonitorScopes: [WorkspaceSidebarMonitorScopeViewModel] = []
     @Published var workspaceSidebarZoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
     @Published var workspaceSidebarColumnSections: [WorkspaceSidebarColumnSectionViewModel] = []
@@ -34,7 +32,6 @@ public final class TrayMenuModel: ObservableObject {
 
     var visibleWorkspaceSidebarWorkspaces: [WorkspaceSidebarWorkspaceViewModel] {
         workspaceSidebarWorkspaces.filter {
-            $0.projectId == workspaceSidebarActiveProjectId &&
             workspaceSidebarWorkspaceMatchesScope(
                 $0,
                 selectedScopeId: workspaceSidebarSelectedMonitorScopeId,

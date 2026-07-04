@@ -17,9 +17,6 @@ func clearWorkspaceSidebarModelState() {
     if !TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets.isEmpty {
         TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets = []
     }
-    if !TrayMenuModel.shared.workspaceSidebarProjects.isEmpty {
-        TrayMenuModel.shared.workspaceSidebarProjects = []
-    }
     TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector = false
     WorkspaceSidebarPanel.refreshAll()
 }
@@ -34,9 +31,6 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
         TrayMenuModel.shared.workspaceSidebarZoneTargets != state.zoneTargets ||
         TrayMenuModel.shared.workspaceSidebarColumnSections != state.columnSections ||
         TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets != state.sceneSwitchTargets
-    let didProjectChange =
-        TrayMenuModel.shared.workspaceSidebarProjects != state.projects ||
-        TrayMenuModel.shared.workspaceSidebarActiveProjectId != state.activeProjectId
 
     updateWorkspaceSidebarTrayModel(with: state)
     WorkspaceSidebarPanel.syncVisiblePanelModelsFromShared()
@@ -49,7 +43,6 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
         state.topPadding != previousTopPadding ||
         didMonitorScopeChange ||
         didZoneTargetChange ||
-        didProjectChange ||
         WorkspaceSidebarPanel.visiblePanels.isEmpty
     {
         WorkspaceSidebarPanel.refreshAll()
@@ -60,8 +53,6 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
 private func updateWorkspaceSidebarTrayModel(with state: WorkspaceSidebarModelState) {
     TrayMenuModel.shared.workspaceSidebarTopPadding = state.topPadding
     TrayMenuModel.shared.workspaceSidebarHoveredWorkspaceName = state.hoveredWorkspaceName
-    TrayMenuModel.shared.workspaceSidebarProjects = state.projects
-    TrayMenuModel.shared.workspaceSidebarActiveProjectId = state.activeProjectId
     TrayMenuModel.shared.workspaceSidebarMonitorScopes = state.monitorScopes
     TrayMenuModel.shared.workspaceSidebarZoneTargets = state.zoneTargets
     TrayMenuModel.shared.workspaceSidebarColumnSections = state.columnSections

@@ -14,8 +14,6 @@ struct WorkspaceSidebarWorkspaceSection: View {
     let allowsWorkspaceActivation: Bool
     let isPinnedActiveWorkspace: Bool
     let isActiveOnTargetMonitor: Bool
-    let projectContextLabel: String?
-    let projectContextColor: Color?
     @Binding var renamingWorkspaceName: String?
     @Binding var renamingWorkspaceText: String
     let onBeginRenameWorkspace: @MainActor () -> Void
@@ -319,22 +317,6 @@ extension WorkspaceSidebarWorkspaceSection {
                     .foregroundStyle(isActiveOnTargetMonitor ? Color.white : Color.white.opacity(0.85))
                     .lineLimit(1)
                     .truncationMode(.tail)
-            }
-            if let projectContextLabel, let projectContextColor {
-                Text(projectContextLabel)
-                    .font(.system(size: 8.5, weight: .bold))
-                    .foregroundStyle(projectContextColor.opacity(0.86))
-                    .lineLimit(1)
-                    .padding(.horizontal, 5)
-                    .frame(height: 15)
-                    .background {
-                        Capsule(style: .continuous)
-                            .fill(projectContextColor.opacity(0.13))
-                    }
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .strokeBorder(projectContextColor.opacity(0.24), lineWidth: 0.5)
-                    }
             }
             Spacer(minLength: 0)
         }

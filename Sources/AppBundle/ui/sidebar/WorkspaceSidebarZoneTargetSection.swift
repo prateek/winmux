@@ -7,8 +7,8 @@ extension WorkspaceSidebarView {
     }
 
     /// True when the panel display runs a configured scene, so the sidebar groups cards by column
-    /// deck. The implicit one-column display yields a single headerless section and stays on the
-    /// flat pager path, so the laptop is unchanged.
+    /// deck under column headers. The implicit one-column display yields a single headerless
+    /// section, rendered as the laptop's flat card list plus a create-card affordance.
     var panelUsesColumnDeckSections: Bool {
         panelColumnSections.contains { !$0.isImplicit }
     }
@@ -36,6 +36,9 @@ extension WorkspaceSidebarView {
                 if !isCompact {
                     workspaceSidebarSceneSwitcherRow(targets: panelSceneSwitchTargets)
                 }
+                if !panelUsesColumnDeckSections {
+                    implicitDeckCreateWorkspaceSection(expansionProgress: expansionProgress)
+                }
             }
             .padding(.leading, leadingInset)
             .padding(.trailing, trailingInset)
@@ -45,15 +48,62 @@ extension WorkspaceSidebarView {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    /// The laptop's create-card affordance. A configured scene creates cards through the column
+    /// deck's own flow, so only the implicit one-column display shows this inline "New Workspace"
+    /// button (and its drag-a-window-here-to-spawn-a-card drop target).
+    @ViewBuilder
+    func implicitDeckCreateWorkspaceSection(expansionProgress: CGFloat) -> some View {
+        if workspaceSidebarShowsCreateWorkspace(selectedScopeId: snapshot.selectedMonitorScopeId) {
+            let createMonitorScopeId = workspaceSidebarWorkspaceCreateScope(
+                selectedScopeId: snapshot.selectedMonitorScopeId,
+                targetMonitorScopeId: snapshot.targetMonitorScopeId,
+                focusedScopeId: snapshot.focusedMonitorScopeId,
+            )
+            WorkspaceSidebarCreateWorkspaceSection(
+                projectId: workspaceProjectDefaultId,
+                monitorScopeId: createMonitorScopeId,
+                dragPreview: snapshot.dropPreview,
+                expansionProgress: expansionProgress,
+                layout: snapshot.configuration,
+                emitsDropTarget: true,
+                onCreateWorkspace: {
+                    actions.send(.createWorkspace(
+                        projectId: workspaceProjectDefaultId,
+                        monitorScopeId: createMonitorScopeId,
+                    ))
+                },
+                onDropPayload: { payload in
+                    switch payload {
+                        case .window(let windowId):
+                            actions.send(.moveWindowToNewWorkspace(
+                                windowId,
+                                projectId: workspaceProjectDefaultId,
+                                monitorScopeId: createMonitorScopeId,
+                            ))
+                        case .tabGroup(let representativeWindowId):
+                            actions.send(.moveTabGroupToNewWorkspace(
+                                representativeWindowId,
+                                projectId: workspaceProjectDefaultId,
+                                monitorScopeId: createMonitorScopeId,
+                            ))
+                        case .card:
+                            actions.send(.clearDropPreview)
+                    }
+                },
+                actions: actions,
+            )
+        }
+    }
+
     @ViewBuilder
     func columnDeckSection(
         _ section: WorkspaceSidebarColumnSectionViewModel,
         expansionProgress: CGFloat,
     ) -> some View {
         let isCompact = expansionProgress < workspaceSidebarRowsRevealProgress
-        // Card rows drag and reorder only in expanded, configured, enabled columns. The implicit
-        // laptop list is never here (it stays on the pager), but the guard keeps the intent local.
-        let allowsCardDrag = !isCompact && !section.isImplicit && section.isEnabled
+        // Card rows drag and reorder in any expanded, enabled column, including the implicit
+        // laptop deck.
+        let allowsCardDrag = !isCompact && section.isEnabled
         VStack(alignment: .leading, spacing: 6) {
             if !isCompact, let title = section.title {
                 WorkspaceSidebarColumnSectionHeader(

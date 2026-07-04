@@ -4,8 +4,6 @@ import Foundation
 func workspaceSidebarSnapshot(from model: TrayMenuModel) -> WorkspaceSidebarSnapshot {
     WorkspaceSidebarSnapshot(
         workspaces: model.workspaceSidebarWorkspaces,
-        projects: model.workspaceSidebarProjects,
-        activeProjectId: model.workspaceSidebarActiveProjectId,
         monitorScopes: model.workspaceSidebarMonitorScopes,
         zoneTargets: model.workspaceSidebarZoneTargets,
         columnSections: model.workspaceSidebarColumnSections,

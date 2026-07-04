@@ -2,8 +2,6 @@ import AppKit
 
 struct WorkspaceSidebarModelState {
     let workspaces: [WorkspaceSidebarWorkspaceViewModel]
-    let projects: [WorkspaceSidebarProjectViewModel]
-    let activeProjectId: WorkspaceProjectId
     let monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
     let zoneTargets: [WorkspaceSidebarZoneTargetViewModel]
     let columnSections: [WorkspaceSidebarColumnSectionViewModel]

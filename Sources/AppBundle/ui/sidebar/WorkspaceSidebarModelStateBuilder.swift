@@ -20,8 +20,6 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
     let sceneSwitchTargets = buildWorkspaceSidebarSceneSwitchTargetViewModels(
         sortedMonitors: availableMonitors,
     )
-    let activeProjectId = currentFocus.workspace.projectId
-    let projects = buildWorkspaceSidebarProjectViewModels()
     let workspaces = await buildWorkspaceSidebarWorkspaceViewModels(
         currentFocus: currentFocus,
         workspaceLabels: config.workspaceSidebar.workspaceLabels,
@@ -30,8 +28,6 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
     let gaps = ResolvedGaps(gaps: config.gaps, monitor: workspaceSidebarResolvedPanelMonitor())
     return WorkspaceSidebarModelState(
         workspaces: workspaces,
-        projects: projects,
-        activeProjectId: activeProjectId,
         monitorScopes: monitorScopes,
         zoneTargets: zoneTargets,
         columnSections: columnSections,

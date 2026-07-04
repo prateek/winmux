@@ -1,32 +1,22 @@
 import Foundation
 
-func workspaceSidebarFilteredWorkspacesByProject(
-    _ workspacesByProject: [WorkspaceProjectId: [WorkspaceSidebarWorkspaceViewModel]],
-    projects: [WorkspaceSidebarProjectViewModel],
+func workspaceSidebarFilteredWorkspaces(
+    _ workspaces: [WorkspaceSidebarWorkspaceViewModel],
     query: String,
-) -> [WorkspaceProjectId: [WorkspaceSidebarWorkspaceViewModel]] {
+) -> [WorkspaceSidebarWorkspaceViewModel] {
     let terms = workspaceSidebarSearchTerms(query)
-    guard !terms.isEmpty else { return workspacesByProject }
-    let projectNamesById = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.displayName) })
-
-    return workspacesByProject.mapValues { workspaces in
-        workspaces.compactMap { workspace in
-            workspaceSidebarFilteredWorkspace(
-                workspace,
-                projectName: projectNamesById[workspace.projectId],
-                terms: terms,
-            )
-        }
+    guard !terms.isEmpty else { return workspaces }
+    return workspaces.compactMap { workspace in
+        workspaceSidebarFilteredWorkspace(workspace, terms: terms)
     }
 }
 
 private func workspaceSidebarFilteredWorkspace(
     _ workspace: WorkspaceSidebarWorkspaceViewModel,
-    projectName: String?,
     terms: [String],
 ) -> WorkspaceSidebarWorkspaceViewModel? {
     let matchingItems = workspace.items.compactMap { item in
-        workspaceSidebarSearchResultItem(item, workspace: workspace, projectName: projectName, terms: terms)
+        workspaceSidebarSearchResultItem(item, workspace: workspace, terms: terms)
     }
     if !matchingItems.isEmpty {
         return WorkspaceSidebarWorkspaceViewModel(
@@ -42,7 +32,7 @@ private func workspaceSidebarFilteredWorkspace(
             items: matchingItems,
         )
     }
-    if workspaceSidebarWorkspaceMatchesSearch(workspace, projectName: projectName, terms: terms) {
+    if workspaceSidebarWorkspaceMatchesSearch(workspace, terms: terms) {
         return workspace
     }
     return nil
@@ -58,7 +48,6 @@ private func workspaceSidebarSearchTerms(_ query: String) -> [String] {
 private func workspaceSidebarSearchResultItem(
     _ item: WorkspaceSidebarItemViewModel,
     workspace: WorkspaceSidebarWorkspaceViewModel,
-    projectName: String?,
     terms: [String],
 ) -> WorkspaceSidebarItemViewModel? {
     switch item.kind {
@@ -71,7 +60,6 @@ private func workspaceSidebarSearchResultItem(
                     window.appBundlePath,
                     workspace.displayName,
                     workspace.name,
-                    projectName,
                 ],
                 terms: terms,
             ) {
@@ -81,7 +69,7 @@ private func workspaceSidebarSearchResultItem(
         case .tabGroup(let group):
             let matchingTabs = group.tabs.filter { tab in
                 workspaceSidebarSearchTextMatches(
-                    [tab.title, tab.appName, tab.appBundleId, tab.appBundlePath, workspace.displayName, workspace.name, projectName],
+                    [tab.title, tab.appName, tab.appBundleId, tab.appBundlePath, workspace.displayName, workspace.name],
                     terms: terms,
                 )
             }
@@ -101,7 +89,6 @@ private func workspaceSidebarSearchResultItem(
                     group.title,
                     workspace.displayName,
                     workspace.name,
-                    projectName,
                 ],
                 terms: terms,
             ) else {
@@ -121,7 +108,6 @@ private func workspaceSidebarSearchResultItem(
 
 private func workspaceSidebarWorkspaceMatchesSearch(
     _ workspace: WorkspaceSidebarWorkspaceViewModel,
-    projectName: String?,
     terms: [String],
 ) -> Bool {
     workspaceSidebarSearchTextMatches(
@@ -130,7 +116,6 @@ private func workspaceSidebarWorkspaceMatchesSearch(
             workspace.sidebarLabel,
             workspace.name,
             workspace.monitorName,
-            projectName,
         ],
         terms: terms,
     )

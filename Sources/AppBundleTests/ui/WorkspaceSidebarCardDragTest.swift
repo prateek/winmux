@@ -53,6 +53,34 @@ final class WorkspaceSidebarCardDragTest: XCTestCase {
         assertEquals(sceneDeckCardNames("scene:desk/column:main"), ["Notes", "Extra", "Work"])
     }
 
+    func testCardSlotDropReordersWithinImplicitLaptopDeck() {
+        // A display with no configured scene runs its implicit one-column deck. The sidebar routes
+        // that laptop list through the same card-slot drop as a configured column, so its cards
+        // reorder within the implicit column.
+        let main = TestMonitor(
+            monitorAppKitNsScreenScreensId: 1,
+            name: "Main",
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
+            isMain: true,
+        )
+        setMonitorsForTests([main])
+        let implicitKey = columnDeckKey(for: main.defaultWorkspaceViewport)
+        _ = occupyCard("Work", windowId: 1, on: main)
+        _ = occupyCard("Notes", windowId: 2, on: main)
+        _ = occupyCard("Extra", windowId: 3, on: main)
+        Workspace.reconcileWorkspaceState()
+        assertEquals(sceneDeckCardNames(implicitKey), ["Work", "Notes", "Extra"])
+        let scope = workspaceSidebarMonitorScopeId(for: main)
+
+        XCTAssertTrue(performCardSlotDropNow("Work", monitorScopeId: scope, columnId: implicitColumnDeckColumnId, dropSlotIndex: 3))
+
+        assertEquals(sceneDeckCardNames(implicitKey), ["Notes", "Extra", "Work"])
+        // A drop on the card's own gap changes nothing.
+        XCTAssertFalse(performCardSlotDropNow("Notes", monitorScopeId: scope, columnId: implicitColumnDeckColumnId, dropSlotIndex: 0))
+        assertEquals(sceneDeckCardNames(implicitKey), ["Notes", "Extra", "Work"])
+    }
+
     func testCardSlotDropTransfersAcrossColumnsAndKeepsFocusOnVisibleColumn() {
         let main = configureScenesFromToml(twoSceneToml)
         assertSucc(setActiveScene("desk", for: main))

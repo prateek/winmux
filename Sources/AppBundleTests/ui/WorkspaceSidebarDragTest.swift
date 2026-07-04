@@ -91,13 +91,10 @@ private func makeWorkspaceSidebarSearchFixture() -> [WorkspaceSidebarWorkspaceVi
 }
 
 private func workspaceSidebarSnapshotForTopFilterBar(
-    projects: [WorkspaceSidebarProjectViewModel],
     monitorScopes: [WorkspaceSidebarMonitorScopeViewModel],
 ) -> WorkspaceSidebarSnapshot {
     WorkspaceSidebarSnapshot(
         workspaces: [],
-        projects: projects,
-        activeProjectId: workspaceProjectDefaultId,
         monitorScopes: monitorScopes,
         zoneTargets: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
@@ -119,11 +116,8 @@ private func workspaceSidebarSnapshotForTopFilterBar(
 
 final class WorkspaceSidebarDragTest: XCTestCase {
     @MainActor
-    func testTopFilterBarHidesForSingleProjectWithoutFocusFilter() {
+    func testTopFilterBarHidesWithoutFocusFilter() {
         let view = WorkspaceSidebarView(snapshot: workspaceSidebarSnapshotForTopFilterBar(
-            projects: [
-                WorkspaceSidebarProjectViewModel(id: workspaceProjectDefaultId, displayName: "Default", colorHex: nil),
-            ],
             monitorScopes: [
                 WorkspaceSidebarMonitorScopeViewModel(
                     id: workspaceSidebarDefaultScopeId,
@@ -141,9 +135,6 @@ final class WorkspaceSidebarDragTest: XCTestCase {
     @MainActor
     func testTopFilterBarShowsWhenFocusFilterIsEnabled() {
         let view = WorkspaceSidebarView(snapshot: workspaceSidebarSnapshotForTopFilterBar(
-            projects: [
-                WorkspaceSidebarProjectViewModel(id: workspaceProjectDefaultId, displayName: "Default", colorHex: nil),
-            ],
             monitorScopes: [
                 WorkspaceSidebarMonitorScopeViewModel(
                     id: workspaceSidebarDefaultScopeId,
@@ -157,27 +148,6 @@ final class WorkspaceSidebarDragTest: XCTestCase {
                     displayName: "Focused",
                     subtitle: nil,
                     systemImageName: "scope",
-                    isFocusedMonitor: false,
-                ),
-            ],
-        ))
-
-        XCTAssertTrue(view.shouldShowTopFilterBar)
-    }
-
-    @MainActor
-    func testTopFilterBarShowsWhenAnotherProjectExists() {
-        let view = WorkspaceSidebarView(snapshot: workspaceSidebarSnapshotForTopFilterBar(
-            projects: [
-                WorkspaceSidebarProjectViewModel(id: workspaceProjectDefaultId, displayName: "Default", colorHex: nil),
-                WorkspaceSidebarProjectViewModel(id: "project-1", displayName: "Project 1", colorHex: nil),
-            ],
-            monitorScopes: [
-                WorkspaceSidebarMonitorScopeViewModel(
-                    id: workspaceSidebarDefaultScopeId,
-                    displayName: "Default",
-                    subtitle: nil,
-                    systemImageName: "display",
                     isFocusedMonitor: false,
                 ),
             ],
@@ -364,19 +334,11 @@ final class WorkspaceSidebarDragTest: XCTestCase {
     func testWorkspaceSidebarSearchFiltersByWindowTitleAndAppName() {
         let workspaces = makeWorkspaceSidebarSearchFixture()
 
-        let titleResults = workspaceSidebarFilteredWorkspacesByProject(
-            [workspaceProjectDefaultId: workspaces],
-            projects: [],
-            query: "release",
-        )[workspaceProjectDefaultId] ?? []
+        let titleResults = workspaceSidebarFilteredWorkspaces(workspaces, query: "release")
         XCTAssertEqual(titleResults.map(\.name), ["coding"])
         XCTAssertEqual(titleResults.first?.items.map(\.id), ["window:101"])
 
-        let appResults = workspaceSidebarFilteredWorkspacesByProject(
-            [workspaceProjectDefaultId: workspaces],
-            projects: [],
-            query: "safari",
-        )[workspaceProjectDefaultId] ?? []
+        let appResults = workspaceSidebarFilteredWorkspaces(workspaces, query: "safari")
         XCTAssertEqual(appResults.map(\.name), ["research"])
         XCTAssertEqual(appResults.first?.items.map(\.id), ["group:201"])
         if case .tabGroup(let group) = appResults.first?.items.first?.kind {
@@ -391,11 +353,7 @@ final class WorkspaceSidebarDragTest: XCTestCase {
     func testWorkspaceSidebarSearchKeepsWholeWorkspaceForWorkspaceMatch() {
         let workspaces = makeWorkspaceSidebarSearchFixture()
 
-        let results = workspaceSidebarFilteredWorkspacesByProject(
-            [workspaceProjectDefaultId: workspaces],
-            projects: [],
-            query: "coding",
-        )[workspaceProjectDefaultId] ?? []
+        let results = workspaceSidebarFilteredWorkspaces(workspaces, query: "coding")
 
         XCTAssertEqual(results.map(\.name), ["coding"])
         XCTAssertEqual(results.first?.items.map(\.id), ["window:101", "window:102"])
@@ -458,163 +416,6 @@ final class WorkspaceSidebarDragTest: XCTestCase {
         )
     }
 
-    func testProjectSwipeDirectionRequiresHorizontalIntent() {
-        XCTAssertEqual(
-            workspaceSidebarProjectSwipeDirection(horizontalTranslation: -40, verticalTranslation: 4),
-            1,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectSwipeDirection(horizontalTranslation: 40, verticalTranslation: 4),
-            -1,
-        )
-        XCTAssertNil(
-            workspaceSidebarProjectSwipeDirection(horizontalTranslation: -40, verticalTranslation: 38),
-        )
-        XCTAssertNil(
-            workspaceSidebarProjectSwipeDirection(horizontalTranslation: -4, verticalTranslation: 0),
-        )
-    }
-
-    func testProjectSwipeNavigatesWithoutWrapping() {
-        XCTAssertEqual(
-            workspaceSidebarProjectIndexAfterSwipe(currentIndex: 1, projectCount: 3, direction: 1),
-            2,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectIndexAfterSwipe(currentIndex: 1, projectCount: 3, direction: -1),
-            0,
-        )
-        XCTAssertNil(
-            workspaceSidebarProjectIndexAfterSwipe(currentIndex: 2, projectCount: 3, direction: 1),
-        )
-        XCTAssertNil(
-            workspaceSidebarProjectIndexAfterSwipe(currentIndex: 0, projectCount: 3, direction: -1),
-        )
-    }
-
-    func testProjectSwipeCreatesOnlyPastEdgesAfterBreakPoint() {
-        XCTAssertFalse(
-            shouldCreateWorkspaceSidebarProjectAfterSwipe(
-                currentIndex: 1,
-                projectCount: 3,
-                direction: 1,
-                distance: 120,
-            ),
-        )
-        XCTAssertFalse(
-            shouldCreateWorkspaceSidebarProjectAfterSwipe(
-                currentIndex: 2,
-                projectCount: 3,
-                direction: 1,
-                distance: 96,
-            ),
-        )
-        XCTAssertTrue(
-            shouldCreateWorkspaceSidebarProjectAfterSwipe(
-                currentIndex: 2,
-                projectCount: 3,
-                direction: 1,
-                distance: 110,
-            ),
-        )
-        XCTAssertTrue(
-            shouldCreateWorkspaceSidebarProjectAfterSwipe(
-                currentIndex: 0,
-                projectCount: 3,
-                direction: -1,
-                distance: 110,
-            ),
-        )
-    }
-
-    func testProjectSwipeFormationProgressOnlyAtEdges() {
-        XCTAssertEqual(
-            workspaceSidebarProjectEdgeCreationProgress(
-                currentIndex: 1,
-                projectCount: 3,
-                direction: 1,
-                distance: 100,
-            ),
-            0,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectEdgeCreationProgress(
-                currentIndex: 2,
-                projectCount: 3,
-                direction: 1,
-                distance: 22,
-            ),
-            0,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectEdgeCreationProgress(
-                currentIndex: 2,
-                projectCount: 3,
-                direction: 1,
-                distance: 104,
-            ),
-            1,
-        )
-    }
-
-    func testProjectSwipeSwitchProgressReachesOneAtNavigationThreshold() {
-        XCTAssertEqual(workspaceSidebarProjectSwipeSwitchProgress(distance: 0), 0)
-        XCTAssertEqual(workspaceSidebarProjectSwipeSwitchProgress(distance: 22), 0.5)
-        XCTAssertEqual(workspaceSidebarProjectSwipeSwitchProgress(distance: 44), 1)
-        XCTAssertEqual(workspaceSidebarProjectSwipeSwitchProgress(distance: 64), 1)
-    }
-
-    func testProjectPagerDragTracksRealAdjacentPagesDirectly() {
-        XCTAssertEqual(
-            workspaceSidebarProjectPagerDragOffset(
-                horizontalTranslation: -60,
-                currentIndex: 0,
-                projectCount: 2,
-                pageWidth: 200,
-            ),
-            -60,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectPagerDragOffset(
-                horizontalTranslation: -240,
-                currentIndex: 0,
-                projectCount: 2,
-                pageWidth: 200,
-            ),
-            -200,
-        )
-    }
-
-    func testProjectPagerDragUsesResistanceAtProjectEdges() {
-        XCTAssertEqual(
-            workspaceSidebarProjectPagerDragOffset(
-                horizontalTranslation: 120,
-                currentIndex: 0,
-                projectCount: 1,
-                pageWidth: 200,
-            ),
-            52,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectPagerDragOffset(
-                horizontalTranslation: -120,
-                currentIndex: 0,
-                projectCount: 1,
-                pageWidth: 200,
-            ),
-            -52,
-        )
-    }
-
-    func testProjectHueIsStableAndNormalized() {
-        let firstHue = workspaceSidebarProjectHue(projectId: "project-alpha")
-        let secondHue = workspaceSidebarProjectHue(projectId: "project-alpha")
-
-        XCTAssertEqual(firstHue, secondHue)
-        XCTAssertGreaterThanOrEqual(firstHue, 0)
-        XCTAssertLessThan(firstHue, 1)
-    }
-
     func testProjectColorHexNormalizes() {
         XCTAssertEqual(normalizedWorkspaceSidebarColorHex("#60a5fa"), "#60A5FA")
         XCTAssertEqual(normalizedWorkspaceSidebarColorHex("f87171"), "#F87171")
@@ -625,17 +426,6 @@ final class WorkspaceSidebarDragTest: XCTestCase {
     func testProjectColorUsesConfiguredHexWhenPresent() {
         XCTAssertNotNil(workspaceSidebarColor(hex: "#60A5FA"))
         XCTAssertNil(workspaceSidebarColor(hex: "not-a-color"))
-    }
-
-    func testProjectSwipeScrollDeltaUsesDragDirection() {
-        XCTAssertEqual(
-            workspaceSidebarProjectSwipeTranslationAfterScroll(currentTranslation: 0, scrollingDeltaX: 24),
-            -24,
-        )
-        XCTAssertEqual(
-            workspaceSidebarProjectSwipeTranslationAfterScroll(currentTranslation: -24, scrollingDeltaX: -10),
-            -14,
-        )
     }
 
     func testWorkspaceSidebarFocusedMonitorScopeOnlyMatchesFocusedMonitor() {
