@@ -125,6 +125,7 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         viewModel.workspaceSidebarMonitorScopes = TrayMenuModel.shared.workspaceSidebarMonitorScopes
         viewModel.workspaceSidebarZoneTargets = TrayMenuModel.shared.workspaceSidebarZoneTargets
         viewModel.workspaceSidebarColumnSections = TrayMenuModel.shared.workspaceSidebarColumnSections
+        viewModel.workspaceSidebarSceneSwitchTargets = TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets
         viewModel.workspaceSidebarSelectedMonitorScopeId = resolvedLocalSelectedMonitorScopeId()
         viewModel.workspaceSidebarTargetMonitorScopeId = monitorScopeId
         viewModel.workspaceSidebarFocusedMonitorScopeId = TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId
