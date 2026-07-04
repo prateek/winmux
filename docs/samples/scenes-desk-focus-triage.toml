@@ -1,0 +1,66 @@
+# Three scenes on one display.
+#
+# The same display switches between three column arrangements. 'desk' is the
+# first declared, so it is the default. 'focus' collapses to a single wide Work
+# column; 'triage' leads with Comms. Scenes are live, not snapshots: whatever
+# you leave in a scene is there when you switch back. alt-ctrl-1/2/3 switch
+# scenes; alt-ctrl-tab cycles them.
+
+config-version = 3
+
+auto-reload-config = true
+
+[sidebar]
+    enabled = true
+    width = 260
+    show-date = true
+
+[scene.desk]
+    display = 1
+    default-column = 'main'
+    columns = [
+        { id = 'ref',   name = 'Reference', width = 0.20, color = '#3EA2FF' },
+        { id = 'main',  name = 'Work',      width = 0.55 },
+        { id = 'comms', name = 'Comms',     width = 0.25, color = '#D3455B' },
+    ]
+
+[scene.focus]
+    display = 1
+    columns = [ { id = 'main', name = 'Work', width = 1.0 } ]
+
+[scene.triage]
+    display = 1
+    default-column = 'comms'
+    columns = [
+        { id = 'comms', name = 'Comms', width = 0.60, color = '#D3455B' },
+        { id = 'main',  name = 'Work',  width = 0.40 },
+    ]
+
+[mode.main.binding]
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+    alt-1 = 'card 1'
+    alt-2 = 'card 2'
+
+    alt-ctrl-1 = 'scene desk'
+    alt-ctrl-2 = 'scene focus'
+    alt-ctrl-3 = 'scene triage'
+    alt-ctrl-tab = 'scene next'
+
+    alt-h = 'focus left'
+    alt-l = 'focus right'
+
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    alt-z = 'mode column'
+
+[mode.column.binding]
+    h = ['focus-column prev', 'mode main']
+    l = ['focus-column next', 'mode main']
+    shift-h = ['card move left', 'mode main']
+    shift-l = ['card move right', 'mode main']
+    minus = ['column resize -10%', 'mode main']
+    equal = ['column resize +10%', 'mode main']
+    "0" = ['balance-columns', 'mode main']
+    esc = 'mode main'

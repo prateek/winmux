@@ -1,0 +1,58 @@
+# Mouse snapping, divider drags, and Exposé.
+#
+# Column mode (alt-z) turns the dividers into drag handles; outside it the
+# boundaries are inert so ordinary clicks never fight the window manager. With
+# target = 'window', secondary-button dragging a window snaps it into a slot
+# within a column rather than onto the column itself. ctrl-up shows the whole
+# scene; ctrl-down shows the focused card's windows.
+
+config-version = 3
+
+auto-reload-config = true
+
+[sidebar]
+    enabled = true
+    width = 260
+
+[scene.desk]
+    display = 1
+    default-column = 'main'
+    columns = [
+        { id = 'ref',   name = 'Reference', width = 0.25, color = '#3EA2FF' },
+        { id = 'main',  name = 'Work',      width = 0.50 },
+        { id = 'comms', name = 'Comms',     width = 0.25, color = '#D3455B' },
+    ]
+
+[mouse]
+    # 'column-mode' = handles only while column mode is active; 'always' = every
+    # mode; 'off' = never.
+    column-divider-drag = 'column-mode'
+
+[mouse.column-snap]
+    # snap-on-modifier: float freely, snap only while the modifier is held.
+    policy = 'snap-on-modifier'
+    modifier = 'alt'
+    gesture = 'secondary-button-drag'
+    target = 'window'        # snap into an in-column slot, not onto the column
+
+[mode.main.binding]
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    alt-z = 'mode column'
+
+[mode.column.binding]
+    h = ['focus-column prev', 'mode main']
+    l = ['focus-column next', 'mode main']
+    shift-h = ['card move left', 'mode main']
+    shift-l = ['card move right', 'mode main']
+    minus = ['column resize -10%', 'mode main']
+    equal = ['column resize +10%', 'mode main']
+    "0" = ['balance-columns', 'mode main']
+    t = ['column toggle', 'mode main']
+    # Cycle the snap policy without leaving the keyboard.
+    s = ['cycle-column-snap-policy snap-on-modifier freeform snap-to-column', 'mode main']
+    esc = 'mode main'

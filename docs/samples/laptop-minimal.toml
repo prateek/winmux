@@ -1,0 +1,43 @@
+# Laptop, zero scenes.
+#
+# No [scene.*] block, so the single display gets one implicit full-width column
+# whose deck holds every card. This is classic card switching: alt-n / alt-p
+# page the deck, alt-1..3 jump to a position, alt-tab bounces. Nothing here
+# mentions columns or scenes, and that is the point.
+
+config-version = 3
+
+start-at-login = false
+auto-reload-config = true
+default-root-container-layout = 'tiles'
+
+# Never pruned, even when empty.
+persistent-cards = ['Scratch']
+
+[sidebar]
+    enabled = true
+    width = 240
+    collapsed-width = 44
+    show-status-pills = true
+    show-date = true
+
+[mode.main.binding]
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+    alt-1 = 'card 1'
+    alt-2 = 'card 2'
+    alt-3 = 'card 3'
+
+    alt-h = 'focus left'
+    alt-j = 'focus down'
+    alt-k = 'focus up'
+    alt-l = 'focus right'
+
+    alt-shift-1 = 'move-node-to-card 1'
+    alt-shift-2 = 'move-node-to-card 2'
+    alt-shift-3 = 'move-node-to-card 3'
+
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    ctrl-f = 'open-sidebar'

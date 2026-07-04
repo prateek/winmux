@@ -252,6 +252,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap
         config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
 
         let withoutModifier = zoneSnapDestinationResolution(
             sourceWindow: fixture.window,
@@ -440,6 +441,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap
         config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
             window: fixture.window,
@@ -510,6 +512,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         let fixture = configureZoneSnapFixture()
         config.mouse.zoneSnap.policy = .floatUnlessSnap
         config.mouse.zoneSnap.modifier = .option
+        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
         let anchorRect = Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 180)
         fixture.window.lastAppliedLayoutPhysicalRect = anchorRect
         var beginCalls: [MouseMoveBeginCall] = []

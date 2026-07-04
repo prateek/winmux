@@ -1,0 +1,67 @@
+# One ultrawide display, one scene, three columns.
+#
+# The 'desk' scene splits display 1 into Reference / Work / Comms. Each column
+# is its own small monitor with a stable deck; Work is the wide center where
+# new and rule-created cards land (default-column = 'main'). Colors tint the
+# column chrome. Enter column mode (alt-z) to resize dividers or move the
+# focused card between columns.
+
+config-version = 3
+
+auto-reload-config = true
+default-root-container-layout = 'tiles'
+
+[sidebar]
+    enabled = true
+    width = 260
+    show-status-pills = true
+
+[scene.desk]
+    display = 1
+    default-column = 'main'
+    columns = [
+        { id = 'ref',   name = 'Reference', width = 0.25, color = '#3EA2FF' },
+        { id = 'main',  name = 'Work',      width = 0.50 },
+        { id = 'comms', name = 'Comms',     width = 0.25, color = '#D3455B' },
+    ]
+
+# Deal chat and mail onto the Comms column's card.
+[[rules]]
+    if.app-id = 'com.tinyspeck.slackmacgap'
+    card = 'Comms'
+
+[[rules]]
+    if.window-title-regex-substring = 'Inbox|Mail'
+    card = 'Comms'
+
+[mouse]
+    column-divider-drag = 'column-mode'
+
+[mode.main.binding]
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+    alt-1 = 'card 1'
+    alt-2 = 'card 2'
+    alt-3 = 'card 3'
+
+    alt-h = 'focus left'
+    alt-l = 'focus right'
+
+    ctrl-shift-h = 'move-node-to-column left'
+    ctrl-shift-l = 'move-node-to-column right'
+
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    alt-z = 'mode column'
+
+[mode.column.binding]
+    h = ['focus-column prev', 'mode main']
+    l = ['focus-column next', 'mode main']
+    shift-h = ['card move left', 'mode main']
+    shift-l = ['card move right', 'mode main']
+    minus = ['column resize -10%', 'mode main']
+    equal = ['column resize +10%', 'mode main']
+    "0" = ['balance-columns', 'mode main']
+    t = ['column toggle', 'mode main']
+    esc = 'mode main'

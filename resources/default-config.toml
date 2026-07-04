@@ -1,4 +1,18 @@
-config-version = 2
+# WinMux configuration (config-version 3).
+#
+# The surface is five nouns:
+#   Display — a physical monitor. Shows one scene at a time.
+#   Scene   — a named column arrangement a display switches between.
+#   Column  — a vertical slice of a scene; behaves like its own small monitor.
+#   Card    — a named window group. Lives in exactly one column's deck.
+#   Rule    — a window match that deals a new window onto a card.
+#
+# A display with no [scene.*] block gets one implicit full-width column whose
+# deck is all its cards. That is this file's default: classic card switching on
+# a laptop, zero configuration. Uncomment the [scene.*] block near the bottom to
+# split an ultrawide into columns. See docs/ultrawide-columns.md.
+
+config-version = 3
 
 start-at-login = false
 auto-reload-config = true
@@ -6,22 +20,23 @@ enable-normalization-flatten-containers = true
 enable-normalization-opposite-orientation-for-nested-containers = true
 tab-group-padding = 30
 
-window-tabs.enabled = true
-window-tabs.height = 36
-
 default-root-container-layout = 'tiles'
 default-root-container-orientation = 'auto'
-
-on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 
 automatically-unhide-macos-hidden-apps = false
 auto-add-new-windows-to-tab-group = false
 shortcuts-preset = 'none'
-persistent-workspaces = []
-on-mode-changed = []
+
+# Cards listed here are never pruned, even when their windows all close.
+persistent-cards = []
 
 [key-mapping]
     preset = 'qwerty'
+
+# In-card window tabbing (presentation only).
+[window-tabs]
+    enabled = true
+    height = 36
 
 [gaps]
     inner.horizontal = 8
@@ -31,186 +46,144 @@ on-mode-changed = []
     outer.top = 8
     outer.right = 8
 
-[workspace-sidebar]
+# The cross-scene map of every column, deck, and card.
+[sidebar]
     enabled = true
-    collapsed-width = 44
     width = 240
-    # Omit monitor to show an independent sidebar on every display.
-    # Legacy monitor = 'main' is also treated as all displays for this sidebar.
-    # Use monitor = 1, 'secondary', 2, or a list to restrict it.
-    menu-bar-reserve-height = 28
-    project-deletion-action = 'close-windows'
+    collapsed-width = 44
     show-status-pills = true
     show-date = true
 
+[updates]
+    automatic-check = false  # true = Sparkle checks the update feed in the background
+
+[mouse]
+    # Dividers grow drag handles only while the 'column' binding mode is active
+    # ('column-mode'), so ordinary clicks never fight the window manager.
+    # 'always' = draggable in every mode; 'off' = never draggable.
+    column-divider-drag = 'column-mode'
+
+[mouse.column-snap]
+    # policy: float-unless-snap | freeform (never snap) | snap-on-modifier | snap-to-column
+    policy = 'float-unless-snap'
+    modifier = 'alt'
+    gesture = 'secondary-button-drag'
+    target = 'column'        # or 'window' for in-column slot snapping
+
+# --- Ultrawide scenes and rules (commented; the default above is the laptop case)
+#
+# Uncomment the block between the markers below to split display 1 into columns,
+# switch between three scenes, and deal chat/mail onto a Comms card.
+# `display` selects the physical monitor: 1, 2 = left-to-right; 'main';
+# 'secondary'; or a name pattern like 'LG-Ultrawide' (prefer names for stable
+# multi-monitor setups). The first declared scene for a display is its default.
+# `color` tints a column's chrome (divider, sidebar accent, expose border) and
+# is purely cosmetic. Column widths must sum to 1.0. Column ids may not use the
+# reserved direction words left/right/next/prev. Once uncommented, the
+# alt-ctrl-1/2/3 scene bindings below light up.
+#
+# BEGIN WINMUX ULTRAWIDE SCENES EXAMPLE
+# [scene.desk]
+# display = 1
+# default-column = 'main'
+# columns = [
+#   { id = 'ref',   name = 'Reference', width = 0.20, color = '#3EA2FF' },
+#   { id = 'main',  name = 'Work',      width = 0.55 },
+#   { id = 'comms', name = 'Comms',     width = 0.25, color = '#D3455B' },
+# ]
+#
+# [scene.focus]
+# display = 1
+# columns = [ { id = 'main', name = 'Work', width = 1.0 } ]
+#
+# [scene.triage]
+# display = 1
+# default-column = 'comms'
+# columns = [
+#   { id = 'comms', name = 'Comms', width = 0.60, color = '#D3455B' },
+#   { id = 'main',  name = 'Work',  width = 0.40 },
+# ]
+#
+# [[rules]]
+# if.app-id = 'com.tinyspeck.slackmacgap'
+# card = 'Comms'
+#
+# [[rules]]
+# if.window-title-regex-substring = 'Inbox|Mail'
+# card = 'Comms'
+# END WINMUX ULTRAWIDE SCENES EXAMPLE
+
 [mode.main.binding]
-    ctrl-f = 'open-sidebar'
-    alt-z = 'mode column'
-    # macOS's own Mission Control shortcuts may shadow these two; disable them in
-    # System Settings > Keyboard > Shortcuts > Mission Control if nothing happens.
-    ctrl-up = 'expose display'
-    ctrl-down = 'expose card'
-    alt-space = 'layout horizontal vertical'
+    # Cards: page the focused column's deck. Positions are stable, so muscle
+    # memory holds.
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+    alt-1 = 'card 1'
+    alt-2 = 'card 2'
+    alt-3 = 'card 3'
+    alt-4 = 'card 4'
+    alt-5 = 'card 5'
+    alt-6 = 'card 6'
+    alt-7 = 'card 7'
+    alt-8 = 'card 8'
+    alt-9 = 'card 9'
+    alt-0 = 'card 10'
+
+    # Scenes: switch the focused display's column arrangement. These no-op until
+    # you declare the matching [scene.*] blocks above (the ctrl layer avoids any
+    # collision with the card positions).
+    alt-ctrl-1 = 'scene desk'
+    alt-ctrl-2 = 'scene focus'
+    alt-ctrl-3 = 'scene triage'
+    alt-ctrl-tab = 'scene next'
+
+    # Window focus inside the focused card (upstream).
     alt-h = 'focus left'
     alt-j = 'focus down'
     alt-k = 'focus up'
     alt-l = 'focus right'
-    alt-n = 'focus dfs-next'
-    alt-p = 'focus dfs-prev'
-    alt-tab = 'focus tab-next'
-    alt-shift-tab = 'focus tab-prev'
-    alt-0 = 'focus --tab-index 10'
-    alt-1 = 'focus --tab-index 1'
-    alt-2 = 'focus --tab-index 2'
-    alt-3 = 'focus --tab-index 3'
-    alt-4 = 'focus --tab-index 4'
-    alt-5 = 'focus --tab-index 5'
-    alt-6 = 'focus --tab-index 6'
-    alt-7 = 'focus --tab-index 7'
-    alt-8 = 'focus --tab-index 8'
-    alt-9 = 'focus --tab-index 9'
+
+    # Move the focused window inside its card.
     alt-shift-h = 'move left'
     alt-shift-j = 'move down'
     alt-shift-k = 'move up'
     alt-shift-l = 'move right'
-    alt-shift-t = 'layout floating tiling'
-    alt-shift-m = 'fullscreen'
-    cmd-shift-h = 'join-with left'
-    cmd-shift-j = 'join-with down'
-    cmd-shift-k = 'join-with up'
-    cmd-shift-l = 'join-with right'
-    ctrl-cmd-shift-h = 'stack-with left'
-    ctrl-cmd-shift-j = 'stack-with down'
-    ctrl-cmd-shift-k = 'stack-with up'
-    ctrl-cmd-shift-l = 'stack-with right'
-    cmd-shift-i = 'balance-sizes'
-    alt-cmd-j = 'swap down'
-    alt-cmd-k = 'swap up'
-    ctrl-0 = 'card 10'
-    ctrl-1 = 'card 1'
-    ctrl-2 = 'card 2'
-    ctrl-3 = 'card 3'
-    ctrl-4 = 'card 4'
-    ctrl-5 = 'card 5'
-    ctrl-6 = 'card 6'
-    ctrl-7 = 'card 7'
-    ctrl-8 = 'card 8'
-    ctrl-9 = 'card 9'
-    ctrl-q = 'card 11'
-    ctrl-w = 'card 12'
-    ctrl-e = 'card 13'
-    ctrl-r = 'card 14'
-    ctrl-t = 'card 15'
-    ctrl-h = 'card prev'
-    ctrl-l = 'card next'
-    cmd-ctrl-h = 'card prev'
-    cmd-ctrl-l = 'card next'
+
+    # Send the focused window to a card by deck position.
     alt-shift-1 = 'move-node-to-card 1'
     alt-shift-2 = 'move-node-to-card 2'
     alt-shift-3 = 'move-node-to-card 3'
     alt-shift-4 = 'move-node-to-card 4'
     alt-shift-5 = 'move-node-to-card 5'
-    alt-shift-6 = 'move-node-to-card 6'
-    alt-shift-7 = 'move-node-to-card 7'
-    alt-shift-8 = 'move-node-to-card 8'
-    alt-shift-9 = 'move-node-to-card 9'
-    ctrl-shift-0 = 'move-node-to-card 10'
-    ctrl-shift-h = 'move-node-to-card --focus-follows-window prev'
-    ctrl-shift-l = 'move-node-to-card --focus-follows-window next'
+
+    # Send the focused window to the adjacent column.
+    ctrl-shift-h = 'move-node-to-column left'
+    ctrl-shift-l = 'move-node-to-column right'
+
+    # In-card window layout.
+    alt-space = 'layout tiles tab-group'
+    alt-shift-space = 'layout floating tiling'
+    alt-slash = 'layout horizontal vertical'
+    alt-shift-m = 'fullscreen'
+    cmd-shift-i = 'balance-sizes'
+
+    # Exposé, sidebar, and modes. macOS's own Mission Control shortcuts may
+    # shadow the two ctrl-arrow bindings; disable them in System Settings >
+    # Keyboard > Shortcuts > Mission Control if nothing happens.
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    ctrl-f = 'open-sidebar'
+    alt-z = 'mode column'
 
 [mode.column.binding]
-    esc = 'mode main'
     h = ['focus-column prev', 'mode main']
     l = ['focus-column next', 'mode main']
-    shift-h = ['move-node-to-column --focus-follows-window prev', 'mode main']
-    shift-l = ['move-node-to-column --focus-follows-window next', 'mode main']
+    shift-h = ['card move left', 'mode main']
+    shift-l = ['card move right', 'mode main']
     minus = ['column resize -10%', 'mode main']
     equal = ['column resize +10%', 'mode main']
     "0" = ['balance-columns', 'mode main']
     t = ['column toggle', 'mode main']
-    space = ['layout floating tiling', 'mode main']
-    s = ['cycle-column-snap-policy freeform snap-to-column', 'mode main']
-    # Uncomment the template below on a large ultrawide display to split monitor 1 into
-    # Reference, Work, and Comms columns. Tune the widths and card names to
-    # match your desk.
-    # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
-
-# [[zone-styles]]
-# id = 'urgent'
-# color = '#D3455B'
-
-# [[zone-styles]]
-# id = 'calm'
-# color = '#3EA2FF'
-
-# [[zone-layouts]]
-# id = 'balanced'
-# layout = 'columns'
-# default-zone = 'main'
-# columns = [
-#   { id = 'left', name = 'Reference', width = 0.25 },
-#   { id = 'main', name = 'Work', width = 0.50 },
-#   { id = 'right', name = 'Comms', width = 0.25 },
-# ]
-
-# [[zone-layouts]]
-# id = 'focus'
-# layout = 'columns'
-# default-zone = 'main'
-# columns = [
-#   { id = 'left', name = 'Reference', width = 0.18 },
-#   { id = 'main', name = 'Work', width = 0.64 },
-#   { id = 'right', name = 'Comms', width = 0.18 },
-# ]
-
-# [[zones]]
-# monitor = 1
-# layout-preset = 'balanced'
-
-# [[zone-scenes]]
-# id = 'triage'
-# layout-preset = 'balanced'
-# workspaces = [
-#   { zone = 'left', workspace = 'TriageInbox' },
-#   { zone = 'main', workspace = 'TriageDraft' },
-#   { zone = 'right', workspace = 'TriageUpdates' },
-# ]
-
-# [[zone-scenes]]
-# id = 'deep-work'
-# layout-preset = 'focus'
-# workspaces = [
-#   { zone = 'left', workspace = 'FocusQueue' },
-#   { zone = 'main', workspace = 'FocusBuild' },
-#   { zone = 'right', workspace = 'FocusNotes' },
-# ]
-
-# [[zone-availability-sets]]
-# id = 'focus-only'
-# enabled-zones = ['main']
-
-# [[zone-availability-sets]]
-# id = 'communications'
-# enabled-zones = ['main', 'right']
-
-# [[zone-availability-sets]]
-# id = 'full-dashboard'
-# enabled-zones = ['left', 'main', 'right']
-
-# [[zone-affinities]]
-# zone = 'Comms'
-# if.window-title-regex-substring = 'Slack|Messages|Mail'
-# fail-if-noop = false
-
-# [mouse]
-# zone-divider-drag = 'zone-mode' # 'always' = draggable in every mode, 'off' = disabled
-
-# [updates]
-# automatic-check = false # true = Sparkle checks the update feed in the background
-
-# [mouse.zone-snap]
-# policy = 'freeform'
-# modifier = 'alt'
-# gesture = 'drag'
-# target = 'zone'
-# END WINMUX ULTRAWIDE ZONES TEMPLATE
+    s = ['cycle-column-snap-policy float-unless-snap freeform', 'mode main']
+    esc = 'mode main'

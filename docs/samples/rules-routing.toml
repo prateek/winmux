@@ -1,0 +1,72 @@
+# Rules: deal windows onto cards by match.
+#
+# A rule is a window match -> card, never a place. Rules are evaluated top to
+# bottom; the first match wins unless it opts into check-further-rules. A rule
+# naming a card that does not exist yet creates it in the active scene's
+# default-column (here, 'main' of the desk scene), independent of where focus
+# is. Unmatched windows join the focused card, as usual.
+
+config-version = 3
+
+auto-reload-config = true
+
+# Chat and Notes are kept alive even when empty, so their rules always have a
+# stable home.
+persistent-cards = ['Chat', 'Notes']
+
+[sidebar]
+    enabled = true
+    width = 260
+
+[scene.desk]
+    display = 1
+    default-column = 'main'
+    columns = [
+        { id = 'ref',   name = 'Reference', width = 0.25, color = '#3EA2FF' },
+        { id = 'main',  name = 'Work',      width = 0.50 },
+        { id = 'comms', name = 'Comms',     width = 0.25, color = '#D3455B' },
+    ]
+
+# Match by bundle id (most precise).
+[[rules]]
+    if.app-id = 'com.tinyspeck.slackmacgap'
+    card = 'Chat'
+
+# Match by app name, case-insensitive substring.
+[[rules]]
+    if.app-name-regex-substring = 'Mail|Messages'
+    card = 'Chat'
+
+# Match by window title, and focus the card once the window lands.
+[[rules]]
+    if.window-title-regex-substring = 'Pull Request|Issue'
+    card = 'Review'
+    focus = true
+
+# check-further-rules lets a broad match tag a card and still fall through to a
+# more specific rule below.
+[[rules]]
+    if.app-name-regex-substring = 'Notes'
+    card = 'Notes'
+    check-further-rules = true
+
+[[rules]]
+    if.window-title-regex-substring = 'Standup|Retro'
+    card = 'Meetings'
+
+[mode.main.binding]
+    alt-n = 'card next'
+    alt-p = 'card prev'
+    alt-tab = 'card back-and-forth'
+    alt-1 = 'card 1'
+    alt-2 = 'card 2'
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
+    alt-z = 'mode column'
+
+[mode.column.binding]
+    h = ['focus-column prev', 'mode main']
+    l = ['focus-column next', 'mode main']
+    shift-h = ['card move left', 'mode main']
+    shift-l = ['card move right', 'mode main']
+    esc = 'mode main'

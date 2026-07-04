@@ -54,81 +54,63 @@ func preferredEditableConfigUrl() -> URL {
 }
 
 func starterConfigText() -> String {
+    // The canonical config-version-3 main keymap. Mirrors the [mode.main.binding] block in
+    // resources/default-config.toml so a fresh install and a settings reset produce the template.
     let starterBindings: [String: String] = [
-        ("alt-space", "layout horizontal vertical"),
-        ("ctrl-f", "open-sidebar"),
-        ("alt-z", "mode column"),
+        // Cards: page the focused column's deck.
+        ("alt-n", "card next"),
+        ("alt-p", "card prev"),
+        ("alt-tab", "card back-and-forth"),
+        ("alt-1", "card 1"),
+        ("alt-2", "card 2"),
+        ("alt-3", "card 3"),
+        ("alt-4", "card 4"),
+        ("alt-5", "card 5"),
+        ("alt-6", "card 6"),
+        ("alt-7", "card 7"),
+        ("alt-8", "card 8"),
+        ("alt-9", "card 9"),
+        ("alt-0", "card 10"),
+        // Scenes: switch the focused display's column arrangement.
+        ("alt-ctrl-1", "scene desk"),
+        ("alt-ctrl-2", "scene focus"),
+        ("alt-ctrl-3", "scene triage"),
+        ("alt-ctrl-tab", "scene next"),
+        // Window focus inside the focused card.
         ("alt-h", "focus left"),
         ("alt-j", "focus down"),
         ("alt-k", "focus up"),
         ("alt-l", "focus right"),
-        ("alt-n", "focus dfs-next"),
-        ("alt-p", "focus dfs-prev"),
-        ("alt-tab", "focus tab-next"),
-        ("alt-shift-tab", "focus tab-prev"),
-        ("alt-0", "focus --tab-index 10"),
-        ("alt-1", "focus --tab-index 1"),
-        ("alt-2", "focus --tab-index 2"),
-        ("alt-3", "focus --tab-index 3"),
-        ("alt-4", "focus --tab-index 4"),
-        ("alt-5", "focus --tab-index 5"),
-        ("alt-6", "focus --tab-index 6"),
-        ("alt-7", "focus --tab-index 7"),
-        ("alt-8", "focus --tab-index 8"),
-        ("alt-9", "focus --tab-index 9"),
+        // Move the focused window inside its card.
         ("alt-shift-h", "move left"),
         ("alt-shift-j", "move down"),
         ("alt-shift-k", "move up"),
         ("alt-shift-l", "move right"),
-        ("cmd-shift-h", "join-with left"),
-        ("cmd-shift-j", "join-with down"),
-        ("cmd-shift-k", "join-with up"),
-        ("cmd-shift-l", "join-with right"),
-        ("ctrl-cmd-shift-h", "stack-with left"),
-        ("ctrl-cmd-shift-j", "stack-with down"),
-        ("ctrl-cmd-shift-k", "stack-with up"),
-        ("ctrl-cmd-shift-l", "stack-with right"),
-        ("cmd-shift-i", "balance-sizes"),
-        ("alt-cmd-j", "swap down"),
-        ("alt-cmd-k", "swap up"),
-        ("alt-shift-t", "layout floating tiling"),
-        ("alt-shift-m", "fullscreen"),
-        ("ctrl-0", "card 10"),
-        ("ctrl-1", "card 1"),
-        ("ctrl-2", "card 2"),
-        ("ctrl-3", "card 3"),
-        ("ctrl-4", "card 4"),
-        ("ctrl-5", "card 5"),
-        ("ctrl-6", "card 6"),
-        ("ctrl-7", "card 7"),
-        ("ctrl-8", "card 8"),
-        ("ctrl-9", "card 9"),
-        ("ctrl-q", "card 11"),
-        ("ctrl-w", "card 12"),
-        ("ctrl-e", "card 13"),
-        ("ctrl-r", "card 14"),
-        ("ctrl-t", "card 15"),
-        ("ctrl-h", "card prev"),
-        ("ctrl-l", "card next"),
-        ("cmd-ctrl-h", "card prev"),
-        ("cmd-ctrl-l", "card next"),
+        // Send the focused window to a card by deck position.
         ("alt-shift-1", "move-node-to-card 1"),
         ("alt-shift-2", "move-node-to-card 2"),
         ("alt-shift-3", "move-node-to-card 3"),
         ("alt-shift-4", "move-node-to-card 4"),
         ("alt-shift-5", "move-node-to-card 5"),
-        ("alt-shift-6", "move-node-to-card 6"),
-        ("alt-shift-7", "move-node-to-card 7"),
-        ("alt-shift-8", "move-node-to-card 8"),
-        ("alt-shift-9", "move-node-to-card 9"),
-        ("ctrl-shift-0", "move-node-to-card 10"),
-        ("ctrl-shift-h", "move-node-to-card --focus-follows-window prev"),
-        ("ctrl-shift-l", "move-node-to-card --focus-follows-window next"),
+        // Send the focused window to the adjacent column.
+        ("ctrl-shift-h", "move-node-to-column left"),
+        ("ctrl-shift-l", "move-node-to-column right"),
+        // In-card window layout.
+        ("alt-space", "layout tiles tab-group"),
+        ("alt-shift-space", "layout floating tiling"),
+        ("alt-slash", "layout horizontal vertical"),
+        ("alt-shift-m", "fullscreen"),
+        ("cmd-shift-i", "balance-sizes"),
+        // Exposé, sidebar, and modes.
+        ("ctrl-up", "expose display"),
+        ("ctrl-down", "expose card"),
+        ("ctrl-f", "open-sidebar"),
+        ("alt-z", "mode column"),
     ].reduce(into: [:]) { result, pair in
         result[pair.0] = pair.1
     }
     let defaultText = (try? String(contentsOf: defaultConfigUrl, encoding: .utf8)) ?? """
-        config-version = 2
+        config-version = 3
 
         [mode.main.binding]
         """

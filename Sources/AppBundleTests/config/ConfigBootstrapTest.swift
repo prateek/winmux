@@ -14,33 +14,37 @@ final class ConfigBootstrapTest: XCTestCase {
         } ?? []
         let bindingMap: [String: String] = Dictionary(uniqueKeysWithValues: bindings)
 
-        XCTAssertEqual(bindingMap["alt-space"], "layout horizontal vertical")
+        // Cards page the deck (config-version-3 keymap).
+        XCTAssertEqual(bindingMap["alt-n"], "card next")
+        XCTAssertEqual(bindingMap["alt-p"], "card prev")
+        XCTAssertEqual(bindingMap["alt-tab"], "card back-and-forth")
+        XCTAssertEqual(bindingMap["alt-1"], "card 1")
+        XCTAssertEqual(bindingMap["alt-0"], "card 10")
+        // Scenes on the ctrl layer.
+        XCTAssertEqual(bindingMap["alt-ctrl-1"], "scene desk")
+        XCTAssertEqual(bindingMap["alt-ctrl-2"], "scene focus")
+        XCTAssertEqual(bindingMap["alt-ctrl-tab"], "scene next")
+        // Window focus and move inside the focused card.
+        XCTAssertEqual(bindingMap["alt-h"], "focus left")
+        XCTAssertEqual(bindingMap["alt-shift-h"], "move left")
+        XCTAssertEqual(bindingMap["alt-shift-1"], "move-node-to-card 1")
+        // Adjacent-column moves, layout, Exposé, sidebar, modes.
+        XCTAssertEqual(bindingMap["ctrl-shift-h"], "move-node-to-column left")
+        XCTAssertEqual(bindingMap["ctrl-shift-l"], "move-node-to-column right")
+        XCTAssertEqual(bindingMap["alt-space"], "layout tiles tab-group")
+        XCTAssertEqual(bindingMap["alt-shift-space"], "layout floating tiling")
+        XCTAssertEqual(bindingMap["alt-slash"], "layout horizontal vertical")
+        XCTAssertEqual(bindingMap["alt-shift-m"], "fullscreen")
+        XCTAssertEqual(bindingMap["cmd-shift-i"], "balance-sizes")
+        XCTAssertEqual(bindingMap["ctrl-up"], "expose display")
+        XCTAssertEqual(bindingMap["ctrl-down"], "expose card")
         XCTAssertEqual(bindingMap["ctrl-f"], "open-sidebar")
         XCTAssertEqual(bindingMap["alt-z"], "mode column")
-        XCTAssertEqual(bindingMap["alt-h"], "focus left")
-        XCTAssertEqual(bindingMap["alt-1"], "focus --tab-index 1")
-        XCTAssertEqual(bindingMap["alt-0"], "focus --tab-index 10")
-        XCTAssertEqual(bindingMap["alt-tab"], "focus tab-next")
-        XCTAssertEqual(bindingMap["alt-shift-tab"], "focus tab-prev")
-        XCTAssertEqual(bindingMap["alt-n"], "focus dfs-next")
-        XCTAssertEqual(bindingMap["alt-shift-h"], "move left")
-        XCTAssertEqual(bindingMap["cmd-shift-h"], "join-with left")
-        XCTAssertEqual(bindingMap["ctrl-cmd-shift-h"], "stack-with left")
-        XCTAssertEqual(bindingMap["alt-cmd-j"], "swap down")
-        XCTAssertEqual(bindingMap["alt-cmd-k"], "swap up")
-        XCTAssertEqual(bindingMap["cmd-shift-i"], "balance-sizes")
-        XCTAssertEqual(bindingMap["ctrl-1"], "card 1")
-        XCTAssertEqual(bindingMap["ctrl-0"], "card 10")
-        XCTAssertEqual(bindingMap["ctrl-t"], "card 15")
-        XCTAssertEqual(bindingMap["ctrl-h"], "card prev")
-        XCTAssertEqual(bindingMap["cmd-ctrl-h"], "card prev")
-        XCTAssertEqual(bindingMap["alt-shift-1"], "move-node-to-card 1")
-        XCTAssertEqual(bindingMap["ctrl-shift-0"], "move-node-to-card 10")
-        XCTAssertEqual(bindingMap["ctrl-shift-h"], "move-node-to-card --focus-follows-window prev")
-        XCTAssertEqual(bindingMap["alt-shift-t"], "layout floating tiling")
-        XCTAssertEqual(bindingMap["alt-shift-m"], "fullscreen")
-        XCTAssertNil(bindingMap["alt-slash"])
-        XCTAssertNil(bindingMap["alt-comma"])
+        // The retired v2 bindings are gone.
+        XCTAssertNil(bindingMap["alt-shift-tab"])
+        XCTAssertNil(bindingMap["ctrl-1"])
+        XCTAssertNil(bindingMap["cmd-shift-h"])
+        XCTAssertNil(bindingMap["alt-cmd-j"])
         XCTAssertTrue(parsedConfig.windowTabs.enabled)
         XCTAssertEqual(parsedConfig.windowTabs.height, 36)
         XCTAssertTrue(parsedConfig.workspaceSidebar.enabled)
@@ -61,7 +65,7 @@ final class ConfigBootstrapTest: XCTestCase {
         } else {
             XCTFail("Expected constant outer left gap")
         }
-        XCTAssertEqual(parsedConfig.configVersion, 2)
+        XCTAssertEqual(parsedConfig.configVersion, 3)
 
         let columnBindings: [(String, String)] = parsedConfig.modes["column"]?.bindings.values.map {
             ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
@@ -70,18 +74,18 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(columnBindingMap["esc"], "mode main")
         XCTAssertEqual(columnBindingMap["h"], "focus-column prev; mode main")
         XCTAssertEqual(columnBindingMap["l"], "focus-column next; mode main")
-        XCTAssertEqual(columnBindingMap["shift-h"], "move-node-to-column --focus-follows-window prev; mode main")
-        XCTAssertEqual(columnBindingMap["shift-l"], "move-node-to-column --focus-follows-window next; mode main")
+        XCTAssertEqual(columnBindingMap["shift-h"], "card move left; mode main")
+        XCTAssertEqual(columnBindingMap["shift-l"], "card move right; mode main")
         XCTAssertEqual(columnBindingMap["minus"], "column resize -10%; mode main")
         XCTAssertEqual(columnBindingMap["equal"], "column resize +10%; mode main")
         XCTAssertEqual(columnBindingMap["0"], "balance-columns; mode main")
         XCTAssertEqual(columnBindingMap["t"], "column toggle; mode main")
-        XCTAssertEqual(columnBindingMap["space"], "layout floating tiling; mode main")
-        XCTAssertEqual(columnBindingMap["s"], "cycle-column-snap-policy freeform snap-to-column; mode main")
+        XCTAssertEqual(columnBindingMap["s"], "cycle-column-snap-policy float-unless-snap freeform; mode main")
+        XCTAssertNil(columnBindingMap["space"])
         XCTAssertNil(columnBindingMap["tab"])
         XCTAssertNil(columnBindingMap["a"])
-        XCTAssertNil(columnBindingMap["y"])
-        XCTAssertNil(columnBindingMap["c"])
+        // No scenes are configured by default: the laptop gets one implicit column.
+        XCTAssertTrue(parsedConfig.scenes.isEmpty)
         XCTAssertEqual(parsedConfig.zones.count, 0)
         XCTAssertEqual(parsedConfig.zoneLayouts.count, 0)
         XCTAssertEqual(parsedConfig.zoneScenes.count, 0)
@@ -114,48 +118,35 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(resolved?.path, config.path)
     }
 
-    func testStarterUltrawideTemplateUncommentsIntoConfiguredZones() {
+    func testStarterScenesExampleUncommentsIntoConfiguredScenes() {
         let starter = starterConfigText()
-        XCTAssertTrue(starter.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE"))
-        XCTAssertTrue(starter.contains("# END WINMUX ULTRAWIDE ZONES TEMPLATE"))
+        XCTAssertTrue(starter.contains("# BEGIN WINMUX ULTRAWIDE SCENES EXAMPLE"))
+        XCTAssertTrue(starter.contains("# END WINMUX ULTRAWIDE SCENES EXAMPLE"))
 
-        let (parsedConfig, errors) = parseConfig(uncommentUltrawideTemplate(in: starter))
+        // The commented default parses into no scenes: the implicit one-column laptop case.
+        let (defaultConfig, defaultErrors) = parseConfig(starter)
+        assertEquals(defaultErrors, [])
+        XCTAssertTrue(defaultConfig.scenes.isEmpty)
+        XCTAssertTrue(defaultConfig.rules.isEmpty)
 
+        // Uncommenting the example splits display 1 into three scenes and adds two rules.
+        let (parsedConfig, errors) = parseConfig(uncommentScenesExample(in: starter))
         assertEquals(errors, [])
         guard errors.isEmpty else { return }
-        XCTAssertEqual(parsedConfig.zoneStyles.map(\.id), ["urgent", "calm"])
-        XCTAssertEqual(parsedConfig.zoneLayouts.map(\.id), ["balanced", "focus"])
-        XCTAssertEqual(parsedConfig.zoneLayouts.map { $0.columns.map(\.id) }, [
-            ["left", "main", "right"],
-            ["left", "main", "right"],
-        ])
-        XCTAssertEqual(parsedConfig.zoneLayouts.map { $0.columns.map(\.width) }, [
-            [0.25, 0.50, 0.25],
-            [0.18, 0.64, 0.18],
-        ])
-        XCTAssertEqual(parsedConfig.zones.count, 1)
-        XCTAssertEqual(parsedConfig.zones[0].layoutPreset, "balanced")
-        XCTAssertEqual(parsedConfig.zoneScenes.map(\.id), ["triage", "deep-work"])
-        XCTAssertEqual(parsedConfig.zoneScenes.map(\.layoutPreset), ["balanced", "focus"])
-        XCTAssertEqual(parsedConfig.zoneScenes[0].workspaces.map(\.zone), ["left", "main", "right"])
-        XCTAssertEqual(parsedConfig.zoneScenes[1].workspaces.compactMap { $0.workspace?.raw }, [
-            "FocusQueue",
-            "FocusBuild",
-            "FocusNotes",
-        ])
-        XCTAssertEqual(parsedConfig.zoneAvailabilitySets, [
-            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
-            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
-            ZoneAvailabilitySetConfig(id: "full-dashboard", enabledZones: ["left", "main", "right"]),
-        ])
-        XCTAssertEqual(parsedConfig.zoneAffinities.count, 1)
-        XCTAssertEqual(parsedConfig.zoneAffinities[0].zone, ZoneSelector("Comms"))
-        XCTAssertNotNil(parsedConfig.zoneAffinities[0].matcher.windowTitleRegexSubstring)
-        XCTAssertFalse(parsedConfig.zoneAffinities[0].failIfNoop)
-        XCTAssertEqual(parsedConfig.mouse.zoneSnap.policy, .freeform)
-        XCTAssertEqual(parsedConfig.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsedConfig.mouse.zoneSnap.gesture, .drag)
-        XCTAssertEqual(parsedConfig.mouse.zoneSnap.target, .zone)
+
+        XCTAssertEqual(parsedConfig.scenes.map(\.id), ["desk", "focus", "triage"])
+        XCTAssertEqual(parsedConfig.scenes.map(\.defaultColumn), ["main", nil, "comms"])
+
+        // Each scene folds into a backing zone layout keyed by its id.
+        let layoutsById = Dictionary(uniqueKeysWithValues: parsedConfig.zoneLayouts.map { ($0.id, $0) })
+        XCTAssertEqual(layoutsById[sceneBackingLayoutId("desk")]?.columns.map(\.id), ["ref", "main", "comms"])
+        XCTAssertEqual(layoutsById[sceneBackingLayoutId("focus")]?.columns.map(\.id), ["main"])
+        XCTAssertEqual(layoutsById[sceneBackingLayoutId("triage")]?.columns.map(\.id), ["comms", "main"])
+        XCTAssertEqual(layoutsById[sceneBackingLayoutId("desk")]?.columns.map(\.color), ["#3EA2FF", nil, "#D3455B"])
+
+        XCTAssertEqual(parsedConfig.rules.map(\.card), ["Comms", "Comms"])
+        XCTAssertEqual(parsedConfig.rules.first?.matcher.appId, "com.tinyspeck.slackmacgap")
+        XCTAssertNotNil(parsedConfig.rules.last?.matcher.windowTitleRegexSubstring)
     }
 
     func testEnsureBootstrapConfigCopiesLegacyConfig() throws {
@@ -254,8 +245,8 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertTrue(migratedText.contains("# Migrated from AeroSpace config by WinMux."))
         XCTAssertTrue(migratedText.contains("default-root-container-layout = 'tiles'"))
         XCTAssertTrue(migratedText.contains("tab-group-padding = 30"))
-        XCTAssertTrue(migratedText.contains("window-tabs.enabled = true"))
-        XCTAssertTrue(migratedText.contains("[workspace-sidebar]"))
+        XCTAssertTrue(migratedText.contains("[window-tabs]"))
+        XCTAssertTrue(migratedText.contains("[sidebar]"))
         XCTAssertTrue(migratedText.contains("enabled = true"))
         XCTAssertTrue(migratedText.contains("layout tab-group tiles"))
         XCTAssertTrue(migratedText.contains("layout h_tab_group v_tab_group"))
@@ -268,19 +259,19 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(errors.descriptions, [])
         XCTAssertTrue(parsedConfig.workspaceSidebar.enabled)
         XCTAssertTrue(parsedConfig.windowTabs.enabled)
-        XCTAssertEqual(parsedConfig.configVersion, 2)
+        XCTAssertEqual(parsedConfig.configVersion, 3)
         XCTAssertEqual(parsedConfig.modes[mainModeId]?.bindings.values.map(\.descriptionWithKeyNotation).sorted(), ["alt-h", "alt-j", "alt-l"])
     }
 }
 
-private func uncommentUltrawideTemplate(in text: String) -> String {
+private func uncommentScenesExample(in text: String) -> String {
     var insideTemplate = false
     return text.components(separatedBy: "\n").map { line in
-        if line.contains("# BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE") {
+        if line.contains("# BEGIN WINMUX ULTRAWIDE SCENES EXAMPLE") {
             insideTemplate = true
             return line
         }
-        if line.contains("# END WINMUX ULTRAWIDE ZONES TEMPLATE") {
+        if line.contains("# END WINMUX ULTRAWIDE SCENES EXAMPLE") {
             insideTemplate = false
             return line
         }
