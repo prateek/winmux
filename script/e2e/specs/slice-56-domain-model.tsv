@@ -1,0 +1,49 @@
+# Slice 56 domain-model contract. Columns: kind<TAB>id<TAB>required-artifact<TAB>expected.
+# event/proof/artifact rows name a produced artifact and the claim it backs;
+# source-check rows grep an expected string out of a repo file so the frozen
+# spec stays wired to the live guest script, the shipped command surface, and
+# the vocabulary contract. Read by script/e2e/check-slice-56-contract.
+event	scene-config	screenshots/02-scene-config-slice-56.png	the desk scene presents three columns declared by [scene.desk] on display 1
+event	rule-create	screenshots/03-rule-create-slice-56.png	a title rule deals the Inbox window onto a Comms card in the scene default-column
+event	deck-page	screenshots/04-deck-page-slice-56.png	card next, card prev, and card 2 page the focused main column deck
+event	card-summon	screenshots/05-card-summon-slice-56.png	card summon Comms moves the Comms card into the focused column
+event	card-move	screenshots/06-card-move-slice-56.png	card move comms and card move triage:comms transfer the card across a column and a scene
+event	scene-switch	screenshots/07-scene-switch-slice-56.png	scene focus collapses to one column, then scene next and scene desk restore the arrangement
+event	expose-display	screenshots/08-expose-display-slice-56.png	expose display overviews the active scene columns
+event	expose-card	screenshots/09-expose-card-slice-56.png	expose card overviews the focused card windows
+proof	strict-containment	logs/slice-56-list-cards.log	every card resolves to exactly one column deck
+proof	rule-default-column	logs/slice-56-rule-create.log	the rule-created Comms card lands in the scene default-column regardless of focus
+proof	scene-state	logs/slice-56-state-transitions.tsv	scene focus changes the column count and scene next cycles the display scenes
+proof	deck-stable	logs/slice-56-deck-page.log	deck positions stay stable across next, prev, and positional jumps
+artifact	expected-chips	logs/slice-56-expected-chips.txt	caption chips are all config-v3 verbs (card/column/scene/expose plus rules)
+artifact	state-transitions	logs/slice-56-state-transitions.tsv	before/after card and scene state is recorded per driven command
+artifact	final-board-source	logs/slice-56-final-board-source.txt	final board records the pass flags and the config-v3-only command surface
+retry	no-post-recording-retry	logs/guest-script-retry-summary.tsv	no guest action retries after recording starts; discard and rerun instead
+source-check	guest:scene-config	script/e2e/guest/slice-56-domain-model.sh	[scene.desk]
+source-check	guest:rule-config	script/e2e/guest/slice-56-domain-model.sh	card = 'Comms'
+source-check	guest:scene-switch	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" scene focus
+source-check	guest:scene-next	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" scene next
+source-check	guest:deck-page	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" card next
+source-check	guest:deck-positional	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" card 2
+source-check	guest:card-summon	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" card summon Comms
+source-check	guest:card-move-column	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" card move comms
+source-check	guest:card-move-scene	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" card move triage:comms
+source-check	guest:expose-display	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" expose display
+source-check	guest:expose-card	script/e2e/guest/slice-56-domain-model.sh	"${CLI}" expose card
+source-check	guest:expected-chips	script/e2e/guest/slice-56-domain-model.sh	write_expected_chips
+source-check	guest:state-transitions	script/e2e/guest/slice-56-domain-model.sh	record_transition
+source-check	guest:manifest-guard	script/e2e/guest/slice-56-domain-model.sh	validate_manifests
+source-check	product:card-verb	Sources/Common/cmdArgs/cmdArgsManifest.swift	case card
+source-check	product:scene-verb	Sources/Common/cmdArgs/cmdArgsManifest.swift	case scene
+source-check	product:expose-verb	Sources/Common/cmdArgs/cmdArgsManifest.swift	case expose
+source-check	product:column-verb	Sources/Common/cmdArgs/cmdArgsManifest.swift	case column
+source-check	product:move-node-to-card	Sources/Common/cmdArgs/cmdArgsManifest.swift	case moveNodeToCard = "move-node-to-card"
+source-check	product:list-cards	Sources/Common/cmdArgs/cmdArgsManifest.swift	case listCards = "list-cards"
+source-check	product:list-columns	Sources/Common/cmdArgs/cmdArgsManifest.swift	case listColumns = "list-columns"
+source-check	product:scene-parse	Sources/AppBundle/config/parseScenes.swift	"default-column"
+source-check	product:rule-parse	Sources/AppBundle/config/parseRules.swift	"card"
+source-check	template:scene-example	resources/default-config.toml	BEGIN WINMUX ULTRAWIDE SCENES EXAMPLE
+source-check	template:card-binding	resources/default-config.toml	'card next'
+source-check	plan:command-reference	docs/plans/slice-56-domain-model.md	card summon
+source-check	plan:cross-scene-move	docs/plans/slice-56-domain-model.md	<scene>:<column>
+source-check	glossary:five-nouns	AGENTS.md	five nouns

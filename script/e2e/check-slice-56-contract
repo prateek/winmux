@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CONTRACT="${1:-${SCRIPT_DIR}/specs/slice-56-domain-model.tsv}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+GUEST="${REPO_ROOT}/script/e2e/guest/slice-56-domain-model.sh"
+
+SELF_TEST=0
+if [ "${1:-}" = "--self-test" ]; then
+    SELF_TEST=1
+    CONTRACT="${SCRIPT_DIR}/specs/slice-56-domain-model.tsv"
+fi
+
+die() {
+    printf '[winmux-e2e] Slice 56 contract error: %s\n' "$*" >&2
+    exit 1
+}
+
+require_row() {
+    local kind="$1"
+    local id="$2"
+    /usr/bin/awk -F'\t' -v kind="$kind" -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == kind && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing ${kind}/${id}"
+}
+
+require_artifact_path() {
+    local path="$1"
+    /usr/bin/awk -F'\t' -v path="$path" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $3 == path { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing artifact path ${path}"
+}
+
+require_source_check() {
+    local id="$1"
+    /usr/bin/awk -F'\t' -v id="$id" '
+        $0 == "" || $1 ~ /^#/ { next }
+        $1 == "source-check" && $2 == id { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$CONTRACT" || die "missing source-check/${id}"
+}
+
+validate_source_checks() {
+    while IFS=$'\t' read -r kind id source_path expected extra; do
+        [ "${kind:-}" = "source-check" ] || continue
+        [ -z "${extra:-}" ] || die "source-check/${id} has too many TSV fields"
+        [ -n "${id:-}" ] || die "source-check row missing id"
+        [ -n "${source_path:-}" ] || die "source-check/${id} missing source path"
+        [ -n "${expected:-}" ] || die "source-check/${id} missing expected text"
+
+        local source_file
+        case "$source_path" in
+            /*) source_file="$source_path" ;;
+            *) source_file="${REPO_ROOT}/${source_path}" ;;
+        esac
+        [ -s "$source_file" ] || die "source-check/${id} missing source file: ${source_path}"
+        /usr/bin/grep -F -- "$expected" "$source_file" >/dev/null \
+            || die "source-check/${id} did not find expected text in ${source_path}: ${expected}"
+    done <"$CONTRACT"
+}
+
+# The vocabulary cut is a hard rule: the guest may only drive the config-v3
+# surface. Fail if any deleted zone-era verb or config block appears anywhere in
+# the guest source. Retained zone-named format tokens (%{monitor-zone-id}) and
+# the renamed verbs (list-columns, move-node-to-card) are not on this list.
+require_new_command_surface_only() {
+    [ -s "$GUEST" ] || die "missing guest script: ${GUEST}"
+    if /usr/bin/grep -F \
+        -e 'focus-zone' -e 'list-zones' -e 'resize-zone' -e 'enable-zone' \
+        -e 'disable-zone' -e 'toggle-zone' -e 'set-zone-style' -e 'move-node-to-zone' \
+        -e 'move-node-to-workspace' -e 'summon-workspace' -e 'use-zone-scene' \
+        -e 'use-zone-layout' -e 'use-zone-availability' -e 'use-zone-profile' \
+        -e 'cycle-zone-scene' -e 'cycle-zone-layout' -e '[[zones]]' -e '[[zone-bindings]]' \
+        -e '[[zone-affinities]]' -e '[[zone-scenes]]' -e '[[zone-availability-sets]]' \
+        -e 'persistent-workspaces' -e 'workspace-sidebar' -e 'mouse.zone-snap' \
+        -e 'zone-divider-drag' \
+        "$GUEST" >/dev/null; then
+        die "guest script references a deleted zone-era command or config block"
+    fi
+}
+
+# Rehearses the guest self-test into a throwaway artifacts dir and asserts the
+# produced manifests carry the expected command chips and state transitions.
+# File-based only: no app, no VM.
+run_self_test() {
+    [ -s "$GUEST" ] || die "missing guest script: ${GUEST}"
+    local tmp
+    tmp="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '${tmp}'" EXIT
+
+    REPO_DIR="${REPO_ROOT}" ARTIFACTS_DIR="${tmp}" WINMUX_E2E_SLICE56_PHASE=self-test \
+        /bin/bash "$GUEST" >/dev/null
+
+    local chips="${tmp}/logs/slice-56-expected-chips.txt"
+    local transitions="${tmp}/logs/slice-56-state-transitions.tsv"
+    [ -s "$chips" ] || die "self-test did not produce expected-chips manifest"
+    [ -s "$transitions" ] || die "self-test did not produce state-transitions manifest"
+
+    local chip
+    for chip in \
+        'scene desk' \
+        'card next' \
+        'card prev' \
+        'card 2' \
+        'card summon Comms' \
+        'card move comms' \
+        'card move triage:comms' \
+        'scene focus' \
+        'scene next' \
+        'expose display' \
+        'expose card'; do
+        /usr/bin/grep -Fx "$chip" "$chips" >/dev/null \
+            || die "self-test chips missing: ${chip}"
+    done
+
+    /usr/bin/grep -F 'step	command	subject	before	after' "$transitions" >/dev/null \
+        || die "self-test transitions missing header"
+    local transition
+    for transition in \
+        'summon	card summon Comms' \
+        'move	card move triage:comms' \
+        'scene	scene focus'; do
+        /usr/bin/grep -F "$transition" "$transitions" >/dev/null \
+            || die "self-test transitions missing: ${transition}"
+    done
+
+    rm -rf "${tmp}"
+    trap - EXIT
+    printf 'result=success (self-test)\n'
+}
+
+[ -s "$CONTRACT" ] || die "missing contract file: $CONTRACT"
+
+for id in \
+    scene-config \
+    rule-create \
+    deck-page \
+    card-summon \
+    card-move \
+    scene-switch \
+    expose-display \
+    expose-card; do
+    require_row event "$id"
+done
+
+for id in \
+    strict-containment \
+    rule-default-column \
+    scene-state \
+    deck-stable; do
+    require_row proof "$id"
+done
+
+require_row artifact expected-chips
+require_row artifact state-transitions
+require_row artifact final-board-source
+require_row retry no-post-recording-retry
+
+require_artifact_path screenshots/02-scene-config-slice-56.png
+require_artifact_path screenshots/05-card-summon-slice-56.png
+require_artifact_path screenshots/07-scene-switch-slice-56.png
+require_artifact_path screenshots/09-expose-card-slice-56.png
+require_artifact_path logs/slice-56-list-cards.log
+require_artifact_path logs/slice-56-state-transitions.tsv
+require_artifact_path logs/slice-56-expected-chips.txt
+require_artifact_path logs/guest-script-retry-summary.tsv
+
+for id in \
+    guest:scene-config \
+    guest:rule-config \
+    guest:scene-switch \
+    guest:scene-next \
+    guest:deck-page \
+    guest:deck-positional \
+    guest:card-summon \
+    guest:card-move-column \
+    guest:card-move-scene \
+    guest:expose-display \
+    guest:expose-card \
+    guest:expected-chips \
+    guest:state-transitions \
+    guest:manifest-guard \
+    product:card-verb \
+    product:scene-verb \
+    product:expose-verb \
+    product:column-verb \
+    product:move-node-to-card \
+    product:list-cards \
+    product:list-columns \
+    product:scene-parse \
+    product:rule-parse \
+    template:scene-example \
+    template:card-binding \
+    plan:command-reference \
+    plan:cross-scene-move \
+    glossary:five-nouns; do
+    require_source_check "$id"
+done
+
+validate_source_checks
+require_new_command_surface_only
+
+if [ "$SELF_TEST" = "1" ]; then
+    run_self_test
+    exit 0
+fi
+
+printf 'result=success\n'
