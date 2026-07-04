@@ -12,6 +12,15 @@ struct ZoneExposeTile: Identifiable {
     let select: @MainActor () -> Void
 }
 
+/// The overview header: `expose display` shows the active scene's columns, `expose card` shows the
+/// focused card's windows.
+func exposeOverviewTitle(for scope: ExposeScope) -> String {
+    switch scope {
+        case .display: "Columns"
+        case .card: "Windows"
+    }
+}
+
 /// Pre-captured per-zone previews, FlashSpace-style: the display is captured when a refresh
 /// settles (never at overview-open time), cropped per zone, and downscaled, so opening the
 /// overview renders cached bitmaps only. Capture stays fully disarmed until the first
@@ -292,7 +301,7 @@ private struct ZoneExposeView: View {
         ZStack {
             Color.black.opacity(0.55)
             VStack(spacing: 18) {
-                Text(controller.scope == .display ? "Zones" : "Windows")
+                Text(exposeOverviewTitle(for: controller.scope))
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.85))
                 HStack(alignment: .top, spacing: 16) {

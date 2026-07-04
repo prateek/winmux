@@ -34,6 +34,9 @@ public func openShortcutSettingsWindow(_ openWindow: OpenWindowAction) {
 enum SettingsSidebarItem: Hashable, Identifiable {
     case managedShortcuts
     case commonShortcuts
+    case columns
+    case scenes
+    case rules
     case general
     case advanced
 
@@ -43,6 +46,9 @@ enum SettingsSidebarItem: Hashable, Identifiable {
         switch self {
             case .managedShortcuts: "Managed Shortcuts"
             case .commonShortcuts: "Common Shortcuts"
+            case .columns: "Columns"
+            case .scenes: "Scenes"
+            case .rules: "Rules"
             case .general: "General"
             case .advanced: "Advanced"
         }
@@ -52,6 +58,9 @@ enum SettingsSidebarItem: Hashable, Identifiable {
         switch self {
             case .managedShortcuts: "keyboard"
             case .commonShortcuts: "keyboard"
+            case .columns: "rectangle.split.3x1"
+            case .scenes: "square.stack.3d.up"
+            case .rules: "line.3.horizontal.decrease.circle"
             case .general: "gearshape"
             case .advanced: "slider.horizontal.3"
         }
@@ -74,6 +83,18 @@ struct ShortcutSettingsView: View {
                     }
                 }
 
+                Section("Layout") {
+                    NavigationLink(value: SettingsSidebarItem.columns) {
+                        Label(SettingsSidebarItem.columns.label, systemImage: SettingsSidebarItem.columns.icon)
+                    }
+                    NavigationLink(value: SettingsSidebarItem.scenes) {
+                        Label(SettingsSidebarItem.scenes.label, systemImage: SettingsSidebarItem.scenes.icon)
+                    }
+                    NavigationLink(value: SettingsSidebarItem.rules) {
+                        Label(SettingsSidebarItem.rules.label, systemImage: SettingsSidebarItem.rules.icon)
+                    }
+                }
+
                 Section("Application") {
                     NavigationLink(value: SettingsSidebarItem.general) {
                         Label(SettingsSidebarItem.general.label, systemImage: SettingsSidebarItem.general.icon)
@@ -92,6 +113,12 @@ struct ShortcutSettingsView: View {
                         ShortcutCategoryView(model: model, category: .managed)
                     case .commonShortcuts:
                         ShortcutCategoryView(model: model, category: .common)
+                    case .columns:
+                        SettingsColumnsView(model: model)
+                    case .scenes:
+                        SettingsScenesView(model: model)
+                    case .rules:
+                        SettingsRulesView(model: model)
                     case .general:
                         ShortcutGeneralView(model: model)
                     case .advanced:
