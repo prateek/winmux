@@ -52,10 +52,17 @@ private func validateSceneName(_ raw: String) -> Parsed<String> {
     if raw.isEmpty {
         return .failure("<name> must not be empty")
     }
-    guard raw.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else {
+    guard isValidConfigIdentifier(raw) else {
         return .failure("<name> must use only letters, numbers, hyphens, and underscores")
     }
     return .success(raw)
+}
+
+/// The shared charset for config identifiers (scene ids, column/zone ids): letters, numbers,
+/// hyphens, and underscores. The CLI validator and the config parser both gate on it so a value
+/// that round-trips through one accepts through the other.
+public func isValidConfigIdentifier(_ raw: String) -> Bool {
+    raw.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
 }
 
 private func parseMonitorDescriptionSceneSubArg(i: SubArgParserInput) -> ParsedCliArgs<MonitorDescription?> {

@@ -33,7 +33,7 @@ struct ZoneAffinityEvaluation: Equatable {
             "matched": .bool(matched),
             "matcher": matcher.debugJson,
             "target": target.debugJson,
-            "route-command": .string("move-node-to-zone \(zone)"),
+            "route-command": .string("move-node-to-column \(zone)"),
             "check-further-callbacks": .bool(checkFurtherCallbacks),
             "focus-follows-window": .bool(focusFollowsWindow),
             "fail-if-noop": .bool(failIfNoop),

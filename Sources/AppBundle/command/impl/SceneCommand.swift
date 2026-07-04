@@ -116,7 +116,7 @@ private func createScene(named name: String, on physicalMonitor: Monitor, io: Cm
         return io.err("Edited config would not parse:\n\(parsed.errors.map(\.description).joined(separator: "\n"))")
     }
 
-    let backup = nextSceneConfigBackupUrl(for: configUrl)
+    let backup = nextZoneInitBackupUrl(for: configUrl)
     do {
         try FileManager.default.copyItem(at: configUrl, to: backup)
         try updatedText.write(to: configUrl, atomically: true, encoding: .utf8)
@@ -147,26 +147,4 @@ private func liveSceneColumns(on physicalMonitor: Monitor) -> (columns: [SceneBl
         SceneBlockColumn(id: row.zoneId, name: row.zoneName, width: row.effectiveWidth, color: row.zoneStyleColorHex)
     }
     return (columns, rows.first(where: \.isDefaultZone)?.zoneId)
-}
-
-private func nextSceneConfigBackupUrl(for url: URL) -> URL {
-    let stamp = sceneConfigBackupTimestamp()
-    let baseName = "\(url.lastPathComponent).backup-\(stamp)"
-    let directory = url.deletingLastPathComponent()
-    var candidate = directory.appending(component: baseName)
-    var suffix = 2
-    while FileManager.default.fileExists(atPath: candidate.path) {
-        candidate = directory.appending(component: "\(baseName)-\(suffix)")
-        suffix += 1
-    }
-    return candidate
-}
-
-private func sceneConfigBackupTimestamp(date: Date = Date()) -> String {
-    let formatter = DateFormatter()
-    formatter.calendar = Calendar(identifier: .gregorian)
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = TimeZone(secondsFromGMT: 0)
-    formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
-    return formatter.string(from: date)
 }

@@ -265,11 +265,7 @@ private func parseZoneSceneWorkspaces(
 func parseZoneId(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<String> {
     parseString(raw, backtrace)
         .filter(.semantic(backtrace, "Must not be empty")) { !$0.isEmpty }
-        .filter(.semantic(backtrace, "Use only letters, numbers, hyphens, and underscores")) { rawId in
-            rawId.allSatisfy { char in
-                char.isLetter || char.isNumber || char == "-" || char == "_"
-            }
-        }
+        .filter(.semantic(backtrace, "Use only letters, numbers, hyphens, and underscores")) { isValidConfigIdentifier($0) }
 }
 
 private func parseZoneColumnWidth(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Double> {

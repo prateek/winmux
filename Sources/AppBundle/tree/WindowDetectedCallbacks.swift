@@ -77,8 +77,7 @@ private func resolveRuleCard(named cardName: String, forWindow window: Window) -
 func ruleCardColumnDeckKey(onDisplay monitor: Monitor) -> String {
     if let sceneId = activeSceneId(for: monitor),
        let scene = config.scenes.first(where: { $0.id == sceneId }),
-       let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }),
-       let columnId = scene.defaultColumn ?? layout.columns.first?.id
+       let columnId = sceneDefaultColumnId(scene)
     {
         return columnDeckKey(sceneKey: sceneDeckKeyPrefix + sceneId, columnId: columnId)
     }

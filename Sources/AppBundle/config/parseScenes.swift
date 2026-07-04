@@ -28,8 +28,8 @@ private let sceneBlockParser: [String: any ParserProtocol<ParsedSceneBlock>] = [
     "columns": Parser(\.columns, parseZoneColumns),
 ]
 
-/// Parses the `[scene.*]` surface and folds it into the config-version-2 zone runtime: appends a
-/// `SceneConfig` per block (the runtime scene registry Builder 1 reads), a backing
+/// Parses the `[scene.*]` surface and folds it into the zone runtime: appends a `SceneConfig` per
+/// block (the runtime scene registry), a backing
 /// `ZoneLayoutConfig` per block, and one synthesized `ZoneConfig` per display targeting its
 /// default (first-declared) scene's layout. `rawToml` recovers declaration order because toml++
 /// iterates table keys sorted, and the first declared scene per display is its default.
@@ -171,5 +171,5 @@ private func sceneHeaderId(_ line: String) -> String? {
 }
 
 private func isValidSceneIdentifier(_ raw: String) -> Bool {
-    !raw.isEmpty && raw.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+    !raw.isEmpty && isValidConfigIdentifier(raw)
 }

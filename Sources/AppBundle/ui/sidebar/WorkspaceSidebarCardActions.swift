@@ -2,8 +2,8 @@ import AppKit
 import Common
 
 /// Maps a card-row drop onto the deck and scene primitives. The drag layer never moves a card
-/// itself: it resolves the drop target to the right call. Reorder within a deck uses the Phase A
-/// `ColumnDeckStore.reorder`; a cross-column move uses the Phase C `moveCardToSceneColumn` on the
+/// itself: it resolves the drop target to the right call. Reorder within a deck uses
+/// `ColumnDeckStore.reorder`; a cross-column move uses `moveCardToSceneColumn` on the
 /// display's active scene; a cross-scene move uses `moveCardToSceneColumnByName` on a non-active
 /// scene. Focus-follows-visibility is a property of those primitives, not of this layer.
 
@@ -74,10 +74,8 @@ func performCardSlotDropNow(_ cardName: String, monitorScopeId: String, columnId
 @MainActor
 func transferCardToSceneNow(_ cardName: String, sceneId: String) -> Bool {
     guard let scene = config.scenes.first(where: { $0.id == sceneId }),
-          let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }),
-          let firstColumn = layout.columns.first
+          let column = sceneDefaultColumnId(scene)
     else { return false }
-    let column = scene.defaultColumn ?? firstColumn.id
     switch moveCardToSceneColumnByName(cardName, sceneId: sceneId, columnId: column) {
         case .success: return true
         case .failure: return false

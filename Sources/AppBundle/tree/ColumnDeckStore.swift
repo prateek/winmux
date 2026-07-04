@@ -123,13 +123,14 @@ struct ColumnDeckStore: Equatable, Sendable {
         var reconciledDecks: [String: [WorkspaceId]] = [:]
         var reconciledReverseIndex: [WorkspaceId: String] = [:]
         for columnKey in decksByColumnKey.keys.sorted() {
-            let deck = (decksByColumnKey[columnKey] ?? []).filter { cardId in
+            var deck: [WorkspaceId] = []
+            for cardId in decksByColumnKey[columnKey] ?? [] {
                 guard liveCardIds.contains(cardId),
                       columnKeyByCardId[cardId] == columnKey,
                       reconciledReverseIndex[cardId] == nil
-                else { return false }
+                else { continue }
                 reconciledReverseIndex[cardId] = columnKey
-                return true
+                deck.append(cardId)
             }
             if !deck.isEmpty {
                 reconciledDecks[columnKey] = deck

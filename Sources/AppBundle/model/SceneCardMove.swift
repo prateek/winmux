@@ -1,7 +1,7 @@
 import AppKit
 import Common
 
-/// Moves a card into another scene's column deck: the cross-scene form of the Phase B deck
+/// Moves a card into another scene's column deck: the cross-scene form of a deck
 /// transfer. When the target scene is live on a display the card re-points onto that column's
 /// viewport and, if it was the focused card, keeps focus (destination visible). When the target
 /// scene is offstage the card's deck membership moves and it stops rendering; a focused card
@@ -46,12 +46,9 @@ func moveCardToSceneColumnByName(_ name: String, sceneId: String, columnId: Stri
     if let existing = Workspace.existing(byName: name) {
         return moveCardToSceneColumn(existing, sceneId: sceneId, columnId: columnId)
     }
-    guard let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }),
-          let firstColumn = layout.columns.first
-    else {
+    guard let defaultColumn = sceneDefaultColumnId(scene) else {
         return .failure("Scene '\(sceneId)' has no columns")
     }
-    let defaultColumn = scene.defaultColumn ?? firstColumn.id
     let created = Workspace.get(byName: name)
     return moveCardToSceneColumn(created, sceneId: sceneId, columnId: defaultColumn)
 }

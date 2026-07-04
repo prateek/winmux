@@ -7,10 +7,9 @@ import Common
 /// its column membership and simply stops rendering. Nothing is a snapshot: leaving and
 /// returning shows the scene exactly as it was.
 ///
-/// Config-v3 `[scene.*]` parsing populates `config.scenes` (Builder 2's surface); each scene
-/// references a zone-layout preset that supplies its columns and widths, and a `config.zones`
-/// entry must target the display so the layout can activate. This phase keeps config-version 2,
-/// so the field is additive and empty by default.
+/// `[scene.*]` parsing populates `config.scenes`; each scene references a synthesized zone-layout
+/// preset that supplies its columns and widths, and a `config.zones` entry must target the display
+/// so the layout can activate.
 struct SceneConfig: ConvenienceCopyable, Equatable, Sendable {
     var id: String = ""
     var monitor: MonitorDescription?
@@ -24,10 +23,8 @@ let sceneDeckKeyPrefix = "scene:"
 
 struct SceneActivationResult {
     let sceneId: String
-    let layoutId: String
     let physicalMonitor: Monitor
     let columnIds: [String]
-    let restoredCards: [(column: String, card: String)]
 }
 
 /// The scenes declared for a display, in declared order. The first is the display's default.
@@ -41,6 +38,14 @@ func scenes(on physicalMonitor: Monitor) -> [SceneConfig] {
         else { return false }
         return resolved.rect.topLeftCorner == targetTopLeft
     }
+}
+
+/// A scene's default column: its declared `default-column`, else its first column. `nil` when the
+/// scene's backing layout is missing.
+@MainActor
+func sceneDefaultColumnId(_ scene: SceneConfig) -> String? {
+    guard let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }) else { return nil }
+    return scene.defaultColumn ?? layout.columns.first?.id
 }
 
 /// The deck-key scene component for a display: the active named scene, else the implicit display
@@ -111,10 +116,8 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
         let columnIds = sceneColumnViewports(on: targetPhysical).map { $0.zoneId.orDie() }
         return .success(SceneActivationResult(
             sceneId: sceneId,
-            layoutId: scene.layoutId,
             physicalMonitor: targetPhysical,
             columnIds: columnIds,
-            restoredCards: [],
         ))
     }
 
@@ -141,21 +144,17 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
         return rollback("Scene '\(sceneId)' produced no columns on monitor \(monitorLabel)")
     }
 
-    var restoredCards: [(column: String, card: String)] = []
     for viewport in sceneViewports {
-        guard let card = restoreSceneColumnActiveCard(for: viewport) else {
+        guard restoreSceneColumnActiveCard(for: viewport) != nil else {
             return rollback("Can't reveal a card for column '\(viewport.zoneId ?? "")' in scene '\(sceneId)'")
         }
-        restoredCards.append((column: viewport.zoneId.orDie(), card: card.name))
     }
 
     Workspace.reconcileWorkspaceState()
     return .success(SceneActivationResult(
         sceneId: sceneId,
-        layoutId: scene.layoutId,
         physicalMonitor: targetPhysical,
         columnIds: sceneViewports.map { $0.zoneId.orDie() },
-        restoredCards: restoredCards,
     ))
 }
 
@@ -215,8 +214,7 @@ func remapColumnDecksOntoCurrentScenes(previousScenes: [SceneConfig]) {
 @MainActor
 private func defaultSceneDefaultColumnDeckKey(forDisplay physicalMonitor: Monitor) -> String? {
     guard let defaultScene = scenes(on: physicalMonitor.physicalMonitor).first,
-          let layout = config.zoneLayouts.first(where: { $0.id == defaultScene.layoutId }),
-          let columnId = defaultScene.defaultColumn ?? layout.columns.first?.id
+          let columnId = sceneDefaultColumnId(defaultScene)
     else { return nil }
     return columnDeckKey(sceneKey: sceneDeckKeyPrefix + defaultScene.id, columnId: columnId)
 }

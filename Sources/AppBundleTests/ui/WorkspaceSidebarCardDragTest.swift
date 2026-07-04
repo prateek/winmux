@@ -2,7 +2,7 @@
 import Common
 import XCTest
 
-/// Card-row drag maps a drop target to a Phase A/C primitive. These exercise the seam functions the
+/// Card-row drag maps a drop target to a deck/scene primitive. These exercise the seam functions the
 /// drag layer calls: within-deck reorder (deck store), cross-column transfer and cross-scene
 /// transfer (the scene primitives, which carry focus-follows-visibility).
 @MainActor
