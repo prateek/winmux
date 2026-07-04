@@ -24,9 +24,9 @@ extension WorkspaceNamingTest {
         let projectWorkspace = try XCTUnwrap(switchWorkspaceProject(project.id, on: main))
         XCTAssertTrue(projectWorkspace.focusWorkspace())
 
-        var args = MoveWorkspaceToMonitorCmdArgs(rawArgs: [])
-        args.target = .initialized(.relative(.next))
-        let result = try await MoveWorkspaceToMonitorCommand(args: args).run(.defaultEnv, .emptyStdin)
+        var args = CardCmdArgs(rawArgs: [])
+        args.target = .initialized(.move(.relative(.next)))
+        let result = try await CardCommand(args: args).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
         XCTAssertTrue(secondary.activeWorkspace === projectWorkspace)
@@ -75,7 +75,7 @@ extension WorkspaceNamingTest {
         XCTAssertTrue(main.setActiveWorkspace(focusedWorkspace))
         XCTAssertTrue(focusedWorkspace.focusWorkspace())
 
-        let result = try await parseCommand("summon-workspace \(projectWorkspace.name)").cmdOrDie
+        let result = try await parseCommand("card summon \(projectWorkspace.name)").cmdOrDie
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)

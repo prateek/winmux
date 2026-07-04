@@ -10,8 +10,8 @@ final class WorkspaceBackAndForthCommandTest: XCTestCase {
         let initialWorkspace = focus.workspace
         _prevFocusedWorkspaceName = "2"
 
-        let result = try await WorkspaceBackAndForthCommand(
-            args: WorkspaceBackAndForthCmdArgs(rawArgs: []),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .backAndForth),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)

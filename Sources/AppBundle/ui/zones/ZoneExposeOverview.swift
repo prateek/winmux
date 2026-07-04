@@ -133,7 +133,7 @@ final class ZoneExposePanelController: ObservableObject {
 
     @Published private(set) var tiles: [ZoneExposeTile] = []
     @Published var selectedIndex = 0
-    private(set) var scope: ZoneExposeScope = .zone
+    private(set) var scope: ExposeScope = .card
 
     private let panel = ZoneExposePanel()
     private var hostingView: NSHostingView<AnyView>?
@@ -151,7 +151,7 @@ final class ZoneExposePanelController: ObservableObject {
 
     var isVisible: Bool { panel.isVisible }
 
-    func toggle(scope: ZoneExposeScope) {
+    func toggle(scope: ExposeScope) {
         if isVisible, self.scope == scope {
             hide()
         } else {
@@ -159,7 +159,7 @@ final class ZoneExposePanelController: ObservableObject {
         }
     }
 
-    func show(scope: ZoneExposeScope) {
+    func show(scope: ExposeScope) {
         ZoneExposePreviewCache.shared.arm()
         if !CGPreflightScreenCaptureAccess() {
             // One-time system prompt on explicit user action; previews stay placeholders
@@ -215,13 +215,13 @@ final class ZoneExposePanelController: ObservableObject {
         tile.select()
     }
 
-    func setTilesForTests(_ tiles: [ZoneExposeTile], scope: ZoneExposeScope) {
+    func setTilesForTests(_ tiles: [ZoneExposeTile], scope: ExposeScope) {
         self.scope = scope
         self.tiles = tiles
         selectedIndex = 0
     }
 
-    private func buildTiles(scope: ZoneExposeScope) -> [ZoneExposeTile] {
+    private func buildTiles(scope: ExposeScope) -> [ZoneExposeTile] {
         switch scope {
             case .display:
                 let physical = focus.workspace.workspaceMonitor.physicalMonitor
@@ -242,7 +242,7 @@ final class ZoneExposePanelController: ObservableObject {
                         select: { focusZoneOrWorkspaceFromExpose(zoneId: viewport.zoneId, target: target) },
                     )
                 }
-            case .zone:
+            case .card:
                 let workspace = focus.workspace
                 return workspace.allLeafWindowsRecursive.map { window in
                     ZoneExposeTile(
@@ -264,7 +264,7 @@ private func focusZoneOrWorkspaceFromExpose(zoneId: String?, target: String) {
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await runLightSession(.menuBarButton, token) {
             if zoneId != nil {
-                _ = try await FocusZoneCommand(args: FocusZoneCmdArgs(zone: ZoneSelector(target)))
+                _ = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector(target)))
                     .run(.defaultEnv, .emptyStdin)
             }
         }

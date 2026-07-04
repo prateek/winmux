@@ -152,7 +152,7 @@ extension ConfigTest {
         )
         assertEquals(errors, [])
         XCTAssertNotNil(parsed.modes[mainModeId])
-        XCTAssertNotNil(parsed.modes[zoneModeId])
+        XCTAssertNotNil(parsed.modes["column"])
         XCTAssertTrue(
             parsed.modes[mainModeId]?.bindings.values
                 .contains { $0.descriptionWithKeyNotation == "ctrl-up" } == true
@@ -234,29 +234,6 @@ extension ConfigTest {
         ])
     }
 
-    func testParseZoneStyleCycleE2EConfig() throws {
-        var fixtureUrl = getDefaultConfigUrlFromProject()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.deleteLastPathComponent()
-        fixtureUrl.append(path: "script/e2e/configs/zone-style-cycle.toml")
-
-        let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
-
-        assertEquals(errors, [])
-        assertEquals(parsed.zoneStyles, [
-            ZoneStyleConfig(id: "urgent", color: "#D3455B"),
-            ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
-        ])
-        assertEquals(parsed.zoneLayouts.map(\.id), ["balanced"])
-        assertEquals(parsed.zones.map(\.layoutPreset), ["balanced"])
-        XCTAssertEqual(parsed.workspaceSidebar.enabled, true)
-        XCTAssertEqual(
-            parsed.modes["main"]?.bindings.values
-                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" },
-            ["alt-y=cycle-zone-style Comms urgent calm"],
-        )
-    }
-
     func testParseZoneAvailabilitySets() {
         let (parsed, errors) = parseConfig(
             """
@@ -303,7 +280,7 @@ extension ConfigTest {
             configText: """
             config-version = 2
             [mode.zone.binding]
-                h = ['focus-zone prev', 'mode main']
+                h = ['focus-column prev', 'mode main']
             """,
             runtimeOverlays: [:],
         )

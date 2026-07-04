@@ -6,23 +6,23 @@ import XCTest
 final class WorkspaceCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
-    func testParseWorkspaceCommand() {
-        testParseCommandFail("workspace my mail", msg: "ERROR: Unknown argument 'mail'")
-        testParseCommandFail("workspace 'my mail'", msg: "ERROR: Whitespace characters are forbidden in workspace names")
-        assertEquals(parseCommand("workspace").errorOrNil, "ERROR: Argument '(<workspace-name>|next|prev)' is mandatory")
-        testParseCommandSucc("workspace next", WorkspaceCmdArgs(target: .relative(.next)))
-        testParseCommandSucc("workspace --auto-back-and-forth W", WorkspaceCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
-        assertEquals(parseCommand("workspace --wrap-around W").errorOrNil, "--wrapAround requires using (next|prev) argument")
-        assertEquals(parseCommand("workspace --auto-back-and-forth next").errorOrNil, "--auto-back-and-forth is incompatible with (next|prev)")
-        testParseCommandSucc("workspace next --wrap-around", WorkspaceCmdArgs(target: .relative(.next), wrapAround: true))
-        assertEquals(parseCommand("workspace --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
-        testParseCommandSucc("workspace --stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, true))
-        testParseCommandSucc("workspace --no-stdin next", WorkspaceCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, false))
+    func testParseCardCommand() {
+        testParseCommandFail("card my mail", msg: "ERROR: Unknown argument 'mail'")
+        testParseCommandFail("card 'my mail'", msg: "ERROR: Whitespace characters are forbidden in workspace names")
+        assertEquals(parseCommand("card").errorOrNil, "ERROR: Argument '(go <name>|next|prev|<N>|back-and-forth|summon <name>|move <target>)' is mandatory")
+        testParseCommandSucc("card next", CardCmdArgs(target: .relative(.next)))
+        testParseCommandSucc("card --auto-back-and-forth W", CardCmdArgs(target: .direct(.parse("W").getOrDie()), autoBackAndForth: true))
+        assertEquals(parseCommand("card --wrap-around W").errorOrNil, "--wrap-around requires using (next|prev) or 'move' argument")
+        assertEquals(parseCommand("card --auto-back-and-forth next").errorOrNil, "--auto-back-and-forth is incompatible with (next|prev)")
+        testParseCommandSucc("card next --wrap-around", CardCmdArgs(target: .relative(.next), wrapAround: true))
+        assertEquals(parseCommand("card --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
+        testParseCommandSucc("card --stdin next", CardCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, true))
+        testParseCommandSucc("card --no-stdin next", CardCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, false))
     }
 
     func testDirectWorkspaceFocusDoesNotCreateBeyondDeckEdge() async throws {
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("3").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -36,8 +36,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 1, parent: workspace1.rootTilingContainer)
         _ = workspace1.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -51,8 +51,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 2, parent: workspace1.rootTilingContainer)
         _ = workspace1.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("3").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -65,8 +65,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 20, parent: workspace1.rootTilingContainer)
         _ = workspace1.focusWorkspace()
         assertEquals(
-            try await WorkspaceCommand(
-                args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+            try await CardCommand(
+                args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
             ).run(.defaultEnv, .emptyStdin).exitCode,
             0,
         )
@@ -74,8 +74,8 @@ final class WorkspaceCommandTest: XCTestCase {
         Workspace.reconcileWorkspaceState()
         XCTAssertNil(Workspace.existing(byName: "2"))
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("3").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -91,14 +91,14 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 22, parent: second.rootTilingContainer)
         _ = second.focusWorkspace()
 
-        let focusFirst = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("1").getOrDie())),
+        let focusFirst = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("1").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
         assertEquals(focusFirst.exitCode, 0)
         XCTAssertTrue(focus.workspace === first)
 
-        let focusSecond = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+        let focusSecond = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
         assertEquals(focusSecond.exitCode, 0)
         XCTAssertTrue(focus.workspace === second)
@@ -113,8 +113,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 24, parent: thirdRaw.rootTilingContainer)
         _ = first.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("3").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -134,8 +134,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 26, parent: thirdRaw.rootTilingContainer)
         _ = thirdRaw.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .relative(.next)),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .relative(.next)),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -163,7 +163,7 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertEqual(workspaceDisplayName(third.name), "Workspace 3")
 
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -171,7 +171,7 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertTrue(focus.workspace === secondDisplay)
 
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -179,7 +179,7 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertTrue(focus.workspace === third)
 
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.prev)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -187,7 +187,7 @@ final class WorkspaceCommandTest: XCTestCase {
         XCTAssertTrue(focus.workspace === secondDisplay)
 
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.prev)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -202,8 +202,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = workspace1.focusWorkspace()
 
         assertEquals(
-            try await WorkspaceCommand(
-                args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+            try await CardCommand(
+                args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
             ).run(.defaultEnv, .emptyStdin).exitCode,
             0,
         )
@@ -221,8 +221,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 4, parent: workspace1.rootTilingContainer)
         _ = workspace1.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .relative(.next)),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .relative(.next)),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -237,8 +237,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = workspace1.focusWorkspace()
 
         assertEquals(
-            try await WorkspaceCommand(
-                args: WorkspaceCmdArgs(target: .relative(.next)),
+            try await CardCommand(
+                args: CardCmdArgs(target: .relative(.next)),
             ).run(.defaultEnv, .emptyStdin).exitCode,
             0,
         )
@@ -258,12 +258,12 @@ final class WorkspaceCommandTest: XCTestCase {
         let projectWorkspace = try XCTUnwrap(switchWorkspaceProject(project.id, on: mainMonitor))
         XCTAssertTrue(TestWindow.new(id: 56, parent: projectWorkspace.rootTilingContainer).focusWindow())
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("1").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("1").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
-        XCTAssertTrue(focus.workspace === defaultWorkspace, "workspace 1 is the deck's first card, whatever its project")
+        XCTAssertTrue(focus.workspace === defaultWorkspace, "card 1 is the deck's first card, whatever its project")
     }
 
     func testDirectWorkspaceShortcutCreatesNextWorkspaceInsideActiveProject() async throws {
@@ -277,8 +277,8 @@ final class WorkspaceCommandTest: XCTestCase {
         let firstProjectWorkspace = try XCTUnwrap(switchWorkspaceProject(project.id, on: mainMonitor))
         XCTAssertTrue(TestWindow.new(id: 57, parent: firstProjectWorkspace.rootTilingContainer).focusWindow())
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("4").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("4").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -298,8 +298,8 @@ final class WorkspaceCommandTest: XCTestCase {
         let firstProjectWorkspace = try XCTUnwrap(switchWorkspaceProject(project.id, on: mainMonitor))
         XCTAssertTrue(TestWindow.new(id: 58, parent: firstProjectWorkspace.rootTilingContainer).focusWindow())
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .relative(.next)),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .relative(.next)),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -314,8 +314,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 6, parent: workspace1.rootTilingContainer)
         _ = workspace1.focusWorkspace()
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .relative(.next), wrapAround: true),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .relative(.next), wrapAround: true),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -328,8 +328,8 @@ final class WorkspaceCommandTest: XCTestCase {
 
         // The deck edge is position 2, so a transient blank is created there, but the
         // configured-persistent workspace '2' is never materialized by navigation.
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -343,8 +343,8 @@ final class WorkspaceCommandTest: XCTestCase {
 
         // The fullscreen-only workspace occupies no deck position, so position 2 is the deck
         // edge: a fresh blank is created instead of revealing the fullscreen-only workspace.
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -360,8 +360,8 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = workspace1.focusWorkspace()
         replaceClosedWindowsCache(snapshotCurrentFrozenWorld())
 
-        let result = try await WorkspaceCommand(
-            args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())),
+        let result = try await CardCommand(
+            args: CardCmdArgs(target: .direct(.parse("2").getOrDie())),
         ).run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -385,7 +385,7 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 25, parent: workspace5.rootTilingContainer)
         _ = workspace3.focusWorkspace()
 
-        let result = try await parseCommand("workspace --stdin next").cmdOrDie.run(
+        let result = try await parseCommand("card --stdin next").cmdOrDie.run(
             .defaultEnv,
             CmdStdin("1\n2\n4\n5"),
         )
@@ -406,7 +406,7 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 35, parent: workspace5.rootTilingContainer)
         _ = workspace3.focusWorkspace()
 
-        let result = try await parseCommand("workspace --stdin prev").cmdOrDie.run(
+        let result = try await parseCommand("card --stdin prev").cmdOrDie.run(
             .defaultEnv,
             CmdStdin("1\n2\n4\n5"),
         )
@@ -424,7 +424,7 @@ final class WorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 43, parent: workspace3.rootTilingContainer)
         _ = workspace2.focusWorkspace()
 
-        let result = try await parseCommand("workspace --stdin next").cmdOrDie.run(
+        let result = try await parseCommand("card --stdin next").cmdOrDie.run(
             .defaultEnv,
             CmdStdin("1\n2\n2\n3"),
         )

@@ -27,8 +27,8 @@ func printLocalCliResultAndExit(_ result: LocalCliResult) -> Never {
 @MainActor
 func runPreServerLocalCommandIfAvailable(_ parsedArgs: any CmdArgs) -> LocalCliResult? {
     switch parsedArgs {
-        case let args as ZoneCmdArgs:
-            runLocalZoneInit(args)
+        case let args as ColumnCmdArgs where args.target.val == .initialize:
+            runLocalColumnInit(args)
         default:
             nil
     }
@@ -48,11 +48,7 @@ func runServerUnavailableLocalFallbackIfAvailable(_ parsedArgs: any CmdArgs) -> 
 }
 
 @MainActor
-private func runLocalZoneInit(_ args: ZoneCmdArgs) -> LocalCliResult {
-    guard args.action.val == .initialize else {
-        return .err("Unsupported zone action '\(args.action.val.rawValue)'")
-    }
-
+private func runLocalColumnInit(_ args: ColumnCmdArgs) -> LocalCliResult {
     let targetMonitor: LocalZoneInitMonitor
     switch resolveLocalZoneInitMonitor(args.monitor) {
         case .success(let monitor):

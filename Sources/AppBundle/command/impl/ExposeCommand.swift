@@ -1,8 +1,8 @@
 import AppKit
 import Common
 
-struct ZoneExposeCommand: Command {
-    let args: ZoneExposeCmdArgs
+struct ExposeCommand: Command {
+    let args: ExposeCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {

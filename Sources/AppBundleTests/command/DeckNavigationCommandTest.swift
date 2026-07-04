@@ -22,17 +22,17 @@ final class DeckNavigationCommandTest: XCTestCase {
         _ = TestWindow.new(id: 3, parent: comms.rootTilingContainer)
         XCTAssertTrue(rightZone.setActiveWorkspace(comms))
 
-        let next = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+        let next = try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(next.exitCode, 0)
         XCTAssertTrue(focus.workspace === beta)
 
-        let wrapped = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next), wrapAround: true))
+        let wrapped = try await CardCommand(args: CardCmdArgs(target: .relative(.next), wrapAround: true))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(wrapped.exitCode, 0)
         XCTAssertTrue(focus.workspace === alpha, "wrap-around cycles the focused column's deck, not other columns")
 
-        let previous = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev), wrapAround: true))
+        let previous = try await CardCommand(args: CardCmdArgs(target: .relative(.prev), wrapAround: true))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(previous.exitCode, 0)
         XCTAssertTrue(focus.workspace === beta)
@@ -44,13 +44,13 @@ final class DeckNavigationCommandTest: XCTestCase {
     func testNumericWorkspaceAddressesDeckPosition() async throws {
         let (mainZone, alpha, beta, comms) = try await configureTwoDecks()
 
-        let second = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())))
+        let second = try await CardCommand(args: CardCmdArgs(target: .direct(.parse("2").getOrDie())))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(second.exitCode, 0)
         XCTAssertTrue(focus.workspace === beta)
         XCTAssertTrue(mainZone.activeWorkspace === beta)
 
-        let first = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("1").getOrDie())))
+        let first = try await CardCommand(args: CardCmdArgs(target: .direct(.parse("1").getOrDie())))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(first.exitCode, 0)
         XCTAssertTrue(focus.workspace === alpha, "card 1 is the focused column's first card, not another column's")
@@ -60,7 +60,7 @@ final class DeckNavigationCommandTest: XCTestCase {
     func testNumericWorkspaceAtDeckEdgeCreatesTransientBlankInFocusedColumn() async throws {
         let (mainZone, _, _, _) = try await configureTwoDecks()
 
-        let result = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("3").getOrDie())))
+        let result = try await CardCommand(args: CardCmdArgs(target: .direct(.parse("3").getOrDie())))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -79,7 +79,7 @@ final class DeckNavigationCommandTest: XCTestCase {
         _ = try await configureTwoDecks() // focused deck: [alpha, beta] -> the edge is 3
         let workspaceCount = Workspace.all.count
 
-        let result = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("4").getOrDie())))
+        let result = try await CardCommand(args: CardCmdArgs(target: .direct(.parse("4").getOrDie())))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -103,7 +103,7 @@ final class DeckNavigationCommandTest: XCTestCase {
         _ = TestWindow.new(id: 3, parent: commsExtra.rootTilingContainer)
         winMuxWorkspaceState.columnDecks.adopt(commsExtra.id, into: columnDeckKey(for: rightZone))
 
-        let result = try await parseCommand("summon-workspace comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let result = try await parseCommand("card summon comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
         XCTAssertTrue(focus.workspace === comms, "summon always ends focused")
@@ -119,12 +119,12 @@ final class DeckNavigationCommandTest: XCTestCase {
     func testPagingAwayAndBackActivatesSummonedCardOnItsCurrentDeckColumn() async throws {
         let (mainZone, rightZone, alpha, comms, commsExtra) = try await summonCommsIntoMainDeck()
 
-        let away = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+        let away = try await CardCommand(args: CardCmdArgs(target: .relative(.prev)))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(away.exitCode, 0)
         XCTAssertTrue(focus.workspace === alpha)
 
-        let back = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+        let back = try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(back.exitCode, 0)
 
@@ -140,12 +140,12 @@ final class DeckNavigationCommandTest: XCTestCase {
 
     func testWorkspaceBackAndForthReturnsToSummonedCardOnItsCurrentDeckColumn() async throws {
         let (mainZone, rightZone, alpha, comms, commsExtra) = try await summonCommsIntoMainDeck()
-        let away = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.prev)))
+        let away = try await CardCommand(args: CardCmdArgs(target: .relative(.prev)))
             .run(.defaultEnv, .emptyStdin)
         assertEquals(away.exitCode, 0)
         XCTAssertTrue(focus.workspace === alpha)
 
-        let result = try await parseCommand("workspace-back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let result = try await parseCommand("card back-and-forth").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
         XCTAssertTrue(focus.workspace === comms)
@@ -175,7 +175,7 @@ final class DeckNavigationCommandTest: XCTestCase {
         XCTAssertTrue(rightZone.setActiveWorkspace(comms))
         _ = betaWindow.focusWindow()
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(target: .relative(.next)))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -206,7 +206,7 @@ final class DeckNavigationCommandTest: XCTestCase {
         let beta = Workspace.get(byName: "beta")
         _ = TestWindow.new(id: 2, parent: beta.rootTilingContainer)
 
-        let result = try await parseCommand("move-workspace-to-monitor next").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let result = try await parseCommand("card move next").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
         XCTAssertTrue(rightZone.activeWorkspace === alpha)
@@ -325,7 +325,7 @@ final class DeckNavigationCommandTest: XCTestCase {
         let commsExtra = Workspace.get(byName: "comms-extra")
         _ = TestWindow.new(id: 23, parent: commsExtra.rootTilingContainer)
         winMuxWorkspaceState.columnDecks.adopt(commsExtra.id, into: columnDeckKey(for: rightZone))
-        let summon = try await parseCommand("summon-workspace comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let summon = try await parseCommand("card summon comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(summon.exitCode, 0)
         XCTAssertTrue(focus.workspace === comms)
         return (mainZone, rightZone, alpha, comms, commsExtra)

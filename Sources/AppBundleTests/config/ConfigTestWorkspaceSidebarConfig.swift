@@ -140,17 +140,17 @@ extension ConfigTest {
             """
             [[on-window-detected]] # 0
                 check-further-callbacks = true
-                run = ['layout floating', 'move-node-to-workspace W']
+                run = ['layout floating', 'move-node-to-card W']
             [[on-window-detected]] # 1
                 if.app-id = 'com.apple.systempreferences'
                 run = []
             [[on-window-detected]] # 2
             [[on-window-detected]] # 3
-                run = ['move-node-to-workspace S', 'layout tiling']
+                run = ['move-node-to-card S', 'layout tiling']
             [[on-window-detected]] # 4
-                run = ['move-node-to-workspace S', 'move-node-to-workspace W']
+                run = ['move-node-to-card S', 'move-node-to-card W']
             [[on-window-detected]] # 5
-                run = ['move-node-to-workspace S', 'layout h_tiles']
+                run = ['move-node-to-card S', 'layout h_tiles']
             """,
         )
         assertEquals(parsed.onWindowDetected, [
@@ -163,7 +163,7 @@ extension ConfigTest {
                 checkFurtherCallbacks: true,
                 rawRun: [
                     LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating])),
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W")),
+                    MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "W")),
                 ],
             ),
             WindowDetectedCallback( // 1
@@ -176,19 +176,19 @@ extension ConfigTest {
             ),
             WindowDetectedCallback( // 3
                 rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
+                    MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "S")),
                     LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.tiling])),
                 ],
             ),
             WindowDetectedCallback( // 4
                 rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W")),
+                    MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "S")),
+                    MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "W")),
                 ],
             ),
             WindowDetectedCallback( // 5
                 rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
+                    MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "S")),
                     LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.h_tiles])),
                 ],
             ),
@@ -216,7 +216,7 @@ extension ConfigTest {
             """
             [[on-window-detected]]
                 if.window-title-regex-substring = 'route-comms'
-                run = ['move-node-to-zone Comms --fail-if-noop']
+                run = ['move-node-to-column Comms --fail-if-noop']
             """,
         )
 
@@ -224,9 +224,9 @@ extension ConfigTest {
         let callback = config.onWindowDetected.singleOrNil().orDie()
         XCTAssertNotNil(callback.matcher.windowTitleRegexSubstring)
         XCTAssertEqual(callback.run.count, 1)
-        let command = callback.run.first as? MoveNodeToZoneCommand
+        let command = callback.run.first as? MoveNodeToColumnCommand
         let args = command.orDie().args
-        XCTAssertEqual(args.zone.val, ZoneSelector("Comms"))
+        XCTAssertEqual(args.column.val, ZoneSelector("Comms"))
         XCTAssertTrue(args.failIfNoop)
     }
 
@@ -372,7 +372,7 @@ extension ConfigTest {
                 unicorn = 'u'
 
             [mode.main.binding]
-                alt-unicorn = 'workspace wonderland'
+                alt-unicorn = 'card wonderland'
             """,
         )
         assertEquals(errors.descriptions, [])
@@ -380,7 +380,7 @@ extension ConfigTest {
             "q": .q,
             "unicorn": .u,
         ]))
-        let binding = HotkeyBinding(.option, .u, [WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("unicorn").getOrDie())))])
+        let binding = HotkeyBinding(.option, .u, [CardCommand(args: CardCmdArgs(target: .direct(.parse("unicorn").getOrDie())))])
         assertEquals(config.modes[mainModeId]?.bindings, [binding.descriptionWithKeyCode: binding])
 
         let (_, errors1) = parseConfig(

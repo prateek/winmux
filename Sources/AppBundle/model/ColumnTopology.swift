@@ -91,7 +91,7 @@ struct ColumnTopologySnapshot: Sendable {
             let isLast = index == enabledColumns.count - 1
             let width = isLast ? baseRect.maxX - nextLeft : baseRect.width * CGFloat(effectiveColumn.effectiveWidth / enabledWidthTotal)
             let rect = Rect(topLeftX: nextLeft, topLeftY: baseRect.topLeftY, width: width, height: baseRect.height)
-            let style = style(for: physicalMonitor, zoneId: column.id)
+            let colorHex = columnColorHex(for: physicalMonitor, column: column)
             nextLeft += width
             return ColumnMonitor(
                 physicalMonitor: physicalMonitor,
@@ -99,8 +99,8 @@ struct ColumnTopologySnapshot: Sendable {
                 zoneAvailabilitySetId: activeAvailabilitySetId,
                 zoneId: column.id,
                 zoneName: column.name,
-                zoneStyleId: style?.id,
-                zoneStyleColorHex: style?.color,
+                zoneStyleId: nil,
+                zoneStyleColorHex: colorHex,
                 rect: rect,
                 visibleRect: rect,
                 isDefaultZone: column.id == defaultZoneId,
@@ -129,15 +129,15 @@ struct ColumnTopologySnapshot: Sendable {
             return effectiveColumns.map { effectiveColumn in
                 let column = effectiveColumn.column
                 let activeColumnMonitor = activeColumnMonitors.first { $0.zoneId == column.id }
-                let style = style(for: physicalMonitor, zoneId: column.id)
+                let colorHex = columnColorHex(for: physicalMonitor, column: column)
                 return ConfiguredZoneSummary(
                     physicalMonitor: physicalMonitor,
                     zoneLayoutId: zoneLayout.id,
                     zoneAvailabilitySetId: activeAvailabilitySetId,
                     zoneId: column.id,
                     zoneName: column.name,
-                    zoneStyleId: style?.id,
-                    zoneStyleColorHex: style?.color,
+                    zoneStyleId: nil,
+                    zoneStyleColorHex: colorHex,
                     configuredWidth: column.width,
                     effectiveWidth: effectiveColumn.effectiveWidth,
                     runtimeWidthOverride: effectiveColumn.runtimeWidthOverride,
@@ -161,9 +161,11 @@ struct ColumnTopologySnapshot: Sendable {
         } ?? enabledColumns.first?.column.id
     }
 
-    private func style(for physicalMonitor: Monitor, zoneId: String) -> ZoneStyleConfig? {
-        guard let styleId = runtimeOverlay(for: physicalMonitor).styleOverridesByZoneId[zoneId] else { return nil }
-        return zoneStyles.first { $0.id == styleId }
+    /// Resolves a column's chrome tint: a `column color` runtime override wins, otherwise the
+    /// scene column's declared `color`. Zone-styles are dead at config v3, so the color is a plain
+    /// hex string, not a style-id lookup.
+    private func columnColorHex(for physicalMonitor: Monitor, column: ZoneColumnConfig) -> String? {
+        runtimeOverlay(for: physicalMonitor).styleOverridesByZoneId[column.id] ?? column.color
     }
 
     private func disabledZoneIds(for physicalMonitor: Monitor) -> Set<String> {
@@ -575,12 +577,11 @@ struct ZoneDividerHandle {
     }
 }
 
-struct ZoneStyleChangeResult {
+struct ColumnColorChange {
     let physicalMonitor: Monitor
     let zoneId: String
     let zoneName: String?
-    let styleId: String
-    let styleColorHex: String
+    let colorHex: String
 }
 
 struct ZoneSnapPolicyChangeResult {
@@ -670,70 +671,14 @@ func setZoneAvailability(
     ))
 }
 
-struct ZoneAvailabilitySetChange {
-    let setId: String
-    let physicalMonitor: Monitor
-    let enabledZoneIds: [String]
-    let disabledZoneIds: [String]
-}
-
+/// `column color <hex>` — stores the hex tint directly on the column runtime overlay. Zone-styles
+/// are dead at config v3, so there is no style-id lookup: the color synthesis reads this hex.
 @MainActor
-func useZoneAvailabilitySet(_ setId: String, for physicalMonitor: Monitor) -> Result<ZoneAvailabilitySetChange, String> {
-    guard let availabilitySet = config.zoneAvailabilitySets.first(where: { $0.id == setId }) else {
-        return .failure("Unknown zone availability set '\(setId)'")
-    }
-    return applyZoneAvailabilitySet(availabilitySet, for: physicalMonitor)
-}
-
-@MainActor
-func cycleZoneAvailability(_ setIds: [String], for physicalMonitor: Monitor) -> Result<ZoneAvailabilitySetChange, String> {
-    guard !setIds.isEmpty else {
-        return .failure("cycle-zone-availability requires at least one set id")
-    }
-    let duplicatedIds = setIds.grouped { $0 }
-        .filter { id, ids in !id.isEmpty && ids.count > 1 }
-        .keys
-        .sorted()
-    guard duplicatedIds.isEmpty else {
-        return .failure("cycle-zone-availability requires unique set ids: \(duplicatedIds.joined(separator: ", "))")
-    }
-
-    var availabilitySets: [ZoneAvailabilitySetConfig] = []
-    for setId in setIds {
-        guard let availabilitySet = config.zoneAvailabilitySets.first(where: { $0.id == setId }) else {
-            return .failure("Unknown zone availability set '\(setId)'")
-        }
-        availabilitySets.append(availabilitySet)
-    }
-
-    let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor.physicalMonitor)
-    let activeSetId = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity]?.activeAvailabilitySetId
-    let currentEnabledZoneIds = Set(configuredZones(on: physicalMonitor).filter(\.isEnabled).map(\.zoneId))
-
-    let selectedIndex: Int
-    if let activeSetId,
-       let activeIndex = availabilitySets.firstIndex(where: { $0.id == activeSetId })
-    {
-        selectedIndex = (activeIndex + 1) % availabilitySets.count
-    } else if let matchingIndex = availabilitySets.firstIndex(where: { Set($0.enabledZones) == currentEnabledZoneIds }) {
-        selectedIndex = (matchingIndex + 1) % availabilitySets.count
-    } else {
-        selectedIndex = 0
-    }
-
-    return applyZoneAvailabilitySet(availabilitySets[selectedIndex], for: physicalMonitor)
-}
-
-@MainActor
-func setZoneStyle(
+func setColumnColor(
     selector: ZoneSelector,
-    styleId: String,
+    colorHex: String,
     monitorDescription: MonitorDescription? = nil,
-) -> Result<ZoneStyleChangeResult, String> {
-    guard let style = config.zoneStyles.first(where: { $0.id == styleId }) else {
-        return .failure("Unknown zone style '\(styleId)'")
-    }
-
+) -> Result<ColumnColorChange, String> {
     let resolved: ResolvedConfiguredZoneSelector
     switch resolveConfiguredZoneSelector(selector, monitorDescription: monitorDescription) {
         case .success(let zone):
@@ -743,138 +688,21 @@ func setZoneStyle(
     }
 
     guard resolved.isEnabled else {
-        return .failure("Zone '\(resolved.displayName)' is disabled. Use enable-zone \(selector.raw) before styling it.")
+        return .failure("Column '\(resolved.displayName)' is collapsed. Use column expand \(selector.raw) before coloring it.")
     }
 
     let physicalIdentity = zoneLayoutPhysicalIdentity(for: resolved.physicalMonitor)
     var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
-    runtimeOverlay.styleOverridesByZoneId[resolved.zoneId] = style.id
+    runtimeOverlay.styleOverridesByZoneId[resolved.zoneId] = colorHex
     zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
     refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
 
-    return .success(ZoneStyleChangeResult(
+    return .success(ColumnColorChange(
         physicalMonitor: resolved.physicalMonitor,
         zoneId: resolved.zoneId,
         zoneName: resolved.zoneName,
-        styleId: style.id,
-        styleColorHex: style.color,
-    ))
-}
-
-@MainActor
-func cycleZoneStyle(
-    selector: ZoneSelector,
-    styleIds: [String],
-    monitorDescription: MonitorDescription? = nil,
-) -> Result<ZoneStyleChangeResult, String> {
-    guard !styleIds.isEmpty else {
-        return .failure("cycle-zone-style requires at least one style id")
-    }
-    let duplicatedIds = styleIds.grouped { $0 }
-        .filter { id, ids in !id.isEmpty && ids.count > 1 }
-        .keys
-        .sorted()
-    guard duplicatedIds.isEmpty else {
-        return .failure("cycle-zone-style requires unique style ids: \(duplicatedIds.joined(separator: ", "))")
-    }
-    for styleId in styleIds {
-        guard config.zoneStyles.contains(where: { $0.id == styleId }) else {
-            return .failure("Unknown zone style '\(styleId)'")
-        }
-    }
-
-    let resolved: ResolvedConfiguredZoneSelector
-    switch resolveConfiguredZoneSelector(selector, monitorDescription: monitorDescription) {
-        case .success(let zone):
-            resolved = zone
-        case .failure(let message):
-            return .failure(message)
-    }
-    guard resolved.isEnabled else {
-        return .failure("Zone '\(resolved.displayName)' is disabled. Use enable-zone \(selector.raw) before styling it.")
-    }
-
-    let currentStyleId = configuredZones(on: resolved.physicalMonitor)
-        .first { $0.zoneId == resolved.zoneId }?
-        .zoneStyleId
-    let selectedStyleId: String
-    if let currentStyleId,
-       let currentIndex = styleIds.firstIndex(of: currentStyleId)
-    {
-        selectedStyleId = styleIds[(currentIndex + 1) % styleIds.count]
-    } else {
-        selectedStyleId = styleIds[0]
-    }
-
-    return setZoneStyle(
-        selector: selector,
-        styleId: selectedStyleId,
-        monitorDescription: monitorDescription,
-    )
-}
-
-@MainActor
-private func applyZoneAvailabilitySet(
-    _ availabilitySet: ZoneAvailabilitySetConfig,
-    for physicalMonitor: Monitor,
-) -> Result<ZoneAvailabilitySetChange, String> {
-    let targetPhysicalMonitor = physicalMonitor.physicalMonitor
-    let configuredZones = configuredZones(on: targetPhysicalMonitor)
-    guard !configuredZones.isEmpty else {
-        return .failure("No zone config targets monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0)")
-    }
-
-    let allZoneIds = Set(configuredZones.map(\.zoneId))
-    let enabledZoneIds = Set(availabilitySet.enabledZones)
-    guard !enabledZoneIds.isEmpty else {
-        return .failure("Zone availability set '\(availabilitySet.id)' must enable at least one zone")
-    }
-    let missingZoneIds = enabledZoneIds.subtracting(allZoneIds).sorted()
-    guard missingZoneIds.isEmpty else {
-        return .failure("Zone availability set '\(availabilitySet.id)' references zones not present on monitor \(targetPhysicalMonitor.monitorId_oneBased ?? 0): \(missingZoneIds.joined(separator: ", "))")
-    }
-
-    let nextDisabledZoneIds = allZoneIds.subtracting(enabledZoneIds)
-    guard nextDisabledZoneIds.count < allZoneIds.count else {
-        return .failure("Zone availability set '\(availabilitySet.id)' would leave zero enabled zones")
-    }
-
-    let physicalIdentity = zoneLayoutPhysicalIdentity(for: targetPhysicalMonitor)
-    var runtimeOverlay = zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] ?? ZoneRuntimeOverlay()
-    runtimeOverlay.currentToggleRestoreZoneId = nil
-    let previousDisabledZoneIds = runtimeOverlay.disabledZoneIds.intersection(allZoneIds)
-    let newlyHiddenZones = configuredZones.filter { !previousDisabledZoneIds.contains($0.zoneId) && nextDisabledZoneIds.contains($0.zoneId) }
-    let newlyRestoredZones = configuredZones.filter { previousDisabledZoneIds.contains($0.zoneId) && !nextDisabledZoneIds.contains($0.zoneId) }
-    var hiddenFocusedWorkspaceIds: Set<WorkspaceId> = []
-
-    for zone in newlyHiddenZones {
-        let resolved = resolvedConfiguredZone(from: zone)
-        if let hiddenWorkspaceId = hideActiveWorkspaceForDisabledZone(for: resolved) {
-            hiddenFocusedWorkspaceIds.insert(hiddenWorkspaceId)
-        }
-    }
-
-    runtimeOverlay.disabledZoneIds.subtract(allZoneIds)
-    runtimeOverlay.disabledZoneIds.formUnion(nextDisabledZoneIds)
-    runtimeOverlay.activeAvailabilitySetId = availabilitySet.id
-    zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity] = runtimeOverlay
-
-    refreshColumnTopologySnapshot()
-
-    for zone in newlyRestoredZones {
-        restoreDeckWorkspace(for: resolvedConfiguredZone(from: zone))
-    }
-    Workspace.reconcileWorkspaceState()
-    if hiddenFocusedWorkspaceIds.contains(focus.workspace.id) {
-        _ = targetPhysicalMonitor.activeWorkspace.focusWorkspace()
-    }
-
-    return .success(ZoneAvailabilitySetChange(
-        setId: availabilitySet.id,
-        physicalMonitor: targetPhysicalMonitor,
-        enabledZoneIds: availabilitySet.enabledZones,
-        disabledZoneIds: nextDisabledZoneIds.sorted(),
+        colorHex: colorHex,
     ))
 }
 
@@ -925,35 +753,6 @@ func balanceZoneWidths(monitorDescription: MonitorDescription? = nil) -> Result<
 }
 
 @MainActor
-func cycleZoneLayout(_ layoutIds: [String], for physicalMonitor: Monitor) -> Result<String, String> {
-    guard !layoutIds.isEmpty else {
-        return .failure("cycle-zone-layout requires at least one layout id")
-    }
-    for layoutId in layoutIds {
-        guard config.zoneLayouts.contains(where: { $0.id == layoutId }) else {
-            return .failure("Unknown zone layout preset '\(layoutId)'")
-        }
-    }
-
-    let physicalIdentity = zoneLayoutPhysicalIdentity(for: physicalMonitor)
-    let currentLayoutId = getCurrentColumnTopologySnapshot()
-        .configuredZones(for: sortedPhysicalMonitors)
-        .first { $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.physicalMonitor.rect.topLeftCorner }?
-        .zoneLayoutId
-        ?? zoneRuntimeOverlaysByPhysicalIdentity[physicalIdentity]?.activeLayoutId
-    let selectedLayoutId: String
-    if let currentLayoutId,
-       let currentIndex = layoutIds.firstIndex(of: currentLayoutId)
-    {
-        selectedLayoutId = layoutIds[(currentIndex + 1) % layoutIds.count]
-    } else {
-        selectedLayoutId = layoutIds[0]
-    }
-
-    return setActiveZoneLayout(selectedLayoutId, for: physicalMonitor).map { selectedLayoutId }
-}
-
-@MainActor
 func setZoneSnapPolicy(_ policyId: String, for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
     guard let policy = ZoneSnapPolicy(rawValue: policyId) else {
         return .failure("Unknown zone snap policy '\(policyId)'. Expected one of: \(ZoneSnapPolicy.unionLiteral)")
@@ -983,14 +782,14 @@ func setZoneSnapPolicy(_ policy: ZoneSnapPolicy, for physicalMonitor: Monitor) -
 @MainActor
 func cycleZoneSnapPolicy(_ policyIds: [String], for physicalMonitor: Monitor) -> Result<ZoneSnapPolicyChangeResult, String> {
     guard !policyIds.isEmpty else {
-        return .failure("cycle-zone-snap-policy requires at least one policy")
+        return .failure("cycle-column-snap-policy requires at least one policy")
     }
     let duplicatedIds = policyIds.grouped { $0 }
         .filter { id, ids in !id.isEmpty && ids.count > 1 }
         .keys
         .sorted()
     guard duplicatedIds.isEmpty else {
-        return .failure("cycle-zone-snap-policy requires unique policies: \(duplicatedIds.joined(separator: ", "))")
+        return .failure("cycle-column-snap-policy requires unique policies: \(duplicatedIds.joined(separator: ", "))")
     }
 
     var policies: [ZoneSnapPolicy] = []

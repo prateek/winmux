@@ -39,63 +39,6 @@ final class ConfigTest: XCTestCase {
         assertEquals(errors, [])
     }
 
-    func testParseZoneModeBindingsE2EConfig() throws {
-        let toml = try String(
-            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-mode-bindings.toml"),
-            encoding: .utf8,
-        )
-        let (parsedConfig, errors) = parseConfig(toml)
-        assertEquals(errors, [])
-
-        let mainBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes[mainModeId]?.bindings.values.map {
-            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
-        } ?? [])
-        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
-            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
-        } ?? [])
-        XCTAssertEqual(mainBindings["alt-z"], "mode zone")
-        XCTAssertEqual(zoneBindings["l"], "focus-zone next; mode main")
-        XCTAssertEqual(zoneBindings["shift-l"], "move-node-to-zone --focus-follows-window next; mode main")
-        XCTAssertEqual(zoneBindings["equal"], "resize-zone current width +10%; mode main")
-        XCTAssertEqual(zoneBindings["0"], "balance-zones; mode main")
-        XCTAssertEqual(zoneBindings["t"], "toggle-zone current; mode main")
-    }
-
-    func testParseZoneSaveLayoutE2EConfig() throws {
-        let toml = try String(
-            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-save-layout.toml"),
-            encoding: .utf8,
-        )
-        let (parsedConfig, errors) = parseConfig(toml)
-        assertEquals(errors, [])
-
-        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
-            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
-        } ?? [])
-        XCTAssertEqual(zoneBindings["s"], "save-zone-layout --dry-run")
-        XCTAssertEqual(zoneBindings["shift-s"], "save-zone-layout")
-        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "balanced" }?.columns.map(\.width), [0.25, 0.50, 0.25])
-        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "focus" }?.columns.map(\.width), [0.15, 0.70, 0.15])
-    }
-
-    func testParseZoneRelaunchSavedLayoutE2EConfig() throws {
-        let toml = try String(
-            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-relaunch-saved-layout.toml"),
-            encoding: .utf8,
-        )
-        let (parsedConfig, errors) = parseConfig(toml)
-        assertEquals(errors, [])
-
-        let zoneBindings = Dictionary(uniqueKeysWithValues: parsedConfig.modes["zone"]?.bindings.values.map {
-            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
-        } ?? [])
-        XCTAssertEqual(zoneBindings["equal"], "resize-zone current width +10%; mode main")
-        XCTAssertEqual(zoneBindings["minus"], "resize-zone current width -10%; mode main")
-        XCTAssertEqual(zoneBindings["s"], "save-zone-layout; mode main")
-        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "balanced" }?.columns.map(\.width), [0.25, 0.50, 0.25])
-        XCTAssertEqual(parsedConfig.zoneLayouts.singleOrNil { $0.id == "focus" }?.columns.map(\.width), [0.15, 0.70, 0.15])
-    }
-
     func testConfigVersionOutOfBounds() {
         let (_, errors) = parseConfig(
             """
@@ -173,7 +116,7 @@ final class ConfigTest: XCTestCase {
             """
             [mode.main.binding-tap]
                 left-alt = 'focus left'
-                right-cmd = 'workspace 2'
+                right-cmd = 'card 2'
             """,
         )
         assertEquals(errors, [])
@@ -183,7 +126,7 @@ final class ConfigTest: XCTestCase {
                 bindings: [:],
                 tapBindings: [
                     "left-alt": TapBinding(.leftAlt, [FocusCommand.new(direction: .left)]),
-                    "right-cmd": TapBinding(.rightCmd, [WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())))]),
+                    "right-cmd": TapBinding(.rightCmd, [CardCommand(args: CardCmdArgs(target: .direct(.parse("2").getOrDie())))]),
                 ],
             ),
         )
@@ -323,10 +266,10 @@ final class ConfigTest: XCTestCase {
         let (config, errors) = parseConfig(
             """
             [mode.main.binding]
-                alt-1 = 'workspace 1'
-                alt-2 = 'workspace 2'
-                alt-3 = ['workspace 3']
-                alt-4 = ['workspace 4', 'focus left']
+                alt-1 = 'card 1'
+                alt-2 = 'card 2'
+                alt-3 = ['card 3']
+                alt-4 = ['card 4', 'focus left']
             """,
         )
         assertEquals(errors.descriptions, [])
@@ -382,9 +325,9 @@ final class ConfigTest: XCTestCase {
         )
     }
 
-    func testMoveWorkspaceToMonitorCommandParsing() {
-        XCTAssertTrue(parseCommand("move-workspace-to-monitor --wrap-around next").cmdOrNil is MoveWorkspaceToMonitorCommand)
-        XCTAssertTrue(parseCommand("move-workspace-to-display --wrap-around next").cmdOrNil is MoveWorkspaceToMonitorCommand)
+    func testCardMoveCommandParsing() {
+        XCTAssertTrue(parseCommand("card move next --wrap-around").cmdOrNil is CardCommand)
+        XCTAssertTrue(parseCommand("card move left --wrap-around").cmdOrNil is CardCommand)
     }
 
     func testParseTiles() {

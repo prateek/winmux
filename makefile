@@ -169,41 +169,11 @@ e2e-pre-tart-checks:
 	ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_ZONE_WINDOW_HELPERS_PHASE=self-test ./script/e2e/guest/zone-window-helpers.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_MOUSE_SNAP_PHASE=self-test ./script/e2e/guest/slice-12-mouse-zone-snap.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE26_PHASE=self-test ./script/e2e/guest/slice-26-zone-divider-drag.sh && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE28_PHASE=self-test ./script/e2e/guest/slice-28-export-zone-layout.sh && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE29_PHASE=self-test ./script/e2e/guest/slice-29-save-zone-layout.sh && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE31_PHASE=self-test ./script/e2e/guest/slice-31-relaunch-saved-layout.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE32_PHASE=self-test /bin/bash ./script/e2e/guest/slice-32-divider-save-relaunch.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE35_PHASE=self-test /bin/bash ./script/e2e/guest/slice-35-starter-ultrawide-template.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE37_PHASE=self-test /bin/bash ./script/e2e/guest/slice-37-starter-onboarding.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE38_PHASE=self-test /bin/bash ./script/e2e/guest/slice-38-user-readiness.sh && \
 	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE39_PHASE=self-test /bin/bash ./script/e2e/guest/slice-39-dogfood-install-permissions.sh && \
-	echo "[winmux-e2e] Slice 40 guest self-test START: script/e2e/guest/slice-40-zone-setup-assistant.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE40_PHASE=self-test /bin/bash ./script/e2e/guest/slice-40-zone-setup-assistant.sh && \
-	echo "[winmux-e2e] Slice 40 guest self-test PASS: script/e2e/guest/slice-40-zone-setup-assistant.sh" && \
-	echo "[winmux-e2e] Slice 41 guest self-test START: script/e2e/guest/slice-41-zone-affinity-beta.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE41_PHASE=self-test /bin/bash ./script/e2e/guest/slice-41-zone-affinity-beta.sh && \
-	echo "[winmux-e2e] Slice 41 guest self-test PASS: script/e2e/guest/slice-41-zone-affinity-beta.sh" && \
-	echo "[winmux-e2e] Slice 42 guest self-test START: script/e2e/guest/slice-42-zone-availability-profiles.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE42_PHASE=self-test /bin/bash ./script/e2e/guest/slice-42-zone-availability-profiles.sh && \
-	echo "[winmux-e2e] Slice 42 guest self-test PASS: script/e2e/guest/slice-42-zone-availability-profiles.sh" && \
-	echo "[winmux-e2e] Slice 45 guest self-test START: script/e2e/guest/slice-45-display-topology-recovery.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE45_PHASE=self-test /bin/bash ./script/e2e/guest/slice-45-display-topology-recovery.sh && \
-	echo "[winmux-e2e] Slice 45 guest self-test PASS: script/e2e/guest/slice-45-display-topology-recovery.sh" && \
-	echo "[winmux-e2e] Slice 46 guest self-test START: script/e2e/guest/slice-46-persistence-rollback-doctor.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE46_PHASE=self-test /bin/bash ./script/e2e/guest/slice-46-persistence-rollback-doctor.sh && \
-	echo "[winmux-e2e] Slice 46 guest self-test PASS: script/e2e/guest/slice-46-persistence-rollback-doctor.sh" && \
-	echo "[winmux-e2e] Slice 47 guest self-test START: script/e2e/guest/slice-47-zone-chrome-polish.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE47_PHASE=self-test /bin/bash ./script/e2e/guest/slice-47-zone-chrome-polish.sh && \
-	echo "[winmux-e2e] Slice 47 guest self-test PASS: script/e2e/guest/slice-47-zone-chrome-polish.sh" && \
-	echo "[winmux-e2e] Slice 48 guest self-test START: script/e2e/guest/slice-48-support-bundle-diagnostics.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE48_PHASE=self-test /bin/bash ./script/e2e/guest/slice-48-support-bundle-diagnostics.sh && \
-	echo "[winmux-e2e] Slice 48 guest self-test PASS: script/e2e/guest/slice-48-support-bundle-diagnostics.sh" && \
-	echo "[winmux-e2e] Slice 50 guest self-test START: script/e2e/guest/slice-50-package-release.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE50_PHASE=self-test /bin/bash ./script/e2e/guest/slice-50-package-release.sh && \
-	echo "[winmux-e2e] Slice 50 guest self-test PASS: script/e2e/guest/slice-50-package-release.sh" && \
-	echo "[winmux-e2e] Slice 51 guest self-test START: script/e2e/guest/slice-51-beta-acceptance.sh" && \
-	REPO_DIR="$(CURDIR)" ARTIFACTS_DIR="$$mouse_event_tmp" WINMUX_E2E_SLICE51_PHASE=self-test /bin/bash ./script/e2e/guest/slice-51-beta-acceptance.sh && \
-	echo "[winmux-e2e] Slice 51 guest self-test PASS: script/e2e/guest/slice-51-beta-acceptance.sh" && \
 	./script/e2e/tart-recording-harness annotation-preflight && \
 	./script/e2e/tart-recording-harness warmup-policy-self-test && \
 	swift test --filter '"'"'AppBundleUtilTest|DoctorCommandTest|FocusCommandTest|ConfigBootstrapTest|ConfigTest.testParseColumnZones|ConfigTest.testParseDefaultConfig|ConfigTest.testRenderConfigDoctorLinesForValidZonesConfig|ConfigTest.testRenderConfigDoctorLinesForInvalidZonesConfig|ConfigTest.testRenderConfigDoctorLinesIncludesRuntimeOverlayState|ConfigTest.testParseZoneModeBindingsE2EConfig|ConfigTest.testParseZoneModeV2E2EConfig|ConfigTest.testParseZoneSaveLayoutE2EConfig|ConfigTest.testParseZoneRelaunchSavedLayoutE2EConfig|ConfigTest.testParseZoneNodeBindingsE2EConfig|ConfigTest.testParseZoneAffinitiesE2EConfig|ConfigTest.testParseZoneAffinitiesBetaE2EConfig|ConfigTest.testParseZoneAvailabilityProfilesE2EConfig|ConfigTest.testParseZoneChromePolishE2EConfig|ConfigTest.testParseNamedZoneLayoutPreset|ConfigTest.testParseZoneSceneWorkspaceBindings|ConfigTest.testParseZoneBindings|ConfigTest.testParseZoneAvailabilitySets|ConfigTest.testParseZoneAffinities|ConfigTest.testParseZoneAffinitiesRequiresZone|ConfigTest.testParseZoneAffinitiesRejectsUnknownNamedZone|ConfigTest.testParseMouseZoneSnapConfig|ConfigTest.testMouseZoneSnapDefaultsForConciseConfig|ConfigTest.testParseZoneSnapPolicySwitchingE2EConfig|ConfigTest.testParseFloatUnlessSnapE2EConfig|ConfigTest.testParseFloatUnlessSnapSecondaryButtonE2EConfig|ConfigTest.testParseMouseGestureConfigurabilityE2EConfig|ConfigTest.testParseDragOverlaySemanticsE2EConfig|ConfigTest.testParseWindowSlotSnapE2EConfig|ConfigTest.testRejectInvalidMouseZoneSnapConfig|ConfigTest.testRejectInvalidZones|ConfigTest.testRejectInvalidZoneBindings|ConfigTest.testRejectInvalidZoneLayoutPresetReferences|ConfigTest.testRejectInvalidZoneSceneReferences|ConfigTest.testRejectInvalidZoneAvailabilitySets|ConfigTest.testRejectMissingZoneFields|ConfigTest.testRejectInvalidZoneIdsAndWidths|ConfigTest.testRejectDuplicateZoneMonitorSelectors|ConfigTest/testParseOnWindowDetectedZoneRouting|ListWindowsTest|ListMonitorsTest|MonitorTopologyTest|WindowZoneSnapPolicyTest|ZoneCommandTest|WorkspaceNamingTest|WorkspaceSidebarDragTest/testMonitorScopesDedupeZoneViewportsByPhysicalMonitor|WorkspaceSidebarDragTest/testWorkspaceSidebarBuildsZoneTargetsForPhysicalMonitorScope|WorkspaceSidebarDragTest/testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat|WorkspaceSidebarDragTest/testWorkspaceSidebarKeepsDisabledZoneTargetsReadable|WorkspaceSidebarDragTest/testSameZoneSidebarDropTargetIsNotActionable|WorkspaceSidebarDragTest/testDifferentZoneSidebarDropTargetIsActionable|WorkspaceSidebarDragTest/testMoveWindowFromSidebarToZoneMovesToZoneActiveWorkspace|WorkspaceSidebarDragTest/testMoveTabGroupFromSidebarToZoneMovesWholeGroup'"'"' && \

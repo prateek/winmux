@@ -1,21 +1,63 @@
 import Common
 import Foundation
 
-struct ZoneCommand: Command {
-    let args: ZoneCmdArgs
+struct ColumnCommand: Command {
+    let args: ColumnCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        switch args.action.val {
+        switch args.target.val {
+            case .resize(let amount, let column):
+                return runResize(column: column, amount: amount, io: io)
+            case .collapse(let column):
+                return runAvailability(.disable, column: column, io: io)
+            case .expand(let column):
+                return runAvailability(.enable, column: column, io: io)
+            case .toggle(let column):
+                return runAvailability(.toggle, column: column, io: io)
+            case .color(let hex, let column):
+                return runColor(hex: hex, column: column, io: io)
             case .initialize:
                 return runInit(io)
         }
     }
 
     @MainActor
+    private func runResize(column: ZoneSelector, amount: ZoneWidthAmount, io: CmdIo) -> Bool {
+        switch resizeZoneWidth(selector: column, amount: amount, monitorDescription: args.monitor) {
+            case .success(let change):
+                return io.out("Resized column '\(change.zoneName ?? change.zoneId ?? column.raw)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) by \(amount.displayPercent)")
+            case .failure(let message):
+                return io.err(message)
+        }
+    }
+
+    @MainActor
+    private func runAvailability(_ operation: ZoneAvailabilityOperation, column: ZoneSelector, io: CmdIo) -> Bool {
+        switch setZoneAvailability(operation, selector: column, monitorDescription: args.monitor) {
+            case .success(let change):
+                let state = change.isEnabled ? "expanded" : "collapsed"
+                let verb = change.changed ? state.capitalized : "Already \(state)"
+                return io.out("\(verb) column '\(change.zoneName ?? change.zoneId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
+            case .failure(let message):
+                return io.err(message)
+        }
+    }
+
+    @MainActor
+    private func runColor(hex: String, column: ZoneSelector, io: CmdIo) -> Bool {
+        switch setColumnColor(selector: column, colorHex: hex, monitorDescription: args.monitor) {
+            case .success(let change):
+                return io.out("Colored column '\(change.zoneName ?? change.zoneId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) as '\(change.colorHex)'")
+            case .failure(let message):
+                return io.err(message)
+        }
+    }
+
+    @MainActor
     private func runInit(_ io: CmdIo) -> Bool {
         let targetMonitor: Monitor
-        switch resolveZoneInitMonitor(args.monitor) {
+        switch resolveColumnInitMonitor(args.monitor) {
             case .success(let monitor):
                 targetMonitor = monitor
             case .failure(let message):
@@ -42,13 +84,13 @@ struct ZoneCommand: Command {
         }
 
         let mode = args.write ? "write" : "dry-run"
-        let summary = zoneInitMonitorSummary(targetMonitor)
+        let summary = columnInitMonitorSummary(targetMonitor)
 
         if !args.write {
             return io.out(renderZoneInitOutput(
                 title: edit.status == .unchanged
-                    ? "Dry run: zone init is already configured in \(configUrl.path)"
-                    : "Dry run: would append \(args.preset.rawValue) zones to \(configUrl.path)",
+                    ? "Dry run: column init is already configured in \(configUrl.path)"
+                    : "Dry run: would append \(args.preset.rawValue) columns to \(configUrl.path)",
                 mode: mode,
                 preset: args.preset,
                 monitorSummary: summary,
@@ -59,7 +101,7 @@ struct ZoneCommand: Command {
 
         if edit.status == .unchanged {
             return io.out(renderZoneInitOutput(
-                title: "Zone init already configured in \(configUrl.path)",
+                title: "Column init already configured in \(configUrl.path)",
                 mode: mode,
                 preset: args.preset,
                 monitorSummary: summary,
@@ -73,11 +115,11 @@ struct ZoneCommand: Command {
             try FileManager.default.copyItem(at: configUrl, to: backup)
             try edit.updatedText.write(to: configUrl, atomically: true, encoding: .utf8)
         } catch {
-            return io.err("Can't write zone init config to '\(configUrl.path)': \(error.localizedDescription)")
+            return io.err("Can't write column init config to '\(configUrl.path)': \(error.localizedDescription)")
         }
 
         return io.out(renderZoneInitOutput(
-            title: "Wrote \(args.preset.rawValue) zones to \(configUrl.path)",
+            title: "Wrote \(args.preset.rawValue) columns to \(configUrl.path)",
             mode: mode,
             preset: args.preset,
             monitorSummary: summary,
@@ -88,21 +130,21 @@ struct ZoneCommand: Command {
 }
 
 @MainActor
-private func resolveZoneInitMonitor(_ monitorDescription: MonitorDescription?) -> Result<Monitor, String> {
+private func resolveColumnInitMonitor(_ monitorDescription: MonitorDescription?) -> Result<Monitor, String> {
     let physicals = sortedPhysicalMonitors
     if let monitorDescription {
         guard let monitor = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: physicals) else {
-            return .failure("Can't resolve monitor selector for zone init")
+            return .failure("Can't resolve monitor selector for column init")
         }
         return .success(monitor)
     }
-    guard let monitor = physicals.sorted(by: zoneInitMonitorSort).first else {
-        return .failure("No physical monitors are available for zone init")
+    guard let monitor = physicals.sorted(by: columnInitMonitorSort).first else {
+        return .failure("No physical monitors are available for column init")
     }
     return .success(monitor)
 }
 
-private func zoneInitMonitorSort(_ lhs: Monitor, _ rhs: Monitor) -> Bool {
+private func columnInitMonitorSort(_ lhs: Monitor, _ rhs: Monitor) -> Bool {
     let lhsAspect = lhs.rect.height > 0 ? lhs.rect.width / lhs.rect.height : 0
     let rhsAspect = rhs.rect.height > 0 ? rhs.rect.width / rhs.rect.height : 0
     if lhsAspect != rhsAspect {
@@ -112,7 +154,7 @@ private func zoneInitMonitorSort(_ lhs: Monitor, _ rhs: Monitor) -> Bool {
 }
 
 @MainActor
-private func zoneInitMonitorSummary(_ monitor: Monitor) -> String {
+private func columnInitMonitorSummary(_ monitor: Monitor) -> String {
     let id = monitor.monitorId_oneBased ?? monitor.monitorAppKitNsScreenScreensId
     let width = Int(monitor.rect.width.rounded())
     let height = Int(monitor.rect.height.rounded())

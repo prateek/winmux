@@ -3,12 +3,12 @@ import OrderedCollections
 let onitor = "<monitor>"
 let _monitors = "\(onitor)..."
 
-public struct ListWorkspacesCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
+public struct ListCardsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public static let parser: CmdParser<Self> = .init(
-        kind: .listWorkspaces,
+        kind: .listCards,
         allowInConfig: false,
-        help: list_workspaces_help_generated,
+        help: list_cards_help_generated,
         flags: [
             // Aliases
             "--focused": trueBoolFlag(\.focused),
@@ -47,20 +47,20 @@ public struct ListWorkspacesCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
     }
 }
 
-extension ListWorkspacesCmdArgs {
+extension ListCardsCmdArgs {
     public var format: [StringInterToken] { _format.isEmpty ? [.interVar("workspace")] : _format }
 }
 
-func parseListWorkspacesCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWorkspacesCmdArgs> {
-    parseSpecificCmdArgs(ListWorkspacesCmdArgs(commonState: .init(args)), args)
+func parseListCardsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListCardsCmdArgs> {
+    parseSpecificCmdArgs(ListCardsCmdArgs(commonState: .init(args)), args)
         .filter("Mandatory option is not specified (--all|--focused|--monitor)") { raw in
             raw.all || raw.focused || !raw.filteringOptions.onMonitors.isEmpty
         }
         .filter("--all conflicts with any other \"filtering\" options") { raw in
-            raw.all.implies(raw.filteringOptions == ListWorkspacesCmdArgs.FilteringOptions())
+            raw.all.implies(raw.filteringOptions == ListCardsCmdArgs.FilteringOptions())
         }
         .filter("--focused conflicts with all other \"filtering\" options") { raw in
-            raw.focused.implies(raw.filteringOptions == ListWorkspacesCmdArgs.FilteringOptions())
+            raw.focused.implies(raw.filteringOptions == ListCardsCmdArgs.FilteringOptions())
         }
         .map { raw in
             raw.all ? raw.copy(\.filteringOptions.onMonitors, [.all]).copy(\.all, false) : raw

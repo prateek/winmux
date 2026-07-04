@@ -1,7 +1,7 @@
 import Common
 
-struct ListZonesCommand: Command {
-    let args: ListZonesCmdArgs
+struct ListColumnsCommand: Command {
+    let args: ListColumnsCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {

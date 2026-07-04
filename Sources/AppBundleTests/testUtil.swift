@@ -83,24 +83,24 @@ func testParseCommandFail(_ command: String, msg expected: String) {
     }
 }
 
-extension WorkspaceCmdArgs {
-    init(target: WorkspaceTarget, autoBackAndForth: Bool? = nil, wrapAround: Bool? = nil) {
-        self = WorkspaceCmdArgs(rawArgs: [])
+extension CardCmdArgs {
+    init(target: CardTarget, autoBackAndForth: Bool? = nil, wrapAround: Bool? = nil) {
+        self = CardCmdArgs(rawArgs: [])
         self.target = .initialized(target)
         self._autoBackAndForth = autoBackAndForth
         self._wrapAround = wrapAround
     }
 }
 
-extension MoveNodeToWorkspaceCmdArgs {
+extension MoveNodeToCardCmdArgs {
     init(target: WorkspaceTarget, wrapAround: Bool? = nil) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
+        self = MoveNodeToCardCmdArgs(rawArgs: [])
         self.target = .initialized(target)
         self._wrapAround = wrapAround
     }
 
     init(workspace: String) {
-        self = MoveNodeToWorkspaceCmdArgs(rawArgs: [])
+        self = MoveNodeToCardCmdArgs(rawArgs: [])
         self.target = .initialized(.direct(.parse(workspace).getOrDie()))
     }
 }

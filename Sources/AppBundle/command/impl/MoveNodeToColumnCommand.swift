@@ -1,7 +1,7 @@
 import Common
 
-struct MoveNodeToZoneCommand: Command {
-    let args: MoveNodeToZoneCmdArgs
+struct MoveNodeToColumnCommand: Command {
+    let args: MoveNodeToColumnCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = true
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
@@ -9,11 +9,11 @@ struct MoveNodeToZoneCommand: Command {
         guard let window = target.windowOrNil else {
             return io.err(noWindowIsFocused)
         }
-        switch resolveZoneSelector(args.zone.val) {
-            case .success(let zone):
+        switch resolveZoneSelector(args.column.val) {
+            case .success(let column):
                 return moveWindowOrTabGroupToWorkspace(
                     window,
-                    zone.monitor.activeWorkspace,
+                    column.monitor.activeWorkspace,
                     io,
                     focusFollowsWindow: args.focusFollowsWindow,
                     failIfNoop: args.failIfNoop,

@@ -45,11 +45,11 @@ on-mode-changed = []
 
 [mode.main.binding]
     ctrl-f = 'open-sidebar'
-    alt-z = 'mode zone'
+    alt-z = 'mode column'
     # macOS's own Mission Control shortcuts may shadow these two; disable them in
     # System Settings > Keyboard > Shortcuts > Mission Control if nothing happens.
-    ctrl-up = 'zone-expose display'
-    ctrl-down = 'zone-expose zone'
+    ctrl-up = 'expose display'
+    ctrl-down = 'expose card'
     alt-space = 'layout horizontal vertical'
     alt-h = 'focus left'
     alt-j = 'focus down'
@@ -86,55 +86,54 @@ on-mode-changed = []
     cmd-shift-i = 'balance-sizes'
     alt-cmd-j = 'swap down'
     alt-cmd-k = 'swap up'
-    ctrl-0 = 'workspace 10'
-    ctrl-1 = 'workspace 1'
-    ctrl-2 = 'workspace 2'
-    ctrl-3 = 'workspace 3'
-    ctrl-4 = 'workspace 4'
-    ctrl-5 = 'workspace 5'
-    ctrl-6 = 'workspace 6'
-    ctrl-7 = 'workspace 7'
-    ctrl-8 = 'workspace 8'
-    ctrl-9 = 'workspace 9'
-    ctrl-q = 'workspace 11'
-    ctrl-w = 'workspace 12'
-    ctrl-e = 'workspace 13'
-    ctrl-r = 'workspace 14'
-    ctrl-t = 'workspace 15'
-    ctrl-h = 'workspace prev'
-    ctrl-l = 'workspace next'
-    cmd-ctrl-h = 'workspace prev'
-    cmd-ctrl-l = 'workspace next'
-    alt-shift-1 = 'move-node-to-workspace 1'
-    alt-shift-2 = 'move-node-to-workspace 2'
-    alt-shift-3 = 'move-node-to-workspace 3'
-    alt-shift-4 = 'move-node-to-workspace 4'
-    alt-shift-5 = 'move-node-to-workspace 5'
-    alt-shift-6 = 'move-node-to-workspace 6'
-    alt-shift-7 = 'move-node-to-workspace 7'
-    alt-shift-8 = 'move-node-to-workspace 8'
-    alt-shift-9 = 'move-node-to-workspace 9'
-    ctrl-shift-0 = 'move-node-to-workspace 10'
-    ctrl-shift-h = 'move-node-to-workspace --focus-follows-window prev'
-    ctrl-shift-l = 'move-node-to-workspace --focus-follows-window next'
+    ctrl-0 = 'card 10'
+    ctrl-1 = 'card 1'
+    ctrl-2 = 'card 2'
+    ctrl-3 = 'card 3'
+    ctrl-4 = 'card 4'
+    ctrl-5 = 'card 5'
+    ctrl-6 = 'card 6'
+    ctrl-7 = 'card 7'
+    ctrl-8 = 'card 8'
+    ctrl-9 = 'card 9'
+    ctrl-q = 'card 11'
+    ctrl-w = 'card 12'
+    ctrl-e = 'card 13'
+    ctrl-r = 'card 14'
+    ctrl-t = 'card 15'
+    ctrl-h = 'card prev'
+    ctrl-l = 'card next'
+    cmd-ctrl-h = 'card prev'
+    cmd-ctrl-l = 'card next'
+    alt-shift-1 = 'move-node-to-card 1'
+    alt-shift-2 = 'move-node-to-card 2'
+    alt-shift-3 = 'move-node-to-card 3'
+    alt-shift-4 = 'move-node-to-card 4'
+    alt-shift-5 = 'move-node-to-card 5'
+    alt-shift-6 = 'move-node-to-card 6'
+    alt-shift-7 = 'move-node-to-card 7'
+    alt-shift-8 = 'move-node-to-card 8'
+    alt-shift-9 = 'move-node-to-card 9'
+    ctrl-shift-0 = 'move-node-to-card 10'
+    ctrl-shift-h = 'move-node-to-card --focus-follows-window prev'
+    ctrl-shift-l = 'move-node-to-card --focus-follows-window next'
 
-[mode.zone.binding]
+[mode.column.binding]
     esc = 'mode main'
-    h = ['focus-zone prev', 'mode main']
-    l = ['focus-zone next', 'mode main']
-    shift-h = ['move-node-to-zone --focus-follows-window prev', 'mode main']
-    shift-l = ['move-node-to-zone --focus-follows-window next', 'mode main']
-    minus = ['resize-zone current width -10%', 'mode main']
-    equal = ['resize-zone current width +10%', 'mode main']
-    "0" = ['balance-zones', 'mode main']
-    t = ['toggle-zone current', 'mode main']
+    h = ['focus-column prev', 'mode main']
+    l = ['focus-column next', 'mode main']
+    shift-h = ['move-node-to-column --focus-follows-window prev', 'mode main']
+    shift-l = ['move-node-to-column --focus-follows-window next', 'mode main']
+    minus = ['column resize -10%', 'mode main']
+    equal = ['column resize +10%', 'mode main']
+    "0" = ['balance-columns', 'mode main']
+    t = ['column toggle', 'mode main']
     space = ['layout floating tiling', 'mode main']
-    s = ['cycle-zone-snap-policy freeform snap-to-zone', 'mode main']
+    s = ['cycle-column-snap-policy freeform snap-to-column', 'mode main']
     # Uncomment the template below on a large ultrawide display to split monitor 1 into
-    # Reference, Work, and Comms zones. Tune the widths and workspace names to
+    # Reference, Work, and Comms columns. Tune the widths and card names to
     # match your desk.
     # BEGIN WINMUX ULTRAWIDE ZONES TEMPLATE
-    # y = ['cycle-zone-style current urgent calm', 'mode main']
 
 # [[zone-styles]]
 # id = 'urgent'

@@ -2,20 +2,81 @@ import AppKit
 import Common
 import Foundation
 
-struct WorkspaceCommand: Command {
-    let args: WorkspaceCmdArgs
+struct CardCommand: Command {
+    let args: CardCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = true
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+        switch args.target.val {
+            case .relative, .direct:
+                return runNavigate(env, io)
+            case .backAndForth:
+                return prevFocusedWorkspace?.focusWorkspace() ?? false
+            case .summon(let name):
+                return runSummon(name: name, io: io)
+            case .move(let monitorTarget):
+                return runMove(monitorTarget: monitorTarget, env: env, io: io)
+        }
+    }
+
+    @MainActor
+    private func runNavigate(_ env: CmdEnv, _ io: CmdIo) -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         let focusedWs = target.workspace
         switch resolveWorkspaceTarget(from: focusedWs, io: io) {
             case .focus(let workspace):
                 return focusOrReportNoop(workspace, focusedWorkspace: focusedWs, io: io, failIfNoop: args.failIfNoop)
             case .backAndForth:
-                return WorkspaceBackAndForthCommand(args: WorkspaceBackAndForthCmdArgs(rawArgs: [])).run(env, io)
+                return prevFocusedWorkspace?.focusWorkspace() ?? false
             case .error:
                 return false
+        }
+    }
+
+    @MainActor
+    private func runSummon(name: WorkspaceName, io: CmdIo) -> Bool {
+        guard let workspace = Workspace.existing(byName: name.raw),
+              isUserFacingWorkspace(workspace, focusedWorkspace: focus.workspace)
+        else {
+            return io.err("Card '\(name.raw)' doesn't exist")
+        }
+        let monitor = focus.workspace.workspaceMonitor
+        if monitor.activeWorkspace == workspace {
+            if !args.failIfNoop {
+                io.err("Card '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code")
+            }
+            return !args.failIfNoop
+        }
+        if activateWorkspaceOnMonitorPreservingSourceViewport(workspace, targetMonitor: monitor) {
+            return workspace.focusWorkspace()
+        } else {
+            return io.err("Can't move card '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it")
+        }
+    }
+
+    @MainActor
+    private func runMove(monitorTarget: MonitorTarget, env: CmdEnv, io: CmdIo) -> Bool {
+        guard let target = args.resolveTargetOrReportError(env, io) else { return false }
+        let focusedWorkspace = target.workspace
+        let prevMonitor = focusedWorkspace.workspaceMonitor
+
+        switch monitorTarget.resolve(target.workspace.workspaceMonitor, wrapAround: args.wrapAround) {
+            case .success(let targetMonitor):
+                if monitorTarget.resolvesPhysicalMonitorSelector
+                    ? targetMonitor.hasSamePhysicalMonitor(as: prevMonitor)
+                    : targetMonitor.hasSameWorkspaceViewport(as: prevMonitor)
+                {
+                    return true
+                }
+                if activateWorkspaceOnMonitorPreservingSourceViewport(focusedWorkspace, targetMonitor: targetMonitor) {
+                    return true
+                } else {
+                    return io.err(
+                        "Can't move card '\(focusedWorkspace.name)' to monitor '\(targetMonitor.name)'. workspace-to-monitor-force-assignment doesn't allow it",
+                    )
+                }
+            case .failure(let msg):
+                return io.err(msg)
         }
     }
 
@@ -46,6 +107,8 @@ struct WorkspaceCommand: Command {
                 return .focus(workspace)
             case .direct(let name):
                 return resolveDirectWorkspaceTarget(named: name.raw, from: focusedWs, io: io)
+            default:
+                return .error
         }
     }
 
@@ -62,10 +125,17 @@ struct WorkspaceCommand: Command {
             from: focusedWs,
             among: deckNavigationWorkspaces(from: focusedWs),
         ) else {
-            _ = io.err("Workspace '\(workspaceName)' doesn't exist")
+            _ = io.err("Card '\(workspaceName)' doesn't exist")
             return .error
         }
         return .focus(workspace)
+    }
+}
+
+private extension MonitorTarget {
+    var resolvesPhysicalMonitorSelector: Bool {
+        if case .patterns = self { return true }
+        return false
     }
 }
 
@@ -78,7 +148,7 @@ private func focusOrReportNoop(
 ) -> Bool {
     if focusedWorkspace == workspace {
         if !failIfNoop {
-            io.err("Workspace '\(workspaceDisplayName(workspace.name))' is already focused. Tip: use --fail-if-noop to exit with non-zero code")
+            io.err("Card '\(workspaceDisplayName(workspace.name))' is already focused. Tip: use --fail-if-noop to exit with non-zero code")
         }
         return !failIfNoop
     }

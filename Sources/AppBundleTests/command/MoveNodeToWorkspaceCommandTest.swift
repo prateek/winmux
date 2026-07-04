@@ -7,11 +7,11 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParse() {
-        testParseCommandSucc("move-node-to-workspace next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
-        assertEquals(parseCommand("move-node-to-workspace --fail-if-noop next").errorOrNil, "--fail-if-noop is incompatible with (next|prev)")
-        assertEquals(parseCommand("move-node-to-workspace --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
-        testParseCommandSucc("move-node-to-workspace --stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, true))
-        testParseCommandSucc("move-node-to-workspace --no-stdin next", MoveNodeToWorkspaceCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, false))
+        testParseCommandSucc("move-node-to-card next", MoveNodeToCardCmdArgs(target: .relative(.next)))
+        assertEquals(parseCommand("move-node-to-card --fail-if-noop next").errorOrNil, "--fail-if-noop is incompatible with (next|prev)")
+        assertEquals(parseCommand("move-node-to-card --stdin foo").errorOrNil, "--stdin and --no-stdin require using (next|prev) argument")
+        testParseCommandSucc("move-node-to-card --stdin next", MoveNodeToCardCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, true))
+        testParseCommandSucc("move-node-to-card --no-stdin next", MoveNodeToCardCmdArgs(target: .relative(.next)).copy(\.explicitStdinFlag, false))
     }
 
     func testSimple() async throws {
@@ -20,7 +20,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
         XCTAssertTrue(workspaceA.isEffectivelyEmpty)
         assertEquals((Workspace.get(byName: "b").rootTilingContainer.children.singleOrNil() as? Window)?.windowId, 1)
     }
@@ -31,7 +31,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
 
         Workspace.reconcileWorkspaceState()
 
@@ -49,7 +49,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 2, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
         assertEquals(focus.windowOrNil?.windowId, 1)
     }
 
@@ -58,7 +58,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
         XCTAssertTrue(workspaceA.isEffectivelyEmpty)
         assertEquals(Workspace.get(byName: "b").children.filterIsInstance(of: Window.self).singleOrNil()?.windowId, 1)
     }
@@ -69,7 +69,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 1, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(Workspace.get(byName: "b").preferredMonitorPointForTesting, workspaceA.workspaceMonitor.rect.topLeftCorner)
     }
@@ -96,7 +96,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
             _ = TestWindow.new(id: 31, parent: $0).focusWindow()
         }
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "forced")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "forced")).run(.defaultEnv, .emptyStdin)
 
         let forced = Workspace.get(byName: "forced")
         XCTAssertEqual(forced.preferredMonitorPointForTesting, secondary.rect.topLeftCorner)
@@ -108,7 +108,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         let sourceWorkspace = try XCTUnwrap(switchWorkspaceProject(project.id, on: mainMonitor))
         _ = TestWindow.new(id: 1, parent: sourceWorkspace.rootTilingContainer).focusWindow()
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "b")).run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(Workspace.get(byName: "b").projectId, project.id)
     }
@@ -119,7 +119,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         let window = TestWindow.new(id: 11, parent: workspace1.rootTilingContainer)
         _ = window.focusWindow()
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "2"))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "2"))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -133,7 +133,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         let window = TestWindow.new(id: 12, parent: workspace1.rootTilingContainer)
         _ = window.focusWindow()
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "3"))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "3"))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -150,7 +150,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         _ = TestWindow.new(id: 18, parent: thirdRaw.rootTilingContainer)
         _ = window.focusWindow()
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "3"))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "3"))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -167,7 +167,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         let window = TestWindow.new(id: 13, parent: workspace1.rootTilingContainer)
         _ = window.focusWindow()
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())))
+            try await CardCommand(args: CardCmdArgs(target: .direct(.parse("2").getOrDie())))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -176,7 +176,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         Workspace.reconcileWorkspaceState()
         XCTAssertNil(Workspace.existing(byName: "2"))
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "3"))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "3"))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -190,7 +190,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
         let window = TestWindow.new(id: 14, parent: workspace1.rootTilingContainer)
         _ = window.focusWindow()
 
-        let result = try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(target: .relative(.next)))
+        let result = try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(target: .relative(.next)))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 0)
@@ -226,7 +226,7 @@ final class MoveNodeToWorkspaceCommandTest: XCTestCase {
 
         assertEquals(focus.workspace, workspaceA)
 
-        try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "a").copy(\.windowId, 2))
+        try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: "a").copy(\.windowId, 2))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(focus.workspace, workspaceA)

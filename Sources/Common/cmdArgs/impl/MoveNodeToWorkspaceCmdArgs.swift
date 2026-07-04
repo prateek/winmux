@@ -1,9 +1,9 @@
-public struct MoveNodeToWorkspaceCmdArgs: CmdArgs {
+public struct MoveNodeToCardCmdArgs: CmdArgs {
     /*conforms*/ public var commonState: CmdArgsCommonState
     public static let parser: CmdParser<Self> = .init(
-        kind: .moveNodeToWorkspace,
+        kind: .moveNodeToCard,
         allowInConfig: true,
-        help: move_node_to_workspace_help_generated,
+        help: move_node_to_card_help_generated,
         flags: [
             "--wrap-around": optionalTrueBoolFlag(\._wrapAround),
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
@@ -30,13 +30,13 @@ public struct MoveNodeToWorkspaceCmdArgs: CmdArgs {
     }
 }
 
-extension MoveNodeToWorkspaceCmdArgs {
+extension MoveNodeToCardCmdArgs {
     public var wrapAround: Bool { _wrapAround ?? false }
     public var useStdin: Bool { explicitStdinFlag ?? false }
 }
 
-func parseMoveNodeToWorkspaceCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToWorkspaceCmdArgs> {
-    parseSpecificCmdArgs(MoveNodeToWorkspaceCmdArgs(rawArgs: args), args)
+func parseMoveNodeToCardCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToCardCmdArgs> {
+    parseSpecificCmdArgs(MoveNodeToCardCmdArgs(rawArgs: args), args)
         .filter("--wrapAround requires using (prev|next) argument") { ($0._wrapAround != nil).implies($0.target.val.isRelative) }
         .filterNot("--fail-if-noop is incompatible with (next|prev)") { $0.failIfNoop && $0.target.val.isRelative }
         .filterNot("--window-id is incompatible with (next|prev)") { $0.windowId != nil && $0.target.val.isRelative }

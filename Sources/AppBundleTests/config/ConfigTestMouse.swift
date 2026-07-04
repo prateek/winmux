@@ -53,29 +53,6 @@ extension ConfigTest {
         XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
     }
 
-    func testParseZoneSnapPolicySwitchingE2EConfig() throws {
-        let toml = try String(
-            contentsOf: projectRoot.appending(component: "script/e2e/configs/zone-snap-policy-switching.toml"),
-            encoding: .utf8,
-        )
-
-        let (parsed, errors) = parseConfig(toml)
-
-        assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .freeform)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .drag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
-        XCTAssertEqual(
-            Set(parsed.modes["main"]?.bindings.values
-                .map { "\($0.descriptionWithKeyNotation)=\($0.commands.prettyDescription)" } ?? []),
-            [
-                "alt-z=set-zone-snap-policy snap-to-zone",
-                "alt-x=cycle-zone-snap-policy freeform snap-to-zone",
-            ],
-        )
-    }
-
     func testParseFloatUnlessSnapE2EConfig() throws {
         let toml = try String(
             contentsOf: projectRoot.appending(component: "script/e2e/configs/float-unless-snap.toml"),

@@ -1,7 +1,7 @@
 import Common
 
-struct MoveNodeToWorkspaceCommand: Command {
-    let args: MoveNodeToWorkspaceCmdArgs
+struct MoveNodeToCardCommand: Command {
+    let args: MoveNodeToCardCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache: Bool = true
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {

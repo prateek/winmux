@@ -176,9 +176,9 @@ func shortcutSettingsWorkspaceNumbers() -> [String] {
 func workspaceCommand(_ workspaceName: String, kind: ShortcutSettingsModel.WorkspaceShortcutKind) -> String {
     switch kind {
         case .switchTo:
-            "workspace \(quoteCommandArgument(workspaceName))"
+            "card \(quoteCommandArgument(workspaceName))"
         case .moveTo:
-            "move-node-to-workspace \(quoteCommandArgument(workspaceName))"
+            "move-node-to-card \(quoteCommandArgument(workspaceName))"
     }
 }
 
@@ -187,8 +187,8 @@ func parseWorkspaceCommandTarget(
     kind: ShortcutSettingsModel.WorkspaceShortcutKind
 ) -> String? {
     let prefix: String = switch kind {
-        case .switchTo: "workspace "
-        case .moveTo: "move-node-to-workspace "
+        case .switchTo: "card "
+        case .moveTo: "move-node-to-card "
     }
     guard command.hasPrefix(prefix) else { return nil }
     return String(command.dropFirst(prefix.count))

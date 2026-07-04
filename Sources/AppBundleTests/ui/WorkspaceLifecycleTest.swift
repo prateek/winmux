@@ -68,7 +68,7 @@ final class WorkspaceLifecycleTest: XCTestCase {
         _ = TestWindow.new(id: 2, parent: occupied.rootTilingContainer)
         _ = occupied.focusWorkspace()
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())))
+            try await CardCommand(args: CardCmdArgs(target: .direct(.parse("2").getOrDie())))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -88,7 +88,7 @@ final class WorkspaceLifecycleTest: XCTestCase {
         let movedWindow = TestWindow.new(id: 4, parent: sourceWorkspace.rootTilingContainer)
         _ = sourceWorkspace.focusWorkspace()
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .direct(.parse("2").getOrDie())))
+            try await CardCommand(args: CardCmdArgs(target: .direct(.parse("2").getOrDie())))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -114,7 +114,7 @@ final class WorkspaceLifecycleTest: XCTestCase {
         _ = projectWindow.focusWindow()
 
         assertEquals(
-            try await MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: defaultTarget.name))
+            try await MoveNodeToCardCommand(args: MoveNodeToCardCmdArgs(workspace: defaultTarget.name))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
@@ -132,13 +132,13 @@ final class WorkspaceLifecycleTest: XCTestCase {
         _ = TestWindow.new(id: 7, parent: occupied.rootTilingContainer)
         _ = occupied.focusWorkspace()
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,
         )
 
-        let result = try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+        let result = try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
             .run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.exitCode, 1)
@@ -153,7 +153,7 @@ final class WorkspaceLifecycleTest: XCTestCase {
         _ = occupied.focusWorkspace()
 
         assertEquals(
-            try await WorkspaceCommand(args: WorkspaceCmdArgs(target: .relative(.next)))
+            try await CardCommand(args: CardCmdArgs(target: .relative(.next)))
                 .run(.defaultEnv, .emptyStdin)
                 .exitCode,
             0,

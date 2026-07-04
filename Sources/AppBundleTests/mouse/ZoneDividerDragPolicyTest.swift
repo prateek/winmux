@@ -54,12 +54,12 @@ final class ZoneDividerDragPolicyTest: XCTestCase {
         XCTAssertTrue(controller.handleKeyDown(exposeKeyEvent(keyCode: 36))) // return selects
         XCTAssertEqual(selected, [0])
 
-        controller.setTilesForTests(tiles, scope: .zone)
+        controller.setTilesForTests(tiles, scope: .card)
         XCTAssertTrue(controller.handleKeyDown(exposeKeyEvent(keyCode: 18, characters: "3")))
         XCTAssertEqual(selected, [0, 2])
         XCTAssertFalse(controller.handleKeyDown(exposeKeyEvent(keyCode: 18, characters: "9")))
 
-        controller.setTilesForTests(tiles, scope: .zone)
+        controller.setTilesForTests(tiles, scope: .card)
         XCTAssertTrue(controller.handleKeyDown(exposeKeyEvent(keyCode: 53))) // escape hides
         XCTAssertTrue(controller.tiles.isEmpty)
     }

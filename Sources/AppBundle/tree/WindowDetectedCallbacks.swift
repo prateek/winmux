@@ -24,7 +24,7 @@ private func onWindowDetected(_ window: Window) async throws {
     for (index, affinity) in config.zoneAffinities.enumerated() {
         let evaluation = try await affinity.evaluate(index: index, window: window)
         guard evaluation.matched else { continue }
-        let commandResult = try await MoveNodeToZoneCommand(args: affinity.commandArgs).run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
+        let commandResult = try await MoveNodeToColumnCommand(args: affinity.commandArgs).run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
         if commandResult.exitCode == 0 && !affinity.checkFurtherCallbacks {
             return
         }
@@ -93,8 +93,8 @@ extension WindowDetectedCallback {
 }
 
 extension ZoneAffinityConfig {
-    var commandArgs: MoveNodeToZoneCmdArgs {
-        MoveNodeToZoneCmdArgs(zone: zone.orDie("Zone affinity should have a parsed zone target"))
+    var commandArgs: MoveNodeToColumnCmdArgs {
+        MoveNodeToColumnCmdArgs(column: zone.orDie("Zone affinity should have a parsed zone target"))
             .copy(\.focusFollowsWindow, focusFollowsWindow)
             .copy(\.failIfNoop, failIfNoop)
     }

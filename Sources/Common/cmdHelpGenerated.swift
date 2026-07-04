@@ -2,17 +2,32 @@
 // Keep parser manifests, help strings, and CLI descriptions in sync.
 // Validate with: python3 script/check-command-metadata
 
+let balance_columns_help_generated = """
+    USAGE: balance-columns [-h|--help] [--monitor <monitor-pattern>]
+    """
 let balance_sizes_help_generated = """
     USAGE: balance-sizes [-h|--help] [--workspace <workspace>]
     """
-let balance_zones_help_generated = """
-    USAGE: balance-zones [-h|--help] [--monitor <monitor-pattern>]
+let card_help_generated = """
+    USAGE: card [-h|--help] [--auto-back-and-forth] [--fail-if-noop] go <card-name>
+       OR: card [-h|--help] <deck-position>
+       OR: card [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
+       OR: card [-h|--help] back-and-forth
+       OR: card [-h|--help] [--fail-if-noop] summon <card-name>
+       OR: card [-h|--help] [--workspace <card>] [--wrap-around] move (left|down|up|right|next|prev|<monitor-pattern>)
     """
 let close_all_windows_but_current_help_generated = """
     USAGE: close-all-windows-but-current [-h|--help] [--quit-if-last-window]
     """
 let close_help_generated = """
     USAGE: close [-h|--help] [--quit-if-last-window] [--window-id <window-id>]
+    """
+let column_help_generated = """
+    USAGE: column [-h|--help] resize [+|-]<percent>% [<column-id>]
+       OR: column [-h|--help] (collapse|expand|toggle) [<column-id>]
+       OR: column [-h|--help] color <hex> [<column-id>]
+       OR: column [-h|--help] init [--dry-run|--write] [--replace-existing] [--preset <preset>]
+                  [--monitor <monitor-pattern>]
     """
 let config_help_generated = """
     USAGE: config [-h|--help] --get <name> [--json] [--keys]
@@ -22,31 +37,22 @@ let config_help_generated = """
        OR: config [-h|--help] --check <path>
        OR: config [-h|--help] --restore-backup <path>
     """
-let cycle_zone_snap_policy_help_generated = """
-    USAGE: cycle-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>...
-    """
-let cycle_zone_style_help_generated = """
-    USAGE: cycle-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>...
+let cycle_column_snap_policy_help_generated = """
+    USAGE: cycle-column-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>...
     """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id>]
-    """
-let disable_zone_help_generated = """
-    USAGE: disable-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
     """
 let enable_help_generated = """
     USAGE: enable [-h|--help] toggle
        OR: enable [-h|--help] on [--fail-if-noop]
        OR: enable [-h|--help] off [--fail-if-noop]
     """
-let enable_zone_help_generated = """
-    USAGE: enable-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
-    """
 let exec_and_forget_help_generated = """
     USAGE: exec-and-forget <bash-script>
     """
-let export_zone_layout_help_generated = """
-    USAGE: export-zone-layout [-h|--help] [--monitor <monitor-pattern>] <layout-id>
+let expose_help_generated = """
+    USAGE: expose [-h|--help] (display|card)
     """
 let flatten_workspace_tree_help_generated = """
     USAGE: flatten-workspace-tree [-h|--help] [--workspace <workspace>]
@@ -54,13 +60,13 @@ let flatten_workspace_tree_help_generated = """
 let focus_back_and_forth_help_generated = """
     USAGE: focus-back-and-forth [-h|--help]
     """
+let focus_column_help_generated = """
+    USAGE: focus-column [-h|--help] <column>
+    """
 let focus_monitor_help_generated = """
     USAGE: focus-monitor [-h|--help] [--wrap-around] (left|down|up|right)
        OR: focus-monitor [-h|--help] [--wrap-around] (next|prev)
        OR: focus-monitor [-h|--help] <monitor-pattern>...
-    """
-let focus_zone_help_generated = """
-    USAGE: focus-zone [-h|--help] <zone>
     """
 let focus_help_generated = """
     USAGE: focus [-h|--help] [--ignore-floating] [--wrap-around]
@@ -91,6 +97,14 @@ let layout_help_generated = """
 let list_apps_help_generated = """
     USAGE: list-apps [-h|--help] [--macos-native-hidden [no]] [--format <output-format>] [--count] [--json]
     """
+let list_cards_help_generated = """
+    USAGE: list-cards [-h|--help] --monitor <monitor>... [--visible [no]] [--empty [no]] [--format <output-format>] [--count] [--json]
+       OR: list-cards [-h|--help] --all [--format <output-format>] [--count] [--json]
+       OR: list-cards [-h|--help] --focused [--format <output-format>] [--count] [--json]
+    """
+let list_columns_help_generated = """
+    USAGE: list-columns [-h|--help] [--format <output-format>] [--count] [--json]
+    """
 let list_exec_env_vars_help_generated = """
     USAGE: list-exec-env-vars [-h|--help]
     """
@@ -108,14 +122,6 @@ let list_windows_help_generated = """
        OR: list-windows [-h|--help] --all [--format <output-format>] [--count] [--json]
        OR: list-windows [-h|--help] --focused [--format <output-format>] [--count] [--json]
     """
-let list_workspaces_help_generated = """
-    USAGE: list-workspaces [-h|--help] --monitor <monitor>... [--visible [no]] [--empty [no]] [--format <output-format>] [--count] [--json]
-       OR: list-workspaces [-h|--help] --all [--format <output-format>] [--count] [--json]
-       OR: list-workspaces [-h|--help] --focused [--format <output-format>] [--count] [--json]
-    """
-let list_zones_help_generated = """
-    USAGE: list-zones [-h|--help] [--format <output-format>] [--count] [--json]
-    """
 let macos_native_fullscreen_help_generated = """
     USAGE: macos-native-fullscreen [-h|--help] [--window-id <window-id>]
        OR: macos-native-fullscreen [-h|--help] [--window-id <window-id>] [--fail-if-noop] on
@@ -130,27 +136,22 @@ let mode_help_generated = """
 let move_mouse_help_generated = """
     USAGE: move-mouse [-h|--help] [--fail-if-noop] <mouse-position>
     """
+let move_node_to_card_help_generated = """
+    USAGE: move-node-to-card [-h|--help] [--focus-follows-window] [--wrap-around]
+                             [--stdin|--no-stdin]
+                             (next|prev)
+       OR: move-node-to-card [-h|--help] [--focus-follows-window] [--fail-if-noop]
+                             [--window-id <window-id>] <card-name>
+    """
+let move_node_to_column_help_generated = """
+    USAGE: move-node-to-column [-h|--help] [--window-id <window-id>] [--focus-follows-window]
+                               [--fail-if-noop] <column>
+    """
 let move_node_to_monitor_help_generated = """
     USAGE: move-node-to-monitor [-h|--help] [--window-id <window-id>] [--focus-follows-window]
                                 [--wrap-around] (left|down|up|right|next|prev)
        OR: move-node-to-monitor [-h|--help] [--window-id <window-id>] [--focus-follows-window]
                                 [--fail-if-noop] <monitor-pattern>...
-    """
-let move_node_to_workspace_help_generated = """
-    USAGE: move-node-to-workspace [-h|--help] [--focus-follows-window] [--wrap-around]
-                                  [--stdin|--no-stdin]
-                                  (next|prev)
-       OR: move-node-to-workspace [-h|--help] [--focus-follows-window] [--fail-if-noop]
-                                  [--window-id <window-id>] <workspace-name>
-    """
-let move_node_to_zone_help_generated = """
-    USAGE: move-node-to-zone [-h|--help] [--window-id <window-id>] [--focus-follows-window]
-                             [--fail-if-noop] <zone>
-    """
-let move_workspace_to_monitor_help_generated = """
-    USAGE: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] [--wrap-around] (left|down|up|right)
-       OR: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] [--wrap-around] (next|prev)
-       OR: move-workspace-to-monitor [-h|--help] [--workspace <workspace>] <monitor-pattern>...
     """
 let move_help_generated = """
     USAGE: move [-h|--help] [--window-id <window-id>] [--boundaries <boundary>] [--boundaries-action <boundary-action>] (left|down|up|right)
@@ -161,17 +162,13 @@ let reload_config_help_generated = """
 let resize_help_generated = """
     USAGE: resize [-h|--help] [--window-id <window-id>] (smart|smart-opposite|width|height) [+|-]<number>
     """
-let resize_zone_help_generated = """
-    USAGE: resize-zone [-h|--help] [--monitor <monitor-pattern>] <zone> width [+|-]<percent>%
+let scene_help_generated = """
+    USAGE: scene [-h|--help] [--monitor <monitor-pattern>] <name>
+       OR: scene [-h|--help] [--monitor <monitor-pattern>] next
+       OR: scene [-h|--help] [--monitor <monitor-pattern>] new <name>
     """
-let save_zone_layout_help_generated = """
-    USAGE: save-zone-layout [-h|--help] [--dry-run] [--layout <layout-id>] [--monitor <monitor-pattern>]
-    """
-let set_zone_snap_policy_help_generated = """
-    USAGE: set-zone-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>
-    """
-let set_zone_style_help_generated = """
-    USAGE: set-zone-style [-h|--help] [--monitor <monitor-pattern>] <zone> <style-id>
+let set_column_snap_policy_help_generated = """
+    USAGE: set-column-snap-policy [-h|--help] [--monitor <monitor-pattern>] <policy>
     """
 let split_help_generated = """
     USAGE: split [-h|--help] [--window-id <window-id>] (horizontal|vertical|opposite)
@@ -182,42 +179,16 @@ let stack_with_help_generated = """
 let subscribe_help_generated = """
     USAGE: subscribe [-h|--help] [--all] [--no-send-initial] [<event>...]
     """
-let summon_workspace_help_generated = """
-    USAGE: summon-workspace [-h|--help] [--fail-if-noop] <workspace>
-    """
 let swap_help_generated = """
     USAGE: swap [-h|--help] [--window-id <window-id>] [--swap-focus]
                 [--wrap-around]
                 (left|down|up|right|dfs-next|dfs-prev)
     """
-let toggle_zone_help_generated = """
-    USAGE: toggle-zone [-h|--help] [--monitor <monitor-pattern>] <zone>
-    """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>
-    """
-let scene_help_generated = """
-    USAGE: scene [-h|--help] [--monitor <monitor-pattern>] <name>
-       OR: scene [-h|--help] [--monitor <monitor-pattern>] next
-       OR: scene [-h|--help] [--monitor <monitor-pattern>] new <name>
     """
 let volume_help_generated = """
     USAGE: volume [-h|--help] (up|down) [--no-gui]
        OR: volume [-h|--help] (mute-toggle|mute-off|mute-on) [--no-gui]
        OR: volume [-h|--help] set <number> [--no-gui]
-    """
-let workspace_back_and_forth_help_generated = """
-    USAGE: workspace-back-and-forth [-h|--help]
-    """
-let workspace_help_generated = """
-    USAGE: workspace [-h|--help] [--auto-back-and-forth] [--fail-if-noop] <workspace-name>
-       OR: workspace [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
-    """
-let zone_help_generated = """
-    USAGE: zone [-h|--help] init [--dry-run|--write] [--replace-existing] [--preset <preset>]
-                [--monitor <monitor-pattern>]
-    """
-
-let zone_expose_help_generated = """
-    USAGE: zone-expose [-h|--help] (display|zone)
     """

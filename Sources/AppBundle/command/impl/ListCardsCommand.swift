@@ -1,8 +1,8 @@
 import AppKit
 import Common
 
-struct ListWorkspacesCommand: Command {
-    let args: ListWorkspacesCmdArgs
+struct ListCardsCommand: Command {
+    let args: ListCardsCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {

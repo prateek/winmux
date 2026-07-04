@@ -130,9 +130,9 @@ struct Main {
 
 private func shouldReadRelativeWorkspaceStdin(_ args: any CmdArgs) -> Bool {
     switch args {
-        case let args as WorkspaceCmdArgs:
+        case let args as CardCmdArgs:
             args.target.val.isRelative
-        case let args as MoveNodeToWorkspaceCmdArgs:
+        case let args as MoveNodeToCardCmdArgs:
             args.target.val.isRelative
         default:
             false
@@ -141,9 +141,9 @@ private func shouldReadRelativeWorkspaceStdin(_ args: any CmdArgs) -> Bool {
 
 private func hasExplicitRelativeWorkspaceStdinFlag(_ args: any CmdArgs) -> Bool {
     switch args {
-        case let args as WorkspaceCmdArgs:
+        case let args as CardCmdArgs:
             args.explicitStdinFlag != nil
-        case let args as MoveNodeToWorkspaceCmdArgs:
+        case let args as MoveNodeToCardCmdArgs:
             args.explicitStdinFlag != nil
         default:
             true
@@ -152,9 +152,9 @@ private func hasExplicitRelativeWorkspaceStdinFlag(_ args: any CmdArgs) -> Bool 
 
 private func shouldUseRelativeWorkspaceStdin(_ args: any CmdArgs) -> Bool {
     switch args {
-        case let args as WorkspaceCmdArgs:
+        case let args as CardCmdArgs:
             args.useStdin
-        case let args as MoveNodeToWorkspaceCmdArgs:
+        case let args as MoveNodeToCardCmdArgs:
             args.useStdin
         default:
             false

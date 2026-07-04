@@ -200,7 +200,7 @@ final class DeckStoreTest: XCTestCase {
             }
         }
         for workspace in Workspace.all where !workspace.isArchived {
-            XCTAssertTrue(seen.contains(workspace.id), "workspace \(workspace.name) is in no deck")
+            XCTAssertTrue(seen.contains(workspace.id), "card \(workspace.name) is in no deck")
         }
     }
 
