@@ -66,8 +66,8 @@ validate_source_checks() {
 
 # The vocabulary cut is a hard rule: the guest may only drive the config-v3
 # surface. Fail if any deleted zone-era verb or config block appears anywhere in
-# the guest source. Retained zone-named format tokens (%{monitor-zone-id}) and
-# the renamed verbs (list-columns, move-node-to-card) are not on this list.
+# the guest source. Column format tokens (%{column-id}) and the renamed verbs
+# (list-columns, move-node-to-card) are not on this list.
 require_new_command_surface_only() {
     [ -s "$GUEST" ] || die "missing guest script: ${GUEST}"
     if /usr/bin/grep -F \

@@ -7,7 +7,7 @@ import XCTest
 final class DoctorCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
-    func testParseZoneSupportBundle() {
+    func testParseSupportBundle() {
         let expected = DoctorCmdArgs(rawArgs: [])
             .copy(\.subject, .zones)
             .copy(\.supportBundle, true)
@@ -21,16 +21,15 @@ final class DoctorCommandTest: XCTestCase {
         assertEquals(parseCommand("doctor --support-bundle").errorOrNil, "--support-bundle requires 'zones'")
     }
 
-    func testZoneSupportBundleWritesRequiredFilesAndRedactsPrivateFields() async throws {
-        configureSupportBundleZones()
-        config.zoneAffinities = [supportBundleAffinity()]
+    func testSupportBundleWritesRequiredFilesAndRedactsPrivateFields() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig { outputDirectory in
             let result = try await parseCommand("doctor zones --support-bundle --output \(outputDirectory.path)").cmdOrDie
                 .run(.defaultEnv, .emptyStdin)
 
             XCTAssertEqual(result.exitCode, 0, result.stderr.joined(separator: "\n"))
-            XCTAssertTrue(result.stdout.joined(separator: "\n").contains("Zone support bundle: \(outputDirectory.path)"))
+            XCTAssertTrue(result.stdout.joined(separator: "\n").contains("Support bundle: \(outputDirectory.path)"))
 
             let bundleFiles = try FileManager.default.contentsOfDirectory(atPath: outputDirectory.path).sorted()
             XCTAssertEqual(
@@ -77,8 +76,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleRedactsSensitiveParseErrors() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRedactsSensitiveParseErrors() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig(extraConfigText: """
 
@@ -97,8 +96,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleRedactsSensitiveAssignmentsAfterCommentApostrophe() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRedactsSensitiveAssignmentsAfterCommentApostrophe() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig(extraConfigText: """
 
@@ -115,8 +114,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleRedactsTrailingCommentsOnSensitiveAssignments() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRedactsTrailingCommentsOnSensitiveAssignments() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig(extraConfigText: """
 
@@ -133,8 +132,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleRedactsSensitiveAssignmentsInsideInlineComments() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRedactsSensitiveAssignmentsInsideInlineComments() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig(extraConfigText: """
 
@@ -150,8 +149,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleRedactsNonSensitiveKeyParseErrorValues() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRedactsNonSensitiveKeyParseErrorValues() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig(extraConfigText: """
 
@@ -169,8 +168,8 @@ final class DoctorCommandTest: XCTestCase {
         }
     }
 
-    func testZoneSupportBundleResolvesRelativeAndTildeOutputPathsFromClient() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleResolvesRelativeAndTildeOutputPathsFromClient() async throws {
+        configureSupportBundleColumns()
 
         try await withTemporaryDoctorConfig { outputDirectory in
             let baseDirectory = outputDirectory.deletingLastPathComponent()
@@ -179,7 +178,7 @@ final class DoctorCommandTest: XCTestCase {
 
             XCTAssertEqual(relativeResult.exitCode, 0, relativeResult.stderr.joined(separator: "\n"))
             XCTAssertTrue(FileManager.default.fileExists(atPath: outputDirectory.appending(component: "manifest.txt").path))
-            XCTAssertTrue(relativeResult.stdout.joined(separator: "\n").contains("Zone support bundle: \(outputDirectory.path)"))
+            XCTAssertTrue(relativeResult.stdout.joined(separator: "\n").contains("Support bundle: \(outputDirectory.path)"))
         }
 
         try await withTemporaryDoctorConfig { _ in
@@ -192,12 +191,12 @@ final class DoctorCommandTest: XCTestCase {
 
             XCTAssertEqual(tildeResult.exitCode, 0, tildeResult.stderr.joined(separator: "\n"))
             XCTAssertTrue(FileManager.default.fileExists(atPath: homeOutput.appending(component: "manifest.txt").path))
-            XCTAssertTrue(tildeResult.stdout.joined(separator: "\n").contains("Zone support bundle: \(homeOutput.path)"))
+            XCTAssertTrue(tildeResult.stdout.joined(separator: "\n").contains("Support bundle: \(homeOutput.path)"))
         }
     }
 
-    func testZoneSupportBundleRefusesNonEmptyOutputDirectory() async throws {
-        configureSupportBundleZones()
+    func testSupportBundleRefusesNonEmptyOutputDirectory() async throws {
+        configureSupportBundleColumns()
 
         let directory = FileManager.default.temporaryDirectory
             .appending(component: "winmux-doctor-non-empty-\(UUID().uuidString)")
@@ -214,7 +213,7 @@ final class DoctorCommandTest: XCTestCase {
 }
 
 @MainActor
-private func configureSupportBundleZones() {
+private func configureSupportBundleColumns() {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
         name: "Main",
@@ -226,29 +225,16 @@ private func configureSupportBundleZones() {
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
-}
-
-private func supportBundleAffinity() -> ZoneAffinityConfig {
-    var matcher = WindowDetectedCallbackMatcher()
-    matcher.appId = "com.secret.Mail"
-    matcher.workspace = "Inbox"
-
-    var affinity = ZoneAffinityConfig()
-    affinity.matcher = matcher
-    affinity.zone = ZoneSelector("Comms")
-    affinity.focusFollowsWindow = true
-    return affinity
 }
 
 @MainActor

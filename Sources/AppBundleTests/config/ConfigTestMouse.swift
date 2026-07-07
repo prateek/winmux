@@ -15,10 +15,10 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .snapOnModifier)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, [.option, .command])
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .drag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .snapOnModifier)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, [.option, .command])
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .drag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseSecondaryButtonDragMouseZoneSnapGesture() {
@@ -32,10 +32,10 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .window)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .window)
     }
 
     func testMouseZoneSnapDefaultsForConciseConfig() {
@@ -47,10 +47,10 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .snapOnModifier)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .drag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .snapOnModifier)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .drag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseFloatUnlessSnapE2EConfig() throws {
@@ -62,10 +62,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(toml)
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .drag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .drag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseFloatUnlessSnapSecondaryButtonE2EConfig() throws {
@@ -77,10 +77,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(toml)
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseMouseGestureConfigurabilityE2EConfig() throws {
@@ -92,10 +92,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(toml)
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseDragOverlaySemanticsE2EConfig() throws {
@@ -107,10 +107,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(toml)
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testParseWindowSlotSnapE2EConfig() throws {
@@ -122,25 +122,25 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(toml)
 
         assertEquals(errors, [])
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .floatUnlessSnap)
-        XCTAssertEqual(parsed.mouse.zoneSnap.modifier, .option)
-        XCTAssertEqual(parsed.mouse.zoneSnap.gesture, .secondaryButtonDrag)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .window)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .floatUnlessSnap)
+        XCTAssertEqual(parsed.mouse.columnSnap.modifier, .option)
+        XCTAssertEqual(parsed.mouse.columnSnap.gesture, .secondaryButtonDrag)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .window)
     }
 
     func testParseZoneDividerDragPolicy() {
-        XCTAssertEqual(parseConfig("").0.mouse.zoneDividerDrag, .zoneMode)
+        XCTAssertEqual(parseConfig("").0.mouse.columnDividerDrag, .columnMode)
         XCTAssertEqual(
-            parseConfig("[mouse]\n    zone-divider-drag = 'always'").0.mouse.zoneDividerDrag,
+            parseConfig("[mouse]\n    zone-divider-drag = 'always'").0.mouse.columnDividerDrag,
             .always,
         )
         XCTAssertEqual(
-            parseConfig("[mouse]\n    zone-divider-drag = 'off'").0.mouse.zoneDividerDrag,
+            parseConfig("[mouse]\n    zone-divider-drag = 'off'").0.mouse.columnDividerDrag,
             .off,
         )
         XCTAssertEqual(
-            parseConfig("[mouse]\n    zone-divider-drag = 'zone-mode'").0.mouse.zoneDividerDrag,
-            .zoneMode,
+            parseConfig("[mouse]\n    zone-divider-drag = 'column-mode'").0.mouse.columnDividerDrag,
+            .columnMode,
         )
     }
 
@@ -164,7 +164,7 @@ extension ConfigTest {
             """,
         )
         assertEquals(errors.descriptions, [
-            "mouse.zone-divider-drag: Possible values: zone-mode, always, off",
+            "mouse.zone-divider-drag: Possible values: column-mode, always, off",
         ])
     }
 
@@ -180,10 +180,10 @@ extension ConfigTest {
         )
 
         XCTAssertEqual(Set(errors.descriptions), Set([
-            "mouse.zone-snap.policy: Possible values: freeform, snap-on-modifier, snap-to-zone, float-unless-snap",
+            "mouse.zone-snap.policy: Possible values: freeform, snap-on-modifier, snap-to-column, float-unless-snap",
             "mouse.zone-snap.modifier: Unsupported modifier 'unicorn'. Possible values: alt, ctrl, cmd, shift, or '-' combinations like alt-shift",
             "mouse.zone-snap.gesture: Possible values: drag, secondary-button-drag",
-            "mouse.zone-snap.target: Possible values: zone, window",
+            "mouse.zone-snap.target: Possible values: column, window",
         ]))
         XCTAssertEqual(errors.count, 4)
     }

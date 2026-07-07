@@ -151,7 +151,15 @@ e2e-pre-tart-checks:
 	./script/e2e/check-slice-48-contract && \
 	./script/e2e/check-slice-56-contract --self-test && \
 	./script/e2e/check-support-bundle-schema --self-test && \
-	./script/e2e/check-support-bundle-schema artifacts/e2e/slice-48-20260702T094800Z/logs/slice-48-zone-support-bundle && \
+	historical_support_bundle="artifacts/e2e/slice-48-20260702T094800Z/logs/slice-48-zone-support-bundle"; \
+	if [ -d "$$historical_support_bundle" ]; then \
+		./script/e2e/check-support-bundle-schema "$$historical_support_bundle"; \
+	elif [ "$${WINMUX_E2E_REQUIRE_HISTORICAL_ARTIFACTS:-0}" = "1" ]; then \
+		echo "[winmux-e2e] missing historical support bundle: $$historical_support_bundle" >&2; \
+		exit 1; \
+	else \
+		echo "[winmux-e2e] historical support bundle absent; portable schema self-test already passed: $$historical_support_bundle"; \
+	fi && \
 	swift build --target Cli && \
 	./script/e2e/check-slice-49-docs && \
 	./script/e2e/record-reviewer-attempt --self-test && \

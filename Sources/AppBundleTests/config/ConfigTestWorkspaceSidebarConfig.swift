@@ -226,15 +226,15 @@ extension ConfigTest {
         XCTAssertEqual(callback.run.count, 1)
         let command = callback.run.first as? MoveNodeToColumnCommand
         let args = command.orDie().args
-        XCTAssertEqual(args.column.val, ZoneSelector("Comms"))
+        XCTAssertEqual(args.column.val, ColumnSelector("Comms"))
         XCTAssertTrue(args.failIfNoop)
     }
 
-    func testParseZoneAffinities() {
+    func testIgnoreRetiredZoneAffinitiesInLegacyConfig() {
         let (config, errors) = parseConfig(
             """
-            [[zones]]
-            monitor = 1
+            [[zone-layouts]]
+            id = 'balanced'
             layout = 'columns'
             default-zone = 'main'
             columns = [
@@ -242,6 +242,10 @@ extension ConfigTest {
               { id = 'main', name = 'Work', width = 0.50 },
               { id = 'right', name = 'Comms', width = 0.25 },
             ]
+
+            [[zones]]
+            monitor = 1
+            layout-preset = 'balanced'
 
             [[zone-affinities]]
                 zone = 'Comms'
@@ -257,19 +261,10 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        assertEquals(config.zoneAffinities.count, 2)
-        assertEquals(config.zoneAffinities[0], ZoneAffinityConfig(
-            matcher: WindowDetectedCallbackMatcher(appId: "com.apple.mail"),
-            zone: ZoneSelector("Comms"),
-            checkFurtherCallbacks: true,
-            focusFollowsWindow: true,
-        ))
-        XCTAssertNotNil(config.zoneAffinities[1].matcher.windowTitleRegexSubstring)
-        XCTAssertEqual(config.zoneAffinities[1].zone, ZoneSelector("Reference"))
-        XCTAssertTrue(config.zoneAffinities[1].failIfNoop)
+        assertEquals(config.zones.count, 1)
     }
 
-    func testParseZoneAffinitiesRequiresZone() {
+    func testIgnoreRetiredZoneAffinitiesWithoutZoneInLegacyConfig() {
         let (_, errors) = parseConfig(
             """
             [[zone-affinities]]
@@ -277,16 +272,14 @@ extension ConfigTest {
             """,
         )
 
-        assertEquals(errors.descriptions, [
-            "zone-affinities[0].zone: Missing required key",
-        ])
+        assertEquals(errors.descriptions, [])
     }
 
-    func testParseZoneAffinitiesRejectsUnknownNamedZone() {
+    func testIgnoreRetiredZoneAffinitiesWithUnknownNamedZoneInLegacyConfig() {
         let (_, errors) = parseConfig(
             """
-            [[zones]]
-            monitor = 1
+            [[zone-layouts]]
+            id = 'balanced'
             layout = 'columns'
             default-zone = 'main'
             columns = [
@@ -295,15 +288,17 @@ extension ConfigTest {
               { id = 'right', name = 'Comms', width = 0.25 },
             ]
 
+            [[zones]]
+            monitor = 1
+            layout-preset = 'balanced'
+
             [[zone-affinities]]
                 zone = 'Mail'
                 if.app-id = 'com.apple.mail'
             """,
         )
 
-        assertEquals(errors.descriptions, [
-            "zone-affinities[0].zone: Unknown zone selector 'Mail'",
-        ])
+        assertEquals(errors.descriptions, [])
     }
 
     func testRegex() {

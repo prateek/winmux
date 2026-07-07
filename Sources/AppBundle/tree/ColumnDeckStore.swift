@@ -44,7 +44,7 @@ func geometrySceneKeyPoint(_ sceneKey: String) -> CGPoint? {
 func columnDeckKey(for monitor: Monitor) -> String {
     columnDeckKey(
         sceneKey: activeSceneDeckKeyComponent(for: monitor),
-        columnId: monitor.zoneId ?? implicitColumnDeckColumnId,
+        columnId: monitor.columnId ?? implicitColumnDeckColumnId,
     )
 }
 
@@ -216,8 +216,8 @@ func remapColumnDecksOntoCurrentDisplays() {
     let currentPhysicalMonitors = sortedPhysicalMonitors
     // Disabled zones keep their decks: a configured column exists even while it is hidden
     // from the viewport list.
-    let configuredZonesByPhysicalTopLeft = Dictionary(
-        grouping: getCurrentColumnTopologySnapshot().configuredZones(for: currentPhysicalMonitors),
+    let configuredColumnsByPhysicalTopLeft = Dictionary(
+        grouping: getCurrentColumnTopologySnapshot().configuredColumns(for: currentPhysicalMonitors),
         by: { $0.physicalMonitor.rect.topLeftCorner },
     )
     for physicalMonitor in currentPhysicalMonitors {
@@ -227,10 +227,10 @@ func remapColumnDecksOntoCurrentDisplays() {
         )
         var columnIds: Set<String> = []
         for viewport in monitors where viewport.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner {
-            columnIds.insert(viewport.zoneId ?? implicitColumnDeckColumnId)
+            columnIds.insert(viewport.columnId ?? implicitColumnDeckColumnId)
         }
-        for zone in configuredZonesByPhysicalTopLeft[physicalMonitor.rect.topLeftCorner] ?? [] {
-            columnIds.insert(zone.zoneId)
+        for zone in configuredColumnsByPhysicalTopLeft[physicalMonitor.rect.topLeftCorner] ?? [] {
+            columnIds.insert(zone.columnId)
         }
         if var existing = currentScenesByKey[sceneKey] {
             existing.columnIds.formUnion(columnIds)

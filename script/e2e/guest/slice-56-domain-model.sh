@@ -211,13 +211,13 @@ launch_winmux() {
 
 list_columns_snapshot() {
     "${CLI}" list-columns \
-        --format 'column=%{monitor-zone-id}|name=%{monitor-zone-name}|card=%{monitor-active-workspace}|width=%{monitor-width}' \
+        --format 'column=%{column-id}|name=%{column-name}|card=%{monitor-active-workspace}|width=%{monitor-width}' \
         >"$1" 2>>"${WAIT_ERR}"
 }
 
 list_cards_snapshot() {
     "${CLI}" list-cards --all \
-        --format 'card=%{workspace}|column=%{monitor-zone-id}' \
+        --format 'card=%{workspace}|column=%{column-id}' \
         >"$1" 2>>"${WAIT_ERR}"
 }
 
@@ -388,7 +388,7 @@ run_proof() {
     echo "${WINMUX_E2E_GUEST_ACTION_MUTATION_MARKER:-winmux-e2e-mutation-started=1}"
     list_cards_snapshot "${CARDS_LOG}"
     {
-        echo '$ winmux list-cards --format card=%{workspace}|column=%{monitor-zone-id}'
+        echo '$ winmux list-cards --format card=%{workspace}|column=%{column-id}'
         cat "${CARDS_LOG}"
     } | tee "${RULE_LOG}" | tee -a "${CLI_LOG}" >/dev/null
     /usr/bin/grep -F 'card=Comms' "${CARDS_LOG}" >/dev/null \

@@ -25,24 +25,22 @@ protocol Monitor: WinMuxAny {
     var width: CGFloat { get }
     var height: CGFloat { get }
     var isMain: Bool { get }
-    var zoneId: String? { get }
-    var zoneName: String? { get }
-    var zoneLayoutId: String? { get }
-    var zoneAvailabilitySetId: String? { get }
+    var columnId: String? { get }
+    var columnName: String? { get }
+    var columnLayoutId: String? { get }
     var zoneStyleId: String? { get }
-    var zoneStyleColorHex: String? { get }
-    var isDefaultZone: Bool { get }
+    var columnColorHex: String? { get }
+    var isDefaultColumn: Bool { get }
     var physicalMonitor: Monitor { get }
 }
 
 extension Monitor {
-    var zoneId: String? { nil }
-    var zoneName: String? { nil }
-    var zoneLayoutId: String? { nil }
-    var zoneAvailabilitySetId: String? { nil }
+    var columnId: String? { nil }
+    var columnName: String? { nil }
+    var columnLayoutId: String? { nil }
     var zoneStyleId: String? { nil }
-    var zoneStyleColorHex: String? { nil }
-    var isDefaultZone: Bool { false }
+    var columnColorHex: String? { nil }
+    var isDefaultColumn: Bool { false }
     var physicalMonitor: Monitor { self }
 }
 
@@ -165,7 +163,7 @@ func invalidateMonitorCaches() {
     sortedPhysicalMonitorsCache = nil
     monitorsCache = nil
     sortedMonitorsCache = nil
-    invalidateZoneDividerHandlesCache()
+    invalidateColumnDividerHandlesCache()
 }
 
 var physicalMonitors: [Monitor] {

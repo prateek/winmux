@@ -82,8 +82,8 @@ extension ConfigTest {
         assertEquals(parsed.rules.first?.checkFurtherRules, false)
     }
 
-    // Unlike zone-affinities (`validateZoneAffinityReferences`), a rule's `card` is never checked
-    // against known cards at parse time: naming one that doesn't exist yet is the point of a rule.
+    // A rule's `card` is never checked against known cards at parse time: naming one that doesn't
+    // exist yet is the point of a rule.
     func testRuleCardIsNotValidatedAgainstKnownCards() {
         let (parsed, errors) = parseConfig(
             """

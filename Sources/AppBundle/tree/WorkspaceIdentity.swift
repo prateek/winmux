@@ -77,10 +77,10 @@ struct MonitorViewportId: Hashable, Sendable, Codable, CustomStringConvertible {
     init(_ monitor: Monitor) {
         let topLeftCorner = monitor.rect.topLeftCorner
         self.topLeftCorner = topLeftCorner
-        if let zoneId = monitor.zoneId {
-            self.stableIdentity = Self.zoneIdentity(
+        if let columnId = monitor.columnId {
+            self.stableIdentity = Self.columnIdentity(
                 physicalTopLeftCorner: monitor.physicalMonitor.rect.topLeftCorner,
-                zoneId: zoneId,
+                columnId: columnId,
             )
         } else {
             self.stableIdentity = Self.physicalIdentity(topLeftCorner: topLeftCorner)
@@ -100,8 +100,8 @@ struct MonitorViewportId: Hashable, Sendable, Codable, CustomStringConvertible {
         "physical:\(topLeftCorner.x),\(topLeftCorner.y)"
     }
 
-    private static func zoneIdentity(physicalTopLeftCorner: CGPoint, zoneId: String) -> String {
-        "zone:\(physicalTopLeftCorner.x),\(physicalTopLeftCorner.y):\(zoneId)"
+    private static func columnIdentity(physicalTopLeftCorner: CGPoint, columnId: String) -> String {
+        "zone:\(physicalTopLeftCorner.x),\(physicalTopLeftCorner.y):\(columnId)"
     }
 
     private enum CodingKeys: String, CodingKey {

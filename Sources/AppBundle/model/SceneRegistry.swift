@@ -44,7 +44,7 @@ func scenes(on physicalMonitor: Monitor) -> [SceneConfig] {
 /// scene's backing layout is missing.
 @MainActor
 func sceneDefaultColumnId(_ scene: SceneConfig) -> String? {
-    guard let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }) else { return nil }
+    guard let layout = config.columnLayouts.first(where: { $0.id == scene.layoutId }) else { return nil }
     return scene.defaultColumn ?? layout.columns.first?.id
 }
 
@@ -96,24 +96,24 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
     guard let scene = scenes(on: targetPhysical).first(where: { $0.id == sceneId }) else {
         return .failure("Unknown scene '\(sceneId)' on monitor \(monitorLabel)")
     }
-    guard config.zoneLayouts.contains(where: { $0.id == scene.layoutId }) else {
+    guard config.columnLayouts.contains(where: { $0.id == scene.layoutId }) else {
         return .failure("Scene '\(sceneId)' references unknown layout preset '\(scene.layoutId)'")
     }
     // Layout activation is a no-op unless a zone config targets the display, so a scene with no
     // backing zone config would silently produce zero columns.
     let sortedPhysicals = sortMonitorsBySpatialOrder(physicalMonitors)
-    let hasZoneConfig = config.zones.contains { zone in
+    let hasDisplayLayoutConfig = config.zones.contains { zone in
         guard let description = zone.monitor,
               let resolved = description.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicals)
         else { return false }
         return resolved.rect.topLeftCorner == targetPhysical.rect.topLeftCorner
     }
-    guard hasZoneConfig else {
+    guard hasDisplayLayoutConfig else {
         return .failure("No column config targets monitor \(monitorLabel)")
     }
 
     if activeSceneId(for: targetPhysical) == sceneId {
-        let columnIds = sceneColumnViewports(on: targetPhysical).map { $0.zoneId.orDie() }
+        let columnIds = sceneColumnViewports(on: targetPhysical).map { $0.columnId.orDie() }
         return .success(SceneActivationResult(
             sceneId: sceneId,
             physicalMonitor: targetPhysical,
@@ -122,10 +122,10 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
     }
 
     let workspaceStateBefore = winMuxWorkspaceState
-    let overlaysBefore = zoneRuntimeOverlaysSnapshot()
+    let overlaysBefore = columnRuntimeOverlaysSnapshot()
     func rollback(_ message: String) -> Result<SceneActivationResult, String> {
         winMuxWorkspaceState = workspaceStateBefore
-        restoreZoneRuntimeOverlaysAfterRollback(overlaysBefore)
+        restoreColumnRuntimeOverlaysAfterRollback(overlaysBefore)
         checkWorkspaceHierarchyInvariants()
         return .failure(message)
     }
@@ -146,7 +146,7 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
 
     for viewport in sceneViewports {
         guard restoreSceneColumnActiveCard(for: viewport) != nil else {
-            return rollback("Can't reveal a card for column '\(viewport.zoneId ?? "")' in scene '\(sceneId)'")
+            return rollback("Can't reveal a card for column '\(viewport.columnId ?? "")' in scene '\(sceneId)'")
         }
     }
 
@@ -154,7 +154,7 @@ func setActiveScene(_ sceneId: String, for physicalMonitor: Monitor) -> Result<S
     return .success(SceneActivationResult(
         sceneId: sceneId,
         physicalMonitor: targetPhysical,
-        columnIds: sceneViewports.map { $0.zoneId.orDie() },
+        columnIds: sceneViewports.map { $0.columnId.orDie() },
     ))
 }
 
@@ -238,14 +238,14 @@ func activateDefaultScenesForConfiguredDisplays() {
 private func sceneColumnViewports(on physicalMonitor: Monitor) -> [Monitor] {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
     return sortMonitorsBySpatialOrder(monitors.filter {
-        $0.zoneId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
+        $0.columnId != nil && $0.physicalMonitor.rect.topLeftCorner == targetTopLeft
     })
 }
 
 @MainActor
 private func rememberActiveCardsForActiveScene(on physicalMonitor: Monitor) {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
-    for viewport in monitors where viewport.zoneId != nil && viewport.physicalMonitor.rect.topLeftCorner == targetTopLeft {
+    for viewport in monitors where viewport.columnId != nil && viewport.physicalMonitor.rect.topLeftCorner == targetTopLeft {
         guard let activeId = winMuxWorkspaceState.monitorViewportsById[MonitorViewportId(viewport)]?.activeWorkspaceId else { continue }
         winMuxWorkspaceState.hiddenActiveCardIdByColumnKey[columnDeckKey(for: viewport)] = activeId
     }

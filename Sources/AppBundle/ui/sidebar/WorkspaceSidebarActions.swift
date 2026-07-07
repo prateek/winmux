@@ -242,13 +242,13 @@ func moveTabGroupFromSidebar(_ windowId: UInt32, toWorkspace workspaceName: Stri
 }
 
 @MainActor
-func moveWindowToZoneFromSidebar(_ windowId: UInt32, monitorScopeId: String, zoneId: String) {
-    moveSidebarSourceToZone(windowId, subject: .window, monitorScopeId: monitorScopeId, zoneId: zoneId)
+func moveWindowToColumnFromSidebar(_ windowId: UInt32, monitorScopeId: String, columnId: String) {
+    moveSidebarSourceToZone(windowId, subject: .window, monitorScopeId: monitorScopeId, columnId: columnId)
 }
 
 @MainActor
-func moveTabGroupToZoneFromSidebar(_ windowId: UInt32, monitorScopeId: String, zoneId: String) {
-    moveSidebarSourceToZone(windowId, subject: .group, monitorScopeId: monitorScopeId, zoneId: zoneId)
+func moveTabGroupToColumnFromSidebar(_ windowId: UInt32, monitorScopeId: String, columnId: String) {
+    moveSidebarSourceToZone(windowId, subject: .group, monitorScopeId: monitorScopeId, columnId: columnId)
 }
 
 @MainActor
@@ -280,12 +280,12 @@ func moveSidebarSourceToZoneNow(
     _ windowId: UInt32,
     subject: WindowDragSubject,
     monitorScopeId: String,
-    zoneId: String,
+    columnId: String,
 ) -> Bool {
     guard let sourceWindow = Window.get(byId: windowId),
-          let targetZone = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: zoneId)
+          let targetColumn = workspaceSidebarResolvedColumnTarget(monitorScopeId: monitorScopeId, columnId: columnId)
     else { return false }
-    let targetWorkspace = targetZone.activeWorkspace
+    let targetWorkspace = targetColumn.activeWorkspace
     let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
     guard sourceNode.nodeWorkspace !== targetWorkspace else { return false }
     syncClosedWindowsCacheToCurrentWorld()
@@ -299,14 +299,14 @@ private func moveSidebarSourceToZone(
     _ windowId: UInt32,
     subject: WindowDragSubject,
     monitorScopeId: String,
-    zoneId: String,
+    columnId: String,
 ) {
     runWorkspaceSidebarSession {
         guard moveSidebarSourceToZoneNow(
             windowId,
             subject: subject,
             monitorScopeId: monitorScopeId,
-            zoneId: zoneId,
+            columnId: columnId,
         ) else { return }
         await updateWorkspaceSidebarModel()
     }
@@ -349,14 +349,14 @@ func previewWorkspaceSidebarDrop(_ windowId: UInt32, subject: WindowDragSubject,
         return
     }
     guard case .workspace(let workspaceName) = target else {
-        if let targetZone = workspaceSidebarResolvedZoneTarget(for: target) {
+        if let targetColumn = workspaceSidebarResolvedColumnTarget(for: target) {
             setWorkspaceSidebarDropPreviewIfChanged(workspaceSidebarDropPreview(
                 sourceWindow: sourceWindow,
                 subject: subject,
-                targetWorkspaceName: targetZone.activeWorkspace.name,
+                targetWorkspaceName: targetColumn.activeWorkspace.name,
                 targetsNewWorkspace: false,
                 targetProjectId: nil,
-                targetMonitorScopeId: targetZone.monitorScopeId,
+                targetMonitorScopeId: targetColumn.monitorScopeId,
             ))
         } else if case .newWorkspace(let projectId, let monitorScopeId) = target {
             setWorkspaceSidebarDropPreviewIfChanged(workspaceSidebarDropPreview(
@@ -643,11 +643,11 @@ private func commitActiveWorkspaceSidebarDragIfPossible() -> Bool {
                 moveWindowToNewWorkspaceFromSidebar(sourceWindow.windowId, projectId: projectId, monitorScopeId: monitorScopeId)
             }
             return true
-        case .zone(let monitorScopeId, let zoneId):
+        case .column(let monitorScopeId, let columnId):
             if activeDrag.subject == .group {
-                moveTabGroupToZoneFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
+                moveTabGroupToColumnFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, columnId: columnId)
             } else {
-                moveWindowToZoneFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
+                moveWindowToColumnFromSidebar(sourceWindow.windowId, monitorScopeId: monitorScopeId, columnId: columnId)
             }
             return true
         case .monitor:

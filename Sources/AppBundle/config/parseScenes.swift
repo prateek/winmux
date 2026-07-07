@@ -15,7 +15,7 @@ func sceneBackingLayoutId(_ sceneId: String) -> String { "scene-\(sceneId)" }
 private struct ParsedSceneBlock: ConvenienceCopyable {
     var monitor: MonitorDescription?
     var defaultColumn: String?
-    var columns: [ZoneColumnConfig] = []
+    var columns: [ColumnConfig] = []
 }
 
 private let sceneBlockParser: [String: any ParserProtocol<ParsedSceneBlock>] = [
@@ -23,16 +23,11 @@ private let sceneBlockParser: [String: any ParserProtocol<ParsedSceneBlock>] = [
         parseMonitorDescription(raw, backtrace).map(Optional.some)
     },
     "default-column": Parser(\.defaultColumn) { raw, backtrace in
-        parseZoneId(raw, backtrace).map(Optional.some)
+        parseColumnId(raw, backtrace).map(Optional.some)
     },
     "columns": Parser(\.columns, parseZoneColumns),
 ]
 
-/// Parses the `[scene.*]` surface and folds it into the zone runtime: appends a `SceneConfig` per
-/// block (the runtime scene registry), a backing
-/// `ZoneLayoutConfig` per block, and one synthesized `ZoneConfig` per display targeting its
-/// default (first-declared) scene's layout. `rawToml` recovers declaration order because toml++
-/// iterates table keys sorted, and the first declared scene per display is its default.
 @MainActor
 func applyParsedScenes(
     _ rawToml: String,
@@ -49,7 +44,7 @@ func applyParsedScenes(
     let orderedSceneIds = orderedSceneIds(declaredIn: rawToml, presentIn: Set(sceneTable.keys))
 
     var scenes: [SceneConfig] = []
-    var backingLayouts: [ZoneLayoutConfig] = []
+    var backingLayouts: [ColumnLayoutConfig] = []
     var defaultSceneByDisplayLabel: [String: SceneConfig] = [:]
     var displayLabelOrder: [String] = []
 
@@ -70,7 +65,7 @@ func applyParsedScenes(
         let layoutId = sceneBackingLayoutId(sceneId)
         let scene = SceneConfig(id: sceneId, monitor: block.monitor, layoutId: layoutId, defaultColumn: block.defaultColumn)
         scenes.append(scene)
-        backingLayouts.append(ZoneLayoutConfig(
+        backingLayouts.append(ColumnLayoutConfig(
             id: layoutId,
             layout: .columns,
             defaultZone: block.defaultColumn,
@@ -89,10 +84,10 @@ func applyParsedScenes(
     validateSceneDisplayOverlap(displayLabelOrder, existingZones: config.zones, errors: &errors)
 
     config.scenes += scenes
-    config.zoneLayouts += backingLayouts
+    config.columnLayouts += backingLayouts
     for label in displayLabelOrder {
         guard let defaultScene = defaultSceneByDisplayLabel[label], let monitor = defaultScene.monitor else { continue }
-        config.zones.append(ZoneConfig(monitor: monitor, layoutPreset: defaultScene.layoutId))
+        config.zones.append(DisplayLayoutConfig(monitor: monitor, layoutPreset: defaultScene.layoutId))
     }
 }
 
@@ -131,7 +126,7 @@ private func validateSceneBlock(
 
 private func validateSceneDisplayOverlap(
     _ sceneDisplayLabels: [String],
-    existingZones: [ZoneConfig],
+    existingZones: [DisplayLayoutConfig],
     errors: inout [TomlParseError],
 ) {
     let zoneLabels = Set(existingZones.compactMap { $0.monitor.map(monitorDescriptionLabel) })

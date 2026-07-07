@@ -12,7 +12,7 @@ import Common
 /// namespace for a collapsed column that has no viewport.
 @MainActor
 func workspaceSidebarColumnDeckKey(monitorScopeId: String, columnId: String) -> String? {
-    if let resolved = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: columnId) {
+    if let resolved = workspaceSidebarResolvedColumnTarget(monitorScopeId: monitorScopeId, columnId: columnId) {
         return columnDeckKey(for: resolved.monitor)
     }
     guard let physical = workspaceSidebarMonitor(forScopeId: monitorScopeId)?.physicalMonitor else { return nil }
@@ -44,7 +44,7 @@ func moveCardWithinDeckNow(_ cardName: String, deckKey: String, dropSlotIndex: I
 func transferCardToColumnNow(_ cardName: String, monitorScopeId: String, columnId: String) -> Bool {
     guard let card = Workspace.existing(byName: cardName) else { return false }
     let physical: Monitor
-    if let resolved = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: columnId) {
+    if let resolved = workspaceSidebarResolvedColumnTarget(monitorScopeId: monitorScopeId, columnId: columnId) {
         physical = resolved.monitor.physicalMonitor
     } else if let monitor = workspaceSidebarMonitor(forScopeId: monitorScopeId) {
         physical = monitor.physicalMonitor
@@ -96,7 +96,7 @@ func isActionableCardDropTarget(sourceCardName: String, targetKind: WorkspaceSid
             return reorderedDeckInsertionIndex(sourceIndex: sourceIndex, dropSlotIndex: index, deckCount: deck.count) != sourceIndex
         case .scene(_, let sceneId):
             return config.scenes.contains { $0.id == sceneId }
-        case .workspace, .newWorkspace, .zone, .monitor:
+        case .workspace, .newWorkspace, .column, .monitor:
             return false
     }
 }
@@ -108,7 +108,7 @@ func performCardDropNow(_ cardName: String, target: WorkspaceSidebarDropTargetKi
             return performCardSlotDropNow(cardName, monitorScopeId: monitorScopeId, columnId: columnId, dropSlotIndex: index)
         case .scene(_, let sceneId):
             return transferCardToSceneNow(cardName, sceneId: sceneId)
-        case .workspace, .newWorkspace, .zone, .monitor:
+        case .workspace, .newWorkspace, .column, .monitor:
             return false
     }
 }

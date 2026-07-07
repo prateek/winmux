@@ -39,7 +39,7 @@ func destinationFromWindowDropIntent(
                 previewRect: windowDropIntentActivePreviewRect(for: resolution),
                 interactionRect: resolution.targetFrame,
                 title: "Insert Into Tabs",
-                subtitle: "Drop in the top zone to add this window",
+                subtitle: "Drop in the top column to add this window",
                 previewStyle: .tabInsert,
                 previewGeometry: .tabStrip,
                 isGroup: false,

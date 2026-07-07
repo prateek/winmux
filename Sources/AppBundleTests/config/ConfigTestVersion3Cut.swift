@@ -23,10 +23,13 @@ extension ConfigTest {
             (
                 """
                 config-version = 3
+                [scene.backing]
+                display = 2
+                columns = [ { id = 'main', width = 1.0 } ]
+
                 [[zones]]
                     monitor = 1
-                    layout = 'columns'
-                    columns = [ { id = 'main', width = 1.0 } ]
+                    layout-preset = 'scene-backing'
                 """,
                 "zones: 'zones' was replaced by [scene.*] (config-version 3)"
             ),
@@ -168,11 +171,11 @@ extension ConfigTest {
         assertEquals(parsed.persistentWorkspaces.sorted(), ["Scratch"])
         XCTAssertTrue(parsed.workspaceSidebar.enabled)
         XCTAssertEqual(parsed.workspaceSidebar.width, 240)
-        XCTAssertEqual(parsed.mouse.zoneDividerDrag, .zoneMode)
+        XCTAssertEqual(parsed.mouse.columnDividerDrag, .columnMode)
         // 'snap-to-column' and 'column' are the version-3 surface spellings; the internal cases
         // keep their upstream names until the internals rename.
-        XCTAssertEqual(parsed.mouse.zoneSnap.policy, .snapToZone)
-        XCTAssertEqual(parsed.mouse.zoneSnap.target, .zone)
+        XCTAssertEqual(parsed.mouse.columnSnap.policy, .snapToColumn)
+        XCTAssertEqual(parsed.mouse.columnSnap.target, .column)
     }
 
     func testConfigVersion3KeepsSceneAndRuleParsers() {
@@ -209,10 +212,14 @@ extension ConfigTest {
         let (parsed, zoneErrors) = parseConfig(
             """
             config-version = 2
-            [[zones]]
-                monitor = 1
+            [[zone-layouts]]
+                id = 'balanced'
                 layout = 'columns'
                 columns = [ { id = 'main', width = 1.0 } ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'balanced'
             """,
         )
         assertEquals(zoneErrors, [])

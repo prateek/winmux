@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct ZoneDividerOverlayView: View {
-    let model: ZoneDividerOverlayModel
+struct ColumnDividerOverlayView: View {
+    let model: ColumnDividerOverlayModel
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -60,7 +60,7 @@ struct ZoneDividerOverlayView: View {
     private var title: String {
         switch model.state {
             case .hover:
-                "Zone divider"
+                "Column divider"
             case .dragging:
                 "\(model.leftName) | \(model.rightName)"
             case .committed:
@@ -94,7 +94,7 @@ struct ZoneDividerOverlayView: View {
     }
 
     private var bandWidth: CGFloat {
-        zoneDividerVisibleBandWidth(for: model.state)
+        columnDividerVisibleBandWidth(for: model.state)
     }
 
     private var labelWidth: CGFloat {

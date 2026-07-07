@@ -1,6 +1,6 @@
 import AppKit
 
-enum ZoneSnapDestinationResolution {
+enum ColumnSnapDestinationResolution {
     case allowDefaultDestinations
     case allowWindowDestinationsOnly
     case suppressDefaultDestinations
@@ -8,7 +8,7 @@ enum ZoneSnapDestinationResolution {
 }
 
 @MainActor
-func zoneSnapDestinationResolution(
+func columnSnapDestinationResolution(
     sourceWindow _: Window,
     targetMonitor: Monitor,
     targetWorkspace: Workspace,
@@ -18,21 +18,21 @@ func zoneSnapDestinationResolution(
     detachOrigin: TabDetachOrigin,
     modifierFlags: CGEventFlags,
     pressedMouseButtons: Int = 0,
-) -> ZoneSnapDestinationResolution {
-    let inputState = ZoneSnapInputState(
+) -> ColumnSnapDestinationResolution {
+    let inputState = ColumnSnapInputState(
         modifierFlags: modifierFlags,
         pressedMouseButtons: pressedMouseButtons,
     )
-    let snapConfig = effectiveZoneSnapConfig(for: targetMonitor)
+    let snapConfig = effectiveColumnSnapConfig(for: targetMonitor)
     guard detachOrigin == .window,
-          let zoneId = targetMonitor.zoneId
+          let columnId = targetMonitor.columnId
     else {
         return .allowDefaultDestinations
     }
 
     switch snapConfig.target {
-        case .zone:
-            guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
+        case .column:
+            guard shouldActivateColumnSnap(snapConfig, inputState: inputState) else {
                 return .suppressDefaultDestinations
             }
             guard targetWorkspace != sourceWorkspace else {
@@ -40,13 +40,13 @@ func zoneSnapDestinationResolution(
             }
 
             let previewRect = targetMonitor.visibleRectPaddedByOuterGaps
-            let zoneName = targetMonitor.zoneName ?? zoneId
+            let columnName = targetMonitor.columnName ?? columnId
             return .use(WindowDragIntentDestination(
-                kind: .moveToZone(zoneId: zoneId, workspaceName: targetWorkspace.name),
+                kind: .moveToZone(columnId: columnId, workspaceName: targetWorkspace.name),
                 previewRect: previewRect,
                 interactionRect: previewRect,
-                title: "Snap to \(zoneName)",
-                subtitle: "Drop to move this item to the \(zoneName) zone",
+                title: "Snap to \(columnName)",
+                subtitle: "Drop to move this item to the \(columnName) column",
                 previewStyle: .workspaceMove,
                 previewGeometry: .rounded,
                 isGroup: subject == .group,
@@ -54,39 +54,39 @@ func zoneSnapDestinationResolution(
                     targetFrame: previewRect,
                     activeZone: nil,
                     cornerRadius: nil,
-                    label: "Whole zone: \(zoneName)",
-                    detail: "Drop to move to \(zoneName)",
+                    label: "Whole column: \(columnName)",
+                    detail: "Drop to move to \(columnName)",
                 ),
             ))
         case .window:
-            guard shouldActivateZoneSnap(snapConfig, inputState: inputState) else {
+            guard shouldActivateColumnSnap(snapConfig, inputState: inputState) else {
                 return .suppressDefaultDestinations
             }
             return .allowWindowDestinationsOnly
     }
 }
 
-func shouldActivateZoneSnap(_ config: ZoneSnapConfig, inputState: ZoneSnapInputState) -> Bool {
+func shouldActivateColumnSnap(_ config: ColumnSnapConfig, inputState: ColumnSnapInputState) -> Bool {
     switch config.policy {
         case .freeform:
             return false
-        case .snapToZone:
+        case .snapToColumn:
             return true
         case .snapOnModifier:
-            return zoneSnapModifierIsPressed(config.modifier, in: inputState.modifierFlags)
+            return columnSnapModifierIsPressed(config.modifier, in: inputState.modifierFlags)
         case .floatUnlessSnap:
-            return zoneSnapActivationInputIsPressed(config, inputState: inputState)
+            return columnSnapActivationInputIsPressed(config, inputState: inputState)
     }
 }
 
-func shouldActivateZoneSnap(_ config: ZoneSnapConfig, modifierFlags: CGEventFlags) -> Bool {
-    shouldActivateZoneSnap(
+func shouldActivateColumnSnap(_ config: ColumnSnapConfig, modifierFlags: CGEventFlags) -> Bool {
+    shouldActivateColumnSnap(
         config,
-        inputState: ZoneSnapInputState(modifierFlags: modifierFlags, pressedMouseButtons: 0),
+        inputState: ColumnSnapInputState(modifierFlags: modifierFlags, pressedMouseButtons: 0),
     )
 }
 
-func zoneSnapModifierIsPressed(_ modifier: NSEvent.ModifierFlags, in eventFlags: CGEventFlags) -> Bool {
+func columnSnapModifierIsPressed(_ modifier: NSEvent.ModifierFlags, in eventFlags: CGEventFlags) -> Bool {
     guard !modifier.isEmpty else { return false }
     if modifier.contains(.option), !eventFlags.contains(.maskAlternate) { return false }
     if modifier.contains(.control), !eventFlags.contains(.maskControl) { return false }

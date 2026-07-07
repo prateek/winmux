@@ -6,8 +6,8 @@ extension ConfigTest {
     func testParseColumnZones() {
         let (parsed, errors) = parseConfig(
             """
-            [[zones]]
-                monitor = 1
+            [[zone-layouts]]
+                id = 'balanced'
                 layout = 'columns'
                 default-zone = 'main'
                 columns = [
@@ -15,25 +15,35 @@ extension ConfigTest {
                     { id = 'main', name = 'Work', width = 0.50 },
                     { id = 'right', name = 'Comms', width = 0.25 },
                 ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'balanced'
             """,
         )
 
         assertEquals(errors, [])
-        assertEquals(parsed.zones, [
-            ZoneConfig(
-                monitor: .sequenceNumber(1),
+        assertEquals(parsed.columnLayouts, [
+            ColumnLayoutConfig(
+                id: "balanced",
                 layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
+            ),
+        ])
+        assertEquals(parsed.zones, [
+            DisplayLayoutConfig(
+                monitor: .sequenceNumber(1),
+                layoutPreset: "balanced",
             ),
         ])
     }
 
-    func testParseNamedZoneLayoutPreset() {
+    func testParseNamedColumnLayoutPreset() {
         let (parsed, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -53,27 +63,27 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneLayouts, [
-            ZoneLayoutConfig(
+        assertEquals(parsed.columnLayouts, [
+            ColumnLayoutConfig(
                 id: "balanced",
                 layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
         ])
         assertEquals(parsed.zones, [
-            ZoneConfig(
+            DisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
                 layoutPreset: "balanced",
             ),
         ])
     }
 
-    func testParseZoneSceneWorkspaceBindings() {
+    func testIgnoreRetiredZoneScenesInLegacyConfig() {
         let (parsed, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -102,14 +112,11 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneScenes.count, 1)
-        assertEquals(parsed.zoneScenes[0].id, "deep-work")
-        assertEquals(parsed.zoneScenes[0].layoutPreset, "focus")
-        assertEquals(parsed.zoneScenes[0].workspaces.map(\.zone), ["left", "main", "right"])
-        assertEquals(parsed.zoneScenes[0].workspaces.compactMap { $0.workspace?.raw }, ["FocusQueue", "FocusBuild", "FocusNotes"])
+        assertEquals(parsed.columnLayouts.count, 1)
+        assertEquals(parsed.zones.count, 1)
     }
 
-    func testParseZoneBindings() {
+    func testIgnoreRetiredZoneBindingsInLegacyConfig() {
         let (parsed, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -133,17 +140,7 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneBindings, [
-            ZoneBindingConfig(
-                zone: "left",
-                workspace: WorkspaceName.parse("ReferenceDesk").getOrDie(),
-            ),
-            ZoneBindingConfig(
-                monitor: .sequenceNumber(2),
-                zone: "right",
-                workspace: WorkspaceName.parse("CommsDesk").getOrDie(),
-            ),
-        ])
+        assertEquals(parsed.columnLayouts.count, 1)
     }
 
     func testParseDefaultConfigTemplate() throws {
@@ -159,7 +156,7 @@ extension ConfigTest {
         )
     }
 
-    func testParseZoneAffinitiesE2EConfig() throws {
+    func testIgnoreRetiredZoneAffinitiesE2EConfig() throws {
         var fixtureUrl = getDefaultConfigUrlFromProject()
         fixtureUrl.deleteLastPathComponent()
         fixtureUrl.deleteLastPathComponent()
@@ -168,14 +165,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneAffinities.count, 1)
-        XCTAssertEqual(parsed.zoneAffinities[0].zone, ZoneSelector("Comms"))
-        XCTAssertNotNil(parsed.zoneAffinities[0].matcher.windowTitleRegexSubstring)
-        XCTAssertTrue(parsed.zoneAffinities[0].failIfNoop)
         XCTAssertFalse(parsed.workspaceSidebar.enabled)
     }
 
-    func testParseZoneAffinitiesBetaE2EConfig() throws {
+    func testIgnoreRetiredZoneAffinitiesBetaE2EConfig() throws {
         var fixtureUrl = getDefaultConfigUrlFromProject()
         fixtureUrl.deleteLastPathComponent()
         fixtureUrl.deleteLastPathComponent()
@@ -184,57 +177,10 @@ extension ConfigTest {
         let (parsed, errors) = parseConfig(try String(contentsOf: fixtureUrl, encoding: .utf8))
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneBindings, [
-            ZoneBindingConfig(
-                zone: "left",
-                workspace: WorkspaceName.parse("reference").getOrDie(),
-            ),
-            ZoneBindingConfig(
-                zone: "main",
-                workspace: WorkspaceName.parse("work").getOrDie(),
-            ),
-            ZoneBindingConfig(
-                zone: "right",
-                workspace: WorkspaceName.parse("comms").getOrDie(),
-            ),
-        ])
-        assertEquals(parsed.zoneAffinities.count, 5)
-        XCTAssertEqual(parsed.zoneAffinities.map(\.zone), [
-            ZoneSelector("Comms"),
-            ZoneSelector("Reference"),
-            ZoneSelector("Work"),
-            ZoneSelector("Reference"),
-            ZoneSelector("Comms"),
-        ])
-        XCTAssertEqual(parsed.zoneAffinities[0].matcher.appId, "com.apple.TextEdit")
-        XCTAssertNotNil(parsed.zoneAffinities[1].matcher.appNameRegexSubstring)
-        XCTAssertNotNil(parsed.zoneAffinities[2].matcher.windowTitleRegexSubstring)
-        XCTAssertEqual(parsed.zoneAffinities[2].matcher.workspace, "work")
-        XCTAssertEqual(parsed.zoneAffinities[3].matcher.appId, "com.apple.mail")
         XCTAssertFalse(parsed.workspaceSidebar.enabled)
     }
 
-    func testParseZoneStyles() {
-        let (parsed, errors) = parseConfig(
-            """
-            [[zone-styles]]
-                id = 'urgent'
-                color = '#d3455b'
-
-            [[zone-styles]]
-                id = 'calm'
-                color = '3EA2FF'
-            """,
-        )
-
-        assertEquals(errors, [])
-        assertEquals(parsed.zoneStyles, [
-            ZoneStyleConfig(id: "urgent", color: "#D3455B"),
-            ZoneStyleConfig(id: "calm", color: "#3EA2FF"),
-        ])
-    }
-
-    func testParseZoneAvailabilitySets() {
+    func testIgnoreRetiredZoneAvailabilitySetsInLegacyConfig() {
         let (parsed, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -261,10 +207,7 @@ extension ConfigTest {
         )
 
         assertEquals(errors, [])
-        assertEquals(parsed.zoneAvailabilitySets, [
-            ZoneAvailabilitySetConfig(id: "focus-only", enabledZones: ["main"]),
-            ZoneAvailabilitySetConfig(id: "communications", enabledZones: ["main", "right"]),
-        ])
+        assertEquals(parsed.columnLayouts.count, 1)
     }
 
     func testRenderConfigDoctorLinesWarnsWhenZoneModePolicyIsUnreachable() {
@@ -273,7 +216,7 @@ extension ConfigTest {
             configText: "config-version = 2",
             runtimeOverlays: [:],
         )
-        XCTAssertTrue(noZoneMode.contains { $0.contains("mouse.zone-divider-drag = 'zone-mode' but no [mode.column.binding] exists") })
+        XCTAssertTrue(noZoneMode.contains { $0.contains("mouse.column-divider-drag = 'column-mode' but no [mode.column.binding] exists") })
 
         let withZoneMode = renderConfigDoctorLines(
             configPath: "/tmp/winmux.toml",
@@ -295,7 +238,7 @@ extension ConfigTest {
             """,
             runtimeOverlays: [:],
         )
-        XCTAssertFalse(policyOff.contains { $0.contains("zone-divider-drag = 'zone-mode'") })
+        XCTAssertFalse(policyOff.contains { $0.contains("zone-divider-drag = 'column-mode'") })
     }
 
     func testRenderConfigDoctorLinesForValidZonesConfig() {
@@ -341,10 +284,10 @@ extension ConfigTest {
             "Config doctor:",
             "  config path: /tmp/winmux.toml",
             "  config status: OK",
-            "  zones: inline=1 inline-columns=0 layouts=1 layout-columns=3 styles=1 scenes=1 bindings=1 affinities=0 availability-sets=1",
+            "  zones: displays=1 layouts=1 layout-columns=3",
             "  zone layout sums: OK",
             "  zone references: OK",
-            "  warning: mouse.zone-divider-drag = 'zone-mode' but no [mode.column.binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'",
+            "  warning: mouse.column-divider-drag = 'column-mode' but no [mode.column.binding] exists, so divider dragging is unreachable; define the mode or set the policy to 'always' or 'off'",
             "  runtime overlays: none",
         ])
     }
@@ -373,15 +316,14 @@ extension ConfigTest {
     }
 
     func testRenderConfigDoctorLinesIncludesRuntimeOverlayState() {
-        var overlay = ZoneRuntimeOverlay()
+        var overlay = ColumnRuntimeOverlay()
         overlay.activeLayoutId = "balanced"
         overlay.activeSceneId = "triage"
-        overlay.activeAvailabilitySetId = "focus-only"
-        overlay.zoneSnapPolicyOverride = .snapToZone
-        overlay.disabledZoneIds = ["right", "left"]
+        overlay.columnSnapPolicyOverride = .snapToColumn
+        overlay.disabledColumnIds = ["right", "left"]
         overlay.widthOverridesByLayoutIdentity = ["balanced": ["main": 0.7, "left": 0.3]]
-        overlay.styleOverridesByZoneId = ["right": "urgent"]
-        overlay.currentToggleRestoreZoneId = "right"
+        overlay.styleOverridesByColumnId = ["right": "urgent"]
+        overlay.currentToggleRestoreColumnId = "right"
 
         let lines = renderConfigDoctorLines(
             configPath: "/tmp/winmux.toml",
@@ -390,7 +332,7 @@ extension ConfigTest {
         )
 
         XCTAssertTrue(lines.contains("  runtime overlays:"))
-        XCTAssertTrue(lines.contains("    physical:0,0: active-layout=balanced active-scene=triage active-availability=focus-only snap-policy=snap-to-zone"))
+        XCTAssertTrue(lines.contains("    physical:0,0: active-layout=balanced active-scene=triage snap-policy=snap-to-column"))
         XCTAssertTrue(lines.contains("      disabled=left,right"))
         XCTAssertTrue(lines.contains("      width-overrides=balanced[left=0.3000,main=0.7000]"))
         XCTAssertTrue(lines.contains("      styles=right:urgent"))
@@ -400,25 +342,29 @@ extension ConfigTest {
     func testRejectInvalidZones() {
         let (_, errors) = parseConfig(
             """
-            [[zones]]
-                monitor = 1
+            [[zone-layouts]]
+                id = 'bad'
                 layout = 'columns'
                 default-zone = 'missing'
                 columns = [
                     { id = 'left', width = 0.50 },
                     { id = 'left', width = 0.40 },
                 ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'bad'
             """,
         )
 
         assertEquals(errors.descriptions, [
-            "zones[0].columns: Contains duplicated zone ids: left",
-            "zones[0].default-zone: Must name one of the configured zone ids",
-            "zones[0].columns: Column widths must sum to 1.0",
+            "zone-layouts[0].columns: Contains duplicated zone ids: left",
+            "zone-layouts[0].default-zone: Must name one of the configured zone ids",
+            "zone-layouts[0].columns: Column widths must sum to 1.0",
         ])
     }
 
-    func testRejectInvalidZoneSceneReferences() {
+    func testIgnoreInvalidRetiredZoneScenesInLegacyConfig() {
         let (_, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -445,16 +391,10 @@ extension ConfigTest {
             """,
         )
 
-        assertEquals(errors.descriptions, [
-            "zone-scenes[1].workspaces: Contains duplicated zone bindings: left",
-            "zone-scenes: Contains duplicated scene ids: bad",
-            "zone-scenes[0].layout-preset: Unknown zone layout preset 'missing'",
-            "zone-scenes[1].workspaces[0].zone: Must name one of the zones in layout preset 'focus'",
-            "zone-scenes[1].workspaces[1].zone: Must name one of the zones in layout preset 'focus'",
-        ])
+        assertEquals(errors, [])
     }
 
-    func testRejectInvalidZoneBindings() {
+    func testIgnoreInvalidRetiredZoneBindingsInLegacyConfig() {
         let (_, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -477,38 +417,10 @@ extension ConfigTest {
             """,
         )
 
-        assertEquals(errors.descriptions, [
-            "zone-bindings[0].workspace: Missing required key",
-            "zone-bindings: Contains duplicated zone binding targets: any:main",
-            "zone-bindings[2].zone: Unknown zone id 'missing'",
-        ])
+        assertEquals(errors.descriptions, [])
     }
 
-    func testRejectInvalidZoneStyles() {
-        let (_, errors) = parseConfig(
-            """
-            [[zone-styles]]
-                id = 'urgent'
-                color = 'not-a-color'
-
-            [[zone-styles]]
-                id = 'urgent'
-
-            [[zone-styles]]
-                color = '#3EA2FF'
-            """,
-        )
-
-        assertEquals(errors.descriptions, [
-            "zone-styles[0].color: Must be a hex color like '#RRGGBB'",
-            "zone-styles[0].color: Missing required key",
-            "zone-styles[1].color: Missing required key",
-            "zone-styles[2].id: Missing required key",
-            "zone-styles: Contains duplicated style ids: urgent",
-        ])
-    }
-
-    func testRejectInvalidZoneAvailabilitySets() {
+    func testIgnoreInvalidRetiredZoneAvailabilitySetsInLegacyConfig() {
         let (_, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -528,15 +440,10 @@ extension ConfigTest {
             """,
         )
 
-        assertEquals(errors.descriptions, [
-            "zone-availability-sets[0].enabled-zones: Must contain at least one zone id",
-            "zone-availability-sets[1].enabled-zones: Contains duplicated zone ids: main",
-            "zone-availability-sets: Contains duplicated availability set ids: focus",
-            "zone-availability-sets[1].enabled-zones[2]: Unknown zone id 'missing'",
-        ])
+        assertEquals(errors.descriptions, [])
     }
 
-    func testRejectInvalidZoneLayoutPresetReferences() {
+    func testRejectInvalidColumnLayoutPresetReferences() {
         let (_, errors) = parseConfig(
             """
             [[zone-layouts]]
@@ -560,17 +467,11 @@ extension ConfigTest {
             [[zones]]
                 monitor = 2
                 layout-preset = 'focus'
-                layout = 'columns'
-                columns = [
-                    { id = 'main', width = 1.0 },
-                ]
             """,
         )
 
         assertEquals(errors.descriptions, [
             "zone-layouts: Contains duplicated layout ids: focus",
-            "zones[1].layout: Cannot be combined with layout-preset",
-            "zones[1].columns: Cannot be combined with layout-preset",
             "zones[0].layout-preset: Unknown zone layout preset 'missing'",
         ])
     }
@@ -579,46 +480,46 @@ extension ConfigTest {
         let (_, errors) = parseConfig(
             """
             [[zones]]
-                columns = [
-                    { width = 1.0 },
-                ]
             """,
         )
 
         assertEquals(errors.descriptions, [
-            "zones[0].columns[0].id: Missing required key",
             "zones[0].monitor: Missing required key",
-            "zones[0].layout: Missing required key",
+            "zones[0].layout-preset: Missing required key",
         ])
     }
 
-    func testRejectInvalidZoneIdsAndWidths() {
+    func testRejectInvalidColumnIdsAndWidths() {
         let (_, errors) = parseConfig(
             """
-            [[zones]]
-                monitor = 1
+            [[zone-layouts]]
+                id = 'bad'
                 layout = 'columns'
                 columns = [
                     { id = 'bad space', width = 0.0 },
                     { id = 'negative', width = -0.2 },
                 ]
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'bad'
             """,
         )
 
         assertEquals(errors.descriptions, [
-            "zones[0].columns[0].id: Use only letters, numbers, hyphens, and underscores",
-            "zones[0].columns[0].width: Must be greater than 0",
-            "zones[0].columns[0].id: Missing required key",
-            "zones[0].columns[1].width: Must be greater than 0",
-            "zones[0].columns: Column widths must sum to 1.0",
+            "zone-layouts[0].columns[0].id: Use only letters, numbers, hyphens, and underscores",
+            "zone-layouts[0].columns[0].width: Must be greater than 0",
+            "zone-layouts[0].columns[0].id: Missing required key",
+            "zone-layouts[0].columns[1].width: Must be greater than 0",
+            "zone-layouts[0].columns: Column widths must sum to 1.0",
         ])
     }
 
     func testRejectDuplicateColumnMonitorSelectors() {
         let (_, errors) = parseConfig(
             """
-            [[zones]]
-                monitor = 1
+            [[zone-layouts]]
+                id = 'single'
                 layout = 'columns'
                 columns = [
                     { id = 'left', width = 1.0 },
@@ -626,10 +527,11 @@ extension ConfigTest {
 
             [[zones]]
                 monitor = 1
-                layout = 'columns'
-                columns = [
-                    { id = 'main', width = 1.0 },
-                ]
+                layout-preset = 'single'
+
+            [[zones]]
+                monitor = 1
+                layout-preset = 'single'
             """,
         )
 

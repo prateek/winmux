@@ -172,7 +172,7 @@ final class WorkspaceSidebarCardDragTest: XCTestCase {
         XCTAssertFalse(isActionableCardDropTarget(sourceCardName: "Work", targetKind: .workspace("Notes")))
         XCTAssertFalse(isActionableCardDropTarget(
             sourceCardName: "Work",
-            targetKind: .zone(monitorScopeId: scope, zoneId: "comms"),
+            targetKind: .column(monitorScopeId: scope, columnId: "comms"),
         ))
     }
 }

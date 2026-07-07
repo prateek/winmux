@@ -5,7 +5,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--self-test]
 
-Checks that local CLI validation for zone init and config --check uses the app
+Checks that local CLI validation for column init and config --check uses the app
 parser before mutating a normal user config.
 
 Environment:
@@ -52,19 +52,19 @@ run_check() {
     write_semantically_invalid_config "$config_path"
 
     before_hash="$(sha256_file "$config_path")"
-    if XDG_CONFIG_HOME="$tmp_dir/config" "$cli" zone init --preset balanced --write >"$tmp_dir/logs/zone-init-invalid.log" 2>&1; then
+    if XDG_CONFIG_HOME="$tmp_dir/config" "$cli" column init --preset balanced --write >"$tmp_dir/logs/zone-init-invalid.log" 2>&1; then
         cat "$tmp_dir/logs/zone-init-invalid.log" >&2
-        die "zone init --write accepted an app-parser-invalid config"
+        die "column init --write accepted an app-parser-invalid config"
     fi
     after_hash="$(sha256_file "$config_path")"
     [ "$before_hash" = "$after_hash" ] \
-        || die "zone init --write mutated an invalid config before rejecting it"
+        || die "column init --write mutated an invalid config before rejecting it"
     require_file_absent_glob "$config_path.backup-*"
-    if grep -F 'BEGIN WINMUX ZONE INIT MANAGED BLOCK' "$config_path" >/dev/null; then
-        die "zone init inserted a managed block into an invalid config"
+    if grep -F 'BEGIN WINMUX COLUMN INIT MANAGED BLOCK' "$config_path" >/dev/null; then
+        die "column init inserted a managed block into an invalid config"
     fi
     grep -F "Can't parse layout 'not-a-layout'" "$tmp_dir/logs/zone-init-invalid.log" >/dev/null \
-        || die "zone init rejection did not cite the app parser layout error"
+        || die "column init rejection did not cite the app parser layout error"
 
     if XDG_CONFIG_HOME="$tmp_dir/config" "$cli" config --check "$config_path" >"$tmp_dir/logs/config-check-invalid.log" 2>&1; then
         cat "$tmp_dir/logs/config-check-invalid.log" >&2

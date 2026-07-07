@@ -3,7 +3,7 @@ import AppKit
 extension Monitor {
     @MainActor
     var workspaceSidebarInset: CGFloat {
-        guard zoneId == nil else { return 0 }
+        guard columnId == nil else { return 0 }
         guard config.workspaceSidebar.enabled else { return 0 }
         return workspaceSidebarResolvedPanelMonitors().contains { $0.rect.topLeftCorner == rect.topLeftCorner }
             ? CGFloat(config.workspaceSidebar.collapsedWidth)
@@ -12,7 +12,7 @@ extension Monitor {
 
     @MainActor
     var visibleRectPaddedByOuterGaps: Rect {
-        guard zoneId == nil else { return visibleRect }
+        guard columnId == nil else { return visibleRect }
         let topLeft = visibleRect.topLeftCorner
         let gaps = ResolvedGaps(gaps: config.gaps, monitor: self)
         let leftInset = gaps.outer.left.toDouble() + workspaceSidebarInset
@@ -51,11 +51,11 @@ extension Monitor {
 
     @MainActor
     var defaultWorkspaceViewport: Monitor {
-        guard zoneId == nil else { return self }
-        let zoneViewports = workspaceViewports.filter {
-            $0.zoneId != nil &&
+        guard columnId == nil else { return self }
+        let columnViewports = workspaceViewports.filter {
+            $0.columnId != nil &&
                 $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
         }
-        return zoneViewports.first(where: \.isDefaultZone) ?? zoneViewports.first ?? self
+        return columnViewports.first(where: \.isDefaultColumn) ?? columnViewports.first ?? self
     }
 }

@@ -13,7 +13,7 @@ final class SceneCommandTest: XCTestCase {
             .run(.defaultEnv, .emptyStdin)
         assertEquals(result.exitCode, 0)
         assertEquals(activeSceneId(for: mainMonitor.physicalMonitor), "desk")
-        assertEquals(sortedMonitors.compactMap(\.zoneId), ["ref", "main", "comms"])
+        assertEquals(sortedMonitors.compactMap(\.columnId), ["ref", "main", "comms"])
     }
 
     func testSceneNextCyclesDeclaredScenes() async throws {
@@ -24,7 +24,7 @@ final class SceneCommandTest: XCTestCase {
         let toFocus = try await SceneCommand(args: SceneCmdArgs(target: .next)).run(.defaultEnv, .emptyStdin)
         assertEquals(toFocus.exitCode, 0)
         assertEquals(activeSceneId(for: main), "focus")
-        assertEquals(sortedMonitors.compactMap(\.zoneId), ["main"])
+        assertEquals(sortedMonitors.compactMap(\.columnId), ["main"])
 
         // Cycling wraps back to the first declared scene.
         let backToDesk = try await SceneCommand(args: SceneCmdArgs(target: .next)).run(.defaultEnv, .emptyStdin)
@@ -73,15 +73,14 @@ final class SceneCommandTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.scenes = []
-        config.zoneLayouts = []
+        config.columnLayouts = []
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
-                layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "side", name: "Side", width: 0.5),
-                    ZoneColumnConfig(id: "main", name: "Main", width: 0.5),
+                    ColumnConfig(id: "side", name: "Side", width: 0.5),
+                    ColumnConfig(id: "main", name: "Main", width: 0.5),
                 ],
             ),
         ]

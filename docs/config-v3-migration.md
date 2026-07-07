@@ -210,9 +210,8 @@ shows.
 
 ## `--format` interpolation tokens
 
-Only the list commands were renamed; the `--format` interpolation token
-spellings are unchanged (they keep their upstream `monitor-zone-*` names
-internally). Update the command name, keep the tokens:
+The list commands and their column-specific `--format` interpolation tokens
+were both renamed. Update the command name and the tokens together:
 
 | Old | New |
 |---|---|
@@ -224,16 +223,16 @@ Useful tokens, by list command:
 | Token | Meaning | Use with |
 |---|---|---|
 | `%{workspace}` | card name (the default `list-cards` format) | `list-cards` |
-| `%{monitor-zone-id}` | column id | `list-columns` |
-| `%{monitor-zone-name}` | column name | `list-columns` |
+| `%{column-id}` | column id | `list-columns` |
+| `%{column-name}` | column name | `list-columns` |
 | `%{monitor-active-workspace}` | the card the column is showing | `list-columns` |
-| `%{monitor-zone-enabled}` | whether the column is expanded | `list-columns` |
-| `%{monitor-zone-effective-width}` | the column's current width fraction | `list-columns` |
-| `%{monitor-zone-style-color}` | the column's color hex | `list-columns` |
+| `%{column-enabled}` | whether the column is expanded | `list-columns` |
+| `%{column-effective-width}` | the column's current width fraction | `list-columns` |
+| `%{column-color}` | the column's color hex | `list-columns` |
 
 Tokens tied to retired concepts still parse but now return empty:
-`%{monitor-zone-layout-id}`, `%{monitor-zone-availability-set-id}`, and
-`%{monitor-zone-style-id}` — layouts, availability sets, and style ids no longer
+`%{column-layout-id}`, `%{column-availability-set-id}`, and
+`%{column-style-id}` — layouts, availability sets, and style ids no longer
 exist. Drop them from format strings.
 
 ## Routing: zone affinities to rules

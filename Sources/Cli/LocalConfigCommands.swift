@@ -49,16 +49,16 @@ func runServerUnavailableLocalFallbackIfAvailable(_ parsedArgs: any CmdArgs) -> 
 
 @MainActor
 private func runLocalColumnInit(_ args: ColumnCmdArgs) -> LocalCliResult {
-    let targetMonitor: LocalZoneInitMonitor
-    switch resolveLocalZoneInitMonitor(args.monitor) {
+    let targetMonitor: LocalColumnInitMonitor
+    switch resolveLocalColumnInitMonitor(args.monitor) {
         case .success(let monitor):
             targetMonitor = monitor
         case .failure(let message):
             return .err(message)
     }
 
-    let preset = zoneInitPresetDefinition(args.preset)
-    let block = renderZoneInitManagedBlock(preset: args.preset, presetDefinition: preset, monitorId: targetMonitor.id)
+    let preset = columnInitPresetDefinition(args.preset)
+    let block = renderColumnInitManagedBlock(preset: args.preset, presetDefinition: preset, monitorId: targetMonitor.id)
     let configUrl = localGeneratedConfigUrl()
     let configExists = FileManager.default.fileExists(atPath: configUrl.path)
 
@@ -71,12 +71,12 @@ private func runLocalColumnInit(_ args: ColumnCmdArgs) -> LocalCliResult {
         return .err("Can't read config file '\(configUrl.path)': \(error.localizedDescription)")
     }
 
-    let edit: ZoneInitConfigEditResult
-    switch applyZoneInitManagedBlockToConfigText(
+    let edit: ColumnInitConfigEditResult
+    switch applyColumnInitManagedBlockToConfigText(
         to: originalText,
         block: block,
         replaceExisting: args.replaceExisting,
-        validateConfig: validateLocalZoneInitConfig,
+        validateConfig: validateLocalColumnInitConfig,
     ) {
         case .success(let result):
             edit = result
@@ -86,28 +86,28 @@ private func runLocalColumnInit(_ args: ColumnCmdArgs) -> LocalCliResult {
 
     let mode = args.write ? "write" : "dry-run"
     if !args.write {
-        return .out(renderZoneInitOutput(
-            title: localZoneInitDryRunTitle(configUrl: configUrl, preset: args.preset, configExists: configExists, status: edit.status),
+        return .out(renderColumnInitOutput(
+            title: localColumnInitDryRunTitle(configUrl: configUrl, preset: args.preset, configExists: configExists, status: edit.status),
             mode: mode,
             preset: args.preset,
-            monitorSummary: localZoneInitMonitorSummary(targetMonitor),
+            monitorSummary: localColumnInitMonitorSummary(targetMonitor),
             backupPath: nil,
             block: block,
         ))
     }
 
     if edit.status == .unchanged, configExists {
-        return .out(renderZoneInitOutput(
-            title: "Zone init already configured in \(configUrl.path)",
+        return .out(renderColumnInitOutput(
+            title: "Column init already configured in \(configUrl.path)",
             mode: mode,
             preset: args.preset,
-            monitorSummary: localZoneInitMonitorSummary(targetMonitor),
+            monitorSummary: localColumnInitMonitorSummary(targetMonitor),
             backupPath: nil,
             block: block,
         ) + ["No changes needed."])
     }
 
-    let backup = configExists ? nextZoneInitBackupUrl(for: configUrl) : nil
+    let backup = configExists ? nextColumnInitBackupUrl(for: configUrl) : nil
     do {
         let parentUrl = configUrl.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parentUrl, withIntermediateDirectories: true)
@@ -116,14 +116,14 @@ private func runLocalColumnInit(_ args: ColumnCmdArgs) -> LocalCliResult {
         }
         try edit.updatedText.write(to: configUrl, atomically: true, encoding: .utf8)
     } catch {
-        return .err("Can't write zone init config to '\(configUrl.path)': \(error.localizedDescription)")
+        return .err("Can't write column init config to '\(configUrl.path)': \(error.localizedDescription)")
     }
 
-    return .out(renderZoneInitOutput(
-        title: "\(configExists ? "Wrote" : "Created") \(args.preset.rawValue) zones to \(configUrl.path)",
+    return .out(renderColumnInitOutput(
+        title: "\(configExists ? "Wrote" : "Created") \(args.preset.rawValue) columns to \(configUrl.path)",
         mode: mode,
         preset: args.preset,
-        monitorSummary: localZoneInitMonitorSummary(targetMonitor),
+        monitorSummary: localColumnInitMonitorSummary(targetMonitor),
         backupPath: backup?.path,
         block: block,
     ))
@@ -159,7 +159,7 @@ private func runLocalConfigRestoreBackup(path: String) -> LocalCliResult {
     }
 }
 
-private struct LocalZoneInitMonitor {
+private struct LocalColumnInitMonitor {
     let id: Int
     let name: String
     let minX: CGFloat
@@ -170,22 +170,22 @@ private struct LocalZoneInitMonitor {
 }
 
 @MainActor
-private func resolveLocalZoneInitMonitor(_ monitorDescription: MonitorDescription?) -> Result<LocalZoneInitMonitor, String> {
+private func resolveLocalColumnInitMonitor(_ monitorDescription: MonitorDescription?) -> Result<LocalColumnInitMonitor, String> {
     let physicals = localSortedPhysicalMonitors()
     if let monitorDescription {
         guard let monitor = localResolvePhysicalMonitor(monitorDescription, sortedPhysicalMonitors: physicals) else {
-            return .failure("Can't resolve monitor selector for zone init")
+            return .failure("Can't resolve monitor selector for column init")
         }
         return .success(monitor)
     }
-    guard let monitor = physicals.sorted(by: localZoneInitMonitorSort).first else {
-        return .failure("No physical monitors are available for zone init")
+    guard let monitor = physicals.sorted(by: localColumnInitMonitorSort).first else {
+        return .failure("No physical monitors are available for column init")
     }
     return .success(monitor)
 }
 
 @MainActor
-private func localSortedPhysicalMonitors() -> [LocalZoneInitMonitor] {
+private func localSortedPhysicalMonitors() -> [LocalColumnInitMonitor] {
     let mainDisplayId = CGMainDisplayID()
     return NSScreen.screens
         .enumerated()
@@ -193,7 +193,7 @@ private func localSortedPhysicalMonitors() -> [LocalZoneInitMonitor] {
             let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
             let displayId = screenNumber.map { CGDirectDisplayID(truncating: $0) }
             let frame = screen.frame
-            return LocalZoneInitMonitor(
+            return LocalColumnInitMonitor(
                 id: index + 1,
                 name: screen.localizedName,
                 minX: frame.minX,
@@ -210,7 +210,7 @@ private func localSortedPhysicalMonitors() -> [LocalZoneInitMonitor] {
         }
         .enumerated()
         .map { index, monitor in
-            LocalZoneInitMonitor(
+            LocalColumnInitMonitor(
                 id: index + 1,
                 name: monitor.name,
                 minX: monitor.minX,
@@ -224,8 +224,8 @@ private func localSortedPhysicalMonitors() -> [LocalZoneInitMonitor] {
 
 private func localResolvePhysicalMonitor(
     _ description: MonitorDescription,
-    sortedPhysicalMonitors: [LocalZoneInitMonitor],
-) -> LocalZoneInitMonitor? {
+    sortedPhysicalMonitors: [LocalColumnInitMonitor],
+) -> LocalColumnInitMonitor? {
     switch description {
         case .sequenceNumber(let number):
             sortedPhysicalMonitors.getOrNil(atIndex: number - 1)
@@ -239,7 +239,7 @@ private func localResolvePhysicalMonitor(
     }
 }
 
-private func localZoneInitMonitorSort(_ lhs: LocalZoneInitMonitor, _ rhs: LocalZoneInitMonitor) -> Bool {
+private func localColumnInitMonitorSort(_ lhs: LocalColumnInitMonitor, _ rhs: LocalColumnInitMonitor) -> Bool {
     let lhsAspect = lhs.height > 0 ? lhs.width / lhs.height : 0
     let rhsAspect = rhs.height > 0 ? rhs.width / rhs.height : 0
     if lhsAspect != rhsAspect {
@@ -248,30 +248,30 @@ private func localZoneInitMonitorSort(_ lhs: LocalZoneInitMonitor, _ rhs: LocalZ
     return lhs.width > rhs.width
 }
 
-private func localZoneInitMonitorSummary(_ monitor: LocalZoneInitMonitor) -> String {
+private func localColumnInitMonitorSummary(_ monitor: LocalColumnInitMonitor) -> String {
     let width = Int(monitor.width.rounded())
     let height = Int(monitor.height.rounded())
     let aspect = monitor.height > 0 ? Double(monitor.width / monitor.height) : 0
     let name = monitor.name.isEmpty ? "Display \(monitor.id)" : monitor.name
-    return "monitor \(monitor.id) \(name) \(width)x\(height) aspect \(zoneInitFormatTomlFloat(aspect))"
+    return "monitor \(monitor.id) \(name) \(width)x\(height) aspect \(columnInitFormatTomlFloat(aspect))"
 }
 
-private func localZoneInitDryRunTitle(
+private func localColumnInitDryRunTitle(
     configUrl: URL,
-    preset: ZoneInitPreset,
+    preset: ColumnInitPreset,
     configExists: Bool,
-    status: ZoneInitConfigEditStatus,
+    status: ColumnInitConfigEditStatus,
 ) -> String {
     if status == .unchanged {
-        return "Dry run: zone init is already configured in \(configUrl.path)"
+        return "Dry run: column init is already configured in \(configUrl.path)"
     }
     let verb = configExists ? "append" : "create"
-    return "Dry run: would \(verb) \(preset.rawValue) zones to \(configUrl.path)"
+    return "Dry run: would \(verb) \(preset.rawValue) columns to \(configUrl.path)"
 }
 
 @MainActor
-private func validateLocalZoneInitConfig(_ text: String) -> Result<ZoneInitConfigValidation, String> {
-    validateZoneInitConfigWithAppParser(text)
+private func validateLocalColumnInitConfig(_ text: String) -> Result<ColumnInitConfigValidation, String> {
+    validateColumnInitConfigWithAppParser(text)
 }
 
 private func localGeneratedConfigUrl() -> URL {

@@ -20,11 +20,11 @@ func isActionableSidebarWorkspaceDropTarget(
     switch targetKind {
         case .workspace(let workspaceName):
             return sourceWorkspaceName != workspaceName
-        case .zone(let monitorScopeId, let zoneId):
-            guard let targetZone = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+        case .column(let monitorScopeId, let columnId):
+            guard let targetColumn = workspaceSidebarResolvedColumnTarget(monitorScopeId: monitorScopeId, columnId: columnId) else {
                 return false
             }
-            return sourceWorkspaceName != targetZone.activeWorkspace.name
+            return sourceWorkspaceName != targetColumn.activeWorkspace.name
         case .monitor:
             return true
         case .newWorkspace:
@@ -71,18 +71,18 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
                     previewGeometry: .rounded,
                     isGroup: isGroup,
                 )
-            case .zone(let monitorScopeId, let zoneId):
-                guard let targetZone = workspaceSidebarResolvedZoneTarget(monitorScopeId: monitorScopeId, zoneId: zoneId) else {
+            case .column(let monitorScopeId, let columnId):
+                guard let targetColumn = workspaceSidebarResolvedColumnTarget(monitorScopeId: monitorScopeId, columnId: columnId) else {
                     return nil
                 }
-                let workspace = targetZone.activeWorkspace
+                let workspace = targetColumn.activeWorkspace
                 guard workspace.name != sourceWorkspaceName else { return nil }
                 return WindowDragIntentDestination(
                     kind: .moveToWorkspace(workspaceName: workspace.name),
                     previewRect: workspaceSidebarCursorPreviewRect(at: mouseLocation),
                     interactionRect: sidebarWorkspaceDropInteractionRect(for: target),
                     title: sourceLabel,
-                    subtitle: "Drop to send this item to \(targetZone.displayName)",
+                    subtitle: "Drop to send this item to \(targetColumn.displayName)",
                     previewStyle: .sidebarWorkspaceMove,
                     previewGeometry: .rounded,
                     isGroup: isGroup,

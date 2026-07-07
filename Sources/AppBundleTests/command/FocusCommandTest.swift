@@ -99,18 +99,17 @@ final class FocusCommandTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
-                layout: .columns,
                 defaultZone: "left",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.50),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.50),
                 ],
             ),
         ]
         let zones = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-            monitor.zoneId.map { ($0, monitor) }
+            monitor.columnId.map { ($0, monitor) }
         })
         let leftWorkspace = Workspace.get(byName: "left-zone-focus")
         let rightWorkspace = Workspace.get(byName: "right-zone-focus")

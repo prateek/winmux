@@ -11,7 +11,7 @@ public struct DoctorCmdArgs: CmdArgs {
             Print diagnostics: permissions, monitors, per-app accessibility latency,
             and window manager state. Useful for bug reports and performance triage.
 
-            Zone support bundles collect redacted zone config, monitor topology,
+            Support bundles collect redacted column config, monitor topology,
             runtime overlays, active workspaces, permission status, and available
             routing diagnostics into an attachable directory.
             """,

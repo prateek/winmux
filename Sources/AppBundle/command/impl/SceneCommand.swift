@@ -64,11 +64,6 @@ func buildSceneBlock(named name: String, on physicalMonitor: Monitor) -> Result<
     return .success(renderSceneConfigBlock(name: name, display: monitorId, defaultColumn: snapshot.defaultColumn, columns: snapshot.columns))
 }
 
-/// Whether a physical monitor is governed by a user `[[zones]]` entry rather than a scene's
-/// synthesized backing zone. Scenes append one `ZoneConfig` per display keyed to the scene's
-/// backing layout id; those are not user zones. Everything else targeting the monitor is a user
-/// `[[zones]]` block, matched by physical identity so a `1`-vs-`'main'` selector mismatch between a
-/// `[[zones]]` entry and a scene `display` still collides.
 @MainActor
 private func displayIsGovernedByUserZones(_ physicalMonitor: Monitor) -> Bool {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
@@ -116,7 +111,7 @@ private func createScene(named name: String, on physicalMonitor: Monitor, io: Cm
         return io.err("Edited config would not parse:\n\(parsed.errors.map(\.description).joined(separator: "\n"))")
     }
 
-    let backup = nextZoneInitBackupUrl(for: configUrl)
+    let backup = nextColumnInitBackupUrl(for: configUrl)
     do {
         try FileManager.default.copyItem(at: configUrl, to: backup)
         try updatedText.write(to: configUrl, atomically: true, encoding: .utf8)
@@ -138,13 +133,13 @@ private func createScene(named name: String, on physicalMonitor: Monitor, io: Cm
 private func liveSceneColumns(on physicalMonitor: Monitor) -> (columns: [SceneBlockColumn], defaultColumn: String?) {
     let targetTopLeft = physicalMonitor.physicalMonitor.rect.topLeftCorner
     let rows = getCurrentColumnTopologySnapshot()
-        .configuredZones(for: sortedPhysicalMonitors)
+        .configuredColumns(for: sortedPhysicalMonitors)
         .filter { $0.physicalMonitor.rect.topLeftCorner == targetTopLeft && $0.isEnabled }
     guard !rows.isEmpty else {
         return ([SceneBlockColumn(id: "main", name: "Work", width: 1.0, color: nil)], nil)
     }
     let columns = rows.map { row in
-        SceneBlockColumn(id: row.zoneId, name: row.zoneName, width: row.effectiveWidth, color: row.zoneStyleColorHex)
+        SceneBlockColumn(id: row.columnId, name: row.columnName, width: row.effectiveWidth, color: row.columnColorHex)
     }
-    return (columns, rows.first(where: \.isDefaultZone)?.zoneId)
+    return (columns, rows.first(where: \.isDefaultColumn)?.columnId)
 }

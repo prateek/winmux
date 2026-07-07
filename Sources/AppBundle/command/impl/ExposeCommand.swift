@@ -6,7 +6,7 @@ struct ExposeCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        ZoneExposePanelController.shared.toggle(scope: args.scope.val)
+        ExposePanelController.shared.toggle(scope: args.scope.val)
         return true
     }
 }

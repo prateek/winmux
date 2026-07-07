@@ -3,7 +3,7 @@ import CoreGraphics
 struct WorkspaceSidebarSnapshot: Equatable {
     var workspaces: [WorkspaceSidebarWorkspaceViewModel]
     var monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
-    var zoneTargets: [WorkspaceSidebarZoneTargetViewModel] = []
+    var columnTargets: [WorkspaceSidebarColumnTargetViewModel] = []
     var columnSections: [WorkspaceSidebarColumnSectionViewModel] = []
     var sceneSwitchTargets: [WorkspaceSidebarSceneTargetViewModel] = []
     var selectedMonitorScopeId: String
@@ -17,7 +17,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
     static let empty = WorkspaceSidebarSnapshot(
         workspaces: [],
         monitorScopes: [],
-        zoneTargets: [],
+        columnTargets: [],
         columnSections: [],
         sceneSwitchTargets: [],
         selectedMonitorScopeId: workspaceSidebarDefaultScopeId,
@@ -58,8 +58,8 @@ enum WorkspaceSidebarAction: Equatable {
     case deleteWorkspace(String)
     case moveWindow(UInt32, toWorkspace: String)
     case moveTabGroup(UInt32, toWorkspace: String)
-    case moveWindowToZone(UInt32, monitorScopeId: String, zoneId: String)
-    case moveTabGroupToZone(UInt32, monitorScopeId: String, zoneId: String)
+    case moveWindowToColumn(UInt32, monitorScopeId: String, columnId: String)
+    case moveTabGroupToColumn(UInt32, monitorScopeId: String, columnId: String)
     case moveWindowToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
     case moveTabGroupToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
     case moveCard(String, target: WorkspaceSidebarDropTargetKind)

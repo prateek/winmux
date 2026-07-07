@@ -23,7 +23,7 @@ func renderSceneConfigBlock(
         lines.append("default-column = \(tomlBasicString(defaultColumn))")
     }
     lines.append("columns = [")
-    let normalizedWidths = normalizedZoneLayoutWidths(columns.map(\.width))
+    let normalizedWidths = normalizedColumnLayoutWidths(columns.map(\.width))
     for (column, width) in zip(columns, normalizedWidths) {
         var fields = ["id = \(tomlBasicString(column.id))"]
         if let columnName = column.name {

@@ -3,7 +3,7 @@ import AppKit
 struct WorkspaceSidebarModelState {
     let workspaces: [WorkspaceSidebarWorkspaceViewModel]
     let monitorScopes: [WorkspaceSidebarMonitorScopeViewModel]
-    let zoneTargets: [WorkspaceSidebarZoneTargetViewModel]
+    let columnTargets: [WorkspaceSidebarColumnTargetViewModel]
     let columnSections: [WorkspaceSidebarColumnSectionViewModel]
     let sceneSwitchTargets: [WorkspaceSidebarSceneTargetViewModel]
     let focusedMonitorScopeId: String

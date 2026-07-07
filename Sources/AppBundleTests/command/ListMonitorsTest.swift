@@ -24,20 +24,19 @@ final class ListMonitorsTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
-                layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
-                    ZoneColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
-                    ZoneColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
+                    ColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
+                    ColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
+                    ColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
                 ],
             ),
         ]
 
         let result = try await parseCommand(
-            "list-monitors --format '%{monitor-id}|%{monitor-zone-id}|%{monitor-is-zone}|%{monitor-physical-id}|%{monitor-zone-configured-width}|%{monitor-zone-effective-width}|%{monitor-zone-runtime-width-override-state}|%{monitor-left},%{monitor-top},%{monitor-width},%{monitor-height}|%{monitor-name}'",
+            "list-monitors --format '%{monitor-id}|%{column-id}|%{monitor-is-column}|%{monitor-physical-id}|%{column-configured-width}|%{column-effective-width}|%{column-runtime-width-override-state}|%{monitor-left},%{monitor-top},%{monitor-width},%{monitor-height}|%{monitor-name}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         assertEquals(result.stdout, [

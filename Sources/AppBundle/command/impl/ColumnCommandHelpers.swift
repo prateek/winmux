@@ -1,18 +1,18 @@
 import Common
 import Foundation
 
-struct ResolvedZoneSelector {
+struct ResolvedColumnSelector {
     let monitor: Monitor
 }
 
 @MainActor
-func resolveZoneSelector(_ selector: ZoneSelector) -> Result<ResolvedZoneSelector, String> {
+func resolveColumnSelector(_ selector: ColumnSelector) -> Result<ResolvedColumnSelector, String> {
     let parsed = selector.parseForResolution()
-    let zoneViewports = sortedMonitors.filter { $0.zoneId != nil }
-    guard !zoneViewports.isEmpty else {
-        return .failure("No zones are configured")
+    let columnViewports = sortedMonitors.filter { $0.columnId != nil }
+    guard !columnViewports.isEmpty else {
+        return .failure("No columns are configured")
     }
-    let relativeSelector = RelativeZoneSelector(parsed.zoneSelector)
+    let relativeSelector = RelativeColumnSelector(parsed.zoneSelector)
 
     let scopedViewports: [Monitor]
     if let monitorSelector = parsed.monitorSelector {
@@ -25,56 +25,56 @@ func resolveZoneSelector(_ selector: ZoneSelector) -> Result<ResolvedZoneSelecto
         guard let physicalMonitor else {
             return .failure("Can't resolve monitor selector '\(monitorSelector)' in zone selector '\(selector.raw)'")
         }
-        scopedViewports = zoneViewports.filter {
+        scopedViewports = columnViewports.filter {
             $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
         }
     } else if relativeSelector != nil {
-        let focusedPhysicalMonitor = focusedPhysicalMonitorForZoneSelector()
-        scopedViewports = zoneViewports.filter {
+        let focusedPhysicalMonitor = focusedPhysicalMonitorForColumnSelector()
+        scopedViewports = columnViewports.filter {
             $0.physicalMonitor.rect.topLeftCorner == focusedPhysicalMonitor.rect.topLeftCorner
         }
     } else {
-        scopedViewports = zoneViewports
+        scopedViewports = columnViewports
     }
 
     if let relativeSelector {
-        return resolveRelativeZoneViewport(
+        return resolveRelativeColumnViewport(
             relativeSelector,
             rawSelector: selector.raw,
             candidates: scopedViewports,
-        ).map { ResolvedZoneSelector(monitor: $0) }
+        ).map { ResolvedColumnSelector(monitor: $0) }
     }
 
-    let matches = scopedViewports.filter { $0.matchesZoneSelector(parsed.zoneSelector) }
+    let matches = scopedViewports.filter { $0.matchesColumnSelector(parsed.zoneSelector) }
     guard !matches.isEmpty else {
-        if case .success(let configuredZone) = resolveConfiguredZoneSelector(selector),
+        if case .success(let configuredZone) = resolveConfiguredColumnSelector(selector),
            !configuredZone.isEnabled
         {
-            return .failure("Zone '\(configuredZone.displayName)' is disabled. Use enable-zone \(selector.raw) before targeting it.")
+            return .failure("Column '\(configuredZone.displayName)' is disabled. Use column expand \(selector.raw) before targeting it.")
         }
-        return .failure("No zone matches '\(selector.raw)'")
+        return .failure("No column matches '\(selector.raw)'")
     }
     guard matches.count == 1 else {
         let examples = matches.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-                  let zoneId = monitor.zoneId
+                  let columnId = monitor.columnId
             else { return nil }
-            return "\(physicalId):\(zoneId)"
+            return "\(physicalId):\(columnId)"
         }
         return .failure(
-            "Zone selector '\(selector.raw)' is ambiguous. Use a physical monitor qualifier like \(examples.joined(separator: ", "))",
+            "Column selector '\(selector.raw)' is ambiguous. Use a physical monitor qualifier like \(examples.joined(separator: ", "))",
         )
     }
-    return .success(ResolvedZoneSelector(monitor: matches[0]))
+    return .success(ResolvedColumnSelector(monitor: matches[0]))
 }
 
 @MainActor
-func resolveConfiguredZoneSelector(
-    _ selector: ZoneSelector,
+func resolveConfiguredColumnSelector(
+    _ selector: ColumnSelector,
     monitorDescription: MonitorDescription? = nil,
-) -> Result<ResolvedConfiguredZoneSelector, String> {
+) -> Result<ResolvedConfiguredColumnSelector, String> {
     let parsed = selector.parseForResolution()
-    let relativeSelector = RelativeZoneSelector(parsed.zoneSelector)
+    let relativeSelector = RelativeColumnSelector(parsed.zoneSelector)
     guard parsed.monitorSelector == nil || monitorDescription == nil else {
         return .failure("Use either --monitor or a physical monitor qualifier in zone selector '\(selector.raw)', not both")
     }
@@ -82,7 +82,7 @@ func resolveConfiguredZoneSelector(
     let physicalScope: [Monitor]
     if let monitorDescription {
         guard let physicalMonitor = monitorDescription.resolvePhysicalMonitor(sortedPhysicalMonitors: sortedPhysicalMonitors) else {
-            return .failure("Can't resolve monitor selector for zone command")
+            return .failure("Can't resolve monitor selector for column command")
         }
         physicalScope = [physicalMonitor]
     } else if let monitorSelector = parsed.monitorSelector {
@@ -97,55 +97,55 @@ func resolveConfiguredZoneSelector(
         }
         physicalScope = [physicalMonitor]
     } else if relativeSelector != nil {
-        physicalScope = [focusedPhysicalMonitorForZoneSelector()]
+        physicalScope = [focusedPhysicalMonitorForColumnSelector()]
     } else {
         physicalScope = sortedPhysicalMonitors
     }
 
     let scopeTopLeftCorners = Set(physicalScope.map(\.rect.topLeftCorner))
-    let configuredZones = getCurrentColumnTopologySnapshot()
-        .configuredZones(for: sortedPhysicalMonitors)
+    let configuredColumns = getCurrentColumnTopologySnapshot()
+        .configuredColumns(for: sortedPhysicalMonitors)
         .filter { scopeTopLeftCorners.contains($0.physicalMonitor.rect.topLeftCorner) }
-    guard !configuredZones.isEmpty else {
-        return .failure("No zones are configured")
+    guard !configuredColumns.isEmpty else {
+        return .failure("No columns are configured")
     }
 
     if let relativeSelector {
-        return resolveRelativeConfiguredZone(
+        return resolveRelativeConfiguredColumn(
             relativeSelector,
             rawSelector: selector.raw,
-            candidates: configuredZones,
+            candidates: configuredColumns,
         )
     }
 
-    let matches = configuredZones.filter { zone in
-        zone.zoneId.matchesZoneSelector(parsed.zoneSelector) || zone.zoneName.matchesZoneSelector(parsed.zoneSelector)
+    let matches = configuredColumns.filter { zone in
+        zone.columnId.matchesColumnSelector(parsed.zoneSelector) || zone.columnName.matchesColumnSelector(parsed.zoneSelector)
     }
     guard !matches.isEmpty else {
-        return .failure("No zone matches '\(selector.raw)'")
+        return .failure("No column matches '\(selector.raw)'")
     }
     guard matches.count == 1 else {
         let examples = matches.compactMap { zone -> String? in
             guard let physicalId = zone.physicalMonitor.monitorId_oneBased else { return nil }
-            return "\(physicalId):\(zone.zoneId)"
+            return "\(physicalId):\(zone.columnId)"
         }
         return .failure(
-            "Zone selector '\(selector.raw)' is ambiguous. Use a physical monitor qualifier like \(examples.joined(separator: ", "))",
+            "Column selector '\(selector.raw)' is ambiguous. Use a physical monitor qualifier like \(examples.joined(separator: ", "))",
         )
     }
 
     let match = matches[0]
-    return .success(ResolvedConfiguredZoneSelector(
+    return .success(ResolvedConfiguredColumnSelector(
         physicalMonitor: match.physicalMonitor,
-        zoneLayoutId: match.zoneLayoutId,
-        zoneId: match.zoneId,
-        zoneName: match.zoneName,
-        isDefaultZone: match.isDefaultZone,
+        columnLayoutId: match.columnLayoutId,
+        columnId: match.columnId,
+        columnName: match.columnName,
+        isDefaultColumn: match.isDefaultColumn,
         isEnabled: match.isEnabled,
     ))
 }
 
-private enum RelativeZoneSelector: Equatable {
+private enum RelativeColumnSelector: Equatable {
     case current
     case next
     case previous
@@ -165,24 +165,24 @@ private enum RelativeZoneSelector: Equatable {
 }
 
 @MainActor
-private func resolveRelativeZoneViewport(
-    _ selector: RelativeZoneSelector,
+private func resolveRelativeColumnViewport(
+    _ selector: RelativeColumnSelector,
     rawSelector: String,
     candidates: [Monitor],
 ) -> Result<Monitor, String> {
     guard !candidates.isEmpty else {
-        return .failure("No zones are configured on the focused monitor")
+        return .failure("No columns are configured on the focused monitor")
     }
 
-    let currentIndex = focusedZoneViewportIndex(in: candidates)
+    let currentIndex = focusedColumnViewportIndex(in: candidates)
     switch selector {
         case .current:
             guard let currentIndex else {
-                return .failure("No focused zone matches '\(rawSelector)'")
+                return .failure("No focused column matches '\(rawSelector)'")
             }
             return .success(candidates[currentIndex])
         case .next, .previous:
-            let baseIndex = currentIndex ?? candidates.firstIndex(where: \.isDefaultZone) ?? 0
+            let baseIndex = currentIndex ?? candidates.firstIndex(where: \.isDefaultColumn) ?? 0
             let offset = selector == .next ? 1 : -1
             let nextIndex = (baseIndex + offset + candidates.count) % candidates.count
             return .success(candidates[nextIndex])
@@ -190,44 +190,44 @@ private func resolveRelativeZoneViewport(
 }
 
 @MainActor
-private func resolveRelativeConfiguredZone(
-    _ selector: RelativeZoneSelector,
+private func resolveRelativeConfiguredColumn(
+    _ selector: RelativeColumnSelector,
     rawSelector: String,
-    candidates: [ConfiguredZoneSummary],
-) -> Result<ResolvedConfiguredZoneSelector, String> {
+    candidates: [ConfiguredColumnSummary],
+) -> Result<ResolvedConfiguredColumnSelector, String> {
     guard !candidates.isEmpty else {
-        return .failure("No zones are configured on the focused monitor")
+        return .failure("No columns are configured on the focused monitor")
     }
 
     let currentIndex = focusedConfiguredZoneIndex(in: candidates)
     switch selector {
         case .current:
             guard let currentIndex else {
-                return .failure("No focused zone matches '\(rawSelector)'")
+                return .failure("No focused column matches '\(rawSelector)'")
             }
-            return .success(resolvedConfiguredZoneSelector(from: candidates[currentIndex]))
+            return .success(resolvedConfiguredColumnSelector(from: candidates[currentIndex]))
         case .next, .previous:
-            let baseIndex = currentIndex ?? candidates.firstIndex(where: \.isDefaultZone) ?? 0
+            let baseIndex = currentIndex ?? candidates.firstIndex(where: \.isDefaultColumn) ?? 0
             let offset = selector == .next ? 1 : -1
             let nextIndex = (baseIndex + offset + candidates.count) % candidates.count
-            return .success(resolvedConfiguredZoneSelector(from: candidates[nextIndex]))
+            return .success(resolvedConfiguredColumnSelector(from: candidates[nextIndex]))
     }
 }
 
-private func resolvedConfiguredZoneSelector(from summary: ConfiguredZoneSummary) -> ResolvedConfiguredZoneSelector {
-    ResolvedConfiguredZoneSelector(
+private func resolvedConfiguredColumnSelector(from summary: ConfiguredColumnSummary) -> ResolvedConfiguredColumnSelector {
+    ResolvedConfiguredColumnSelector(
         physicalMonitor: summary.physicalMonitor,
-        zoneLayoutId: summary.zoneLayoutId,
-        zoneId: summary.zoneId,
-        zoneName: summary.zoneName,
-        isDefaultZone: summary.isDefaultZone,
+        columnLayoutId: summary.columnLayoutId,
+        columnId: summary.columnId,
+        columnName: summary.columnName,
+        isDefaultColumn: summary.isDefaultColumn,
         isEnabled: summary.isEnabled,
     )
 }
 
 @MainActor
-private func focusedZoneViewportIndex(in candidates: [Monitor]) -> Int? {
-    focusedZoneViewport(in: candidates).flatMap { focusedMonitor in
+private func focusedColumnViewportIndex(in candidates: [Monitor]) -> Int? {
+    focusedColumnViewport(in: candidates).flatMap { focusedMonitor in
         candidates.firstIndex {
             MonitorViewportId($0).hasSameStableIdentity(as: MonitorViewportId(focusedMonitor))
         }
@@ -235,24 +235,24 @@ private func focusedZoneViewportIndex(in candidates: [Monitor]) -> Int? {
 }
 
 @MainActor
-private func focusedConfiguredZoneIndex(in candidates: [ConfiguredZoneSummary]) -> Int? {
-    guard let focusedMonitor = focusedZoneViewport(in: sortedMonitors.filter { $0.zoneId != nil }) else { return nil }
-    guard let focusedZoneId = focusedMonitor.zoneId else { return nil }
+private func focusedConfiguredZoneIndex(in candidates: [ConfiguredColumnSummary]) -> Int? {
+    guard let focusedMonitor = focusedColumnViewport(in: sortedMonitors.filter { $0.columnId != nil }) else { return nil }
+    guard let focusedColumnId = focusedMonitor.columnId else { return nil }
     let focusedPhysicalTopLeft = focusedMonitor.physicalMonitor.rect.topLeftCorner
     return candidates.firstIndex {
-        $0.zoneId == focusedZoneId &&
+        $0.columnId == focusedColumnId &&
             $0.physicalMonitor.rect.topLeftCorner == focusedPhysicalTopLeft
     }
 }
 
 @MainActor
-private func focusedPhysicalMonitorForZoneSelector() -> Monitor {
-    focusedZoneViewport(in: sortedMonitors.filter { $0.zoneId != nil })?.physicalMonitor
+private func focusedPhysicalMonitorForColumnSelector() -> Monitor {
+    focusedColumnViewport(in: sortedMonitors.filter { $0.columnId != nil })?.physicalMonitor
         ?? focus.workspace.workspaceMonitor.physicalMonitor
 }
 
 @MainActor
-private func focusedZoneViewport(in candidates: [Monitor]) -> Monitor? {
+private func focusedColumnViewport(in candidates: [Monitor]) -> Monitor? {
     let focusedWorkspaceId = focus.workspace.id
     let focusedViewportIds = winMuxWorkspaceState.monitorViewportsById.compactMap { viewportId, viewport -> MonitorViewportId? in
         viewport.activeWorkspaceId == focusedWorkspaceId ? viewportId : nil
@@ -263,7 +263,7 @@ private func focusedZoneViewport(in candidates: [Monitor]) -> Monitor? {
     }
 }
 
-extension ZoneSelector {
+extension ColumnSelector {
     func parseForResolution() -> (monitorSelector: String?, zoneSelector: String) {
         if raw.hasPrefix("zone:") {
             return (nil, String(raw.dropFirst("zone:".count)))
@@ -277,7 +277,7 @@ extension ZoneSelector {
         )
     }
 
-    var isBareCurrentZoneSelector: Bool {
+    var isBareCurrentColumnSelector: Bool {
         let parsed = parseForResolution()
         guard parsed.monitorSelector == nil else { return false }
         switch parsed.zoneSelector.lowercased() {
@@ -290,20 +290,20 @@ extension ZoneSelector {
 }
 
 extension Monitor {
-    func matchesZoneSelector(_ selector: String) -> Bool {
-        zoneId.matchesZoneSelector(selector) || zoneName.matchesZoneSelector(selector)
+    func matchesColumnSelector(_ selector: String) -> Bool {
+        columnId.matchesColumnSelector(selector) || columnName.matchesColumnSelector(selector)
     }
 }
 
 extension Optional where Wrapped == String {
-    func matchesZoneSelector(_ selector: String) -> Bool {
+    func matchesColumnSelector(_ selector: String) -> Bool {
         guard let value = self else { return false }
         return value == selector || value.localizedCaseInsensitiveCompare(selector) == .orderedSame
     }
 }
 
 extension String {
-    func matchesZoneSelector(_ selector: String) -> Bool {
+    func matchesColumnSelector(_ selector: String) -> Bool {
         self == selector || localizedCaseInsensitiveCompare(selector) == .orderedSame
     }
 }

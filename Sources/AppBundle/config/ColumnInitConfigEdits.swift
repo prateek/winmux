@@ -2,26 +2,26 @@ import Common
 import Foundation
 
 @MainActor
-func applyZoneInitManagedBlock(
+func applyColumnInitManagedBlock(
     to configText: String,
     block: String,
     replaceExisting: Bool,
-) -> Result<ZoneInitConfigEditResult, String> {
-    applyZoneInitManagedBlockToConfigText(
+) -> Result<ColumnInitConfigEditResult, String> {
+    applyColumnInitManagedBlockToConfigText(
         to: configText,
         block: block,
         replaceExisting: replaceExisting,
-        validateConfig: validateZoneInitConfig,
+        validateConfig: validateColumnInitConfig,
     )
 }
 
 @MainActor
-public func validateZoneInitConfigWithAppParser(_ text: String) -> Result<ZoneInitConfigValidation, String> {
+public func validateColumnInitConfigWithAppParser(_ text: String) -> Result<ColumnInitConfigValidation, String> {
     let parsed = parseConfig(text)
     guard parsed.errors.isEmpty else {
         return .failure(parsed.errors.map(\.description).joined(separator: "\n"))
     }
-    return .success(ZoneInitConfigValidation(hasActiveZones: !parsed.config.zones.isEmpty))
+    return .success(ColumnInitConfigValidation(hasActiveColumns: !parsed.config.zones.isEmpty))
 }
 
 @MainActor
@@ -34,6 +34,6 @@ public func validateConfigWithAppParser(_ text: String) -> Result<Void, String> 
 }
 
 @MainActor
-private func validateZoneInitConfig(_ text: String) -> Result<ZoneInitConfigValidation, String> {
-    validateZoneInitConfigWithAppParser(text)
+private func validateColumnInitConfig(_ text: String) -> Result<ColumnInitConfigValidation, String> {
+    validateColumnInitConfigWithAppParser(text)
 }

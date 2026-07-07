@@ -5848,6 +5848,115 @@ EOF
         || die "Slice 48 review must discuss support-bundle debug value"
 }
 
+require_review_mentions_slice_56_evidence() {
+    local review_path="$1"
+    case "$recording_name" in
+        slice-56-domain-model) ;;
+        *) return 0 ;;
+    esac
+
+    require_expected_caption_chips_exact \
+        "${LOGS_DIR}/${recording_name}.expected-chips.txt" \
+        "${LOGS_DIR}/${recording_name}.annotations.tsv"
+
+    local path description
+    while IFS=$'\t' read -r path description; do
+        [ -n "$path" ] || continue
+        require_review_mentions_artifact_path "$review_path" "$path" "$description" 1
+    done <<EOF
+${recording_path}	primary full recording
+${RECORDINGS_DIR}/raw/${recording_name}.raw.mov	raw full recording
+${contact_sheet}	contact sheet
+$(sample_manifest_path)	semantic sample manifest
+$(event_manifest_path)	event manifest
+${LOGS_DIR}/${recording_name}.annotations.tsv	annotation plan
+${LOGS_DIR}/${recording_name}.expected-chips.txt	annotation expected caption chips
+${LOGS_DIR}/slice-56-expected-chips.txt	guest expected command chips
+${LOGS_DIR}/slice-56-state-transitions.tsv	state transition log
+${LOGS_DIR}/guest-script-retry-summary.tsv	retry summary
+${LOGS_DIR}/slice-56-list-cards.log	card list log
+${LOGS_DIR}/slice-56-list-columns.log	column list log
+${LOGS_DIR}/slice-56-rule-create.log	rule-created card log
+${LOGS_DIR}/slice-56-deck-page.log	deck paging log
+${LOGS_DIR}/slice-56-card-summon.log	card summon log
+${LOGS_DIR}/slice-56-card-move.log	card move log
+${LOGS_DIR}/slice-56-scene-switch.log	scene switch log
+${LOGS_DIR}/slice-56-expose.log	expose log
+${LOGS_DIR}/slice-56-final-board-source.txt	final board source
+${RUN_DIR}/slice-56-domain-model-proof.txt	proof file
+${SCREENSHOTS_DIR}/02-scene-config-slice-56.png	scene config screenshot
+${SCREENSHOTS_DIR}/03-rule-create-slice-56.png	rule-created card screenshot
+${SCREENSHOTS_DIR}/04-deck-page-slice-56.png	deck paging screenshot
+${SCREENSHOTS_DIR}/05-card-summon-slice-56.png	card summon screenshot
+${SCREENSHOTS_DIR}/06-card-move-slice-56.png	card move screenshot
+${SCREENSHOTS_DIR}/07-scene-switch-slice-56.png	scene switch screenshot
+${SCREENSHOTS_DIR}/08-expose-display-slice-56.png	expose display screenshot
+${SCREENSHOTS_DIR}/09-expose-card-slice-56.png	expose card screenshot
+EOF
+    require_review_mentions_semantic_sample_paths_exact "$review_path" "$(sample_manifest_path)" "Slice 56 semantic sample"
+    require_review_mentions_edge_crop_paths_if_present "$review_path"
+
+    local chip
+    while IFS= read -r chip; do
+        [ -n "$chip" ] || continue
+        grep -F "$chip" "$review_path" >/dev/null \
+            || die "Slice 56 review does not cite expected caption chip: $chip"
+    done <"${LOGS_DIR}/${recording_name}.expected-chips.txt"
+
+    local event_id
+    for event_id in \
+        scene-config \
+        rule-create \
+        deck-page \
+        card-summon \
+        card-move \
+        scene-switch \
+        expose-display \
+        expose-card \
+        final-audit; do
+        grep -F "$event_id" "$review_path" >/dev/null \
+            || die "Slice 56 review must cite event: $event_id"
+    done
+
+    local exact
+    for exact in \
+        'Display' \
+        'Scene' \
+        'Column' \
+        'Card' \
+        'Rule' \
+        'config-v3-only' \
+        'Run: winmux scene desk' \
+        'Run: winmux card next' \
+        'Run: winmux card summon Comms' \
+        'Run: winmux card move triage:comms' \
+        'Run: winmux scene focus' \
+        'Run: winmux expose display' \
+        'Run: winmux expose card' \
+        'card summon Comms' \
+        'card move comms' \
+        'card move triage:comms' \
+        'scene focus' \
+        'scene next' \
+        'expose display' \
+        'expose card' \
+        'scene-config-pass=yes' \
+        'rule-create-pass=yes' \
+        'deck-page-pass=yes' \
+        'card-summon-pass=yes' \
+        'card-move-pass=yes' \
+        'scene-switch-pass=yes' \
+        'expose-pass=yes'; do
+        grep -F -- "$exact" "$review_path" >/dev/null \
+            || die "Slice 56 review must cite exact evidence text: $exact"
+    done
+
+    grep -Eiq 'zone-era|deleted zone|old zone|config-v2|config v2' "$review_path" \
+        || die "Slice 56 review must discuss the old zone-era/config-v2 boundary"
+    grep -Eiq 'logs-only|not logs-only|visual|screenshot|playable' "$review_path" \
+        || die "Slice 56 review must discuss visual/playable proof, not logs-only proof"
+}
+
 review_mentions_candidate() {
     local review_path="$1"
     local candidate="$2"
@@ -6204,6 +6313,7 @@ run_review_lint() {
     require_review_mentions_slice_46_evidence "$review_path"
     require_review_mentions_slice_47_evidence "$review_path"
     require_review_mentions_slice_48_evidence "$review_path"
+    require_review_mentions_slice_56_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \
@@ -11047,6 +11157,179 @@ require_slice_48_support_bundle_diagnostics_proof() {
     require_expected_caption_chips_exact "$expected_chips" "$annotation_plan"
     require_slice_48_event_manifest "$event_manifest"
     require_no_slice_48_post_recording_retries
+}
+
+require_no_slice_56_post_recording_retries() {
+    local summary_path="${LOGS_DIR}/guest-script-retry-summary.tsv"
+    local attempts failures final_result before_recording attempt_statuses mutation_started first_mutation_line
+    require_file "$summary_path"
+
+    attempts="$(transport_summary_value "$summary_path" slice-56-run attempts)"
+    failures="$(transport_summary_value "$summary_path" slice-56-run failures)"
+    final_result="$(transport_summary_value "$summary_path" slice-56-run final_result)"
+    before_recording="$(transport_summary_value "$summary_path" slice-56-run before_recording)"
+    attempt_statuses="$(transport_summary_value "$summary_path" slice-56-run attempt_statuses || true)"
+    mutation_started="$(transport_summary_value "$summary_path" slice-56-run mutation_started || true)"
+    first_mutation_line="$(transport_summary_value "$summary_path" slice-56-run first_mutation_line || true)"
+
+    [ "$attempts" = "1" ] || die "Slice 56 run row must record one attempt"
+    [ "$failures" = "0" ] || die "Slice 56 run row must record zero failures"
+    [ "$final_result" = "success" ] || die "Slice 56 run row must finish successfully"
+    [ "$before_recording" = "no" ] || die "Slice 56 run row must be post-recording proof"
+    [ "$attempt_statuses" = "success" ] || die "Slice 56 run row must record one successful attempt"
+    [ "$mutation_started" = "yes" ] || die "Slice 56 run row must report mutation_started=yes"
+    [ -n "$first_mutation_line" ] && [ "$first_mutation_line" != "-" ] \
+        || die "Slice 56 run row must report first_mutation_line"
+}
+
+require_slice_56_event_manifest() {
+    local manifest_path="$1"
+    require_event_manifest_paths "$manifest_path"
+    require_event_manifest_event "$manifest_path" scene-config context
+    require_event_manifest_event "$manifest_path" rule-create action
+    require_event_manifest_event "$manifest_path" deck-page action
+    require_event_manifest_event "$manifest_path" card-summon action
+    require_event_manifest_event "$manifest_path" card-move action
+    require_event_manifest_event "$manifest_path" scene-switch action
+    require_event_manifest_event "$manifest_path" expose-display inspection
+    require_event_manifest_event "$manifest_path" expose-card inspection
+    require_event_manifest_event "$manifest_path" final-audit result
+
+    require_event_before "$manifest_path" scene-config rule-create \
+        "Slice 56 scene config must precede rule-created card proof"
+    require_event_before "$manifest_path" rule-create deck-page \
+        "Slice 56 rule proof must precede deck paging"
+    require_event_before "$manifest_path" deck-page card-summon \
+        "Slice 56 deck paging must precede card summon"
+    require_event_before "$manifest_path" card-summon card-move \
+        "Slice 56 card summon must precede card moves"
+    require_event_before "$manifest_path" card-move scene-switch \
+        "Slice 56 card moves must precede scene switching"
+    require_event_before "$manifest_path" scene-switch expose-display \
+        "Slice 56 scene switching must precede expose display"
+    require_event_before "$manifest_path" expose-display expose-card \
+        "Slice 56 expose display must precede expose card"
+    require_event_before "$manifest_path" expose-card final-audit \
+        "Slice 56 expose card must precede final audit"
+
+    local event_id expected_path
+    for event_id in \
+        scene-config:screenshots/02-scene-config-slice-56.png \
+        rule-create:screenshots/03-rule-create-slice-56.png \
+        deck-page:screenshots/04-deck-page-slice-56.png \
+        card-summon:screenshots/05-card-summon-slice-56.png \
+        card-move:screenshots/06-card-move-slice-56.png \
+        scene-switch:screenshots/07-scene-switch-slice-56.png \
+        expose-display:screenshots/08-expose-display-slice-56.png \
+        expose-card:screenshots/09-expose-card-slice-56.png \
+        final-audit:logs/slice-56-final-board-source.txt; do
+        expected_path="${event_id#*:}"
+        event_id="${event_id%%:*}"
+        [ "$(require_event_manifest_value "$manifest_path" "$event_id" path)" = "$expected_path" ] \
+            || die "Slice 56 event manifest path mismatch for ${event_id}"
+    done
+}
+
+require_slice_56_domain_model_proof() {
+    local proof="${RUN_DIR}/slice-56-domain-model-proof.txt"
+    local done="${LOGS_DIR}/slice-56-domain-model.done"
+    local setup_log="${LOGS_DIR}/slice-56-setup.log"
+    local expected_chips="${LOGS_DIR}/slice-56-expected-chips.txt"
+    local state_transitions="${LOGS_DIR}/slice-56-state-transitions.tsv"
+    local final_board="${LOGS_DIR}/slice-56-final-board-source.txt"
+    local event_manifest
+    event_manifest="$(event_manifest_path)"
+
+    require_file "$proof"
+    require_success_marker "$done" "Slice 56"
+    require_file "$setup_log"
+    require_file "$expected_chips"
+    require_file "$state_transitions"
+    require_file "$final_board"
+    require_file "${LOGS_DIR}/slice-56-scene-config.log"
+    require_file "${LOGS_DIR}/slice-56-rule-create.log"
+    require_file "${LOGS_DIR}/slice-56-deck-page.log"
+    require_file "${LOGS_DIR}/slice-56-card-summon.log"
+    require_file "${LOGS_DIR}/slice-56-card-move.log"
+    require_file "${LOGS_DIR}/slice-56-scene-switch.log"
+    require_file "${LOGS_DIR}/slice-56-expose.log"
+    require_file "${LOGS_DIR}/slice-56-list-cards.log"
+    require_file "${LOGS_DIR}/slice-56-list-columns.log"
+    require_file "${SCREENSHOTS_DIR}/01-ready-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/02-scene-config-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/03-rule-create-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/04-deck-page-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/05-card-summon-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/06-card-move-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/07-scene-switch-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/08-expose-display-slice-56.png"
+    require_file "${SCREENSHOTS_DIR}/09-expose-card-slice-56.png"
+
+    local chip
+    for chip in \
+        'scene desk' \
+        'card next' \
+        'card prev' \
+        'card 2' \
+        'card summon Comms' \
+        'card move comms' \
+        'card move triage:comms' \
+        'scene focus' \
+        'scene next' \
+        'expose display' \
+        'expose card'; do
+        grep -Fx "$chip" "$expected_chips" >/dev/null \
+            || die "Slice 56 guest expected chips missing: $chip"
+    done
+
+    local transition
+    for transition in \
+        'seed	rule Inbox|Mail -> Comms' \
+        'page	card next' \
+        'page	card prev' \
+        'page	card 2' \
+        'summon	card summon Comms' \
+        'move	card move comms' \
+        'move	card move triage:comms' \
+        'scene	scene focus' \
+        'scene	scene next' \
+        'scene	scene desk' \
+        'expose	expose display' \
+        'expose	expose card'; do
+        grep -F "$transition" "$state_transitions" >/dev/null \
+            || die "Slice 56 state transitions missing: $transition"
+    done
+
+    for flag in \
+        'nouns=Display,Scene,Column,Card,Rule' \
+        'scene-config-pass=yes' \
+        'rule-create-pass=yes' \
+        'deck-page-pass=yes' \
+        'card-summon-pass=yes' \
+        'card-move-pass=yes' \
+        'scene-switch-pass=yes' \
+        'expose-pass=yes' \
+        'command-surface=config-v3-only'; do
+        grep -F "$flag" "$final_board" >/dev/null \
+            || die "Slice 56 final board missing: $flag"
+    done
+
+    grep -F 'PASS: the config-v3 command surface' "$proof" >/dev/null \
+        || die "Slice 56 proof missing PASS claim"
+    grep -F 'command-surface=config-v3-only' "$proof" >/dev/null \
+        || die "Slice 56 proof missing config-v3-only boundary"
+
+    require_expected_caption_chips_exact "${LOGS_DIR}/${recording_name}.expected-chips.txt" "$annotation_plan"
+    require_slice_56_event_manifest "$event_manifest"
+    require_sample_manifest_label_path "$(sample_manifest_path)" scene-config "screenshots/02-scene-config-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" rule-create "screenshots/03-rule-create-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" deck-page "screenshots/04-deck-page-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" card-summon "screenshots/05-card-summon-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" card-move "screenshots/06-card-move-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" scene-switch "screenshots/07-scene-switch-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" expose-display "screenshots/08-expose-display-slice-56.png"
+    require_sample_manifest_label_path "$(sample_manifest_path)" expose-card "screenshots/09-expose-card-slice-56.png"
+    require_no_slice_56_post_recording_retries
 }
 
 require_slice_8_window_routing_proof() {
@@ -16711,6 +16994,9 @@ case "$recording_name" in
     slice-48-support-bundle-diagnostics)
         require_slice_48_support_bundle_diagnostics_proof
         ;;
+    slice-56-domain-model)
+        require_slice_56_domain_model_proof
+        ;;
     slice-8-window-routing)
         require_slice_8_window_routing_proof
         ;;
@@ -16829,6 +17115,7 @@ if [ "$REQUIRE_REVIEW" = "1" ]; then
     require_review_mentions_slice_46_evidence "$review_path"
     require_review_mentions_slice_47_evidence "$review_path"
     require_review_mentions_slice_48_evidence "$review_path"
+    require_review_mentions_slice_56_evidence "$review_path"
     review_is_accepted "$review_path" \
         || die "Review verdict must be PASS/PASS_WITH_NOTES and allow the next slice"
     grep -Fx 'next slice allowed: yes' "$review_path" >/dev/null \

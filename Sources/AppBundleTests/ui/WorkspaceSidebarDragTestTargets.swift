@@ -276,31 +276,30 @@ extension WorkspaceSidebarDragTest {
         config.workspaceSidebar.enabled = true
         config.workspaceSidebar.enableFocus = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
-                layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
         ]
-        let zoneViewports = sortedMonitors
-        XCTAssertEqual(zoneViewports.compactMap(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(Set(zoneViewports.map { workspaceSidebarMonitorScopeId(for: $0) }).count, 1)
+        let columnViewports = sortedMonitors
+        XCTAssertEqual(columnViewports.compactMap(\.columnId), ["left", "main", "right"])
+        XCTAssertEqual(Set(columnViewports.map { workspaceSidebarMonitorScopeId(for: $0) }).count, 1)
 
         let scopes = buildWorkspaceSidebarMonitorScopes(
-            sortedMonitors: zoneViewports,
-            focusedMonitorScopeId: workspaceSidebarMonitorScopeId(for: zoneViewports[1]),
+            sortedMonitors: columnViewports,
+            focusedMonitorScopeId: workspaceSidebarMonitorScopeId(for: columnViewports[1]),
         )
 
         XCTAssertEqual(scopes.map(\.id), [
             workspaceSidebarDefaultScopeId,
             workspaceSidebarMonitorScopeId(for: main),
         ])
-        XCTAssertEqual(workspaceSidebarMonitor(forScopeId: workspaceSidebarMonitorScopeId(for: main))?.zoneId, "main")
+        XCTAssertEqual(workspaceSidebarMonitor(forScopeId: workspaceSidebarMonitorScopeId(for: main))?.columnId, "main")
     }
 
     @MainActor
@@ -316,21 +315,21 @@ extension WorkspaceSidebarDragTest {
         XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
         XCTAssertTrue(work.focusWorkspace())
 
-        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+        let targets = buildWorkspaceSidebarColumnTargetViewModels(
             sortedMonitors: sortedMonitors,
             currentFocus: focus,
         )
 
-        XCTAssertEqual(targets.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(targets.map(\.columnId), ["left", "main", "right"])
         XCTAssertEqual(targets.map(\.displayName), ["Reference", "Work", "Comms"])
         XCTAssertEqual(targets.map(\.activeWorkspaceName), ["reference", "work", "comms"].map(Optional.some))
         XCTAssertEqual(targets.map(\.isEnabled), [true, true, true])
         XCTAssertEqual(Set(targets.map(\.monitorScopeId)).count, 1)
-        XCTAssertEqual(targets.singleOrNil { $0.zoneId == "main" }?.isFocused, true)
+        XCTAssertEqual(targets.singleOrNil { $0.columnId == "main" }?.isFocused, true)
     }
 
     @MainActor
-    func testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenZoneIdsRepeat() {
+    func testSidebarZoneTargetsResolveWithinPhysicalMonitorScopeWhenColumnIdsRepeat() {
         setUpWorkspacesForTests()
         defer { setUpWorkspacesForTests() }
         let zones = configureWorkspaceSidebarDuplicateZonesByScope()
@@ -342,24 +341,24 @@ extension WorkspaceSidebarDragTest {
         XCTAssertTrue(zones.secondaryRight.setActiveWorkspace(secondaryRight))
         XCTAssertTrue(mainRight.focusWorkspace())
 
-        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+        let targets = buildWorkspaceSidebarColumnTargetViewModels(
             sortedMonitors: sortedMonitors,
             currentFocus: focus,
         )
 
-        XCTAssertEqual(targets.filter { $0.monitorScopeId == mainScope }.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(targets.filter { $0.monitorScopeId == secondaryScope }.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(targets.filter { $0.zoneId == "right" }.map(\.activeWorkspaceName), ["main-comms", "secondary-comms"].map(Optional.some))
-        XCTAssertEqual(targets.filter { $0.zoneId == "right" }.map(\.displayName), ["Main Comms", "Secondary Comms"])
-        XCTAssertTrue(workspaceSidebarResolvedZoneTarget(monitorScopeId: mainScope, zoneId: "right")?.activeWorkspace === mainRight)
-        XCTAssertTrue(workspaceSidebarResolvedZoneTarget(monitorScopeId: secondaryScope, zoneId: "right")?.activeWorkspace === secondaryRight)
+        XCTAssertEqual(targets.filter { $0.monitorScopeId == mainScope }.map(\.columnId), ["left", "main", "right"])
+        XCTAssertEqual(targets.filter { $0.monitorScopeId == secondaryScope }.map(\.columnId), ["left", "main", "right"])
+        XCTAssertEqual(targets.filter { $0.columnId == "right" }.map(\.activeWorkspaceName), ["main-comms", "secondary-comms"].map(Optional.some))
+        XCTAssertEqual(targets.filter { $0.columnId == "right" }.map(\.displayName), ["Main Comms", "Secondary Comms"])
+        XCTAssertTrue(workspaceSidebarResolvedColumnTarget(monitorScopeId: mainScope, columnId: "right")?.activeWorkspace === mainRight)
+        XCTAssertTrue(workspaceSidebarResolvedColumnTarget(monitorScopeId: secondaryScope, columnId: "right")?.activeWorkspace === secondaryRight)
         XCTAssertTrue(isActionableSidebarWorkspaceDropTarget(
             sourceWorkspaceName: "secondary-comms",
-            targetKind: .zone(monitorScopeId: mainScope, zoneId: "right"),
+            targetKind: .column(monitorScopeId: mainScope, columnId: "right"),
         ))
         XCTAssertFalse(isActionableSidebarWorkspaceDropTarget(
             sourceWorkspaceName: "secondary-comms",
-            targetKind: .zone(monitorScopeId: secondaryScope, zoneId: "right"),
+            targetKind: .column(monitorScopeId: secondaryScope, columnId: "right"),
         ))
     }
 
@@ -373,9 +372,9 @@ extension WorkspaceSidebarDragTest {
 
         XCTAssertFalse(isActionableSidebarWorkspaceDropTarget(
             sourceWorkspaceName: "comms",
-            targetKind: .zone(
+            targetKind: .column(
                 monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
-                zoneId: "right",
+                columnId: "right",
             ),
         ))
     }
@@ -390,9 +389,9 @@ extension WorkspaceSidebarDragTest {
 
         XCTAssertTrue(isActionableSidebarWorkspaceDropTarget(
             sourceWorkspaceName: "work",
-            targetKind: .zone(
+            targetKind: .column(
                 monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
-                zoneId: "right",
+                columnId: "right",
             ),
         ))
     }
@@ -412,7 +411,7 @@ extension WorkspaceSidebarDragTest {
             window.windowId,
             subject: .window,
             monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
-            zoneId: "right",
+            columnId: "right",
         ))
 
         XCTAssertTrue(window.nodeWorkspace === comms)
@@ -436,7 +435,7 @@ extension WorkspaceSidebarDragTest {
             first.windowId,
             subject: .group,
             monitorScopeId: workspaceSidebarMonitorScopeId(for: zones["right"].orDie()),
-            zoneId: "right",
+            columnId: "right",
         ))
 
         XCTAssertTrue(tabGroup.nodeWorkspace === comms)
@@ -490,20 +489,19 @@ private func configureWorkspaceSidebarThreeZones(defaultZone: String = "main") -
     config.workspaceSidebar.enabled = true
     config.workspaceSidebar.enableFocus = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: defaultZone,
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
     refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 
@@ -533,24 +531,24 @@ private func configureWorkspaceSidebarDuplicateZonesByScope() -> (
     config.workspaceSidebar.enabled = true
     config.workspaceSidebar.enableFocus = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
+            layoutId: "main-layout",
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Main Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Main Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Main Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Main Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Main Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Main Comms", width: 0.25),
             ],
         ),
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(2),
-            layout: .columns,
+            layoutId: "secondary-layout",
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Secondary Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Secondary Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Secondary Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Secondary Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Secondary Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Secondary Comms", width: 0.25),
             ],
         ),
     ]
@@ -560,7 +558,7 @@ private func configureWorkspaceSidebarDuplicateZonesByScope() -> (
     return (
         mainScope: mainScope,
         secondaryScope: secondaryScope,
-        mainRight: workspaceSidebarResolvedZoneTarget(monitorScopeId: mainScope, zoneId: "right").orDie().monitor,
-        secondaryRight: workspaceSidebarResolvedZoneTarget(monitorScopeId: secondaryScope, zoneId: "right").orDie().monitor,
+        mainRight: workspaceSidebarResolvedColumnTarget(monitorScopeId: mainScope, columnId: "right").orDie().monitor,
+        secondaryRight: workspaceSidebarResolvedColumnTarget(monitorScopeId: secondaryScope, columnId: "right").orDie().monitor,
     )
 }

@@ -26,15 +26,16 @@ private func assertRectsEqual(
     XCTAssertEqual(actual.map(\.height), expected.map(\.height), file: file, line: line)
 }
 
-private func threeColumnZoneConfig(monitor: MonitorDescription = .main, defaultZone: String = "main") -> ZoneConfig {
-    ZoneConfig(
+@MainActor
+private func threeColumnDisplayLayoutConfig(monitor: MonitorDescription = .main, defaultZone: String = "main") -> DisplayLayoutConfig {
+    testDisplayLayoutConfig(
         monitor: monitor,
-        layout: .columns,
+        layoutId: "three-column-\(monitorDescriptionLabel(monitor))",
         defaultZone: defaultZone,
         columns: [
-            ZoneColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
-            ZoneColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
-            ZoneColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
+            ColumnConfig(id: "left", name: "Left", width: 1.0 / 3.0),
+            ColumnConfig(id: "main", name: "Main", width: 1.0 / 3.0),
+            ColumnConfig(id: "right", name: "Right", width: 1.0 / 3.0),
         ],
     )
 }
@@ -165,21 +166,21 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(1),
-                layout: .columns,
+                layoutId: "main-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
         ]
 
         let viewports = monitors
 
-        XCTAssertEqual(viewports.map(\.zoneId), ["left", "main", "right", nil])
+        XCTAssertEqual(viewports.map(\.columnId), ["left", "main", "right", nil])
         XCTAssertEqual(viewports.map(\.physicalMonitor.name), ["Main", "Main", "Main", "Secondary"])
         XCTAssertEqual(viewports.map(\.monitorId_oneBased), [1, 1, 1, 2])
         assertRectsEqual(viewports.map(\.rect), [
@@ -202,7 +203,7 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
 
         XCTAssertEqual(workspaceViewports.count, 1)
-        XCTAssertNil(workspaceViewports[0].zoneId)
+        XCTAssertNil(workspaceViewports[0].columnId)
         assertRectsEqual(workspaceViewports.map(\.rect), [main.rect])
     }
 
@@ -217,10 +218,10 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        config.zones = [threeColumnZoneConfig()]
+        config.zones = [threeColumnDisplayLayoutConfig()]
 
-        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertEqual(monitors.map(\.zoneId), workspaceViewports.map(\.zoneId))
+        XCTAssertEqual(workspaceViewports.map(\.columnId), ["left", "main", "right"])
+        XCTAssertEqual(monitors.map(\.columnId), workspaceViewports.map(\.columnId))
         assertRectsEqual(workspaceViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 800),
             Rect(topLeftX: 300, topLeftY: 0, width: 300, height: 800),
@@ -240,9 +241,9 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        config.zones = [threeColumnZoneConfig()]
+        config.zones = [threeColumnDisplayLayoutConfig()]
         let viewports = workspaceViewports
-        XCTAssertEqual(viewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(viewports.map(\.columnId), ["left", "main", "right"])
 
         let left = Workspace.get(byName: "left-workspace")
         let center = Workspace.get(byName: "center-workspace")
@@ -269,19 +270,19 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .main,
-                layout: .columns,
+                layoutId: "identity-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
         ]
         let originalViewports = workspaceViewports
-        XCTAssertEqual(originalViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(originalViewports.map(\.columnId), ["left", "main", "right"])
 
         let left = Workspace.get(byName: "left-workspace")
         let center = Workspace.get(byName: "center-workspace")
@@ -290,22 +291,22 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(originalViewports[1].setActiveWorkspace(center))
         XCTAssertTrue(originalViewports[2].setActiveWorkspace(right))
 
-        config.zones = [
-            ZoneConfig(
-                monitor: .main,
+        config.columnLayouts = [
+            ColumnLayoutConfig(
+                id: "identity-layout",
                 layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.20),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.60),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.20),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.20),
+                    ColumnConfig(id: "main", name: "Work", width: 0.60),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.20),
                 ],
             ),
         ]
         Workspace.reconcileWorkspaceState()
         let updatedViewports = workspaceViewports
 
-        XCTAssertEqual(updatedViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(updatedViewports.map(\.columnId), ["left", "main", "right"])
         assertRectsEqual(updatedViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 200, height: 800),
             Rect(topLeftX: 200, topLeftY: 0, width: 600, height: 800),
@@ -322,7 +323,7 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(updatedViewports[2].activeWorkspace === right)
     }
 
-    func testActiveZoneLayoutPresetSwitchChangesGeometryAndKeepsZoneIdentity() {
+    func testActiveColumnLayoutPresetSwitchChangesGeometryAndKeepsColumnIdentity() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -333,36 +334,36 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        config.zoneLayouts = [
-            ZoneLayoutConfig(
+        config.columnLayouts = [
+            ColumnLayoutConfig(
                 id: "balanced",
                 layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
-            ZoneLayoutConfig(
+            ColumnLayoutConfig(
                 id: "focus",
                 layout: .columns,
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.15),
+                    ColumnConfig(id: "main", name: "Work", width: 0.70),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.15),
                 ],
             ),
         ]
         config.zones = [
-            ZoneConfig(
+            DisplayLayoutConfig(
                 monitor: .main,
                 layoutPreset: "balanced",
             ),
         ]
         let originalViewports = workspaceViewports
-        XCTAssertEqual(originalViewports.map(\.zoneLayoutId), ["balanced", "balanced", "balanced"])
+        XCTAssertEqual(originalViewports.map(\.columnLayoutId), ["balanced", "balanced", "balanced"])
         assertRectsEqual(originalViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 250, height: 800),
             Rect(topLeftX: 250, topLeftY: 0, width: 500, height: 800),
@@ -375,14 +376,14 @@ final class MonitorTopologyTest: XCTestCase {
         XCTAssertTrue(originalViewports[1].setActiveWorkspace(center))
         XCTAssertTrue(originalViewports[2].setActiveWorkspace(right))
 
-        switch setActiveZoneLayout("focus", for: main) {
+        switch setActiveColumnLayout("focus", for: main) {
             case .success: break
             case .failure(let msg): XCTFail(msg)
         }
         let updatedViewports = workspaceViewports
 
-        XCTAssertEqual(updatedViewports.map(\.zoneLayoutId), ["focus", "focus", "focus"])
-        XCTAssertEqual(updatedViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(updatedViewports.map(\.columnLayoutId), ["focus", "focus", "focus"])
+        XCTAssertEqual(updatedViewports.map(\.columnId), ["left", "main", "right"])
         assertRectsEqual(updatedViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 150, height: 800),
             Rect(topLeftX: 150, topLeftY: 0, width: 700, height: 800),
@@ -408,19 +409,19 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
-                monitor: MonitorDescription.caseSensitivePattern("Studio Ultrawide"),
-                layout: .columns,
+            testDisplayLayoutConfig(
+                monitor: MonitorDescription.caseSensitivePattern("Studio Ultrawide")!,
+                layoutId: "studio-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.20),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.60),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.20),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.20),
+                    ColumnConfig(id: "main", name: "Work", width: 0.60),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.20),
                 ],
             ),
         ]
         let originalViewports = workspaceViewports
-        XCTAssertEqual(originalViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(originalViewports.map(\.columnId), ["left", "main", "right"])
         XCTAssertEqual(originalViewports.map(\.monitorAppKitNsScreenScreensId), [7, 7, 7])
 
         let reference = Workspace.get(byName: "reference-after-id-churn")
@@ -441,7 +442,7 @@ final class MonitorTopologyTest: XCTestCase {
         Workspace.reconcileWorkspaceState()
         let returnedViewports = workspaceViewports
 
-        XCTAssertEqual(returnedViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(returnedViewports.map(\.columnId), ["left", "main", "right"])
         XCTAssertEqual(returnedViewports.map(\.monitorAppKitNsScreenScreensId), [42, 42, 42])
         XCTAssertEqual(returnedViewports.map(\.physicalMonitor.name), ["Studio Ultrawide", "Studio Ultrawide", "Studio Ultrawide"])
         assertRectsEqual(returnedViewports.map(\.rect), [
@@ -469,26 +470,26 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .main,
-                layout: .columns,
+                layoutId: "disabled-middle-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                    ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                    ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                    ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                    ColumnConfig(id: "main", name: "Work", width: 0.50),
+                    ColumnConfig(id: "right", name: "Comms", width: 0.25),
                 ],
             ),
         ]
 
-        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(workspaceViewports.map(\.columnId), ["left", "main", "right"])
         assertRectsEqual(workspaceViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 800),
             Rect(topLeftX: 300, topLeftY: 0, width: 600, height: 800),
             Rect(topLeftX: 900, topLeftY: 0, width: 300, height: 800),
         ])
 
-        switch setZoneAvailability(.disable, selector: ZoneSelector("Work")) {
+        switch setColumnVisibility(.disable, selector: ColumnSelector("Work")) {
             case .success(let change):
                 XCTAssertFalse(change.isEnabled)
                 XCTAssertTrue(change.changed)
@@ -496,18 +497,18 @@ final class MonitorTopologyTest: XCTestCase {
                 XCTFail(msg)
         }
 
-        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "right"])
+        XCTAssertEqual(workspaceViewports.map(\.columnId), ["left", "right"])
         assertRectsEqual(workspaceViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 600, height: 800),
             Rect(topLeftX: 600, topLeftY: 0, width: 600, height: 800),
         ])
         XCTAssertEqual(workspaceViewports.map(\.isMain), [true, false])
         XCTAssertEqual(
-            getCurrentColumnTopologySnapshot().configuredZones(for: sortedPhysicalMonitors).map { "\($0.zoneId):\($0.isDefaultZone):\($0.isEnabled)" },
+            getCurrentColumnTopologySnapshot().configuredColumns(for: sortedPhysicalMonitors).map { "\($0.columnId):\($0.isDefaultColumn):\($0.isEnabled)" },
             ["left:true:true", "main:false:false", "right:false:true"],
         )
 
-        switch setZoneAvailability(.enable, selector: ZoneSelector("main")) {
+        switch setColumnVisibility(.enable, selector: ColumnSelector("main")) {
             case .success(let change):
                 XCTAssertTrue(change.isEnabled)
                 XCTAssertTrue(change.changed)
@@ -515,7 +516,7 @@ final class MonitorTopologyTest: XCTestCase {
                 XCTFail(msg)
         }
 
-        XCTAssertEqual(workspaceViewports.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(workspaceViewports.map(\.columnId), ["left", "main", "right"])
         assertRectsEqual(workspaceViewports.map(\.rect), [
             Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 800),
             Rect(topLeftX: 300, topLeftY: 0, width: 600, height: 800),
@@ -592,11 +593,11 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main, unnamed])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        config.zones = [threeColumnZoneConfig(monitor: .sequenceNumber(2))]
+        config.zones = [threeColumnDisplayLayoutConfig(monitor: .sequenceNumber(2))]
         refreshColumnTopologySnapshot()
 
-        let rightZone = monitors.first { $0.zoneId == "right" }.orDie()
-        let mainZone = monitors.first { $0.zoneId == "main" }.orDie()
+        let rightZone = monitors.first { $0.columnId == "right" }.orDie()
+        let mainZone = monitors.first { $0.columnId == "main" }.orDie()
         let work = Workspace.get(byName: "merge-work")
         _ = TestWindow.new(id: 1, parent: work.rootTilingContainer)
         XCTAssertTrue(mainZone.setActiveWorkspace(work))
@@ -618,13 +619,13 @@ final class MonitorTopologyTest: XCTestCase {
         )
         setMonitorsForTests([main, movedUnnamed])
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .sequenceNumber(2),
-                layout: .columns,
+                layoutId: "unnamed-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", name: "Left", width: 0.5),
-                    ZoneColumnConfig(id: "main", name: "Main", width: 0.5),
+                    ColumnConfig(id: "left", name: "Left", width: 0.5),
+                    ColumnConfig(id: "main", name: "Main", width: 0.5),
                 ],
             ),
         ]
@@ -703,20 +704,20 @@ final class MonitorTopologyTest: XCTestCase {
         setMonitorsForTests([main])
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
-        config.zones = [threeColumnZoneConfig()]
+        config.zones = [threeColumnDisplayLayoutConfig()]
 
         Workspace.reconcileWorkspaceState()
-        let defaultZone = monitors.singleOrNil { $0.zoneId == "main" }.orDie()
-        XCTAssertTrue(defaultZone.isDefaultZone)
+        let defaultZone = monitors.singleOrNil { $0.columnId == "main" }.orDie()
+        XCTAssertTrue(defaultZone.isDefaultColumn)
         XCTAssertTrue(mainMonitor.activeWorkspace === defaultZone.activeWorkspace)
-        XCTAssertEqual(mainMonitor.activeWorkspace.workspaceMonitor.zoneId, "main")
+        XCTAssertEqual(mainMonitor.activeWorkspace.workspaceMonitor.columnId, "main")
 
         let workspace = Workspace.get(byName: "default-zone-workspace")
         XCTAssertTrue(mainMonitor.setActiveWorkspace(workspace))
         XCTAssertTrue(defaultZone.activeWorkspace === workspace)
     }
 
-    func testZoneLayoutUsesPhysicalOuterGapsAndSidebarInsetOnce() {
+    func testColumnLayoutUsesPhysicalOuterGapsAndSidebarInsetOnce() {
         let main = MonitorTopologyTestMonitor(
             monitorAppKitNsScreenScreensId: 1,
             name: "Main",
@@ -730,13 +731,13 @@ final class MonitorTopologyTest: XCTestCase {
         config.workspaceSidebar.collapsedWidth = 50
         config.workspaceSidebar.monitor = [.main]
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .main,
-                layout: .columns,
+                layoutId: "gaps-sidebar-layout",
                 defaultZone: "left",
                 columns: [
-                    ZoneColumnConfig(id: "left", width: 0.50),
-                    ZoneColumnConfig(id: "right", width: 0.50),
+                    ColumnConfig(id: "left", width: 0.50),
+                    ColumnConfig(id: "right", width: 0.50),
                 ],
             ),
         ]
@@ -762,14 +763,14 @@ final class MonitorTopologyTest: XCTestCase {
         config.gaps = .zero
         config.workspaceSidebar.enabled = false
         config.zones = [
-            ZoneConfig(
+            testDisplayLayoutConfig(
                 monitor: .main,
-                layout: .columns,
+                layoutId: "parking-layout",
                 defaultZone: "main",
                 columns: [
-                    ZoneColumnConfig(id: "left", width: 1),
-                    ZoneColumnConfig(id: "main", width: 1),
-                    ZoneColumnConfig(id: "right", width: 1),
+                    ColumnConfig(id: "left", width: 1),
+                    ColumnConfig(id: "main", width: 1),
+                    ColumnConfig(id: "right", width: 1),
                 ],
             ),
         ]
@@ -788,10 +789,10 @@ final class MonitorTopologyTest: XCTestCase {
                 isZoom: false,
             )
 
-            XCTAssertEqual(rightPoint.x, 1199, "right parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
-            XCTAssertEqual(rightPoint.y, 799, "right parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
-            XCTAssertEqual(leftPoint.x, -249, "left parking should use the physical monitor edge and window width for \(zone.zoneId ?? "unknown")")
-            XCTAssertEqual(leftPoint.y, 799, "left parking should use the physical monitor edge for \(zone.zoneId ?? "unknown")")
+            XCTAssertEqual(rightPoint.x, 1199, "right parking should use the physical monitor edge for \(zone.columnId ?? "unknown")")
+            XCTAssertEqual(rightPoint.y, 799, "right parking should use the physical monitor edge for \(zone.columnId ?? "unknown")")
+            XCTAssertEqual(leftPoint.x, -249, "left parking should use the physical monitor edge and window width for \(zone.columnId ?? "unknown")")
+            XCTAssertEqual(leftPoint.y, 799, "left parking should use the physical monitor edge for \(zone.columnId ?? "unknown")")
         }
     }
 }

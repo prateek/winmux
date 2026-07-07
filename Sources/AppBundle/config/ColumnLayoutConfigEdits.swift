@@ -1,26 +1,26 @@
 import Foundation
 
-enum ZoneLayoutConfigEditTarget: Equatable {
+enum ColumnLayoutConfigEditTarget: Equatable {
     case inlineZones(index: Int)
     case namedLayout(id: String)
 }
 
-struct ZoneLayoutConfigWidthChange: Equatable {
-    let zoneId: String
+struct ColumnLayoutConfigWidthChange: Equatable {
+    let columnId: String
     let oldWidth: Double
     let newWidth: Double
 }
 
-struct ZoneLayoutConfigEditResult: Equatable {
+struct ColumnLayoutConfigEditResult: Equatable {
     let updatedText: String
-    let changes: [ZoneLayoutConfigWidthChange]
+    let changes: [ColumnLayoutConfigWidthChange]
 }
 
-func updateZoneLayoutWidthsInConfigText(
+func updateColumnLayoutWidthsInConfigText(
     _ configText: String,
-    target: ZoneLayoutConfigEditTarget,
-    widthsByZoneId: [String: Double],
-) -> Result<ZoneLayoutConfigEditResult, String> {
+    target: ColumnLayoutConfigEditTarget,
+    widthsByColumnId: [String: Double],
+) -> Result<ColumnLayoutConfigEditResult, String> {
     let tableName: String
     let blockIndexResult: Result<Int, String>
     switch target {
@@ -29,7 +29,7 @@ func updateZoneLayoutWidthsInConfigText(
             blockIndexResult = .success(index)
         case .namedLayout(let id):
             tableName = "zone-layouts"
-            blockIndexResult = zoneLayoutBlockIndex(in: configText, layoutId: id)
+            blockIndexResult = columnLayoutBlockIndex(in: configText, layoutId: id)
     }
     guard case .success(let targetBlockIndex) = blockIndexResult else {
         if case .failure(let message) = blockIndexResult {
@@ -48,10 +48,10 @@ func updateZoneLayoutWidthsInConfigText(
     switch updateColumnsBlock(
         in: &lines,
         block: blocks[targetBlockIndex],
-        widthsByZoneId: widthsByZoneId,
+        widthsByColumnId: widthsByColumnId,
     ) {
         case .success(let changes):
-            return .success(ZoneLayoutConfigEditResult(updatedText: lines.joined(separator: lineSeparator), changes: changes))
+            return .success(ColumnLayoutConfigEditResult(updatedText: lines.joined(separator: lineSeparator), changes: changes))
         case .failure(let message):
             return .failure(message)
     }
@@ -62,7 +62,7 @@ private struct TomlTableBlock {
     let end: Int
 }
 
-private func zoneLayoutBlockIndex(in configText: String, layoutId: String) -> Result<Int, String> {
+private func columnLayoutBlockIndex(in configText: String, layoutId: String) -> Result<Int, String> {
     let lineSeparator = configText.contains("\r\n") ? "\r\n" : "\n"
     let lines = configText.components(separatedBy: lineSeparator)
     let blocks = arrayTableBlocks(named: "zone-layouts", in: lines)
@@ -92,8 +92,8 @@ private func arrayTableBlocks(named tableName: String, in lines: [String]) -> [T
 private func updateColumnsBlock(
     in lines: inout [String],
     block: TomlTableBlock,
-    widthsByZoneId: [String: Double],
-) -> Result<[ZoneLayoutConfigWidthChange], String> {
+    widthsByColumnId: [String: Double],
+) -> Result<[ColumnLayoutConfigWidthChange], String> {
     guard let columnsStart = ((block.start + 1)..<block.end).first(where: { tomlAssignmentKey(in: lines[$0]) == "columns" }) else {
         return .failure("Target zone layout has no columns array")
     }
@@ -101,7 +101,7 @@ private func updateColumnsBlock(
         return .failure("Target columns assignment is not an array")
     }
     guard !stripTomlInlineComment(String(lines[columnsStart])).contains("]") else {
-        return .failure("Single-line columns arrays are not supported by save-zone-layout yet")
+        return .failure("Single-line columns arrays are not supported by layout persistence yet")
     }
     guard let columnsEnd = ((columnsStart + 1)..<block.end).first(where: { lineIndex in
         stripTomlInlineComment(String(lines[lineIndex])).trimmingCharacters(in: .whitespaces).hasPrefix("]")
@@ -109,22 +109,22 @@ private func updateColumnsBlock(
         return .failure("Target columns array is missing a closing bracket")
     }
 
-    var seenZoneIds: [String] = []
-    var replacements: [(lineIndex: Int, line: String, change: ZoneLayoutConfigWidthChange)] = []
+    var seenColumnIds: [String] = []
+    var replacements: [(lineIndex: Int, line: String, change: ColumnLayoutConfigWidthChange)] = []
     for lineIndex in (columnsStart + 1)..<columnsEnd {
         let line = lines[lineIndex]
-        guard let zoneId = tomlInlineTableStringValue(for: "id", in: line) else { continue }
-        guard !seenZoneIds.contains(zoneId) else {
-            return .failure("Target columns array contains duplicated zone id '\(zoneId)'")
+        guard let columnId = tomlInlineTableStringValue(for: "id", in: line) else { continue }
+        guard !seenColumnIds.contains(columnId) else {
+            return .failure("Target columns array contains duplicated zone id '\(columnId)'")
         }
-        seenZoneIds.append(zoneId)
-        guard let newWidth = widthsByZoneId[zoneId] else {
-            return .failure("Target columns array contains zone id '\(zoneId)' that is not active in the runtime layout")
+        seenColumnIds.append(columnId)
+        guard let newWidth = widthsByColumnId[columnId] else {
+            return .failure("Target columns array contains zone id '\(columnId)' that is not active in the runtime layout")
         }
         guard let oldWidthRange = tomlAssignmentValueRange(for: "width", in: line),
               let oldWidth = Double(String(line[oldWidthRange]).trimmingCharacters(in: .whitespaces))
         else {
-            return .failure("Target column '\(zoneId)' is missing an editable width value")
+            return .failure("Target column '\(columnId)' is missing an editable width value")
         }
         let renderedWidth = formatTomlFloat(newWidth)
         var updatedLine = line
@@ -132,11 +132,11 @@ private func updateColumnsBlock(
         replacements.append((
             lineIndex: lineIndex,
             line: updatedLine,
-            change: ZoneLayoutConfigWidthChange(zoneId: zoneId, oldWidth: oldWidth, newWidth: newWidth)
+            change: ColumnLayoutConfigWidthChange(columnId: columnId, oldWidth: oldWidth, newWidth: newWidth)
         ))
     }
 
-    let missingIds = Set(widthsByZoneId.keys).subtracting(seenZoneIds).sorted()
+    let missingIds = Set(widthsByColumnId.keys).subtracting(seenColumnIds).sorted()
     guard missingIds.isEmpty else {
         return .failure("Target columns array is missing active runtime zone ids: \(missingIds.joined(separator: ", "))")
     }

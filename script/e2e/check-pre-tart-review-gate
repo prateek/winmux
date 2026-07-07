@@ -112,12 +112,12 @@ configure_slice_requirements() {
                 "README.md"
                 "Package.swift"
                 "Sources/Common/cmdArgs/impl/ZoneCmdArgs.swift"
-                "Sources/Common/zoneInit/ZoneInitConfig.swift"
+                "Sources/Common/columnInit/ColumnInitConfig.swift"
                 "Sources/Cli/_main.swift"
                 "Sources/Cli/LocalConfigCommands.swift"
                 "Sources/AppBundle/config/Config.swift"
                 "Sources/AppBundle/command/impl/ZoneCommand.swift"
-                "Sources/AppBundle/config/ZoneInitConfigEdits.swift"
+                "Sources/AppBundle/config/ColumnInitConfigEdits.swift"
                 "Sources/AppBundleTests/command/ZoneCommandTest.swift"
                 "Sources/AppBundleTests/config/ConfigBootstrapTest.swift"
                 "makefile"
@@ -261,8 +261,8 @@ configure_slice_requirements() {
             required_mentions=(
                 "Slice 47"
                 "docs/plans/columnar-zones.md"
-                "Sources/AppBundle/ui/sidebar/WorkspaceSidebarZoneTargetSection.swift"
-                "Sources/AppBundle/ui/sidebar/WorkspaceSidebarZoneTargetSnapshotBuilder.swift"
+                "Sources/AppBundle/ui/sidebar/WorkspaceSidebarColumnTargetSection.swift"
+                "Sources/AppBundle/ui/sidebar/WorkspaceSidebarColumnTargetSnapshotBuilder.swift"
                 "Sources/AppBundle/ui/sidebar/models/WorkspaceSidebarWorkspaceViewModel.swift"
                 "Sources/AppBundleTests/config/ConfigTestZones.swift"
                 "Sources/AppBundleTests/ui/WorkspaceSidebarDragTestTargets.swift"
@@ -285,7 +285,7 @@ configure_slice_requirements() {
                 "Slice 48"
                 "docs/plans/columnar-zones.md"
                 "Sources/AppBundle/command/impl/DoctorCommand.swift"
-                "Sources/AppBundle/diagnostics/ZoneSupportBundle.swift"
+                "Sources/AppBundle/diagnostics/SupportBundle.swift"
                 "Sources/AppBundleTests/command/DoctorCommandTest.swift"
                 "Sources/Common/cmdArgs/cmdArgsManifest.swift"
                 "Sources/Common/cmdArgs/impl/DoctorCmdArgs.swift"
@@ -399,6 +399,38 @@ configure_slice_requirements() {
                 "later enhancements"
                 "PUBLISH=0"
                 "does not mean broad public release"
+            )
+            ;;
+        slice-56)
+            required_mentions=(
+                "Slice 56"
+                "docs/plans/columnar-zones.md"
+                "docs/plans/slice-56-domain-model.md"
+                "AGENTS.md"
+                "makefile"
+                "script/e2e/check-slice-56-contract"
+                "script/e2e/specs/slice-56-domain-model.tsv"
+                "script/e2e/guest/slice-56-domain-model.sh"
+                "script/e2e/check-pre-tart-review-gate"
+                "script/e2e/tart-recording-harness"
+                "script/e2e/verify-artifact"
+                "script/e2e/write-review-packet"
+                "script/e2e/prompts/no-context-artifact-review.md"
+                "Display"
+                "Scene"
+                "Column"
+                "Card"
+                "Rule"
+                "scene desk"
+                "card next"
+                "card summon Comms"
+                "card move triage:comms"
+                "scene focus"
+                "expose display"
+                "expose card"
+                "slice-56-expected-chips.txt"
+                "slice-56-state-transitions.tsv"
+                "config-v3-only"
             )
             ;;
         *)
@@ -704,6 +736,12 @@ run_self_test() {
     WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
     write_clean_self_test_reports "$report_dir"
     validate_gate "$run_dir" slice-51 >/dev/null
+
+    configure_slice_requirements slice-56
+    write_freshness_manifest "$run_dir" slice-56 >/dev/null
+    WINMUX_PRE_TART_SELF_TEST_FRESHNESS="$(freshness_manifest_path "$run_dir")"
+    write_clean_self_test_reports "$report_dir"
+    validate_gate "$run_dir" slice-56 >/dev/null
 
     configure_slice_requirements slice-34
     write_freshness_manifest "$run_dir" slice-34 >/dev/null

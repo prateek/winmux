@@ -2,37 +2,36 @@ import CoreGraphics
 import Foundation
 
 @MainActor
-func buildWorkspaceSidebarZoneTargetViewModels(
+func buildWorkspaceSidebarColumnTargetViewModels(
     sortedMonitors: [Monitor],
     currentFocus: LiveFocus,
-) -> [WorkspaceSidebarZoneTargetViewModel] {
+) -> [WorkspaceSidebarColumnTargetViewModel] {
     let physicalMonitors = workspaceSidebarPhysicalMonitors(from: sortedMonitors)
-    let activeColumnMonitors = sortedMonitors.filter { $0.zoneId != nil }
+    let activeColumnMonitors = sortedMonitors.filter { $0.columnId != nil }
     return getCurrentColumnTopologySnapshot()
-        .configuredZones(for: physicalMonitors)
+        .configuredColumns(for: physicalMonitors)
         .map { zone in
             let monitorScopeId = workspaceSidebarMonitorScopeId(for: zone.physicalMonitor)
             let activeWorkspace = activeColumnMonitors
                 .first {
-                    $0.zoneId == zone.zoneId &&
+                    $0.columnId == zone.columnId &&
                         $0.physicalMonitor.rect.topLeftCorner == zone.physicalMonitor.rect.topLeftCorner
                 }?
                 .activeWorkspace
-            return WorkspaceSidebarZoneTargetViewModel(
-                id: "\(monitorScopeId):\(zone.zoneId)",
+            return WorkspaceSidebarColumnTargetViewModel(
+                id: "\(monitorScopeId):\(zone.columnId)",
                 monitorScopeId: monitorScopeId,
-                zoneId: zone.zoneId,
+                columnId: zone.columnId,
                 displayName: zone.displayName,
                 activeWorkspaceName: activeWorkspace?.name,
                 activeWorkspaceDisplayName: activeWorkspace
                     .map { workspaceDisplayName($0.name) }
                     ?? "Hidden",
                 isFocused: activeWorkspace.map { currentFocus.workspace === $0 } ?? false,
-                isDefaultZone: zone.isDefaultZone,
+                isDefaultColumn: zone.isDefaultColumn,
                 isEnabled: zone.isEnabled,
-                availabilitySetId: zone.zoneAvailabilitySetId,
                 styleId: zone.zoneStyleId,
-                styleColorHex: zone.zoneStyleColorHex,
+                styleColorHex: zone.columnColorHex,
             )
         }
 }
@@ -65,8 +64,8 @@ private func workspaceSidebarPhysicalMonitors(from monitors: [Monitor]) -> [Moni
         .filter { seenTopLeftCorners.insert($0.rect.topLeftCorner).inserted }
 }
 
-func workspaceSidebarZoneDisplayName(_ monitor: Monitor) -> String {
-    monitor.zoneName?.takeIf { !$0.isEmpty } ?? monitor.zoneId ?? "Zone"
+func workspaceSidebarColumnDisplayName(_ monitor: Monitor) -> String {
+    monitor.columnName?.takeIf { !$0.isEmpty } ?? monitor.columnId ?? "Zone"
 }
 
 /// The sidebar's grouping: one section per column of each display's active scene, in spatial
@@ -79,9 +78,9 @@ func buildWorkspaceSidebarColumnSectionViewModels(
     currentFocus: LiveFocus,
 ) -> [WorkspaceSidebarColumnSectionViewModel] {
     let physicalMonitors = workspaceSidebarPhysicalMonitors(from: sortedMonitors)
-    let activeColumnViewports = sortedMonitors.filter { $0.zoneId != nil }
+    let activeColumnViewports = sortedMonitors.filter { $0.columnId != nil }
     let configuredColumnsByDisplay = Dictionary(
-        grouping: getCurrentColumnTopologySnapshot().configuredZones(for: physicalMonitors),
+        grouping: getCurrentColumnTopologySnapshot().configuredColumns(for: physicalMonitors),
         by: { $0.physicalMonitor.rect.topLeftCorner },
     )
     return physicalMonitors.flatMap { physicalMonitor -> [WorkspaceSidebarColumnSectionViewModel] in
@@ -108,27 +107,27 @@ func buildWorkspaceSidebarColumnSectionViewModels(
 
 @MainActor
 private func workspaceSidebarConfiguredColumnSection(
-    column: ConfiguredZoneSummary,
+    column: ConfiguredColumnSummary,
     physicalMonitor: Monitor,
     monitorScopeId: String,
     activeColumnViewports: [Monitor],
     currentFocus: LiveFocus,
 ) -> WorkspaceSidebarColumnSectionViewModel {
     let viewport = activeColumnViewports.first {
-        $0.zoneId == column.zoneId &&
+        $0.columnId == column.columnId &&
             $0.physicalMonitor.rect.topLeftCorner == physicalMonitor.rect.topLeftCorner
     }
     // A disabled column has no live viewport, but its deck survives; key it by scene + column id.
     let columnKey = viewport.map { columnDeckKey(for: $0) }
-        ?? columnDeckKey(sceneKey: activeSceneDeckKeyComponent(for: physicalMonitor), columnId: column.zoneId)
+        ?? columnDeckKey(sceneKey: activeSceneDeckKeyComponent(for: physicalMonitor), columnId: column.columnId)
     let showingCard = viewport?.activeWorkspace
     return WorkspaceSidebarColumnSectionViewModel(
-        id: "\(monitorScopeId):\(column.zoneId)",
+        id: "\(monitorScopeId):\(column.columnId)",
         monitorScopeId: monitorScopeId,
-        columnId: column.zoneId,
+        columnId: column.columnId,
         title: column.displayName,
-        colorHex: column.zoneStyleColorHex,
-        isDefaultColumn: column.isDefaultZone,
+        colorHex: column.columnColorHex,
+        isDefaultColumn: column.isDefaultColumn,
         isEnabled: column.isEnabled,
         isFocusedColumn: showingCard.map { currentFocus.workspace === $0 } ?? false,
         cardNames: orderedDeckWorkspaces(inColumn: columnKey).map(\.name),

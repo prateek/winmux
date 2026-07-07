@@ -1,4 +1,4 @@
-public struct ZoneSelector: Equatable, Sendable, CustomStringConvertible {
+public struct ColumnSelector: Equatable, Sendable, CustomStringConvertible {
     public let raw: String
 
     public init(_ raw: String) {
@@ -8,14 +8,14 @@ public struct ZoneSelector: Equatable, Sendable, CustomStringConvertible {
     public var description: String { raw }
 }
 
-public enum ZoneInitPreset: String, CaseIterable, Equatable, Sendable {
+public enum ColumnInitPreset: String, CaseIterable, Equatable, Sendable {
     case balanced
     case focusOnly = "focus-only"
     case commsOpen = "comms-open"
     case dashboard
 }
 
-public enum ZoneWidthAmount: Equatable, Sendable {
+public enum ColumnWidthAmount: Equatable, Sendable {
     case set(Double)
     case add(Double)
     case subtract(Double)
@@ -37,11 +37,11 @@ public enum ZoneWidthAmount: Equatable, Sendable {
 /// `column <subcommand>` — the column verb folds the former resize-zone, enable/disable/toggle-zone,
 /// set-zone-style, and `zone init` commands. An omitted column id targets the focused column.
 public enum ColumnTarget: Equatable, Sendable {
-    case resize(amount: ZoneWidthAmount, column: ZoneSelector)
-    case collapse(column: ZoneSelector)
-    case expand(column: ZoneSelector)
-    case toggle(column: ZoneSelector)
-    case color(hex: String, column: ZoneSelector)
+    case resize(amount: ColumnWidthAmount, column: ColumnSelector)
+    case collapse(column: ColumnSelector)
+    case expand(column: ColumnSelector)
+    case toggle(column: ColumnSelector)
+    case color(hex: String, column: ColumnSelector)
     case initialize
 }
 
@@ -55,7 +55,7 @@ public struct ColumnCmdArgs: CmdArgs {
         flags: [
             "--dry-run": trueBoolFlag(\.dryRun),
             "--monitor": ArgParser(\.monitor, parseColumnMonitorSubArg),
-            "--preset": ArgParser(\.preset, parseZoneInitPresetSubArg),
+            "--preset": ArgParser(\.preset, parseColumnInitPresetSubArg),
             "--replace-existing": trueBoolFlag(\.replaceExisting),
             "--write": trueBoolFlag(\.write),
         ],
@@ -67,7 +67,7 @@ public struct ColumnCmdArgs: CmdArgs {
 
     public init(
         target: ColumnTarget,
-        preset: ZoneInitPreset = .balanced,
+        preset: ColumnInitPreset = .balanced,
         monitor: MonitorDescription? = nil,
         dryRun: Bool = false,
         write: Bool = false,
@@ -83,7 +83,7 @@ public struct ColumnCmdArgs: CmdArgs {
     }
 
     public var target: Lateinit<ColumnTarget> = .uninitialized
-    public var preset: ZoneInitPreset = .balanced
+    public var preset: ColumnInitPreset = .balanced
     public var monitor: MonitorDescription?
     public var dryRun: Bool = false
     public var write: Bool = false
@@ -94,12 +94,12 @@ func parseColumnCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ColumnCmdArgs> {
     parseSpecificCmdArgs(ColumnCmdArgs(rawArgs: args), args)
 }
 
-private let focusedColumnSelector = ZoneSelector("focused")
+private let focusedColumnSelector = ColumnSelector("focused")
 
 private func parseColumnTarget(i: PosArgParserInput) -> ParsedCliArgs<ColumnTarget> {
-    func optionalColumn(at relativeIndex: Int) -> ZoneSelector? {
+    func optionalColumn(at relativeIndex: Int) -> ColumnSelector? {
         guard let raw = i.getOrNil(relativeIndex: relativeIndex), !raw.starts(with: "-"), !raw.isEmpty else { return nil }
-        return ZoneSelector(raw)
+        return ColumnSelector(raw)
     }
 
     switch i.arg {
@@ -154,15 +154,15 @@ public struct FocusColumnCmdArgs: CmdArgs {
         allowInConfig: true,
         help: focus_column_help_generated,
         flags: [:],
-        posArgs: [newMandatoryPosArgParser(\.column, parseZoneSelector, placeholder: "<column>")],
+        posArgs: [newMandatoryPosArgParser(\.column, parseColumnSelector, placeholder: "<column>")],
     )
 
-    public init(column: ZoneSelector) {
+    public init(column: ColumnSelector) {
         self.commonState = .init([])
         self.column = .initialized(column)
     }
 
-    public var column: Lateinit<ZoneSelector> = .uninitialized
+    public var column: Lateinit<ColumnSelector> = .uninitialized
 }
 
 func parseFocusColumnCmdArgs(_ args: StrArrSlice) -> ParsedCmd<FocusColumnCmdArgs> {
@@ -181,17 +181,17 @@ public struct MoveNodeToColumnCmdArgs: CmdArgs {
             "--focus-follows-window": trueBoolFlag(\.focusFollowsWindow),
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
         ],
-        posArgs: [newMandatoryPosArgParser(\.column, parseZoneSelector, placeholder: "<column>")],
+        posArgs: [newMandatoryPosArgParser(\.column, parseColumnSelector, placeholder: "<column>")],
     )
 
-    public init(column: ZoneSelector) {
+    public init(column: ColumnSelector) {
         self.commonState = .init([])
         self.column = .initialized(column)
     }
 
     public var failIfNoop: Bool = false
     public var focusFollowsWindow: Bool = false
-    public var column: Lateinit<ZoneSelector> = .uninitialized
+    public var column: Lateinit<ColumnSelector> = .uninitialized
 }
 
 func parseMoveNodeToColumnCmdArgs(_ args: StrArrSlice) -> ParsedCmd<MoveNodeToColumnCmdArgs> {
@@ -305,11 +305,11 @@ extension ListColumnsCmdArgs {
     public var format: [StringInterToken] {
         _format.isEmpty
             ? [
-                .interVar("monitor-zone-id"), .interVar("right-padding"), .literal(" | "),
-                .interVar("monitor-zone-name"), .interVar("right-padding"), .literal(" | "),
-                .literal("enabled "), .interVar("monitor-zone-enabled"), .interVar("right-padding"), .literal(" | "),
-                .literal("width "), .interVar("monitor-zone-effective-width"), .interVar("right-padding"), .literal(" | "),
-                .literal("color "), .interVar("monitor-zone-style-color"), .interVar("right-padding"), .literal(" | "),
+                .interVar("column-id"), .interVar("right-padding"), .literal(" | "),
+                .interVar("column-name"), .interVar("right-padding"), .literal(" | "),
+                .literal("enabled "), .interVar("column-enabled"), .interVar("right-padding"), .literal(" | "),
+                .literal("width "), .interVar("column-effective-width"), .interVar("right-padding"), .literal(" | "),
+                .literal("color "), .interVar("column-color"), .interVar("right-padding"), .literal(" | "),
                 .literal("monitor "), .interVar("monitor-physical-id"), .interVar("right-padding"), .literal(" | "),
                 .interVar("monitor-active-workspace"),
             ]
@@ -322,20 +322,20 @@ func parseListColumnsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListColumnsCmdArg
         .validateJsonFormat()
 }
 
-private func parseZoneInitPresetSubArg(i: SubArgParserInput) -> ParsedCliArgs<ZoneInitPreset> {
+private func parseColumnInitPresetSubArg(i: SubArgParserInput) -> ParsedCliArgs<ColumnInitPreset> {
     guard let arg = i.nonFlagArgOrNil() else {
         return .fail("'\(i.superArg)' must be followed by mandatory preset", advanceBy: 0)
     }
-    return .init(parseEnum(arg, ZoneInitPreset.self), advanceBy: 1)
+    return .init(parseEnum(arg, ColumnInitPreset.self), advanceBy: 1)
 }
 
-private func parseZoneSelector(i: PosArgParserInput) -> ParsedCliArgs<ZoneSelector> {
+private func parseColumnSelector(i: PosArgParserInput) -> ParsedCliArgs<ColumnSelector> {
     i.arg.isEmpty
         ? .fail("<column> must not be empty", advanceBy: 1)
-        : .succ(ZoneSelector(i.arg), advanceBy: 1)
+        : .succ(ColumnSelector(i.arg), advanceBy: 1)
 }
 
-private func parseColumnWidthAmount(_ raw: String) -> Parsed<ZoneWidthAmount> {
+private func parseColumnWidthAmount(_ raw: String) -> Parsed<ColumnWidthAmount> {
     guard raw.hasSuffix("%") else {
         return .failure("<percent> must include a % suffix, for example +10%")
     }

@@ -6,7 +6,7 @@ enum WindowDragIntentKind: Equatable {
     case swap(targetWindowId: UInt32)
     case moveToWorkspace(workspaceName: String)
     case moveToWorkspaceZone(workspaceName: String, zone: WindowDropZone)
-    case moveToZone(zoneId: String, workspaceName: String)
+    case moveToZone(columnId: String, workspaceName: String)
     case createWorkspace(projectId: WorkspaceProjectId? = nil, monitorScopeId: String? = nil)
     case sidebarHover
 }

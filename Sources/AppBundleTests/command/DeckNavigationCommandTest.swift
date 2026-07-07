@@ -345,19 +345,18 @@ private func configureThreeZones() -> [String: Monitor] {
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
     refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }

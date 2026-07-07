@@ -864,6 +864,21 @@ EOF
 - State explicitly that Slice 51 decides daily dogfood and small-beta readiness for this fork only. It does not mean broad public release, App Store readiness, notarization, automatic support upload, or that known limitations are untriaged blockers.
 EOF
             ;;
+        slice-56-domain-model)
+            cat <<'EOF'
+- Slice 56 domain-model proof: inspect the annotated recording first, then raw recording, contact sheet, semantic sample manifest, event manifest, caption-boundary frames, expected command chips, state transitions, final board source, CLI logs, retry summary, and the Slice 56 proof file.
+- Confirm the recording is a fresh Slice 56 artifact named `slice-56-domain-model`. It must show Display / Scene / Column / Card / Rule behavior through the config-v3 command surface: scene config, rule-created card, deck paging, card summon, same-scene and cross-scene card moves, scene switching, expose display, expose card, and final audit.
+- Confirm captions expose the exact user-facing surface: `Run: winmux scene desk`, `Run: winmux card next`, `Run: winmux card summon Comms`, `Run: winmux card move triage:comms`, `Run: winmux scene focus`, `Run: winmux expose display`, `Run: winmux expose card`, `Result: Display Scene Column Card Rule`, and `Result: config-v3-only`.
+- Inspect `logs/slice-56-domain-model.event-manifest.tsv`; require `scene-config`, `rule-create`, `deck-page`, `card-summon`, `card-move`, `scene-switch`, `expose-display`, `expose-card`, and `final-audit` in order with concrete media paths.
+- Inspect `logs/slice-56-state-transitions.tsv`; require rows for rule creation, deck paging, `card summon Comms`, `card move comms`, `card move triage:comms`, `scene focus`, `scene next`, `scene desk`, `expose display`, and `expose card`.
+- Inspect `logs/slice-56-list-cards.log`, `logs/slice-56-list-columns.log`, `logs/slice-56-rule-create.log`, `logs/slice-56-deck-page.log`, `logs/slice-56-card-summon.log`, `logs/slice-56-card-move.log`, `logs/slice-56-scene-switch.log`, `logs/slice-56-expose.log`, and `logs/slice-56-final-board-source.txt`.
+- Cite the key screenshots: `screenshots/02-scene-config-slice-56.png`, `screenshots/03-rule-create-slice-56.png`, `screenshots/04-deck-page-slice-56.png`, `screenshots/05-card-summon-slice-56.png`, `screenshots/06-card-move-slice-56.png`, `screenshots/07-scene-switch-slice-56.png`, `screenshots/08-expose-display-slice-56.png`, and `screenshots/09-expose-card-slice-56.png`.
+- Inspect `logs/guest-script-retry-summary.tsv`; require `slice-56-run` to have one attempt, zero failures, `final_result=success`, `before_recording=no`, `mutation_started=yes`, and a non-empty `first_mutation_line`. Reject any post-recording retry or patched proof.
+- Reject logs-only proof, missing playable media, missing raw recording, missing contact sheet/sample/event media, generic command chips, zone-era command claims, config-v2 evidence, or any review that accepts the slice without citing both visual screenshots and state-transition logs.
+- Compare against accepted Slice 36-51 artifacts, repo root videos, README guidance, `resources/screenshots/winmux-overview.png`, and `resources/screenshots/tab-groups.png`. State whether the artifact keeps the clean desktop, live app surface, restrained command-chip style, legible acceptance boards, and product-demo pacing used in accepted demos.
+- State explicitly that Slice 56 proves the renamed five-noun domain model and config-v3 command surface for this fork. It does not prove public release readiness, notarization, automatic migration from old zone-era configs, or private-API behavior.
+EOF
+            ;;
         slice-8-window-routing)
             cat <<'EOF'
 - Confirm the recording starts with Reference, Work, and Comms visible, Work active, and no `route-comms.rtf` window.

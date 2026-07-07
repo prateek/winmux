@@ -82,12 +82,12 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
     "sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar), // config-version 3 spelling
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
-    "zone-styles": Parser(\.zoneStyles, parseZoneStyles),
-    "zone-layouts": Parser(\.zoneLayouts, parseZoneLayouts),
-    "zone-scenes": Parser(\.zoneScenes, parseZoneScenes),
-    "zone-bindings": Parser(\.zoneBindings, parseZoneBindings),
-    "zone-affinities": Parser(\.zoneAffinities, parseZoneAffinities),
-    "zone-availability-sets": Parser(\.zoneAvailabilitySets, parseZoneAvailabilitySets),
+    "zone-styles": Parser(\._retiredZoneStyles, skipParsing(Config()._retiredZoneStyles)),
+    "zone-layouts": Parser(\.columnLayouts, parseColumnLayouts),
+    "zone-scenes": Parser(\._retiredZoneScenes, skipParsing(Config()._retiredZoneScenes)),
+    "zone-bindings": Parser(\._retiredZoneBindings, skipParsing(Config()._retiredZoneBindings)),
+    "zone-affinities": Parser(\._retiredZoneAffinities, skipParsing(Config()._retiredZoneAffinities)),
+    "zone-availability-sets": Parser(\._retiredZoneAvailabilitySets, skipParsing(Config()._retiredZoneAvailabilitySets)),
     "zones": Parser(\.zones, parseZones),
     "rules": Parser(\.rules, parseRules),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
@@ -197,11 +197,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     // reference validators in that case so the one-line replacement hint is the only diagnostic,
     // instead of stacking "unknown zone" noise from the now-dead parser onto it.
     if !hasConfigVersion3DeadKeys {
-        validateZoneLayoutReferences(config, &errors)
-        validateZoneSceneReferences(config, &errors)
-        validateZoneBindingReferences(config, &errors)
-        validateZoneAffinityReferences(config, &errors)
-        validateZoneAvailabilitySetReferences(config, &errors)
+        validateColumnLayoutReferences(config, &errors)
     }
 
     if config.enableNormalizationFlattenContainers {
@@ -245,7 +241,7 @@ func parseConfigVersion(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace)
 // The domain-model rewrite retires the fork's zone-era vocabulary. Under `config-version = 3` each
 // dead or renamed key is a hard error whose message names its replacement, so an old config fails
 // loudly rather than parsing into a concept that no longer exists. The runtime structs and the
-// `[scene.*]`/`[[rules]]` parsers that reuse them (ZoneConfig, ZoneLayoutConfig, ...) are untouched;
+// `[scene.*]`/`[[rules]]` parsers that reuse them (DisplayLayoutConfig, ColumnLayoutConfig, ...) are untouched;
 // only these top-level and nested config keys become errors.
 
 /// Retired top-level keys, paired with the one-line hint naming their replacement.

@@ -5,7 +5,7 @@ extension Monitor {
     @MainActor
     var activeWorkspace: Workspace {
         let viewport = workspaceViewportForWorkspaceAssignment
-        if viewport.rect.topLeftCorner != rect.topLeftCorner || viewport.zoneId != zoneId {
+        if viewport.rect.topLeftCorner != rect.topLeftCorner || viewport.columnId != columnId {
             return viewport.activeWorkspace
         }
         if let existing = winMuxWorkspaceState.visibleWorkspace(for: viewport) {
@@ -16,7 +16,7 @@ extension Monitor {
             return existing
         }
         let currentViewport = MonitorViewportId(viewport).currentMonitorApproximation
-        if currentViewport.rect.topLeftCorner != viewport.rect.topLeftCorner || currentViewport.zoneId != viewport.zoneId {
+        if currentViewport.rect.topLeftCorner != viewport.rect.topLeftCorner || currentViewport.columnId != viewport.columnId {
             return currentViewport.activeWorkspace
         }
         die("Current monitor viewport '\(MonitorViewportId(viewport))' has no active workspace after reconciliation")

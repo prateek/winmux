@@ -10,15 +10,15 @@ final class SceneRegistryTest: XCTestCase {
         let main = configureTwoScenes()
 
         activate("desk", on: main)
-        XCTAssertEqual(sortedMonitors.compactMap(\.zoneId), ["ref", "main", "comms"])
+        XCTAssertEqual(sortedMonitors.compactMap(\.columnId), ["ref", "main", "comms"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 600, 360])
 
         activate("focus", on: main)
-        XCTAssertEqual(sortedMonitors.compactMap(\.zoneId), ["main"])
+        XCTAssertEqual(sortedMonitors.compactMap(\.columnId), ["main"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [1200])
 
         activate("desk", on: main)
-        XCTAssertEqual(sortedMonitors.compactMap(\.zoneId), ["ref", "main", "comms"])
+        XCTAssertEqual(sortedMonitors.compactMap(\.columnId), ["ref", "main", "comms"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 600, 360])
     }
 
@@ -114,7 +114,7 @@ final class SceneRegistryTest: XCTestCase {
         activate("desk", on: main)
         let work = occupy("Work", windowId: 1, on: sceneColumns()["main"].orDie())
 
-        config.zoneLayouts.append(ZoneLayoutConfig(id: "broken-layout", layout: .columns, columns: []))
+        config.columnLayouts.append(ColumnLayoutConfig(id: "broken-layout", layout: .columns, columns: []))
         config.scenes.append(SceneConfig(id: "broken", monitor: .sequenceNumber(1), layoutId: "broken-layout"))
 
         switch setActiveScene("broken", for: main) {
@@ -123,7 +123,7 @@ final class SceneRegistryTest: XCTestCase {
         }
 
         XCTAssertEqual(activeSceneId(for: main), "desk")
-        XCTAssertEqual(sortedMonitors.compactMap(\.zoneId), ["ref", "main", "comms"])
+        XCTAssertEqual(sortedMonitors.compactMap(\.columnId), ["ref", "main", "comms"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 600, 360])
         XCTAssertEqual(activeCardsByColumn()["main"], "Work")
         XCTAssertEqual(winMuxWorkspaceState.columnDecks.columnKey(of: work.id), "scene:desk/column:main")
@@ -162,14 +162,14 @@ private func occupy(_ name: String, windowId: UInt32, on column: Monitor) -> Wor
 @MainActor
 private func sceneColumns() -> [String: Monitor] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 
 @MainActor
 private func activeCardsByColumn() -> [String: String] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor.activeWorkspace.name) }
+        monitor.columnId.map { ($0, monitor.activeWorkspace.name) }
     })
 }
 
@@ -191,28 +191,28 @@ private func configureTwoScenes() -> Monitor {
     setMonitorsForTests([main])
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
-    config.zoneLayouts = [
-        ZoneLayoutConfig(
+    config.columnLayouts = [
+        ColumnLayoutConfig(
             id: "desk-layout",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "ref", name: "Reference", width: 0.20),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "comms", name: "Comms", width: 0.30),
+                ColumnConfig(id: "ref", name: "Reference", width: 0.20),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "comms", name: "Comms", width: 0.30),
             ],
         ),
-        ZoneLayoutConfig(
+        ColumnLayoutConfig(
             id: "focus-layout",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "main", name: "Work", width: 1.0),
+                ColumnConfig(id: "main", name: "Work", width: 1.0),
             ],
         ),
     ]
     config.zones = [
-        ZoneConfig(monitor: .sequenceNumber(1), layoutPreset: "desk-layout"),
+        DisplayLayoutConfig(monitor: .sequenceNumber(1), layoutPreset: "desk-layout"),
     ]
     config.scenes = [
         SceneConfig(id: "desk", monitor: .sequenceNumber(1), layoutId: "desk-layout", defaultColumn: "main"),

@@ -96,7 +96,7 @@ extension HotKey {
     let oldMode = activeMode
     activeMode = targetMode
     applyHotkeyEnabledState()
-    ZoneDividerDragController.shared.noteModeChanged()
+    ColumnDividerDragController.shared.noteModeChanged()
     if oldMode != targetMode {
         broadcastEvent(.modeChanged(mode: targetMode))
         if !config.onModeChanged.isEmpty {

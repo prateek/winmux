@@ -21,14 +21,6 @@ private func onWindowDetected(_ window: Window) async throws {
         appName: window.app.name,
     ))
     if try await applyMatchingRule(to: window) { return }
-    for (index, affinity) in config.zoneAffinities.enumerated() {
-        let evaluation = try await affinity.evaluate(index: index, window: window)
-        guard evaluation.matched else { continue }
-        let commandResult = try await MoveNodeToColumnCommand(args: affinity.commandArgs).run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
-        if commandResult.exitCode == 0 && !affinity.checkFurtherCallbacks {
-            return
-        }
-    }
     for callback in config.onWindowDetected where try await callback.matches(window) {
         _ = try await callback.run.runCmdSeq(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
         if !callback.checkFurtherCallbacks {
@@ -85,19 +77,6 @@ func ruleCardColumnDeckKey(onDisplay monitor: Monitor) -> String {
 }
 
 extension WindowDetectedCallback {
-    @MainActor
-    func matches(_ window: Window) async throws -> Bool {
-        try await matcher.matches(window)
-    }
-}
-
-extension ZoneAffinityConfig {
-    var commandArgs: MoveNodeToColumnCmdArgs {
-        MoveNodeToColumnCmdArgs(column: zone.orDie("Zone affinity should have a parsed zone target"))
-            .copy(\.focusFollowsWindow, focusFollowsWindow)
-            .copy(\.failIfNoop, failIfNoop)
-    }
-
     @MainActor
     func matches(_ window: Window) async throws -> Bool {
         try await matcher.matches(window)

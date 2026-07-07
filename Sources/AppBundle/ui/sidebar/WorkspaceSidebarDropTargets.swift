@@ -3,7 +3,7 @@ import SwiftUI
 enum WorkspaceSidebarDropTargetKind: Equatable {
     case workspace(String)
     case newWorkspace(projectId: WorkspaceProjectId, monitorScopeId: String)
-    case zone(monitorScopeId: String, zoneId: String)
+    case column(monitorScopeId: String, columnId: String)
     case monitor(String)
     /// An insertion gap in a column's deck: dropping a card here reorders it within the column
     /// (same column) or transfers it into the column (different column). `index` is the gap in the
@@ -19,7 +19,7 @@ enum WorkspaceSidebarDropTargetKind: Equatable {
     var isCardDropKind: Bool {
         switch self {
             case .cardSlot, .scene: true
-            case .workspace, .newWorkspace, .zone, .monitor: false
+            case .workspace, .newWorkspace, .column, .monitor: false
         }
     }
 }

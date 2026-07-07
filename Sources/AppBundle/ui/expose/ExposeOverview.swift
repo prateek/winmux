@@ -3,7 +3,7 @@ import Common
 import ScreenCaptureKit
 import SwiftUI
 
-struct ZoneExposeTile: Identifiable {
+struct ExposeTile: Identifiable {
     let id: String
     let title: String
     let subtitle: String
@@ -21,13 +21,13 @@ func exposeOverviewTitle(for scope: ExposeScope) -> String {
     }
 }
 
-/// Pre-captured per-zone previews, FlashSpace-style: the display is captured when a refresh
-/// settles (never at overview-open time), cropped per zone, and downscaled, so opening the
+/// Pre-captured per-column previews, FlashSpace-style: the display is captured when a refresh
+/// settles (never at overview-open time), cropped per column, and downscaled, so opening the
 /// overview renders cached bitmaps only. Capture stays fully disarmed until the first
 /// overview use, keeping zero standing cost for users who never touch the feature.
 @MainActor
-final class ZoneExposePreviewCache {
-    static let shared = ZoneExposePreviewCache()
+final class ExposePreviewCache {
+    static let shared = ExposePreviewCache()
     private init() {}
 
     private(set) var armed = false
@@ -35,8 +35,8 @@ final class ZoneExposePreviewCache {
     private var lastCaptureKey: String = ""
     private var captureInFlight = false
 
-    static func previewKey(monitorTopLeft: CGPoint, zoneId: String?, workspaceName: String) -> String {
-        "\(monitorTopLeft.x),\(monitorTopLeft.y)|\(zoneId ?? "display")|\(workspaceName)"
+    static func previewKey(monitorTopLeft: CGPoint, columnId: String?, workspaceName: String) -> String {
+        "\(monitorTopLeft.x),\(monitorTopLeft.y)|\(columnId ?? "display")|\(workspaceName)"
     }
 
     func arm() {
@@ -54,13 +54,13 @@ final class ZoneExposePreviewCache {
         guard #available(macOS 14.0, *) else { return }
         // Never capture while the overview covers the display, or the first armed capture
         // poisons every zone preview with a screenshot of the overlay itself.
-        guard !ZoneExposePanelController.shared.isVisible else { return }
+        guard !ExposePanelController.shared.isVisible else { return }
         let physical = focus.workspace.workspaceMonitor.physicalMonitor
-        let zones = zoneViewports(onPhysicalMonitor: physical)
+        let zones = columnViewports(onPhysicalMonitor: physical)
         let captureKey = zones.map {
             Self.previewKey(
                 monitorTopLeft: physical.rect.topLeftCorner,
-                zoneId: $0.zoneId,
+                columnId: $0.columnId,
                 workspaceName: $0.activeWorkspace.name,
             )
         }.joined(separator: ";")
@@ -72,7 +72,7 @@ final class ZoneExposePreviewCache {
         let displayRect = physical.rect
         let crops = zones.map { (key: Self.previewKey(
             monitorTopLeft: physical.rect.topLeftCorner,
-            zoneId: $0.zoneId,
+            columnId: $0.columnId,
             workspaceName: $0.activeWorkspace.name,
         ), rect: $0.rect) }
         Task { @MainActor in
@@ -112,18 +112,18 @@ final class ZoneExposePreviewCache {
 }
 
 @MainActor
-func zoneViewports(onPhysicalMonitor physical: Monitor) -> [Monitor] {
+func columnViewports(onPhysicalMonitor physical: Monitor) -> [Monitor] {
     monitors
         .filter { $0.physicalMonitor.rect.topLeftCorner == physical.rect.topLeftCorner }
         .sorted { $0.rect.topLeftX < $1.rect.topLeftX }
 }
 
-private final class ZoneExposePanel: NSPanelHud {
+private final class ExposePanel: NSPanelHud {
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
         MainActor.assumeIsolated {
-            if !ZoneExposePanelController.shared.handleKeyDown(event) {
+            if !ExposePanelController.shared.handleKeyDown(event) {
                 super.keyDown(with: event)
             }
         }
@@ -131,29 +131,29 @@ private final class ZoneExposePanel: NSPanelHud {
 
     override func cancelOperation(_ sender: Any?) {
         MainActor.assumeIsolated {
-            ZoneExposePanelController.shared.hide()
+            ExposePanelController.shared.hide()
         }
     }
 }
 
 @MainActor
-final class ZoneExposePanelController: ObservableObject {
-    static let shared = ZoneExposePanelController()
+final class ExposePanelController: ObservableObject {
+    static let shared = ExposePanelController()
 
-    @Published private(set) var tiles: [ZoneExposeTile] = []
+    @Published private(set) var tiles: [ExposeTile] = []
     @Published var selectedIndex = 0
     private(set) var scope: ExposeScope = .card
 
-    private let panel = ZoneExposePanel()
+    private let panel = ExposePanel()
     private var hostingView: NSHostingView<AnyView>?
 
     private init() {
-        panel.identifier = NSUserInterfaceItemIdentifier("WinMux.zoneExpose")
+        panel.identifier = NSUserInterfaceItemIdentifier("WinMux.expose")
         panel.isFloatingPanel = true
         panel.isExcludedFromWindowsMenu = true
         panel.animationBehavior = .none
         panel.applyWinMuxLayer(.workspaceSidebar)
-        let hosting = NSHostingView(rootView: AnyView(ZoneExposeView(controller: self)))
+        let hosting = NSHostingView(rootView: AnyView(ExposeView(controller: self)))
         panel.contentView = hosting
         hostingView = hosting
     }
@@ -169,7 +169,7 @@ final class ZoneExposePanelController: ObservableObject {
     }
 
     func show(scope: ExposeScope) {
-        ZoneExposePreviewCache.shared.arm()
+        ExposePreviewCache.shared.arm()
         if !CGPreflightScreenCaptureAccess() {
             // One-time system prompt on explicit user action; previews stay placeholders
             // until granted.
@@ -224,37 +224,37 @@ final class ZoneExposePanelController: ObservableObject {
         tile.select()
     }
 
-    func setTilesForTests(_ tiles: [ZoneExposeTile], scope: ExposeScope) {
+    func setTilesForTests(_ tiles: [ExposeTile], scope: ExposeScope) {
         self.scope = scope
         self.tiles = tiles
         selectedIndex = 0
     }
 
-    private func buildTiles(scope: ExposeScope) -> [ZoneExposeTile] {
+    private func buildTiles(scope: ExposeScope) -> [ExposeTile] {
         switch scope {
             case .display:
                 let physical = focus.workspace.workspaceMonitor.physicalMonitor
-                return zoneViewports(onPhysicalMonitor: physical).map { viewport in
+                return columnViewports(onPhysicalMonitor: physical).map { viewport in
                     let workspace = viewport.activeWorkspace
-                    let key = ZoneExposePreviewCache.previewKey(
+                    let key = ExposePreviewCache.previewKey(
                         monitorTopLeft: physical.rect.topLeftCorner,
-                        zoneId: viewport.zoneId,
+                        columnId: viewport.columnId,
                         workspaceName: workspace.name,
                     )
-                    let target = viewport.zoneId ?? workspace.name
-                    return ZoneExposeTile(
+                    let target = viewport.columnId ?? workspace.name
+                    return ExposeTile(
                         id: key,
-                        title: viewport.zoneName ?? viewport.zoneId ?? viewport.name,
+                        title: viewport.columnName ?? viewport.columnId ?? viewport.name,
                         subtitle: workspace.name,
-                        preview: ZoneExposePreviewCache.shared.preview(forKey: key),
+                        preview: ExposePreviewCache.shared.preview(forKey: key),
                         icon: nil,
-                        select: { focusZoneOrWorkspaceFromExpose(zoneId: viewport.zoneId, target: target) },
+                        select: { focusColumnOrWorkspaceFromExpose(columnId: viewport.columnId, target: target) },
                     )
                 }
             case .card:
                 let workspace = focus.workspace
                 return workspace.allLeafWindowsRecursive.map { window in
-                    ZoneExposeTile(
+                    ExposeTile(
                         id: String(window.windowId),
                         title: cachedWindowTitle(for: window) ?? window.app.name ?? "Window \(window.windowId)",
                         subtitle: window.app.name ?? "",
@@ -268,12 +268,12 @@ final class ZoneExposePanelController: ObservableObject {
 }
 
 @MainActor
-private func focusZoneOrWorkspaceFromExpose(zoneId: String?, target: String) {
+private func focusColumnOrWorkspaceFromExpose(columnId: String?, target: String) {
     Task { @MainActor in
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await runLightSession(.menuBarButton, token) {
-            if zoneId != nil {
-                _ = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector(target)))
+            if columnId != nil {
+                _ = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector(target)))
                     .run(.defaultEnv, .emptyStdin)
             }
         }
@@ -294,8 +294,8 @@ private func focusWindowFromExpose(_ window: Window) {
     }
 }
 
-private struct ZoneExposeView: View {
-    @ObservedObject var controller: ZoneExposePanelController
+private struct ExposeView: View {
+    @ObservedObject var controller: ExposePanelController
 
     var body: some View {
         ZStack {
@@ -321,7 +321,7 @@ private struct ZoneExposeView: View {
     }
 
     @ViewBuilder
-    private func tileView(_ tile: ZoneExposeTile, index: Int, selected: Bool) -> some View {
+    private func tileView(_ tile: ExposeTile, index: Int, selected: Bool) -> some View {
         VStack(spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)

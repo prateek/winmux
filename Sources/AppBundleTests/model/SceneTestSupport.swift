@@ -33,7 +33,7 @@ func configureScenesFromToml(_ toml: String, file: StaticString = #filePath, lin
     let (parsed, errors) = parseConfig(toml)
     XCTAssertTrue(errors.isEmpty, "\(errors.descriptions)", file: file, line: line)
     config.scenes = parsed.scenes
-    config.zoneLayouts = parsed.zoneLayouts
+    config.columnLayouts = parsed.columnLayouts
     config.zones = parsed.zones
     refreshColumnTopologySnapshot()
     Workspace.reconcileWorkspaceState()
@@ -43,14 +43,14 @@ func configureScenesFromToml(_ toml: String, file: StaticString = #filePath, lin
 @MainActor
 func sceneColumnMonitors() -> [String: Monitor] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 
 @MainActor
 func sceneActiveCards() -> [String: String] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor.activeWorkspace.name) }
+        monitor.columnId.map { ($0, monitor.activeWorkspace.name) }
     })
 }
 

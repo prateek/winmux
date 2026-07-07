@@ -165,9 +165,7 @@ final class RuleRoutingTest: XCTestCase {
         assertTrue(focus.windowOrNil === previouslyFocused)
     }
 
-    // Rules reuse the zone-affinity matcher engine (parseWindowDetectedMatcher) verbatim, so a
-    // title-regex matcher behaves identically here.
-    func testRuleTitleRegexMatcherParityWithZoneAffinityMatching() async throws {
+    func testRuleTitleRegexMatcherRoutesMatchingTitles() async throws {
         let main = configureScenesFromToml(twoSceneToml)
         guard case .success = setActiveScene("desk", for: main) else { return XCTFail("desk should activate") }
         let seed = occupyCard("Seed", windowId: 1, on: try XCTUnwrap(sceneColumnMonitors()["ref"]))

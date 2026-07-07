@@ -8,37 +8,37 @@ final class ZoneCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testParse() {
-        testParseCommandSucc("focus-column left", FocusColumnCmdArgs(column: ZoneSelector("left")))
-        testParseCommandSucc("focus-column zone:left", FocusColumnCmdArgs(column: ZoneSelector("zone:left")))
-        testParseCommandSucc("focus-column next", FocusColumnCmdArgs(column: ZoneSelector("next")))
+        testParseCommandSucc("focus-column left", FocusColumnCmdArgs(column: ColumnSelector("left")))
+        testParseCommandSucc("focus-column zone:left", FocusColumnCmdArgs(column: ColumnSelector("zone:left")))
+        testParseCommandSucc("focus-column next", FocusColumnCmdArgs(column: ColumnSelector("next")))
         testParseCommandSucc("move-node-to-column --window-id 7 --focus-follows-window --fail-if-noop Comms",
-                             MoveNodeToColumnCmdArgs(column: ZoneSelector("Comms"))
+                             MoveNodeToColumnCmdArgs(column: ColumnSelector("Comms"))
                                  .copy(\.windowId, 7)
                                  .copy(\.focusFollowsWindow, true)
                                  .copy(\.failIfNoop, true))
         testParseCommandSucc(
             "move-node-to-column --focus-follows-window prev",
-            MoveNodeToColumnCmdArgs(column: ZoneSelector("prev")).copy(\.focusFollowsWindow, true),
+            MoveNodeToColumnCmdArgs(column: ColumnSelector("prev")).copy(\.focusFollowsWindow, true),
         )
-        testParseCommandSucc("column expand Comms", ColumnCmdArgs(target: .expand(column: ZoneSelector("Comms"))))
-        testParseCommandSucc("column collapse Comms --monitor 1", ColumnCmdArgs(target: .collapse(column: ZoneSelector("Comms")), monitor: .sequenceNumber(1)))
-        testParseCommandSucc("column toggle 2:Comms", ColumnCmdArgs(target: .toggle(column: ZoneSelector("2:Comms"))))
-        testParseCommandSucc("column toggle", ColumnCmdArgs(target: .toggle(column: ZoneSelector("focused"))))
+        testParseCommandSucc("column expand Comms", ColumnCmdArgs(target: .expand(column: ColumnSelector("Comms"))))
+        testParseCommandSucc("column collapse Comms --monitor 1", ColumnCmdArgs(target: .collapse(column: ColumnSelector("Comms")), monitor: .sequenceNumber(1)))
+        testParseCommandSucc("column toggle 2:Comms", ColumnCmdArgs(target: .toggle(column: ColumnSelector("2:Comms"))))
+        testParseCommandSucc("column toggle", ColumnCmdArgs(target: .toggle(column: ColumnSelector("focused"))))
         testParseCommandSucc(
             "column resize +10% Work",
-            ColumnCmdArgs(target: .resize(amount: .add(0.10), column: ZoneSelector("Work"))),
+            ColumnCmdArgs(target: .resize(amount: .add(0.10), column: ColumnSelector("Work"))),
         )
         testParseCommandSucc(
             "column resize -10%",
-            ColumnCmdArgs(target: .resize(amount: .subtract(0.10), column: ZoneSelector("focused"))),
+            ColumnCmdArgs(target: .resize(amount: .subtract(0.10), column: ColumnSelector("focused"))),
         )
         testParseCommandSucc(
             "column resize -10% Work",
-            ColumnCmdArgs(target: .resize(amount: .subtract(0.10), column: ZoneSelector("Work"))),
+            ColumnCmdArgs(target: .resize(amount: .subtract(0.10), column: ColumnSelector("Work"))),
         )
         testParseCommandSucc(
             "column resize 60% Work",
-            ColumnCmdArgs(target: .resize(amount: .set(0.60), column: ZoneSelector("Work"))),
+            ColumnCmdArgs(target: .resize(amount: .set(0.60), column: ColumnSelector("Work"))),
         )
         testParseCommandSucc(
             "balance-columns --monitor 1",
@@ -63,11 +63,11 @@ final class ZoneCommandTest: XCTestCase {
         )
         testParseCommandSucc(
             "column color #D3455B Comms --monitor 1",
-            ColumnCmdArgs(target: .color(hex: "#D3455B", column: ZoneSelector("Comms")), monitor: .sequenceNumber(1)),
+            ColumnCmdArgs(target: .color(hex: "#D3455B", column: ColumnSelector("Comms")), monitor: .sequenceNumber(1)),
         )
         testParseCommandSucc(
             "column color #3EA2FF",
-            ColumnCmdArgs(target: .color(hex: "#3EA2FF", column: ZoneSelector("focused"))),
+            ColumnCmdArgs(target: .color(hex: "#3EA2FF", column: ColumnSelector("focused"))),
         )
         testParseCommandFail("column color oops", msg: "ERROR: <hex> must start with '#', for example #3EA2FF")
         testParseCommandSucc(
@@ -82,7 +82,7 @@ final class ZoneCommandTest: XCTestCase {
         testParseCommandSucc("list-columns --json", ListColumnsCmdArgs(rawArgs: []).copy(\.json, true))
     }
 
-    func testFocusZoneResolvesZoneName() async throws {
+    func testFocusZoneResolvesColumnName() async throws {
         let zones = configureThreeZones()
         let reference = Workspace.get(byName: "reference")
         let work = Workspace.get(byName: "work")
@@ -90,19 +90,19 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         XCTAssertTrue(work.focusWorkspace())
 
-        let result = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector("Reference")))
+        let result = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector("Reference")))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertTrue(focus.workspace === reference)
     }
 
-    func testFocusZoneResolvesZoneIdPrefix() async throws {
+    func testFocusZoneResolvesColumnIdPrefix() async throws {
         let zones = configureThreeZones()
         let reference = Workspace.get(byName: "reference")
         XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
 
-        let result = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector("zone:left")))
+        let result = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector("zone:left")))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -132,7 +132,7 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focus.workspace === work)
     }
 
-    func testRelativeZoneSelectorsStayWithinFocusedPhysicalMonitorWhenZoneIdsRepeat() async throws {
+    func testRelativeZoneSelectorsStayWithinFocusedPhysicalMonitorWhenColumnIdsRepeat() async throws {
         let zones = configureDuplicateZones()
         let primaryLeft = Workspace.get(byName: "primary-left")
         let primaryMain = Workspace.get(byName: "primary-main")
@@ -179,21 +179,21 @@ final class ZoneCommandTest: XCTestCase {
 
         let missingCurrent = try await parseCommand("focus-column 1:current").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(missingCurrent.exitCode, 1)
-        XCTAssertTrue(missingCurrent.stderr.joined(separator: "\n").contains("No focused zone matches"))
+        XCTAssertTrue(missingCurrent.stderr.joined(separator: "\n").contains("No focused column matches"))
     }
 
-    func testDuplicateBareZoneIdsRequirePhysicalQualifier() async throws {
+    func testDuplicateBareColumnIdsRequirePhysicalQualifier() async throws {
         let zones = configureDuplicateZones()
         let secondaryLeft = Workspace.get(byName: "secondary-left")
         _ = TestWindow.new(id: 31, parent: secondaryLeft.rootTilingContainer)
         XCTAssertTrue(zones["2:left"].orDie().setActiveWorkspace(secondaryLeft))
 
-        let ambiguous = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector("left")))
+        let ambiguous = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector("left")))
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(ambiguous.exitCode, 1)
         XCTAssertTrue(ambiguous.stderr.joined(separator: "\n").contains("ambiguous"))
 
-        let qualified = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector("2:left")))
+        let qualified = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector("2:left")))
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(qualified.exitCode, 0)
         XCTAssertTrue(focus.workspace === secondaryLeft)
@@ -222,7 +222,7 @@ final class ZoneCommandTest: XCTestCase {
         let window = TestWindow.new(id: 41, parent: work.rootTilingContainer)
         XCTAssertTrue(window.focusWindow())
 
-        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Comms")).copy(\.failIfNoop, true))
+        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Comms")).copy(\.failIfNoop, true))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -256,7 +256,7 @@ final class ZoneCommandTest: XCTestCase {
         let window = TestWindow.new(id: 42, parent: work.rootTilingContainer)
         XCTAssertTrue(window.focusWindow())
 
-        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Work")).copy(\.failIfNoop, true))
+        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Work")).copy(\.failIfNoop, true))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 1)
@@ -273,7 +273,7 @@ final class ZoneCommandTest: XCTestCase {
         let focusedWindow = TestWindow.new(id: 44, parent: work.rootTilingContainer)
         XCTAssertTrue(focusedWindow.focusWindow())
 
-        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Comms")).copy(\.windowId, 43))
+        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Comms")).copy(\.windowId, 43))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -291,7 +291,7 @@ final class ZoneCommandTest: XCTestCase {
         let focusedWindow = TestWindow.new(id: 46, parent: work.rootTilingContainer)
         XCTAssertTrue(focusedWindow.focusWindow())
 
-        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Comms")).copy(\.failIfNoop, true))
+        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Comms")).copy(\.failIfNoop, true))
             .run(.defaultEnv.copy(\.windowId, 45), .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -333,153 +333,24 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertTrue(focusedWindow.nodeWorkspace === work)
     }
 
-    func testZoneAffinityRoutesDetectedWindowToZone() async throws {
+    func testRulesRouteDetectedWindowBeforeCallbacks() async throws {
         let zones = configureThreeZones()
+        let reference = Workspace.get(byName: "reference")
         let work = Workspace.get(byName: "work")
         let comms = Workspace.get(byName: "comms")
+        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
         let targetWindow = TestWindow.new(id: 51, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
         let focusedWindow = TestWindow.new(id: 52, parent: work.rootTilingContainer, title: "focused-work.rtf")
         XCTAssertTrue(focusedWindow.focusWindow())
-        configureRouteCommsAffinity()
+        configureRouteCommsRule()
+        configureRouteReferenceCallback()
 
         try await tryOnWindowDetected(targetWindow)
 
         XCTAssertTrue(targetWindow.nodeWorkspace === comms)
         XCTAssertTrue(focusedWindow.nodeWorkspace === work)
-    }
-
-    func testZoneAffinityStopsFurtherCallbacksByDefault() async throws {
-        let zones = configureThreeZones()
-        let reference = Workspace.get(byName: "reference")
-        let work = Workspace.get(byName: "work")
-        let comms = Workspace.get(byName: "comms")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
-        let targetWindow = TestWindow.new(id: 53, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
-        configureRouteCommsAffinity()
-        config.onWindowDetected = [
-            WindowDetectedCallback(
-                rawRun: [
-                    MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Reference"))),
-                ],
-            ),
-        ]
-
-        try await tryOnWindowDetected(targetWindow)
-
-        XCTAssertTrue(targetWindow.nodeWorkspace === comms)
-    }
-
-    func testZoneAffinityCheckFurtherCallbacksAllowsGenericCallback() async throws {
-        let zones = configureThreeZones()
-        let reference = Workspace.get(byName: "reference")
-        let work = Workspace.get(byName: "work")
-        let comms = Workspace.get(byName: "comms")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
-        let targetWindow = TestWindow.new(id: 54, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
-        configureRouteCommsAffinity(checkFurtherCallbacks: true)
-        configureRouteReferenceCallback()
-
-        try await tryOnWindowDetected(targetWindow)
-
-        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
-    }
-
-    func testZoneAffinityFailedCommandFallsThroughToGenericCallback() async throws {
-        let zones = configureThreeZones()
-        let reference = Workspace.get(byName: "reference")
-        let work = Workspace.get(byName: "work")
-        let comms = Workspace.get(byName: "comms")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
-        let targetWindow = TestWindow.new(id: 58, parent: comms.rootTilingContainer, title: "mail-inbox.rtf")
-        configureRouteCommsAffinity(failIfNoop: true)
-        configureRouteReferenceCallback()
-
-        try await tryOnWindowDetected(targetWindow)
-
-        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
-    }
-
-    func testZoneAffinityEvaluationReportsMatchedRuleAndEnabledTarget() async throws {
-        let zones = configureThreeZones()
-        let work = Workspace.get(byName: "work")
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        let targetWindow = TestWindow.new(id: 59, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
-        configureRouteCommsAffinity()
-
-        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
-            .evaluate(index: 0, window: targetWindow)
-
-        XCTAssertTrue(evaluation.matched)
-        XCTAssertEqual(evaluation.zone, "Comms")
-        XCTAssertTrue(evaluation.matcher.matchedTerms.contains { $0.contains("window-title-regex-substring matched title 'mail-inbox.rtf'") })
-        XCTAssertEqual(evaluation.target, .enabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
-        XCTAssertFalse(evaluation.checkFurtherCallbacks)
-        XCTAssertFalse(evaluation.focusFollowsWindow)
-        XCTAssertFalse(evaluation.failIfNoop)
-    }
-
-    func testZoneAffinityEvaluationExplainsNoMatchFields() async throws {
-        let zones = configureThreeZones()
-        let work = Workspace.get(byName: "work")
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        let targetWindow = TestWindow.new(id: 60, parent: work.rootTilingContainer, title: "notes.rtf")
-        var errors: [String] = []
-        config.zoneAffinities = [
-            ZoneAffinityConfig(
-                matcher: WindowDetectedCallbackMatcher(
-                    appId: "com.apple.mail",
-                    appNameRegexSubstring: parseCaseInsensitiveRegex("Mail").getOrNil(appendErrorTo: &errors),
-                    windowTitleRegexSubstring: parseCaseInsensitiveRegex("Inbox").getOrNil(appendErrorTo: &errors),
-                    workspace: "comms",
-                ),
-                zone: ZoneSelector("Comms"),
-            ),
-        ]
-        XCTAssertEqual(errors, [])
-
-        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
-            .evaluate(index: 0, window: targetWindow)
-
-        XCTAssertFalse(evaluation.matched)
-        XCTAssertTrue(evaluation.matcher.failedTerms.contains("app-id expected 'com.apple.mail' but got 'bobko.WinMux.test-app'"))
-        XCTAssertTrue(evaluation.matcher.failedTerms.contains("app-name-regex-substring did not match app name 'bobko.WinMux.test-app'"))
-        XCTAssertTrue(evaluation.matcher.failedTerms.contains("window-title-regex-substring did not match title 'notes.rtf'"))
-        XCTAssertTrue(evaluation.matcher.failedTerms.contains("workspace expected 'comms' but got 'work'"))
-        XCTAssertEqual(evaluation.target, .enabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
-    }
-
-    func testZoneAffinityDisabledTargetFallsThroughAndInspectionNamesHiddenZone() async throws {
-        let zones = configureThreeZones()
-        let reference = Workspace.get(byName: "reference")
-        let work = Workspace.get(byName: "work")
-        let comms = Workspace.get(byName: "comms")
-        XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
-        XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
-        XCTAssertTrue(zones["right"].orDie().setActiveWorkspace(comms))
-        let targetWindow = TestWindow.new(id: 61, parent: work.rootTilingContainer, title: "mail-inbox.rtf")
-        configureRouteCommsAffinity()
-        configureRouteReferenceCallback()
-
-        let disabled = try await ColumnCommand(args: ColumnCmdArgs(target: .collapse(column: ZoneSelector("Comms"))))
-            .run(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(disabled.exitCode, 0)
-        let evaluation = try await config.zoneAffinities.singleOrNil().orDie()
-            .evaluate(index: 0, window: targetWindow)
-
-        XCTAssertTrue(evaluation.matched)
-        XCTAssertEqual(evaluation.target, .disabled(physicalMonitorId: 1, zoneId: "right", zoneName: "Comms"))
-
-        try await tryOnWindowDetected(targetWindow)
-
-        XCTAssertTrue(targetWindow.nodeWorkspace === reference)
     }
 
     func testMoveNodeToZoneMovesFocusedTabGroup() async throws {
@@ -493,7 +364,7 @@ final class ZoneCommandTest: XCTestCase {
         let second = TestWindow.new(id: 52, parent: tabGroup)
         XCTAssertTrue(first.focusWindow())
 
-        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("right")))
+        let result = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("right")))
             .run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -503,13 +374,13 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertFalse(work.rootTilingContainer.allLeafWindowsRecursive.contains(first))
     }
 
-    func testListZonesOutputsZoneNamesAndActiveWorkspaces() async throws {
+    func testListZonesOutputsColumnNamesAndActiveWorkspaces() async throws {
         let zones = configureThreeZones()
         let reference = Workspace.get(byName: "reference")
         XCTAssertTrue(zones["left"].orDie().setActiveWorkspace(reference))
 
         let result = try await parseCommand(
-            "list-columns --format '%{monitor-zone-id}|%{monitor-zone-name}|%{monitor-physical-id}|%{monitor-active-workspace}'",
+            "list-columns --format '%{column-id}|%{column-name}|%{monitor-physical-id}|%{monitor-active-workspace}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
@@ -531,8 +402,8 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(jsonResult.exitCode, 0)
         let json = try XCTUnwrap(jsonResult.stdout.first)
         let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
-        let referenceRow = try XCTUnwrap(rows.first { $0["monitor-zone-id"] as? String == "left" })
-        XCTAssertEqual(referenceRow["monitor-zone-name"] as? String, "Reference")
+        let referenceRow = try XCTUnwrap(rows.first { $0["column-id"] as? String == "left" })
+        XCTAssertEqual(referenceRow["column-name"] as? String, "Reference")
         XCTAssertEqual("\(referenceRow["monitor-physical-id"] ?? "")", "1")
         XCTAssertEqual(referenceRow["monitor-active-workspace"] as? String, "reference")
     }
@@ -551,14 +422,14 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(resize.exitCode, 0)
         XCTAssertEqual(resize.stdout, ["Resized column 'Work' on monitor 1 by +10%"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main", "right"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 720, 240])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === comms)
 
         let list = try await parseCommand(
-            "list-columns --format '%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-configured-width}|%{monitor-zone-effective-width}|%{monitor-zone-runtime-width-override-state}|%{monitor-left}|%{monitor-width}|%{monitor-active-workspace}'",
+            "list-columns --format '%{column-id}|%{column-enabled}|%{column-configured-width}|%{column-effective-width}|%{column-runtime-width-override-state}|%{monitor-left}|%{monitor-width}|%{monitor-active-workspace}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(list.exitCode, 0)
@@ -571,9 +442,9 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(balance.exitCode, 0)
         XCTAssertEqual(balance.stdout, ["Balanced columns on monitor 1"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [400, 400, 400])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === comms)
     }
 
     func testConfigRestoreBackupRestoresValidBackupAndBacksUpBadCurrentConfig() async throws {
@@ -585,7 +456,7 @@ final class ZoneCommandTest: XCTestCase {
                     { id = 'main', width = 0.2 },
                 ]
             """
-        let restoredText = zoneLayoutPresetConfigText()
+        let restoredText = columnLayoutPresetConfigText()
 
         try await withTemporaryConfig(badCurrentText) { url in
             let backup = url.deletingLastPathComponent().appending(component: "winmux.toml.backup-good")
@@ -607,7 +478,7 @@ final class ZoneCommandTest: XCTestCase {
     }
 
     func testConfigRestoreBackupRejectsInvalidBackupWithoutMutation() async throws {
-        let originalText = zoneLayoutPresetConfigText()
+        let originalText = columnLayoutPresetConfigText()
 
         try await withTemporaryConfig(originalText) { url in
             let backup = url.deletingLastPathComponent().appending(component: "bad-backup.toml")
@@ -630,9 +501,9 @@ final class ZoneCommandTest: XCTestCase {
         }
     }
 
-    func testZoneInitDryRunDoesNotWriteConfigOrBackup() async throws {
+    func testColumnInitDryRunDoesNotWriteConfigOrBackup() async throws {
         configureNoZonesOnUltrawide()
-        let originalText = zoneInitBaseConfigText()
+        let originalText = columnInitBaseConfigText()
 
         try await withTemporaryConfig(originalText) { url in
             let result = try await parseCommand("column init --dry-run --preset balanced").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -649,13 +520,13 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertTrue(rendered.contains(#"{ id = "comms", name = "Comms", width = 0.25 },"#))
             XCTAssertTrue(result.stdout.contains("Run with --write to update the config."))
             XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
-            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+            XCTAssertEqual(try columnLayoutBackupUrls(for: url), [])
         }
     }
 
-    func testZoneInitWritesConfigAndBackup() async throws {
+    func testColumnInitWritesConfigAndBackup() async throws {
         configureNoZonesOnUltrawide()
-        let originalText = zoneInitBaseConfigText()
+        let originalText = columnInitBaseConfigText()
 
         try await withTemporaryConfig(originalText) { url in
             let result = try await parseCommand("column init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -665,9 +536,9 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertTrue(result.stdout.contains("Mode: write"))
             XCTAssertTrue(result.stdout.contains("Preset: balanced"))
             XCTAssertTrue(result.stdout.contains { $0.hasPrefix("Backup: \(url.path).backup-") })
-            XCTAssertTrue(result.stdout.joined(separator: "\n").contains(zoneInitManagedBlockBegin))
+            XCTAssertTrue(result.stdout.joined(separator: "\n").contains(columnInitManagedBlockBegin))
 
-            let backups = try zoneLayoutBackupUrls(for: url)
+            let backups = try columnLayoutBackupUrls(for: url)
             XCTAssertEqual(backups.count, 1)
             XCTAssertEqual(try String(contentsOf: backups.singleOrNil().orDie(), encoding: .utf8), originalText)
 
@@ -676,7 +547,7 @@ final class ZoneCommandTest: XCTestCase {
             assertEquals(errors, [])
             let zones = parsed.zones.singleOrNil().orDie()
             XCTAssertEqual(zones.monitor, .sequenceNumber(1))
-            let layout = parsed.zoneLayouts.singleOrNil().orDie()
+            let layout = parsed.columnLayouts.singleOrNil().orDie()
             XCTAssertEqual(layout.defaultZone, "main")
             XCTAssertEqual(layout.columns.map(\.id), ["ref", "main", "comms"])
             XCTAssertEqual(layout.columns.map(\.name), ["Reference", "Work", "Comms"])
@@ -684,14 +555,14 @@ final class ZoneCommandTest: XCTestCase {
         }
     }
 
-    func testZoneInitWriteIsIdempotent() async throws {
+    func testColumnInitWriteIsIdempotent() async throws {
         configureNoZonesOnUltrawide()
 
-        try await withTemporaryConfig(zoneInitBaseConfigText()) { url in
+        try await withTemporaryConfig(columnInitBaseConfigText()) { url in
             let first = try await parseCommand("column init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(first.exitCode, 0)
             let firstText = try String(contentsOf: url, encoding: .utf8)
-            XCTAssertEqual(try zoneLayoutBackupUrls(for: url).count, 1)
+            XCTAssertEqual(try columnLayoutBackupUrls(for: url).count, 1)
 
             let second = try await parseCommand("column init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
@@ -699,13 +570,13 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertEqual(second.stdout.first, "Column init already configured in \(url.path)")
             XCTAssertTrue(second.stdout.contains("No changes needed."))
             XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), firstText)
-            XCTAssertEqual(try zoneLayoutBackupUrls(for: url).count, 1)
+            XCTAssertEqual(try columnLayoutBackupUrls(for: url).count, 1)
         }
     }
 
-    func testZoneInitRejectsUnmanagedActiveZonesWithoutMutation() async throws {
+    func testColumnInitRejectsUnmanagedActiveZonesWithoutMutation() async throws {
         configureNoZonesOnUltrawide()
-        let originalText = inlineZoneConfigText()
+        let originalText = layoutPresetDisplayLayoutConfigText()
 
         try await withTemporaryConfig(originalText) { url in
             let result = try await parseCommand("column init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
@@ -713,14 +584,14 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertEqual(result.exitCode, 1)
             XCTAssertTrue(result.stderr.joined(separator: "\n").contains("Config already has active columns"))
             XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), originalText)
-            XCTAssertEqual(try zoneLayoutBackupUrls(for: url), [])
+            XCTAssertEqual(try columnLayoutBackupUrls(for: url), [])
         }
     }
 
-    func testZoneInitReplaceExistingManagedBlock() async throws {
+    func testColumnInitReplaceExistingManagedBlock() async throws {
         configureNoZonesOnUltrawide()
 
-        try await withTemporaryConfig(zoneInitBaseConfigText()) { url in
+        try await withTemporaryConfig(columnInitBaseConfigText()) { url in
             let first = try await parseCommand("column init --preset balanced --write").cmdOrDie.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(first.exitCode, 0)
 
@@ -732,14 +603,14 @@ final class ZoneCommandTest: XCTestCase {
             XCTAssertEqual(replaced.exitCode, 0, replaced.stderr.joined(separator: "\n"))
             XCTAssertEqual(replaced.stdout.first, "Wrote focus-only columns to \(url.path)")
 
-            let backups = try zoneLayoutBackupUrls(for: url)
+            let backups = try columnLayoutBackupUrls(for: url)
             XCTAssertEqual(backups.count, 2)
             let updatedText = try String(contentsOf: url, encoding: .utf8)
-            XCTAssertEqual(updatedText.components(separatedBy: zoneInitManagedBlockBegin).count - 1, 1)
+            XCTAssertEqual(updatedText.components(separatedBy: columnInitManagedBlockBegin).count - 1, 1)
 
             let (parsed, errors) = parseConfig(updatedText)
             assertEquals(errors, [])
-            XCTAssertEqual(parsed.zoneLayouts.singleOrNil().orDie().columns.map(\.width), [0.15, 0.70, 0.15])
+            XCTAssertEqual(parsed.columnLayouts.singleOrNil().orDie().columns.map(\.width), [0.15, 0.70, 0.15])
         }
     }
 
@@ -753,7 +624,7 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(result.stdout, ["Resized column 'Work' on monitor 1 by +10%"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main", "right"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [240, 720, 240])
     }
 
@@ -772,15 +643,15 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(hide.exitCode, 0)
         XCTAssertEqual(hide.stdout, ["Collapsed column 'Comms' on monitor 1"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main"])
         XCTAssertTrue(focus.workspace === work)
 
         let restore = try await parseCommand("column toggle current").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(restore.exitCode, 0)
         XCTAssertEqual(restore.stdout, ["Expanded column 'Comms' on monitor 1"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main", "right"])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === comms)
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }
 
@@ -806,7 +677,7 @@ final class ZoneCommandTest: XCTestCase {
 
         let enable = try await parseCommand("column expand Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(enable.exitCode, 0)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === commsEmpty)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === commsEmpty)
     }
 
     func testResizeZoneRejectsDisabledZoneAndBalanceUsesEnabledZonesOnly() async throws {
@@ -817,15 +688,15 @@ final class ZoneCommandTest: XCTestCase {
 
         let resize = try await parseCommand("column resize +10% Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(resize.exitCode, 1)
-        XCTAssertTrue(resize.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+        XCTAssertTrue(resize.stderr.joined(separator: "\n").contains("Column 'Comms' is disabled"))
 
         let balance = try await parseCommand("balance-columns").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(balance.exitCode, 0)
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [600, 600])
 
         let list = try await parseCommand(
-            "list-columns --format '%{monitor-zone-id}|%{monitor-zone-enabled}|%{monitor-zone-effective-width}|%{monitor-width}'",
+            "list-columns --format '%{column-id}|%{column-enabled}|%{column-effective-width}|%{monitor-width}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(list.exitCode, 0)
         XCTAssertTrue(list.stdout.contains("left|true|0.375|600.0"))
@@ -911,10 +782,10 @@ final class ZoneCommandTest: XCTestCase {
         let workWindow = TestWindow.new(id: 401, parent: work.rootTilingContainer)
         let commsWindow = TestWindow.new(id: 402, parent: comms.rootTilingContainer)
 
-        let preview = try XCTUnwrap(previewZoneDividerMove(
+        let preview = try XCTUnwrap(previewColumnDividerMove(
             on: zones["main"].orDie().physicalMonitor,
-            leftZoneId: "main",
-            rightZoneId: "right",
+            leftColumnId: "main",
+            rightColumnId: "right",
             deltaPixels: 120,
         ).getOrNil())
         XCTAssertEqual(preview.oldBoundaryX, 900)
@@ -922,10 +793,10 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(preview.leftAfterShare, 0.6, accuracy: 0.0001)
         XCTAssertEqual(preview.rightAfterShare, 0.15, accuracy: 0.0001)
 
-        let result = try XCTUnwrap(moveZoneDivider(
+        let result = try XCTUnwrap(moveColumnDivider(
             on: zones["main"].orDie().physicalMonitor,
-            leftZoneId: "main",
-            rightZoneId: "right",
+            leftColumnId: "main",
+            rightColumnId: "right",
             deltaPixels: 120,
         ).getOrNil())
 
@@ -935,16 +806,16 @@ final class ZoneCommandTest: XCTestCase {
             "1:main": 720,
             "1:right": 180,
         ])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === comms)
         XCTAssertTrue(workWindow.nodeWorkspace === work)
         XCTAssertTrue(commsWindow.nodeWorkspace === comms)
     }
 
     func testZoneDividerAmbientClickDoesNotStartInsideKnownWindowFrame() {
         let zones = configureThreeZones()
-        config.mouse.zoneDividerDrag = .always
+        config.mouse.columnDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         TestWindow.new(
@@ -952,10 +823,10 @@ final class ZoneCommandTest: XCTestCase {
             parent: work.rootTilingContainer,
             rect: Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200),
         )
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
 
-        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
+        XCTAssertNotNil(columnDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
         XCTAssertFalse(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
         XCTAssertFalse(controller.isDragging)
 
@@ -966,7 +837,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerAmbientClickUsesLiveFrameBeforeVetoingStaleCachedFrame() {
         let zones = configureThreeZones()
-        config.mouse.zoneDividerDrag = .always
+        config.mouse.columnDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         let window = TestWindow.new(
@@ -976,10 +847,10 @@ final class ZoneCommandTest: XCTestCase {
         )
         window.lastKnownActualRect = Rect(topLeftX: 100, topLeftY: 100, width: 80, height: 80)
         window.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200)
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
 
-        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
+        XCTAssertNotNil(columnDividerHandle(at: CGPoint(x: 900, y: 150), hitSlop: 16))
         XCTAssertTrue(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
         XCTAssertTrue(controller.isDragging)
         controller.cancel()
@@ -987,7 +858,7 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerChromeCanStartInsideFullHeightTiledWindowFrame() {
         let zones = configureThreeZones()
-        config.mouse.zoneDividerDrag = .always
+        config.mouse.columnDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         TestWindow.new(
@@ -995,10 +866,10 @@ final class ZoneCommandTest: XCTestCase {
             parent: work.rootTilingContainer,
             rect: Rect(topLeftX: 300, topLeftY: 0, width: 620, height: 800),
         )
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
 
-        XCTAssertNotNil(zoneDividerHandle(at: CGPoint(x: 900, y: 400), hitSlop: 16))
+        XCTAssertNotNil(columnDividerHandle(at: CGPoint(x: 900, y: 400), hitSlop: 16))
         XCTAssertFalse(controller.handleMouseDown(at: CGPoint(x: 900, y: 400)))
         XCTAssertFalse(controller.isDragging)
 
@@ -1041,17 +912,17 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerAmbientClickConsultsLiveFramesSnapshot() {
         let zones = configureThreeZones()
-        config.mouse.zoneDividerDrag = .always
+        config.mouse.columnDividerDrag = .always
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         // rect: nil leaves currentFrameForHitTesting() nil, like a real MacWindow, so the veto
         // falls through to the snapshot lookup.
         let window = TestWindow.new(id: 462, parent: work.rootTilingContainer, rect: nil)
         window.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200)
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
         let dividerPoint = CGPoint(x: 900, y: 150)
-        XCTAssertNotNil(zoneDividerHandle(at: dividerPoint, hitSlop: 16))
+        XCTAssertNotNil(columnDividerHandle(at: dividerPoint, hitSlop: 16))
 
         // Snapshot says the window moved away: the stale cached rect must not veto the drag.
         controller.setLiveFramesSnapshotForTests([462: Rect(topLeftX: 100, topLeftY: 100, width: 80, height: 200)])
@@ -1073,10 +944,10 @@ final class ZoneCommandTest: XCTestCase {
 
     func testZoneDividerDragRequiresZoneModeByDefault() {
         _ = configureThreeZones()
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
         let dividerPoint = CGPoint(x: 900, y: 20)
-        XCTAssertNotNil(zoneDividerHandle(at: dividerPoint, hitSlop: 16))
+        XCTAssertNotNil(columnDividerHandle(at: dividerPoint, hitSlop: 16))
 
         let previousMode = activeMode
         defer { activeMode = previousMode }
@@ -1094,26 +965,26 @@ final class ZoneCommandTest: XCTestCase {
     }
 
     func testZoneDividerChromeHitBandMatchesAdvertisedHitSlop() {
-        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .hover), 8)
-        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .dragging), 14)
-        XCTAssertEqual(zoneDividerVisibleBandWidth(for: .committed), 14)
-        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .hover), 32)
-        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .dragging), 32)
-        XCTAssertEqual(zoneDividerChromeHitBandWidth(for: .committed), 0)
+        XCTAssertEqual(columnDividerVisibleBandWidth(for: .hover), 8)
+        XCTAssertEqual(columnDividerVisibleBandWidth(for: .dragging), 14)
+        XCTAssertEqual(columnDividerVisibleBandWidth(for: .committed), 14)
+        XCTAssertEqual(columnDividerChromeHitBandWidth(for: .hover), 32)
+        XCTAssertEqual(columnDividerChromeHitBandWidth(for: .dragging), 32)
+        XCTAssertEqual(columnDividerChromeHitBandWidth(for: .committed), 0)
     }
 
-    func testZoneDividerHitPanelOnlyClaimsLeftDragEvents() {
-        XCTAssertTrue(zoneDividerHitPanelHandlesEvent(type: .leftMouseDown, buttonNumber: 0))
-        XCTAssertTrue(zoneDividerHitPanelHandlesEvent(type: .leftMouseDragged, buttonNumber: 0))
-        XCTAssertTrue(zoneDividerHitPanelHandlesEvent(type: .leftMouseUp, buttonNumber: 0))
-        XCTAssertFalse(zoneDividerHitPanelHandlesEvent(type: .rightMouseDown, buttonNumber: 1))
-        XCTAssertFalse(zoneDividerHitPanelHandlesEvent(type: .scrollWheel, buttonNumber: 0))
-        XCTAssertFalse(zoneDividerHitPanelHandlesEvent(type: .otherMouseDown, buttonNumber: 2))
+    func testColumnDividerHitPanelOnlyClaimsLeftDragEvents() {
+        XCTAssertTrue(columnDividerHitPanelHandlesEvent(type: .leftMouseDown, buttonNumber: 0))
+        XCTAssertTrue(columnDividerHitPanelHandlesEvent(type: .leftMouseDragged, buttonNumber: 0))
+        XCTAssertTrue(columnDividerHitPanelHandlesEvent(type: .leftMouseUp, buttonNumber: 0))
+        XCTAssertFalse(columnDividerHitPanelHandlesEvent(type: .rightMouseDown, buttonNumber: 1))
+        XCTAssertFalse(columnDividerHitPanelHandlesEvent(type: .scrollWheel, buttonNumber: 0))
+        XCTAssertFalse(columnDividerHitPanelHandlesEvent(type: .otherMouseDown, buttonNumber: 2))
     }
 
     func testZoneDividerDragIgnoresStaleFramesFromInactiveWorkspaces() {
         _ = configureThreeZones()
-        config.mouse.zoneDividerDrag = .always
+        config.mouse.columnDividerDrag = .always
         let inactiveWorkspace = Workspace.get(byName: "inactive-with-stale-frame")
         TestWindow.new(
             id: 452,
@@ -1121,7 +992,7 @@ final class ZoneCommandTest: XCTestCase {
             rect: Rect(topLeftX: 880, topLeftY: 100, width: 80, height: 200),
         )
         XCTAssertFalse(inactiveWorkspace.isVisible)
-        let controller = ZoneDividerDragController.shared
+        let controller = ColumnDividerDragController.shared
         controller.cancel()
 
         XCTAssertTrue(controller.handleMouseDown(at: CGPoint(x: 900, y: 150)))
@@ -1140,22 +1011,22 @@ final class ZoneCommandTest: XCTestCase {
         let moveToMain = try await parseCommand("card move next").cmdOrDie
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(moveToMain.exitCode, 0)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === assigned)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "main" }.orDie().activeWorkspace === assigned)
 
         let moveToRight = try await parseCommand("card move next").cmdOrDie
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(moveToRight.exitCode, 0)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === assigned)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === assigned)
     }
 
 
     func testMoveZoneDividerClampsAtMinimumShare() async throws {
         let zones = configureThreeZones()
 
-        let result = try XCTUnwrap(moveZoneDivider(
+        let result = try XCTUnwrap(moveColumnDivider(
             on: zones["main"].orDie().physicalMonitor,
-            leftZoneId: "main",
-            rightZoneId: "right",
+            leftColumnId: "main",
+            rightColumnId: "right",
             deltaPixels: 1000,
         ).getOrNil())
 
@@ -1174,14 +1045,14 @@ final class ZoneCommandTest: XCTestCase {
         let disable = try await parseCommand("column collapse Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(disable.exitCode, 0)
 
-        let handles = zoneDividerHandles(hitSlop: 12)
-        XCTAssertEqual(handles.map { "\($0.leftZoneId)|\($0.rightZoneId)" }, ["left|main"])
-        XCTAssertNil(zoneDividerHandle(at: CGPoint(x: 900, y: 10), hitSlop: 12))
+        let handles = columnDividerHandles(hitSlop: 12)
+        XCTAssertEqual(handles.map { "\($0.leftColumnId)|\($0.rightColumnId)" }, ["left|main"])
+        XCTAssertNil(columnDividerHandle(at: CGPoint(x: 900, y: 10), hitSlop: 12))
 
-        switch moveZoneDivider(
+        switch moveColumnDivider(
             on: zones["main"].orDie().physicalMonitor,
-            leftZoneId: "main",
-            rightZoneId: "right",
+            leftColumnId: "main",
+            rightColumnId: "right",
             deltaPixels: 120,
         ) {
             case .success:
@@ -1192,12 +1063,12 @@ final class ZoneCommandTest: XCTestCase {
     }
 
     func testMoveZoneDividerOnlyAffectsSelectedPhysicalMonitorAndActiveLayout() async throws {
-        let zones = configureDuplicateZoneLayoutPresets()
+        let zones = configureDuplicateColumnLayoutPresets()
 
-        let result = try XCTUnwrap(moveZoneDivider(
+        let result = try XCTUnwrap(moveColumnDivider(
             on: zones["2:left"].orDie().physicalMonitor,
-            leftZoneId: "left",
-            rightZoneId: "main",
+            leftColumnId: "left",
+            rightColumnId: "main",
             deltaPixels: 100,
         ).getOrNil())
 
@@ -1209,7 +1080,7 @@ final class ZoneCommandTest: XCTestCase {
             "2:main": 400,
         ])
 
-        switch setActiveZoneLayout("focus", for: zones["2:left"].orDie().physicalMonitor) {
+        switch setActiveColumnLayout("focus", for: zones["2:left"].orDie().physicalMonitor) {
             case .success: break
             case .failure(let message): XCTFail(message)
         }
@@ -1220,7 +1091,7 @@ final class ZoneCommandTest: XCTestCase {
             "2:main": 700,
         ])
 
-        switch setActiveZoneLayout("balanced", for: zones["2:left"].orDie().physicalMonitor) {
+        switch setActiveColumnLayout("balanced", for: zones["2:left"].orDie().physicalMonitor) {
             case .success: break
             case .failure(let message): XCTFail(message)
         }
@@ -1258,20 +1129,20 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(result.stdout, ["Colored column 'Comms' on monitor 1 as '#D3455B'"])
-        XCTAssertEqual(sortedMonitors.singleOrNil { $0.zoneId == "right" }?.zoneStyleColorHex, "#D3455B")
+        XCTAssertEqual(sortedMonitors.singleOrNil { $0.columnId == "right" }?.columnColorHex, "#D3455B")
 
         let list = try await parseCommand(
-            "list-columns --format '%{monitor-zone-id}|%{monitor-zone-style-color}|%{monitor-active-workspace}'",
+            "list-columns --format '%{column-id}|%{column-color}|%{monitor-active-workspace}'",
         ).cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(list.exitCode, 0)
         XCTAssertTrue(list.stdout.contains("right|#D3455B|comms"))
         XCTAssertTrue(list.stdout.contains("main||work"))
 
-        let targets = buildWorkspaceSidebarZoneTargetViewModels(
+        let targets = buildWorkspaceSidebarColumnTargetViewModels(
             sortedMonitors: sortedMonitors,
             currentFocus: focus,
         )
-        let commsTarget = try XCTUnwrap(targets.singleOrNil { $0.zoneId == "right" })
+        let commsTarget = try XCTUnwrap(targets.singleOrNil { $0.columnId == "right" })
         XCTAssertEqual(commsTarget.styleColorHex, "#D3455B")
     }
 
@@ -1306,7 +1177,7 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(scoped.exitCode, 0, scoped.stderr.joined(separator: "\n"))
         XCTAssertEqual(scoped.stdout, ["Colored column 'Reference' on monitor 2 as '#D3455B'"])
         XCTAssertEqual(
-            sortedMonitors.singleOrNil { $0.zoneId == "left" && $0.physicalMonitor.monitorId_oneBased == 2 }?.zoneStyleColorHex,
+            sortedMonitors.singleOrNil { $0.columnId == "left" && $0.physicalMonitor.monitorId_oneBased == 2 }?.columnColorHex,
             "#D3455B",
         )
 
@@ -1321,21 +1192,21 @@ final class ZoneCommandTest: XCTestCase {
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         XCTAssertTrue(work.focusWorkspace())
-        config.mouse.zoneSnap.policy = .freeform
-        config.mouse.zoneSnap.modifier = [.option, .shift]
-        config.mouse.zoneSnap.gesture = .drag
-        config.mouse.zoneSnap.target = .zone
+        config.mouse.columnSnap.policy = .freeform
+        config.mouse.columnSnap.modifier = [.option, .shift]
+        config.mouse.columnSnap.gesture = .drag
+        config.mouse.columnSnap.target = .column
 
-        let result = try await parseCommand("set-column-snap-policy snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let result = try await parseCommand("set-column-snap-policy snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertEqual(result.stdout, ["Using column snap policy 'snap-to-zone' on monitor 1"])
-        XCTAssertEqual(config.mouse.zoneSnap.policy, .freeform)
-        let effective = effectiveZoneSnapConfig(for: zones["right"].orDie())
-        XCTAssertEqual(effective.policy, .snapToZone)
+        XCTAssertEqual(result.stdout, ["Using column snap policy 'snap-to-column' on monitor 1"])
+        XCTAssertEqual(config.mouse.columnSnap.policy, .freeform)
+        let effective = effectiveColumnSnapConfig(for: zones["right"].orDie())
+        XCTAssertEqual(effective.policy, .snapToColumn)
         XCTAssertEqual(effective.modifier, [.option, .shift])
         XCTAssertEqual(effective.gesture, .drag)
-        XCTAssertEqual(effective.target, .zone)
+        XCTAssertEqual(effective.target, .column)
     }
 
     func testCycleZoneSnapPolicyCyclesAndWraps() async throws {
@@ -1343,17 +1214,17 @@ final class ZoneCommandTest: XCTestCase {
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         XCTAssertTrue(work.focusWorkspace())
-        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.columnSnap.policy = .freeform
 
-        let snap = try await parseCommand("cycle-column-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let snap = try await parseCommand("cycle-column-snap-policy freeform snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(snap.exitCode, 0)
-        XCTAssertEqual(snap.stdout, ["Using column snap policy 'snap-to-zone' on monitor 1"])
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .snapToZone)
+        XCTAssertEqual(snap.stdout, ["Using column snap policy 'snap-to-column' on monitor 1"])
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["left"].orDie()).policy, .snapToColumn)
 
-        let freeform = try await parseCommand("cycle-column-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let freeform = try await parseCommand("cycle-column-snap-policy freeform snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(freeform.exitCode, 0)
         XCTAssertEqual(freeform.stdout, ["Using column snap policy 'freeform' on monitor 1"])
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .freeform)
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["left"].orDie()).policy, .freeform)
     }
 
     func testCycleZoneSnapPolicyStartsAtFirstPolicyWhenCurrentPolicyIsOutsideCycle() async throws {
@@ -1361,13 +1232,13 @@ final class ZoneCommandTest: XCTestCase {
         let work = Workspace.get(byName: "work")
         XCTAssertTrue(zones["main"].orDie().setActiveWorkspace(work))
         XCTAssertTrue(work.focusWorkspace())
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.policy = .floatUnlessSnap
 
-        let result = try await parseCommand("cycle-column-snap-policy freeform snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let result = try await parseCommand("cycle-column-snap-policy freeform snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(result.stdout, ["Using column snap policy 'freeform' on monitor 1"])
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["left"].orDie()).policy, .freeform)
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["left"].orDie()).policy, .freeform)
     }
 
     func testZoneSnapPolicyRejectsUnknownDuplicateAndUnzonedMonitor() async throws {
@@ -1378,14 +1249,14 @@ final class ZoneCommandTest: XCTestCase {
 
         let unknown = try await parseCommand("set-column-snap-policy snap-to-window").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(unknown.exitCode, 1)
-        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown zone snap policy 'snap-to-window'"))
+        XCTAssertTrue(unknown.stderr.joined(separator: "\n").contains("Unknown column snap policy 'snap-to-window'"))
 
         let duplicate = try await parseCommand("cycle-column-snap-policy freeform freeform").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(duplicate.exitCode, 1)
         XCTAssertTrue(duplicate.stderr.joined(separator: "\n").contains("cycle-column-snap-policy requires unique policies: freeform"))
 
         configureNoZones()
-        let noZones = try await parseCommand("set-column-snap-policy snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let noZones = try await parseCommand("set-column-snap-policy snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(noZones.exitCode, 1)
         XCTAssertTrue(noZones.stderr.joined(separator: "\n").contains("No zone config targets monitor 1"))
     }
@@ -1395,19 +1266,19 @@ final class ZoneCommandTest: XCTestCase {
         let secondaryMain = Workspace.get(byName: "secondary-main")
         XCTAssertTrue(zones["2:main"].orDie().setActiveWorkspace(secondaryMain))
         XCTAssertTrue(secondaryMain.focusWorkspace())
-        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.columnSnap.policy = .freeform
 
-        let secondary = try await parseCommand("set-column-snap-policy --monitor 2 snap-to-zone").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let secondary = try await parseCommand("set-column-snap-policy --monitor 2 snap-to-column").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(secondary.exitCode, 0, secondary.stderr.joined(separator: "\n"))
-        XCTAssertEqual(secondary.stdout, ["Using column snap policy 'snap-to-zone' on monitor 2"])
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["1:left"].orDie()).policy, .freeform)
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["2:left"].orDie()).policy, .snapToZone)
+        XCTAssertEqual(secondary.stdout, ["Using column snap policy 'snap-to-column' on monitor 2"])
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["1:left"].orDie()).policy, .freeform)
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["2:left"].orDie()).policy, .snapToColumn)
 
         let primary = try await parseCommand("set-column-snap-policy --monitor 1 float-unless-snap").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(primary.exitCode, 0, primary.stderr.joined(separator: "\n"))
         XCTAssertEqual(primary.stdout, ["Using column snap policy 'float-unless-snap' on monitor 1"])
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["1:left"].orDie()).policy, .floatUnlessSnap)
-        XCTAssertEqual(effectiveZoneSnapConfig(for: zones["2:left"].orDie()).policy, .snapToZone)
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["1:left"].orDie()).policy, .floatUnlessSnap)
+        XCTAssertEqual(effectiveColumnSnapConfig(for: zones["2:left"].orDie()).policy, .snapToColumn)
     }
 
     func testDisableZoneParksWorkspaceAndEnableZoneRestoresIt() async throws {
@@ -1425,10 +1296,10 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(disableResult.exitCode, 0)
         XCTAssertEqual(disableResult.stdout, ["Collapsed column 'Comms' on monitor 1"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main"])
         XCTAssertEqual(sortedMonitors.map(\.rect.width), [400, 800])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "left" }.orDie().activeWorkspace === reference)
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "main" }.orDie().activeWorkspace === work)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "left" }.orDie().activeWorkspace === reference)
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "main" }.orDie().activeWorkspace === work)
         XCTAssertFalse(comms.isVisible)
         XCTAssertTrue(focus.workspace !== comms)
 
@@ -1436,8 +1307,8 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(enableResult.exitCode, 0)
         XCTAssertEqual(enableResult.stdout, ["Expanded column 'Comms' on monitor 1"])
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["left", "main", "right"])
-        XCTAssertTrue(sortedMonitors.singleOrNil { $0.zoneId == "right" }.orDie().activeWorkspace === comms)
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["left", "main", "right"])
+        XCTAssertTrue(sortedMonitors.singleOrNil { $0.columnId == "right" }.orDie().activeWorkspace === comms)
     }
 
     func testDisabledZoneCannotBeFocusedOrMovedTo() async throws {
@@ -1454,11 +1325,11 @@ final class ZoneCommandTest: XCTestCase {
 
         let focusResult = try await parseCommand("focus-column Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(focusResult.exitCode, 1)
-        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("Column 'Comms' is disabled"))
 
         let moveResult = try await parseCommand("move-node-to-column Comms").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(moveResult.exitCode, 1)
-        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("Zone 'Comms' is disabled"))
+        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("Column 'Comms' is disabled"))
         XCTAssertTrue(window.nodeWorkspace === work)
     }
 
@@ -1474,10 +1345,10 @@ final class ZoneCommandTest: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 1)
         XCTAssertTrue(result.stderr.joined(separator: "\n").contains("at least one zone must stay enabled"))
-        XCTAssertEqual(sortedMonitors.map(\.zoneId), ["right"])
+        XCTAssertEqual(sortedMonitors.map(\.columnId), ["right"])
     }
 
-    func testZoneAvailabilityCommandsUseConfiguredZoneSelectorForDisabledZones() async throws {
+    func testColumnVisibilityCommandsUseConfiguredColumnSelectorForCollapsedColumns() async throws {
         let zones = configureDuplicateZones()
         let primaryLeft = Workspace.get(byName: "primary-left")
         let primaryMain = Workspace.get(byName: "primary-main")
@@ -1497,9 +1368,9 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(disable.exitCode, 0, disable.stderr.joined(separator: "\n"))
         XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-                  let zoneId = monitor.zoneId
+                  let columnId = monitor.columnId
             else { return nil }
-            return "\(physicalId):\(zoneId)"
+            return "\(physicalId):\(columnId)"
         }, ["1:left", "1:main", "2:main"])
 
         XCTAssertTrue(secondaryMain.focusWorkspace())
@@ -1507,9 +1378,9 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(enable.exitCode, 0)
         XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-                  let zoneId = monitor.zoneId
+                  let columnId = monitor.columnId
             else { return nil }
-            return "\(physicalId):\(zoneId)"
+            return "\(physicalId):\(columnId)"
         }, ["1:left", "1:main", "2:left", "2:main"])
         XCTAssertEqual(zoneActiveWorkspacesByPhysicalZone(), [
             "1:left": "primary-left",
@@ -1523,9 +1394,9 @@ final class ZoneCommandTest: XCTestCase {
         XCTAssertEqual(toggle.exitCode, 0)
         XCTAssertEqual(sortedMonitors.compactMap { monitor -> String? in
             guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-                  let zoneId = monitor.zoneId
+                  let columnId = monitor.columnId
             else { return nil }
-            return "\(physicalId):\(zoneId)"
+            return "\(physicalId):\(columnId)"
         }, ["1:left", "1:main", "2:main"])
     }
 
@@ -1535,50 +1406,22 @@ final class ZoneCommandTest: XCTestCase {
         let window = TestWindow.new(id: 61, parent: workspace.rootTilingContainer)
         XCTAssertTrue(window.focusWindow())
 
-        let focusResult = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ZoneSelector("left")))
+        let focusResult = try await FocusColumnCommand(args: FocusColumnCmdArgs(column: ColumnSelector("left")))
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(focusResult.exitCode, 1)
-        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("No zones are configured"))
+        XCTAssertTrue(focusResult.stderr.joined(separator: "\n").contains("No columns are configured"))
 
-        let moveResult = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("left")))
+        let moveResult = try await MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("left")))
             .run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(moveResult.exitCode, 1)
-        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("No zones are configured"))
+        XCTAssertTrue(moveResult.stderr.joined(separator: "\n").contains("No columns are configured"))
     }
-}
-
-@MainActor
-private func configureZoneScenes() -> [String: Monitor] {
-    configureZoneLayoutPresets()
-    config.zoneScenes = [
-        ZoneSceneConfig(
-            id: "triage",
-            layoutPreset: "balanced",
-            workspaces: [
-                ZoneSceneWorkspaceConfig(zone: "left", workspace: WorkspaceName.parse("TriageInbox").getOrDie()),
-                ZoneSceneWorkspaceConfig(zone: "main", workspace: WorkspaceName.parse("TriageDraft").getOrDie()),
-                ZoneSceneWorkspaceConfig(zone: "right", workspace: WorkspaceName.parse("TriageUpdates").getOrDie()),
-            ],
-        ),
-        ZoneSceneConfig(
-            id: "deep-work",
-            layoutPreset: "focus",
-            workspaces: [
-                ZoneSceneWorkspaceConfig(zone: "left", workspace: WorkspaceName.parse("FocusQueue").getOrDie()),
-                ZoneSceneWorkspaceConfig(zone: "main", workspace: WorkspaceName.parse("FocusBuild").getOrDie()),
-                ZoneSceneWorkspaceConfig(zone: "right", workspace: WorkspaceName.parse("FocusNotes").getOrDie()),
-            ],
-        ),
-    ]
-    return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
-    })
 }
 
 @MainActor
 private func activeWorkspaceNamesByZone() -> [String: String] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor.activeWorkspace.name) }
+        monitor.columnId.map { ($0, monitor.activeWorkspace.name) }
     })
 }
 
@@ -1591,23 +1434,21 @@ private func configureRouteCommsCallback() {
         WindowDetectedCallback(
             matcher: WindowDetectedCallbackMatcher(windowTitleRegexSubstring: regex),
             rawRun: [
-                MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Comms")).copy(\.failIfNoop, true)),
+                MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Comms")).copy(\.failIfNoop, true)),
             ],
         ),
     ]
 }
 
 @MainActor
-private func configureRouteCommsAffinity(checkFurtherCallbacks: Bool = false, failIfNoop: Bool = false) {
+private func configureRouteCommsRule() {
     var errors: [String] = []
     let regex = parseCaseInsensitiveRegex("mail-inbox").getOrNil(appendErrorTo: &errors).orDie()
     XCTAssertEqual(errors, [])
-    config.zoneAffinities = [
-        ZoneAffinityConfig(
+    config.rules = [
+        RuleConfig(
             matcher: WindowDetectedCallbackMatcher(windowTitleRegexSubstring: regex),
-            zone: ZoneSelector("Comms"),
-            checkFurtherCallbacks: checkFurtherCallbacks,
-            failIfNoop: failIfNoop,
+            card: "comms",
         ),
     ]
 }
@@ -1617,14 +1458,14 @@ private func configureRouteReferenceCallback() {
     config.onWindowDetected = [
         WindowDetectedCallback(
             rawRun: [
-                MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ZoneSelector("Reference")).copy(\.failIfNoop, true)),
+                MoveNodeToColumnCommand(args: MoveNodeToColumnCmdArgs(column: ColumnSelector("Reference")).copy(\.failIfNoop, true)),
             ],
         ),
     ]
 }
 
 @MainActor
-private func configureZoneLayoutPresets() {
+private func configureColumnLayoutPresets() {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
         name: "Main",
@@ -1635,30 +1476,30 @@ private func configureZoneLayoutPresets() {
     setMonitorsForTests([main])
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
-    config.zoneLayouts = [
-        ZoneLayoutConfig(
+    config.columnLayouts = [
+        ColumnLayoutConfig(
             id: "balanced",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
-        ZoneLayoutConfig(
+        ColumnLayoutConfig(
             id: "focus",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
+                ColumnConfig(id: "left", name: "Reference", width: 0.15),
+                ColumnConfig(id: "main", name: "Work", width: 0.70),
+                ColumnConfig(id: "right", name: "Comms", width: 0.15),
             ],
         ),
     ]
     config.zones = [
-        ZoneConfig(
+        DisplayLayoutConfig(
             monitor: .sequenceNumber(1),
             layoutPreset: "balanced",
         ),
@@ -1666,47 +1507,9 @@ private func configureZoneLayoutPresets() {
 }
 
 @MainActor
-private func configureInlineZonesWithLayoutPresets() {
-    let main = TestMonitor(
-        monitorAppKitNsScreenScreensId: 1,
-        name: "Main",
-        rect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
-        visibleRect: Rect(topLeftX: 0, topLeftY: 0, width: 1200, height: 800),
-        isMain: true,
-    )
-    setMonitorsForTests([main])
-    config.gaps = .zero
-    config.workspaceSidebar.enabled = false
-    config.zoneLayouts = [
-        ZoneLayoutConfig(
-            id: "focus",
-            layout: .columns,
-            defaultZone: "main",
-            columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.15),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.15),
-            ],
-        ),
-    ]
-    config.zones = [
-        ZoneConfig(
-            monitor: .sequenceNumber(1),
-            layout: .columns,
-            defaultZone: "main",
-            columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
-            ],
-        ),
-    ]
-}
-
-@MainActor
 private func configureThreeZones(
     defaultZone: String = "main",
-    columns: [ZoneColumnConfig]? = nil,
+    columns: [ColumnConfig]? = nil,
 ) -> [String: Monitor] {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
@@ -1719,19 +1522,18 @@ private func configureThreeZones(
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: defaultZone,
             columns: columns ?? [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 
@@ -1769,7 +1571,7 @@ private func configureNoZonesOnUltrawide() {
 private func withTemporaryConfig(_ text: String, _ body: (URL) async throws -> Void) async throws {
     let previousConfigUrl = configUrl
     let directory = FileManager.default.temporaryDirectory
-        .appending(component: "winmux-save-zone-layout-\(UUID().uuidString)")
+        .appending(component: "winmux-layout-persistence-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let url = directory.appending(component: "winmux.toml")
     try text.write(to: url, atomically: true, encoding: .utf8)
@@ -1781,7 +1583,7 @@ private func withTemporaryConfig(_ text: String, _ body: (URL) async throws -> V
     try await body(url)
 }
 
-private func zoneLayoutBackupUrls(for url: URL) throws -> [URL] {
+private func columnLayoutBackupUrls(for url: URL) throws -> [URL] {
     let directory = url.deletingLastPathComponent()
     let prefix = "\(url.lastPathComponent).backup-"
     return try FileManager.default.contentsOfDirectory(
@@ -1803,7 +1605,7 @@ private func configRestoreRollbackUrls(for url: URL) throws -> [URL] {
     .sorted { $0.lastPathComponent < $1.lastPathComponent }
 }
 
-private func zoneInitBaseConfigText() -> String {
+private func columnInitBaseConfigText() -> String {
     """
     # user config stays intact
     enable-normalization-flatten-containers = false
@@ -1813,7 +1615,7 @@ private func zoneInitBaseConfigText() -> String {
     """
 }
 
-private func zoneLayoutPresetConfigText(missingRightColumnInBalanced: Bool = false) -> String {
+private func columnLayoutPresetConfigText(missingRightColumnInBalanced: Bool = false) -> String {
     let rightColumn = missingRightColumnInBalanced ? "" : "    { id = 'right', name = 'Comms', width = 0.25 },\n"
     return """
         # keep user comments
@@ -1842,7 +1644,7 @@ private func zoneLayoutPresetConfigText(missingRightColumnInBalanced: Bool = fal
         """
 }
 
-private func inlineZoneConfigText() -> String {
+private func layoutPresetDisplayLayoutConfigText() -> String {
     """
     [[zone-layouts]]
     id = 'focus'
@@ -1856,13 +1658,7 @@ private func inlineZoneConfigText() -> String {
 
     [[zones]]
     monitor = 1
-    layout = 'columns'
-    default-zone = 'main'
-    columns = [
-        { id = 'left', name = 'Reference', width = 0.25 },
-        { id = 'main', name = 'Work', width = 0.50 },
-        { id = 'right', name = 'Comms', width = 0.25 },
-    ]
+    layout-preset = 'focus'
     """
 }
 
@@ -1885,33 +1681,32 @@ private func configureDuplicateZones() -> [String: Monitor] {
     setMonitorsForTests([main, secondary])
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
+    config.columnLayouts = [
+        ColumnLayoutConfig(
+            id: "duplicate-layout",
+            layout: .columns,
+            defaultZone: "main",
+            columns: [
+                ColumnConfig(id: "left", name: "Reference", width: 0.50),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+            ],
+        ),
+    ]
     config.zones = [
-        duplicateZoneConfig(monitor: .sequenceNumber(1)),
-        duplicateZoneConfig(monitor: .sequenceNumber(2)),
+        DisplayLayoutConfig(monitor: .sequenceNumber(1), layoutPreset: "duplicate-layout"),
+        DisplayLayoutConfig(monitor: .sequenceNumber(2), layoutPreset: "duplicate-layout"),
     ]
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-              let zoneId = monitor.zoneId
+              let columnId = monitor.columnId
         else { return nil }
-        return ("\(physicalId):\(zoneId)", monitor)
+        return ("\(physicalId):\(columnId)", monitor)
     })
-}
-
-private func duplicateZoneConfig(monitor: MonitorDescription) -> ZoneConfig {
-    ZoneConfig(
-        monitor: monitor,
-        layout: .columns,
-        defaultZone: "main",
-        columns: [
-            ZoneColumnConfig(id: "left", name: "Reference", width: 0.50),
-            ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-        ],
-    )
 }
 
 @MainActor
 @discardableResult
-private func configureDuplicateZoneLayoutPresets() -> [String: Monitor] {
+private func configureDuplicateColumnLayoutPresets() -> [String: Monitor] {
     let main = TestMonitor(
         monitorAppKitNsScreenScreensId: 1,
         name: "Main",
@@ -1929,35 +1724,35 @@ private func configureDuplicateZoneLayoutPresets() -> [String: Monitor] {
     setMonitorsForTests([main, secondary])
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
-    config.zoneLayouts = [
-        ZoneLayoutConfig(
+    config.columnLayouts = [
+        ColumnLayoutConfig(
             id: "balanced",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.50),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "left", name: "Reference", width: 0.50),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
             ],
         ),
-        ZoneLayoutConfig(
+        ColumnLayoutConfig(
             id: "focus",
             layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.30),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.70),
+                ColumnConfig(id: "left", name: "Reference", width: 0.30),
+                ColumnConfig(id: "main", name: "Work", width: 0.70),
             ],
         ),
     ]
     config.zones = [
-        ZoneConfig(monitor: .sequenceNumber(1), layoutPreset: "balanced"),
-        ZoneConfig(monitor: .sequenceNumber(2), layoutPreset: "balanced"),
+        DisplayLayoutConfig(monitor: .sequenceNumber(1), layoutPreset: "balanced"),
+        DisplayLayoutConfig(monitor: .sequenceNumber(2), layoutPreset: "balanced"),
     ]
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-              let zoneId = monitor.zoneId
+              let columnId = monitor.columnId
         else { return nil }
-        return ("\(physicalId):\(zoneId)", monitor)
+        return ("\(physicalId):\(columnId)", monitor)
     })
 }
 
@@ -1965,21 +1760,21 @@ private func configureDuplicateZoneLayoutPresets() -> [String: Monitor] {
 private func zoneWidthsByPhysicalZone() -> [String: CGFloat] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-              let zoneId = monitor.zoneId
+              let columnId = monitor.columnId
         else { return nil }
         let width = (monitor.rect.width * 1000).rounded() / 1000
-        return ("\(physicalId):\(zoneId)", width)
+        return ("\(physicalId):\(columnId)", width)
     })
 }
 
 @MainActor
-private func zoneLayoutIdsByPhysicalZone() -> [String: String] {
+private func columnLayoutIdsByPhysicalZone() -> [String: String] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-              let zoneId = monitor.zoneId,
-              let zoneLayoutId = monitor.zoneLayoutId
+              let columnId = monitor.columnId,
+              let columnLayoutId = monitor.columnLayoutId
         else { return nil }
-        return ("\(physicalId):\(zoneId)", zoneLayoutId)
+        return ("\(physicalId):\(columnId)", columnLayoutId)
     })
 }
 
@@ -1987,20 +1782,20 @@ private func zoneLayoutIdsByPhysicalZone() -> [String: String] {
 private func zoneActiveWorkspacesByPhysicalZone() -> [String: String] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
         guard let physicalId = monitor.physicalMonitor.monitorId_oneBased,
-              let zoneId = monitor.zoneId
+              let columnId = monitor.columnId
         else { return nil }
-        return ("\(physicalId):\(zoneId)", monitor.activeWorkspace.name)
+        return ("\(physicalId):\(columnId)", monitor.activeWorkspace.name)
     })
 }
 
 @MainActor
 private func zoneMonitorsById() -> [String: Monitor] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 
-private struct StructuralZoneState: Equatable {
+private struct StructuralColumnState: Equatable {
     let layoutId: String?
     let workspaceName: String
     let left: CGFloat
@@ -2008,9 +1803,8 @@ private struct StructuralZoneState: Equatable {
     let physicalId: Int?
 }
 
-private struct ZoneState: Equatable {
+private struct ColumnState: Equatable {
     let layoutId: String?
-    let availabilitySetId: String?
     let workspaceName: String
     let left: CGFloat
     let width: CGFloat
@@ -2018,8 +1812,8 @@ private struct ZoneState: Equatable {
     let styleId: String?
     let styleColorHex: String?
 
-    var structural: StructuralZoneState {
-        StructuralZoneState(
+    var structural: StructuralColumnState {
+        StructuralColumnState(
             layoutId: layoutId,
             workspaceName: workspaceName,
             left: left,
@@ -2030,18 +1824,17 @@ private struct ZoneState: Equatable {
 }
 
 @MainActor
-private func zoneStateByZoneId() -> [String: ZoneState] {
+private func zoneStateByColumnId() -> [String: ColumnState] {
     Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        guard let zoneId = monitor.zoneId else { return nil }
-        return (zoneId, ZoneState(
-            layoutId: monitor.zoneLayoutId,
-            availabilitySetId: monitor.zoneAvailabilitySetId,
+        guard let columnId = monitor.columnId else { return nil }
+        return (columnId, ColumnState(
+            layoutId: monitor.columnLayoutId,
             workspaceName: monitor.activeWorkspace.name,
             left: monitor.rect.topLeftX,
             width: monitor.rect.width,
             physicalId: monitor.physicalMonitor.monitorId_oneBased,
             styleId: monitor.zoneStyleId,
-            styleColorHex: monitor.zoneStyleColorHex,
+            styleColorHex: monitor.columnColorHex,
         ))
     })
 }

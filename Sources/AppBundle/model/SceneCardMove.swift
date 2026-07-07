@@ -11,7 +11,7 @@ func moveCardToSceneColumn(_ card: Workspace, sceneId: String, columnId: String)
     guard let scene = config.scenes.first(where: { $0.id == sceneId }) else {
         return .failure("Unknown scene '\(sceneId)'")
     }
-    guard let layout = config.zoneLayouts.first(where: { $0.id == scene.layoutId }),
+    guard let layout = config.columnLayouts.first(where: { $0.id == scene.layoutId }),
           layout.columns.contains(where: { $0.id == columnId })
     else {
         return .failure("Scene '\(sceneId)' has no column '\(columnId)'")
@@ -56,7 +56,7 @@ func moveCardToSceneColumnByName(_ name: String, sceneId: String, columnId: Stri
 @MainActor
 private func liveColumnViewport(sceneId: String, columnId: String) -> Monitor? {
     monitors.first { monitor in
-        monitor.zoneId == columnId && activeSceneId(for: monitor.physicalMonitor) == sceneId
+        monitor.columnId == columnId && activeSceneId(for: monitor.physicalMonitor) == sceneId
     }
 }
 

@@ -9,7 +9,7 @@ struct MoveNodeToColumnCommand: Command {
         guard let window = target.windowOrNil else {
             return io.err(noWindowIsFocused)
         }
-        switch resolveZoneSelector(args.column.val) {
+        switch resolveColumnSelector(args.column.val) {
             case .success(let column):
                 return moveWindowOrTabGroupToWorkspace(
                     window,

@@ -127,7 +127,7 @@ private func applyTwoDisplayScenes(_ toml: String) {
     let (parsed, errors) = parseConfig(toml)
     XCTAssertTrue(errors.isEmpty, "\(errors.descriptions)")
     config.scenes = parsed.scenes
-    config.zoneLayouts = parsed.zoneLayouts
+    config.columnLayouts = parsed.columnLayouts
     config.zones = parsed.zones
     refreshColumnTopologySnapshot()
 }
@@ -138,7 +138,7 @@ private func removeScenesKeeping(_ toml: String) {
     XCTAssertTrue(errors.isEmpty, "\(errors.descriptions)")
     let previousScenes = config.scenes
     config.scenes = parsed.scenes
-    config.zoneLayouts = parsed.zoneLayouts
+    config.columnLayouts = parsed.columnLayouts
     config.zones = parsed.zones
     refreshColumnTopologySnapshot()
     remapColumnDecksOntoCurrentScenes(previousScenes: previousScenes)

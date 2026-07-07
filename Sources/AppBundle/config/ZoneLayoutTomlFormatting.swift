@@ -1,6 +1,6 @@
 import Foundation
 
-func normalizedZoneLayoutWidths(_ rawWidths: [Double]) -> [Double] {
+func normalizedColumnLayoutWidths(_ rawWidths: [Double]) -> [Double] {
     guard rawWidths.count > 1 else { return [1.0] }
     var result: [Double] = []
     var used = 0.0

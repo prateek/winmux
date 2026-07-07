@@ -19,23 +19,23 @@ private func exposeKeyEvent(keyCode: UInt16, characters: String = "") -> NSEvent
     )!
 }
 
-final class ZoneDividerDragPolicyTest: XCTestCase {
+final class ColumnDividerDragPolicyTest: XCTestCase {
     func testDragAllowedByPolicyAndMode() {
-        XCTAssertTrue(isZoneDividerDragAllowed(policy: .always, activeMode: "main"))
-        XCTAssertTrue(isZoneDividerDragAllowed(policy: .always, activeMode: nil))
+        XCTAssertTrue(isColumnDividerDragAllowed(policy: .always, activeMode: "main"))
+        XCTAssertTrue(isColumnDividerDragAllowed(policy: .always, activeMode: nil))
 
-        XCTAssertFalse(isZoneDividerDragAllowed(policy: .off, activeMode: "column"))
+        XCTAssertFalse(isColumnDividerDragAllowed(policy: .off, activeMode: "column"))
 
-        XCTAssertTrue(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: "column"))
-        XCTAssertFalse(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: "main"))
-        XCTAssertFalse(isZoneDividerDragAllowed(policy: .zoneMode, activeMode: nil))
+        XCTAssertTrue(isColumnDividerDragAllowed(policy: .columnMode, activeMode: "column"))
+        XCTAssertFalse(isColumnDividerDragAllowed(policy: .columnMode, activeMode: "main"))
+        XCTAssertFalse(isColumnDividerDragAllowed(policy: .columnMode, activeMode: nil))
     }
 
-    @MainActor func testZoneExposeKeyboardSelection() {
-        let controller = ZoneExposePanelController.shared
+    @MainActor func testExposeKeyboardSelection() {
+        let controller = ExposePanelController.shared
         var selected: [Int] = []
         let tiles = (0 ..< 3).map { index in
-            ZoneExposeTile(
+            ExposeTile(
                 id: "tile-\(index)",
                 title: "Tile \(index)",
                 subtitle: "",

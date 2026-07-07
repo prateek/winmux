@@ -4,7 +4,7 @@ enum MouseManipulationKind: Equatable {
     case none
     case move
     case resize
-    case zoneDivider
+    case columnDivider
 }
 
 private let postDragAxObserverSuppressionDuration: Duration = .seconds(2)

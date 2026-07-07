@@ -4,14 +4,14 @@ import CoreGraphics
 import XCTest
 
 @MainActor
-final class WindowZoneSnapPolicyTest: XCTestCase {
+final class WindowColumnSnapPolicyTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testFreeformPolicySuppressesZoneDragDestinations() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.columnSnap.policy = .freeform
 
-        let resolution = zoneSnapDestinationResolution(
+        let resolution = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -30,10 +30,10 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testSnapOnModifierRequiresConfiguredModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapOnModifier
-        config.mouse.zoneSnap.modifier = [.option, .shift]
+        config.mouse.columnSnap.policy = .snapOnModifier
+        config.mouse.columnSnap.modifier = [.option, .shift]
 
-        let withoutShift = zoneSnapDestinationResolution(
+        let withoutShift = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -48,7 +48,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
 
-        let withShift = zoneSnapDestinationResolution(
+        let withShift = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -62,19 +62,19 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             XCTFail("Expected configured modifier to produce a zone snap destination")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
         XCTAssertEqual(destination.previewRect.topLeftX, fixture.commsMonitor.rect.topLeftX)
         XCTAssertEqual(destination.previewRect.width, fixture.commsMonitor.rect.width)
         XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
-        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole column: Comms")
         XCTAssertEqual(destination.dropIntentOverlay?.detail, "Drop to move to Comms")
     }
 
-    func testSnapToZoneDoesNotRequireModifier() {
+    func testSnapToColumnDoesNotRequireModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapToZone
+        config.mouse.columnSnap.policy = .snapToColumn
 
-        let resolution = zoneSnapDestinationResolution(
+        let resolution = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -86,12 +86,12 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         )
 
         guard case .use(let destination) = resolution else {
-            XCTFail("Expected snap-to-zone to create a destination without a modifier")
+            XCTFail("Expected snap-to-column to create a destination without a modifier")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
         XCTAssertEqual(destination.dropIntentOverlay?.activeZone, nil)
-        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole column: Comms")
     }
 
     func testActiveZoneGridOverlayDoesNotRequireProductLabel() {
@@ -107,12 +107,12 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testWindowTargetRequiresActivationAndAllowsOnlyWindowDestinations() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
-        config.mouse.zoneSnap.target = .window
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.gesture = .secondaryButtonDrag
+        config.mouse.columnSnap.target = .window
         let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
 
-        let inactive = zoneSnapDestinationResolution(
+        let inactive = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -128,7 +128,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
 
-        let active = zoneSnapDestinationResolution(
+        let active = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -147,10 +147,10 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testWindowTargetDoesNotProduceWholeZoneDestinationWhenActive() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapToZone
-        config.mouse.zoneSnap.target = .window
+        config.mouse.columnSnap.policy = .snapToColumn
+        config.mouse.columnSnap.target = .window
 
-        let resolution = zoneSnapDestinationResolution(
+        let resolution = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -162,7 +162,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         )
 
         guard case .allowWindowDestinationsOnly = resolution else {
-            XCTFail("Expected target=window to avoid whole-zone moveToZone destination")
+            XCTFail("Expected target=window to avoid whole-column moveToZone destination")
             return
         }
     }
@@ -216,8 +216,8 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testWindowTargetLookupAllowsSameWorkspaceWindowSlotWithoutWholeZoneLeak() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapToZone
-        config.mouse.zoneSnap.target = .window
+        config.mouse.columnSnap.policy = .snapToColumn
+        config.mouse.columnSnap.target = .window
 
         let targetFrame = Rect(
             topLeftX: fixture.workMonitor.rect.topLeftX + 180,
@@ -244,17 +244,17 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertEqual(destination?.dropIntentOverlay?.activeZone, .right)
         XCTAssertEqual(destination?.dropIntentOverlay?.label, "Window slot: Right")
         XCTAssertEqual(destination?.dropIntentOverlay?.detail, "Drop to split this window")
-        XCTAssertNotEqual(destination?.kind, .moveToZone(zoneId: "main", workspaceName: fixture.work.name))
+        XCTAssertNotEqual(destination?.kind, .moveToZone(columnId: "main", workspaceName: fixture.work.name))
         XCTAssertNotEqual(destination?.kind, .moveToWorkspace(workspaceName: fixture.work.name))
     }
 
     func testFloatUnlessSnapRequiresConfiguredModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
 
-        let withoutModifier = zoneSnapDestinationResolution(
+        let withoutModifier = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -269,7 +269,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
 
-        let withModifier = zoneSnapDestinationResolution(
+        let withModifier = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -283,16 +283,16 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             XCTFail("Expected float-unless-snap to create a zone snap destination when the modifier is held")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
     }
 
     func testFloatUnlessSnapSecondaryButtonGestureIgnoresAltUntilButtonPressed() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .secondaryButtonDrag
 
-        let withoutButton = zoneSnapDestinationResolution(
+        let withoutButton = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -321,9 +321,9 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testFloatUnlessSnapSecondaryButtonGestureActivatesWholeZoneSnapWithoutModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .secondaryButtonDrag
         let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
@@ -336,7 +336,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         XCTAssertFalse(didFloat)
         XCTAssertFalse(fixture.window.isFloating)
 
-        let resolution = zoneSnapDestinationResolution(
+        let resolution = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -348,21 +348,21 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             pressedMouseButtons: secondaryButtonMask,
         )
         guard case .use(let destination) = resolution else {
-            XCTFail("Expected secondary-button gesture to activate a whole-zone snap destination")
+            XCTFail("Expected secondary-button gesture to activate a whole-column snap destination")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
-        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole zone: Comms")
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.dropIntentOverlay?.label, "Whole column: Comms")
     }
 
     func testSnapOnModifierRemainsModifierDrivenWhenGestureIsSecondaryButtonDrag() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapOnModifier
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
+        config.mouse.columnSnap.policy = .snapOnModifier
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .secondaryButtonDrag
         let secondaryButtonMask = mouseButtonMask(buttonNumber: 1)
 
-        let buttonOnly = zoneSnapDestinationResolution(
+        let buttonOnly = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -378,7 +378,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
 
-        let altOnly = zoneSnapDestinationResolution(
+        let altOnly = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -393,13 +393,13 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             XCTFail("Expected snap-on-modifier to remain driven by the configured modifier")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
     }
 
     func testFloatUnlessSnapNoModifierFloatsTilingWindowInTargetZoneWorkspace() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
 
         XCTAssertFalse(fixture.window.isFloating)
 
@@ -419,9 +419,9 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testFloatUnlessSnapWindowTargetWithoutActivationFloatsInCurrentZoneWorkspace() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.gesture = .secondaryButtonDrag
-        config.mouse.zoneSnap.target = .window
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.gesture = .secondaryButtonDrag
+        config.mouse.columnSnap.target = .window
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
             window: fixture.window,
@@ -439,9 +439,9 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testFloatUnlessSnapHeldModifierKeepsTilingWindowEligibleForSnap() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
             window: fixture.window,
@@ -457,8 +457,8 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testMoveTilingWindowForMouseDragFloatsAndStartsMoveWithoutSnapModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
         let anchorRect = Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 180)
         fixture.window.lastAppliedLayoutPhysicalRect = anchorRect
         var beginCalls: [MouseMoveBeginCall] = []
@@ -510,9 +510,9 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testMoveTilingWindowForMouseDragWithSnapModifierUsesNormalMovePath() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
-        config.mouse.zoneSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
+        config.mouse.columnSnap.gesture = .drag // template default is secondary-button-drag; this case tests the plain drag
         let anchorRect = Rect(topLeftX: 10, topLeftY: 20, width: 300, height: 180)
         fixture.window.lastAppliedLayoutPhysicalRect = anchorRect
         var beginCalls: [MouseMoveBeginCall] = []
@@ -563,8 +563,8 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testFloatUnlessSnapDoesNotFloatGroupDrags() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
             window: fixture.window,
@@ -586,15 +586,15 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             isMain: true,
         )
         setMonitorsForTests([monitor])
-        config.mouse.zoneSnap.policy = .floatUnlessSnap
-        config.mouse.zoneSnap.modifier = .option
+        config.mouse.columnSnap.policy = .floatUnlessSnap
+        config.mouse.columnSnap.modifier = .option
 
         let sourceWorkspace = Workspace.get(byName: "source")
         XCTAssertTrue(monitor.setActiveWorkspace(sourceWorkspace))
         let window = TestWindow.new(id: 20, parent: sourceWorkspace.rootTilingContainer)
         let targetWorkspace = Workspace.get(byName: "target")
         XCTAssertTrue(monitor.setActiveWorkspace(targetWorkspace))
-        XCTAssertNil(targetWorkspace.workspaceMonitor.zoneId)
+        XCTAssertNil(targetWorkspace.workspaceMonitor.columnId)
 
         let didFloat = floatTilingWindowForMouseDragIfNeeded(
             window: window,
@@ -610,9 +610,9 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testZoneSnapDoesNotInterceptTabStripOrNonZoneDrags() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .snapToZone
+        config.mouse.columnSnap.policy = .snapToColumn
 
-        let tabStrip = zoneSnapDestinationResolution(
+        let tabStrip = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -628,7 +628,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         }
 
         let physicalMonitor = fixture.commsMonitor.physicalMonitor
-        let nonZone = zoneSnapDestinationResolution(
+        let nonZone = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: physicalMonitor,
             targetWorkspace: fixture.comms,
@@ -646,12 +646,12 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
 
     func testRuntimePolicyOverrideChangesDragResolutionWithoutChangingConfig() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .freeform
+        config.mouse.columnSnap.policy = .freeform
 
-        assertZoneSnapPolicyOverride(.snapToZone, for: fixture.commsMonitor.physicalMonitor)
+        assertZoneSnapPolicyOverride(.snapToColumn, for: fixture.commsMonitor.physicalMonitor)
 
-        XCTAssertEqual(config.mouse.zoneSnap.policy, .freeform)
-        let resolution = zoneSnapDestinationResolution(
+        XCTAssertEqual(config.mouse.columnSnap.policy, .freeform)
+        let resolution = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -663,20 +663,20 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
         )
 
         guard case .use(let destination) = resolution else {
-            XCTFail("Expected runtime snap-to-zone override to create a zone snap destination")
+            XCTFail("Expected runtime snap-to-column override to create a zone snap destination")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
     }
 
     func testRuntimePolicyOverridePreservesConfiguredModifier() {
         let fixture = configureZoneSnapFixture()
-        config.mouse.zoneSnap.policy = .freeform
-        config.mouse.zoneSnap.modifier = .shift
+        config.mouse.columnSnap.policy = .freeform
+        config.mouse.columnSnap.modifier = .shift
 
         assertZoneSnapPolicyOverride(.snapOnModifier, for: fixture.commsMonitor.physicalMonitor)
 
-        let withoutShift = zoneSnapDestinationResolution(
+        let withoutShift = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -691,7 +691,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             return
         }
 
-        let withShift = zoneSnapDestinationResolution(
+        let withShift = columnSnapDestinationResolution(
             sourceWindow: fixture.window,
             targetMonitor: fixture.commsMonitor,
             targetWorkspace: fixture.comms,
@@ -705,7 +705,7 @@ final class WindowZoneSnapPolicyTest: XCTestCase {
             XCTFail("Expected configured Shift modifier to activate runtime snap-on-modifier override")
             return
         }
-        XCTAssertEqual(destination.kind, .moveToZone(zoneId: "right", workspaceName: "comms"))
+        XCTAssertEqual(destination.kind, .moveToZone(columnId: "right", workspaceName: "comms"))
     }
 }
 
@@ -746,14 +746,13 @@ private func configureZoneSnapFixture() -> ZoneSnapFixture {
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
@@ -761,7 +760,7 @@ private func configureZoneSnapFixture() -> ZoneSnapFixture {
     let work = Workspace.get(byName: "work")
     let comms = Workspace.get(byName: "comms")
     let zonesById = Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
     XCTAssertTrue(zonesById["main"].orDie().setActiveWorkspace(work))
     XCTAssertTrue(zonesById["right"].orDie().setActiveWorkspace(comms))
@@ -777,12 +776,12 @@ private func configureZoneSnapFixture() -> ZoneSnapFixture {
 
 @MainActor
 private func assertZoneSnapPolicyOverride(
-    _ policy: ZoneSnapPolicy,
+    _ policy: ColumnSnapPolicy,
     for monitor: Monitor,
     file: StaticString = #filePath,
     line: UInt = #line,
 ) {
-    switch setZoneSnapPolicy(policy, for: monitor) {
+    switch setColumnSnapPolicy(policy, for: monitor) {
         case .success:
             break
         case .failure(let message):

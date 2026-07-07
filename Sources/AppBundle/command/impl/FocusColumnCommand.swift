@@ -5,7 +5,7 @@ struct FocusColumnCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        switch resolveZoneSelector(args.column.val) {
+        switch resolveColumnSelector(args.column.val) {
             case .success(let column):
                 return column.monitor.activeWorkspace.focusWorkspace()
             case .failure(let msg):

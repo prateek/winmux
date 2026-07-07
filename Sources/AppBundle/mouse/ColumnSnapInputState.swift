@@ -1,13 +1,13 @@
 import AppKit
 import CoreGraphics
 
-struct ZoneSnapInputState: Equatable, Sendable {
+struct ColumnSnapInputState: Equatable, Sendable {
     var modifierFlags: CGEventFlags
     var pressedMouseButtons: Int
 }
 
-func currentZoneSnapInputState() -> ZoneSnapInputState {
-    ZoneSnapInputState(
+func currentColumnSnapInputState() -> ColumnSnapInputState {
+    ColumnSnapInputState(
         modifierFlags: currentSessionModifierFlags(),
         pressedMouseButtons: NSEvent.pressedMouseButtons,
     )
@@ -25,10 +25,10 @@ func isSecondaryMouseButtonPressed(in mask: Int) -> Bool {
     isMouseButtonPressed(buttonNumber: 1, in: mask)
 }
 
-func zoneSnapActivationInputIsPressed(_ config: ZoneSnapConfig, inputState: ZoneSnapInputState) -> Bool {
+func columnSnapActivationInputIsPressed(_ config: ColumnSnapConfig, inputState: ColumnSnapInputState) -> Bool {
     switch config.gesture {
         case .drag:
-            return zoneSnapModifierIsPressed(config.modifier, in: inputState.modifierFlags)
+            return columnSnapModifierIsPressed(config.modifier, in: inputState.modifierFlags)
         case .secondaryButtonDrag:
             return isSecondaryMouseButtonPressed(in: inputState.pressedMouseButtons)
     }

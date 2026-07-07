@@ -2,35 +2,35 @@ import AppKit
 import Common
 import Foundation
 
-struct ZoneSupportBundleOptions: Equatable, Sendable {
+struct SupportBundleOptions: Equatable, Sendable {
     let outputPath: String?
     let includeWindowTitles: Bool
 }
 
-struct ZoneSupportBundleResult: Equatable, Sendable {
+struct SupportBundleResult: Equatable, Sendable {
     let directory: URL
     let files: [String]
 }
 
 @MainActor
-func writeZoneSupportBundle(options: ZoneSupportBundleOptions) async throws -> ZoneSupportBundleResult {
-    let writer = ZoneSupportBundleWriter(options: options)
+func writeSupportBundle(options: SupportBundleOptions) async throws -> SupportBundleResult {
+    let writer = SupportBundleWriter(options: options)
     return try await writer.write()
 }
 
 @MainActor
-private struct ZoneSupportBundleWriter {
-    let options: ZoneSupportBundleOptions
+private struct SupportBundleWriter {
+    let options: SupportBundleOptions
     let fileManager = FileManager.default
     let generatedAt = ISO8601DateFormatter().string(from: Date())
-    let redactor: ZoneSupportBundleRedactor
+    let redactor: SupportBundleRedactor
 
-    init(options: ZoneSupportBundleOptions) {
+    init(options: SupportBundleOptions) {
         self.options = options
-        self.redactor = ZoneSupportBundleRedactor(includeWindowTitles: options.includeWindowTitles)
+        self.redactor = SupportBundleRedactor(includeWindowTitles: options.includeWindowTitles)
     }
 
-    func write() async throws -> ZoneSupportBundleResult {
+    func write() async throws -> SupportBundleResult {
         let directory = try prepareOutputDirectory()
         var files: [String] = []
 
@@ -56,7 +56,7 @@ private struct ZoneSupportBundleWriter {
 
         let manifestFiles = files + ["manifest.txt"]
         try writeSupportBundleFile("manifest.txt", manifestText(files: manifestFiles), in: directory)
-        return ZoneSupportBundleResult(directory: directory, files: manifestFiles.sorted())
+        return SupportBundleResult(directory: directory, files: manifestFiles.sorted())
     }
 
     private func prepareOutputDirectory() throws -> URL {
@@ -64,11 +64,11 @@ private struct ZoneSupportBundleWriter {
         var isDirectory = ObjCBool(false)
         if fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory) {
             guard isDirectory.boolValue else {
-                throw ZoneSupportBundleError("Output path exists and is not a directory: \(directory.path)")
+                throw SupportBundleError("Output path exists and is not a directory: \(directory.path)")
             }
             let contents = try fileManager.contentsOfDirectory(atPath: directory.path)
             guard contents.isEmpty else {
-                throw ZoneSupportBundleError("Output directory must be empty: \(directory.path)")
+                throw SupportBundleError("Output directory must be empty: \(directory.path)")
             }
         } else {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -94,7 +94,7 @@ private struct ZoneSupportBundleWriter {
 
     private func redactionSummary() -> String {
         """
-        Zone support bundle redaction
+        Support bundle redaction
         generated-at=\(generatedAt)
         home-paths=<home>
         usernames=<user>
@@ -117,7 +117,7 @@ private struct ZoneSupportBundleWriter {
             configPath: configUrl.absoluteURL.path,
             configText: snapshot.text,
             readError: snapshot.readError,
-            runtimeOverlays: zoneRuntimeOverlaysSnapshot(),
+            runtimeOverlays: columnRuntimeOverlaysSnapshot(),
         )
         .map(redactor.redactConfigDiagnostic)
         .joined(separator: "\n")
@@ -139,7 +139,7 @@ private struct ZoneSupportBundleWriter {
             monitorRow(kind: "physical", monitor: monitor)
         }
         let viewportRows = sortedMonitors.map { monitor in
-            monitorRow(kind: monitor.zoneId == nil ? "workspace" : "zone", monitor: monitor)
+            monitorRow(kind: monitor.columnId == nil ? "workspace" : "zone", monitor: monitor)
         }
         return ([header] + physicalRows + viewportRows).joined(separator: "\n")
     }
@@ -149,7 +149,7 @@ private struct ZoneSupportBundleWriter {
             kind,
             String(monitor.monitorAppKitNsScreenScreensId),
             redactor.redact(monitor.name),
-            redactor.redact(zoneLayoutPhysicalIdentity(for: monitor.physicalMonitor)),
+            redactor.redact(columnLayoutPhysicalIdentity(for: monitor.physicalMonitor)),
             number(monitor.rect.topLeftX),
             number(monitor.rect.topLeftY),
             number(monitor.rect.width),
@@ -158,13 +158,13 @@ private struct ZoneSupportBundleWriter {
             number(monitor.visibleRect.topLeftY),
             number(monitor.visibleRect.width),
             number(monitor.visibleRect.height),
-            monitor.zoneId ?? "",
-            monitor.zoneName ?? "",
-            monitor.zoneLayoutId ?? "",
-            monitor.zoneAvailabilitySetId ?? "",
+            monitor.columnId ?? "",
+            monitor.columnName ?? "",
+            monitor.columnLayoutId ?? "",
+            "",
             monitor.zoneStyleId ?? "",
-            monitor.zoneStyleColorHex ?? "",
-            String(monitor.isDefaultZone),
+            monitor.columnColorHex ?? "",
+            String(monitor.isDefaultColumn),
         ])
     }
 
@@ -172,9 +172,9 @@ private struct ZoneSupportBundleWriter {
         let rows = sortedMonitors.map { monitor in
             tsv([
                 String(monitor.monitorAppKitNsScreenScreensId),
-                monitor.zoneId ?? "",
-                monitor.zoneName ?? "",
-                redactor.redact(zoneLayoutPhysicalIdentity(for: monitor.physicalMonitor)),
+                monitor.columnId ?? "",
+                monitor.columnName ?? "",
+                redactor.redact(columnLayoutPhysicalIdentity(for: monitor.physicalMonitor)),
                 monitor.activeWorkspace.name,
                 String(monitor.activeWorkspace.isVisible),
             ])
@@ -211,25 +211,25 @@ private struct ZoneSupportBundleWriter {
 
     private func runtimeOverlayText() -> String {
         let header = "physical-identity\tactive-layout\tactive-scene\tactive-availability\tsnap-policy\tdisabled-zones\tparked-workspaces\twidth-overrides\tstyle-overrides\ttoggle-restore-zone"
-        let overlays = zoneRuntimeOverlaysSnapshot()
+        let overlays = columnRuntimeOverlaysSnapshot()
         guard !overlays.isEmpty else {
             return [header, "none\t\t\t\t\t\t\t\t\t"].joined(separator: "\n")
         }
         let rows = overlays.keys.sorted().map { physicalIdentity in
-            let overlay = overlays[physicalIdentity] ?? ZoneRuntimeOverlay()
+            let overlay = overlays[physicalIdentity] ?? ColumnRuntimeOverlay()
             return tsv([
                 redactor.redact(physicalIdentity),
                 overlay.activeLayoutId ?? "",
                 overlay.activeSceneId ?? "",
-                overlay.activeAvailabilitySetId ?? "",
-                overlay.zoneSnapPolicyOverride?.rawValue ?? "",
-                overlay.disabledZoneIds.sorted().joined(separator: ","),
+                "",
+                overlay.columnSnapPolicyOverride?.rawValue ?? "",
+                overlay.disabledColumnIds.sorted().joined(separator: ","),
                 // Zone parking is gone (decks own hidden cards), but the parked-workspaces
                 // column stays in the frozen support-bundle schema, so emit an empty cell.
                 "",
                 widthOverrideSummary(overlay.widthOverridesByLayoutIdentity),
-                overlay.styleOverridesByZoneId.keys.sorted().map { "\($0):\(overlay.styleOverridesByZoneId[$0] ?? "")" }.joined(separator: ","),
-                overlay.currentToggleRestoreZoneId ?? "",
+                overlay.styleOverridesByColumnId.keys.sorted().map { "\($0):\(overlay.styleOverridesByColumnId[$0] ?? "")" }.joined(separator: ","),
+                overlay.currentToggleRestoreColumnId ?? "",
             ])
         }
         return ([header] + rows).joined(separator: "\n")
@@ -237,71 +237,17 @@ private struct ZoneSupportBundleWriter {
 
     private func zoneAffinitiesText() -> String {
         let header = "index\tzone\tapp-id-configured\tapp-name-configured\twindow-title-configured\tworkspace\tstartup\tfocus-follows-window\tfail-if-noop\tcheck-further-callbacks"
-        guard !config.zoneAffinities.isEmpty else {
-            return [header, "none\t\t\t\t\t\t\t\t\t"].joined(separator: "\n")
-        }
-        let rows = config.zoneAffinities.enumerated().map { index, affinity in
-            let matcher = affinity.matcher
-            return tsv([
-                String(index),
-                affinity.zone?.raw ?? "",
-                matcher.appId == nil ? "false" : "true:<redacted-app-identifier>",
-                matcher.appNameRegexSubstring == nil ? "false" : "true:<redacted-app-identifier>",
-                matcher.windowTitleRegexSubstring == nil
-                    ? "false"
-                    : (options.includeWindowTitles ? "true:configured" : "true:<redacted-window-title>"),
-                matcher.workspace ?? "",
-                matcher.duringWinMuxStartup.map(String.init) ?? "",
-                String(affinity.focusFollowsWindow),
-                String(affinity.failIfNoop),
-                String(affinity.checkFurtherCallbacks),
-            ])
-        }
-        return ([header] + rows).joined(separator: "\n")
+        return [header, "none\t\t\t\t\t\t\t\t\t"].joined(separator: "\n")
     }
 
     private func nodeZoneBindingsText() -> String {
         let header = "node-id\tnode-type\twindow-ids\ttitle\tzone\tzone-name\tworkspace\tmonitor\tphysical"
-        let rows = nodeZoneBindingRows().map { row in
-            let binding = row.binding
-            return tsv([
-                binding.key.description,
-                binding.key.kind.rawValue,
-                binding.key.windowIds.map(String.init).joined(separator: ","),
-                redactor.redactWindowTitle(binding.title),
-                binding.zoneId,
-                binding.zoneName ?? "",
-                row.currentWorkspaceName,
-                binding.physicalMonitorId.map(String.init) ?? "",
-                redactor.redact(binding.physicalIdentity),
-            ])
-        }
-        return ([header] + (rows.isEmpty ? ["none\t\t\t\t\t\t\t\t"] : rows)).joined(separator: "\n")
+        return [header, "none\t\t\t\t\t\t\t\t"].joined(separator: "\n")
     }
 
     private func recentWindowRoutingDecisionsText() -> String {
         let header = "source\tindex-or-node\tzone\tworkspace\tmatched\tdebug"
         var rows: [String] = []
-        rows += nodeZoneBindingRows().map { row in
-            tsv([
-                "node-zone-binding",
-                row.binding.key.description,
-                row.binding.zoneId,
-                row.currentWorkspaceName,
-                "true",
-                "explicit binding retained in current runtime state; title=\(redactor.redactWindowTitle(row.binding.title))",
-            ])
-        }
-        rows += config.zoneAffinities.enumerated().map { index, affinity in
-            tsv([
-                "zone-affinity-config",
-                String(index),
-                affinity.zone?.raw ?? "",
-                affinity.matcher.workspace ?? "",
-                "not-evaluated",
-                "rule configured; live window match history is not retained",
-            ])
-        }
         if rows.isEmpty {
             rows.append("unavailable\t\t\t\tnot-retained\tWinMux does not retain a recent window-routing decision log yet")
         }
@@ -350,8 +296,8 @@ private struct ZoneSupportBundleWriter {
     private func widthOverrideSummary(_ overrides: [String: [String: Double]]) -> String {
         overrides.keys.sorted().map { layoutId in
             let zones = overrides[layoutId] ?? [:]
-            let zoneValues = zones.keys.sorted().map { zoneId in
-                "\(zoneId)=\(String(format: "%.4f", zones[zoneId] ?? 0))"
+            let zoneValues = zones.keys.sorted().map { columnId in
+                "\(columnId)=\(String(format: "%.4f", zones[columnId] ?? 0))"
             }
             return "\(layoutId)[\(zoneValues.joined(separator: ","))]"
         }.joined(separator: ";")
@@ -372,7 +318,7 @@ private struct ConfigSnapshot {
     let readError: String?
 }
 
-private struct ZoneSupportBundleRedactor {
+private struct SupportBundleRedactor {
     let includeWindowTitles: Bool
     let userName = NSUserName()
     let homePath = FileManager.default.homeDirectoryForCurrentUser.path
@@ -789,7 +735,7 @@ private struct ZoneSupportBundleRedactor {
     }
 }
 
-private struct ZoneSupportBundleError: LocalizedError {
+private struct SupportBundleError: LocalizedError {
     let message: String
 
     init(_ message: String) {

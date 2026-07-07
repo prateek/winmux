@@ -3,17 +3,17 @@ import Common
 import TOMLKit
 
 private let mouseParser: [String: any ParserProtocol<MouseConfig>] = [
-    "zone-snap": Parser(\.zoneSnap, parseZoneSnapConfig),
-    "column-snap": Parser(\.zoneSnap, parseZoneSnapConfig), // config-version 3 spelling
-    "zone-divider-drag": Parser(\.zoneDividerDrag, parseZoneDividerDragPolicy),
-    "column-divider-drag": Parser(\.zoneDividerDrag, parseZoneDividerDragPolicy), // config-version 3 spelling
+    "zone-snap": Parser(\.columnSnap, parseColumnSnapConfig),
+    "column-snap": Parser(\.columnSnap, parseColumnSnapConfig), // config-version 3 spelling
+    "zone-divider-drag": Parser(\.columnDividerDrag, parseColumnDividerDragPolicy),
+    "column-divider-drag": Parser(\.columnDividerDrag, parseColumnDividerDragPolicy), // config-version 3 spelling
 ]
 
-private let zoneSnapParser: [String: any ParserProtocol<ZoneSnapConfig>] = [
-    "policy": Parser(\.policy, parseZoneSnapPolicy),
-    "modifier": Parser(\.modifier, parseZoneSnapModifier),
-    "gesture": Parser(\.gesture, parseZoneSnapGesture),
-    "target": Parser(\.target, parseZoneSnapTarget),
+private let columnSnapParser: [String: any ParserProtocol<ColumnSnapConfig>] = [
+    "policy": Parser(\.policy, parseColumnSnapPolicy),
+    "modifier": Parser(\.modifier, parseColumnSnapModifier),
+    "gesture": Parser(\.gesture, parseColumnSnapGesture),
+    "target": Parser(\.target, parseColumnSnapTarget),
 ]
 
 func parseMouseConfig(
@@ -36,61 +36,55 @@ func parseUpdatesConfig(
     parseTable(raw, UpdatesConfig(), updatesParser, backtrace, &errors)
 }
 
-private func parseZoneSnapConfig(
+private func parseColumnSnapConfig(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
     _ errors: inout [TomlParseError],
-) -> ZoneSnapConfig {
-    parseTable(raw, ZoneSnapConfig(), zoneSnapParser, backtrace, &errors)
+) -> ColumnSnapConfig {
+    parseTable(raw, ColumnSnapConfig(), columnSnapParser, backtrace, &errors)
 }
 
-private func parseZoneSnapPolicy(
+private func parseColumnSnapPolicy(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
-) -> ParsedToml<ZoneSnapPolicy> {
+) -> ParsedToml<ColumnSnapPolicy> {
     parseString(raw, backtrace).flatMap { rawValue in
-        ZoneSnapPolicy.fromV3Identifier(rawValue)
-            .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneSnapPolicy.self)))
+        ColumnSnapPolicy.fromConfigIdentifier(rawValue)
+            .orFailure(.semantic(backtrace, possibleValuesMessage(ColumnSnapPolicy.self)))
     }
 }
 
-private func parseZoneDividerDragPolicy(
+private func parseColumnDividerDragPolicy(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
-) -> ParsedToml<ZoneDividerDragPolicy> {
+) -> ParsedToml<ColumnDividerDragPolicy> {
     parseString(raw, backtrace).flatMap { rawValue in
-        // 'column-mode' is the config-version-3 spelling; the binding mode it restricts to is named
-        // 'column' now, but the policy case keeps its upstream-era name until the internals rename.
-        let normalized = rawValue == "column-mode" ? ZoneDividerDragPolicy.zoneMode.rawValue : rawValue
-        return ZoneDividerDragPolicy(rawValue: normalized)
-            .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneDividerDragPolicy.self)))
+        return ColumnDividerDragPolicy(rawValue: rawValue)
+            .orFailure(.semantic(backtrace, possibleValuesMessage(ColumnDividerDragPolicy.self)))
     }
 }
 
-private func parseZoneSnapGesture(
+private func parseColumnSnapGesture(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
-) -> ParsedToml<ZoneSnapGesture> {
+) -> ParsedToml<ColumnSnapGesture> {
     parseString(raw, backtrace).flatMap { rawValue in
-        ZoneSnapGesture(rawValue: rawValue)
-            .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneSnapGesture.self)))
+        ColumnSnapGesture(rawValue: rawValue)
+            .orFailure(.semantic(backtrace, possibleValuesMessage(ColumnSnapGesture.self)))
     }
 }
 
-private func parseZoneSnapTarget(
+private func parseColumnSnapTarget(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
-) -> ParsedToml<ZoneSnapTarget> {
+) -> ParsedToml<ColumnSnapTarget> {
     parseString(raw, backtrace).flatMap { rawValue in
-        // 'column' is the config-version-3 spelling for the viewport target; the case keeps its
-        // upstream-era 'zone' name until the internals rename.
-        let normalized = rawValue == "column" ? ZoneSnapTarget.zone.rawValue : rawValue
-        return ZoneSnapTarget(rawValue: normalized)
-            .orFailure(.semantic(backtrace, possibleValuesMessage(ZoneSnapTarget.self)))
+        return ColumnSnapTarget.fromConfigIdentifier(rawValue)
+            .orFailure(.semantic(backtrace, possibleValuesMessage(ColumnSnapTarget.self)))
     }
 }
 
-private func parseZoneSnapModifier(
+private func parseColumnSnapModifier(
     _ raw: TOMLValueConvertible,
     _ backtrace: TomlBacktrace,
 ) -> ParsedToml<NSEvent.ModifierFlags> {

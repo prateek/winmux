@@ -1,22 +1,22 @@
 import AppKit
 import Common
 
-private struct ZoneDividerDragSession {
-    let handle: ZoneDividerHandle
+private struct ColumnDividerDragSession {
+    let handle: ColumnDividerHandle
     let startPoint: CGPoint
 }
 
-enum ZoneDividerMouseDownSource {
+enum ColumnDividerMouseDownSource {
     case ambient
     case dividerChrome
 }
 
 @MainActor
-final class ZoneDividerDragController {
-    static let shared = ZoneDividerDragController()
+final class ColumnDividerDragController {
+    static let shared = ColumnDividerDragController()
 
     private let hitSlop: CGFloat = 16
-    private var session: ZoneDividerDragSession?
+    private var session: ColumnDividerDragSession?
 
     // Live window frames may only be captured off the input path (see the plan's input-path
     // rule). Hovering a divider always precedes an ambient click on it, so the snapshot taken
@@ -39,8 +39,8 @@ final class ZoneDividerDragController {
             let frames = liveOnScreenWindowFramesById()
             let capturedAt = ProcessInfo.processInfo.systemUptime
             await MainActor.run {
-                ZoneDividerDragController.shared.liveFramesSnapshot = (frames, capturedAt)
-                ZoneDividerDragController.shared.liveFramesRefreshInFlight = false
+                ColumnDividerDragController.shared.liveFramesSnapshot = (frames, capturedAt)
+                ColumnDividerDragController.shared.liveFramesRefreshInFlight = false
             }
         }
     }
@@ -55,12 +55,12 @@ final class ZoneDividerDragController {
     func updateHover(at point: CGPoint) -> Bool {
         guard session == nil, TrayMenuModel.shared.isEnabled, isDragAllowed else {
             if session == nil {
-                ZoneDividerOverlayPanelController.shared.hide(after: 0.08)
+                ColumnDividerOverlayPanelController.shared.hide(after: 0.08)
             }
             return false
         }
-        guard let handle = zoneDividerHandle(at: point, hitSlop: hitSlop) else {
-            ZoneDividerOverlayPanelController.shared.hide(after: 0.08)
+        guard let handle = columnDividerHandle(at: point, hitSlop: hitSlop) else {
+            ColumnDividerOverlayPanelController.shared.hide(after: 0.08)
             return false
         }
         refreshLiveFramesSnapshotIfStale()
@@ -76,18 +76,18 @@ final class ZoneDividerDragController {
     }
 
     private var isDragAllowed: Bool {
-        isZoneDividerDragAllowed(policy: config.mouse.zoneDividerDrag, activeMode: activeMode)
+        isColumnDividerDragAllowed(policy: config.mouse.columnDividerDrag, activeMode: activeMode)
     }
 
     @discardableResult
     func handleMouseDown(
         at point: CGPoint,
-        source: ZoneDividerMouseDownSource = .ambient,
+        source: ColumnDividerMouseDownSource = .ambient,
     ) -> Bool {
         guard TrayMenuModel.shared.isEnabled,
               isDragAllowed,
               session == nil,
-              let handle = zoneDividerHandle(at: point, hitSlop: hitSlop)
+              let handle = columnDividerHandle(at: point, hitSlop: hitSlop)
         else { return false }
         guard source == .dividerChrome || !isPointInsideKnownWindowFrame(point, liveFrames: liveFramesSnapshotIfFresh) else {
             logWindowDragLive(
@@ -99,10 +99,10 @@ final class ZoneDividerDragController {
         clearPendingWindowDragIntent()
         WindowDropIntentOverlayPanelController.shared.hide()
         WindowResizePreviewPanel.shared.hide(reason: "zoneDivider.start")
-        setCurrentMouseManipulationKind(.zoneDivider)
-        session = ZoneDividerDragSession(handle: handle, startPoint: point)
+        setCurrentMouseManipulationKind(.columnDivider)
+        session = ColumnDividerDragSession(handle: handle, startPoint: point)
         logWindowDragLive(
-            "zoneDivider.start left=\(handle.leftZoneId) right=\(handle.rightZoneId) boundary=\(handle.boundaryX) point=\(point)"
+            "zoneDivider.start left=\(handle.leftColumnId) right=\(handle.rightColumnId) boundary=\(handle.boundaryX) point=\(point)"
         )
         show(handle: handle, state: .dragging, deltaPixels: 0)
         return true
@@ -117,7 +117,7 @@ final class ZoneDividerDragController {
             deltaPixels: point.x - session.startPoint.x,
         )
         logWindowDragLive(
-            "zoneDivider.drag left=\(session.handle.leftZoneId) right=\(session.handle.rightZoneId) delta=\(point.x - session.startPoint.x) point=\(point)"
+            "zoneDivider.drag left=\(session.handle.leftColumnId) right=\(session.handle.rightColumnId) delta=\(point.x - session.startPoint.x) point=\(point)"
         )
         return true
     }
@@ -135,20 +135,20 @@ final class ZoneDividerDragController {
         }
 
         let deltaPixels = point.x - session.startPoint.x
-        switch moveZoneDivider(
+        switch moveColumnDivider(
             on: session.handle.physicalMonitor,
-            leftZoneId: session.handle.leftZoneId,
-            rightZoneId: session.handle.rightZoneId,
+            leftColumnId: session.handle.leftColumnId,
+            rightColumnId: session.handle.rightColumnId,
             deltaPixels: deltaPixels,
         ) {
             case .failure(let message):
                 logWindowDragLive(
-                    "zoneDivider.commit failed left=\(session.handle.leftZoneId) right=\(session.handle.rightZoneId) delta=\(deltaPixels) error=\(message)"
+                    "zoneDivider.commit failed left=\(session.handle.leftColumnId) right=\(session.handle.rightColumnId) delta=\(deltaPixels) error=\(message)"
                 )
-                ZoneDividerOverlayPanelController.shared.hide(after: 0.2)
+                ColumnDividerOverlayPanelController.shared.hide(after: 0.2)
             case .success(let result):
                 logWindowDragLive(
-                    "zoneDivider.commit left=\(result.leftZoneId) right=\(result.rightZoneId) requestedDelta=\(result.requestedDeltaPixels) appliedDelta=\(result.appliedDeltaPixels) oldBoundary=\(result.oldBoundaryX) newBoundary=\(result.newBoundaryX)"
+                    "zoneDivider.commit left=\(result.leftColumnId) right=\(result.rightColumnId) requestedDelta=\(result.requestedDeltaPixels) appliedDelta=\(result.appliedDeltaPixels) oldBoundary=\(result.oldBoundaryX) newBoundary=\(result.newBoundaryX)"
                 )
                 showCommitted(session: session, result: result)
                 scheduleRefreshSession(.resetManipulatedWithMouse, optimisticallyPreLayoutWorkspaces: true)
@@ -158,10 +158,10 @@ final class ZoneDividerDragController {
 
     func cancel() {
         session = nil
-        if getCurrentMouseManipulationKind() == .zoneDivider {
+        if getCurrentMouseManipulationKind() == .columnDivider {
             setCurrentMouseManipulationKind(.none)
         }
-        ZoneDividerOverlayPanelController.shared.hide()
+        ColumnDividerOverlayPanelController.shared.hide()
     }
 
     func setLiveFramesSnapshotForTests(_ frames: [UInt32: Rect]?) {
@@ -169,55 +169,55 @@ final class ZoneDividerDragController {
     }
 
     private func show(
-        handle: ZoneDividerHandle,
-        state: ZoneDividerOverlayState,
+        handle: ColumnDividerHandle,
+        state: ColumnDividerOverlayState,
         deltaPixels: CGFloat,
     ) {
-        let preview = previewZoneDividerMove(
+        let preview = previewColumnDividerMove(
             on: handle.physicalMonitor,
-            leftZoneId: handle.leftZoneId,
-            rightZoneId: handle.rightZoneId,
+            leftColumnId: handle.leftColumnId,
+            rightColumnId: handle.rightColumnId,
             deltaPixels: deltaPixels,
         ).getOrNil()
-        ZoneDividerOverlayPanelController.shared.show(ZoneDividerOverlayModel(
+        ColumnDividerOverlayPanelController.shared.show(ColumnDividerOverlayModel(
             workspaceRect: handle.workspaceRect,
             boundaryX: preview?.newBoundaryX ?? handle.boundaryX,
-            leftName: handle.leftZoneName ?? handle.leftZoneId,
-            rightName: handle.rightZoneName ?? handle.rightZoneId,
+            leftName: handle.leftColumnName ?? handle.leftColumnId,
+            rightName: handle.rightColumnName ?? handle.rightColumnId,
             leftShare: preview?.leftAfterShare,
             rightShare: preview?.rightAfterShare,
             state: state,
         ))
     }
 
-    private func showCommitted(session: ZoneDividerDragSession, result: ZoneDividerChangeResult) {
+    private func showCommitted(session: ColumnDividerDragSession, result: ColumnDividerChangeResult) {
         let enabledWidths = result.widths.filter(\.isEnabled)
         let enabledTotal = enabledWidths.reduce(0.0) { $0 + $1.effectiveWidth }
         let leftShare = enabledTotal > 0
-            ? enabledWidths.first { $0.zoneId == result.leftZoneId }.map { $0.effectiveWidth / enabledTotal }
+            ? enabledWidths.first { $0.columnId == result.leftColumnId }.map { $0.effectiveWidth / enabledTotal }
             : nil
         let rightShare = enabledTotal > 0
-            ? enabledWidths.first { $0.zoneId == result.rightZoneId }.map { $0.effectiveWidth / enabledTotal }
+            ? enabledWidths.first { $0.columnId == result.rightColumnId }.map { $0.effectiveWidth / enabledTotal }
             : nil
 
-        ZoneDividerOverlayPanelController.shared.show(ZoneDividerOverlayModel(
+        ColumnDividerOverlayPanelController.shared.show(ColumnDividerOverlayModel(
             workspaceRect: session.handle.workspaceRect,
             boundaryX: result.newBoundaryX,
-            leftName: result.leftZoneName ?? result.leftZoneId,
-            rightName: result.rightZoneName ?? result.rightZoneId,
+            leftName: result.leftColumnName ?? result.leftColumnId,
+            rightName: result.rightColumnName ?? result.rightColumnId,
             leftShare: leftShare,
             rightShare: rightShare,
             state: .committed,
         ))
-        ZoneDividerOverlayPanelController.shared.hide(after: 0.85)
+        ColumnDividerOverlayPanelController.shared.hide(after: 0.85)
     }
 }
 
-func isZoneDividerDragAllowed(policy: ZoneDividerDragPolicy, activeMode: String?) -> Bool {
+func isColumnDividerDragAllowed(policy: ColumnDividerDragPolicy, activeMode: String?) -> Bool {
     switch policy {
         case .always: true
         case .off: false
-        case .zoneMode: activeMode == zoneModeId
+        case .columnMode: activeMode == zoneModeId
     }
 }
 

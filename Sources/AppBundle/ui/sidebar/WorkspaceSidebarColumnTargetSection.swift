@@ -215,7 +215,7 @@ private struct WorkspaceSidebarColumnSectionHeader: View {
     private var sectionWidth: CGFloat { workspaceSidebarSectionWidth(expansionProgress, layout: layout) }
 
     private var targetKind: WorkspaceSidebarDropTargetKind {
-        .zone(monitorScopeId: section.monitorScopeId, zoneId: section.columnId)
+        .column(monitorScopeId: section.monitorScopeId, columnId: section.columnId)
     }
 
     private var isDropTarget: Bool {
@@ -293,9 +293,9 @@ private struct WorkspaceSidebarColumnSectionHeader: View {
         }
         switch payload {
             case .window(let windowId):
-                actions.send(.moveWindowToZone(windowId, monitorScopeId: section.monitorScopeId, zoneId: section.columnId))
+                actions.send(.moveWindowToColumn(windowId, monitorScopeId: section.monitorScopeId, columnId: section.columnId))
             case .tabGroup(let representativeWindowId):
-                actions.send(.moveTabGroupToZone(representativeWindowId, monitorScopeId: section.monitorScopeId, zoneId: section.columnId))
+                actions.send(.moveTabGroupToColumn(representativeWindowId, monitorScopeId: section.monitorScopeId, columnId: section.columnId))
             case .card(let cardName):
                 // Dropping a card on a column header transfers it into that column (append).
                 actions.send(.moveCard(cardName, target: .cardSlot(

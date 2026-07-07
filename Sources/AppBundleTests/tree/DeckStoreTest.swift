@@ -23,7 +23,7 @@ final class DeckStoreTest: XCTestCase {
         )
     }
 
-    func testColumnDeckKeyForMonitorUsesZoneIdOrImplicitColumn() {
+    func testColumnDeckKeyForMonitorUsesColumnIdOrImplicitColumn() {
         let zones = configureThreeColumns()
         let mainZone = zones["main"].orDie()
         XCTAssertEqual(columnDeckKey(for: mainZone), "display-name:Main/column:main")
@@ -370,20 +370,19 @@ private func configureThreeColumns() -> [String: Monitor] {
     config.gaps = .zero
     config.workspaceSidebar.enabled = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25),
+                ColumnConfig(id: "main", name: "Work", width: 0.50),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25),
             ],
         ),
     ]
     refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }
 

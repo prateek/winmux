@@ -60,7 +60,7 @@ private func moveTilingWindow(_ window: Window) {
         targetWorkspace: targetWorkspace,
         subject: subject,
         anchorRect: anchorRect,
-        inputState: currentZoneSnapInputState(),
+        inputState: currentColumnSnapInputState(),
         beginSession: beginWindowMoveWithMouseSessionIfNeeded,
         startMove: WindowMouseInteractionDriver.shared.startMove,
     )
@@ -88,7 +88,7 @@ func moveTilingWindowForMouseDrag(
     targetWorkspace: Workspace,
     subject: WindowDragSubject,
     anchorRect: Rect?,
-    inputState: ZoneSnapInputState,
+    inputState: ColumnSnapInputState,
     beginSession: BeginWindowMoveWithMouseSessionHandler,
     startMove: StartWindowMoveWithMouseHandler,
 ) {
@@ -116,16 +116,16 @@ func floatTilingWindowForMouseDragIfNeeded(
     window: Window,
     targetWorkspace: Workspace,
     subject: WindowDragSubject,
-    inputState: ZoneSnapInputState,
+    inputState: ColumnSnapInputState,
 ) -> Bool {
     guard subject == .window,
           window.parent is TilingContainer
     else { return false }
 
-    let snapConfig = effectiveZoneSnapConfig(for: targetWorkspace.workspaceMonitor)
+    let snapConfig = effectiveColumnSnapConfig(for: targetWorkspace.workspaceMonitor)
     guard snapConfig.policy == .floatUnlessSnap,
-          targetWorkspace.workspaceMonitor.zoneId != nil,
-          !zoneSnapActivationInputIsPressed(snapConfig, inputState: inputState)
+          targetWorkspace.workspaceMonitor.columnId != nil,
+          !columnSnapActivationInputIsPressed(snapConfig, inputState: inputState)
     else { return false }
 
     window.bindAsFloatingWindow(to: targetWorkspace)
@@ -145,7 +145,7 @@ func floatTilingWindowForMouseDragIfNeeded(
         window: window,
         targetWorkspace: targetWorkspace,
         subject: subject,
-        inputState: ZoneSnapInputState(
+        inputState: ColumnSnapInputState(
             modifierFlags: modifierFlags,
             pressedMouseButtons: pressedMouseButtons,
         ),
@@ -168,7 +168,7 @@ func moveTilingWindowForMouseDrag(
         targetWorkspace: targetWorkspace,
         subject: subject,
         anchorRect: anchorRect,
-        inputState: ZoneSnapInputState(
+        inputState: ColumnSnapInputState(
             modifierFlags: modifierFlags,
             pressedMouseButtons: pressedMouseButtons,
         ),

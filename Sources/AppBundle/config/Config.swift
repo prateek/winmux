@@ -113,13 +113,13 @@ struct Config: ConvenienceCopyable {
     var updates = UpdatesConfig()
     var workspaceSidebar = WorkspaceSidebarConfig()
     var windowTabs = WindowTabsConfig()
-    var zoneStyles: [ZoneStyleConfig] = []
-    var zoneLayouts: [ZoneLayoutConfig] = []
-    var zoneScenes: [ZoneSceneConfig] = []
-    var zoneBindings: [ZoneBindingConfig] = []
-    var zoneAffinities: [ZoneAffinityConfig] = []
-    var zoneAvailabilitySets: [ZoneAvailabilitySetConfig] = []
-    var zones: [ZoneConfig] = []
+    var _retiredZoneStyles: Void = ()
+    var _retiredZoneBindings: Void = ()
+    var _retiredZoneAffinities: Void = ()
+    var _retiredZoneAvailabilitySets: Void = ()
+    var _retiredZoneScenes: Void = ()
+    var columnLayouts: [ColumnLayoutConfig] = []
+    var zones: [DisplayLayoutConfig] = []
     var scenes: [SceneConfig] = []
     var rules: [RuleConfig] = []
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
@@ -129,8 +129,8 @@ struct Config: ConvenienceCopyable {
 }
 
 struct MouseConfig: ConvenienceCopyable, Equatable, Sendable {
-    var zoneSnap = ZoneSnapConfig()
-    var zoneDividerDrag: ZoneDividerDragPolicy = .zoneMode
+    var columnSnap = ColumnSnapConfig()
+    var columnDividerDrag: ColumnDividerDragPolicy = .columnMode
 }
 
 struct UpdatesConfig: ConvenienceCopyable, Equatable, Sendable {
@@ -139,83 +139,56 @@ struct UpdatesConfig: ConvenienceCopyable, Equatable, Sendable {
     var automaticCheck = false
 }
 
-enum ZoneDividerDragPolicy: String, CaseIterable, Equatable, Sendable {
-    /// Divider hover chrome and drags are available only while the binding mode named "zone"
+enum ColumnDividerDragPolicy: String, CaseIterable, Equatable, Sendable {
+    /// Divider hover chrome and drags are available only while the binding mode named "column"
     /// is active, so boundaries are inert during normal work.
-    case zoneMode = "zone-mode"
+    case columnMode = "column-mode"
     case always
     case off
 }
 
-struct ZoneSnapConfig: ConvenienceCopyable, Equatable, Sendable {
-    var policy: ZoneSnapPolicy = .freeform
+struct ColumnSnapConfig: ConvenienceCopyable, Equatable, Sendable {
+    var policy: ColumnSnapPolicy = .freeform
     var modifier: NSEvent.ModifierFlags = .option
-    var gesture: ZoneSnapGesture = .drag
-    var target: ZoneSnapTarget = .zone
+    var gesture: ColumnSnapGesture = .drag
+    var target: ColumnSnapTarget = .column
 }
 
-enum ZoneSnapPolicy: String, CaseIterable, Equatable, Sendable {
+enum ColumnSnapPolicy: String, CaseIterable, Equatable, Sendable {
     case freeform
     case snapOnModifier = "snap-on-modifier"
-    case snapToZone = "snap-to-zone"
+    case snapToColumn = "snap-to-column"
     case floatUnlessSnap = "float-unless-snap"
 
-    /// 'snap-to-column' is the config-version-3 surface spelling; the case keeps its upstream-era
-    /// 'snap-to-zone' raw value until the internals rename. Resolving through here lets both config
-    /// parsing and the snap-policy commands accept the documented v3 value.
-    static func fromV3Identifier(_ raw: String) -> ZoneSnapPolicy? {
-        ZoneSnapPolicy(rawValue: raw == "snap-to-column" ? snapToZone.rawValue : raw)
+    static func fromConfigIdentifier(_ raw: String) -> ColumnSnapPolicy? {
+        ColumnSnapPolicy(rawValue: raw == "snap-to-zone" ? snapToColumn.rawValue : raw)
     }
 }
 
-enum ZoneSnapGesture: String, CaseIterable, Equatable, Sendable {
+enum ColumnSnapGesture: String, CaseIterable, Equatable, Sendable {
     case drag
     case secondaryButtonDrag = "secondary-button-drag"
 }
 
-enum ZoneSnapTarget: String, CaseIterable, Equatable, Sendable {
-    case zone
+enum ColumnSnapTarget: String, CaseIterable, Equatable, Sendable {
+    case column
     case window
+
+    static func fromConfigIdentifier(_ raw: String) -> ColumnSnapTarget? {
+        ColumnSnapTarget(rawValue: raw == "zone" ? column.rawValue : raw)
+    }
 }
 
-struct ZoneConfig: ConvenienceCopyable, Equatable, Sendable {
+struct DisplayLayoutConfig: ConvenienceCopyable, Equatable, Sendable {
     var monitor: MonitorDescription?
     var layoutPreset: String?
-    var layout: ZoneLayoutKind?
-    var defaultZone: String?
-    var columns: [ZoneColumnConfig] = []
 }
 
-struct ZoneLayoutConfig: ConvenienceCopyable, Equatable, Sendable {
+struct ColumnLayoutConfig: ConvenienceCopyable, Equatable, Sendable {
     var id: String = ""
-    var layout: ZoneLayoutKind?
+    var layout: ColumnLayoutKind?
     var defaultZone: String?
-    var columns: [ZoneColumnConfig] = []
-}
-
-struct ZoneSceneConfig: ConvenienceCopyable, Equatable, Sendable {
-    var id: String = ""
-    var layoutPreset: String?
-    var workspaces: [ZoneSceneWorkspaceConfig] = []
-}
-
-struct ZoneSceneWorkspaceConfig: ConvenienceCopyable, Equatable, Sendable {
-    var zone: String = ""
-    var workspace: WorkspaceName?
-}
-
-struct ZoneBindingConfig: ConvenienceCopyable, Equatable, Sendable {
-    var monitor: MonitorDescription?
-    var zone: String = ""
-    var workspace: WorkspaceName?
-}
-
-struct ZoneAffinityConfig: ConvenienceCopyable, Equatable {
-    var matcher: WindowDetectedCallbackMatcher = WindowDetectedCallbackMatcher()
-    var zone: ZoneSelector?
-    var checkFurtherCallbacks: Bool = false
-    var focusFollowsWindow: Bool = false
-    var failIfNoop: Bool = false
+    var columns: [ColumnConfig] = []
 }
 
 /// A `[[rules]]` entry: a window match dealing new windows onto a card by name. Rules address
@@ -228,21 +201,11 @@ struct RuleConfig: ConvenienceCopyable, Equatable {
     var checkFurtherRules: Bool = false
 }
 
-struct ZoneStyleConfig: ConvenienceCopyable, Equatable, Sendable {
-    var id: String = ""
-    var color: String = ""
-}
-
-struct ZoneAvailabilitySetConfig: ConvenienceCopyable, Equatable, Sendable {
-    var id: String = ""
-    var enabledZones: [String] = []
-}
-
-enum ZoneLayoutKind: String, Equatable, Sendable {
+enum ColumnLayoutKind: String, Equatable, Sendable {
     case columns
 }
 
-struct ZoneColumnConfig: ConvenienceCopyable, Equatable, Sendable {
+struct ColumnConfig: ConvenienceCopyable, Equatable, Sendable {
     var id: String = ""
     var name: String?
     var width: Double = 0

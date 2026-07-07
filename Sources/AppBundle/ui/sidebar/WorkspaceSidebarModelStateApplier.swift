@@ -8,8 +8,8 @@ func clearWorkspaceSidebarModelState() {
     if !TrayMenuModel.shared.workspaceSidebarMonitorScopes.isEmpty {
         TrayMenuModel.shared.workspaceSidebarMonitorScopes = []
     }
-    if !TrayMenuModel.shared.workspaceSidebarZoneTargets.isEmpty {
-        TrayMenuModel.shared.workspaceSidebarZoneTargets = []
+    if !TrayMenuModel.shared.workspaceSidebarColumnTargets.isEmpty {
+        TrayMenuModel.shared.workspaceSidebarColumnTargets = []
     }
     if !TrayMenuModel.shared.workspaceSidebarColumnSections.isEmpty {
         TrayMenuModel.shared.workspaceSidebarColumnSections = []
@@ -27,8 +27,8 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
         TrayMenuModel.shared.workspaceSidebarMonitorScopes != state.monitorScopes ||
         TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId != state.focusedMonitorScopeId ||
         TrayMenuModel.shared.workspaceSidebarShowsMonitorSelector != state.showsMonitorSelector
-    let didZoneTargetChange =
-        TrayMenuModel.shared.workspaceSidebarZoneTargets != state.zoneTargets ||
+    let didColumnTargetChange =
+        TrayMenuModel.shared.workspaceSidebarColumnTargets != state.columnTargets ||
         TrayMenuModel.shared.workspaceSidebarColumnSections != state.columnSections ||
         TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets != state.sceneSwitchTargets
 
@@ -42,7 +42,7 @@ func applyWorkspaceSidebarModelState(_ state: WorkspaceSidebarModelState, previo
     if didWorkspaceChange ||
         state.topPadding != previousTopPadding ||
         didMonitorScopeChange ||
-        didZoneTargetChange ||
+        didColumnTargetChange ||
         WorkspaceSidebarPanel.visiblePanels.isEmpty
     {
         WorkspaceSidebarPanel.refreshAll()
@@ -54,7 +54,7 @@ private func updateWorkspaceSidebarTrayModel(with state: WorkspaceSidebarModelSt
     TrayMenuModel.shared.workspaceSidebarTopPadding = state.topPadding
     TrayMenuModel.shared.workspaceSidebarHoveredWorkspaceName = state.hoveredWorkspaceName
     TrayMenuModel.shared.workspaceSidebarMonitorScopes = state.monitorScopes
-    TrayMenuModel.shared.workspaceSidebarZoneTargets = state.zoneTargets
+    TrayMenuModel.shared.workspaceSidebarColumnTargets = state.columnTargets
     TrayMenuModel.shared.workspaceSidebarColumnSections = state.columnSections
     TrayMenuModel.shared.workspaceSidebarSceneSwitchTargets = state.sceneSwitchTargets
     TrayMenuModel.shared.workspaceSidebarFocusedMonitorScopeId = state.focusedMonitorScopeId

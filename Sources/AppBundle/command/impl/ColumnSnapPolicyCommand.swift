@@ -15,7 +15,7 @@ struct SetColumnSnapPolicyCommand: Command {
             targetPhysicalMonitor = focus.workspace.workspaceMonitor.physicalMonitor
         }
 
-        switch setZoneSnapPolicy(args.policyId.val, for: targetPhysicalMonitor) {
+        switch setColumnSnapPolicy(args.policyId.val, for: targetPhysicalMonitor) {
             case .success(let change):
                 return io.out("Using column snap policy '\(change.policy.rawValue)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
             case .failure(let message):
@@ -39,7 +39,7 @@ struct CycleColumnSnapPolicyCommand: Command {
             targetPhysicalMonitor = focus.workspace.workspaceMonitor.physicalMonitor
         }
 
-        switch cycleZoneSnapPolicy(args.policyIds.val, for: targetPhysicalMonitor) {
+        switch cycleColumnSnapPolicy(args.policyIds.val, for: targetPhysicalMonitor) {
             case .success(let change):
                 return io.out("Using column snap policy '\(change.policy.rawValue)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
             case .failure(let message):

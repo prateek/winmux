@@ -2,8 +2,8 @@ config-version = 2
 auto-reload-config = false
 persistent-workspaces = []
 
-[[zones]]
-monitor = 1
+[[zone-layouts]]
+id = 'balanced'
 layout = 'columns'
 default-zone = 'main'
 columns = [
@@ -11,6 +11,10 @@ columns = [
   { id = 'main', name = 'Work', width = 0.50 },
   { id = 'right', name = 'Comms', width = 0.25 },
 ]
+
+[[zones]]
+monitor = 1
+layout-preset = 'balanced'
 
 [[zone-bindings]]
 zone = 'left'

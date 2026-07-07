@@ -445,7 +445,7 @@ import XCTest
                 previewRect: Rect(topLeftX: 120, topLeftY: 80, width: 420, height: 54),
                 interactionRect: tabGroup.lastAppliedLayoutPhysicalRect.orDie(),
                 title: "Insert Into Tabs",
-                subtitle: "Drop in the top zone to add this window",
+                subtitle: "Drop in the top column to add this window",
                 previewStyle: .tabInsert,
                 previewGeometry: .tabStrip,
                 isGroup: false,

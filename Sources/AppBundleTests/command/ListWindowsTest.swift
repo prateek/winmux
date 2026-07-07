@@ -43,7 +43,9 @@ final class ListWindowsTest: XCTestCase {
                 case .workspace:
                     assertTrue(FormatVar.WorkspaceFormatVar.allCases.allSatisfy { $0.rawValue.starts(with: "workspace") })
                 case .monitor:
-                    assertTrue(FormatVar.MonitorFormatVar.allCases.allSatisfy { $0.rawValue.starts(with: "monitor-") })
+                    assertTrue(FormatVar.MonitorFormatVar.allCases.allSatisfy {
+                        $0.rawValue.starts(with: "monitor-") || $0.rawValue.starts(with: "column-")
+                    })
             }
         }
     }

@@ -1,20 +1,20 @@
 import AppKit
 import SwiftUI
 
-enum ZoneDividerOverlayState {
+enum ColumnDividerOverlayState {
     case hover
     case dragging
     case committed
 }
 
-struct ZoneDividerOverlayModel {
+struct ColumnDividerOverlayModel {
     let workspaceRect: Rect
     let boundaryX: CGFloat
     let leftName: String
     let rightName: String
     let leftShare: Double?
     let rightShare: Double?
-    let state: ZoneDividerOverlayState
+    let state: ColumnDividerOverlayState
 
     var localBoundaryX: CGFloat {
         boundaryX - workspaceRect.topLeftX
@@ -22,16 +22,16 @@ struct ZoneDividerOverlayModel {
 }
 
 @MainActor
-final class ZoneDividerOverlayPanelController {
-    static let shared = ZoneDividerOverlayPanelController()
+final class ColumnDividerOverlayPanelController {
+    static let shared = ColumnDividerOverlayPanelController()
 
     private let panel = NSPanelHud()
-    private let hitPanel = ZoneDividerHitPanel()
+    private let hitPanel = ColumnDividerHitPanel()
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private var pendingHide: DispatchWorkItem?
 
     private init() {
-        panel.identifier = NSUserInterfaceItemIdentifier("WinMux.zoneDividerOverlay")
+        panel.identifier = NSUserInterfaceItemIdentifier("WinMux.columnDividerOverlay")
         panel.hasShadow = false
         panel.isFloatingPanel = true
         panel.isExcludedFromWindowsMenu = true
@@ -43,7 +43,7 @@ final class ZoneDividerOverlayPanelController {
         hostingView.frame = panel.contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
 
-        hitPanel.identifier = NSUserInterfaceItemIdentifier("WinMux.zoneDividerHitBand")
+        hitPanel.identifier = NSUserInterfaceItemIdentifier("WinMux.columnDividerHitBand")
         hitPanel.hasShadow = false
         hitPanel.isFloatingPanel = true
         hitPanel.isExcludedFromWindowsMenu = true
@@ -51,10 +51,10 @@ final class ZoneDividerOverlayPanelController {
         hitPanel.ignoresMouseEvents = false
         hitPanel.backgroundColor = .clear
         hitPanel.applyWinMuxLayer(.overlay)
-        hitPanel.contentView = ZoneDividerHitView(frame: .zero)
+        hitPanel.contentView = ColumnDividerHitView(frame: .zero)
     }
 
-    func show(_ model: ZoneDividerOverlayModel) {
+    func show(_ model: ColumnDividerOverlayModel) {
         pendingHide?.cancel()
         pendingHide = nil
         let frame = model.workspaceRect.toAppKitScreenRect.alignedToBackingPixels()
@@ -64,7 +64,7 @@ final class ZoneDividerOverlayPanelController {
             panel.setFrame(frame, display: false, animate: false)
         }
         hostingView.frame = CGRect(origin: .zero, size: frame.size)
-        hostingView.rootView = AnyView(ZoneDividerOverlayView(model: model))
+        hostingView.rootView = AnyView(ColumnDividerOverlayView(model: model))
         if !panel.isVisible {
             panel.orderFrontRegardless()
         }
@@ -90,14 +90,14 @@ final class ZoneDividerOverlayPanelController {
         }
     }
 
-    private func showHitPanel(for model: ZoneDividerOverlayModel) {
+    private func showHitPanel(for model: ColumnDividerOverlayModel) {
         guard model.state != .committed else {
             hideHitPanel()
             return
         }
         hitPanel.workspaceRect = model.workspaceRect
         let workspaceFrame = model.workspaceRect.toAppKitScreenRect.alignedToBackingPixels()
-        let hitBandWidth = zoneDividerChromeHitBandWidth(for: model.state)
+        let hitBandWidth = columnDividerChromeHitBandWidth(for: model.state)
         let frame = CGRect(
             x: model.boundaryX - hitBandWidth / 2,
             y: workspaceFrame.minY,
@@ -122,14 +122,14 @@ final class ZoneDividerOverlayPanelController {
     }
 }
 
-private final class ZoneDividerHitPanel: NSPanelHud {
+private final class ColumnDividerHitPanel: NSPanelHud {
     var workspaceRect: Rect?
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
-        guard zoneDividerHitPanelHandlesEvent(type: event.type, buttonNumber: event.buttonNumber) else {
+        guard columnDividerHitPanelHandlesEvent(type: event.type, buttonNumber: event.buttonNumber) else {
             forwardUnhandledEventBelow(event)
             return
         }
@@ -138,7 +138,7 @@ private final class ZoneDividerHitPanel: NSPanelHud {
 
     override func mouseDown(with event: NSEvent) {
         Task { @MainActor in
-            _ = ZoneDividerDragController.shared.handleMouseDown(
+            _ = ColumnDividerDragController.shared.handleMouseDown(
                 at: self.normalizedPoint(for: event),
                 source: .dividerChrome,
             )
@@ -147,13 +147,13 @@ private final class ZoneDividerHitPanel: NSPanelHud {
 
     override func mouseDragged(with event: NSEvent) {
         Task { @MainActor in
-            _ = ZoneDividerDragController.shared.handleMouseDragged(at: self.normalizedPoint(for: event))
+            _ = ColumnDividerDragController.shared.handleMouseDragged(at: self.normalizedPoint(for: event))
         }
     }
 
     override func mouseUp(with event: NSEvent) {
         Task { @MainActor in
-            _ = ZoneDividerDragController.shared.handleMouseUp(at: self.normalizedPoint(for: event))
+            _ = ColumnDividerDragController.shared.handleMouseUp(at: self.normalizedPoint(for: event))
         }
     }
 
@@ -175,7 +175,7 @@ private final class ZoneDividerHitPanel: NSPanelHud {
     }
 }
 
-private final class ZoneDividerHitView: NSView {
+private final class ColumnDividerHitView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -195,12 +195,12 @@ private final class ZoneDividerHitView: NSView {
     override var acceptsFirstResponder: Bool { false }
 }
 
-func zoneDividerChromeHitBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
+func columnDividerChromeHitBandWidth(for state: ColumnDividerOverlayState) -> CGFloat {
     guard state != .committed else { return 0 }
     return 32
 }
 
-func zoneDividerVisibleBandWidth(for state: ZoneDividerOverlayState) -> CGFloat {
+func columnDividerVisibleBandWidth(for state: ColumnDividerOverlayState) -> CGFloat {
     switch state {
         case .hover:
             8
@@ -209,6 +209,6 @@ func zoneDividerVisibleBandWidth(for state: ZoneDividerOverlayState) -> CGFloat 
     }
 }
 
-func zoneDividerHitPanelHandlesEvent(type: NSEvent.EventType, buttonNumber: Int) -> Bool {
+func columnDividerHitPanelHandlesEvent(type: NSEvent.EventType, buttonNumber: Int) -> Bool {
     buttonNumber == 0 && [NSEvent.EventType.leftMouseDown, .leftMouseDragged, .leftMouseUp].contains(type)
 }

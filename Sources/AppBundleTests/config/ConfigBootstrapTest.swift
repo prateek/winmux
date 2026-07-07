@@ -87,9 +87,7 @@ final class ConfigBootstrapTest: XCTestCase {
         // No scenes are configured by default: the laptop gets one implicit column.
         XCTAssertTrue(parsedConfig.scenes.isEmpty)
         XCTAssertEqual(parsedConfig.zones.count, 0)
-        XCTAssertEqual(parsedConfig.zoneLayouts.count, 0)
-        XCTAssertEqual(parsedConfig.zoneScenes.count, 0)
-        XCTAssertEqual(parsedConfig.zoneAvailabilitySets.count, 0)
+        XCTAssertEqual(parsedConfig.columnLayouts.count, 0)
     }
 
     func testDefaultConfigUrlResolvesFromProjectWorkingDirectory() {
@@ -138,7 +136,7 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(parsedConfig.scenes.map(\.defaultColumn), ["main", nil, "comms"])
 
         // Each scene folds into a backing zone layout keyed by its id.
-        let layoutsById = Dictionary(uniqueKeysWithValues: parsedConfig.zoneLayouts.map { ($0.id, $0) })
+        let layoutsById = Dictionary(uniqueKeysWithValues: parsedConfig.columnLayouts.map { ($0.id, $0) })
         XCTAssertEqual(layoutsById[sceneBackingLayoutId("desk")]?.columns.map(\.id), ["ref", "main", "comms"])
         XCTAssertEqual(layoutsById[sceneBackingLayoutId("focus")]?.columns.map(\.id), ["main"])
         XCTAssertEqual(layoutsById[sceneBackingLayoutId("triage")]?.columns.map(\.id), ["comms", "main"])

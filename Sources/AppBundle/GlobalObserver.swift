@@ -112,14 +112,14 @@ enum GlobalObserver {
         WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
         var consumed = false
         if isLeftMouseDownEvent {
-            consumed = ZoneDividerDragController.shared.handleMouseDown(at: point)
+            consumed = ColumnDividerDragController.shared.handleMouseDown(at: point)
             if !consumed {
                 Task { @MainActor in
                     await WindowMouseInteractionDriver.shared.capturePendingResizeCandidate()
                 }
             }
         } else if isMouseMovedEvent {
-            ZoneDividerDragController.shared.updateHover(at: point)
+            ColumnDividerDragController.shared.updateHover(at: point)
         }
         noteTapBindingKeyDown()
         return consumed
@@ -146,7 +146,7 @@ enum GlobalObserver {
             //  The end of the callback calls refreshSession
             Task { @MainActor in
                 let mouseLocation = mouseLocation
-                if ZoneDividerDragController.shared.handleMouseUp(at: mouseLocation) {
+                if ColumnDividerDragController.shared.handleMouseUp(at: mouseLocation) {
                     return
                 }
                 finishWorkspaceSidebarDragAfterGlobalMouseUp()
@@ -180,7 +180,7 @@ enum GlobalObserver {
             runOnMainActor {
                 MousePointerTracker.shared.note(point: point, timestamp: timestamp)
                 WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
-                if ZoneDividerDragController.shared.handleMouseDragged(at: point) {
+                if ColumnDividerDragController.shared.handleMouseDragged(at: point) {
                     return
                 }
                 refreshPendingWindowDragIntentFromGlobalMouseDrag()

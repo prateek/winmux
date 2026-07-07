@@ -110,19 +110,18 @@ private func configureThreeColumnScene(colors: [String: String] = [:]) -> [Strin
     config.workspaceSidebar.enabled = true
     config.workspaceSidebar.enableFocus = false
     config.zones = [
-        ZoneConfig(
+        testDisplayLayoutConfig(
             monitor: .sequenceNumber(1),
-            layout: .columns,
             defaultZone: "main",
             columns: [
-                ZoneColumnConfig(id: "left", name: "Reference", width: 0.25, color: colors["left"]),
-                ZoneColumnConfig(id: "main", name: "Work", width: 0.50, color: colors["main"]),
-                ZoneColumnConfig(id: "right", name: "Comms", width: 0.25, color: colors["right"]),
+                ColumnConfig(id: "left", name: "Reference", width: 0.25, color: colors["left"]),
+                ColumnConfig(id: "main", name: "Work", width: 0.50, color: colors["main"]),
+                ColumnConfig(id: "right", name: "Comms", width: 0.25, color: colors["right"]),
             ],
         ),
     ]
     refreshColumnTopologySnapshot()
     return Dictionary(uniqueKeysWithValues: sortedMonitors.compactMap { monitor in
-        monitor.zoneId.map { ($0, monitor) }
+        monitor.columnId.map { ($0, monitor) }
     })
 }

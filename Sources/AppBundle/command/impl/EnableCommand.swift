@@ -25,7 +25,7 @@ struct EnableCommand: Command {
             clearPendingWindowDragIntent()
             cancelManipulatedWithMouseState()
             // noteModeChanged only revokes policy-gated dragging; 'always' needs this too.
-            ZoneDividerDragController.shared.cancel()
+            ColumnDividerDragController.shared.cancel()
         }
         WorkspaceSidebarPanel.refreshAll()
         WindowTabStripPanelController.shared.refresh()

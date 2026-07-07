@@ -1,8 +1,8 @@
 import CoreGraphics
 import Common
 
-struct ZoneListRow {
-    let summary: ConfiguredZoneSummary
+struct ColumnListRow {
+    let summary: ConfiguredColumnSummary
     let activeWorkspaceName: String?
 }
 
@@ -11,7 +11,7 @@ enum FormatObject {
     case workspace(Workspace)
     case app(any AbstractApp)
     case monitor(Monitor)
-    case zone(ZoneListRow)
+    case column(ColumnListRow)
 
     var kind: FormatObjectKind {
         switch self {
@@ -19,7 +19,7 @@ enum FormatObject {
             case .workspace: .workspace
             case .app: .app
             case .monitor: .monitor
-            case .zone: .monitor
+            case .column: .monitor
         }
     }
 }
@@ -122,13 +122,13 @@ private struct Cell<T> {
 }
 
 @MainActor
-private func configuredZoneSummary(for monitor: Monitor) -> ConfiguredZoneSummary? {
-    guard let zoneId = monitor.zoneId else { return nil }
+private func configuredColumnSummary(for monitor: Monitor) -> ConfiguredColumnSummary? {
+    guard let columnId = monitor.columnId else { return nil }
     let physicalTopLeft = monitor.physicalMonitor.rect.topLeftCorner
     return getCurrentColumnTopologySnapshot()
-        .configuredZones(for: sortedPhysicalMonitors)
+        .configuredColumns(for: sortedPhysicalMonitors)
         .first {
-            $0.zoneId == zoneId &&
+            $0.columnId == columnId &&
                 $0.physicalMonitor.rect.topLeftCorner == physicalTopLeft
         }
 }
@@ -154,7 +154,7 @@ extension String {
 
             case (.app(_), _): break
             case (.monitor(_), _): break
-            case (.zone(_), _): break
+            case (.column(_), _): break
         }
         switch (obj, formatVar) {
             case (.window(let w, let title), .window(let f)):
@@ -176,26 +176,26 @@ extension String {
                     case .workspaceRootContainerLayout: .success(.string(toLayoutString(tc: w.rootTilingContainer)))
                 }
             case (.monitor(let m), .monitor(let f)):
-                let zone = configuredZoneSummary(for: m)
+                let zone = configuredColumnSummary(for: m)
                 return switch f {
                     case .monitorId_oneBased: .success(m.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                     case .monitorAppKitNsScreenScreensId: .success(.int(m.monitorAppKitNsScreenScreensId))
                     case .monitorName: .success(.string(m.name))
                     case .monitorIsMain: .success(.bool(m.isMain))
-                    case .monitorIsZone: .success(.bool(m.zoneId != nil))
-                    case .monitorZoneLayoutId: .success(.string(m.zoneLayoutId ?? ""))
-                    case .monitorZoneAvailabilitySetId: .success(.string(m.zoneAvailabilitySetId ?? ""))
-                    case .monitorZoneId: .success(.string(m.zoneId ?? ""))
-                    case .monitorZoneName: .success(.string(m.zoneName ?? ""))
-                    case .monitorZoneStyleId: .success(.string(m.zoneStyleId ?? ""))
-                    case .monitorZoneStyleColor: .success(.string(m.zoneStyleColorHex ?? ""))
-                    case .monitorZoneEnabled: .success(.bool(m.zoneId != nil))
-                    case .monitorZoneConfiguredWidth: .success(.string(zone?.configuredWidth.description ?? ""))
-                    case .monitorZoneEffectiveWidth: .success(.string(zone?.effectiveWidth.description ?? ""))
-                    case .monitorZoneRuntimeWidthOverride: .success(.string(zone?.runtimeWidthOverride?.description ?? ""))
-                    case .monitorZoneRuntimeWidthOverrideState: .success(.string(zone?.runtimeWidthOverrideState ?? ""))
-                    case .monitorZoneLeft: .success(.string(m.zoneId == nil ? "" : m.rect.topLeftX.description))
-                    case .monitorZonePixelWidth: .success(.string(m.zoneId == nil ? "" : m.rect.width.description))
+                    case .monitorIsZone: .success(.bool(m.columnId != nil))
+                    case .monitorColumnLayoutId: .success(.string(m.columnLayoutId ?? ""))
+                    case .monitorColumnAvailabilitySetId: .success(.string(""))
+                    case .monitorColumnId: .success(.string(m.columnId ?? ""))
+                    case .monitorColumnName: .success(.string(m.columnName ?? ""))
+                    case .monitorColumnStyleId: .success(.string(m.zoneStyleId ?? ""))
+                    case .monitorColumnStyleColor: .success(.string(m.columnColorHex ?? ""))
+                    case .monitorColumnEnabled: .success(.bool(m.columnId != nil))
+                    case .monitorColumnConfiguredWidth: .success(.string(zone?.configuredWidth.description ?? ""))
+                    case .monitorColumnEffectiveWidth: .success(.string(zone?.effectiveWidth.description ?? ""))
+                    case .monitorColumnRuntimeWidthOverride: .success(.string(zone?.runtimeWidthOverride?.description ?? ""))
+                    case .monitorColumnRuntimeWidthOverrideState: .success(.string(zone?.runtimeWidthOverrideState ?? ""))
+                    case .monitorColumnLeft: .success(.string(m.columnId == nil ? "" : m.rect.topLeftX.description))
+                    case .monitorColumnPixelWidth: .success(.string(m.columnId == nil ? "" : m.rect.width.description))
                     case .monitorPhysicalId_oneBased: .success(m.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                     case .monitorActiveWorkspace: .success(.string(m.activeWorkspace.name))
                     case .monitorLeft: .success(.string(m.rect.topLeftX.description))
@@ -203,27 +203,27 @@ extension String {
                     case .monitorWidth: .success(.string(m.rect.width.description))
                     case .monitorHeight: .success(.string(m.rect.height.description))
                 }
-            case (.zone(let row), .monitor(let f)):
+            case (.column(let row), .monitor(let f)):
                 let zone = row.summary
                 return switch f {
                     case .monitorId_oneBased: .success(zone.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                     case .monitorAppKitNsScreenScreensId: .success(.int(zone.physicalMonitor.monitorAppKitNsScreenScreensId))
-                    case .monitorName: .success(.string("\(zone.physicalMonitor.name) / \(zone.zoneName ?? zone.zoneId)"))
-                    case .monitorIsMain: .success(.bool(zone.physicalMonitor.isMain && zone.isDefaultZone))
+                    case .monitorName: .success(.string("\(zone.physicalMonitor.name) / \(zone.columnName ?? zone.columnId)"))
+                    case .monitorIsMain: .success(.bool(zone.physicalMonitor.isMain && zone.isDefaultColumn))
                     case .monitorIsZone: .success(.bool(true))
-                    case .monitorZoneLayoutId: .success(.string(zone.zoneLayoutId ?? ""))
-                    case .monitorZoneAvailabilitySetId: .success(.string(zone.zoneAvailabilitySetId ?? ""))
-                    case .monitorZoneId: .success(.string(zone.zoneId))
-                    case .monitorZoneName: .success(.string(zone.zoneName ?? ""))
-                    case .monitorZoneStyleId: .success(.string(zone.zoneStyleId ?? ""))
-                    case .monitorZoneStyleColor: .success(.string(zone.zoneStyleColorHex ?? ""))
-                    case .monitorZoneEnabled: .success(.bool(zone.isEnabled))
-                    case .monitorZoneConfiguredWidth: .success(.string(zone.configuredWidth.description))
-                    case .monitorZoneEffectiveWidth: .success(.string(zone.effectiveWidth.description))
-                    case .monitorZoneRuntimeWidthOverride: .success(.string(zone.runtimeWidthOverride?.description ?? ""))
-                    case .monitorZoneRuntimeWidthOverrideState: .success(.string(zone.runtimeWidthOverrideState))
-                    case .monitorZoneLeft: .success(.string(zone.left?.description ?? ""))
-                    case .monitorZonePixelWidth: .success(.string(zone.pixelWidth?.description ?? ""))
+                    case .monitorColumnLayoutId: .success(.string(zone.columnLayoutId ?? ""))
+                    case .monitorColumnAvailabilitySetId: .success(.string(""))
+                    case .monitorColumnId: .success(.string(zone.columnId))
+                    case .monitorColumnName: .success(.string(zone.columnName ?? ""))
+                    case .monitorColumnStyleId: .success(.string(zone.zoneStyleId ?? ""))
+                    case .monitorColumnStyleColor: .success(.string(zone.columnColorHex ?? ""))
+                    case .monitorColumnEnabled: .success(.bool(zone.isEnabled))
+                    case .monitorColumnConfiguredWidth: .success(.string(zone.configuredWidth.description))
+                    case .monitorColumnEffectiveWidth: .success(.string(zone.effectiveWidth.description))
+                    case .monitorColumnRuntimeWidthOverride: .success(.string(zone.runtimeWidthOverride?.description ?? ""))
+                    case .monitorColumnRuntimeWidthOverrideState: .success(.string(zone.runtimeWidthOverrideState))
+                    case .monitorColumnLeft: .success(.string(zone.left?.description ?? ""))
+                    case .monitorColumnPixelWidth: .success(.string(zone.pixelWidth?.description ?? ""))
                     case .monitorPhysicalId_oneBased: .success(zone.physicalMonitor.monitorId_oneBased.map { .int($0) } ?? .string("NULL-MONITOR-ID"))
                     case .monitorActiveWorkspace: .success(.string(row.activeWorkspaceName ?? ""))
                     case .monitorLeft: .success(.string(zone.left?.description ?? ""))

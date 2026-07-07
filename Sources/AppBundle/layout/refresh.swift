@@ -181,7 +181,7 @@ func runRefreshSessionBlocking(
                     }
                 }
                 await updateWindowTabModel()
-                ZoneExposePreviewCache.shared.noteRefreshCompleted()
+                ExposePreviewCache.shared.noteRefreshCompleted()
                 debugFocusLog("runRefreshSessionBlocking end event=\(event) nativeFocused=\(nativeFocused?.windowId.description ?? "nil") focus=\(debugDescribe(focus))")
             }
         }
@@ -235,7 +235,7 @@ func runLightSession<T>(
                 if shouldSchedulePostRefresh {
                     scheduleRefreshSession(event)
                 }
-                ZoneExposePreviewCache.shared.noteRefreshCompleted()
+                ExposePreviewCache.shared.noteRefreshCompleted()
                 debugFocusLog("runLightSession end event=\(event) nativeFocused=\(nativeFocused?.windowId.description ?? "nil") focusBefore=\(focusBefore?.windowId.description ?? "nil") focusAfter=\(focusAfter?.windowId.description ?? "nil") logicalFocus=\(debugDescribe(focus))")
                 return result
             }

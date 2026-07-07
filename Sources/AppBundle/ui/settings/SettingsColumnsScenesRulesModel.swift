@@ -43,7 +43,7 @@ struct SettingsRuleRowViewModel: Identifiable, Equatable {
 func buildSettingsColumnRows() -> [SettingsColumnRowViewModel] {
     let physicalMonitors = settingsDedupedPhysicalMonitors()
     let columnsByDisplay = Dictionary(
-        grouping: getCurrentColumnTopologySnapshot().configuredZones(for: physicalMonitors),
+        grouping: getCurrentColumnTopologySnapshot().configuredColumns(for: physicalMonitors),
         by: { $0.physicalMonitor.rect.topLeftCorner },
     )
     return physicalMonitors.enumerated().flatMap { index, physicalMonitor -> [SettingsColumnRowViewModel] in
@@ -66,14 +66,14 @@ func buildSettingsColumnRows() -> [SettingsColumnRowViewModel] {
         }
         return columns.map { column in
             SettingsColumnRowViewModel(
-                id: "\(monitorLabel):\(column.zoneId)",
+                id: "\(monitorLabel):\(column.columnId)",
                 monitorLabel: monitorLabel,
                 sceneLabel: sceneLabel,
-                columnId: column.zoneId,
+                columnId: column.columnId,
                 name: column.displayName,
                 widthText: settingsColumnWidthText(column.configuredWidth),
-                colorHex: column.zoneStyleColorHex,
-                isDefaultColumn: column.isDefaultZone,
+                colorHex: column.columnColorHex,
+                isDefaultColumn: column.isDefaultColumn,
                 isEnabled: column.isEnabled,
                 isImplicit: false,
             )
@@ -89,7 +89,7 @@ func buildSettingsSceneRows() -> [SettingsSceneRowViewModel] {
         let monitorLabel = workspaceSidebarMonitorDisplayName(physicalMonitor, fallbackIndex: index + 1)
         let activeId = activeSceneId(for: physicalMonitor)
         return scenes(on: physicalMonitor).map { scene in
-            let layout = config.zoneLayouts.first { $0.id == scene.layoutId }
+            let layout = config.columnLayouts.first { $0.id == scene.layoutId }
             return SettingsSceneRowViewModel(
                 id: "\(monitorLabel):\(scene.id)",
                 monitorLabel: monitorLabel,

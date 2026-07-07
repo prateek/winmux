@@ -23,32 +23,32 @@ struct ColumnCommand: Command {
     }
 
     @MainActor
-    private func runResize(column: ZoneSelector, amount: ZoneWidthAmount, io: CmdIo) -> Bool {
-        switch resizeZoneWidth(selector: column, amount: amount, monitorDescription: args.monitor) {
+    private func runResize(column: ColumnSelector, amount: ColumnWidthAmount, io: CmdIo) -> Bool {
+        switch resizeColumnWidth(selector: column, amount: amount, monitorDescription: args.monitor) {
             case .success(let change):
-                return io.out("Resized column '\(change.zoneName ?? change.zoneId ?? column.raw)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) by \(amount.displayPercent)")
+                return io.out("Resized column '\(change.columnName ?? change.columnId ?? column.raw)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) by \(amount.displayPercent)")
             case .failure(let message):
                 return io.err(message)
         }
     }
 
     @MainActor
-    private func runAvailability(_ operation: ZoneAvailabilityOperation, column: ZoneSelector, io: CmdIo) -> Bool {
-        switch setZoneAvailability(operation, selector: column, monitorDescription: args.monitor) {
+    private func runAvailability(_ operation: ColumnVisibilityOperation, column: ColumnSelector, io: CmdIo) -> Bool {
+        switch setColumnVisibility(operation, selector: column, monitorDescription: args.monitor) {
             case .success(let change):
                 let state = change.isEnabled ? "expanded" : "collapsed"
                 let verb = change.changed ? state.capitalized : "Already \(state)"
-                return io.out("\(verb) column '\(change.zoneName ?? change.zoneId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
+                return io.out("\(verb) column '\(change.columnName ?? change.columnId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0)")
             case .failure(let message):
                 return io.err(message)
         }
     }
 
     @MainActor
-    private func runColor(hex: String, column: ZoneSelector, io: CmdIo) -> Bool {
+    private func runColor(hex: String, column: ColumnSelector, io: CmdIo) -> Bool {
         switch setColumnColor(selector: column, colorHex: hex, monitorDescription: args.monitor) {
             case .success(let change):
-                return io.out("Colored column '\(change.zoneName ?? change.zoneId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) as '\(change.colorHex)'")
+                return io.out("Colored column '\(change.columnName ?? change.columnId)' on monitor \(change.physicalMonitor.monitorId_oneBased ?? 0) as '\(change.colorHex)'")
             case .failure(let message):
                 return io.err(message)
         }
@@ -65,8 +65,8 @@ struct ColumnCommand: Command {
         }
 
         let monitorId = targetMonitor.monitorId_oneBased ?? targetMonitor.monitorAppKitNsScreenScreensId
-        let preset = zoneInitPresetDefinition(args.preset)
-        let block = renderZoneInitManagedBlock(preset: args.preset, presetDefinition: preset, monitorId: monitorId)
+        let preset = columnInitPresetDefinition(args.preset)
+        let block = renderColumnInitManagedBlock(preset: args.preset, presetDefinition: preset, monitorId: monitorId)
 
         let originalText: String
         do {
@@ -75,8 +75,8 @@ struct ColumnCommand: Command {
             return io.err("Can't read config file '\(configUrl.path)': \(error.localizedDescription)")
         }
 
-        let edit: ZoneInitConfigEditResult
-        switch applyZoneInitManagedBlock(to: originalText, block: block, replaceExisting: args.replaceExisting) {
+        let edit: ColumnInitConfigEditResult
+        switch applyColumnInitManagedBlock(to: originalText, block: block, replaceExisting: args.replaceExisting) {
             case .success(let result):
                 edit = result
             case .failure(let message):
@@ -87,7 +87,7 @@ struct ColumnCommand: Command {
         let summary = columnInitMonitorSummary(targetMonitor)
 
         if !args.write {
-            return io.out(renderZoneInitOutput(
+            return io.out(renderColumnInitOutput(
                 title: edit.status == .unchanged
                     ? "Dry run: column init is already configured in \(configUrl.path)"
                     : "Dry run: would append \(args.preset.rawValue) columns to \(configUrl.path)",
@@ -100,7 +100,7 @@ struct ColumnCommand: Command {
         }
 
         if edit.status == .unchanged {
-            return io.out(renderZoneInitOutput(
+            return io.out(renderColumnInitOutput(
                 title: "Column init already configured in \(configUrl.path)",
                 mode: mode,
                 preset: args.preset,
@@ -110,7 +110,7 @@ struct ColumnCommand: Command {
             ) + ["No changes needed."])
         }
 
-        let backup = nextZoneInitBackupUrl(for: configUrl)
+        let backup = nextColumnInitBackupUrl(for: configUrl)
         do {
             try FileManager.default.copyItem(at: configUrl, to: backup)
             try edit.updatedText.write(to: configUrl, atomically: true, encoding: .utf8)
@@ -118,7 +118,7 @@ struct ColumnCommand: Command {
             return io.err("Can't write column init config to '\(configUrl.path)': \(error.localizedDescription)")
         }
 
-        return io.out(renderZoneInitOutput(
+        return io.out(renderColumnInitOutput(
             title: "Wrote \(args.preset.rawValue) columns to \(configUrl.path)",
             mode: mode,
             preset: args.preset,
@@ -160,5 +160,5 @@ private func columnInitMonitorSummary(_ monitor: Monitor) -> String {
     let height = Int(monitor.rect.height.rounded())
     let aspect = monitor.rect.height > 0 ? Double(monitor.rect.width / monitor.rect.height) : 0
     let name = monitor.name.isEmpty ? "Display \(id)" : monitor.name
-    return "monitor \(id) \(name) \(width)x\(height) aspect \(zoneInitFormatTomlFloat(aspect))"
+    return "monitor \(id) \(name) \(width)x\(height) aspect \(columnInitFormatTomlFloat(aspect))"
 }

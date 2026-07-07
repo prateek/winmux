@@ -9,7 +9,7 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
         sortedMonitors: availableMonitors,
         focusedMonitorScopeId: focusedMonitorScopeId,
     )
-    let zoneTargets = buildWorkspaceSidebarZoneTargetViewModels(
+    let columnTargets = buildWorkspaceSidebarColumnTargetViewModels(
         sortedMonitors: availableMonitors,
         currentFocus: currentFocus,
     )
@@ -29,7 +29,7 @@ func buildWorkspaceSidebarModelState() async -> WorkspaceSidebarModelState {
     return WorkspaceSidebarModelState(
         workspaces: workspaces,
         monitorScopes: monitorScopes,
-        zoneTargets: zoneTargets,
+        columnTargets: columnTargets,
         columnSections: columnSections,
         sceneSwitchTargets: sceneSwitchTargets,
         focusedMonitorScopeId: focusedMonitorScopeId,

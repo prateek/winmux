@@ -11,6 +11,7 @@ REQUIRE_REVIEW=0
 CLOSEOUT=0
 SELF_TEST=0
 SELF_TEST_TMP_DIR=""
+SELF_TEST_MISSING_EVIDENCE=0
 
 usage() {
     cat <<EOF
@@ -78,6 +79,20 @@ require_file_under_run() {
 require_repo_file() {
     local path="$1"
     [ -s "${REPO_ROOT}/${path}" ] || die "missing repo evidence file: ${path}"
+}
+
+require_repo_evidence_file_if_available() {
+    local path="$1"
+    [ -s "${REPO_ROOT}/${path}" ] && return 0
+    if [ "$SELF_TEST" -eq 1 ]; then
+        case "$path" in
+            artifacts/e2e/*)
+                SELF_TEST_MISSING_EVIDENCE=$((SELF_TEST_MISSING_EVIDENCE + 1))
+                return 1
+                ;;
+        esac
+    fi
+    die "missing repo evidence file: ${path}"
 }
 
 reject_debug_proof() {
@@ -188,6 +203,7 @@ validate_product_evidence_index() {
     local header feature user_claim recording_path recording_sha duration resolution review_path verdict proof_path non_claims
     local row_count=0
     local root_demo_contact_sheet_seen=0
+    local recording_available review_available
     [ -s "$artifact_index" ] || die "missing package product evidence index: logs/product-evidence-index.tsv"
     [ "$(sha256_file "$artifact_index")" = "$(sha256_file "$EVIDENCE_INDEX")" ] \
         || die "package product evidence index differs from source index"
@@ -202,21 +218,27 @@ validate_product_evidence_index() {
         case "$recording_path $review_path $proof_path" in
             *slice-49-docs-20260702T105714Z*) die "superseded Slice 49 docs artifact must not be package evidence: ${feature}" ;;
         esac
-        require_repo_file "$recording_path"
-        require_repo_file "$review_path"
-        require_repo_file "$proof_path"
-        [ "$(sha256_file "${REPO_ROOT}/${recording_path}")" = "$recording_sha" ] \
-            || die "package product evidence recording hash mismatch: ${recording_path}"
+        recording_available=0
+        review_available=0
+        require_repo_evidence_file_if_available "$recording_path" && recording_available=1
+        require_repo_evidence_file_if_available "$review_path" && review_available=1
+        require_repo_evidence_file_if_available "$proof_path" || true
+        if [ "$recording_available" -eq 1 ]; then
+            [ "$(sha256_file "${REPO_ROOT}/${recording_path}")" = "$recording_sha" ] \
+                || die "package product evidence recording hash mismatch: ${recording_path}"
+        fi
         case "$verdict" in
             PASS|PASS_WITH_NOTES) ;;
             *) die "unsupported package evidence review verdict for ${feature}: ${verdict}" ;;
         esac
-        case "$(first_nonblank_line "${REPO_ROOT}/${review_path}")" in
-            "${verdict}:"*) ;;
-            *) die "review verdict does not match package evidence index for ${feature}: ${review_path}" ;;
-        esac
-        [ "$(last_nonblank_line "${REPO_ROOT}/${review_path}")" = "next slice allowed: yes" ] \
-            || die "accepted review final line is not next slice allowed: yes for package evidence ${feature}"
+        if [ "$review_available" -eq 1 ]; then
+            case "$(first_nonblank_line "${REPO_ROOT}/${review_path}")" in
+                "${verdict}:"*) ;;
+                *) die "review verdict does not match package evidence index for ${feature}: ${review_path}" ;;
+            esac
+            [ "$(last_nonblank_line "${REPO_ROOT}/${review_path}")" = "next slice allowed: yes" ] \
+                || die "accepted review final line is not next slice allowed: yes for package evidence ${feature}"
+        fi
         [ -n "$user_claim" ] || die "package evidence missing user claim for ${feature}"
         [ -n "$duration" ] || die "package evidence missing duration for ${feature}"
         [ -n "$resolution" ] || die "package evidence missing resolution for ${feature}"
@@ -584,8 +606,9 @@ slice-50-run	logs/slice-50-run.log	1	0	success	no	success	-	-	yes	4
 EOF
     write_support_bundle_fixture "$tmp/logs/slice-50-zone-support-bundle"
     "$SUPPORT_BUNDLE_CHECKER" "$tmp/logs/slice-50-zone-support-bundle" >"$tmp/logs/support-bundle-schema.log"
-    demo_contact_sheet_path="artifacts/e2e/slice-36-root-current-demo-20260701T004813Z/screenshots/demo-columnar-zones.contact-sheet.jpg"
-    demo_contact_sheet_sha="$(sha256_file "${REPO_ROOT}/${demo_contact_sheet_path}")"
+    demo_contact_sheet_path="demo-columnar-zones.contact-sheet.jpg"
+    printf 'self-test contact sheet\n' >"$tmp/${demo_contact_sheet_path}"
+    demo_contact_sheet_sha="$(sha256_file "$tmp/${demo_contact_sheet_path}")"
     release_notes="docs/release-notes.md"
     install_proof="logs/install-proof.log"
     launch_proof="logs/launch-proof.log"
@@ -727,6 +750,9 @@ EOF
     /usr/bin/perl -0pi -e 's/PUBLISH=0/PUBLISH=1/' "$provenance"
     if ( validate_package_artifact ) >/dev/null 2>&1; then
         die "self-test expected PUBLISH=1 rejection"
+    fi
+    if [ "$SELF_TEST_MISSING_EVIDENCE" -gt 0 ]; then
+        printf '[winmux-package50] self-test fixture skipped %s missing ignored evidence files\n' "$SELF_TEST_MISSING_EVIDENCE"
     fi
     printf '[winmux-package50] self-test PASS\n'
 }

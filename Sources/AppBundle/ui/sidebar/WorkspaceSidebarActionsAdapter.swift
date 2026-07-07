@@ -61,10 +61,10 @@ func handleWorkspaceSidebarAction(
             moveWindowFromSidebar(windowId, toWorkspace: workspaceName)
         case .moveTabGroup(let windowId, let workspaceName):
             moveTabGroupFromSidebar(windowId, toWorkspace: workspaceName)
-        case .moveWindowToZone(let windowId, let monitorScopeId, let zoneId):
-            moveWindowToZoneFromSidebar(windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
-        case .moveTabGroupToZone(let windowId, let monitorScopeId, let zoneId):
-            moveTabGroupToZoneFromSidebar(windowId, monitorScopeId: monitorScopeId, zoneId: zoneId)
+        case .moveWindowToColumn(let windowId, let monitorScopeId, let columnId):
+            moveWindowToColumnFromSidebar(windowId, monitorScopeId: monitorScopeId, columnId: columnId)
+        case .moveTabGroupToColumn(let windowId, let monitorScopeId, let columnId):
+            moveTabGroupToColumnFromSidebar(windowId, monitorScopeId: monitorScopeId, columnId: columnId)
         case .moveWindowToNewWorkspace(let windowId, let projectId, let monitorScopeId):
             moveWindowToNewWorkspaceFromSidebar(windowId, projectId: projectId, monitorScopeId: monitorScopeId)
         case .moveTabGroupToNewWorkspace(let windowId, let projectId, let monitorScopeId):

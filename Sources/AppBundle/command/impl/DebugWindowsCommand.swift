@@ -112,12 +112,6 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     }
     result["WinMux.rules"] = .array(rules)
 
-    var zoneAffinities: [Json] = []
-    for (index, affinity) in config.zoneAffinities.enumerated() {
-        zoneAffinities.append(try await affinity.evaluate(index: index, window: window).debugJson)
-    }
-    result["WinMux.zone-affinities"] = .array(zoneAffinities)
-
     return JSONEncoder.winMuxDefault.encodeToString(result).prettyDescription
         .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }

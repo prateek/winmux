@@ -13,17 +13,18 @@ in `columnar-zones-history.md`; the active Slice 56 redesign lives in
 ## Status and remaining work
 
 - Slices 0-50 are Tart-accepted.
-- Slices 51-55 have shipped implementations but no accepted Tart artifact.
-  Their acceptance is batched into the Tart phase below so recordings
-  capture the final Slice 56 vocabulary.
-- Slice 56 is a user-facing domain-model redesign (see
-  `docs/plans/slice-56-domain-model.md`). Its runtime phases A-D are done;
-  the vocabulary cut (E), sidebar and settings rework (F), and docs plus
-  the slice-56 proof (G) remain.
-- After Slice 56, the Tart acceptance phase runs for Slices 51-56 as one
-  batch, followed by the beta-readiness decision after a multi-day dogfood
-  soak on the ultrawide. Slice 51 has open pre-slice items in its section
-  that gate its recording.
+- Slices 51-56 have shipped implementations but no accepted Tart artifact.
+  Their acceptance is batched so recordings capture the final Slice 56
+  vocabulary.
+- Slice 56's domain-model redesign is implemented across phases A-G (see
+  `docs/plans/slice-56-domain-model.md`). Follow-up code vocabulary cleanup
+  through Phase 8 is complete and tracked in `docs/plans/zone-rename.md`; it
+  is not Tart acceptance evidence by itself.
+- Remaining gates before beta acceptance: cut the cleanup dogfood release, run
+  the batched Tart acceptance phase for Slices 51-56, then make the
+  beta-readiness decision after a multi-day dogfood soak on the ultrawide.
+  Slice 51 still carries the acceptance-package cleanup and review gates
+  from the beta path.
 
 ## Decision
 
@@ -756,4 +757,3 @@ Do not let the implementing agent self-certify artifacts. The no-context review 
 13. A reproducible beta package is built, installed, launched, and reviewed with stored provenance.
 14. Beta acceptance covers fresh install through support-bundle generation and records dogfood blockers before external testers use the fork.
 15. Installed builds self-update through a Sparkle appcast published by the dogfood release script, proven by an in-place update recording.
-
