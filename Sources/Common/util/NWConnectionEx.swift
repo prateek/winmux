@@ -18,24 +18,35 @@ extension NWConnection {
         }
     }
 
-    public func startBlocking() async -> ((), error: NWError?) {
+    public func startBlocking(timeoutNanoseconds: UInt64 = 3_000_000_000) async -> ((), error: NWError?) {
         await withCheckedContinuation { cont in
             let isDone = IsDone()
-            stateUpdateHandler = { state in
+            let finish: @Sendable (NWError?) -> Void = { error in
                 Task {
-                    let error: NWError?
-                    switch state {
-                        case .cancelled, .preparing, .setup: return
-                        case .ready: error = nil
-                        case .failed(let e), .waiting(let e): error = e
-                        @unknown default: die("Unknown NWConnection.State: \(state)")
-                    }
-                    // Make sure to resume continuation only once
                     if await isDone.markAsDone().wasAlreadyDone {
                         return
                     }
                     self.stateUpdateHandler = nil
+                    if error != nil {
+                        self.cancel()
+                    }
                     cont.resume(returning: ((), error))
+                }
+            }
+            stateUpdateHandler = { state in
+                let error: NWError?
+                switch state {
+                    case .cancelled, .preparing, .setup: return
+                    case .ready: error = nil
+                    case .failed(let e), .waiting(let e): error = e
+                    @unknown default: die("Unknown NWConnection.State: \(state)")
+                }
+                finish(error)
+            }
+            if timeoutNanoseconds > 0 {
+                Task {
+                    try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    finish(.posix(.ETIMEDOUT))
                 }
             }
             start(queue: .global())
