@@ -22,6 +22,18 @@ The frontier (unblocked, unclaimed) is:
 
 Blocked: `07` (on 06), `08` (on 14), `10` (on 09 and 13), `11` (on 12), `17` (on 16).
 
+## Repo setup
+
+- Local clone: `~/code/github.com/ZimengXiong/winmux`, on branch `wayfind-fork`, which tracks `fork/wayfind-fork`.
+- Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS). `fork` is `prateek/winmux` over SSH.
+- Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
+- `prateek/winmux` defaults to `main`, and that `main` is kept equal to upstream `main`. Sync it with `git push fork origin/main:main` after `git fetch origin`.
+- Commit or push only when Prateek asks. His machine conventions are in `~/.claude/CLAUDE.md` and `~/.agents/docs/`.
+
+## Open with Prateek
+
+- He asked why the map sits in `.scratch/`. It's the local-markdown tracker convention. He was offered a migration to GitHub issues on `prateek/winmux`, which would give native blocking but make the tickets public, and hasn't answered. Don't migrate unless he says so.
+
 ## Things not captured elsewhere
 
 - Prateek's own `prateek/winmux@codex-columns` branch (153 commits: columnar zones, scenes, rules, zone-expose) overlaps heavily. He chose upstream `main` as the base anyway. It's listed as prior art in the map's fog, so mine it when working 08, 09 and 10; don't build on it.
