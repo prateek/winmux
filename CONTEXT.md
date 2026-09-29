@@ -9,8 +9,12 @@ An overlay that shows the windows matching a Filter and lets the user act on one
 _Avoid_: switcher, exposé, overview, Mission Control
 
 **Filter**:
-A named predicate over windows, evaluated against a Filter context each time a Picker opens.
+A named predicate over windows, written in CEL and type-checked when the config loads, evaluated against a Filter context each time a Picker opens. A Filter only says yes or no; ordering belongs to the Picker binding.
 _Avoid_: query, rule, scope
+
+**Window class**:
+How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an Accessory app) or app-popup (a regular app's popup, such as an autofill dropdown). Pickers leave out both popup classes unless the Filter names them.
+_Avoid_: kind, type, layout
 
 **Filter context**:
 The live state a Filter can read when it runs: focused window and app, window and app under the mouse, current workspace, project and monitor, the previously focused window, and the active Display profile.

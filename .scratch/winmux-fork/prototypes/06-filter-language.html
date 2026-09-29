@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filter language lab</title>
+<style>
+:root {
+  --bg: #fafaf8; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e4e0;
+  --accent: #3b5bdb; --accent-soft: #e7ecff; --good: #2b8a3e; --good-soft: #e6f4ea;
+  --bad: #c92a2a; --bad-soft: #fdecec; --warn: #a65b00; --warn-soft: #fff3e0; --changed: #fff6bf;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececec; --muted: #9a9aa2; --line: #333338;
+    --accent: #8ea2ff; --accent-soft: #262d4a; --good: #69db7c; --good-soft: #1d3324;
+    --bad: #ff8787; --bad-soft: #3d2020; --warn: #ffc078; --warn-soft: #3a2c16; --changed: #4a4320;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { padding: 28px 24px 8px; max-width: 1400px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 26px; }
+h2 { font-size: 17px; margin: 0 0 10px; }
+h3 { font-size: 15px; margin: 0 0 6px; }
+.lede { color: var(--muted); margin: 0 0 12px; max-width: 900px; }
+.intro { max-width: 900px; }
+.intro ul { margin: 6px 0 0; padding-left: 20px; }
+.intro li { margin-bottom: 4px; }
+code, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 16px 24px 48px; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; padding: 16px; } header { padding: 20px 16px 8px; } }
+aside { position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 900px) { aside { position: static; max-height: none; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+dl.state { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13.5px; }
+dl.state dt { color: var(--muted); }
+dl.state dd { margin: 0; }
+.changed { background: var(--changed); border-radius: 4px; }
+.control { margin-bottom: 14px; }
+.control > label, .control > .label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
+select { width: 100%; font: inherit; padding: 5px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.radio label { display: block; font-size: 13.5px; margin: 2px 0; cursor: pointer; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.steps { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.steps button { text-align: left; }
+.steps button.done { opacity: .5; }
+.steps button.next { border-color: var(--accent); background: var(--accent-soft); }
+.cards { display: grid; gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.card.spot { outline: 2px solid var(--accent); }
+.card-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.langs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+@media (max-width: 700px) { .langs { grid-template-columns: 1fr; } }
+.lang { border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.lang .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.src { background: var(--bg); border-radius: 6px; padding: 8px; margin: 6px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; padding: 2px 7px; border-radius: 999px; background: var(--accent-soft); }
+.chip .ws { color: var(--muted); }
+.badge { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.badge.good { background: var(--good-soft); color: var(--good); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+.err { background: var(--bad-soft); color: var(--bad); border-radius: 6px; padding: 8px; font-size: 13px; }
+.silent { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px; font-size: 13px; }
+.note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.today { font-size: 13px; margin-top: 8px; }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
+.table-wrap { overflow-x: auto; }
+textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: 12.5px; padding: 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+details summary { cursor: pointer; font-weight: 600; }
+.throwaway { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); background: var(--warn-soft); padding: 2px 8px; border-radius: 999px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="throwaway">Throwaway prototype · ticket "Prototype: filter language worked examples"</span>
+  <h1>Filter language lab</h1>
+  <p class="lede">The same eight Filters written two ways, run live against a pretend desktop. Change the Filter context on the left and watch both languages answer.</p>
+  <div class="intro panel">
+    <h3>The question</h3>
+    <p style="margin:0">Should a Filter in the WinMux fork be an <b>expression string</b> in <code>winmux.toml</code> (a small language WinMux parses and checks itself), or a <b>JavaScript predicate</b> run by JavaScriptCore? A Filter decides which windows a Picker shows, and it can read the Filter context: the focused window, the window under the mouse, the previous window, the current workspace, project and monitor, and the Display profile.</p>
+    <ul>
+      <li><b>Names.</b> The expression language reuses the kebab-case names <code>winmux list-windows --format</code> already has (<code>app-bundle-id</code>, <code>monitor-name</code>) and adds the new ones the research asked for (<code>window-class</code>, <code>app-activation-policy</code>, <code>window-subrole</code>, <code>window-level</code>, <code>window-has-close-button</code>, <code>window-is-registered</code>, <code>monitor-uuid</code>, <code>monitor-is-built-in</code>). JavaScript wants camelCase and nesting (<code>w.app.bundleId</code>, <code>w.monitor.uuid</code>), so the JS option means a second spelling of every attribute.</li>
+      <li><b>What the JS column is.</b> It runs in this browser's JavaScript engine, standing in for JavaScriptCore. It shows how filters read and how their errors look, not JavaScriptCore's speed or sandboxing. Those are still fog on the map.</li>
+      <li><b>What "today" means.</b> Each card also says whether WinMux's existing <code>[[on-window-detected]] if</code> matcher (<code>app-id</code>, <code>app-name-regex-substring</code>, <code>window-title-regex-substring</code>, <code>workspace</code>, <code>during-winmux-startup</code>) could express it.</li>
+      <li><b>The pretend desktop</b> has 15 windows over four workspaces in two projects, including an Accessory app (Ghost Pepper) whose close-button-less window WinMux classifies as a popup, a regular app's popup (Arc autofill), and a CleanShot pin WinMux has never registered. Bundle ids and UUIDs are illustrative.</li>
+    </ul>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="panel">
+      <h2>Filter context right now</h2>
+      <dl class="state" id="state"></dl>
+    </div>
+    <div class="panel" id="controls"></div>
+  </aside>
+
+  <main>
+    <div class="panel">
+      <h2>Guided walkthroughs</h2>
+      <div class="tabs" id="tabs"></div>
+      <div id="scenario"></div>
+    </div>
+
+    <h2 style="margin:22px 0 10px">The eight Filters</h2>
+    <div class="cards" id="cards"></div>
+
+    <h2 style="margin:26px 0 10px">Broken on purpose</h2>
+    <p class="note" style="margin-top:0">Each mistake written in both languages, with what the user would see and when they'd see it: when <code>winmux.toml</code> loads, when the Picker opens, or never.</p>
+    <div class="cards" id="broken"></div>
+
+    <h2 style="margin:26px 0 10px">Try your own</h2>
+    <div class="card">
+      <div class="langs">
+        <div class="lang"><div class="tag">Expression string</div><textarea id="try-expr">app-name ~ 'ghost' and window-class != 'popup'</textarea><div id="try-expr-out"></div></div>
+        <div class="lang"><div class="tag">JavaScript predicate</div><textarea id="try-js">(w, ctx, f) => /ghost/i.test(w.app.name) && w.class !== 'popup'</textarea><div id="try-js-out"></div></div>
+      </div>
+      <p class="note">Named Filters you can reference: <code>@floating</code> / <code>f.floating(w)</code> and <code>@everything</code> / <code>f.everything(w)</code>. Expression operators: <code>==</code> <code>!=</code> <code>~</code> (case-insensitive regex) <code>in [...]</code> <code>and</code> <code>or</code> <code>not</code> and parentheses. Context roots: <code>focused.</code>, <code>mouse.</code>, <code>previous.</code>, <code>current.</code>, and <code>profile</code>.</p>
+    </div>
+
+    <h2 style="margin:26px 0 10px">How a Picker binding would point at a Filter</h2>
+    <div class="cards" id="config"></div>
+
+    <div class="panel" style="margin-top:26px">
+      <details>
+        <summary>The pretend desktop (every window and its attributes)</summary>
+        <div class="table-wrap" style="margin-top:10px"><table id="windows"></table></div>
+      </details>
+    </div>
+  </main>
+</div>
+
+<!-- ===================================================================== -->
+<!-- Pure logic module: no DOM. Fixture world, reducer, expression-language -->
+<!-- parser/checker/evaluator, JS predicate runner, and sorting.            -->
+<!-- ===================================================================== -->
+<script>
+const FilterLab = (() => {
+  // ---------- Fixture world ----------
+  const MONITORS = {
+    g95: { name: 'G95-HiDPI', uuid: '5A1C0000-G95V-HIDPI', builtIn: false },
+    lcd: { name: 'Built-in Retina Display', uuid: '37D80000-BUILT-IN', builtIn: true },
+  };
+  const APPS = {
+    ghostty: { name: 'Ghostty', bundleId: 'com.mitchellh.ghostty', activationPolicy: 'regular' },
+    zed: { name: 'Zed', bundleId: 'dev.zed.Zed', activationPolicy: 'regular' },
+    arc: { name: 'Arc', bundleId: 'company.thebrowser.Browser', activationPolicy: 'regular' },
+    slack: { name: 'Slack', bundleId: 'com.tinyspeck.slackmacgap', activationPolicy: 'regular' },
+    finder: { name: 'Finder', bundleId: 'com.apple.finder', activationPolicy: 'regular' },
+    ghostpepper: { name: 'Ghost Pepper', bundleId: 'com.github.matthartman.ghostpepper', activationPolicy: 'accessory' },
+    cleanshot: { name: 'CleanShot X', bundleId: 'pl.maketheweb.cleanshotx', activationPolicy: 'accessory' },
+  };
+  const WORKSPACE_PROJECT = { '1': 'winmux', '2': 'winmux', '3': 'personal', '4': 'personal' };
+  const std = { subrole: 'AXStandardWindow', level: 'normal', hasCloseButton: true, registered: true };
+  const WINDOWS = [
+    { id: 101, app: 'ghostty', title: 'winmux — zsh', workspace: '1', class: 'tiled', ...std },
+    { id: 102, app: 'zed', title: 'winmux — Window.swift', workspace: '1', class: 'tiled', ...std },
+    { id: 103, app: 'ghostty', title: 'Quick Terminal', workspace: '1', class: 'floating', ...std, level: 'floating' },
+    { id: 104, app: 'ghostpepper', title: 'Ghost Pepper', workspace: '1', class: 'popup', ...std, subrole: 'AXDialog', level: 'floating', hasCloseButton: false },
+    { id: 105, app: 'arc', title: 'WinMux PR #12', workspace: '2', class: 'tiled', ...std },
+    { id: 106, app: 'arc', title: 'Picture in Picture', workspace: '2', class: 'floating', ...std, subrole: 'AXFloatingWindow', level: 'floating' },
+    { id: 107, app: 'arc', title: 'Autofill', workspace: '2', class: 'popup', ...std, subrole: 'AXUnknown', level: 'popup-menu', hasCloseButton: false },
+    { id: 108, app: 'ghostpepper', title: 'Ghost Pepper Settings', workspace: '2', class: 'floating', ...std },
+    { id: 109, app: 'ghostty', title: 'dotfiles — nvim', workspace: '3', class: 'tiled', ...std },
+    { id: 110, app: 'arc', title: 'Gmail', workspace: '3', class: 'tiled', ...std },
+    { id: 111, app: 'finder', title: 'Downloads', workspace: '3', class: 'hidden-app', ...std },
+    { id: 112, app: 'slack', title: 'Slack — #general', workspace: '4', class: 'minimized', ...std },
+    { id: 113, app: 'zed', title: 'notes.md', workspace: '4', class: 'fullscreen', ...std },
+    { id: 114, app: 'arc', title: 'YouTube', workspace: '4', class: 'tiled', ...std },
+    { id: 115, app: 'cleanshot', title: 'Pinned screenshot', workspace: null, class: null, ...std, subrole: 'AXUnknown', level: 'floating', hasCloseButton: false, registered: false },
+  ];
+
+  const INITIAL = {
+    focusedId: 101,
+    mouseId: 103,
+    mru: [101, 102, 105, 109, 110, 103, 106, 108, 113, 114, 112, 111, 104, 107],
+    profile: 'ultrawide',
+    lidOpen: false,
+    floatingVariant: 'today',
+    sort: 'mru',
+    strictJs: false,
+  };
+
+  // ---------- Reducer ----------
+  function reduce(state, action) {
+    switch (action.type) {
+      case 'reset': return { ...INITIAL, mru: [...INITIAL.mru] };
+      case 'focus': {
+        const w = WINDOWS.find(w => w.id === action.id);
+        if (!w || !w.registered || w.id === state.focusedId) return state;
+        return { ...state, focusedId: w.id, mru: [w.id, ...state.mru.filter(id => id !== w.id)] };
+      }
+      case 'mouse': return { ...state, mouseId: action.id };
+      case 'profile': return { ...state, profile: action.profile, lidOpen: action.profile === 'laptop' ? false : state.lidOpen };
+      case 'lid': return state.profile === 'ultrawide' ? { ...state, lidOpen: action.open } : state;
+      case 'floating': return { ...state, floatingVariant: action.variant };
+      case 'sort': return { ...state, sort: action.sort };
+      case 'strictJs': return { ...state, strictJs: action.on };
+      default: return state;
+    }
+  }
+
+  // ---------- Derived world ----------
+  function workspaceMonitor(state, ws) {
+    if (ws == null) return null;
+    if (state.profile === 'laptop') return MONITORS.lcd;
+    if (state.lidOpen && (ws === '3' || ws === '4')) return MONITORS.lcd;
+    return MONITORS.g95;
+  }
+  function windowView(state, raw) {
+    const m = workspaceMonitor(state, raw.workspace);
+    return {
+      id: raw.id, title: raw.title, class: raw.class, subrole: raw.subrole, level: raw.level,
+      hasCloseButton: raw.hasCloseButton, registered: raw.registered,
+      app: { ...APPS[raw.app] },
+      workspace: raw.workspace, project: raw.workspace ? WORKSPACE_PROJECT[raw.workspace] : null,
+      monitor: m ? { ...m } : null,
+    };
+  }
+  function world(state) {
+    const windows = WINDOWS.map(w => windowView(state, w));
+    const byId = id => windows.find(w => w.id === id) ?? null;
+    const focused = byId(state.focusedId);
+    return {
+      windows,
+      ctx: {
+        focused,
+        mouse: state.mouseId == null ? null : byId(state.mouseId),
+        previous: byId(state.mru[1]),
+        workspace: focused?.workspace ?? null,
+        project: focused?.project ?? null,
+        monitor: focused?.monitor ?? null,
+        profile: state.profile,
+        monitors: state.profile === 'laptop' ? [MONITORS.lcd] : state.lidOpen ? [MONITORS.g95, MONITORS.lcd] : [MONITORS.g95],
+      },
+    };
+  }
+
+  // ---------- Named filters ----------
+  const FLOATING_VARIANTS = {
+    today: {
+      label: "Today's meaning: the window's parent is a workspace",
+      expr: "window-class == 'floating'",
+      js: "(w) => w.class === 'floating'",
+    },
+    accessoryPopups: {
+      label: "Plus Accessory apps' popups",
+      expr: "window-class == 'floating'\n  or (window-class == 'popup' and app-activation-policy == 'accessory')",
+      js: "(w) => w.class === 'floating'\n  || (w.class === 'popup' && w.app.activationPolicy === 'accessory')",
+    },
+    accessoryAll: {
+      label: "Plus Accessory apps' popups and never-registered windows",
+      expr: "window-class == 'floating'\n  or (app-activation-policy == 'accessory'\n      and (window-class == 'popup' or not window-is-registered))",
+      js: "(w) => w.class === 'floating'\n  || (w.app.activationPolicy === 'accessory'\n      && (w.class === 'popup' || !w.registered))",
+    },
+    allPopups: {
+      label: 'Every popup and never-registered window, any app',
+      expr: "window-class in ['floating', 'popup'] or not window-is-registered",
+      js: "(w) => ['floating', 'popup'].includes(w.class) || !w.registered",
+    },
+  };
+  function namedSources(state) {
+    const f = FLOATING_VARIANTS[state.floatingVariant];
+    return {
+      expr: { floating: f.expr, everything: 'true' },
+      js: { floating: f.js, everything: '() => true' },
+    };
+  }
+
+  // ---------- The eight Filters ----------
+  const FILTERS = [
+    {
+      key: 'current-project', title: 'Current project',
+      expr: 'project == current.project',
+      js: '(w, ctx) => w.project === ctx.project',
+      today: { level: 'no', text: "No. The matcher's workspace field is one fixed name. It can't read which project is focused." },
+    },
+    {
+      key: 'everything', title: 'Everything',
+      expr: 'true',
+      js: '() => true',
+      today: { level: 'yes', text: 'Yes. An empty if matches every window.' },
+    },
+    {
+      key: 'all-floating', title: 'All floating windows, including Accessory apps',
+      expr: '@floating',
+      js: '(w, ctx, f) => f.floating(w)',
+      note: 'Both just call the named Filter floating. Change "Floating means" on the left to see what each definition catches: Ghost Pepper\'s popup (104), Arc\'s autofill popup (107) and the never-registered CleanShot pin (115).',
+      today: { level: 'no', text: 'No. The matcher has no field for layout or classification.' },
+    },
+    {
+      key: 'same-app-except-focused', title: 'Same app as the focused window, except itself',
+      expr: 'app-bundle-id == focused.app-bundle-id\n  and window-id != focused.window-id',
+      js: '(w, ctx) => w.app.bundleId === ctx.focused?.app.bundleId\n  && w.id !== ctx.focused?.id',
+      today: { level: 'no', text: 'No. The matcher can\'t refer to the focused window.' },
+    },
+    {
+      key: 'floating-of-mouse-app', title: 'Floating windows of the app under the mouse',
+      expr: '@floating and app-bundle-id == mouse.app-bundle-id',
+      js: '(w, ctx, f) => f.floating(w)\n  && w.app.bundleId === ctx.mouse?.app.bundleId',
+      note: 'Composition: both reuse floating. Point the mouse at the desktop to see what an empty context does.',
+      today: { level: 'no', text: 'No. There\'s no mouse context and no classification.' },
+    },
+    {
+      key: 'ultrawide-current-monitor', title: 'Windows on the current monitor, ultrawide Display profile only',
+      expr: "profile == 'ultrawide'\n  and monitor-uuid == current.monitor-uuid",
+      js: "(w, ctx) => ctx.profile === 'ultrawide'\n  && w.monitor?.uuid === ctx.monitor?.uuid",
+      note: 'Open question: "only in the ultrawide profile" might belong on the Picker binding (profiles = ["ultrawide"]) rather than inside the Filter. With one display at a time, "current monitor" only narrows anything when the lid is open too.',
+      today: { level: 'no', text: 'No. There are no monitor or Display profile fields.' },
+    },
+    {
+      key: 'dev-apps', title: 'A named app list, minus exclusions',
+      expr: "app-bundle-id in ['com.mitchellh.ghostty', 'dev.zed.Zed',\n                  'company.thebrowser.Browser']\n  and not window-title ~ 'picture in picture|youtube'",
+      js: "(w) => {\n  const apps = ['com.mitchellh.ghostty', 'dev.zed.Zed',\n                'company.thebrowser.Browser'];\n  return apps.includes(w.app.bundleId)\n    && !/picture in picture|youtube/i.test(w.title);\n}",
+      note: 'Both catch Arc\'s Autofill popup (107). Should a Picker drop popups unless the Filter asks for them?',
+      today: { level: 'partial', text: 'Partly. One app-id per rule, so it takes three rules, and there\'s no "not" to drop titles.' },
+    },
+    {
+      key: 'previous-first', title: 'The previously focused window first',
+      expr: '@everything',
+      js: '(w, ctx, f) => f.everything(w)',
+      forceSort: 'previous-first',
+      note: 'This isn\'t a Filter. A Filter only says yes or no per window, so neither language can say "first". Here the order comes from the Picker binding\'s sort (sort = ["previous", "mru"]), which this card forces whatever you pick on the left. The walkthrough "Previous window first is a sort" is about this.',
+      today: { level: 'no', text: 'No. There\'s no ordering at all.' },
+    },
+  ];
+
+  const BROKEN = [
+    {
+      title: 'A typo in an attribute name',
+      expr: "app-bundel-id == 'com.mitchellh.ghostty'",
+      js: "(w) => w.app.bundelId === 'com.mitchellh.ghostty'",
+    },
+    {
+      title: 'An unfinished expression',
+      expr: 'project == current.project and',
+      js: '(w, ctx) => w.project === ctx.project &&',
+    },
+    {
+      title: 'A typo in a value',
+      expr: "window-class == 'flaoting'",
+      js: "(w) => w.class === 'flaoting'",
+    },
+    {
+      title: 'A missing named Filter',
+      expr: '@floatng',
+      js: '(w, ctx, f) => f.floatng(w)',
+    },
+    {
+      title: 'Reading the mouse window when the mouse is over the desktop',
+      expr: 'app-bundle-id == mouse.app-bundle-id',
+      js: '(w, ctx) => w.app.bundleId === ctx.mouse.app.bundleId',
+      note: 'Only fails while the mouse is over the desktop. The eight Filters above use ?. for this reason.',
+    },
+  ];
+
+  // ---------- Expression language ----------
+  const ATTRS = {
+    'window-id': w => w.id,
+    'window-title': w => w.title,
+    'window-class': w => w.class,
+    'window-subrole': w => w.subrole,
+    'window-level': w => w.level,
+    'window-has-close-button': w => w.hasCloseButton,
+    'window-is-registered': w => w.registered,
+    'app-name': w => w.app.name,
+    'app-bundle-id': w => w.app.bundleId,
+    'app-activation-policy': w => w.app.activationPolicy,
+    'workspace': w => w.workspace,
+    'project': w => w.project,
+    'monitor-name': w => w.monitor?.name ?? null,
+    'monitor-uuid': w => w.monitor?.uuid ?? null,
+    'monitor-is-built-in': w => w.monitor?.builtIn ?? null,
+  };
+  const CURRENT_ATTRS = {
+    'workspace': c => c.workspace,
+    'project': c => c.project,
+    'monitor-name': c => c.monitor?.name ?? null,
+    'monitor-uuid': c => c.monitor?.uuid ?? null,
+    'monitor-is-built-in': c => c.monitor?.builtIn ?? null,
+  };
+  const WINDOW_ROOTS = ['focused', 'mouse', 'previous'];
+  const ENUMS = {
+    'window-class': ['tiled', 'floating', 'fullscreen', 'minimized', 'hidden-app', 'popup'],
+    'app-activation-policy': ['regular', 'accessory', 'prohibited'],
+  };
+  const KEYWORDS = ['and', 'or', 'not', 'in', 'true', 'false', 'null'];
+
+  class ExprError extends Error {
+    constructor(message, column) { super(message); this.column = column; }
+  }
+
+  function distance(a, b) {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++)
+      for (let j = 1; j <= b.length; j++)
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+  function suggest(name, options) {
+    let best = null, bestD = Infinity;
+    for (const o of options) { const d = distance(name, o); if (d < bestD) { best = o; bestD = d; } }
+    return bestD <= 3 ? ` Did you mean '${best}'?` : '';
+  }
+
+  function tokenize(src) {
+    const tokens = [];
+    let i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (/\s/.test(c)) { i++; continue; }
+      const col = i + 1;
+      if ('()[],'.includes(c)) { tokens.push({ t: c, col }); i++; continue; }
+      if (src.startsWith('==', i) || src.startsWith('!=', i)) { tokens.push({ t: 'op', v: src.slice(i, i + 2), col }); i += 2; continue; }
+      if (c === '~') { tokens.push({ t: 'op', v: '~', col }); i++; continue; }
+      if (c === "'" || c === '"') {
+        const end = src.indexOf(c, i + 1);
+        if (end < 0) throw new ExprError('This string is never closed.', col);
+        tokens.push({ t: 'str', v: src.slice(i + 1, end), col }); i = end + 1; continue;
+      }
+      if (c === '@') {
+        const m = /^@([a-z][a-z0-9-]*)/.exec(src.slice(i));
+        if (!m) throw new ExprError("Expected a Filter name after '@'.", col);
+        tokens.push({ t: 'ref', v: m[1], col }); i += m[0].length; continue;
+      }
+      const m = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?/.exec(src.slice(i));
+      if (m) {
+        if (KEYWORDS.includes(m[0])) tokens.push({ t: 'kw', v: m[0], col });
+        else tokens.push({ t: 'path', v: m[0], col });
+        i += m[0].length; continue;
+      }
+      throw new ExprError(`Unexpected character '${c}'.`, col);
+    }
+    tokens.push({ t: 'end', col: src.length + 1 });
+    return tokens;
+  }
+
+  function parse(src) {
+    const tokens = tokenize(src);
+    let p = 0;
+    const peek = () => tokens[p];
+    const next = () => tokens[p++];
+    const isKw = v => peek().t === 'kw' && peek().v === v;
+    const describe = tok => tok.t === 'end' ? 'the end of the Filter' : `'${tok.v ?? tok.t}'`;
+
+    function parseOr() {
+      let left = parseAnd();
+      while (isKw('or')) { const tok = next(); left = { type: 'or', a: left, b: parseAnd(), col: tok.col }; }
+      return left;
+    }
+    function parseAnd() {
+      let left = parseNot();
+      while (isKw('and')) { const tok = next(); left = { type: 'and', a: left, b: parseNot(), col: tok.col }; }
+      return left;
+    }
+    function parseNot() {
+      if (isKw('not')) { const tok = next(); return { type: 'not', e: parseNot(), col: tok.col }; }
+      return parseCmp();
+    }
+    function parseCmp() {
+      const left = parsePrimary();
+      if (peek().t === 'op' || isKw('in')) {
+        const tok = next();
+        const right = parsePrimary();
+        return { type: 'cmp', op: tok.v, a: left, b: right, col: tok.col };
+      }
+      return left;
+    }
+    function parsePrimary() {
+      const tok = peek();
+      if (tok.t === '(') {
+        next();
+        const e = parseOr();
+        if (peek().t !== ')') throw new ExprError(`Expected ')' but found ${describe(peek())}.`, peek().col);
+        next();
+        return e;
+      }
+      if (tok.t === '[') {
+        next();
+        const items = [];
+        while (peek().t !== ']') {
+          const it = peek();
+          if (it.t === 'str') items.push(next().v);
+          else if (it.t === 'kw' && ['true', 'false', 'null'].includes(it.v)) items.push(literal(next().v));
+          else throw new ExprError(`A list can only hold quoted values, but found ${describe(it)}.`, it.col);
+          if (peek().t === ',') next();
+          else if (peek().t !== ']') throw new ExprError(`Expected ',' or ']' but found ${describe(peek())}.`, peek().col);
+        }
+        next();
+        return { type: 'list', v: items, col: tok.col };
+      }
+      if (tok.t === 'str') { next(); return { type: 'lit', v: tok.v, col: tok.col }; }
+      if (tok.t === 'kw' && ['true', 'false', 'null'].includes(tok.v)) { next(); return { type: 'lit', v: literal(tok.v), col: tok.col }; }
+      if (tok.t === 'ref') { next(); return { type: 'ref', name: tok.v, col: tok.col }; }
+      if (tok.t === 'path') { next(); return { type: 'path', v: tok.v, col: tok.col }; }
+      throw new ExprError(`Expected a value but found ${describe(tok)}.`, tok.col);
+    }
+    function literal(v) { return v === 'true' ? true : v === 'false' ? false : null; }
+
+    const ast = parseOr();
+    if (peek().t !== 'end') throw new ExprError(`Unexpected ${describe(peek())}. Join conditions with 'and' or 'or'.`, peek().col);
+    return ast;
+  }
+
+  function check(ast, named, stack) {
+    switch (ast.type) {
+      case 'lit': case 'list': return;
+      case 'and': case 'or': check(ast.a, named, stack); check(ast.b, named, stack); return;
+      case 'not': check(ast.e, named, stack); return;
+      case 'ref': {
+        if (!(ast.name in named)) throw new ExprError(`There's no Filter named '@${ast.name}'.${suggest(ast.name, Object.keys(named))}`, ast.col);
+        if (stack.includes(ast.name)) throw new ExprError(`'@${ast.name}' refers back to itself (${[...stack, ast.name].join(' → ')}).`, ast.col);
+        const inner = compileExprAst(named[ast.name], named, [...stack, ast.name]);
+        if (inner.error) throw new ExprError(`'@${ast.name}' is broken: ${inner.error.message}`, ast.col);
+        return;
+      }
+      case 'path': {
+        const [root, attr] = ast.v.split('.');
+        if (attr === undefined) {
+          if (root === 'profile' || root in ATTRS) return;
+          const hint = [...WINDOW_ROOTS, 'current'].includes(root) ? ` Use '${root}.' plus an attribute, like '${root}.app-bundle-id'.` : suggest(root, [...Object.keys(ATTRS), 'profile']);
+          throw new ExprError(`Unknown attribute '${root}'.${hint}`, ast.col);
+        }
+        if (WINDOW_ROOTS.includes(root)) {
+          if (attr in ATTRS) return;
+          throw new ExprError(`Unknown window attribute '${attr}'.${suggest(attr, Object.keys(ATTRS))}`, ast.col + root.length + 1);
+        }
+        if (root === 'current') {
+          if (attr in CURRENT_ATTRS) return;
+          throw new ExprError(`'current.' has ${Object.keys(CURRENT_ATTRS).join(', ')}, not '${attr}'.`, ast.col + root.length + 1);
+        }
+        throw new ExprError(`Unknown context '${root}'. Use focused, mouse, previous or current.`, ast.col);
+      }
+      case 'cmp': {
+        check(ast.a, named, stack); check(ast.b, named, stack);
+        if (ast.op === 'in' && ast.b.type !== 'list') throw new ExprError("'in' needs a list, like ['a', 'b'].", ast.b.col);
+        if (ast.op === '~') {
+          if (ast.b.type !== 'lit' || typeof ast.b.v !== 'string') throw new ExprError("'~' needs a quoted pattern on its right.", ast.b.col);
+          try { new RegExp(ast.b.v, 'i'); } catch (e) { throw new ExprError(`Bad pattern: ${e.message}`, ast.b.col); }
+        }
+        const attr = ast.a.type === 'path' ? ast.a.v.split('.').pop() : null;
+        if (attr && ENUMS[attr]) {
+          const values = ast.b.type === 'lit' ? [ast.b.v] : ast.b.type === 'list' ? ast.b.v : [];
+          for (const v of values) {
+            if (v !== null && !ENUMS[attr].includes(v))
+              throw new ExprError(`'${v}' isn't a ${attr}. It's one of: ${ENUMS[attr].join(', ')}.${suggest(v, ENUMS[attr])}`, ast.b.col);
+          }
+        }
+        return;
+      }
+    }
+  }
+
+  function compileExprAst(src, named, stack = []) {
+    try {
+      const ast = parse(src);
+      check(ast, named, stack);
+      return { ast };
+    } catch (e) {
+      if (e instanceof ExprError) return { error: { stage: 'load', message: e.message, column: e.column } };
+      throw e;
+    }
+  }
+
+  function evalExpr(ast, w, ctx, namedAsts) {
+    switch (ast.type) {
+      case 'lit': return ast.v;
+      case 'list': return ast.v;
+      case 'and': return evalExpr(ast.a, w, ctx, namedAsts) === true && evalExpr(ast.b, w, ctx, namedAsts) === true;
+      case 'or': return evalExpr(ast.a, w, ctx, namedAsts) === true || evalExpr(ast.b, w, ctx, namedAsts) === true;
+      case 'not': return evalExpr(ast.e, w, ctx, namedAsts) !== true;
+      case 'ref': return evalExpr(namedAsts[ast.name], w, ctx, namedAsts) === true;
+      case 'path': {
+        const [root, attr] = ast.v.split('.');
+        if (attr === undefined) return root === 'profile' ? ctx.profile : ATTRS[root](w);
+        if (root === 'current') return CURRENT_ATTRS[attr](ctx);
+        const target = ctx[root];
+        return target ? ATTRS[attr](target) : null;
+      }
+      case 'cmp': {
+        const a = evalExpr(ast.a, w, ctx, namedAsts);
+        const b = evalExpr(ast.b, w, ctx, namedAsts);
+        if (ast.op === '==') return a === b;
+        if (ast.op === '!=') return a !== b;
+        if (ast.op === 'in') return b.includes(a);
+        if (ast.op === '~') return typeof a === 'string' && new RegExp(b, 'i').test(a);
+      }
+    }
+  }
+
+  function runExpr(src, named, wld) {
+    const top = compileExprAst(src, named);
+    if (top.error) return { error: top.error, matches: [] };
+    const namedAsts = {};
+    for (const [k, v] of Object.entries(named)) {
+      const c = compileExprAst(v, named, [k]);
+      if (c.ast) namedAsts[k] = c.ast;
+    }
+    const matches = wld.windows.filter(w => evalExpr(top.ast, w, wld.ctx, namedAsts) === true).map(w => w.id);
+    return { matches };
+  }
+
+  // ---------- JavaScript predicates ----------
+  function compileJs(src) {
+    try {
+      const fn = new Function('"use strict"; return (' + src + '\n);')();
+      if (typeof fn !== 'function') return { error: { stage: 'load', message: 'This isn\'t a function. Write it as (w, ctx, f) => ...' } };
+      return { fn };
+    } catch (e) {
+      return { error: { stage: 'load', message: `${e.name}: ${e.message}` } };
+    }
+  }
+  function strictWrap(obj, path) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    return new Proxy(obj, {
+      get(target, prop) {
+        if (typeof prop === 'symbol' || prop === 'toJSON' || prop === 'then') return Reflect.get(target, prop);
+        if (!(prop in target)) throw new TypeError(`${path} has no attribute '${prop}'`);
+        return strictWrap(target[prop], `${path}.${prop}`);
+      },
+    });
+  }
+  function runJs(src, named, wld, strict) {
+    const top = compileJs(src);
+    if (top.error) return { error: top.error, matches: [] };
+    const namedFns = {};
+    for (const [k, v] of Object.entries(named)) {
+      const c = compileJs(v);
+      if (c.fn) namedFns[k] = c.fn;
+    }
+    const wrap = (o, p) => strict ? strictWrap(o, p) : o;
+    const ctx = wrap({ ...wld.ctx }, 'ctx');
+    const f = new Proxy({}, {
+      get(_, name) {
+        if (typeof name === 'string' && namedFns[name]) return w => namedFns[name](w, ctx, f);
+        return undefined;
+      },
+    });
+    const matches = [];
+    for (const raw of wld.windows) {
+      const w = wrap(raw, 'w');
+      try {
+        if (top.fn(w, ctx, f) === true) matches.push(raw.id);
+      } catch (e) {
+        return {
+          error: { stage: 'open', message: `${e.name}: ${e.message}`, window: `${raw.app.name} — ${raw.title}` },
+          matches: [],
+        };
+      }
+    }
+    return { matches };
+  }
+
+  // ---------- Sorting (belongs to the Picker binding, not the Filter) ----------
+  function sortIds(ids, state, sort) {
+    const rank = id => { const i = state.mru.indexOf(id); return i < 0 ? 999 : i; };
+    const byMru = [...ids].sort((a, b) => rank(a) - rank(b));
+    if (sort === 'mru') return byMru;
+    if (sort === 'previous-first') {
+      const prev = state.mru[1];
+      return byMru.includes(prev) ? [prev, ...byMru.filter(id => id !== prev)] : byMru;
+    }
+    if (sort === 'workspace') {
+      const ws = id => WINDOWS.find(w => w.id === id).workspace ?? '~';
+      return [...byMru].sort((a, b) => ws(a).localeCompare(ws(b)) || rank(a) - rank(b));
+    }
+    return byMru;
+  }
+
+  function evaluate(state, lang, src, opts = {}) {
+    const named = namedSources(state)[lang];
+    const wld = world(state);
+    const res = lang === 'expr' ? runExpr(src, named, wld) : runJs(src, named, wld, state.strictJs);
+    res.matches = sortIds(res.matches, state, opts.sort ?? state.sort);
+    return res;
+  }
+
+  return { INITIAL, WINDOWS, APPS, MONITORS, FILTERS, BROKEN, FLOATING_VARIANTS, reduce, world, evaluate };
+})();
+</script>
+
+<!-- ===================================================================== -->
+<!-- Throwaway page shell                                                  -->
+<!-- ===================================================================== -->
+<script>
+const L = FilterLab;
+let state = L.reduce(null, { type: 'reset' });
+let lastStateText = {};
+let spotlight = [];
+
+const SCENARIOS = [
+  {
+    name: 'Switching projects',
+    text: 'The happy path. You start focused on Ghostty in the winmux project, then jump to a personal window. Watch "Current project" and "Same app as the focused window" change in both languages, and check that they agree.',
+    spot: ['current-project', 'same-app-except-focused'],
+    steps: [
+      ['Focus Arc — Gmail (personal project)', { type: 'focus', id: 110 }],
+      ['Focus Ghostty — dotfiles — nvim', { type: 'focus', id: 109 }],
+    ],
+  },
+  {
+    name: 'What counts as floating?',
+    text: 'Today "floating" means the window\'s parent is a workspace, so Ghost Pepper\'s close-button-less window (a popup) and the never-registered CleanShot pin don\'t count. Step through the four definitions. Watch "All floating windows" and ask which one you want as the default. You start on today\'s meaning. The last definition also catches Arc\'s autofill popup, which is noise. The same popup shows up in "A named app list, minus exclusions": should a Picker drop popups by default, or does every Filter have to say so?',
+    spot: ['all-floating', 'floating-of-mouse-app'],
+    steps: [
+      ["Add Accessory apps' popups", { type: 'floating', variant: 'accessoryPopups' }],
+      ['Add never-registered Accessory windows too', { type: 'floating', variant: 'accessoryAll' }],
+      ['Every popup, any app', { type: 'floating', variant: 'allPopups' }],
+      ["Back to today's meaning", { type: 'floating', variant: 'today' }],
+    ],
+  },
+  {
+    name: 'Mouse over the desktop',
+    text: 'The mouse context can be empty. Both correct versions of "Floating windows of the app under the mouse" handle that: the expression treats a missing window as null, and the JS uses ?. . Then look at the last broken example: the naive JS version throws when the Picker opens, but only while the mouse is over the desktop.',
+    spot: ['floating-of-mouse-app'],
+    steps: [
+      ['Point the mouse at Arc — Picture in Picture', { type: 'mouse', id: 106 }],
+      ['Point the mouse at Ghost Pepper', { type: 'mouse', id: 104 }],
+      ['Point the mouse at the desktop', { type: 'mouse', id: null }],
+    ],
+  },
+  {
+    name: 'Typos',
+    text: 'Scroll to "Broken on purpose". The expression language catches the attribute typo, the bad value and the missing Filter when winmux.toml loads, and says which column. In JS the attribute typo and the bad value throw nothing and silently match no windows. The first step turns on strict window objects (a Proxy that throws on unknown attributes), which moves the attribute typo from "never" to "when the Picker opens". The bad value is still silent.',
+    spot: [],
+    steps: [
+      ['Turn on strict JS window objects', { type: 'strictJs', on: true }],
+      ['Back to plain JS window objects', { type: 'strictJs', on: false }],
+    ],
+  },
+  {
+    name: 'Previous window first is a sort',
+    text: 'A Filter answers yes or no per window, so neither language can put the previous window first. Focus a few windows, then compare the sort choices. The last card always sorts previous-first. Decide whether ordering lives only on the Picker binding, or whether Filters should also be able to return a rank.',
+    spot: ['previous-first', 'everything'],
+    steps: [
+      ['Focus Zed — winmux — Window.swift', { type: 'focus', id: 102 }],
+      ['Focus Arc — WinMux PR #12', { type: 'focus', id: 105 }],
+      ['Sort: most recently used', { type: 'sort', sort: 'mru' }],
+      ['Sort: previous window first, then most recently used', { type: 'sort', sort: 'previous-first' }],
+      ['Sort: by workspace', { type: 'sort', sort: 'workspace' }],
+    ],
+  },
+  {
+    name: 'Ultrawide only',
+    text: 'You start in the ultrawide Display profile. The ultrawide-only Filter checks the profile. With one display at a time, "current monitor" narrows nothing. Opening the lid (hypothetical) puts workspaces 3 and 4 on the built-in screen. Consider whether "ultrawide only" belongs on the binding instead.',
+    spot: ['ultrawide-current-monitor'],
+    steps: [
+      ['Open the lid alongside the ultrawide', { type: 'lid', open: true }],
+      ['Focus Arc — Gmail (on the built-in screen now)', { type: 'focus', id: 110 }],
+      ['Display profile: laptop', { type: 'profile', profile: 'laptop' }],
+    ],
+  },
+];
+let scenarioIndex = 0;
+let stepIndex = 0;
+
+function dispatch(action) { state = L.reduce(state, action); render(); }
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function winLabel(w) { return w ? `${w.app.name} — ${w.title}` : 'nothing (the desktop)'; }
+function chip(id, wld) {
+  const w = wld.windows.find(w => w.id === id);
+  return `<span class="chip" title="window ${id}">${esc(w.app.name)} — ${esc(w.title)} <span class="ws">${w.workspace ? 'ws' + w.workspace : 'unregistered'}${w.class ? ', ' + w.class : ''}</span></span>`;
+}
+
+function renderState(wld) {
+  const c = wld.ctx;
+  const rows = [
+    ['Focused', winLabel(c.focused)],
+    ['Under mouse', winLabel(c.mouse)],
+    ['Previous', winLabel(c.previous)],
+    ['Workspace', c.workspace],
+    ['Project', c.project],
+    ['Monitor', c.monitor ? `${c.monitor.name}${c.monitor.builtIn ? ' (built-in)' : ''}` : '—'],
+    ['Monitor UUID', c.monitor?.uuid ?? '—'],
+    ['Display profile', c.profile],
+    ['Displays attached', c.monitors.map(m => m.name).join(', ')],
+    ['Floating means', L.FLOATING_VARIANTS[state.floatingVariant].label],
+    ['Picker sort', { mru: 'most recently used', 'previous-first': 'previous first, then MRU', workspace: 'by workspace' }[state.sort]],
+    ['JS window objects', state.strictJs ? 'strict (unknown attributes throw)' : 'plain'],
+  ];
+  document.getElementById('state').innerHTML = rows.map(([k, v]) => {
+    const changed = lastStateText[k] !== undefined && lastStateText[k] !== v;
+    return `<dt>${k}</dt><dd class="${changed ? 'changed' : ''}">${esc(v ?? '—')}</dd>`;
+  }).join('');
+  lastStateText = Object.fromEntries(rows);
+}
+
+function renderControls(wld) {
+  const registered = wld.windows.filter(w => w.registered);
+  const opt = (v, label, sel) => `<option value="${v}" ${sel ? 'selected' : ''}>${esc(label)}</option>`;
+  document.getElementById('controls').innerHTML = `
+    <h2>Change the context</h2>
+    <div class="control"><label>Focus a window</label>
+      <select id="c-focus">${registered.map(w => opt(w.id, winLabel(w), w.id === state.focusedId)).join('')}</select></div>
+    <div class="control"><label>Mouse is over</label>
+      <select id="c-mouse">${opt('', 'the desktop (no window)', state.mouseId == null)}${wld.windows.map(w => opt(w.id, winLabel(w), w.id === state.mouseId)).join('')}</select></div>
+    <div class="control"><span class="label">Display profile</span>
+      <div class="row">
+        <button class="${state.profile === 'ultrawide' ? 'on' : ''}" data-act='{"type":"profile","profile":"ultrawide"}'>Ultrawide</button>
+        <button class="${state.profile === 'laptop' ? 'on' : ''}" data-act='{"type":"profile","profile":"laptop"}'>Laptop</button>
+      </div>
+      <label style="text-transform:none;letter-spacing:0;font-size:13px;margin-top:6px;color:var(--ink)"><input type="checkbox" id="c-lid" ${state.lidOpen ? 'checked' : ''} ${state.profile === 'laptop' ? 'disabled' : ''}> Lid open alongside the ultrawide (hypothetical)</label></div>
+    <div class="control radio"><span class="label">Floating means</span>
+      ${Object.entries(L.FLOATING_VARIANTS).map(([k, v]) => `<label><input type="radio" name="c-float" value="${k}" ${state.floatingVariant === k ? 'checked' : ''}> ${esc(v.label)}</label>`).join('')}</div>
+    <div class="control radio"><span class="label">Picker sort (part of the binding)</span>
+      ${[['mru', 'Most recently used'], ['previous-first', 'Previous window first, then MRU'], ['workspace', 'By workspace']].map(([k, v]) => `<label><input type="radio" name="c-sort" value="${k}" ${state.sort === k ? 'checked' : ''}> ${v}</label>`).join('')}</div>
+    <div class="control"><label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)"><input type="checkbox" id="c-strict" ${state.strictJs ? 'checked' : ''}> Strict JS window objects (unknown attributes throw)</label></div>
+    <button data-act='{"type":"reset"}'>Reset everything</button>`;
+  document.getElementById('c-focus').onchange = e => dispatch({ type: 'focus', id: Number(e.target.value) });
+  document.getElementById('c-mouse').onchange = e => dispatch({ type: 'mouse', id: e.target.value === '' ? null : Number(e.target.value) });
+  document.getElementById('c-lid').onchange = e => dispatch({ type: 'lid', open: e.target.checked });
+  document.getElementById('c-strict').onchange = e => dispatch({ type: 'strictJs', on: e.target.checked });
+  document.querySelectorAll('input[name=c-float]').forEach(el => el.onchange = () => dispatch({ type: 'floating', variant: el.value }));
+  document.querySelectorAll('input[name=c-sort]').forEach(el => el.onchange = () => dispatch({ type: 'sort', sort: el.value }));
+  document.querySelectorAll('#controls [data-act]').forEach(el => el.onclick = () => dispatch(JSON.parse(el.dataset.act)));
+}
+
+function caret(src, column) {
+  const lines = src.split('\n');
+  let col = column, lineNo = 0;
+  while (lineNo < lines.length - 1 && col > lines[lineNo].length + 1) { col -= lines[lineNo].length + 1; lineNo++; }
+  return `${lines[lineNo]}\n${' '.repeat(Math.max(0, col - 1))}^`;
+}
+function stageText(stage) { return stage === 'load' ? 'when winmux.toml loads' : 'when the Picker opens'; }
+function renderResult(res, src, wld) {
+  if (res.error) {
+    const e = res.error;
+    return `<div class="err"><b>Error ${stageText(e.stage)}</b>${e.window ? ` (on ${esc(e.window)})` : ''}<br>${esc(e.message)}${e.column ? `<pre style="margin-top:6px">${esc(caret(src, e.column))}</pre>` : ''}</div>`;
+  }
+  if (!res.matches.length) return '<div class="empty">No windows match.</div>';
+  return `<div class="chips">${res.matches.map(id => chip(id, wld)).join('')}</div>`;
+}
+function plural(n) { return n === 1 ? '1 window' : `${n} windows`; }
+function sameResult(a, b) { return !a.error && !b.error && a.matches.join() === b.matches.join(); }
+
+function renderCards(wld) {
+  const named = { floating: L.FLOATING_VARIANTS[state.floatingVariant] };
+  document.getElementById('cards').innerHTML = L.FILTERS.map(f => {
+    const ex = L.evaluate(state, 'expr', f.expr, { sort: f.forceSort });
+    const js = L.evaluate(state, 'js', f.js, { sort: f.forceSort });
+    const agree = sameResult(ex, js);
+    const usesFloating = f.expr.includes('@floating');
+    const todayCls = { yes: 'good', partial: 'warn', no: 'bad' }[f.today.level];
+    return `<div class="card ${spotlight.includes(f.key) ? 'spot' : ''}">
+      <div class="card-head"><h3>${esc(f.title)}</h3>
+        <span class="badge ${agree ? 'good' : 'bad'}">${agree ? `Both languages agree · ${plural(ex.matches.length)}` : 'The languages disagree'}</span></div>
+      <div class="langs">
+        <div class="lang"><div class="tag">Expression string</div><pre class="src">${esc(f.expr)}</pre>${usesFloating ? `<div class="note" style="margin:0 0 6px">where <code>floating</code> =</div><pre class="src">${esc(named.floating.expr)}</pre>` : ''}${renderResult(ex, f.expr, wld)}</div>
+        <div class="lang"><div class="tag">JavaScript predicate</div><pre class="src">${esc(f.js)}</pre>${usesFloating ? `<div class="note" style="margin:0 0 6px">where <code>floating</code> =</div><pre class="src">${esc(named.floating.js)}</pre>` : ''}${renderResult(js, f.js, wld)}</div>
+      </div>
+      <div class="today"><span class="badge ${todayCls}">Today's matcher</span> ${esc(f.today.text)}</div>
+      ${f.note ? `<div class="note">${esc(f.note)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function brokenVerdict(res, src) {
+  if (res.error) return renderResult(res, src, null);
+  if (res.matches.length) return `<div class="note" style="margin-top:0">No error right now. It matched ${plural(res.matches.length)}.</div>`;
+  return `<div class="silent"><b>No error, ever.</b> It matched no windows, and nothing tells you why.</div>`;
+}
+function renderBroken() {
+  document.getElementById('broken').innerHTML = L.BROKEN.map(b => {
+    const ex = L.evaluate(state, 'expr', b.expr);
+    const js = L.evaluate(state, 'js', b.js);
+    return `<div class="card"><h3>${esc(b.title)}</h3>
+      <div class="langs">
+        <div class="lang"><div class="tag">Expression string</div><pre class="src">${esc(b.expr)}</pre>${brokenVerdict(ex, b.expr)}</div>
+        <div class="lang"><div class="tag">JavaScript predicate</div><pre class="src">${esc(b.js)}</pre>${brokenVerdict(js, b.js)}</div>
+      </div>${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}</div>`;
+  }).join('');
+}
+
+function renderTry(wld) {
+  const ex = document.getElementById('try-expr').value;
+  const js = document.getElementById('try-js').value;
+  document.getElementById('try-expr-out').innerHTML = renderResult(L.evaluate(state, 'expr', ex), ex, wld);
+  document.getElementById('try-js-out').innerHTML = renderResult(L.evaluate(state, 'js', js), js, wld);
+}
+
+function renderConfig() {
+  const blocks = [
+    {
+      title: 'Expression strings, all in winmux.toml',
+      body: `[filters]
+floating        = "window-class == 'floating' or (window-class == 'popup' and app-activation-policy == 'accessory')"
+current-project = "project == current.project"
+mouse-app-float = "@floating and app-bundle-id == mouse.app-bundle-id"
+
+[[picker]]
+trigger      = "alt-tab"
+filter       = "current-project"          # a name from [filters]
+presentation = "strip"
+sort         = ["mru"]
+
+[[picker]]
+trigger      = "alt-shift-tab"
+filter       = "project != current.project"   # or written inline
+presentation = "strip"
+
+[[picker]]
+trigger      = "swipe-up-4"
+filter       = "@everything"
+presentation = "grid"
+group        = "workspace"
+profiles     = ["ultrawide"]              # "ultrawide only" as a binding option`,
+      note: 'One file. Filters are strings, so a long one either stays on one line or moves to a TOML multi-line string. Checked when the config loads; errors can point at a line and column in winmux.toml.',
+    },
+    {
+      title: 'JavaScript, inline strings in winmux.toml',
+      body: `[filters]
+floating        = "(w) => w.class === 'floating' || (w.class === 'popup' && w.app.activationPolicy === 'accessory')"
+current-project = "(w, ctx) => w.project === ctx.project"
+
+[[picker]]
+trigger = "alt-tab"
+filter  = "current-project"`,
+      note: 'Quoting JS inside TOML strings gets awkward fast, and the TOML parser can\'t tell you anything about the JS. Syntax errors surface when JavaScriptCore compiles it.',
+    },
+    {
+      title: 'JavaScript, in a separate filters.js',
+      body: `// ~/.config/winmux/filters.js
+export const floating = (w) =>
+  w.class === 'floating' || (w.class === 'popup' && w.app.activationPolicy === 'accessory');
+
+export const currentProject = (w, ctx) => w.project === ctx.project;
+
+const dev = ['com.mitchellh.ghostty', 'dev.zed.Zed', 'company.thebrowser.Browser'];
+export const devApps = (w) => dev.includes(w.app.bundleId) && !/youtube/i.test(w.title);
+
+# winmux.toml
+filters-file = "filters.js"
+
+[[picker]]
+trigger = "alt-tab"
+filter  = "currentProject"     # an export name: camelCase, unlike every other key in winmux.toml`,
+      note: 'The nicest to write: real editor support, helper functions, shared constants. Costs: a second config file with its own reload, a second naming convention, and WinMux embedding JavaScriptCore.',
+    },
+  ];
+  document.getElementById('config').innerHTML = blocks.map(b => `<div class="card"><h3>${esc(b.title)}</h3><pre class="src">${esc(b.body)}</pre><div class="note">${esc(b.note)}</div></div>`).join('');
+}
+
+function renderWindows(wld) {
+  const cols = ['window-id', 'app-name', 'window-title', 'workspace', 'project', 'window-class', 'app-activation-policy', 'window-subrole', 'window-level', 'window-has-close-button', 'window-is-registered', 'monitor-name'];
+  const val = (w, c) => ({
+    'window-id': w.id, 'app-name': w.app.name, 'window-title': w.title, workspace: w.workspace, project: w.project,
+    'window-class': w.class, 'app-activation-policy': w.app.activationPolicy, 'window-subrole': w.subrole,
+    'window-level': w.level, 'window-has-close-button': w.hasCloseButton, 'window-is-registered': w.registered,
+    'monitor-name': w.monitor?.name,
+  })[c];
+  document.getElementById('windows').innerHTML =
+    `<tr>${cols.map(c => `<th><code>${c}</code></th>`).join('')}</tr>` +
+    wld.windows.map(w => `<tr>${cols.map(c => `<td>${esc(val(w, c) ?? '—')}</td>`).join('')}</tr>`).join('');
+}
+
+function renderScenario() {
+  const s = SCENARIOS[scenarioIndex];
+  document.getElementById('tabs').innerHTML = SCENARIOS.map((sc, i) => `<button class="${i === scenarioIndex ? 'on' : ''}" data-tab="${i}">${esc(sc.name)}</button>`).join('');
+  document.querySelectorAll('[data-tab]').forEach(el => el.onclick = () => startScenario(Number(el.dataset.tab)));
+  document.getElementById('scenario').innerHTML = `<p style="margin:0">${esc(s.text)}</p>
+    <div class="steps">${s.steps.map(([label], i) => `<button data-step="${i}" class="${i < stepIndex ? 'done' : i === stepIndex ? 'next' : ''}">${i + 1}. ${esc(label)}</button>`).join('')}</div>
+    ${stepIndex >= s.steps.length ? '<p class="note">Walkthrough finished. Keep poking with the controls on the left.</p>' : ''}`;
+  document.querySelectorAll('[data-step]').forEach(el => el.onclick = () => {
+    const i = Number(el.dataset.step);
+    stepIndex = i + 1;
+    dispatch(s.steps[i][1]);
+  });
+}
+function startScenario(i) {
+  scenarioIndex = i; stepIndex = 0; spotlight = SCENARIOS[i].spot;
+  state = L.reduce(state, { type: 'reset' });
+  lastStateText = {};
+  render();
+}
+
+function render() {
+  const wld = L.world(state);
+  renderState(wld);
+  renderControls(wld);
+  renderScenario();
+  renderCards(wld);
+  renderBroken();
+  renderTry(wld);
+  renderWindows(wld);
+}
+
+document.getElementById('try-expr').oninput = () => renderTry(L.world(state));
+document.getElementById('try-js').oninput = () => renderTry(L.world(state));
+renderConfig();
+startScenario(0);
+</script>
+</body>
+</html>
