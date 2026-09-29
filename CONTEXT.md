@@ -39,7 +39,7 @@ _Avoid_: menubar app, agent app, background app
 ## Layout
 
 **Column**:
-A vertical slot of fixed width on a workspace, holding one window or one tab group.
+A fixed position and width on a workspace that holds any arrangement of windows: one window, a tab group, or splits of them. A Column keeps its place when it's empty, and switching workspace changes every Column at once.
 _Avoid_: pane, split, tile
 
 **Width preset**:
@@ -47,9 +47,13 @@ One of a small set of fractions (e.g. 1/3, 1/2, 2/3) that a Column's width can b
 _Avoid_: size, ratio
 
 **Overflow policy**:
-What happens when a new window opens and every Column is already occupied.
+The action taken when a window's target Column is already occupied: join its tab group, split it, float the window, or squeeze in an extra Column.
 _Avoid_: fallback
 
+**Policy hook**:
+A decision point where WinMux asks the config what to do, given the window and its context, and gets back one of a fixed set of actions. For example, where a new window goes, or what a move does at a Column edge.
+_Avoid_: rule, callback
+
 **Display profile**:
-A named bundle of layout settings (Column count, Overflow policy, sidebar mode, gaps) applied while a given display is attached.
+A named condition that holds while a given display is attached. Settings such as the Column count, widths and Lenses can be given per Display profile, and the matching variant applies while that profile is active.
 _Avoid_: display mode, monitor config, layout preset
