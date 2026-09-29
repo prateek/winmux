@@ -1,19 +1,19 @@
 # WinMux (personal fork)
 
-A sidebar-first tiling window manager for macOS, forked from AeroSpace. This glossary covers the fork's additions: finding windows through filtered pickers, and laying out windows in fixed columns that adapt to the attached display.
+A sidebar-first tiling window manager for macOS, forked from AeroSpace. This glossary covers the fork's additions: finding windows through Lenses, and laying out windows in fixed columns that adapt to the attached display.
 
 ## Finding windows
 
-**Picker**:
-An overlay that shows the windows matching a Filter and lets the user act on one.
-_Avoid_: switcher, exposé, overview, Mission Control
+**Lens**:
+A named way to find windows: a Filter, a Presentation, sort order, and the actions its keys run on the selected window. A Trigger opens it as an overlay showing the matching windows.
+_Avoid_: picker, picker binding, switcher, exposé, overview, Mission Control
 
 **Filter**:
-A named predicate over windows, written in CEL and type-checked when the config loads, evaluated against a Filter context each time a Picker opens. A Filter only says yes or no; ordering belongs to the Picker binding.
+A named predicate over windows, written in CEL and type-checked when the config loads, evaluated against a Filter context each time a Lens opens. A Filter only says yes or no; ordering belongs to the Lens.
 _Avoid_: query, rule, scope
 
 **Window class**:
-How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an Accessory app) or app-popup (a regular app's popup, such as an autofill dropdown). Pickers leave out both popup classes unless the Filter names them.
+How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an Accessory app) or app-popup (a regular app's popup, such as an autofill dropdown). Lenses leave out both popup classes unless the Filter names them.
 _Avoid_: kind, type, layout
 
 **Filter context**:
@@ -21,16 +21,12 @@ The live state a Filter can read when it runs: focused window and app, window an
 _Avoid_: environment, state
 
 **Presentation**:
-How a Picker lays out its matches: **grid** (every match at once, as thumbnails) or **strip** (a single row cycled while a modifier is held).
+How a Lens lays out its matches: **grid** (every match at once, as thumbnails) or **strip** (a single row cycled while a modifier is held).
 _Avoid_: view, mode, style
 
 **Trigger**:
-A key chord or trackpad gesture that opens a Picker.
+A key or trackpad-gesture binding whose command opens a Lens.
 _Avoid_: shortcut, hotkey
-
-**Picker binding**:
-A Trigger paired with a Filter, a Presentation, and grouping and sort options.
-_Avoid_: switcher config
 
 **Summon**:
 To move the selected window into the current workspace, rather than going to the window's workspace.
