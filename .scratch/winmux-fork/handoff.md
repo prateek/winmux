@@ -4,23 +4,18 @@ Branch `wayfind-fork` on `prateek/winmux`, based on upstream `ZimengXiong/winmux
 
 ## What this is
 
-A `/mattpocock:wayfinder` effort, charted and with its first research round done. It plans changes to a personal WinMux fork (filtered Pickers covering exposé and cmd+tab, fixed Columns, Display profiles for laptop and ultrawide) and produces specs, not code. Everything durable lives in the map; this note only orients you.
+A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (filtered Lenses covering exposé, cmd+tab and cmd-K search; fixed Columns; Display profiles for laptop and ultrawide; a `winmux` CLI for all of it) and produces specs, not code. Everything durable lives in the map; this note only orients you and holds what the map doesn't.
 
 - **Map (start here):** `.scratch/winmux-fork/map.md`. It holds the destination, standing decisions in Notes, Decisions-so-far, fog, and out-of-scope items.
 - **Tickets:** `.scratch/winmux-fork/issues/NN-*.md`, on the local-markdown tracker. They use `Type:`, `Status:` and `Blocked by:` lines; the tracker conventions are in `~/.agents/plugins/plugins/mattpocock/skills/setup-matt-pocock-skills/issue-tracker-local.md` under "Wayfinding operations".
-- **Research findings:** `.scratch/winmux-fork/research/`. These live here rather than on `research/*` branches, a deliberate deviation from the skill because the tracker is local.
-- **Glossary:** `CONTEXT.md` at the repo root. Use its terms: Picker, Filter, Filter context, Presentation (grid/strip), Trigger, Picker binding, Summon, Accessory app, Column, Width preset, Overflow policy, Display profile.
+- **Research findings:** `.scratch/winmux-fork/research/`. **Prototypes:** `.scratch/winmux-fork/prototypes/`. Both live here rather than on throwaway branches, a deliberate deviation from the skills because the tracker is local.
+- **Glossary:** `CONTEXT.md` at the repo root. Use its terms (Lens, Filter, Filter context, Presentation, Trigger, Summon, Window class, Accessory app, Column, Width preset, Overflow policy, Policy hook, Display profile).
 
-## State
+## Finding the next ticket
 
-Five research tickets and one decision are resolved; see Decisions-so-far in the map. Twelve tickets are open.
+Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open`; a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
 
-The frontier (unblocked, unclaimed) is:
-- `06` Prototype: filter language worked examples. It's first in order and is the next one to work.
-- `09` Grilling: fixed Columns, Width presets and Overflow policy semantics.
-- `12`, `13`, `14`, `16` are tasks: live checks and probes on Prateek's Mac. `13` needs him at the ultrawide with BetterDisplay running.
-
-Blocked: `07` (on 06), `08` (on 14), `10` (on 09 and 13), `11` (on 12), `17` (on 16).
+Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: "Task: live check of Ghost Pepper's windows under WinMux" needs Ghost Pepper installed and the WinMux server running (neither was, 2026-09-29), and the display-capture task needs him at the ultrawide with BetterDisplay running.
 
 ## Repo setup
 
@@ -28,7 +23,7 @@ Blocked: `07` (on 06), `08` (on 14), `10` (on 09 and 13), `11` (on 12), `17` (on
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS). `fork` is `prateek/winmux` over SSH.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` defaults to `main`, and that `main` is kept equal to upstream `main`. Sync it with `git push fork origin/main:main` after `git fetch origin`.
-- Commit or push only when Prateek asks. His machine conventions are in `~/.claude/CLAUDE.md` and `~/.agents/docs/`.
+- Commit or push only when Prateek asks. Each resolved ticket has so far been one commit ("Resolve <ticket>…"). His machine conventions are in `~/.claude/CLAUDE.md` and `~/.agents/docs/`.
 
 ## Open with Prateek
 
@@ -36,16 +31,17 @@ Blocked: `07` (on 06), `08` (on 14), `10` (on 09 and 13), `11` (on 12), `17` (on
 
 ## Things not captured elsewhere
 
-- Prateek's own `prateek/winmux@codex-columns` branch (153 commits: columnar zones, scenes, rules, zone-expose) overlaps heavily. He chose upstream `main` as the base anyway. It's listed as prior art in the map's fog, so mine it when working 08, 09 and 10; don't build on it.
+- Prateek's own `prateek/winmux@codex-columns` branch (153 commits: columnar zones, scenes, rules, zone-expose) overlaps heavily. He chose upstream `main` as the base anyway. It's listed as prior art in the map's fog, so mine it when working the grid, Display profiles and Columns tickets; don't build on it.
 - A possible dotfiles bug sits outside this map and hasn't been acted on. `g95nc`'s `discard` step appears to wipe BetterDisplay's "associate with display" setting; the evidence is in `research/05-*`. Surface it to Prateek rather than fixing it here.
-- The research agents had no web fetch. Apple API facts come from SDK headers, and some BetterDisplay claims come from search excerpts. Each findings file flags its own unverified points.
+- The first research agents had no web fetch. Apple API facts come from SDK headers, and some BetterDisplay claims come from search excerpts. Each findings file flags its own unverified points.
 - Hardware serials were redacted from `research/05-*` because the repo is public.
-- Working mode: one ticket per session (research tickets excepted). Claim a ticket (`Status: claimed`) before starting work. Record each resolution as an `## Answer` section, set `Status: resolved`, and add a line to the map's Decisions-so-far.
+- Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`.
+- Working mode: one ticket per session (research tickets excepted). Claim a ticket (`Status: claimed`) before starting work. Record each resolution as an `## Answer` section, set `Status: resolved`, and add a line to the map's Decisions-so-far. When a resolution changes an earlier ticket's decision, put a dated "Amended" or "Superseded" note at the top of that ticket's Answer.
 
 ## Suggested skills
 
 - `mattpocock:wayfinder`: invoke with the map path to work the next ticket.
-- `mattpocock:prototype`: for ticket 06 (filter-language examples in expression strings vs JavaScriptCore predicates) and 08.
-- `mattpocock:grilling` + `mattpocock:domain-modeling`: for every grilling ticket; keep `CONTEXT.md` current.
+- `mattpocock:grilling` + `mattpocock:domain-modeling`: for every HITL ticket; keep `CONTEXT.md` current.
+- `mattpocock:prototype`: for prototype tickets (the grid Presentation, the Chrome tab source).
 - `mattpocock:research`: if a resolution surfaces new research tickets.
 - `writing-for-humans`: for replies to Prateek.

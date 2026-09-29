@@ -18,6 +18,8 @@ From the monitor-identity research: the Filter context should carry a monitor de
 
 ## Answer
 
+> Superseded in part (2026-09-29): [Prototype: config and scripting language](27-prototype-config-language.md) replaced CEL and TOML with Nickel. The Window classes, popup defaults and Filter attributes below still stand.
+
 Prototype: [06-filter-language.html](../prototypes/06-filter-language.html), kept in `.scratch` rather than on a throwaway branch because the tracker is local.
 
 - **Language: CEL**, via [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) (MIT) running in JavaScriptCore, instead of hand-rolled expression strings or raw JS predicates. WinMux declares typed `Window`, `App` and `Monitor` types and the Filter context variables, and `env.check` rejects a broken Filter when `winmux.toml` loads, with a caret under the error: unknown fields, `string == bool`, missing functions, and reading `focused`/`mouse`/`previous` (declared `optional<Window>`) without a guard. WinMux owns the `TextEncoder`/`TextDecoder` shims and a small extra check for misspelled enum strings, which CEL doesn't catch.

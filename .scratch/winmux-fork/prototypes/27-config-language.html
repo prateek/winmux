@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Config language bake-off</title>
+<style>
+:root {
+  --bg: #fafaf8; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e4e0;
+  --accent: #3b5bdb; --accent-soft: #e7ecff; --good: #2b8a3e; --good-soft: #e6f4ea;
+  --bad: #c92a2a; --bad-soft: #fdecec; --warn: #a65b00; --warn-soft: #fff3e0;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececec; --muted: #9a9aa2; --line: #333338;
+    --accent: #8ea2ff; --accent-soft: #262d4a; --good: #69db7c; --good-soft: #1d3324;
+    --bad: #ff8787; --bad-soft: #3d2020; --warn: #ffc078; --warn-soft: #3a2c16;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header, main { max-width: 1800px; margin: 0 auto; padding: 24px 24px 8px; }
+main { padding-top: 8px; padding-bottom: 48px; }
+@media (max-width: 700px) { header, main { padding-left: 16px; padding-right: 16px; } }
+h1 { margin: 0 0 4px; font-size: 26px; }
+h2 { font-size: 18px; margin: 18px 0 6px; }
+.lede { color: var(--muted); max-width: 920px; margin: 0 0 10px; }
+.intro { max-width: 920px; font-size: 14px; }
+.intro li { margin-bottom: 4px; }
+code, pre { font-family: var(--mono); font-size: 12.5px; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 6px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 2; }
+button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.q { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; margin: 8px 0 14px; max-width: 1100px; font-size: 14px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+.picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+.col h3 { margin: 0 0 2px; font-size: 14px; }
+.col .file { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.src { background: var(--bg); border-radius: 6px; padding: 8px; margin: 8px 0; overflow-x: auto; }
+.note { font-size: 13px; color: var(--muted); }
+.err { background: var(--bad-soft); color: var(--bad); border-radius: 6px; padding: 8px; font-size: 12.5px; margin-top: 6px; }
+.silent { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 8px; font-size: 12.5px; margin-top: 6px; }
+.ok { background: var(--good-soft); color: var(--good); border-radius: 6px; padding: 8px; font-size: 12.5px; margin-top: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel); }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.g { color: var(--good); } .b { color: var(--bad); } .w { color: var(--warn); }
+.decide { border-left: 3px solid var(--accent); padding-left: 10px; margin: 14px 0; max-width: 1100px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Config language bake-off</h1>
+  <p class="lede">Throwaway prototype for <em>Prototype: config and scripting language</em> (ticket 27). One reference config, written seven ways. Pick a tab, choose which candidates to compare, and read across.</p>
+  <div class="intro">
+    <ul>
+      <li><strong>What's real and what isn't.</strong> Your live <code>~/.config/winmux/winmux.toml</code> has gaps, the sidebar and key bindings, but no Lenses, Columns or window rules yet. Those parts are representative, built from the decided shapes: the three default Lenses (Lens configuration shape), the <code>place</code>/<code>move-boundary</code> hooks and precedence chain (fixed Columns grilling), and your own Mail→Comms routing rule from <code>codex-columns</code>.</li>
+      <li><strong>Candidates.</strong> (A) TOML + CEL, today's decision. (B) Janet for everything, no TOML: the Lisp pick, with Fennel and s7 covered in notes. (C) TOML for static settings plus JS hook functions on JavaScriptCore. (D) HCL, Terraform's language: blocks plus a real expression grammar. (E) Nickel: JSON-shaped, with functions, gradual types, contracts and merge priorities. (F) Dhall: typed, total, no Turing-completeness. (G) Guile Scheme in the style of Guix's configuration records.</li>
+      <li><strong>Verified facts.</strong> Licences from each repo: Janet MIT, Fennel MIT, Lua MIT, cel-js MIT, s7 0BSD. Janet 1.42.1's <code>janet.c</code> is 3.4 MB / 58.7k lines, compiles with <code>clang -O2</code> in 2.7 s to a 1.15 MB object, and ran a <code>place</code> hook from C on this Mac. The Janet parse error on the Errors tab is real output. No Swift HCL parser exists; <code>hcl-rs</code> is MIT/Apache-2.0 with expression evaluation, Go <code>hashicorp/hcl</code> is MPL-2.0, Nickel is MIT and its 1.18 release ships a C API with a 13.3 MB arm64 dylib; the Nickel errors on the Errors tab are real output from its CLI here. Dhall's reference implementation is Haskell (BSD-3), and its own docs confirm it can't compare <code>Text</code>. Guile 3.0.11 is LGPL-3.0+; Guix doesn't run on macOS. Unverified: that <code>janet.c</code> drops into SwiftPM as a C target without patches, cel-js's bundle size, whether cel-js ships CEL's <code>cel.bind</code> macro.</li>
+    </ul>
+  </div>
+</header>
+<main>
+  <div class="tabs" id="tabs"></div>
+  <div class="picker" id="picker"></div>
+  <div id="view"></div>
+</main>
+<script>
+const CANDS = [
+  { id: "cel", name: "A · TOML + CEL" },
+  { id: "janet", name: "B · Janet everywhere" },
+  { id: "js", name: "C · TOML + JS hooks" },
+  { id: "hcl", name: "D · HCL (Terraform-style)" },
+  { id: "nickel", name: "E · Nickel" },
+  { id: "dhall", name: "F · Dhall" },
+  { id: "guile", name: "G · Guile, Guix-style" },
+];
+let shown = new Set(CANDS.map((c) => c.id));
+
+const TABS = [
+{
+  id: "lenses", title: "Filters & Lenses",
+  q: "Named Filters, the three default Lenses, one per-profile override, and the Trigger bindings. This is the part that's already decided in shape; it shows the everyday feel of each candidate.",
+  cel: { file: "winmux.toml", code:
+`[filters]
+comms     = 'w.app.bundleId in ["com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS"]'
+same-app  = 'focused.?app.bundleId.orValue("") == w.app.bundleId'
+floaters  = 'w.class in ["floating", "accessory-popup"]'
+here      = 'w.project == workspace.project && !floaters(w)'
+
+[lenses.recent]
+presentation = 'strip'
+sort = ['mru']
+
+[lenses.app-windows]
+presentation = 'strip'
+filter = 'same-app'
+sort = ['mru']
+
+[lenses.overview]
+presentation = 'grid'
+sections = 'workspace'
+sort = ['spatial']
+
+[lenses.overview.when.laptop]
+sections = 'none'
+
+[lenses.floaters]
+presentation = 'grid'
+filter = 'floaters'
+
+[mode.main.binding]
+cmd-tab = 'lens recent'
+cmd-backtick = 'lens app-windows'
+alt-f = 'lens floaters'
+
+[mode.main.gesture]
+three-finger-swipe-up = 'lens overview'`,
+    note: "Structure in TOML, logic in one-line CEL strings. Filters call each other as functions (<code>floaters(w)</code>). Every string is type-checked against the declared <code>Window</code>/<code>App</code> types when the file loads." },
+  janet: { file: "winmux.janet", code:
+`(def comms-apps ["com.tinyspeck.slackmacgap" "com.apple.mail" "com.apple.MobileSMS"])
+
+(defn comms    [w ctx] (has-value? comms-apps (get-in w [:app :bundle-id])))
+(defn same-app [w ctx] (= (get-in ctx [:focused :app :bundle-id])
+                          (get-in w [:app :bundle-id])))
+(defn floaters [w ctx] (has-value? [:floating :accessory-popup] (w :class)))
+(defn here     [w ctx] (and (= (w :project) (get-in ctx [:workspace :project]))
+                            (not (floaters w ctx))))
+
+(lens :recent      {:presentation :strip :sort [:mru]})
+(lens :app-windows {:presentation :strip :filter same-app :sort [:mru]})
+(lens :overview    {:presentation :grid :sections :workspace :sort [:spatial]
+                    :when {:laptop {:sections :none}}})
+(lens :floaters    {:presentation :grid :filter floaters})
+
+(bind :main
+  "cmd-tab"      "lens recent"
+  "cmd-backtick" "lens app-windows"
+  "alt-f"        "lens floaters")
+
+(gesture :main
+  "three-finger-swipe-up" "lens overview")`,
+    note: "One language: settings are Janet structs, Filters are plain functions, and <code>lens</code>/<code>bind</code> are WinMux-provided functions that register things. Nothing checks <code>:bundle-id</code> exists until a window is tested; a typo returns <code>nil</code>." },
+  js: { file: "winmux.toml + winmux.js", code:
+`# winmux.toml
+scripts = 'winmux.js'
+
+[lenses.recent]
+presentation = 'strip'
+sort = ['mru']
+
+[lenses.app-windows]
+presentation = 'strip'
+filter = 'sameApp'          # a function exported from winmux.js
+sort = ['mru']
+
+[lenses.overview]
+presentation = 'grid'
+sections = 'workspace'
+sort = ['spatial']
+[lenses.overview.when.laptop]
+sections = 'none'
+
+[lenses.floaters]
+presentation = 'grid'
+filter = 'floaters'
+
+// winmux.js      // @ts-check against a shipped winmux.d.ts
+const COMMS = ["com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS"];
+
+export const comms    = (w) => COMMS.includes(w.app.bundleId);
+export const sameApp  = (w, ctx) => ctx.focused?.app.bundleId === w.app.bundleId;
+export const floaters = (w) => ["floating", "accessory-popup"].includes(w.class);
+export const here     = (w, ctx) => w.project === ctx.workspace.project && !floaters(w);`,
+    note: "Two files. TOML keeps the declarative part, JS gets every predicate and hook. WinMux can ship <code>winmux.d.ts</code> so an editor with <code>// @ts-check</code> flags a typo; WinMux itself can't check anything at load." },
+},
+{
+  id: "place", title: "place hook",
+  q: "The hard one. A tiling window arrives on a Columns workspace: comms apps go to Column 3 as a tab group; Ghostty splits into the focused Column; otherwise the nearest empty Column; otherwise tab-group into the focused Column, or the MRU Column when focus isn't on this workspace. This is where CEL's lack of statements shows, so column A shows two honest forms.",
+  cel: { file: "winmux.toml", code:
+`# Form 1: an ordered rule table. CEL only decides "does this rule match";
+# TOML holds the action. First match wins; no match = built-in default.
+[[columns.place]]
+if = 'comms(w)'
+column = 3
+overflow = 'tab-group'
+
+[[columns.place]]
+if = 'w.app.bundleId == "com.mitchellh.ghostty"'
+column = 'focused'
+overflow = 'split'
+
+[[columns.place]]
+if = 'columns.exists(c, c.empty)'
+column = 'nearest-empty'
+
+[[columns.place]]
+if = 'true'
+column = 'focused'           # built-in: falls back to 'mru' when focus is elsewhere
+overflow = 'tab-group'
+
+# Form 2: one CEL expression returning a map. Legal, but a ternary chain.
+[columns]
+place = '''
+comms(w) ? {"column": 3, "overflow": "tab-group"}
+: w.app.bundleId == "com.mitchellh.ghostty" ? {"column": "focused", "overflow": "split"}
+: columns.exists(c, c.empty) ? {"column": "nearest-empty"}
+: {"column": focused.hasValue() && focused.value().workspace == workspace.name
+      ? "focused" : "mru",
+   "overflow": "tab-group"}
+'''`,
+    note: "Form 1 reads well and <code>columns place --dry-run</code> can say \"rule 2 matched\". Its ceiling: anything computed (\"the Column with the fewest windows\", \"the Column Slack is already in\") needs a new vocabulary word in WinMux, because TOML can't compute and CEL can't hold intermediate values." },
+  janet: { file: "winmux.janet", code:
+`(defn focus-here? [ctx]
+  (= (get-in ctx [:focused :workspace]) (get-in ctx [:workspace :name])))
+
+(defn place [w ctx cols]
+  (cond
+    (comms w ctx)
+      {:column 3 :overflow :tab-group}
+    (= (get-in w [:app :bundle-id]) "com.mitchellh.ghostty")
+      {:column :focused :overflow :split}
+    (find |($ :empty) cols)
+      {:column :nearest-empty}
+    {:column (if (focus-here? ctx) :focused :mru) :overflow :tab-group}))
+
+# computed placement is just more code:
+(defn fewest-windows [cols]
+  (first (sort-by |(length ($ :windows)) cols)))
+
+(columns {:place place})`,
+    note: "<code>cond</code> reads top to bottom like Form 1 and computes anything. The return value is still checked against the fixed vocabulary after the call; nothing checks the branches before a window arrives. Explaining \"why\" needs WinMux to trace which branch returned." },
+  js: { file: "winmux.js", code:
+`const focusHere = (ctx) => ctx.focused?.workspace === ctx.workspace.name;
+
+export function place(w, ctx, cols) {
+  if (comms(w)) return { column: 3, overflow: "tab-group" };
+  if (w.app.bundleId === "com.mitchellh.ghostty")
+    return { column: "focused", overflow: "split" };
+  if (cols.some((c) => c.empty)) return { column: "nearest-empty" };
+  return { column: focusHere(ctx) ? "focused" : "mru", overflow: "tab-group" };
+}
+
+// computed placement:
+const fewestWindows = (cols) =>
+  cols.reduce((a, c) => (c.windows.length < a.windows.length ? c : a));`,
+    note: "Same power as Janet, familiar syntax, and <code>winmux.d.ts</code> can type the return value as a union so the editor catches <code>overflow: \"tabgroup\"</code>. WinMux still validates at call time." },
+},
+{
+  id: "boundary", title: "move-boundary hook",
+  q: "move left/right crosses a Column edge. Into an occupied Column: join as a tab group, except swap on the comms workspace. At the workspace edge: wrap on a 2-Column workspace, stop otherwise.",
+  cel: { file: "winmux.toml", code:
+`[[columns.move-boundary]]
+if = 'edge && size(columns) == 2'
+action = 'wrap'
+
+[[columns.move-boundary]]
+if = 'edge'
+action = 'stop'
+
+[[columns.move-boundary]]
+if = 'workspace.name == "comms"'
+action = 'swap'
+
+[[columns.move-boundary]]
+if = 'true'
+action = 'join'
+overflow = 'tab-group'`,
+    note: "Four rules for four branches. Fine at this size; the ordering (edge cases first) is on you." },
+  janet: { file: "winmux.janet", code:
+`(defn move-boundary [w ctx cols {:edge edge}]
+  (cond
+    (and edge (= (length cols) 2)) {:action :wrap}
+    edge                           {:action :stop}
+    (= (get-in ctx [:workspace :name]) "comms") {:action :swap}
+    {:action :join :overflow :tab-group}))
+
+(columns {:move-boundary move-boundary})`,
+    note: "Same shape as the rule table, one form." },
+  js: { file: "winmux.js", code:
+`export function moveBoundary(w, ctx, cols, { edge }) {
+  if (edge) return { action: cols.length === 2 ? "wrap" : "stop" };
+  if (ctx.workspace.name === "comms") return { action: "swap" };
+  return { action: "join", overflow: "tab-group" };
+}`,
+    note: "Shortest of the three." },
+},
+{
+  id: "overrides", title: "Columns & overrides",
+  q: "The precedence chain from the Columns grilling: [columns] → when.<profile> → workspace.<name>.columns → workspace.<name>.columns.when.<profile>, most specific wins field by field, hooks replaced not merged.",
+  cel: { file: "winmux.toml", code:
+`[columns]
+count = 'off'                        # laptop default: plain tree tiling
+width-presets = [0.333, 0.5, 0.667]
+
+[columns.when.ultrawide]
+count = 3
+widths = [0.25, 0.5, 0.25]
+
+[workspace.comms.columns.when.ultrawide]
+count = 2
+widths = [0.4, 0.6]
+
+[workspace.scratch.columns.when.ultrawide]
+count = 1`,
+    note: "Declarative and diffable. The merge rule lives in WinMux and is the same for every table." },
+  janet: { file: "winmux.janet", code:
+`(columns {:count :off
+          :width-presets [0.333 0.5 0.667]
+          :when {:ultrawide {:count 3 :widths [0.25 0.5 0.25]}}})
+
+(workspace "comms"   {:columns {:when {:ultrawide {:count 2 :widths [0.4 0.6]}}}})
+(workspace "scratch" {:columns {:when {:ultrawide {:count 1}}}})
+
+# or skip when-tables and just branch; WinMux re-evaluates on profile change:
+(def ultrawide? (= (profile) :ultrawide))
+(columns {:count (if ultrawide? 3 :off)})`,
+    note: "Can mirror the TOML shape exactly, or replace <code>when</code> with code. The second style is more powerful and less inspectable: <code>list-columns --json</code> can report the resolved values but not where they came from, and the whole file re-runs on each Display profile change." },
+  js: { file: "winmux.toml", code:
+`[columns]
+count = 'off'
+width-presets = [0.333, 0.5, 0.667]
+place = 'place'                      # names exported from winmux.js
+move-boundary = 'moveBoundary'
+
+[columns.when.ultrawide]
+count = 3
+widths = [0.25, 0.5, 0.25]
+
+[workspace.comms.columns.when.ultrawide]
+count = 2
+widths = [0.4, 0.6]`,
+    note: "Identical to A for the static part. Hooks are referenced by name across the file boundary, so a renamed export is only caught when the config loads and resolves names (cheap to check, at least)." },
+},
+{
+  id: "arrival", title: "Window arrival",
+  q: "Today: [[on-window-detected]] runs arbitrary commands, then place runs for tiling windows. The ticket asks whether to merge them into one window-arrival hook. Rules here: Mail → workspace comms; Finder floats; Ghost Pepper's accessory popup floats and never gets a Column; then place as above.",
+  cel: { file: "winmux.toml", code:
+`# Separate (today + place):
+[[on-window-detected]]
+if.app-id = 'com.apple.mail'
+run = 'move-node-to-workspace comms'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.finder'
+run = 'layout floating'
+
+# Merged: one [[arrive]] table replaces both; if = CEL, then either
+# a workspace/float/column action, or run = [...] commands.
+[[arrive]]
+if = 'w.app.bundleId == "com.apple.mail"'
+workspace = 'comms'
+column = 3
+overflow = 'tab-group'
+
+[[arrive]]
+if = 'w.app.bundleId == "com.apple.finder" || w.class == "accessory-popup"'
+float = true
+
+[[arrive]]
+if = 'w.app.bundleId == "com.mitchellh.ghostty"'
+column = 'focused'
+overflow = 'split'
+
+[[arrive]]
+if = 'true'
+column = 'nearest-empty'
+overflow = 'tab-group'`,
+    note: "Merging fixes the ordering problem from the map's fog (new-window binding runs before on-window-detected, so Overflow placement can land before routing): one table, one pass. The AeroSpace importer would translate <code>[[on-window-detected]]</code> into <code>[[arrive]]</code> rows with <code>run</code>." },
+  janet: { file: "winmux.janet", code:
+`(defn arrive [w ctx cols]
+  (def id (get-in w [:app :bundle-id]))
+  (cond
+    (= id "com.apple.mail")
+      {:workspace "comms" :column 3 :overflow :tab-group}
+    (or (= id "com.apple.finder") (= (w :class) :accessory-popup))
+      {:float true}
+    (place w ctx cols)))       # fall through to the Columns logic
+
+(on :window-arrived arrive)`,
+    note: "Merging is natural: routing and placement are one function, with a local binding (<code>def id</code>) CEL can't have. One subtlety: <code>cols</code> are the Columns of the <em>arrival</em> workspace, so routing to another workspace and then placing needs WinMux to call back with that workspace's Columns, or the hook returns only the workspace and <code>place</code> runs a second time there." },
+  js: { file: "winmux.js", code:
+`export function arrive(w, ctx, cols) {
+  const id = w.app.bundleId;
+  if (id === "com.apple.mail")
+    return { workspace: "comms", column: 3, overflow: "tab-group" };
+  if (id === "com.apple.finder" || w.class === "accessory-popup")
+    return { float: true };
+  return place(w, ctx, cols);
+}`,
+    note: "Same as Janet. Same two-pass subtlety when routing to another workspace." },
+},
+{
+  id: "returns", title: "Return style",
+  q: "The Columns grilling chose a fixed action vocabulary so hooks can be checked and explained. The ticket reopens it: should hooks return arbitrary winmux command lists instead? Same Mail rule, both styles, each candidate.",
+  cel: { file: "winmux.toml", code:
+`# Fixed vocabulary (decided):
+[[arrive]]
+if = 'w.app.bundleId == "com.apple.mail"'
+workspace = 'comms'
+column = 3
+overflow = 'tab-group'
+
+# Command list:
+[[arrive]]
+if = 'w.app.bundleId == "com.apple.mail"'
+run = ['move-node-to-workspace comms', 'move-node-to-column 3', 'layout tabs']`,
+    note: "Command lists are opaque to WinMux: it can't tell whether <code>layout tabs</code> will violate the Column count until it runs, and <code>--dry-run</code> can only print the list, not the resulting slot." },
+  janet: { file: "winmux.janet", code:
+`# Fixed vocabulary:
+{:workspace "comms" :column 3 :overflow :tab-group}
+
+# Command list:
+["move-node-to-workspace comms" "move-node-to-column 3" "layout tabs"]
+
+# ...or, with a Lisp, the tempting third option: call commands directly
+(winmux/move-node-to-workspace w "comms")
+(winmux/move-node-to-column w 3)`,
+    note: "The third form is where \"a Lisp for everything\" leads: hooks with side effects mid-layout. It's the most powerful and the hardest to keep the Column invariant under, since WinMux loses the chance to validate before acting." },
+  js: { file: "winmux.js", code:
+`// Fixed vocabulary:
+return { workspace: "comms", column: 3, overflow: "tab-group" };
+
+// Command list:
+return ["move-node-to-workspace comms", "move-node-to-column 3", "layout tabs"];`,
+    note: "Same trade-off as A; the language doesn't change it. A mixed rule works in all three: fixed actions for placement, <code>run</code> for anything else, executed after placement settles." },
+},
+{
+  id: "errors", title: "Errors",
+  q: "What you see after a typo. Case 1: bundleId misspelled. Case 2: reading the focused window when nothing is focused. Case 3: a syntax slip.",
+  cel: { file: "at config load", code:
+`# 1. typo
+same-app = 'focused.?app.bundelId.orValue("") == w.app.bundleId'`,
+    note: `<div class="err">winmux.toml: filters.same-app:1:16: undefined field 'bundelId' on App<br>  focused.?app.bundelId.orValue("")<br>               ^<br>config not applied; keeping last good config</div>
+<div class="err">2. focused.app.bundleId → load error: focused is optional&lt;Window&gt;, use focused.?app or has(focused)</div>
+<div class="err">3. unbalanced quote → TOML parse error with line:col, before CEL is even reached</div>
+<div class="ok">All three caught when the file loads (these messages are illustrative of the 06 prototype's checker, not byte-exact).</div>` },
+  janet: { file: "at config load / when a window arrives", code:
+`# 1. typo
+(defn same-app [w ctx]
+  (= (get-in ctx [:focused :app :bundel-id]) (get-in w [:app :bundle-id])))
+
+# 3. syntax slip
+{:app "Mail" 2}`,
+    note: `<div class="silent">1. no error, ever. get-in returns nil, the Lens silently shows nothing (or everything). A load-time "smoke run" against fixture windows can't tell nil-because-typo from nil-because-no-focus.</div>
+<div class="ok">2. no error: get-in on a missing :focused is nil. Safe by default, which is also why case 1 is silent.</div>
+<div class="err">3. cfg:1:17: parse error: struct and table literals expect even number of arguments<br>(real output from janet 1.42.1)</div>
+<div class="note">Runtime errors inside a hook (calling a function that doesn't exist, (+ nil 1)) surface when a window arrives, as a stack trace WinMux must log and survive.</div>` },
+  js: { file: "in the editor / when a window arrives", code:
+`// 1. typo
+export const sameApp = (w, ctx) => ctx.focused?.app.bundelId === w.app.bundleId;
+
+// 2. missing guard
+export const sameApp = (w, ctx) => ctx.focused.app.bundleId === w.app.bundleId;`,
+    note: `<div class="silent">1. WinMux: no error, undefined !== "…", Lens shows nothing. Editor with // @ts-check + winmux.d.ts: "Property 'bundelId' does not exist on type 'App'. Did you mean 'bundleId'?"</div>
+<div class="err">2. at the first Lens open with nothing focused: TypeError: undefined is not an object (evaluating 'ctx.focused.app')</div>
+<div class="note">3. Syntax errors are caught when the script loads, with line and column from JavaScriptCore.</div>` },
+},
+{
+  id: "cli", title: "CLI",
+  q: "An ad-hoc Lens from the shell (Slack windows that aren't minimized), and asking why a window would land where it does.",
+  cel: { file: "zsh", code:
+`winmux lens --filter 'w.app.name == "Slack" && w.class != "minimized"'
+winmux lens --filter comms          # a named Filter
+
+winmux columns place --dry-run --window 4127
+# rule 2 matched: w.app.bundleId == "com.mitchellh.ghostty"
+# → column focused (2), overflow split`,
+    note: "Single-quoted CEL with double-quoted strings inside is comfortable in zsh. The same checker runs on the flag." },
+  janet: { file: "zsh", code:
+`winmux lens --filter '(fn [w _] (and (= (get-in w [:app :name]) "Slack")
+                                     (not= (w :class) :minimized)))'
+winmux lens --filter comms
+
+winmux columns place --dry-run --window 4127
+# → {:column :focused :overflow :split}
+#   (branch 2 of cond, if WinMux instruments cond)`,
+    note: "Works, but you're typing a lambda at a prompt. WinMux could offer sugar (bind <code>w</code> implicitly: <code>'(= (w :app-name) \"Slack\")'</code>), which is a second dialect to document." },
+  js: { file: "zsh", code:
+`winmux lens --filter 'w => w.app.name === "Slack" && w.class !== "minimized"'
+winmux lens --filter comms
+
+winmux columns place --dry-run --window 4127
+# → { column: "focused", overflow: "split" }`,
+    note: "Arrow functions read fine on a command line. No explanation of which branch fired." },
+},
+{
+  id: "score", title: "Scorecard",
+  q: "The ticket's axes, plus migration, which matters because you run this daily. Green is good, amber is a real cost, red is a gap.",
+  table: [
+    ["Load-time checking",
+     "<span class='g'>Full: types, fields, optionals, functions, against declared Window/App/Monitor/Column.</span>",
+     "<span class='b'>Syntax only. Typos are silent nil.</span>",
+     "<span class='w'>Syntax only at load; field typos caught in the editor via winmux.d.ts, not by WinMux.</span>"],
+    ["Error messages",
+     "<span class='g'>Caret under the bad token, config refused, last good kept.</span>",
+     "<span class='w'>Parse errors are fine; logic errors are silent or runtime stack traces.</span>",
+     "<span class='w'>Good JSC messages, but at event time for null access.</span>"],
+    ["Expressiveness (hooks)",
+     "<span class='w'>Rule tables cover the decided hooks; computed placement needs new vocabulary words in Swift.</span>",
+     "<span class='g'>Anything: local bindings, helpers, computed Columns, macros.</span>",
+     "<span class='g'>Anything, familiar syntax.</span>"],
+    ["Explainability (--dry-run)",
+     "<span class='g'>\"Rule n matched\" for free.</span>",
+     "<span class='w'>Return value only, unless WinMux traces cond.</span>",
+     "<span class='w'>Return value only.</span>"],
+    ["AeroSpace importer / existing configs",
+     "<span class='g'>Your 232-line winmux.toml and AeroSpace configs load unchanged.</span>",
+     "<span class='b'>One-shot TOML→Janet converter, or support both formats forever.</span>",
+     "<span class='g'>Unchanged; winmux.js is optional.</span>"],
+    ["Embedding cost in Swift",
+     "<span class='g'>JavaScriptCore is a system framework; cel-js is already the plan.</span>",
+     "<span class='w'>+1.15 MB object from janet.c (MIT), a C target, hand-written marshalling of Window/App structs into Janet tables, a second GC.</span>",
+     "<span class='g'>Same JSContext that hosts cel-js; JSValue bridging is built in.</span>"],
+    ["Hot reload",
+     "<span class='g'>Parse, check, swap atomically.</span>",
+     "<span class='w'>Re-run the file in a fresh env; top-level side effects (os/shell, spawn) re-run too, so it needs a sandbox.</span>",
+     "<span class='g'>Fresh JSContext, no ambient APIs unless WinMux adds them.</span>"],
+    ["CLI inline expressions",
+     "<span class='g'>Natural.</span>",
+     "<span class='w'>Lambdas at the prompt, or a sugar dialect.</span>",
+     "<span class='g'>Arrow functions.</span>"],
+    ["Fun to write",
+     "<span class='w'>Two syntaxes, CEL strings inside TOML quotes.</span>",
+     "<span class='g'>One syntax end to end. This is the actual pitch.</span>",
+     "<span class='w'>Two files, two syntaxes.</span>"],
+  ],
+  after: `<div class="decide"><strong>Other Lisps, briefly.</strong> <em>Fennel</em> (MIT) compiles to Lua 5.4 (MIT); you'd embed Lua's C sources plus fennel.lua, get Lua's tiny fast VM and a bigger ecosystem, and errors point at Fennel source with decent messages. Same silent-nil problem (Lua tables return nil for missing keys). <em>s7</em> (0BSD) is a single-file Scheme with first-class environments, good for sandboxing reloads, but a much smaller community. Neither changes a row above in a way Janet doesn't already show. Guile got its own column (G) because the Guix record style and compile-time accessor warnings do change the error story.</div>
+<div class="decide"><strong>Hybrids worth reacting to.</strong><br>
+1. <strong>A + escape hatch:</strong> TOML + CEL rule tables for everything decided, plus an optional <code>winmux.js</code> for hooks that need computation, referenced by name. Checked by default, powerful where you opt in.<br>
+2. <strong>A with a Lisp surface for CEL:</strong> write Filters as s-expressions that compile to CEL, keeping the type checker. Gets the look, not the power.<br>
+3. <strong>B with a typed schema:</strong> Janet, but WinMux wraps Window/App as Janet abstract types whose getters error on unknown keys. Fixes the silent typo at runtime (first evaluation), not at load.</div>`,
+},
+];
+
+const MORE = {
+lenses: {
+  hcl: { file: "winmux.hcl", code:
+`locals {
+  comms_apps = ["com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS"]
+}
+
+filter "comms"    { match = contains(local.comms_apps, window.app.bundle_id) }
+filter "same_app" { match = try(focused.app.bundle_id, "") == window.app.bundle_id }
+filter "floaters" { match = contains(["floating", "accessory-popup"], window.class) }
+filter "here" {
+  match = window.project == workspace.project && !filter.floaters
+}
+
+lens "recent" {
+  presentation = "strip"
+  sort         = ["mru"]
+}
+lens "app_windows" {
+  presentation = "strip"
+  filter       = filter.same_app
+  sort         = ["mru"]
+}
+lens "overview" {
+  presentation = "grid"
+  sections     = "workspace"
+  sort         = ["spatial"]
+  when "laptop" { sections = "none" }
+}
+
+mode "main" {
+  bind = {
+    cmd-tab      = "lens recent"
+    cmd-backtick = "lens app_windows"
+  }
+  gesture = { three-finger-swipe-up = "lens overview" }
+}`,
+    note: "Blocks with labels, like Terraform resources. Expressions are unquoted and part of the grammar: <code>locals</code> and <code>when</code> are evaluated once at load, and <code>match</code> is evaluated per window against a different evaluation context (HCL is built for exactly this split). HCL has no user-defined functions, so one Filter reads another as an attribute (<code>filter.floaters</code>), which WinMux computes lazily for the current window." },
+},
+place: {
+  hcl: { file: "winmux.hcl", code:
+`columns {
+  place {
+    rule {
+      if       = filter.comms
+      column   = 3
+      overflow = "tab-group"
+    }
+    rule {
+      if       = window.app.bundle_id == "com.mitchellh.ghostty"
+      column   = "focused"
+      overflow = "split"
+    }
+    rule {
+      if     = anytrue([for c in columns : c.empty])
+      column = "nearest-empty"
+    }
+    rule {
+      column   = "focused"
+      overflow = "tab-group"
+    }
+  }
+}
+
+# computed values are fine inside one expression:
+#   column = [for c in columns : c.index if contains(c.apps, "com.tinyspeck.slackmacgap")][0]`,
+    note: "Rule blocks like A's rule table, but <code>for</code> expressions let a single attribute compute (the Column Slack already sits in), which neither TOML nor CEL can. Still no named helper functions, so the same computation repeated in two rules is copied." },
+},
+boundary: {
+  hcl: { file: "winmux.hcl", code:
+`columns {
+  move_boundary {
+    action = (edge ? (length(columns) == 2 ? "wrap" : "stop")
+                   : (workspace.name == "comms" ? "swap" : "join"))
+    overflow = "tab-group"
+  }
+}`,
+    note: "Or rule blocks as in the place tab. The nested conditional is legal HCL, and <code>terraform fmt</code>-style formatting keeps it readable." },
+},
+overrides: {
+  hcl: { file: "winmux.hcl", code:
+`columns {
+  count         = "off"
+  width_presets = [1/3, 1/2, 2/3]
+  when "ultrawide" {
+    count  = 3
+    widths = [0.25, 0.5, 0.25]
+  }
+}
+
+workspace "comms" {
+  columns {
+    when "ultrawide" {
+      count  = 2
+      widths = [0.4, 0.6]
+    }
+  }
+}
+
+# generate workspaces from data, Terraform for_each style:
+dynamic "workspace" {
+  for_each = { comms = 2, scratch = 1 }
+  content {
+    columns { when "ultrawide" { count = workspace.value } }
+  }
+}`,
+    note: "Same precedence chain as A, with arithmetic (<code>1/3</code>) and <code>dynamic</code> blocks for generating repetitive sections, both at load time." },
+},
+arrival: {
+  hcl: { file: "winmux.hcl", code:
+`arrive {
+  rule {
+    if        = window.app.bundle_id == "com.apple.mail"
+    workspace = "comms"
+    column    = 3
+    overflow  = "tab-group"
+  }
+  rule {
+    if    = window.app.bundle_id == "com.apple.finder" || window.class == "accessory-popup"
+    float = true
+  }
+  rule {
+    if  = window.app.bundle_id == "com.linear"
+    run = ["move-node-to-workspace work", "layout tabs"]
+  }
+}
+
+# routing table from data:
+locals { routes = { "com.apple.mail" = "comms", "com.linear" = "work" } }
+dynamic "rule" {
+  for_each = local.routes
+  content {
+    if        = window.app.bundle_id == rule.key
+    workspace = rule.value
+  }
+}`,
+    note: "Merged arrival works like A's <code>[[arrive]]</code>. <code>dynamic</code> turns a routing map into rules, which is the kind of repetition your codex-columns <code>[[rules]]</code> had." },
+},
+returns: {
+  hcl: { file: "winmux.hcl", code:
+`rule {
+  if        = window.app.bundle_id == "com.apple.mail"
+  workspace = "comms"
+  column    = 3
+  run       = ["layout tabs"]     # runs after placement settles
+}`,
+    note: "Same as A. The command strings are opaque unless WinMux parses them at load." },
+},
+errors: {
+  hcl: { file: "at config load (if WinMux validates against unknown values)", code:
+`filter "same_app" {
+  match = focused.app.bundle_id == window.app.bundel_id
+}`,
+    note: `<div class="err">Error: Unsupported attribute<br>  on winmux.hcl line 2, in filter "same_app":<br>   2:   match = focused.app.bundle_id == window.app.bundel_id<br>This object does not have an attribute named "bundel_id".</div>
+<div class="silent">Catch: this fires at load only if WinMux evaluates every expression against a typed placeholder window, the way terraform validate uses unknown values. Go's hcl + cty does that; whether hcl-rs has typed unknowns is unverified. And try() swallows the error: try(focused.app.bundel_id, "") is silently "" forever.</div>
+<div class="note">The message format is HCL's standard diagnostic (summary, source range, detail), which is some of the best in any config language.</div>` },
+},
+cli: {
+  hcl: { file: "zsh", code:
+`winmux lens --filter 'window.app.name == "Slack" && window.class != "minimized"'
+winmux lens --filter filter.comms
+
+winmux columns place --dry-run --window 4127
+# columns.place.rule[1] matched → column "focused" (2), overflow "split"`,
+    note: "An HCL expression is a fine one-liner. Explanations can cite the block path." },
+},
+score: [
+  ["<span class='w'>Good if WinMux validates with typed unknowns (Terraform-style); try() hides typos.</span>"],
+  ["<span class='g'>HCL diagnostics: summary, source range, detail.</span>"],
+  ["<span class='w'>for-expressions and dynamic blocks compute; no user functions.</span>"],
+  ["<span class='g'>Block path matched.</span>"],
+  ["<span class='b'>TOML→HCL converter (hcl2json exists the other way), or both formats.</span>"],
+  ["<span class='w'>No Swift HCL. hcl-rs (MIT/Apache, has eval) as a Rust staticlib, or Go hashicorp/hcl (MPL-2.0, file-level copyleft) as a c-archive with the Go runtime, or write a Swift parser from the HCL spec.</span>"],
+  ["<span class='g'>Parse, validate, swap.</span>"],
+  ["<span class='g'>Natural.</span>"],
+  ["<span class='g'>Familiar if you like Terraform; one syntax.</span>"],
+],
+};
+
+const MORE2 = {
+lenses: {
+  nickel: { file: "winmux.ncl", code:
+`let W = import "winmux.ncl" in   # shipped by WinMux: contracts, types, defaults
+let comms_apps = ["com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS"] in
+{
+  filters = {
+    comms    = fun w ctx => std.array.elem w.app.bundleId comms_apps,
+    same_app = fun w ctx => ctx.focused != null
+                            && ctx.focused.app.bundleId == w.app.bundleId,
+    floaters = fun w ctx => std.array.elem w.class ['floating, 'accessory_popup],
+    here     = fun w ctx => w.project == ctx.workspace.project
+                            && !(filters.floaters w ctx),
+  },
+
+  lenses = {
+    recent      = { presentation = 'strip, sort = ['mru] },
+    app_windows = { presentation = 'strip, filter = filters.same_app, sort = ['mru] },
+    overview    = { presentation = 'grid, sections = 'workspace, sort = ['spatial],
+                    when.laptop.sections = 'none },
+    floaters    = { presentation = 'grid, filter = filters.floaters },
+  },
+
+  mode.main.binding = {
+    "cmd-tab" = "lens recent",
+    "cmd-backtick" = "lens app_windows",
+  },
+  mode.main.gesture."three-finger-swipe-up" = "lens overview",
+} | W.Config`,
+    note: "JSON with functions, let and a real type system. The whole file is checked against WinMux's <code>W.Config</code> contract when it loads, so a misspelled field name or a bad enum tag (<code>'stirp</code>) fails at load. Records are recursive, so <code>here</code> calls <code>filters.floaters</code> directly. Function bodies are checked statically only where they carry type annotations; see the Errors tab." },
+  dhall: { file: "winmux.dhall", code:
+`let W = ./winmux/package.dhall   -- schema + defaults shipped with WinMux
+                                 -- (or a URL pinned with sha256:…)
+
+let comms    = W.Match::{ appIds = [ "com.tinyspeck.slackmacgap", "com.apple.mail", "com.apple.MobileSMS" ] }
+let floaters = W.Match::{ classes = [ W.Class.Floating, W.Class.AccessoryPopup ] }
+let sameApp  = W.Match::{ sameAppAsFocused = True }
+
+in  W.Config::{
+    , filters = toMap { comms, floaters, sameApp }
+    , lenses = toMap
+        { recent     = W.Lens::{ presentation = W.Presentation.Strip, sort = [ W.Sort.Mru ] }
+        , appWindows = W.Lens::{ presentation = W.Presentation.Strip
+                               , filter = Some "sameApp", sort = [ W.Sort.Mru ] }
+        , overview   = W.Lens::{ presentation = W.Presentation.Grid
+                               , sections = W.Sections.Workspace, sort = [ W.Sort.Spatial ]
+                               , when = toMap { laptop = W.LensPatch::{ sections = Some W.Sections.None } } }
+        }
+    , bindings = toMap { cmd-tab = "lens recent", cmd-backtick = "lens appWindows" }
+    }`,
+    note: "Filters aren't expressions here, and that's forced: Dhall deliberately can't compare <code>Text</code> for equality (its own design docs say so), so <code>bundleId == \"…\"</code> is unwritable. A Filter becomes a record of criteria WinMux defines (<code>appIds</code>, <code>classes</code>, <code>sameAppAsFocused</code>), much like AeroSpace's <code>if.app-id</code>. Everything is typed, total (always terminates) and importable by URL with a hash." },
+  guile: { file: "winmux.scm", code:
+`(use-modules (winmux config) (srfi srfi-1))
+
+(define comms-apps
+  '("com.tinyspeck.slackmacgap" "com.apple.mail" "com.apple.MobileSMS"))
+
+(define (comms? w ctx)    (member (window-bundle-id w) comms-apps))
+(define (same-app? w ctx) (and=> (context-focused ctx)
+                                 (lambda (f) (string=? (window-bundle-id f)
+                                                       (window-bundle-id w)))))
+(define (floater? w ctx)  (memq (window-class w) '(floating accessory-popup)))
+
+(winmux-configuration
+  (lenses
+    (list (lens (name 'recent)      (presentation 'strip) (sort '(mru)))
+          (lens (name 'app-windows) (presentation 'strip) (filter same-app?) (sort '(mru)))
+          (lens (name 'overview)    (presentation 'grid)  (sections 'workspace) (sort '(spatial))
+                (per-profile (list (lens-patch (profile 'laptop) (sections 'none)))))
+          (lens (name 'floaters)    (presentation 'grid)  (filter floater?))))
+  (bindings
+    (list (binding (mode 'main) (key "cmd-tab")      (run "lens recent"))
+          (binding (mode 'main) (key "cmd-backtick") (run "lens app-windows"))))
+  (gestures
+    (list (gesture (mode 'main) (motion "three-finger-swipe-up") (run "lens overview")))))`,
+    note: "Guix's configuration style: nested record constructors with named fields (<code>(lens (name …) (presentation …))</code>) and plain Scheme functions for logic. Window fields are accessor procedures (<code>window-bundle-id</code>), not keyword lookups, which matters for typos (Errors tab). Guix itself only runs on GNU/Linux and Hurd, so this is Guile embedded in WinMux with Guix's look, not Guix." },
+},
+place: {
+  nickel: { file: "winmux.ncl", code:
+`columns.place = fun w ctx cols =>
+  let focus_here = ctx.focused != null
+                   && ctx.focused.workspace == ctx.workspace.name in
+  if filters.comms w ctx then
+    { column = 3, overflow = 'tab_group }
+  else if w.app.bundleId == "com.mitchellh.ghostty" then
+    { column = 'focused, overflow = 'split }
+  else if std.array.any (fun c => c.empty) cols then
+    { column = 'nearest_empty }
+  else
+    { column = if focus_here then 'focused else 'mru, overflow = 'tab_group },
+
+# computed placement:
+fewest_windows = fun cols =>
+  std.array.fold_left (fun a c => if std.array.length c.windows < std.array.length a.windows
+                                  then c else a) (std.array.first cols) cols,`,
+    note: "Full computation with <code>let</code>. <code>W.Config</code> wraps <code>place</code> in a function contract, so every returned record is checked against the Placement contract on each call; a bad tag like <code>'focussed</code> is caught when it's returned (real Nickel output on the Errors tab), not at load." },
+  dhall: { file: "winmux.dhall", code:
+`, columns = W.Columns::{
+  , place =
+    [ W.Rule::{ match = comms, column = W.Column.Index 3, overflow = Some W.Overflow.TabGroup }
+    , W.Rule::{ match = W.Match::{ appIds = [ "com.mitchellh.ghostty" ] }
+              , column = W.Column.Focused, overflow = Some W.Overflow.Split }
+    , W.Rule::{ match = W.Match::{ anyColumnEmpty = True }, column = W.Column.NearestEmpty }
+    , W.Rule::{ column = W.Column.Focused, overflow = Some W.Overflow.TabGroup }
+    ]
+  }
+
+-- computed placement: only as a new constructor WinMux adds, e.g.
+--   column = W.Column.HoldingApp "com.tinyspeck.slackmacgap"`,
+    note: "A's rule table, fully typed: <code>W.Column.Focussed</code> is a load-time error. Dhall functions can generate rules from lists at load, but nothing can inspect the window at runtime, so the ceiling is A's: every new kind of decision is a constructor added in Swift." },
+  guile: { file: "winmux.scm", code:
+`(define (focus-here? ctx)
+  (and=> (context-focused ctx)
+         (lambda (f) (equal? (window-workspace f) (context-workspace-name ctx)))))
+
+(define (place w ctx cols)
+  (cond
+    ((comms? w ctx)
+     (placement (column 3) (overflow 'tab-group)))
+    ((string=? (window-bundle-id w) "com.mitchellh.ghostty")
+     (placement (column 'focused) (overflow 'split)))
+    ((any column-empty? cols)
+     (placement (column 'nearest-empty)))
+    (else
+     (placement (column (if (focus-here? ctx) 'focused 'mru)) (overflow 'tab-group)))))
+
+(define (fewest-windows cols)
+  (reduce (lambda (c a) (if (< (length (column-windows c)) (length (column-windows a))) c a))
+          #f cols))`,
+    note: "Janet's power with Guix records for the return value: a misspelled field in <code>(placement (colum 3))</code> fails when the file is compiled at load, but a bad value (<code>'focussed</code>) only when the hook returns it." },
+},
+boundary: {
+  nickel: { file: "winmux.ncl", code:
+`columns.move_boundary = fun w ctx cols edge =>
+  if edge then
+    { action = if std.array.length cols == 2 then 'wrap else 'stop }
+  else if ctx.workspace.name == "comms" then
+    { action = 'swap }
+  else
+    { action = 'join, overflow = 'tab_group },`,
+    note: "Same shape as the JS version, with the return checked by contract." },
+  dhall: { file: "winmux.dhall", code:
+`, moveBoundary =
+  [ W.BoundaryRule::{ atEdge = Some True, columnCount = Some 2, action = W.Boundary.Wrap }
+  , W.BoundaryRule::{ atEdge = Some True, action = W.Boundary.Stop }
+  , W.BoundaryRule::{ workspaces = [ "comms" ], action = W.Boundary.Swap }
+  , W.BoundaryRule::{ action = W.Boundary.Join W.Overflow.TabGroup }
+  ]`,
+    note: "Criteria again: <code>workspaces = [\"comms\"]</code> is a list WinMux compares, since Dhall can't." },
+  guile: { file: "winmux.scm", code:
+`(define (move-boundary w ctx cols edge?)
+  (cond
+    ((and edge? (= (length cols) 2)) (boundary (action 'wrap)))
+    (edge?                           (boundary (action 'stop)))
+    ((equal? (context-workspace-name ctx) "comms") (boundary (action 'swap)))
+    (else (boundary (action 'join) (overflow 'tab-group)))))`,
+    note: "Same shape as Janet." },
+},
+overrides: {
+  nickel: { file: "winmux.ncl", code:
+`columns = {
+  count | default = 'off,
+  width_presets = [1/3, 1/2, 2/3],        # exact rationals
+  when.ultrawide = { count = 3, widths = [1/4, 1/2, 1/4] },
+},
+
+workspace.comms.columns.when.ultrawide = { count = 2, widths = [2/5, 3/5] },
+workspace.scratch.columns.when.ultrawide.count = 1,
+
+# layering is built in: another file merged with & can override
+# anything marked | default, and | force wins over plain values
+# (import "work-laptop.ncl") & (import "winmux.ncl")`,
+    note: "Nickel's merge operator with <code>default</code>/<code>force</code> priorities is a native answer to \"layered config\" (a work-laptop file over a base). Merging two plain values that disagree is an error, not last-wins. Numbers are exact rationals, so widths can sum to exactly 1. The runtime Display-profile chain still lives in WinMux's <code>when</code> tables." },
+  dhall: { file: "winmux.dhall", code:
+`let cols = \\(n : Natural) -> W.ColumnsPatch::{ count = Some (W.Count.Fixed n) }
+
+in  W.Config::{
+    , columns = W.Columns::{
+      , count = W.Count.Off
+      , widthPresets = [ 0.333, 0.5, 0.667 ]
+      , when = toMap { ultrawide = cols 3 // { widths = Some [ 0.25, 0.5, 0.25 ] } }
+      }
+    , workspaces = toMap
+        { comms   = W.Workspace::{ columns = toMap { ultrawide = cols 2 } }
+        , scratch = W.Workspace::{ columns = toMap { ultrawide = cols 1 } }
+        }
+    }`,
+    note: "Functions (<code>cols</code>) and the <code>//</code> override operator remove repetition at load. Dhall has no rationals; <code>Double</code> it is." },
+  guile: { file: "winmux.scm", code:
+`(columns-configuration
+  (count 'off)
+  (width-presets '(1/3 1/2 2/3))           ; Scheme has exact rationals too
+  (per-profile (list (columns-patch (profile 'ultrawide) (count 3) (widths '(1/4 1/2 1/4))))))
+
+(define (ultrawide-count n)
+  (list (columns-patch (profile 'ultrawide) (count n))))
+
+(workspace (name "comms")   (columns (ultrawide-count 2)))
+(workspace (name "scratch") (columns (ultrawide-count 1)))`,
+    note: "Guix inherits records with <code>(inherit base)</code> to override a few fields, which WinMux's record macro could copy for layered configs." },
+},
+arrival: {
+  nickel: { file: "winmux.ncl", code:
+`arrive = fun w ctx cols =>
+  let id = w.app.bundleId in
+  if id == "com.apple.mail" then
+    { workspace = "comms", column = 3, overflow = 'tab_group }
+  else if id == "com.apple.finder" || w.class == 'accessory_popup then
+    { float = true }
+  else
+    columns.place w ctx cols,`,
+    note: "Same as Janet and JS, including the two-step subtlety when routing to another workspace." },
+  dhall: { file: "winmux.dhall", code:
+`, arrive =
+  [ W.Rule::{ match = W.Match::{ appIds = [ "com.apple.mail" ] }
+            , workspace = Some "comms", column = W.Column.Index 3 }
+  , W.Rule::{ match = W.Match::{ appIds = [ "com.apple.finder" ] }, float = True }
+  , W.Rule::{ match = W.Match::{ classes = [ W.Class.AccessoryPopup ] }, float = True }
+  ]
+  -- List/map generates a routing table:
+  -- List/map Route W.Rule (\\(r : Route) -> W.Rule::{ match = W.Match::{ appIds = [ r.app ] }
+  --                                                , workspace = Some r.workspace }) routes`,
+    note: "Rows, like A's <code>[[arrive]]</code>, generated from data if you like. No <code>or</code> across criteria inside one Match unless WinMux defines it, so Finder and accessory popups are two rows." },
+  guile: { file: "winmux.scm", code:
+`(define (arrive w ctx cols)
+  (let ((id (window-bundle-id w)))
+    (cond
+      ((string=? id "com.apple.mail")
+       (placement (workspace "comms") (column 3) (overflow 'tab-group)))
+      ((or (string=? id "com.apple.finder") (eq? (window-class w) 'accessory-popup))
+       (placement (float? #t)))
+      (else (place w ctx cols)))))`,
+    note: "Same as Janet." },
+},
+returns: {
+  nickel: { file: "winmux.ncl", code:
+`# fixed vocabulary:
+{ workspace = "comms", column = 3, overflow = 'tab_group }
+
+# mixed:
+{ workspace = "comms", column = 3, run = ["layout tabs"] }`,
+    note: "Same trade-off as A." },
+  dhall: { file: "winmux.dhall", code:
+`W.Rule::{ match = W.Match::{ appIds = [ "com.apple.mail" ] }
+        , workspace = Some "comms", column = W.Column.Index 3
+        , run = [ "layout tabs" ] }`,
+    note: "Commands could even be a typed union (<code>W.Cmd.Layout W.Layout.Tabs</code>), making them checkable, at the price of spelling every command as a constructor." },
+  guile: { file: "winmux.scm", code:
+`(placement (workspace "comms") (column 3) (run '("layout tabs")))
+
+;; or the Lisp temptation again: call commands directly
+(winmux-command "layout tabs")`,
+    note: "Same temptation as Janet: side effects mid-layout." },
+},
+errors: {
+  nickel: { file: "at config load / when a hook returns", code:
+`# 1. typo, in a hook with a type annotation
+same_app : { app : { bundleId : String } } -> { app : { bundleId : String } } -> Bool
+  = fun focused w => focused.app.bundelId == w.app.bundleId
+
+# 2. bad enum tag in a returned placement
+{ p | Placement = { column = 'focussed, overflow = 'tab_group } }`,
+    note: `<div class="err">error: type error: missing field \`bundelId\`<br>  ┌─ t3.ncl:2:22<br>2 │   = fun focused w => focused.app.bundelId == w.app.bundleId in<br>  │                      ^^^^^^^^^^^ -------- \`bundelId\` required here<br>  │                      this record lacks \`bundelId\`<br>  = Attempted to access field \`bundelId\` on an expression of type \`{ bundleId : String }\`</div>
+<div class="err">error: contract broken by the value of \`column\`<br>       tag not in the enum type<br>2 │ { p | Placement = { column = 'focussed, overflow = 'tab_group } }<br>  │                              ^^^^^^^^^ applied to this expression</div>
+<div class="silent">Both real output from nickel 1.18.0 on this Mac. The catch: the static check needs the record type written inline. A named alias like W.Window counts as a contract, which Nickel checks only when the function runs ("Static types and contracts are not compatible"). An unannotated hook is checked only when it's called.</div>` },
+  dhall: { file: "at config load", code:
+`-- 1. typo in a field
+W.Lens::{ presentaton = W.Presentation.Grid }
+
+-- 2. the thing you can't write
+W.Match::{ custom = \\(w : W.Window) -> w.app.bundleId == "com.apple.mail" }`,
+    note: `<div class="err">1. Load-time type error. Dhall reports the mismatch as a diff between the expected record type and yours, so the misspelled field is highlighted, but messages run long. (Illustrative, not captured.)</div>
+<div class="err">2. Load-time error: == only works on Bool. Not a typo; the language forbids it.</div>
+<div class="ok">Nothing is ever silent, and nothing can loop or crash at runtime.</div>` },
+  guile: { file: "at config load / when a window arrives", code:
+`;; 1. typo in an accessor
+(define (same-app? w ctx)
+  (and=> (context-focused ctx)
+         (lambda (f) (string=? (window-bundel-id f) (window-bundle-id w)))))
+
+;; 2. typo in a record field
+(lens (name 'overview) (presentaton 'grid))`,
+    note: `<div class="err">1. At load, if WinMux compiles the file with warnings as errors: "warning: possibly unbound variable \`window-bundel-id'", with file, line and column. Accessors are procedures, so a typo is an unbound name the compiler can see. Janet's keyword lookup has no equivalent.</div>
+<div class="err">2. At load: the record macro rejects the unknown field, Guix-style ("extraneous field initializers (presentaton)"). WinMux would write that macro itself; Guix's is GPL-3.</div>
+<div class="silent">Type errors, like string=? on #f, surface only when a window arrives, as a Scheme backtrace.</div>` },
+},
+cli: {
+  nickel: { file: "zsh", code:
+`winmux lens --filter "fun w ctx => w.app.name == \\"Slack\\" && w.class != 'minimized"
+winmux lens --filter comms`,
+    note: "Enum tags start with <code>'</code>, which collides with zsh single quotes, so inline Filters need double quotes and escaped strings. WinMux could accept just the body with <code>w</code> and <code>ctx</code> bound." },
+  dhall: { file: "zsh", code:
+`winmux lens --filter 'W.Match::{ appNames = [ "Slack" ], excludeClasses = [ W.Class.Minimized ] }'
+winmux lens --filter sameApp`,
+    note: "Works if WinMux puts <code>W</code> in scope, but it's criteria, not a question. The CLI would probably grow its own flags (<code>--app Slack --not-class minimized</code>)." },
+  guile: { file: "zsh", code:
+`winmux lens --filter '(lambda (w ctx) (and (string=? (window-app-name w) "Slack")
+                                           (not (eq? (window-class w) (quote minimized)))))'`,
+    note: "<code>'minimized</code> can't appear inside zsh single quotes, hence <code>(quote minimized)</code>. Same lambda-at-a-prompt cost as Janet." },
+},
+score: [
+  ["<span class='g'>Config shape checked by contract at load; typed function bodies checked statically (real output). Unannotated hooks: when called.</span>",
+   "<span class='g'>Everything typed and total, checked at load. Nothing can be silent.</span>",
+   "<span class='w'>Unbound accessors warned at compile; record fields checked at load; types at runtime.</span>"],
+  ["<span class='g'>Rust-style diagnostics with spans (real output on Errors tab).</span>",
+   "<span class='w'>Precise type diffs, famously long.</span>",
+   "<span class='w'>Terse compiler warnings; runtime errors are Scheme backtraces.</span>"],
+  ["<span class='g'>Functions, let, recursion, merge priorities, gradual types.</span>",
+   "<span class='b'>No Text equality: per-window logic is limited to criteria WinMux defines. Functions only generate config at load.</span>",
+   "<span class='g'>Full Scheme: macros, match, records.</span>"],
+  ["<span class='w'>Return value only.</span>",
+   "<span class='g'>Rules are data: rule n matched.</span>",
+   "<span class='w'>Return value only.</span>"],
+  ["<span class='w'>Converter needed for Lenses and hooks. Nickel can import a .toml file directly, so your current file could be merged in as a base layer (documented, not tried).</span>",
+   "<span class='b'>Converter; dhall-toml has toml-to-dhall, but it needs a schema (not tried).</span>",
+   "<span class='b'>TOML→Scheme converter, or both formats.</span>"],
+  ["<span class='w'>Official C API (nickel_lang.h) and a 13.3 MB arm64 dylib in the 1.18 release (verified). The API evaluates source text, with no call-this-function entry point, so each hook call re-enters the evaluator (cost unverified). The macOS release artifacts link libiconv from /nix/store, so you'd build from source.</span>",
+   "<span class='b'>No Swift or C library. The reference implementation is Haskell (GHC runtime); dhall-rust has no C API. Realistically dhall-to-json at load, which only fits a config that's pure data.</span>",
+   "<span class='w'>libguile is built for embedding (LGPL-3.0+, so it has to be dynamically linked), plus its compiled module tree and the Boehm GC in-process; sizes unverified.</span>"],
+  ["<span class='g'>Pure: re-evaluate, swap.</span>",
+   "<span class='g'>Pure and total: can't hang.</span>",
+   "<span class='w'>Recompile into a fresh module; top-level side effects re-run.</span>"],
+  ["<span class='w'>Enum-tag quote fights zsh.</span>",
+   "<span class='b'>Criteria records; the CLI would want its own flags.</span>",
+   "<span class='w'>Lambdas at the prompt, quote fights zsh.</span>"],
+  ["<span class='g'>One syntax, JSON-shaped, types when you want them.</span>",
+   "<span class='w'>One syntax, very strict, verbose.</span>",
+   "<span class='g'>One syntax, the Lisp you asked about, Guix-style records.</span>"],
+],
+};
+
+for (const t of TABS) {
+  if (!t.table) Object.assign(t, MORE[t.id], MORE2[t.id]);
+  else t.table.forEach((row, i) => row.push(...MORE.score[i], ...MORE2.score[i]));
+}
+
+const tabsEl = document.getElementById("tabs");
+const view = document.getElementById("view");
+let current = "lenses";
+
+function render() {
+  tabsEl.innerHTML = "";
+  for (const t of TABS) {
+    const b = document.createElement("button");
+    b.textContent = t.title;
+    if (t.id === current) b.className = "on";
+    b.onclick = () => { current = t.id; history.replaceState(null, "", "#" + t.id); render(); };
+    tabsEl.appendChild(b);
+  }
+  const picker = document.getElementById("picker");
+  picker.innerHTML = "Compare:";
+  for (const c of CANDS) {
+    const b = document.createElement("button");
+    b.textContent = c.name;
+    if (shown.has(c.id)) b.className = "on";
+    b.onclick = () => { shown.has(c.id) ? shown.delete(c.id) : shown.add(c.id); render(); };
+    picker.appendChild(b);
+  }
+  const vis = CANDS.map((c, i) => [c, i]).filter(([c]) => shown.has(c.id));
+  const t = TABS.find((x) => x.id === current);
+  view.innerHTML = "";
+  const q = document.createElement("div");
+  q.className = "q"; q.textContent = t.q; view.appendChild(q);
+  if (t.table) {
+    const wrap = document.createElement("div"); wrap.className = "table-wrap";
+    let html = "<table><tr><th></th>" + vis.map(([c]) => "<th>" + c.name + "</th>").join("") + "</tr>";
+    for (const row of t.table) html += "<tr><td>" + row[0] + "</td>" + vis.map(([, i]) => "<td>" + row[i + 1] + "</td>").join("") + "</tr>";
+    wrap.innerHTML = html + "</table>";
+    view.appendChild(wrap);
+    const after = document.createElement("div"); after.innerHTML = t.after; view.appendChild(after);
+    return;
+  }
+  const cols = document.createElement("div"); cols.className = "cols";
+  for (const [c] of vis) {
+    const d = t[c.id];
+    const col = document.createElement("div"); col.className = "col";
+    const h = document.createElement("h3"); h.textContent = c.name; col.appendChild(h);
+    const f = document.createElement("div"); f.className = "file"; f.textContent = d.file; col.appendChild(f);
+    const src = document.createElement("div"); src.className = "src";
+    const pre = document.createElement("pre"); pre.textContent = d.code; src.appendChild(pre); col.appendChild(src);
+    const n = document.createElement("div"); n.className = "note"; n.innerHTML = d.note; col.appendChild(n);
+    cols.appendChild(col);
+  }
+  view.appendChild(cols);
+}
+const hash = location.hash.slice(1);
+if (TABS.some((t) => t.id === hash)) current = hash;
+render();
+</script>
+</body>
+</html>

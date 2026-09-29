@@ -9,7 +9,7 @@ A named way to find windows: a Filter, a Presentation, sort order, and the actio
 _Avoid_: picker, picker binding, switcher, exposé, overview, Mission Control
 
 **Filter**:
-A named predicate over windows, written in CEL and type-checked when the config loads, evaluated against a Filter context each time a Lens opens. A Filter only says yes or no; ordering belongs to the Lens.
+A named yes/no function over windows, checked when the config loads, evaluated against a Filter context each time a Lens opens. A Filter only says yes or no; ordering belongs to the Lens.
 _Avoid_: query, rule, scope
 
 **Window class**:
@@ -51,7 +51,7 @@ The action taken when a window's target Column is already occupied: join its tab
 _Avoid_: fallback
 
 **Policy hook**:
-A decision point where WinMux asks the config what to do, given the window and its context, and gets back one of a fixed set of actions. For example, where a new window goes, or what a move does at a Column edge.
+A decision point where WinMux asks the config what to do, given the window and its context, and gets back one of a fixed set of actions, optionally followed by commands to run once the action has settled. For example, where an arriving window goes (workspace, floating, Column), or what a move does at a Column edge.
 _Avoid_: rule, callback
 
 **Display profile**:
