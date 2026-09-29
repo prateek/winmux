@@ -9,6 +9,8 @@ WinMux (like AeroSpace) hides windows on inactive workspaces by parking them off
 
 ## Answer
 
+> Amended 2026-09-29 by [Task: measure thumbnail capture on Prateek's machine](14-task-measure-thumbnail-capture.md): the staleness caveat is now measured. Covered Chrome, Electron and Metal windows freeze on their last frame (Safari doesn't), so a capture taken after the park still gets the park-time frame, and re-capturing parked windows on Lens open mostly repeats it. Hidden-app windows still need capturing before the hide. The 2-in-flight gate is confirmed.
+
 - ScreenCaptureKit one-shot capture on macOS 26+ works for parked (partially off-screen) and minimized windows. Hidden-app (ordered-out) windows can't be captured, and fullscreen windows on an inactive Space need `captureSampleBuffer`. `CGWindowListCreateImage` is obsoleted in the macOS 15 SDK and can't capture minimized windows.
 - Cost: the OS serializes captures at roughly 40 ms each (AltTab measured 43 windows in 1.7 s), so 50 windows take about 2 s. The Picker can never wait on capture.
 - Strategy: cache a thumbnail-sized frame per window on WinMux's `Window`. Capture on park and on focus-out, throttled. Render the Picker from the cache immediately and refresh visible tiles first behind a 2-in-flight gate. Fall back to the app icon.

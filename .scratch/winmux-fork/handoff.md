@@ -15,7 +15,7 @@ A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (fi
 
 Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open`; a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
 
-Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: "Task: live check of Ghost Pepper's windows under WinMux" needs Ghost Pepper installed and the WinMux server running (neither was, 2026-09-29), and the display-capture task needs him at the ultrawide with BetterDisplay running.
+Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: "Task: live check of Ghost Pepper's windows under WinMux" needs Ghost Pepper installed and the WinMux server running (neither was, 2026-09-29), and the display-capture task needs him at the ultrawide with BetterDisplay running. On 2026-09-29 the session ran on a Mac mini (`Mac16,10`) with a 1× virtual display, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
 
 ## Repo setup
 

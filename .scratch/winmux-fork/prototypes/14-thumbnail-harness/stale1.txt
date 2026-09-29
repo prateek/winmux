@@ -1,0 +1,49 @@
+target 3900 Google Chrome frame=(22.0, 52.0, 1200.0, 1006.0) strip=false
+visible: changed=0.900 uniform=0.015 title=[clock visible] -> [clock visible]
+occluded 1-3s: changed=0.000 uniform=0.013 title=[clock visible] -> [clock hidden]
+occluded 8-10s: changed=0.000 uniform=0.013 title=[clock hidden] -> [clock hidden]
+uncovered +0.3s vs last occluded: changed=0.899
+uncovered 1.3-3.3s: changed=0.896 uniform=0.016 title=[clock visible] -> [clock visible]
+
+target 3900 Google Chrome frame=(22.0, 52.0, 1200.0, 1006.0) strip=true
+visible: changed=0.895 uniform=0.017 title=[clock visible] -> [clock visible]
+occluded 1-3s: changed=0.898 uniform=0.016 title=[clock visible] -> [clock visible]
+occluded 8-10s: changed=0.902 uniform=0.013 title=[clock visible] -> [clock visible]
+uncovered +0.3s vs last occluded: changed=0.896
+uncovered 1.3-3.3s: changed=0.898 uniform=0.013 title=[clock visible] -> [clock visible]
+
+target 3909 Safari frame=(204.0, 30.0, 1512.0, 1050.0) strip=false
+visible: changed=0.938 uniform=0.013 title=[clock visible] -> [clock visible]
+occluded 1-3s: changed=0.975 uniform=0.004 title=[clock hidden] -> [clock hidden]
+occluded 8-10s: changed=0.936 uniform=0.012 title=[clock hidden] -> [clock hidden]
+uncovered +0.3s vs last occluded: changed=0.977
+uncovered 1.3-3.3s: changed=0.979 uniform=0.013 title=[clock visible] -> [clock visible]
+
+target 3909 Safari frame=(204.0, 30.0, 1512.0, 1050.0) strip=true
+visible: changed=0.981 uniform=0.011 title=[clock visible] -> [clock visible]
+occluded 1-3s: changed=0.985 uniform=0.003 title=[clock visible] -> [clock visible]
+occluded 8-10s: changed=0.980 uniform=0.003 title=[clock visible] -> [clock visible]
+uncovered +0.3s vs last occluded: changed=0.978
+uncovered 1.3-3.3s: changed=0.979 uniform=0.005 title=[clock visible] -> [clock visible]
+
+target 3912 Ghostty frame=(171.0, 76.0, 1189.0, 692.0) strip=false
+visible: changed=0.029 uniform=0.000 title=[sh] -> [sh]
+occluded 1-3s: changed=0.000 uniform=0.000 title=[sh] -> [sh]
+occluded 8-10s: changed=0.000 uniform=0.000 title=[sh] -> [sh]
+uncovered +0.3s vs last occluded: changed=0.032
+uncovered 1.3-3.3s: changed=0.029 uniform=0.000 title=[sh] -> [sh]
+
+target 3912 Ghostty frame=(171.0, 76.0, 1189.0, 692.0) strip=true
+visible: changed=0.030 uniform=0.000 title=[sh] -> [sh]
+occluded 1-3s: changed=0.030 uniform=0.000 title=[sh] -> [sh]
+occluded 8-10s: changed=0.030 uniform=0.000 title=[sh] -> [sh]
+uncovered +0.3s vs last occluded: changed=0.028
+uncovered 1.3-3.3s: changed=0.031 uniform=0.000 title=[sh] -> [sh]
+
+target 2074 Orca frame=(0.0, 30.0, 1920.0, 1050.0) strip=false
+visible: changed=0.000 uniform=0.000 title=[Orca] -> [Orca]
+occluded 1-3s: changed=0.000 uniform=0.000 title=[Orca] -> [Orca]
+occluded 8-10s: changed=0.000 uniform=0.000 title=[Orca] -> [Orca]
+uncovered +0.3s vs last occluded: changed=0.002
+uncovered 1.3-3.3s: changed=0.000 uniform=0.000 title=[Orca] -> [Orca]
+

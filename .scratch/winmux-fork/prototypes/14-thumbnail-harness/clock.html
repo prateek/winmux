@@ -1,0 +1,5 @@
+<!doctype html><html><body style="margin:0;font:bold 20vw monospace;display:flex;align-items:center;justify-content:center;height:100vh">
+<div id=c></div><script>
+let n=0;setInterval(()=>{n++;document.getElementById('c').textContent=(n%1000).toString().padStart(3,'0');
+document.body.style.background=`hsl(${(n*37)%360} 70% 50%)`;document.title='clock '+document.visibilityState},100)
+</script></body></html>

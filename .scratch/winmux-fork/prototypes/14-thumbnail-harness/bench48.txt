@@ -1,0 +1,16 @@
+app windows (x6): 48
+  3912 Ghostty onScreen=true 1189x692 sh
+  3912 Ghostty onScreen=true 1189x692 sh
+  3912 Ghostty onScreen=true 1189x692 sh
+  3912 Ghostty onScreen=true 1189x692 sh
+  3912 Ghostty onScreen=true 1189x692 sh
+  3912 Ghostty onScreen=true 1189x692 sh
+width=320 inFlight=1 rep=0 total=1604.7 ms fails=0 per: n=48 min=28.5 p50=33.0 p90=36.8 max=40.2 ms
+width=320 inFlight=1 rep=1 total=1599.1 ms fails=0 per: n=48 min=28.9 p50=33.0 p90=37.1 max=39.7 ms
+width=320 inFlight=1 rep=2 total=1601.6 ms fails=0 per: n=48 min=30.0 p50=33.3 p90=36.2 max=37.1 ms
+width=320 inFlight=2 rep=0 total=1034.6 ms fails=0 per: n=48 min=35.9 p50=42.0 p90=47.5 max=57.1 ms
+width=320 inFlight=2 rep=1 total=1050.8 ms fails=0 per: n=48 min=36.0 p50=42.6 p90=48.2 max=55.0 ms
+width=320 inFlight=2 rep=2 total=1021.7 ms fails=0 per: n=48 min=35.8 p50=41.8 p90=45.6 max=54.9 ms
+width=320 inFlight=4 rep=0 total=1020.9 ms fails=0 per: n=48 min=35.3 p50=84.7 p90=87.6 max=101.7 ms
+width=320 inFlight=4 rep=1 total=1007.2 ms fails=0 per: n=48 min=37.7 p50=81.7 p90=88.1 max=100.6 ms
+width=320 inFlight=4 rep=2 total=1015.0 ms fails=0 per: n=48 min=37.2 p50=83.2 p90=85.8 max=102.8 ms
