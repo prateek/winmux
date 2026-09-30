@@ -19,6 +19,8 @@ Sub-questions surfaced by the layout-engine research:
 
 ## Answer
 
+> Amended (2026-09-30): [Prototype: grid Presentation look and behaviour](08-prototype-grid-presentation.md) decided that `summon` counts as a tiling window arriving on the current workspace, so `place` picks its Column. `arrive` doesn't run for it.
+
 > Amended (2026-09-29): [Prototype: config and scripting language](27-prototype-config-language.md) chose Nickel, merged `[[on-window-detected]]` and `place` into one `arrive` hook, and let hook results add an optional `run` list of commands after the fixed placement action.
 
 Grilled with Prateek on 2026-09-29.

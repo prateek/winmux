@@ -12,6 +12,8 @@ From the thumbnails research: WinMux has no global MRU (only recent children per
 
 ## Answer
 
+> Amended (2026-09-30): [Prototype: grid Presentation look and behaviour](08-prototype-grid-presentation.md) added a third Presentation, `'miniatures`, configured by a `miniatures` record. Under it the contract rejects `sections`, `entries` and `sort`, because windows keep their real positions. The default `overview` Lens is now `presentation = 'miniatures`, not a grid.
+
 > Amended (2026-09-29): [Prototype: config and scripting language](27-prototype-config-language.md) made the config Nickel, so `[lenses.<name>]` is now the `lenses.<name>` record, and inline Filters are Nickel functions rather than CEL. The shapes below otherwise stand.
 
 Grilled with Prateek on 2026-09-29. "Picker" is retired as a term: the configured unit is a **Lens** (see `CONTEXT.md`).

@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid Presentation prototype</title>
+<!--
+  PROTOTYPE, throw away. Ticket 08: "Prototype: grid Presentation look and behaviour".
+  One configurable grid for the `overview` Lens. Every design choice is its own switch, numbered to
+  match the breakdown given to Prateek on 2026-09-29; presets A-D reproduce the first round's four variants.
+  The whole setting set round-trips through the URL (?c=...), so a chosen combination can be shared.
+-->
+<style>
+:root {
+  --bg: #fafaf8; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e4e0;
+  --accent: #3b5bdb; --accent-soft: #e7ecff;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --sel: #4c8dff; --summon: #f59f00; --live: #37b24d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececec; --muted: #9a9aa2; --line: #333338;
+    --accent: #8ea2ff; --accent-soft: #262d4a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { max-width: 1900px; margin: 0 auto; padding: 16px 20px 4px; }
+h1 { margin: 0 0 2px; font-size: 22px; }
+.lede { color: var(--muted); margin: 0 0 6px; max-width: 1100px; }
+details { max-width: 1100px; font-size: 13px; margin: 4px 0 6px; }
+details li { margin-bottom: 3px; }
+code { font-family: var(--mono); font-size: 12px; }
+.axes { max-width: 1900px; margin: 0 auto; padding: 8px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 2px 18px; font-size: 12.5px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.axis { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-height: 28px; }
+.axis .lbl { color: var(--muted); width: 118px; flex: none; }
+.axis .lbl b { color: var(--ink); font-weight: 600; }
+.axis button { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.axis button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.axis button:disabled { opacity: .35; cursor: not-allowed; }
+.axis .why { color: var(--muted); font-size: 11px; font-style: italic; }
+.axis.env .lbl { color: var(--muted); }
+.stage-wrap { max-width: 1900px; margin: 0 auto; padding: 10px 20px 90px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+@media (max-width: 1000px) { .stage-wrap { grid-template-columns: minmax(0,1fr); } }
+#frameOuter { overflow: auto; border-radius: 10px; background: #000; }
+#frameOuter.fit { overflow: hidden; }
+#frameScaler { transform-origin: 0 0; }
+.statepanel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; align-self: start; position: sticky; top: 10px; }
+.statepanel h3 { margin: 0 0 6px; font-size: 13px; }
+.statepanel table { width: 100%; border-collapse: collapse; }
+.statepanel td { padding: 2px 0; vertical-align: top; }
+.statepanel td:first-child { color: var(--muted); width: 84px; }
+.statepanel pre { font-family: var(--mono); font-size: 11px; background: var(--bg); padding: 6px; border-radius: 6px; white-space: pre-wrap; margin: 6px 0; }
+.statepanel button { font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.log { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.log div:first-child { color: var(--ink); }
+
+/* ---------- simulated screen ---------- */
+#screen { position: relative; overflow: hidden; font: 13px/1.3 -apple-system, BlinkMacSystemFont, sans-serif; color: #f2f2f4; background: linear-gradient(135deg, #25476b, #6b3b6e 60%, #b4654a); }
+#desk { position: absolute; inset: 0; z-index: 0; }
+#desk .desk-win { position: absolute; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+#overlay { position: absolute; inset: 0; z-index: 1; }
+.toast { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(20,20,24,.92); padding: 8px 14px; border-radius: 9px; font-size: 14px; z-index: 20; border: 1px solid rgba(255,255,255,.15); white-space: nowrap; }
+.hints { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 14px; font-size: 12px; color: rgba(255,255,255,.7); background: rgba(0,0,0,.35); padding: 5px 12px; border-radius: 8px; white-space: nowrap; z-index: 6; }
+.hints b { color: #fff; font-weight: 600; }
+.hints .hot { color: var(--summon); }
+.query { position: absolute; top: 14px; right: 18px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); padding: 5px 10px; border-radius: 8px; font-size: 14px; z-index: 6; }
+.pagedots { position: absolute; right: 18px; bottom: 16px; display: flex; gap: 6px; z-index: 6; }
+.pagedots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.pagedots i.on { background: #fff; }
+
+/* thumbnails */
+.thumb { position: relative; border-radius: 7px; overflow: hidden; background: #2a2a2e; box-shadow: 0 3px 12px rgba(0,0,0,.35); flex: none; }
+.thumb .tb { position: absolute; left: 0; right: 0; top: 0; height: 9%; min-height: 4px; max-height: 18px; background: rgba(0,0,0,.25); }
+.thumb .body { position: absolute; left: 0; right: 0; bottom: 0; top: 9%; }
+.k-term .body { background: #121214 repeating-linear-gradient(to bottom, transparent 0 7%, rgba(105,219,124,.55) 7% 9%, transparent 9% 11%) 6% 4% / 70% 100% no-repeat; }
+.k-code .body { background: linear-gradient(to right, #2a2a30 0 8%, transparent 8%), repeating-linear-gradient(to bottom, transparent 0 5%, rgba(142,162,255,.6) 5% 6.5%, transparent 6.5% 8%, rgba(255,192,120,.5) 8% 9.5%, transparent 9.5% 12%) #1e1e22; background-size: 100% 100%, 60% 100%; background-position: 0 0, 14% 4%; background-repeat: no-repeat; }
+.k-web .body { background: linear-gradient(var(--c) 0 16%, transparent 16%), repeating-linear-gradient(to bottom, transparent 0 22%, #d9d9de 22% 25%, transparent 25% 30%) #f4f4f6; background-size: 100% 100%, 80% 100%; background-position: 0 0, 10% 0; background-repeat: no-repeat; }
+.k-chat .body { background: linear-gradient(to right, var(--c) 0 24%, transparent 24%), repeating-linear-gradient(to bottom, transparent 0 10%, #dfe3ea 10% 16%, transparent 16% 20%) #fbfbfd; background-size: 100% 100%, 50% 100%; background-position: 0 0, 32% 4%; background-repeat: no-repeat; }
+.k-doc .body { background: repeating-linear-gradient(to bottom, transparent 0 6%, #cfcfd4 6% 7.5%) #fffdf7; background-size: 76% 90%; background-position: 12% 40%; background-repeat: no-repeat; }
+.k-media .body { background: radial-gradient(circle at 30% 45%, var(--c) 0 18%, transparent 19%), linear-gradient(160deg, #202024, #3a3440); }
+.k-call .body { background: linear-gradient(to right, #3b3b44 0 49%, transparent 49% 51%, #44444e 51%), #111; }
+.k-design .body { background: linear-gradient(to right, #2c2c2c 0 14%, transparent 14% 84%, #2c2c2c 84%), radial-gradient(ellipse at 50% 50%, var(--c) 0 22%, transparent 23%) #e8e8e8; }
+.k-finder .body { background: linear-gradient(to right, #e9e9ee 0 22%, transparent 22%), repeating-linear-gradient(to bottom, transparent 0 9%, #d8e4f8 9% 13%) #fff; background-size: 100% 100%, 70% 100%; background-position: 0 0, 90% 0; background-repeat: no-repeat; }
+.k-app .body { background: linear-gradient(to right, #1b1b20 0 20%, transparent 20%), repeating-linear-gradient(to bottom, transparent 0 12%, rgba(255,107,53,.45) 12% 15%) #26262c; background-size: 100% 100%, 64% 100%; background-position: 0 0, 70% 6%; background-repeat: no-repeat; }
+.thumb.icononly { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c) 45%, #222), #1a1a1e); display: grid; place-items: center; }
+.stale-dim .body, .stale-dim .tb { filter: brightness(.55); }
+.stale-age .body, .stale-age .tb { filter: saturate(.35) brightness(.85); }
+.badge { position: absolute; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 5px; background: rgba(0,0,0,.65); color: #fff; z-index: 2; white-space: nowrap; }
+.badge.tl { top: 5px; left: 5px; } .badge.tr { top: 5px; right: 5px; } .badge.br { bottom: 5px; right: 5px; } .badge.bl { bottom: 5px; left: 5px; }
+.livedot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px rgba(0,0,0,.4); padding: 0; }
+.acc { outline: 2px dashed rgba(255,255,255,.55); outline-offset: 2px; }
+.thumb.sel { box-shadow: 0 0 0 3px var(--sel), 0 6px 22px rgba(0,0,0,.5); }
+.summoning .thumb.sel { box-shadow: 0 0 0 3px var(--summon), 0 6px 22px rgba(0,0,0,.5); }
+.icon { display: inline-grid; place-items: center; border-radius: 22%; color: #fff; font-weight: 700; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.summonTag { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: var(--summon); color: #1a1200; font-weight: 700; font-size: 13px; padding: 6px 10px; border-radius: 8px; white-space: nowrap; z-index: 3; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.summonTag.here { background: rgba(255,255,255,.9); color: #222; font-weight: 600; }
+.summonTag.inline { position: static; transform: none; font-size: 11px; padding: 2px 6px; box-shadow: none; }
+.tile { cursor: pointer; }
+
+/* section boxes */
+.box { position: absolute; display: flex; flex-direction: column; border-radius: 12px; padding: 6px 10px 8px; }
+.box.here { background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.box.target { background: rgba(245,159,0,.12); box-shadow: inset 0 0 0 2px rgba(245,159,0,.6); }
+.bhead { display: flex; gap: 8px; align-items: baseline; height: 24px; flex: none; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.bhead .sub { font-size: 12px; font-weight: 400; color: rgba(255,255,255,.6); }
+.bhead .pill { font-size: 11px; background: rgba(255,255,255,.2); padding: 2px 6px; border-radius: 5px; font-weight: 500; }
+.bhead .pill.s { background: var(--summon); color: #1a1200; }
+.bcontent { position: relative; flex: 1; min-height: 0; }
+.flow { display: flex; flex-wrap: wrap; justify-content: center; align-content: center; align-items: flex-end; height: 100%; }
+.P { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.P .lab { display: flex; gap: 6px; align-items: center; font-size: 12px; max-width: 100%; overflow: hidden; white-space: nowrap; color: rgba(255,255,255,.85); height: 18px; }
+.P .lab span { overflow: hidden; text-overflow: ellipsis; }
+.P.sel .lab { color: #fff; font-weight: 600; }
+.Cd { border-radius: 9px; padding: 6px; background: rgba(255,255,255,.07); display: flex; flex-direction: column; gap: 6px; }
+.Cd.sel { background: rgba(76,141,255,.28); box-shadow: 0 0 0 2px var(--sel); }
+.summoning .Cd.sel { background: rgba(245,159,0,.22); box-shadow: 0 0 0 2px var(--summon); }
+.chead { display: flex; gap: 7px; align-items: center; min-width: 0; font-size: 12.5px; height: 20px; }
+.chead .t { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1; }
+.chead .st { font-size: 11px; color: rgba(255,255,255,.55); flex: none; }
+.cthumb { position: relative; display: grid; place-items: center; }
+.rows { display: grid; gap: 4px 10px; align-content: start; height: 100%; overflow: hidden; }
+.R { display: flex; flex-direction: column; border-radius: 7px; padding: 4px 7px; background: rgba(255,255,255,.06); min-width: 0; }
+.R.sel { background: rgba(76,141,255,.28); box-shadow: 0 0 0 2px var(--sel); grid-column: 1 / -1; }
+.summoning .R.sel { background: rgba(245,159,0,.22); box-shadow: 0 0 0 2px var(--summon); }
+.R .preview { display: flex; justify-content: center; padding: 6px 0 2px; }
+.ghost { border: 2px dashed var(--summon); border-radius: 7px; background: rgba(245,159,0,.15); display: grid; place-items: center; font-size: 12px; font-weight: 600; text-align: center; flex: none; }
+.tray { display: flex; gap: 5px; flex-wrap: wrap; height: 26px; overflow: hidden; flex: none; margin-top: 4px; }
+.chip { display: flex; gap: 5px; align-items: center; font-size: 11px; padding: 2px 6px 2px 3px; border-radius: 6px; background: rgba(255,255,255,.1); max-width: 200px; height: 22px; }
+.chip span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.chip.sel { box-shadow: 0 0 0 2px var(--sel); }
+.summoning .chip.sel { box-shadow: 0 0 0 2px var(--summon); }
+.mini { position: relative; margin: 0 auto; border-radius: 8px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.14); overflow: hidden; }
+.mini .tile { position: absolute; }
+.mini .tile .thumb { width: 100%; height: 100%; border-radius: 5px; }
+.mini .ico { position: absolute; left: 50%; top: 55%; transform: translate(-50%,-50%); z-index: 2; pointer-events: none; }
+.mini .ghost { position: absolute; z-index: 4; }
+.caption { font-size: 11.5px; color: rgba(255,255,255,.8); height: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; margin-top: 3px; flex: none; }
+.rail { position: absolute; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.rsec { padding: 8px 10px; border-radius: 9px; background: rgba(0,0,0,.25); cursor: pointer; border: 1px solid transparent; }
+.rsec.on { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); }
+.rsec.target { border-color: var(--summon); }
+.rsec .n { display: flex; justify-content: space-between; font-weight: 600; font-size: 13.5px; }
+.rsec .n .sub { font-weight: 400; color: rgba(255,255,255,.55); font-size: 11.5px; }
+.rsec .icons { display: flex; gap: 3px; margin-top: 5px; flex-wrap: wrap; }
+
+.proto-switcher { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: #111; color: #fff; padding: 7px 10px; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.35); z-index: 100; font-size: 13px; border: 2px solid #ffd43b; }
+.proto-switcher button { background: #333; color: #fff; border: 0; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px; }
+.proto-switcher .k { color: #ffd43b; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Grid Presentation prototype</h1>
+  <p class="lede">Throwaway prototype for <em>Prototype: grid Presentation look and behaviour</em> (ticket 08). One grid for the <code>overview</code> Lens, where every design choice is its own switch. The switches are numbered to match the breakdown of choices. Presets A–D recreate the first round's four variants, so start from one and change one thing at a time.</p>
+  <details>
+    <summary>How to drive it</summary>
+    <ul>
+      <li><b>Keys (click the screen first):</b> the arrow keys move the selection, following switch 10. <code>↩</code> focuses. Hold <code>⇧</code> to see the Summon affordance, and <code>⇧↩</code> Summons. <code>tab</code> moves to the next section. <code>⌥W</code> closes a window and <code>⌥1–8</code> moves it to that workspace; the Lens binds <code>⌘W</code> and <code>⌘1–8</code>, but the browser takes those. Typing filters, <code>⌫</code> edits the filter, and <code>esc</code> clears it. <code>[</code> and <code>]</code> cycle the presets.</li>
+      <li><b>Mouse:</b> hovering selects, a click focuses, a ⇧-click Summons, and the scroll wheel pages. Focusing a window switches the current workspace, so you can watch the live and frozen states move.</li>
+      <li><b>Thumbnail states</b> are the measured ones. Windows on the current workspace are live. Everywhere else they're frozen at park time, because Chrome, Electron and Metal apps stop painting once covered. Safari keeps painting, so its thumbnails are fresh. A hidden app's window shows the capture taken before the hide, or the app icon if nothing was captured.</li>
+      <li><b>Sharing a combination:</b> the URL carries every setting. Copy it with the button in the State panel and paste it back to me as your answer.</li>
+      <li><b>Not built:</b> choice 12, animating the real windows into their tiles the way Mission Control does. It needs its own ticket.</li>
+    </ul>
+  </details>
+</header>
+
+<div class="axes" id="axes"></div>
+
+<div class="stage-wrap">
+  <div><div id="frameOuter" class="fit" tabindex="0"><div id="frameScaler"><div id="screen"><div id="desk"></div><div id="overlay"></div></div></div></div></div>
+  <aside class="statepanel" id="state"></aside>
+</div>
+
+<div class="proto-switcher" id="switcher"></div>
+
+<script>
+// ---------- data ----------
+const APPS = {
+  Chrome: { c: '#4285f4', k: 'web', g: 'C' }, Ghostty: { c: '#3a3a40', k: 'term', g: '👻' }, Obsidian: { c: '#7c3aed', k: 'doc', g: 'O' },
+  'VS Code': { c: '#1e88e5', k: 'code', g: '⟨⟩' }, Slack: { c: '#4a154b', k: 'chat', g: 'S' }, 'Ghost Pepper': { c: '#e03131', k: 'doc', g: '🌶', acc: true },
+  Orca: { c: '#ff6b35', k: 'app', g: '◐' }, Mail: { c: '#1c7ed6', k: 'doc', g: '✉' }, Safari: { c: '#0fb5ee', k: 'web', g: '◎' },
+  Spotify: { c: '#1db954', k: 'media', g: '♫' }, Zoom: { c: '#2d8cff', k: 'call', g: 'Z' }, Linear: { c: '#5e6ad2', k: 'web', g: 'L' },
+  Figma: { c: '#a259ff', k: 'design', g: 'F' }, Notes: { c: '#f5c400', k: 'doc', g: '✎' }, '1Password': { c: '#0572ec', k: 'doc', g: '①', acc: true },
+  Messages: { c: '#34c759', k: 'chat', g: '💬' }, Finder: { c: '#1e9bf0', k: 'finder', g: '☺' }, Preview: { c: '#8d8d94', k: 'media', g: 'P' },
+  Books: { c: '#ff8c1a', k: 'doc', g: 'B' }, Calendar: { c: '#fa5252', k: 'doc', g: '31' }, Terminal: { c: '#222', k: 'term', g: '>_' },
+  'Activity Monitor': { c: '#495057', k: 'doc', g: '📈' }, Raycast: { c: '#ff6363', k: 'doc', g: 'R', acc: true },
+};
+const WS_PROJECT = { 1: 'winmux', 2: 'winmux', 3: 'dotfiles', 4: 'orca', 5: 'comms', 6: 'personal', 7: 'design', 8: 'reading' };
+// [app, title, ws, class, col | floatRect, extra]; ordered so the first N give a plausible smaller set
+const RAW = [
+  ['Chrome', 'ScreenCaptureKit — Apple Developer', 2, 'tiled', 0], ['Ghostty', '~/code/winmux — zsh', 2, 'tiled', 1],
+  ['Obsidian', 'Grid Lens notes', 2, 'tiled', 2], ['VS Code', 'SwitcherPalette.swift — winmux', 1, 'tiled', 1],
+  ['Slack', '#winmux-dev', 5, 'tiled', 0], ['Ghost Pepper', 'Ghost Pepper', 2, 'floating', [.64, .06, .15, .24]],
+  ['Ghostty', 'winmux — swift build', 1, 'tiled', 0], ['Chrome', 'PR #212 · ZimengXiong/winmux', 1, 'tiled', 2],
+  ['Orca', 'Orca — wayfind-fork', 4, 'tiled', 0], ['Mail', 'Inbox — 12 unread', 5, 'tiled', 1],
+  ['Safari', 'Hacker News', 6, 'tiled', 0], ['Spotify', 'Spotify', 6, 'hidden'],
+  ['Zoom', 'Zoom Meeting', 5, 'floating', [.3, .18, .4, .55]], ['Ghostty', 'chezmoi diff', 3, 'tiled', 0],
+  ['VS Code', 'g95nc.sh — dotfiles', 3, 'tiled', 1], ['Linear', 'Lens grid prototype', 4, 'tiled', 1],
+  ['Chrome', 'Orca docs', 4, 'tiled', 2], ['Figma', 'Grid Lens — Figma', 7, 'tiled', 0],
+  ['Notes', 'Groceries', 6, 'minimized'], ['1Password', '1Password', 6, 'floating', [.7, .05, .22, .36]],
+  ['Messages', 'Messages', 5, 'tiled', 2], ['Safari', 'Nickel user manual', 8, 'tiled', 0],
+  ['Ghostty', 'orca logs', 4, 'tiled', 0], ['Finder', 'dotfiles', 3, 'floating', [.52, .14, .36, .46]],
+  ['Preview', 'mockup-grid.png', 7, 'floating', [.48, .1, .4, .55]], ['Chrome', 'Dribbble — overview grids', 7, 'tiled', 1],
+  ['Preview', 'nickel-paper.pdf', 8, 'tiled', 1], ['Books', 'Designing Data-Intensive Applications', 8, 'tiled', 2, { noThumb: true }],
+  ['Calendar', 'Calendar', 5, 'minimized'], ['Chrome', 'Gmail', 5, 'tiled', 0],
+  ['Ghostty', 'htop', 1, 'tiled', 0], ['Chrome', 'BetterDisplay docs', 3, 'tiled', 2],
+  ['Terminal', 'ssh mini', 3, 'hidden', null, { noThumb: true }], ['Activity Monitor', 'Activity Monitor', 1, 'floating', [.58, .5, .34, .4]],
+  ['Obsidian', 'Daily note', 6, 'tiled', 1], ['Chrome', 'YouTube — WWDC26 session', 6, 'tiled', 2],
+  ['Linear', 'Inbox', 4, 'tiled', 1], ['VS Code', 'orca — main.ts', 4, 'tiled', 2],
+  ['Raycast', 'Raycast Notes', 2, 'floating', [.04, .56, .2, .36]], ['Slack', 'DM — Zimeng', 5, 'tiled', 1],
+];
+const ALL = RAW.map((r, i) => ({ id: 100 + i, app: r[0], title: r[1], ws: r[2], cls: r[3], col: typeof r[4] === 'number' ? r[4] : null,
+  f: Array.isArray(r[4]) ? { x: r[4][0], y: r[4][1], w: r[4][2], h: r[4][3] } : null, noThumb: !!(r[5] && r[5].noThumb), acc: !!APPS[r[0]].acc }));
+const FRAMES = { laptop: { w: 1512, h: 982, cols: [0.5, 0.5], label: 'Laptop 1512×982' }, ultrawide: { w: 3840, h: 1080, cols: [0.3, 0.4, 0.3], label: 'Ultrawide 3840×1080' } };
+
+// ---------- the design choices ----------
+// Each axis: key, number and name from the breakdown, options. Environment rows are not design choices.
+const AXES = [
+  { k: 'placement', n: '3', name: 'Placement', opts: [['packed', 'packed'], ['spatial', 'real positions']] },
+  { k: 'tile', n: '1–2', name: 'Tile', opts: [['picture', 'picture first'], ['card', 'title + picture'], ['text', 'text first']] },
+  { k: 'arrange', n: '4', name: 'Sections share', opts: [['rows', 'stacked rows'], ['columns', 'side by side'], ['cells', 'grid of cells'], ['drill', 'one at a time']] },
+  { k: 'sizing', n: '5', name: 'Tile size', opts: [['uniform', 'same height'], ['real', 'real size'], ['equal', 'equal boxes']] },
+  { k: 'overflow', n: '6', name: 'Too many', opts: [['page', 'page'], ['shrink', 'shrink'], ['collapse', 'collapse to text']] },
+  { k: 'current', n: '7', name: 'Current workspace', opts: [['same', 'same'], ['highlight', 'highlight'], ['bigger', 'bigger'], ['omit', 'leave out']] },
+  { k: 'frozen', n: '8', name: 'Frozen look', opts: [['none', 'unmarked'], ['age', 'age badge'], ['pause', 'pause glyph'], ['dim', 'dimmed']] },
+  { k: 'frozenLast', n: '8', name: 'Frozen order', opts: [[false, 'spatial'], [true, 'live first']] },
+  { k: 'odd', n: '9', name: 'Min/hidden', opts: [['inline', 'inline'], ['tray', 'tray']] },
+  { k: 'acc', n: '9', name: 'Accessory size', opts: [['small', 'smaller'], ['match', 'same as others']] },
+  { k: 'nav', n: '10', name: 'Arrow keys', opts: [['geometric', 'nearest tile'], ['twolevel', 'section, then window']] },
+  { k: 'summon', n: '11', name: 'Summon shows', multi: true, opts: [['tag', 'label on tile'], ['section', 'target section'], ['ghost', 'landing spot']] },
+];
+const PRESETS = {
+  A: { name: 'Bands', placement: 'packed', tile: 'picture', arrange: 'rows', sizing: 'uniform', overflow: 'page', current: 'highlight', frozen: 'age', frozenLast: false, odd: 'inline', acc: 'small', nav: 'geometric', summon: ['tag', 'section'] },
+  B: { name: 'Columns of cards', placement: 'packed', tile: 'card', arrange: 'columns', sizing: 'equal', overflow: 'collapse', current: 'highlight', frozen: 'pause', frozenLast: false, odd: 'inline', acc: 'match', nav: 'geometric', summon: ['tag', 'section'] },
+  C: { name: 'Spatial miniatures', placement: 'spatial', tile: 'picture', arrange: 'cells', sizing: 'real', overflow: 'page', current: 'highlight', frozen: 'dim', frozenLast: false, odd: 'tray', acc: 'match', nav: 'geometric', summon: ['ghost', 'tag'] },
+  D: { name: 'Rail + stage', placement: 'packed', tile: 'picture', arrange: 'drill', sizing: 'uniform', overflow: 'shrink', current: 'highlight', frozen: 'age', frozenLast: false, odd: 'inline', acc: 'small', nav: 'twolevel', summon: ['tag', 'section'] },
+};
+const cfgOf = p => { const { name, ...c } = PRESETS[p]; return JSON.parse(JSON.stringify(c)); };
+
+// ---------- state ----------
+const S = {
+  frame: 'laptop', count: 24, sectionsBy: 'workspace', backdrop: 0.6, blur: true, zoom: 'fit', linked: true,
+  cfg: { laptop: cfgOf('A'), ultrawide: cfgOf('A') },
+  windows: ALL.map(w => ({ ...w })), cur: 2, focused: 100,
+  wsAge: { 1: 4, 2: 0, 3: 35, 4: 12, 5: 2, 6: 180, 7: 55, 8: 900 },
+  sel: null, shift: false, shiftLatch: false, query: '', page: 0, pages: 1, dSec: null, log: [], toast: null, overflowNote: '',
+};
+try {
+  const p = new URLSearchParams(location.search);
+  if (p.get('c')) Object.assign(S, JSON.parse(atob(p.get('c'))));
+  else if (PRESETS[p.get('preset')]) S.cfg = { laptop: cfgOf(p.get('preset')), ultrawide: cfgOf(p.get('preset')) };
+} catch (e) { /* bad link: fall back to defaults */ }
+const C = () => S.cfg[S.frame];
+function syncURL() {
+  const c = btoa(JSON.stringify({ frame: S.frame, count: S.count, sectionsBy: S.sectionsBy, linked: S.linked, cfg: S.cfg }));
+  history.replaceState(null, '', '?c=' + c);
+}
+// Some choices force others; returns the effective settings plus why each forced one is forced.
+function effective() {
+  const e = { ...C(), sectionsBy: S.sectionsBy }, forced = {};
+  if (e.placement === 'spatial') {
+    e.tile = 'picture'; e.sizing = 'real'; e.odd = 'tray'; e.sectionsBy = 'workspace';
+    forced.tile = forced.sizing = forced.odd = forced.sectionsBy = 'fixed by real positions';
+    if (e.overflow === 'collapse') { e.overflow = 'shrink'; forced.overflow = 'a miniature can’t collapse to text: it shrinks'; }
+  }
+  if (e.tile === 'text') forced.sizing = 'text rows have no picture to size';
+  if (e.arrange === 'drill' && e.overflow === 'page') forced.overflow = 'one section at a time: shrinks inside the section';
+  return { e, forced };
+}
+
+// ---------- helpers ----------
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function fuzzy(q, s) { s = s.toLowerCase(); let i = 0; for (const ch of q.toLowerCase()) { i = s.indexOf(ch, i); if (i < 0) return false; i++; } return true; }
+function icon(app, px) { const a = APPS[app]; return `<span class="icon" style="width:${px}px;height:${px}px;background:${a.c};font-size:${Math.round(px * .5)}px">${a.g}</span>`; }
+function fmtAge(m) { return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; }
+const isOdd = w => w.cls === 'minimized' || w.cls === 'hidden';
+
+function wsLayout(ws) {
+  const F = FRAMES[S.frame], n = F.cols.length, rects = {};
+  const byCol = Array.from({ length: n }, () => []);
+  S.windows.filter(w => w.ws === ws && w.cls === 'tiled').forEach(w => byCol[Math.min(w.col, n - 1)].push(w));
+  let x = 0;
+  byCol.forEach((c, ci) => { c.forEach((w, j) => { rects[w.id] = { x, y: j / c.length, w: F.cols[ci], h: 1 / c.length }; }); x += F.cols[ci]; });
+  S.windows.filter(w => w.ws === ws && w.cls === 'floating').forEach(w => rects[w.id] = { ...w.f });
+  S.windows.filter(w => w.ws === ws && isOdd(w)).forEach(w => rects[w.id] = { x: .2, y: .15, w: .45, h: .7, off: true });
+  return { rects, byCol };
+}
+const rectOf = w => wsLayout(w.ws).rects[w.id];
+function placeRect(ws) { // where the `place` hook would put a Summoned window: a new split at the bottom of the rightmost Column
+  const F = FRAMES[S.frame], { byCol } = wsLayout(ws), ci = F.cols.length - 1, x = F.cols.slice(0, ci).reduce((a, b) => a + b, 0), k = byCol[ci].length;
+  return { x, y: k / (k + 1), w: F.cols[ci], h: 1 / (k + 1) };
+}
+function thumbState(w) {
+  if (w.noThumb) return { kind: 'icon' };
+  if (w.ws === S.cur && !isOdd(w)) return { kind: 'live' };
+  if (w.cls === 'hidden') return { kind: 'frozen', age: 240, why: 'captured before cmd-H' };
+  if (w.cls === 'minimized') return { kind: 'frozen', age: 60, why: 'captured at minimize' };
+  if (w.app === 'Safari') return { kind: 'fresh', why: 'Safari keeps painting' };
+  return { kind: 'frozen', age: S.wsAge[w.ws], why: 'frozen at park time' };
+}
+function stateText(w, E) {
+  const st = thumbState(w);
+  const pre = (w.acc ? 'menu-bar · ' : '') + (w.cls === 'minimized' ? 'min · ' : w.cls === 'hidden' ? 'hidden · ' : '');
+  if (st.kind === 'live') return pre + '● live';
+  if (st.kind === 'fresh') return pre + 'fresh';
+  if (st.kind === 'icon') return pre + 'no preview';
+  return pre + (E.frozen === 'pause' ? '⏸ ' : E.frozen === 'none' ? '' : '◷ ') + (E.frozen === 'none' ? '' : fmtAge(st.age));
+}
+function thumb(w, W, H, E, opts = {}) {
+  const a = APPS[w.app], st = thumbState(w), sel = S.sel === w.id ? ' sel' : '', acc = w.acc ? ' acc' : '';
+  if (st.kind === 'icon') return `<div class="thumb icononly${sel}${acc}" style="width:${W}px;height:${H}px;--c:${a.c}">${icon(w.app, Math.max(14, Math.min(64, H * .35)))}${opts.noBadges ? '' : badges(w, st, E, H)}</div>`;
+  const stCls = st.kind === 'frozen' && (E.frozen === 'dim' || E.frozen === 'age') ? ` stale-${E.frozen}` : '';
+  return `<div class="thumb k-${a.k}${stCls}${sel}${acc}" style="width:${W}px;height:${H}px;--c:${a.c}"><div class="tb"></div><div class="body"></div>${opts.noBadges ? '' : badges(w, st, E, H)}</div>`;
+}
+function badges(w, st, E, H) {
+  if (H < 40) return '';
+  let b = '';
+  if (st.kind === 'live') b += `<span class="badge tr livedot" title="live"></span>`;
+  if (st.kind === 'frozen' && E.frozen === 'age') b += `<span class="badge br">◷ ${fmtAge(st.age)}</span>`;
+  if (st.kind === 'frozen' && E.frozen === 'pause') b += `<span class="badge tr">⏸</span>`;
+  if (H >= 60 && w.cls === 'minimized') b += `<span class="badge bl">minimized</span>`;
+  if (H >= 60 && w.cls === 'hidden') b += `<span class="badge bl">hidden</span>`;
+  if (H >= 60 && w.acc) b += `<span class="badge tl">menu-bar app</span>`;
+  return b;
+}
+function summonTag(w, E, inline) {
+  if (!S.shift || S.sel !== w.id || !E.summon.includes('tag')) return '';
+  const cls = inline ? ' inline' : '';
+  return w.ws === S.cur ? `<div class="summonTag here${cls}">already on ${S.cur}</div>` : `<div class="summonTag${cls}">⇧↩ Summon to ${S.cur} ⤵</div>`;
+}
+
+// ---------- sections ----------
+function sectionKeyOf(w, E) { return E.sectionsBy === 'workspace' ? `ws${w.ws}` : E.sectionsBy === 'project' ? WS_PROJECT[w.ws] : E.sectionsBy === 'app' ? w.app : 'all'; }
+function targetKey(E) { return E.sectionsBy === 'workspace' ? `ws${S.cur}` : E.sectionsBy === 'project' ? WS_PROJECT[S.cur] : E.sectionsBy === 'none' ? 'all' : null; }
+function visibleWindows(E) {
+  const ids = new Set(ALL.slice(0, S.count).map(w => w.id));
+  let ws = S.windows.filter(w => ids.has(w.id));
+  if (E.current === 'omit') ws = ws.filter(w => w.ws !== S.cur);
+  if (S.query) ws = ws.filter(w => fuzzy(S.query, `${w.app} ${w.title} ${w.ws} ${WS_PROJECT[w.ws]}`));
+  return ws;
+}
+function sections(list, E) {
+  const frozen = w => thumbState(w).kind === 'frozen' ? 1 : 0;
+  const key = w => { const r = rectOf(w), cl = { tiled: 0, floating: 1, minimized: 2, hidden: 3 }[w.cls]; return [E.frozenLast ? frozen(w) : 0, w.ws, cl, r.x, r.y]; };
+  const sorted = [...list].sort((a, b) => { const x = key(a), y = key(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; });
+  const m = new Map();
+  for (const w of sorted) { const k = sectionKeyOf(w, E); if (!m.has(k)) m.set(k, []); m.get(k).push(w); }
+  const tk = targetKey(E);
+  const out = [...m.entries()].map(([k, wins]) => {
+    let title, sub;
+    if (E.sectionsBy === 'workspace') { title = `${wins[0].ws}`; sub = WS_PROJECT[wins[0].ws]; }
+    else if (E.sectionsBy === 'project') { title = k; sub = `ws ${[...new Set(wins.map(w => w.ws))].sort().join(', ')}`; }
+    else if (E.sectionsBy === 'app') { title = k; sub = ''; }
+    else { title = 'All windows'; sub = ''; }
+    return { key: k, title, sub, wins, here: k === tk, ws: Math.min(...wins.map(w => w.ws)) };
+  });
+  return out.sort((a, b) => a.ws - b.ws); // sections follow sidebar order, whatever the within-section sort
+}
+
+// ---------- geometry: arranging section boxes ----------
+const GAP = 12, HEAD = 26;
+function weight(sec, E) { return (E.current === 'bigger' && sec.here ? 1.9 : 1); }
+function arrange(secs, E, A) {
+  const out = [];
+  if (!secs.length) return out;
+  if (E.arrange === 'rows') {
+    const bcols = A.w / A.h > 2.5 ? 2 : 1, colW = (A.w - GAP * (bcols - 1)) / bcols;
+    const wt = s => weight(s, E) * Math.pow(Math.max(1, s.wins.length), 0.6);
+    const total = secs.reduce((a, s) => a + wt(s), 0);
+    let col = 0, acc = 0; const cols = [[]];
+    for (const s of secs) { if (acc >= total / bcols * (col + 1) - 1e-6 && col < bcols - 1 && cols[col].length) { col++; cols.push([]); } cols[col].push(s); acc += wt(s); }
+    cols.forEach((cs, ci) => {
+      const t = cs.reduce((a, s) => a + wt(s), 0), hAvail = A.h - GAP * (cs.length - 1); let y = A.y;
+      cs.forEach(s => { const h = hAvail * wt(s) / t; out.push({ sec: s, x: A.x + ci * (colW + GAP), y, w: colW, h }); y += h + GAP; });
+    });
+  } else if (E.arrange === 'columns') {
+    const t = secs.reduce((a, s) => a + weight(s, E), 0), wAvail = A.w - GAP * (secs.length - 1); let x = A.x;
+    secs.forEach(s => { const w = wAvail * weight(s, E) / t; out.push({ sec: s, x, y: A.y, w, h: A.h }); x += w + GAP; });
+  } else if (E.arrange === 'cells') {
+    const ar = E.placement === 'spatial' ? FRAMES[S.frame].w / FRAMES[S.frame].h : 1.5;
+    let best = null;
+    for (let cols = 1; cols <= secs.length + 1; cols++) {
+      const occ = new Set(), pl = []; let rows = 0;
+      for (const s of secs) {
+        const sp = E.current === 'bigger' && s.here ? Math.min(2, cols) : 1;
+        for (let i = 0; ; i++) {
+          const r = Math.floor(i / cols), c = i % cols; if (c + sp > cols) continue;
+          let free = true; for (let dr = 0; dr < sp; dr++) for (let dc = 0; dc < sp; dc++) if (occ.has(`${r + dr},${c + dc}`)) free = false;
+          if (!free) continue;
+          for (let dr = 0; dr < sp; dr++) for (let dc = 0; dc < sp; dc++) occ.add(`${r + dr},${c + dc}`);
+          pl.push({ s, r, c, sp }); rows = Math.max(rows, r + sp); break;
+        }
+      }
+      const cw = (A.w - GAP * (cols - 1)) / cols, ch = (A.h - GAP * (rows - 1)) / rows, score = Math.min(cw, (ch - HEAD - 30) * ar);
+      if (!best || score > best.score) best = { score, cw, ch, pl };
+    }
+    best.pl.forEach(({ s, r, c, sp }) => out.push({ sec: s, x: A.x + c * (best.cw + GAP), y: A.y + r * (best.ch + GAP), w: sp * best.cw + (sp - 1) * GAP, h: sp * best.ch + (sp - 1) * GAP }));
+  }
+  return out;
+}
+
+// ---------- geometry: tiles inside a box ----------
+const FLOW_GAP = 14;
+function base(w, E) {
+  const F = FRAMES[S.frame], r = rectOf(w), ar = (r.w * F.w) / (r.h * F.h), accK = w.acc && E.acc === 'small' ? 0.6 : 1;
+  if (E.sizing === 'real') { const k = w.acc && E.acc === 'match' ? 1.6 : 1; return [r.w * F.w / F.h * k, r.h * k]; }
+  if (E.sizing === 'equal') return [1.6 * accK, 1 * accK];
+  return [Math.max(0.55, Math.min(ar, 2.4)) * accK, accK];
+}
+function outer(w, s, E) {
+  const [bw, bh] = base(w, E), tw = bw * s, th = bh * s;
+  if (E.tile === 'card') return { tw, th, ow: Math.max(170, tw + 12), oh: th + 12 + 26 };
+  return { tw, th, ow: Math.max(tw, 40), oh: th + 22 };
+}
+function packHeight(wins, s, cw, E, extra) {
+  let rowW = 0, rowH = 0, total = 0;
+  const items = wins.map(w => outer(w, s, E)); if (extra) items.push(extra(s));
+  for (const o of items) {
+    if (o.ow > cw) return Infinity;
+    if (rowW && rowW + o.ow > cw) { total += rowH + FLOW_GAP; rowW = 0; rowH = 0; }
+    rowW += o.ow + FLOW_GAP; rowH = Math.max(rowH, o.oh);
+  }
+  return total + rowH;
+}
+const FLOOR = E => E.sizing === 'real' ? 170 : 80; // smallest scale before a section counts as overflowing
+function fitScale(wins, cw, ch, E, extra) {
+  const cap = E.sizing === 'real' ? FRAMES[S.frame].h * 0.42 : Math.min(360, FRAMES[S.frame].h * 0.36);
+  let lo = 6, hi = cap;
+  if (packHeight(wins, hi, cw, E, extra) <= ch) return hi;
+  for (let i = 0; i < 22; i++) { const m = (lo + hi) / 2; packHeight(wins, m, cw, E, extra) <= ch ? lo = m : hi = m; }
+  return lo;
+}
+function contentSize(box, E) {
+  const odd = E.odd === 'tray' && box.sec.wins.some(isOdd);
+  return { cw: box.w - 20, ch: box.h - HEAD - 14 - (odd ? 30 : 0) - (E.placement === 'spatial' ? 19 : 0), tray: odd };
+}
+function flowWins(sec, E) { return E.odd === 'tray' ? sec.wins.filter(w => !isOdd(w)) : sec.wins; }
+const summoningAway = () => S.shift && S.windows.some(w => w.id === S.sel && w.ws !== S.cur);
+const textCols = cw => Math.max(1, Math.floor(cw / 290));
+const textRowsHeight = (n, cw) => Math.ceil(n / textCols(cw)) * 34 + 150; // 150 leaves room for the expanded selection
+function boxFits(box, E) {
+  const { cw, ch } = contentSize(box, E);
+  if (E.placement === 'spatial') { const ar = FRAMES[S.frame].w / FRAMES[S.frame].h; return Math.min(cw, ch * ar) / ar >= 110; }
+  if (E.tile === 'text') return textRowsHeight(box.sec.wins.length, cw) <= ch;
+  return fitScale(flowWins(box.sec, E), cw, ch, E) >= FLOOR(E);
+}
+
+// ---------- rendering ----------
+function renderBox(box, E) {
+  const s = box.sec, { cw, ch, tray } = contentSize(box, E);
+  const target = E.summon.includes('section') && s.here && summoningAway();
+  const here = s.here && E.current !== 'same';
+  let h = `<div class="box${here ? ' here' : ''}${target ? ' target' : ''}" data-sec="${esc(s.key)}" style="left:${box.x}px;top:${box.y}px;width:${box.w}px;height:${box.h}px">`;
+  h += `<div class="bhead">${esc(s.title)}<span class="sub">${esc(s.sub)}</span>${here ? '<span class="pill">current</span>' : ''}${target ? '<span class="pill s">Summon lands here</span>' : ''}<span class="sub" style="margin-left:auto">${s.wins.length}</span></div><div class="bcontent">`;
+  if (E.placement === 'spatial') h += renderSpatial(s, cw, ch, E);
+  else {
+    const wins = flowWins(s, E), ghostOn = E.summon.includes('ghost') && s.here && summoningAway();
+    const extra = ghostOn ? sc => ({ ow: 1.4 * sc, oh: sc + 22 }) : null;
+    const sc = fitScale(wins, cw, ch, E, extra);
+    const asText = E.tile === 'text' || (E.overflow === 'collapse' && sc < FLOOR(E));
+    h += asText ? renderRows(wins, cw, E, ghostOn) : renderFlow(wins, sc, E, ghostOn);
+  }
+  h += `</div>`;
+  if (tray) h += `<div class="tray">` + s.wins.filter(isOdd).map(w => `<div class="chip tile${S.sel === w.id ? ' sel' : ''}" data-id="${w.id}">${icon(w.app, 16)}<span>${esc(w.title)}</span><span style="opacity:.6">${w.cls === 'minimized' ? '— min' : '— hidden'}</span>${summonTag(w, E, true)}</div>`).join('') + `</div>`;
+  return h + `</div>`;
+}
+function renderFlow(wins, sc, E, ghostOn) {
+  let h = `<div class="flow" style="gap:${FLOW_GAP}px">`;
+  for (const w of wins) {
+    const o = outer(w, sc, E);
+    if (E.tile === 'card') h += `<div class="Cd tile${S.sel === w.id ? ' sel' : ''}" data-id="${w.id}" style="width:${o.ow}px"><div class="chead">${icon(w.app, 18)}<span class="t">${esc(w.title)}</span><span class="st">${stateText(w, E)}</span></div><div class="cthumb" style="height:${o.th}px">${thumb(w, o.tw, o.th, E, { noBadges: true })}${summonTag(w, E)}</div></div>`;
+    else h += `<div class="P tile${S.sel === w.id ? ' sel' : ''}" data-id="${w.id}" style="width:${o.ow}px"><div style="position:relative">${thumb(w, o.tw, o.th, E)}${summonTag(w, E)}</div><div class="lab">${icon(w.app, 16)}<span>${esc(w.title)}</span></div></div>`;
+  }
+  if (ghostOn) h += `<div class="P"><div class="ghost" style="width:${1.4 * sc}px;height:${sc}px">Summon<br>lands here</div><div class="lab"></div></div>`;
+  return h + `</div>`;
+}
+function renderRows(wins, cw, E, ghostOn) {
+  let h = `<div class="rows" style="grid-template-columns:repeat(${textCols(cw)}, minmax(0,1fr))">`;
+  for (const w of wins) {
+    const sel = S.sel === w.id;
+    h += `<div class="R tile${sel ? ' sel' : ''}" data-id="${w.id}"><div class="chead">${icon(w.app, 18)}<span class="t">${esc(w.title)}</span><span class="st">${stateText(w, E)}</span>${summonTag(w, E, true)}</div>`;
+    if (sel) { const [bw, bh] = base(w, { ...E, sizing: 'uniform' }); h += `<div class="preview">${thumb(w, 120 * bw, 120 * bh, E)}</div>`; }
+    h += `</div>`;
+  }
+  if (ghostOn) h += `<div class="ghost" style="height:28px">Summon lands here</div>`;
+  return h + `</div>`;
+}
+function renderSpatial(sec, cw, ch, E) {
+  const F = FRAMES[S.frame], ar = F.w / F.h, mw = Math.min(cw, ch * ar), mh = mw / ar;
+  const { rects } = wsLayout(sec.ws);
+  const onScreen = sec.wins.filter(w => !rects[w.id].off).sort((a, b) => (a.cls === 'floating') - (b.cls === 'floating'));
+  let h = `<div class="mini" style="width:${mw}px;height:${mh}px">`;
+  for (const w of onScreen) {
+    let r = rects[w.id]; if (w.acc && E.acc === 'match') r = { ...r, w: Math.max(r.w, .3), h: Math.max(r.h, .45) };
+    const ins = 3, W = r.w * mw - ins * 2, H = r.h * mh - ins * 2;
+    h += `<div class="tile${S.sel === w.id ? ' sel' : ''}" data-id="${w.id}" style="left:${r.x * mw + ins}px;top:${r.y * mh + ins}px;width:${W}px;height:${H}px;z-index:${w.cls === 'floating' ? 2 : 1}">${thumb(w, W, H, E)}${W > 50 && H > 40 ? `<span class="ico">${icon(w.app, Math.min(34, Math.max(16, H * .28)))}</span>` : ''}${summonTag(w, E)}</div>`;
+  }
+  if (sec.here && E.summon.includes('ghost') && summoningAway()) {
+    const r = placeRect(sec.ws);
+    h += `<div class="ghost" style="left:${r.x * mw}px;top:${r.y * mh}px;width:${r.w * mw}px;height:${r.h * mh}px">Summon lands here<br>(place hook)</div>`;
+  }
+  const selW = sec.wins.find(w => w.id === S.sel);
+  return h + `</div><div class="caption">${selW ? `${esc(selW.app)} — ${esc(selW.title)}` : ''}</div>`;
+}
+function renderRail(secs, E, R) {
+  const target = E.summon.includes('section') && summoningAway();
+  return `<div class="rail" style="left:${R.x}px;top:${R.y}px;width:${R.w}px;height:${R.h}px">` + secs.map(s => `<div class="rsec${s.key === S.dSec ? ' on' : ''}${target && s.here ? ' target' : ''}" data-rsec="${esc(s.key)}"><div class="n"><span>${esc(s.title)} <span class="sub">${esc(s.sub)}</span></span><span class="sub">${s.here && E.current !== 'same' ? 'current · ' : ''}${s.wins.length}</span></div><div class="icons">${s.wins.map(w => icon(w.app, 16)).join('')}</div></div>`).join('') + `</div>`;
+}
+function renderDesk(SW, SH) {
+  const { rects } = wsLayout(S.cur), shown = new Set(ALL.slice(0, S.count).map(a => a.id));
+  return S.windows.filter(w => w.ws === S.cur && rects[w.id] && !rects[w.id].off && shown.has(w.id)).map(w => {
+    const r = rects[w.id], a = APPS[w.app], g = 10;
+    return `<div class="desk-win thumb k-${a.k}" style="--c:${a.c};left:${r.x * SW + g}px;top:${r.y * SH + g + 30}px;width:${r.w * SW - 2 * g}px;height:${r.h * SH - 2 * g - 30}px;z-index:${w.cls === 'floating' ? 2 : 1}"><div class="tb"></div><div class="body"></div></div>`;
+  }).join('') + `<div style="position:absolute;left:0;right:0;top:0;height:26px;background:rgba(30,30,34,.7);font-size:12px;padding:5px 12px">File  Edit  View  …<span style="float:right">WinMux · ws ${S.cur}</span></div>`;
+}
+
+let LAYOUT = []; // [{key, ids}] in on-screen order, for section-then-window navigation
+function render() {
+  const F = FRAMES[S.frame], SW = F.w, SH = F.h, screen = document.getElementById('screen');
+  screen.style.width = SW + 'px'; screen.style.height = SH + 'px';
+  const { e: E } = effective();
+  const list = visibleWindows(E);
+  if (!list.some(w => w.id === S.sel)) S.sel = (list.find(w => w.ws === S.cur && w.id !== S.focused) || list[0] || {}).id ?? null;
+  document.getElementById('desk').innerHTML = renderDesk(SW, SH);
+  const ov = document.getElementById('overlay');
+  ov.style.background = `rgba(0,0,0,${S.backdrop})`;
+  ov.style.backdropFilter = ov.style.webkitBackdropFilter = S.blur ? 'blur(18px)' : 'none';
+  ov.className = S.shift ? 'summoning' : '';
+  const secs = sections(list, E), A = { x: 20, y: 20, w: SW - 40, h: SH - 74 };
+  let html = '', boxes = [];
+  S.overflowNote = '';
+  if (E.arrange === 'drill') {
+    if (!secs.find(s => s.key === S.dSec)) S.dSec = (secs.find(s => s.wins.some(w => w.id === S.sel)) || secs.find(s => s.here) || secs[0] || {}).key;
+    html += renderRail(secs, E, { x: A.x, y: A.y, w: 240, h: A.h });
+    const cur = secs.find(s => s.key === S.dSec);
+    if (cur) { if (!cur.wins.some(w => w.id === S.sel)) S.sel = cur.wins[0].id; boxes = [{ sec: cur, x: A.x + 256, y: A.y, w: A.w - 256, h: A.h }]; }
+    S.pages = 1; S.page = 0;
+  } else {
+    // Every setting pages when a section box itself gets too small to hold anything;
+    // 'page' also pages when tiles inside a section would drop below the readable floor.
+    const boxOk = b => b.w >= 230 && b.h >= 130 && (E.overflow !== 'page' || boxFits(b, E));
+    let k = secs.length;
+    for (; k > 1; k--) {
+      let ok = true;
+      for (let i = 0; i < secs.length && ok; i += k) ok = arrange(secs.slice(i, i + k), E, A).every(boxOk);
+      if (ok) break;
+    }
+    k = Math.max(1, k);
+    S.pages = Math.max(1, Math.ceil(secs.length / k)); S.page = Math.min(S.page, S.pages - 1);
+    boxes = arrange(secs.slice(S.page * k, S.page * k + k), E, A);
+    if (!boxes.some(b => b.sec.wins.some(w => w.id === S.sel)) && boxes[0]) S.sel = boxes[0].sec.wins[0].id;
+    if (E.overflow !== 'page' && E.tile !== 'text' && boxes.some(b => !boxFits(b, E))) S.overflowNote = E.overflow === 'shrink' ? 'some sections shrank below the readable floor' : 'some sections collapsed to text';
+  }
+  html += boxes.map(b => renderBox(b, E)).join('');
+  const hints = `<div class="hints"><span><b>↩</b> focus</span><span class="${S.shift ? 'hot' : ''}"><b>⇧↩</b> summon</span><span><b>⌘W</b> close</span><span><b>⌘1–8</b> move</span><span><b>tab</b> section</span><span><b>type</b> filter</span><span><b>esc</b> ${S.query ? 'clear' : 'close'}</span></div>`;
+  const dots = S.pages > 1 ? `<div class="pagedots">${Array.from({ length: S.pages }, (_, i) => `<i class="${i === S.page ? 'on' : ''}"></i>`).join('')}</div>` : '';
+  ov.innerHTML = html + hints + dots + (S.query ? `<div class="query">🔍 ${esc(S.query)}</div>` : '') + (S.toast ? `<div class="toast">${S.toast}</div>` : '') + (list.length ? '' : `<div class="toast" style="top:45%">No windows match</div>`);
+  LAYOUT = [...ov.querySelectorAll('.box')].map(b => ({ key: b.dataset.sec, ids: [...b.querySelectorAll('.tile')].map(t => +t.dataset.id) }));
+  fit(); renderAxes(); renderState(list, E); renderSwitcher();
+}
+function fit() {
+  const F = FRAMES[S.frame], outer = document.getElementById('frameOuter'), sc = document.getElementById('frameScaler');
+  if (S.zoom === 'fit') {
+    const k = Math.min(outer.parentElement.clientWidth / F.w, (innerHeight * 0.72) / F.h);
+    sc.style.transform = `scale(${k})`; outer.style.width = F.w * k + 'px'; outer.style.height = F.h * k + 'px'; outer.className = 'fit';
+  } else { sc.style.transform = 'none'; outer.style.width = '100%'; outer.style.height = Math.min(F.h, innerHeight * 0.8) + 'px'; outer.className = ''; }
+}
+
+// ---------- controls ----------
+function btn(on, attrs, label, dis) { return `<button class="${on ? 'on' : ''}" ${attrs}${dis ? ` disabled title="${esc(dis)}"` : ''}>${label}</button>`; }
+function renderAxes() {
+  const c = C(), { forced } = effective();
+  let h = AXES.map(a => {
+    const dis = forced[a.k];
+    const opts = a.opts.map(([v, l]) => btn(a.multi ? c[a.k].includes(v) : c[a.k] === v, `data-axis="${a.k}" data-val='${JSON.stringify(v)}'`, l, dis)).join('');
+    return `<div class="axis"><span class="lbl"><b>${a.n}</b> · ${a.name}</span>${opts}${dis ? `<span class="why">${esc(dis)}</span>` : ''}</div>`;
+  }).join('');
+  const env = (name, k, opts, dis) => `<div class="axis env"><span class="lbl">${name}</span>${opts.map(([v, l]) => btn(S[k] === v, `data-env="${k}" data-val='${JSON.stringify(v)}'`, l, dis)).join('')}${dis ? `<span class="why">${esc(dis)}</span>` : ''}</div>`;
+  h += `<div class="axis"><span class="lbl"><b>13</b> · Per screen</span>${btn(S.linked, `data-env="linked" data-val='true'`, 'same on both')}${btn(!S.linked, `data-env="linked" data-val='false'`, 'separate per screen')}</div>`;
+  h += env('Screen', 'frame', [['laptop', 'laptop'], ['ultrawide', 'ultrawide']]) + env('Zoom', 'zoom', [['fit', 'fit'], ['1:1', '1:1']]);
+  h += env('Windows', 'count', [[5, '5'], [12, '12'], [24, '24'], [40, '40']]);
+  h += env('Sections by (config)', 'sectionsBy', [['workspace', 'workspace'], ['project', 'project'], ['app', 'app'], ['none', 'none']], forced.sectionsBy);
+  h += `<div class="axis env"><span class="lbl">Backdrop</span><input type="range" min="0.2" max="0.95" step="0.05" value="${S.backdrop}" data-range="backdrop"> ${Math.round(S.backdrop * 100)}% <label><input type="checkbox" data-check="blur" ${S.blur ? 'checked' : ''}> blur</label> <label><input type="checkbox" data-check="shiftLatch" ${S.shiftLatch ? 'checked' : ''}> hold ⇧</label></div>`;
+  document.getElementById('axes').innerHTML = h;
+}
+function presetName() { const c = JSON.stringify(C()); return Object.keys(PRESETS).find(p => JSON.stringify(cfgOf(p)) === c) || null; }
+function summary(E) {
+  return AXES.map(a => { const v = E[a.k]; const lbl = a.multi ? a.opts.filter(([x]) => v.includes(x)).map(o => o[1]).join(' + ') || 'nothing' : (a.opts.find(([x]) => x === v) || [, v])[1]; return `${a.n.padEnd(3)} ${a.name}: ${lbl}`; }).join('\n');
+}
+function renderState(list, E) {
+  const w = S.windows.find(x => x.id === S.sel), st = w ? thumbState(w) : null, p = presetName();
+  const other = S.frame === 'laptop' ? 'ultrawide' : 'laptop';
+  document.getElementById('state').innerHTML = `<h3>State</h3><table>
+    <tr><td>settings</td><td>${p ? `preset ${p} (${PRESETS[p].name})` : 'custom'} on ${S.frame}${S.linked ? '' : `; ${other} has its own`}</td></tr>
+    <tr><td>current ws</td><td>${S.cur} (${WS_PROJECT[S.cur]})</td></tr>
+    <tr><td>shown</td><td>${list.length} of ${S.count}${S.query ? ` · filter “${esc(S.query)}”` : ''}</td></tr>
+    <tr><td>page</td><td>${S.page + 1} / ${S.pages}${S.overflowNote ? ` · ${S.overflowNote}` : ''}</td></tr>
+    <tr><td>selection</td><td>${w ? `${esc(w.app)} — ${esc(w.title)}<br>ws ${w.ws} · ${w.cls}${w.acc ? ' · Accessory app' : ''}<br>thumb: ${st.kind}${st.age != null ? ` (${fmtAge(st.age)}, ${st.why})` : st.why ? ` (${st.why})` : ''}` : '—'}</td></tr>
+    <tr><td>⇧ held</td><td>${S.shift ? 'yes' : 'no'}</td></tr>
+  </table><pre>${esc(summary(E))}</pre><button id="copy">Copy link to these settings</button>
+  <pre>lenses.overview = {\n  presentation = 'grid,\n  sections = '${E.sectionsBy},\n  sort = ['spatial],\n}</pre><div class="log">${S.log.map(l => `<div>${l}</div>`).join('') || '<div>no actions yet</div>'}</div>`;
+}
+function renderSwitcher() {
+  const p = presetName();
+  document.getElementById('switcher').innerHTML = `<button data-cyc="-1">←</button><span>${p ? `Preset <b>${p}</b> (${PRESETS[p].name})` : '<b>custom</b>'}</span><button data-cyc="1">→</button><span class="k">[ / ]</span>`;
+}
+function setCfg(fn) { const frames = S.linked ? ['laptop', 'ultrawide'] : [S.frame]; frames.forEach(f => fn(S.cfg[f])); S.page = 0; syncURL(); render(); }
+function cycle(d) { const ks = Object.keys(PRESETS), p = presetName(), i = p ? ks.indexOf(p) : (d > 0 ? -1 : 0); const n = ks[(i + d + ks.length) % ks.length]; setCfg(c => Object.assign(c, cfgOf(n))); }
+
+// ---------- actions ----------
+function act(msg, toast) { S.log.unshift(msg); S.log = S.log.slice(0, 8); S.toast = toast || msg; clearTimeout(act.t); act.t = setTimeout(() => { S.toast = null; render(); }, 1600); }
+function focusWin(w) {
+  if (w.ws !== S.cur) { S.wsAge[S.cur] = 0; S.cur = w.ws; S.wsAge[w.ws] = 0; }
+  if (isOdd(w)) { w.cls = w.col != null ? 'tiled' : 'floating'; w.f = w.f || { x: .25, y: .15, w: .5, h: .7 }; }
+  S.focused = w.id; S.query = ''; S.dSec = null;
+  act(`enter → focus #${w.id} ${w.app} on ws ${w.ws}`, `Focus ${esc(w.app)} — ${esc(w.title)} (Lens closes)`);
+}
+function summonWin(w) {
+  if (w.ws === S.cur) return act(`shift-enter → #${w.id} already on ws ${S.cur}; focus instead`, 'Already on this workspace: focuses it');
+  const from = w.ws; w.ws = S.cur; w.cls = 'tiled'; w.col = FRAMES[S.frame].cols.length - 1; S.focused = w.id; S.query = '';
+  act(`shift-enter → summon #${w.id} ${w.app} from ws ${from} to ws ${S.cur}`, `Summon ${esc(w.app)} to ${S.cur} (Lens closes)`);
+}
+function closeWin(w) { S.windows = S.windows.filter(x => x.id !== w.id); act(`cmd-w → close #${w.id} ${w.app}`, `Closed ${esc(w.app)} — ${esc(w.title)}`); }
+function moveWin(w, n) { const from = w.ws; w.ws = n; if (w.cls === 'tiled') w.col = Math.min(w.col, 2); act(`cmd-${n} → move #${w.id} from ws ${from} to ws ${n}`, `Moved ${esc(w.app)} to ${n}`); }
+
+// ---------- navigation ----------
+function pageTo(d) { if (S.page + d < 0 || S.page + d >= S.pages) return false; S.page += d; S.sel = null; return true; }
+function stepSection(d) {
+  const { e: E } = effective();
+  if (E.arrange === 'drill') {
+    const secs = sections(visibleWindows(E), E), i = secs.findIndex(s => s.key === S.dSec), n = secs[(i + d + secs.length) % secs.length];
+    S.dSec = n?.key; S.sel = n?.wins[0]?.id ?? null; return;
+  }
+  const i = LAYOUT.findIndex(b => b.ids.includes(S.sel)), j = i + d;
+  if (j >= 0 && j < LAYOUT.length && LAYOUT[j].ids.length) S.sel = LAYOUT[j].ids[Math.min(Math.max(0, LAYOUT[i]?.ids.indexOf(S.sel) ?? 0), LAYOUT[j].ids.length - 1)];
+  else pageTo(d);
+}
+function navigate(dir) {
+  const { e: E } = effective();
+  if (E.nav === 'twolevel') {
+    if (dir === 'up' || dir === 'down') return stepSection(dir === 'down' ? 1 : -1);
+    const b = LAYOUT.find(b => b.ids.includes(S.sel)); if (!b) return;
+    const i = b.ids.indexOf(S.sel); S.sel = b.ids[Math.max(0, Math.min(b.ids.length - 1, i + (dir === 'right' ? 1 : -1)))]; return;
+  }
+  const tiles = [...document.querySelectorAll('#overlay .tile')];
+  const cur = tiles.find(t => +t.dataset.id === S.sel); if (!cur) { if (tiles[0]) S.sel = +tiles[0].dataset.id; return; }
+  const c = cur.getBoundingClientRect(), cx = c.x + c.width / 2, cy = c.y + c.height / 2;
+  let best = null, bs = Infinity;
+  for (const t of tiles) {
+    if (t === cur) continue;
+    const r = t.getBoundingClientRect(), dx = r.x + r.width / 2 - cx, dy = r.y + r.height / 2 - cy;
+    const along = { left: -dx, right: dx, up: -dy, down: dy }[dir], across = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
+    if (along <= 2) continue;
+    const s = along + across * 2.5; if (s < bs) { bs = s; best = t; }
+  }
+  if (best) S.sel = +best.dataset.id; else pageTo(dir === 'down' || dir === 'right' ? 1 : -1);
+}
+
+// ---------- events ----------
+document.addEventListener('click', e => {
+  const ax = e.target.closest('[data-axis]');
+  if (ax) { const k = ax.dataset.axis, v = JSON.parse(ax.dataset.val), a = AXES.find(a => a.k === k); return setCfg(c => { if (a.multi) c[k] = c[k].includes(v) ? c[k].filter(x => x !== v) : [...c[k], v]; else c[k] = v; }); }
+  const en = e.target.closest('[data-env]');
+  if (en) { const k = en.dataset.env, v = JSON.parse(en.dataset.val); S[k] = v; if (k === 'linked' && v) S.cfg[S.frame === 'laptop' ? 'ultrawide' : 'laptop'] = JSON.parse(JSON.stringify(C())); S.page = 0; syncURL(); return render(); }
+  const cy = e.target.closest('[data-cyc]'); if (cy) return cycle(+cy.dataset.cyc);
+  if (e.target.id === 'copy') { navigator.clipboard?.writeText(location.href); e.target.textContent = 'Copied'; return; }
+  const rs = e.target.closest('[data-rsec]'); if (rs) { S.dSec = rs.dataset.rsec; S.sel = null; return render(); }
+  const t = e.target.closest('#overlay .tile');
+  if (t) { const w = S.windows.find(x => x.id === +t.dataset.id); e.shiftKey ? summonWin(w) : focusWin(w); render(); }
+  if (e.target.closest('#frameOuter')) document.getElementById('frameOuter').focus();
+});
+document.addEventListener('input', e => {
+  if (e.target.dataset.range) { S[e.target.dataset.range] = +e.target.value; render(); }
+  if (e.target.dataset.check) { S[e.target.dataset.check] = e.target.checked; S.shift = S.shiftLatch; render(); }
+});
+// Hover selects only on real pointer movement, so a re-layout under a still pointer can't steal the selection.
+let lastPt = null;
+document.getElementById('overlay').addEventListener('mousemove', e => {
+  if (lastPt && Math.abs(e.clientX - lastPt[0]) + Math.abs(e.clientY - lastPt[1]) < 3) return;
+  lastPt = [e.clientX, e.clientY];
+  const t = e.target.closest('.tile'); if (t && +t.dataset.id !== S.sel) { S.sel = +t.dataset.id; render(); }
+  const rs = e.target.closest('[data-rsec]'); if (rs && rs.dataset.rsec !== S.dSec) { S.dSec = rs.dataset.rsec; S.sel = null; render(); }
+});
+let wheelLock = false;
+document.getElementById('frameOuter').addEventListener('wheel', e => {
+  if (S.pages < 2) return; e.preventDefault();
+  if (wheelLock) return; wheelLock = true; setTimeout(() => wheelLock = false, 350);
+  pageTo(e.deltaY > 0 ? 1 : -1); render();
+}, { passive: false });
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input[type=text], textarea')) return;
+  if (e.key === '[' || e.key === ']') return cycle(e.key === ']' ? 1 : -1);
+  if (e.key === 'Shift') { if (!S.shift) { S.shift = true; render(); } return; }
+  const w = S.windows.find(x => x.id === S.sel);
+  const arrows = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+  if (arrows[e.key]) { e.preventDefault(); navigate(arrows[e.key]); return render(); }
+  if (e.key === 'Tab') { e.preventDefault(); stepSection(e.shiftKey ? -1 : 1); return render(); }
+  if (e.key === 'Enter' && w) { e.preventDefault(); e.shiftKey ? summonWin(w) : focusWin(w); return render(); }
+  if (e.altKey && e.code === 'KeyW' && w) { e.preventDefault(); closeWin(w); return render(); }
+  if (e.altKey && /^Digit[1-8]$/.test(e.code) && w) { e.preventDefault(); moveWin(w, +e.code.slice(5)); return render(); }
+  if (e.key === 'Escape') { if (S.query) S.query = ''; else act('esc → Lens closes, nothing runs'); return render(); }
+  if (e.key === 'Backspace') { S.query = S.query.slice(0, -1); S.page = 0; return render(); }
+  if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey && e.key !== ' ') { S.query += e.key; S.page = 0; return render(); }
+});
+document.addEventListener('keyup', e => { if (e.key === 'Shift' && !S.shiftLatch) { S.shift = false; render(); } });
+addEventListener('resize', fit);
+syncURL(); render();
+</script>
+</body>
+</html>
