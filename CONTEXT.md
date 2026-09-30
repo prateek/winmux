@@ -32,6 +32,14 @@ _Avoid_: query, filter text
 A thumbnail showing a window as it was when it was last on screen, not as it is now. Most apps stop painting a window once it's parked or covered, so every thumbnail outside the current workspace is usually frozen.
 _Avoid_: stale thumbnail, cached thumbnail, snapshot
 
+**Tab**:
+Something inside a window that can be switched to but isn't a window of its own, such as a browser tab, an editor file or a terminal in a sidebar app. A native macOS tab is a window, not a Tab.
+_Avoid_: tab group, pane, surface
+
+**Tab provider**:
+The source that lists an app's Tabs and brings a chosen one to the front, either asked by WinMux when a Lens opens or publishing to WinMux on its own.
+_Avoid_: tab source, adapter, integration
+
 **Trigger**:
 A key or trackpad-gesture binding whose command opens a Lens.
 _Avoid_: shortcut, hotkey
