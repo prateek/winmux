@@ -21,7 +21,7 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
   - Screen Recording permission is fine, so grid thumbnails are live (for on-screen windows under a non-opaque grid; parked ones show the park-time frame, per [Task: measure thumbnail capture on Prateek's machine](issues/14-task-measure-thumbnail-capture.md)).
   - Everything is scriptable (added 2026-09-29): every fork feature (Lenses, Filters, Columns, Display profiles) gets `winmux` subcommands with machine-readable output, alongside the AeroSpace-inherited commands for moving windows and changing layouts, so users can drive WinMux from scripts. Each feature spec includes its CLI surface.
   - Continuous gestures (added 2026-09-29): any gesture that moves or resizes a window shows a ghost preview of the result, commits on lift, cancels on Esc or after 0.8 s at rest, and gives a haptic tick per step. No destructive command (close, quit) is ever a single-motion gesture. Borrowed from Swish ([research/07-swish-gestures.md](research/07-swish-gestures.md)).
-  - The cmd-K search (added 2026-09-29) grows out of the existing `winmux palette` (`SwitcherPalette`), which already fuzzy-searches app name, title and workspace and focuses the pick.
+  - The cmd-K search (added 2026-09-29) grows out of the existing `winmux palette` (`SwitcherPalette`), which already fuzzy-searches app name, title and workspace and focuses the pick. It became Search in every Lens plus a `'list` Presentation, per [Grilling: cmd-K search Lens](issues/19-grilling-cmd-k-search.md) (2026-09-30).
 - Dotfiles context: `~/dotfiles/home/dot_config/raycast/scripts/executable_g95nc.sh`, `~/dotfiles/docs/plans/betterdisplay-display-modes-plan.md`.
 
 ## Decisions so far
@@ -56,6 +56,8 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 
 - [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md): a new Presentation, `'miniatures`, draws each workspace as a small copy of itself, with windows where they actually sit. It becomes the default `overview` Lens and the only Presentation v1 builds besides the strip. A `miniatures` record configures it. Prateek's defaults, the same on both screens: paging, highlighted current workspace, dimmed frozen thumbnails, enlarged Accessory windows, and a label plus landing spot for Summon. Summon runs the `place` hook.
 
+- [Grilling: cmd-K search Lens](issues/19-grilling-cmd-k-search.md): Search (typed text) narrows and ranks any Lens, and a fourth Presentation, `'list`, is built for it from `SwitcherPalette`. Tiered word matching over app, title, workspace, project and cached tabs, with the Lens's `sort` breaking ties. A leading `=` makes the box inline Nickel. `tab` marks several windows, `lens --presentation list` hands off from the strip, and the `search` Lens ships unbound. The CLI gets `lens --search` and `list-windows --lens/--search`, and `palette` becomes an alias.
+
 ## Not yet specified
 
 - **Config runtime details**: hot reload mechanics (file watching, atomic swap of the Nickel state, what happens to an open Lens mid-reload), where diagnostics are shown beyond the notification, and the Filter context's exact field list as a Nickel contract. Binding feasibility and call cost are [Task: Nickel binding spike](issues/28-task-nickel-binding-spike.md). (CLI exposure is in [Grilling: CLI surface for the fork's features](issues/20-grilling-cli-surface.md).)
@@ -67,6 +69,8 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 - **Region share for Zoom (stretch)**: DeskPad-like, where a workspace or Column is presented as a virtual display that Zoom can share. It's unclear whether that belongs in WinMux or in BetterDisplay glue, and it needs its own research once the core features are clear.
 - **Prior art on `prateek/winmux@codex-columns`**: 153 commits of Prateek's earlier fork work (columnar zones, column decks, scenes, `[[rules]]` routing, a zone-expose overview, ultrawide docs, perf comparisons), built on an older upstream base. This map is based on upstream `main` by choice (2026-09-28), so treat that branch as prior art to mine when specifying Columns, Display profiles and the grid, not as the code being changed. It's unclear which of its decisions still hold.
 - **AeroSpace migration gaps**: anything in Prateek's current AeroSpace config (callbacks, `on-window-detected` rules) that WinMux's importer drops or that conflicts with Columns. Includes ordering: the new-window binding runs before on-window-detected rules, so Overflow placement may need to wait for them.
+- **`'list` row look**: what a list row shows (icon, title, app, workspace or project chip, the matched tab, a mark badge, maybe a small thumbnail). Today's palette rows are the v1 default until then; see [Grilling: cmd-K search Lens](issues/19-grilling-cmd-k-search.md).
+- **Default Triggers and a leader mode**: Prateek drives AeroSpace with global alt-chords plus leader-key bindings. Whether WinMux ships a default leader mode as the namespace for all the fork's Lenses and commands (the `search` Lens ships unbound for now), and which global chords it claims.
 
 ## Out of scope
 

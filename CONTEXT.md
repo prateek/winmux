@@ -21,8 +21,12 @@ The live state a Filter can read when it runs: focused window and app, window an
 _Avoid_: environment, state
 
 **Presentation**:
-How a Lens lays out its matches: **grid** (every match at once, as thumbnails packed into sections), **miniatures** (every workspace drawn as a small copy of itself, with each window where it actually sits) or **strip** (a single row cycled while a modifier is held).
+How a Lens lays out its matches: **grid** (every match at once, as thumbnails packed into sections), **miniatures** (every workspace drawn as a small copy of itself, with each window where it actually sits) **strip** (a single row cycled while a modifier is held) or **list** (a Search box above ranked rows of windows).
 _Avoid_: view, mode, style
+
+**Search**:
+The text typed into an open Lens. It narrows the Lens's matches and ranks them by how well they match; the Filter decides which windows are eligible, and the Search picks among them.
+_Avoid_: query, filter text
 
 **Frozen thumbnail**:
 A thumbnail showing a window as it was when it was last on screen, not as it is now. Most apps stop painting a window once it's parked or covered, so every thumbnail outside the current workspace is usually frozen.

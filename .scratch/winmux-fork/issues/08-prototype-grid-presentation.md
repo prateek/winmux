@@ -12,6 +12,8 @@ Inputs from [Task: measure thumbnail capture on Prateek's machine](14-task-measu
 
 ## Answer
 
+> Amended (2026-09-30): [Grilling: cmd-K search Lens](19-grilling-cmd-k-search.md) added `'list` to what v1 builds, and specified typing in `'miniatures`: non-matches dim in place and arrows move among matches.
+
 > Revised (2026-09-30): an adversarial review of the first answer found that it claimed more than Prateek had said, contained two false claims about the prototype, and proposed config names that clashed with existing terms. Prateek then decided four points: real positions become their own Presentation, v1 builds only that one, the default is the same on both screens, and Summon runs the `place` hook. This answer replaces the first one.
 
 Prototyped and reacted to with Prateek on 2026-09-29 and 2026-09-30. What made Mission Control with WinMux look awful is that it doesn't know about workspaces and draws parked windows as corner slivers. The answer is a third Presentation that draws each workspace to scale.
