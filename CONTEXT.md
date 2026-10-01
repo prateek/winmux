@@ -13,7 +13,7 @@ A named yes/no function over windows, checked when the config loads, evaluated a
 _Avoid_: query, rule, scope
 
 **Window class**:
-How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an Accessory app) or app-popup (a regular app's popup, such as an autofill dropdown). Lenses leave out both popup classes unless the Filter names them.
+How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an app that has no Dock icon at that moment) or app-popup (a regular app's popup, such as an autofill dropdown). Lenses leave out both popup classes unless the Filter names them.
 _Avoid_: kind, type, layout
 
 **Filter context**:
@@ -49,7 +49,7 @@ To move the selected window into the current workspace, rather than going to the
 _Avoid_: pull, bring, fetch
 
 **Accessory app**:
-An app with no Dock icon and no entry in the native cmd+tab (LSUIElement), such as a menu-bar utility.
+An app declared to have no Dock icon and no entry in the native cmd+tab (LSUIElement), such as a menu-bar utility. Some take a Dock icon for as long as they have a window open; they are still Accessory apps.
 _Avoid_: menubar app, agent app, background app
 
 ## Layout

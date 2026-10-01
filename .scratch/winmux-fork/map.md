@@ -66,6 +66,10 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 
 - [Task: live check of Ghost Pepper's windows under WinMux](issues/12-task-live-check-ghost-pepper.md): Ghost Pepper turns `regular` while it has a window open and `accessory` again when it closes, so upstream WinMux already registers its windows without the app being frontmost and floats them (standard subrole, close button, no fullscreen button). The frontmost-only claim holds just for apps that stay Accessory. Activation policy is a runtime value, so `LSUIElement` is the stable way to tell an Accessory app.
 
+- [Grilling: default handling of floating and Accessory app windows](issues/11-grilling-floating-and-accessory-defaults.md): floaters keep today's behaviour; the default config ships an unbound `floating` Lens (`'list`, focus or Summon) to reach them. Accessory app windows that would tile float instead, overridable in `arrive`. No proactive registration. Filters get `a.accessory` (from `LSUIElement`, fixed) and `a.activationPolicy` (live), and accessory-popup follows the live policy as upstream does.
+
+- [Grilling: config hot reload](issues/32-grilling-config-hot-reload.md): reload on save is on by default (`reload-on-save` turns it off), watching the config and its imports through their directories with a 300 ms debounce. Failures show as a notification, in `config status` and in the log, without repeating an identical error. New bindings apply at once; the mode is kept if it still exists, and an open Lens keeps its entries. A file change resets the helper's circuit breaker.
+
 ## Not yet specified
 
 - **Grid Presentation look**: the packed arrangements from the grid prototype (rows, cells, a sidebar of sections; picture, card or text tiles; paging, shrinking or collapsing), for Lenses whose windows have no useful positions, such as floating windows. v1 rejects `presentation = 'grid`. The prototype's switches are the starting point; see [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md).
