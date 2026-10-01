@@ -1,8 +1,10 @@
 # Grilling: Display profile contents and switch behaviour
 
 Type: grilling
-Status: open
+Status: out of scope
 Blocked by: 05, 09, 13
+
+Deferred 2026-09-30: Prateek put Display profiles off to a later effort so the foundation can be built first. See the map's Out of scope section.
 
 ## Question
 

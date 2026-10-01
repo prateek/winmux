@@ -1,7 +1,9 @@
 # Task: live capture of display identity during g95nc and clamshell switches
 
 Type: task
-Status: open
+Status: out of scope
+
+Deferred 2026-09-30: Prateek put Display profiles off to a later effort so the foundation can be built first. See the map's Out of scope section.
 
 ## Question
 

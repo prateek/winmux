@@ -4,7 +4,7 @@ Branch `wayfind-fork` on `prateek/winmux`, based on upstream `ZimengXiong/winmux
 
 ## What this is
 
-A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (filtered Lenses covering exposé, cmd+tab and cmd-K search; fixed Columns; Display profiles for laptop and ultrawide; a `winmux` CLI for all of it) and produces specs, not code. Everything durable lives in the map; this note only orients you and holds what the map doesn't.
+A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (filtered Lenses covering exposé, cmd+tab and cmd-K search; fixed Columns; a `winmux` CLI for all of it; Display profiles, tabs and trackpad gestures were deferred on 2026-09-30) and produces specs, not code. Everything durable lives in the map; this note only orients you and holds what the map doesn't.
 
 - **Map (start here):** `.scratch/winmux-fork/map.md`. It holds the destination, standing decisions in Notes, Decisions-so-far, fog, and out-of-scope items.
 - **Tickets:** `.scratch/winmux-fork/issues/NN-*.md`, on the local-markdown tracker. They use `Type:`, `Status:` and `Blocked by:` lines; the tracker conventions are in `~/.agents/plugins/plugins/mattpocock/skills/setup-matt-pocock-skills/issue-tracker-local.md` under "Wayfinding operations".
@@ -14,9 +14,9 @@ A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (fi
 
 ## Finding the next ticket
 
-Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open` (tabs and gestures were deferred on 2026-09-30, and their tickets read `Status: out of scope`); a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
+Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open` (deferred tickets read `Status: out of scope`); a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
 
-Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: the display-capture task needs him at the ultrawide with BetterDisplay running. On 2026-09-29 and 2026-09-30 the sessions ran on a Mac mini (`Mac16,10`) with one virtual display and no trackpad, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
+Some tasks need Prateek's Mac in a particular state. On 2026-09-29 and 2026-09-30 the sessions ran on a Mac mini (`Mac16,10`) with one virtual display and no trackpad, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
 
 Since 2026-09-30 the Mac mini runs upstream WinMux 0.5.6 (cask `ZimengXiong/homebrew/winmux`) on the bundled default config, not the `prateek/tap` dogfood build. The old config is at `~/.config/winmux.dogfood-backup-20260930`. The upstream cask ships no CLI, so `/opt/homebrew/bin/winmux` is a copy built from v0.5.6 with `swift build -c release --product winmux`; it warns about a client/server version mismatch and works anyway. Ghost Pepper 2.4.4 is installed from the upstream cask.
 
