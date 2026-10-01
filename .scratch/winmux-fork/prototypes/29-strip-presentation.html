@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strip Presentation prototype</title>
+<!--
+  PROTOTYPE, throw away. Ticket 29: "Prototype: strip Presentation look and keyboard model".
+  A browser can't capture cmd+tab, so Option stands in for Cmd throughout:
+    Option+Tab opens `recent`, Option+` opens `app-windows`. Release Option to commit.
+  Every open choice is a switch on the left. Keyboard Triggers only: gestures are deferred.
+-->
+<style>
+:root { --bg:#161618; --panel:#1f1f22; --ink:#ececec; --muted:#9a9aa2; --line:#333338; --sel:#4c8dff; --summon:#f59f00;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; }
+main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:14px 16px; }
+h1 { font-size:18px; margin:0 0 4px; } .lede { color:var(--muted); margin:0 0 10px; }
+fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 8px; padding:6px 10px 8px; }
+legend { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:0 4px; }
+label { display:block; padding:1px 0; cursor:pointer; } label small { color:var(--muted); }
+kbd { font:11px var(--mono); border:1px solid var(--line); border-radius:4px; padding:0 4px; background:#2a2a2e; }
+#screen { position:relative; margin:0 auto; background:linear-gradient(135deg,#27425a,#3a2d4f); border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+.win { position:absolute; border-radius:5px; border:1px solid #0006; font-size:10px; padding:3px 5px; color:#fffc; overflow:hidden; }
+.win.focus { outline:2px solid #fff; }
+.ghost { position:absolute; border:2px dashed var(--summon); border-radius:5px; background:#f59f0022; }
+#strip { position:absolute; left:50%; transform:translateX(-50%); background:#1c1c1fee; border:1px solid #fff2; border-radius:14px; padding:10px;
+  display:none; max-width:92%; box-shadow:0 12px 40px #000a; }
+#tiles { display:flex; gap:8px; overflow:hidden; }
+.tile { flex:0 0 auto; border-radius:9px; padding:6px; border:2px solid transparent; text-align:center; position:relative; }
+.tile.sel { border-color:var(--sel); background:#4c8dff22; } .tile.sel.summon { border-color:var(--summon); background:#f59f0022; }
+.thumb { border-radius:5px; margin:0 auto 5px; position:relative; }
+.thumb.frozen { filter:brightness(.55) saturate(.6); }
+.icon { width:22px; height:22px; border-radius:6px; display:inline-block; vertical-align:middle; }
+.icon.big { width:44px; height:44px; border-radius:11px; display:block; margin:0 auto 5px; }
+.ttl { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .sub { font-size:10px; color:var(--muted); }
+.badge { position:absolute; top:-9px; left:50%; transform:translateX(-50%); background:var(--summon); color:#000; font-size:10px; font-weight:600; border-radius:8px; padding:0 6px; white-space:nowrap; }
+.more { align-self:center; color:var(--muted); font-size:11px; padding:0 4px; }
+#hint { text-align:center; color:var(--muted); font-size:10px; margin-top:6px; }
+#list { position:absolute; left:50%; top:18%; transform:translateX(-50%); width:44%; background:#1c1c1fee; border:1px solid #fff2; border-radius:12px; padding:12px; display:none; }
+#list input { width:100%; background:#2a2a2e; border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:6px 8px; font-size:13px; }
+#state { font:11px/1.5 var(--mono); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-top:10px; white-space:pre-wrap; }
+#log { color:#9fe3a5; }
+</style>
+</head>
+<body>
+<main>
+<aside>
+  <h1>Strip Presentation</h1>
+  <p class="lede">Click the screen first. <b>Option stands in for Cmd.</b><br>
+  <kbd>⌥ Tab</kbd> opens <code>recent</code>, <kbd>⌥ `</kbd> opens <code>app-windows</code>. <kbd>Esc</kbd> cancels.</p>
+  <fieldset><legend>1 · Tile content</legend>
+    <label><input type="radio" name="tile" value="thumb" checked> Thumbnail, icon and title</label>
+    <label><input type="radio" name="tile" value="icon"> Large app icon and title <small>(native cmd+tab look)</small></label>
+    <label><input type="radio" name="tile" value="row"> Thumbnail only, title under selection</label>
+  </fieldset>
+  <fieldset><legend>2 · Reverse cycling in <code>recent</code></legend>
+    <label><input type="radio" name="rev" value="shift" checked> <kbd>⇧ Tab</kbd></label>
+    <label><input type="radio" name="rev" value="tick"> <kbd>`</kbd> <small>(native cmd+tab does this)</small></label>
+    <label><input type="radio" name="rev" value="both"> Both</label>
+  </fieldset>
+  <fieldset><legend>3 · Summon modifier at release</legend>
+    <label><input type="radio" name="summon" value="shift"> Shift <small>(= shift-enter; clashes with ⇧ Tab)</small></label>
+    <label><input type="radio" name="summon" value="ctrl" checked> Control <small>(stands in for Option on the real thing)</small></label>
+  </fieldset>
+  <fieldset><legend>4 · Summon hints</legend>
+    <label><input type="checkbox" id="hLabel" checked> "Summon to N" label on the selection</label>
+    <label><input type="checkbox" id="hSpot" checked> Landing spot on the screen</label>
+  </fieldset>
+  <fieldset><legend>5 · Release</legend>
+    <label><input type="radio" name="rel" value="commit" checked> Releasing the modifier commits</label>
+    <label><input type="radio" name="rel" value="sticky"> Strip stays open; <kbd>Enter</kbd> commits</label>
+  </fieldset>
+  <fieldset><legend>6 · Quick tap (released within 100 ms)</legend>
+    <label><input type="radio" name="tap" value="swap" checked> Swap to previous window, strip never appears</label>
+    <label><input type="radio" name="tap" value="show"> Always show the strip <small>(no delay)</small></label>
+  </fieldset>
+  <fieldset><legend>7 · Hand off to the list Presentation</legend>
+    <label><input type="radio" name="hand" value="slash" checked> <kbd>/</kbd></label>
+    <label><input type="radio" name="hand" value="space"> <kbd>Space</kbd></label>
+    <label><input type="radio" name="hand" value="type"> Any letter <small>(just start typing)</small></label>
+  </fieldset>
+  <fieldset><legend>8 · Screen and placement</legend>
+    <label><input type="radio" name="scr" value="laptop" checked> Laptop 16:10</label>
+    <label><input type="radio" name="scr" value="ultra"> Ultrawide 32:9</label>
+    <label><input type="radio" name="pos" value="center" checked> Centred on the screen</label>
+    <label><input type="radio" name="pos" value="low"> Lower third</label>
+    <label><input type="radio" name="pos" value="col"> Over the focused Column <small>(ultrawide)</small></label>
+    <label>Tiles before it scrolls <input type="number" id="max" value="9" min="3" max="20" style="width:48px"></label>
+  </fieldset>
+</aside>
+<section>
+  <div id="screen" tabindex="0">
+    <div id="strip"><div id="tiles"></div><div id="hint"></div></div>
+    <div id="list"><input id="q" placeholder="Search"><div class="sub" style="margin-top:6px">'list Presentation, same Lens, same selection. (Mock: Esc closes.)</div></div>
+  </div>
+  <div id="state"></div>
+</section>
+</main>
+<script>
+const W = [
+  {id:1, app:'Ghostty', t:'~/code/winmux — zsh', ws:1, c:'#3d5a80', col:0},
+  {id:2, app:'Chrome', t:'ScreenCaptureKit | Apple Developer', ws:1, c:'#ee6c4d', col:1},
+  {id:3, app:'VS Code', t:'focus.swift — winmux', ws:1, c:'#2a9d8f', col:2},
+  {id:4, app:'Slack', t:'#general', ws:2, c:'#7b2cbf'},
+  {id:5, app:'Chrome', t:'Nickel user manual', ws:2, c:'#ee6c4d'},
+  {id:6, app:'Ghostty', t:'cargo build — nickel-helper', ws:2, c:'#3d5a80'},
+  {id:7, app:'Ghost Pepper', t:'', ws:1, c:'#bc4749', acc:true, float:true},
+  {id:8, app:'Finder', t:'Downloads', ws:3, c:'#577590'},
+  {id:9, app:'Zed', t:'map.md', ws:3, c:'#5e60ce'},
+  {id:10, app:'Chrome', t:'AltTab issue #5155', ws:3, c:'#ee6c4d'},
+  {id:11, app:'Mail', t:'Inbox', ws:4, c:'#4895ef'},
+  {id:12, app:'Notes', t:'Fork ideas', ws:4, c:'#e9c46a'},
+  {id:13, app:'Ghostty', t:'htop', ws:4, c:'#3d5a80'},
+  {id:14, app:'Preview', t:'g95nc-manual.pdf', ws:5, c:'#90be6d'},
+];
+let mru = W.map(w => w.id), curWs = 1;
+let S = {open:false, shown:false, lens:null, sel:0, items:[], timer:null, downAt:0, list:false};
+const $ = id => document.getElementById(id), opt = n => document.querySelector(`input[name=${n}]:checked`).value;
+const byId = id => W.find(w => w.id === id), log = [];
+function say(m){ log.unshift(m); log.length = Math.min(log.length, 5); render(); }
+function summonHeld(e){ return opt('summon') === 'shift' ? e.shiftKey : e.ctrlKey; }
+let mods = {summon:false};
+
+function openLens(lens){
+  const focusApp = byId(mru[0]).app;
+  S.items = mru.map(byId).filter(w => lens === 'recent' || w.app === focusApp);
+  S = {...S, open:true, lens, sel: S.items.length > 1 ? 1 : 0, downAt: performance.now(), list:false, shown: opt('tap') === 'show'};
+  clearTimeout(S.timer);
+  if (!S.shown) S.timer = setTimeout(() => { S.shown = true; render(); }, 100);
+  say(`open ${lens} (${S.items.length} windows), selection on #2`);
+}
+function step(d){ S.sel = (S.sel + d + S.items.length) % S.items.length; S.shown = true; render(); }
+function close(why){ clearTimeout(S.timer); S.open = S.shown = S.list = false; if (why) say(why); else render(); }
+function commit(){
+  if (!S.open) return;
+  const w = S.items[S.sel], quick = !S.shown;
+  mru = [w.id, ...mru.filter(i => i !== w.id)];
+  if (mods.summon && w.ws !== curWs) { w.ws = curWs; w.col = 0; close(`SUMMON "${w.app}" to workspace ${curWs} (place hook picks the Column)`); }
+  else { curWs = w.ws; close(`${quick ? 'quick tap: ' : ''}focus "${w.app}${w.t ? ' — ' + w.t : ''}" on workspace ${w.ws}`); }
+}
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'q') { if (e.key === 'Escape') close('list closed'); return; }
+  if (e.target.tagName === 'INPUT') return;
+  mods.summon = summonHeld(e);
+  if (e.altKey && e.code === 'Tab') { e.preventDefault();
+    if (!S.open) return openLens('recent');
+    return step(e.shiftKey && opt('rev') !== 'tick' ? -1 : 1); }
+  if (e.altKey && e.code === 'Backquote') { e.preventDefault();
+    if (!S.open) return openLens('app-windows');
+    if (S.lens === 'recent') return opt('rev') !== 'shift' ? step(-1) : null;
+    return step(e.shiftKey ? -1 : 1); }
+  if (!S.open) return;
+  e.preventDefault();
+  if (e.key === 'Escape') return close('cancelled, focus unchanged');
+  if (e.key === 'ArrowRight') return step(1);
+  if (e.key === 'ArrowLeft') return step(-1);
+  if (e.key === 'Enter') return commit();
+  const h = opt('hand');
+  if ((h === 'slash' && e.code === 'Slash') || (h === 'space' && e.code === 'Space') || (h === 'type' && /^Key[A-Z]$/.test(e.code))) {
+    S.list = true; S.shown = false; clearTimeout(S.timer); say(`hand off to 'list (lens --presentation list), selection kept`); setTimeout(() => $('q').focus(), 0); return; }
+  render();
+});
+document.addEventListener('keyup', e => {
+  mods.summon = summonHeld(e);
+  if (e.key === 'Alt' && S.open && !S.list) {
+    if (opt('rel') === 'commit' || !S.shown) return commit();
+    say('modifier released, strip stays open (Enter commits, Esc cancels)'); }
+  render();
+});
+
+function tileHTML(w, i){
+  const mode = opt('tile'), sel = i === S.sel, frozen = w.ws !== curWs;
+  const sm = sel && mods.summon && frozen;
+  const badge = sm && $('hLabel').checked ? `<div class="badge">Summon to ${curWs}</div>` : '';
+  const tw = mode === 'icon' ? 84 : 120;
+  const thumb = mode === 'icon' ? `<span class="icon big" style="background:${w.c}"></span>`
+    : `<div class="thumb ${frozen ? 'frozen' : ''}" style="width:${tw}px;height:${w.acc ? 50 : 72}px;background:${w.c};${w.acc ? 'outline:1px dashed #fff8;margin-top:22px' : ''}"></div>`;
+  const text = mode === 'row' && !sel ? '' : `<div class="ttl" style="max-width:${tw}px">${mode === 'icon' ? '' : `<span class="icon" style="background:${w.c};width:12px;height:12px;border-radius:3px"></span> `}${w.app}</div>
+    <div class="sub ttl" style="max-width:${tw}px">${w.t || (w.acc ? 'menu-bar app' : '')} · ws ${w.ws}</div>`;
+  return `<div class="tile ${sel ? 'sel' : ''} ${sm ? 'summon' : ''}">${badge}${thumb}${text}</div>`;
+}
+function render(){
+  const ultra = opt('scr') === 'ultra', scr = $('screen');
+  const sw = Math.min(scr.parentElement.clientWidth, ultra ? 1500 : 900), sh = ultra ? sw * 9 / 32 : sw * 10 / 16;
+  scr.style.width = sw + 'px'; scr.style.height = sh + 'px';
+  scr.querySelectorAll('.win,.ghost').forEach(n => n.remove());
+  const cols = ultra ? 3 : 2, cw = sw / cols, here = W.filter(w => w.ws === curWs);
+  here.forEach((w, i) => { const d = document.createElement('div'); d.className = 'win' + (w.id === mru[0] ? ' focus' : '');
+    const c = w.float ? null : (w.col ?? i) % cols;
+    d.style.cssText = c === null ? `left:${sw * .55}px;top:${sh * .18}px;width:${sw * .18}px;height:${sh * .4}px;background:${w.c};z-index:2`
+      : `left:${c * cw + 6}px;top:${28 + (Math.floor(((w.col ?? i)) / cols) * 0)}px;width:${cw - 12}px;height:${sh - 40}px;background:${w.c}`;
+    d.textContent = w.app; scr.prepend(d); });
+  const strip = $('strip'); strip.style.display = S.open && S.shown ? 'block' : 'none'; $('list').style.display = S.list ? 'block' : 'none';
+  if (S.open && S.shown) {
+    const max = +$('max').value, n = S.items.length; let from = 0;
+    if (n > max) from = Math.min(Math.max(S.sel - Math.floor(max / 2), 0), n - max);
+    const vis = S.items.slice(from, from + max);
+    $('tiles').innerHTML = (from > 0 ? `<div class="more">+${from}</div>` : '') + vis.map((w, i) => tileHTML(w, i + from)).join('') + (from + max < n ? `<div class="more">+${n - from - max}</div>` : '');
+    const pos = opt('pos'); strip.style.top = pos === 'low' ? '62%' : '32%';
+    const fc = byId(mru[0]).col ?? 0; strip.style.left = pos === 'col' && ultra ? ((fc % cols) + .5) * cw + 'px' : '50%';
+    strip.style.maxWidth = pos === 'col' && ultra ? cw - 20 + 'px' : '92%';
+    $('hint').textContent = `${S.lens} · ${S.sel + 1} of ${n} · ${opt('hand') === 'slash' ? '/' : opt('hand') === 'space' ? 'Space' : 'type'} to search`;
+    const w = S.items[S.sel];
+    if (mods.summon && w.ws !== curWs && $('hSpot').checked) { const g = document.createElement('div'); g.className = 'ghost';
+      g.style.cssText = `left:6px;top:28px;width:${cw - 12}px;height:${sh - 40}px;z-index:1`; scr.appendChild(g); }
+  }
+  $('state').innerHTML = `<span id="log">${log.join('\n') || 'Click the screen, then ⌥ Tab.'}</span>\n\n` +
+    `open=${S.open} shown=${S.shown} lens=${S.lens} sel=${S.sel} summonHeld=${mods.summon} workspace=${curWs}\nmru: ${mru.slice(0, 8).map(i => byId(i).app + '#' + i).join(' › ')} …`;
+}
+document.querySelectorAll('input').forEach(i => i.addEventListener('change', () => { i.blur(); render(); }));
+window.addEventListener('resize', render); window.addEventListener('blur', () => close());
+render();
+</script>
+</body>
+</html>

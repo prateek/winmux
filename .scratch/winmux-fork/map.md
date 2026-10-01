@@ -76,6 +76,8 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 
 - [Task: confirm the grid backdrop keeps Electron and Metal windows live](issues/30-task-grid-backdrop-liveness.md): VS Code and Ghostty keep painting under a non-opaque cover up to 99% black, with or without blur, and freeze at 100% even with `isOpaque = false`. The backdrop is capped at 95% black; the 60% with blur default is safe.
 
+- [Prototype: strip Presentation look and keyboard model](issues/29-prototype-strip-presentation.md): the strip is the Lens machinery with a one-row layout, so it inherits the tile look, Frozen thumbnail treatment and Summon hints, and `frozen_thumbnail`, `accessory_window` and `summon_hints` move from the `miniatures` record onto the Lens. Strip-only: reverse is shift plus the invoking key (backtick doesn't reverse `recent`), Summon at release is Option, and typing a letter hands off to `'list`.
+
 ## Not yet specified
 
 - **Grid Presentation look**: the packed arrangements from the grid prototype (rows, cells, a sidebar of sections; picture, card or text tiles; paging, shrinking or collapsing), for Lenses whose windows have no useful positions, such as floating windows. v1 rejects `presentation = 'grid`. The prototype's switches are the starting point; see [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md).

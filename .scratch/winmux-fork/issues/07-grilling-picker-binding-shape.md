@@ -12,6 +12,8 @@ From the thumbnails research: WinMux has no global MRU (only recent children per
 
 ## Answer
 
+> Amended (2026-09-30): [Prototype: strip Presentation look and keyboard model](29-prototype-strip-presentation.md) makes Option, not Shift, the modifier that selects Summon when a strip is released, because Shift reverses the cycle. `shift-enter` stays Summon in the other Presentations.
+
 > Amended (2026-09-30): [Grilling: cmd-K search Lens](19-grilling-cmd-k-search.md) added a fourth Presentation, `'list`, and Search (typed text) in every Lens. A fourth default Lens, `search`, ships unbound, and `winmux palette` becomes an alias for `lens search`.
 
 > Amended (2026-09-30): [Prototype: grid Presentation look and behaviour](08-prototype-grid-presentation.md) added a third Presentation, `'miniatures`, configured by a `miniatures` record. Under it the contract rejects `sections`, `entries` and `sort`, because windows keep their real positions. The default `overview` Lens is now `presentation = 'miniatures`, not a grid.
