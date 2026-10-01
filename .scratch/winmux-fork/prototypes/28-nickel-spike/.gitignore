@@ -1,0 +1,4 @@
+target/
+*.dylib
+*.a
+swift/caller

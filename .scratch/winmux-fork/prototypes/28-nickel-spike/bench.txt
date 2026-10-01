@@ -1,0 +1,32 @@
+
+== with | W.Config contracts (config/config.ncl)
+load (parse, typecheck, stdlib, WHNF)             5411.0 µs
+lookup 5 functions                                  34.0 µs
+marshal 50 windows + ctx (JSON -> NickelValue)      47.4 µs
+  here keeps 21 of 50 (one-call variant: 21)
+  place(VSCode, empty col) = {"column":"'nearest_empty"}
+  place(Mail) = {"column":3.0,"overflow":"'tab_group"}
+  arrive(floating Ghostty) = {}
+Filter same_app, 50 per-window calls             first   779.5 µs   median   786.9 µs   max   824.2 µs
+Filter here (calls floaters), 50 per-window      first  2046.1 µs   median  1947.6 µs   max  2198.2 µs
+Filter here, one call over 50-window array       first  1694.6 µs   median  1653.5 µs   max  1702.6 µs
+marshal + Filter here per-window (Lens open)     first  2023.5 µs   median  1976.8 µs   max  2267.7 µs
+place, one call                                  first   193.6 µs   median   157.4 µs   max   197.2 µs
+arrive, one call                                 first    72.0 µs   median    70.5 µs   max    90.4 µs
+RSS before/after 20k place calls: 142048 KB -> 882432 KB
+
+== without the W.Config contract (config/config-nocontract.ncl)
+load (parse, typecheck, stdlib, WHNF)             5054.5 µs
+lookup 5 functions                                  17.0 µs
+marshal 50 windows + ctx (JSON -> NickelValue)      43.9 µs
+  here keeps 21 of 50 (one-call variant: 21)
+  place(VSCode, empty col) = {"column":"'nearest_empty"}
+  place(Mail) = {"column":3.0,"overflow":"'tab_group"}
+  arrive(floating Ghostty) = {}
+Filter same_app, 50 per-window calls             first   118.8 µs   median   111.0 µs   max   121.4 µs
+Filter here (calls floaters), 50 per-window      first  1131.6 µs   median  1129.9 µs   max  1171.7 µs
+Filter here, one call over 50-window array       first   883.6 µs   median   838.4 µs   max   900.9 µs
+marshal + Filter here per-window (Lens open)     first  1233.7 µs   median  1196.0 µs   max  1254.4 µs
+place, one call                                  first    87.2 µs   median    69.1 µs   max    82.8 µs
+arrive, one call                                 first    52.0 µs   median    46.9 µs   max    61.8 µs
+RSS before/after 20k place calls: 985264 KB -> 1181568 KB

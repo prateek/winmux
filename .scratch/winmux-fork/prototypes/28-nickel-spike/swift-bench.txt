@@ -1,0 +1,12 @@
+in-process load: 13.4 ms
+in-process: Lens open (encode + 50 calls) first   4383.2 µs  median   2424.7 µs  p99   3314.2 µs
+   -> {"ok":[false,false,true,false,true,false,true,false,true,false,true,false,true,false,false,false,true,false,tr
+in-process: place (encode + 1 call) first    308.9 µs  median    209.6 µs  p99    233.7 µs
+   -> {"ok":{"column":"'focused","overflow":"'tab_group"}}
+encode only: Lens request first    176.1 µs  median    178.3 µs  p99    197.3 µs
+   -> {"fn":"filters.here","rest":[{"focused":{"workspace":"2","title":"Window 2 — some document title","project":"w
+helper spawn + load + first call: 412.3 ms
+helper: Lens open (encode + pipe + 50 calls) first   5912.1 µs  median   2202.3 µs  p99   4323.7 µs
+   -> {"ok":[false,false,true,false,true,false,true,false,true,false,true,false,true,false,false,false,true,false,tr
+helper: place (encode + pipe + 1 call) first    242.8 µs  median    201.9 µs  p99    224.5 µs
+   -> {"ok":{"column":"'focused","overflow":"'tab_group"}}

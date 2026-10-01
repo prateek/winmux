@@ -17,6 +17,8 @@ Also in scope: merging `[[on-window-detected]]` and the `place` hook into one wi
 
 ## Answer
 
+> Under review 2026-09-30: the in-process embedding below is in question at [Grilling: where the Nickel evaluator runs](31-grilling-nickel-evaluator-process.md), after [Task: Nickel binding spike](28-task-nickel-binding-spike.md) found that `nickel-lang-core` leaks memory on nearly every call (nickel-lang/nickel#1908).
+
 Prototyped and grilled with Prateek on 2026-09-29. Prototype: [27-config-language.html](../prototypes/27-config-language.html), kept in `.scratch` like the filter-language one. It shows one reference config (Filters and Lenses, `place`, `move-boundary`, the Columns precedence chain, window arrival, hook return styles, errors, CLI) in seven candidates: TOML + CEL, Janet, TOML + JS hooks, HCL, Nickel, Dhall, and Guile written in Guix's style. A purpose-built DSL and a Nix module generating TOML were also drafted, then dropped at Prateek's request.
 
 - **Nickel replaces both TOML and CEL.** The config is `~/.config/winmux/winmux.ncl`, checked against a WinMux-shipped `winmux.ncl` of contracts and defaults. Filters and Policy hooks are Nickel functions (`fun w ctx => …`). This supersedes the language half of [Prototype: filter language worked examples](06-prototype-filter-language.md); its Window classes (`accessory-popup`, `app-popup`), popup defaults and Filter attributes stand.
