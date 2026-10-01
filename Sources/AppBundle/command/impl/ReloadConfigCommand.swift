@@ -59,6 +59,7 @@ struct ReloadConfigCommand: Command {
 @MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
     resetHotKeys()
     config = newConfig
+    config.workspaceSidebar.apply(readWorkspaceSidebarState())
     configUrl = url
     try await activateMode(activeMode)
     syncStartAtLogin()

@@ -80,7 +80,11 @@ struct ShortcutSettingsView: View {
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 220)
         } detail: {
-            Group {
+            VStack(spacing: 0) {
+                if selectedItem != .reference {
+                    ConfigFileBar()
+                    Divider()
+                }
                 switch selectedItem {
                     case .shortcuts:
                         ShortcutSettingsShortcutsView(model: model)
@@ -100,6 +104,23 @@ struct ShortcutSettingsView: View {
             }
             .navigationTitle(selectedItem?.label ?? "")
         }
+    }
+}
+
+/// Every pane shows what the config file holds. WinMux never writes to that file, so the bar
+/// sends the user to it.
+private struct ConfigFileBar: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("These settings are read from your config file. To change one, edit the file and reload.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Open config") { openConfigFile() }
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 }
 
@@ -126,14 +147,6 @@ struct ShortcutCategoryView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
-                if let error = model.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.white)
-                        .padding()
-                        .background(Color.red)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
                 let sections = model.sections.filter { $0.category == category && $0.id != "managed-move" }
                 ForEach(sections) { section in
                     ShortcutSectionView(model: model, section: section)
@@ -207,11 +220,7 @@ struct ShortcutRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            ShortcutRecorderView(
-                shortcut: .init(get: { model.shortcutValue(for: action.id) },
-                                set: { model.setShortcutValue($0, for: action.id) }),
-                onChange: { _ in }
-            )
+            ShortcutRecorderView(shortcut: model.shortcutValue(for: action.id))
             .frame(width: 140, height: 22)
         }
         .padding(.vertical, 6)

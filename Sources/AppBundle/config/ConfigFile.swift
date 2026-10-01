@@ -4,7 +4,8 @@ import TOMLKit
 
 let legacyConfigDotfileName = ".winmux.toml"
 let generatedConfigDirectoryName = "winmux"
-let generatedConfigFileName = "winmux.toml"
+let generatedConfigFileName = "winmux.ncl"
+let legacyConfigFileName = "winmux.toml"
 let aerospaceLegacyConfigDotfileName = ".aerospace.toml"
 let aerospaceConfigDirectoryName = "aerospace"
 let aerospaceConfigFileName = "aerospace.toml"
@@ -22,7 +23,7 @@ func generatedConfigUrl() -> URL {
 
 func legacyConfigCandidateUrls() -> [URL] {
     [
-        xdgConfigHomeUrl().appending(path: "winmux").appending(path: "winmux.toml"),
+        xdgConfigHomeUrl().appending(path: generatedConfigDirectoryName).appending(path: legacyConfigFileName),
         FileManager.default.homeDirectoryForCurrentUser.appending(path: legacyConfigDotfileName),
     ]
 }
@@ -53,113 +54,24 @@ func preferredEditableConfigUrl() -> URL {
     return generatedConfigUrl()
 }
 
+/// What a first launch writes: a config that takes every default and changes nothing.
 func starterConfigText() -> String {
-    let starterBindings: [String: String] = [
-        ("alt-space", "layout horizontal vertical"),
-        ("ctrl-f", "open-sidebar"),
-        ("alt-h", "focus left"),
-        ("alt-j", "focus down"),
-        ("alt-k", "focus up"),
-        ("alt-l", "focus right"),
-        ("alt-n", "focus dfs-next"),
-        ("alt-p", "focus dfs-prev"),
-        ("alt-tab", "focus tab-next"),
-        ("alt-shift-tab", "focus tab-prev"),
-        ("alt-0", "focus --tab-index 10"),
-        ("alt-1", "focus --tab-index 1"),
-        ("alt-2", "focus --tab-index 2"),
-        ("alt-3", "focus --tab-index 3"),
-        ("alt-4", "focus --tab-index 4"),
-        ("alt-5", "focus --tab-index 5"),
-        ("alt-6", "focus --tab-index 6"),
-        ("alt-7", "focus --tab-index 7"),
-        ("alt-8", "focus --tab-index 8"),
-        ("alt-9", "focus --tab-index 9"),
-        ("alt-shift-h", "move left"),
-        ("alt-shift-j", "move down"),
-        ("alt-shift-k", "move up"),
-        ("alt-shift-l", "move right"),
-        ("cmd-shift-h", "join-with left"),
-        ("cmd-shift-j", "join-with down"),
-        ("cmd-shift-k", "join-with up"),
-        ("cmd-shift-l", "join-with right"),
-        ("ctrl-cmd-shift-h", "stack-with left"),
-        ("ctrl-cmd-shift-j", "stack-with down"),
-        ("ctrl-cmd-shift-k", "stack-with up"),
-        ("ctrl-cmd-shift-l", "stack-with right"),
-        ("cmd-shift-i", "balance-sizes"),
-        ("alt-cmd-h", "project prev"),
-        ("alt-cmd-j", "swap down"),
-        ("alt-cmd-k", "swap up"),
-        ("alt-cmd-l", "project next"),
-        ("alt-shift-t", "layout floating tiling"),
-        ("alt-shift-m", "fullscreen"),
-        ("ctrl-0", "workspace 10"),
-        ("ctrl-1", "workspace 1"),
-        ("ctrl-2", "workspace 2"),
-        ("ctrl-3", "workspace 3"),
-        ("ctrl-4", "workspace 4"),
-        ("ctrl-5", "workspace 5"),
-        ("ctrl-6", "workspace 6"),
-        ("ctrl-7", "workspace 7"),
-        ("ctrl-8", "workspace 8"),
-        ("ctrl-9", "workspace 9"),
-        ("ctrl-q", "workspace 11"),
-        ("ctrl-w", "workspace 12"),
-        ("ctrl-e", "workspace 13"),
-        ("ctrl-r", "workspace 14"),
-        ("ctrl-t", "workspace 15"),
-        ("ctrl-h", "workspace prev"),
-        ("ctrl-l", "workspace next"),
-        ("cmd-ctrl-h", "workspace prev"),
-        ("cmd-ctrl-l", "workspace next"),
-        ("alt-cmd-1", "project 1"),
-        ("alt-cmd-2", "project 2"),
-        ("alt-cmd-3", "project 3"),
-        ("alt-cmd-4", "project 4"),
-        ("alt-cmd-5", "project 5"),
-        ("alt-cmd-6", "project 6"),
-        ("alt-cmd-7", "project 7"),
-        ("alt-cmd-8", "project 8"),
-        ("alt-cmd-9", "project 9"),
-        ("alt-cmd-shift-h", "move-node-to-project prev"),
-        ("alt-cmd-shift-l", "move-node-to-project next"),
-        ("alt-shift-1", "move-node-to-workspace 1"),
-        ("alt-shift-2", "move-node-to-workspace 2"),
-        ("alt-shift-3", "move-node-to-workspace 3"),
-        ("alt-shift-4", "move-node-to-workspace 4"),
-        ("alt-shift-5", "move-node-to-workspace 5"),
-        ("alt-shift-6", "move-node-to-workspace 6"),
-        ("alt-shift-7", "move-node-to-workspace 7"),
-        ("alt-shift-8", "move-node-to-workspace 8"),
-        ("alt-shift-9", "move-node-to-workspace 9"),
-        ("ctrl-shift-0", "move-node-to-workspace 10"),
-        ("ctrl-shift-h", "move-node-to-workspace --focus-follows-window prev"),
-        ("ctrl-shift-l", "move-node-to-workspace --focus-follows-window next"),
-        ("alt-cmd-shift-1", "move-node-to-project 1"),
-        ("alt-cmd-shift-2", "move-node-to-project 2"),
-        ("alt-cmd-shift-3", "move-node-to-project 3"),
-        ("alt-cmd-shift-4", "move-node-to-project 4"),
-        ("alt-cmd-shift-5", "move-node-to-project 5"),
-        ("alt-cmd-shift-6", "move-node-to-project 6"),
-        ("alt-cmd-shift-7", "move-node-to-project 7"),
-        ("alt-cmd-shift-8", "move-node-to-project 8"),
-        ("alt-cmd-shift-9", "move-node-to-project 9"),
-    ].reduce(into: [:]) { result, pair in
-        result[pair.0] = pair.1
-    }
-    let defaultText = (try? String(contentsOf: defaultConfigUrl, encoding: .utf8)) ?? """
-        config-version = 2
+    """
+    # WinMux config. It is Nickel: https://nickel-lang.org
+    #
+    # `winmux/defaults.ncl` holds the settings and bindings WinMux starts with, and this file
+    # merges its own settings over them. `winmux config check` reports mistakes, and
+    # `winmux reload-config` applies the file.
+    #
+    # The `nickel` CLI and its language server find the two imports when NICKEL_IMPORT_PATH is
+    # set to the directory that holds `winmux/`: Contents/Resources/nickel inside WinMux.app.
+    let W = import "winmux/winmux.ncl" in
+    ((import "winmux/defaults.ncl") & {
+      # gaps.inner.horizontal = 0,
+      # mode.main.binding.alt-enter = "exec-and-forget open -a Terminal",
+    }) | W.Config
 
-        [mode.main.binding]
-        """
-    return updateModeBindingConfig(
-        in: defaultText,
-        modeName: mainModeId,
-        tableKey: "binding",
-        managedCommands: [],
-        assignments: starterBindings,
-    )
+    """
 }
 
 @MainActor
@@ -179,30 +91,70 @@ func ensureBootstrapConfigExistsIfNeeded() throws -> URL? {
     }
 }
 
+/// - Parameter convert: Translates a TOML config file into Nickel source.
 func materializeBootstrapConfigIfNeeded(
     targetUrl: URL,
     existingLegacyUrls: [URL],
     aerospaceImportUrl: URL? = nil,
+    convert: (URL) throws -> String = convertTomlConfigToNickel,
 ) throws -> Bool {
     guard !FileManager.default.fileExists(atPath: targetUrl.path) else { return false }
     let parentUrl = targetUrl.deletingLastPathComponent()
     if parentUrl.path != targetUrl.path {
         try FileManager.default.createDirectory(at: parentUrl, withIntermediateDirectories: true)
     }
+    let text: String
     if let legacyUrl = existingLegacyUrls.first {
-        try FileManager.default.copyItem(at: legacyUrl, to: targetUrl)
-    } else if let aerospaceImportUrl {
-        let migratedConfig = try migrateAerospaceConfigForWinMux(
-            try String(contentsOf: aerospaceImportUrl, encoding: .utf8),
-        )
-        try migratedConfig.write(to: targetUrl, atomically: true, encoding: .utf8)
+        text = try convert(legacyUrl)
+    } else if let aerospaceImportUrl,
+              let keyboardConfig = try migrateAerospaceConfigForWinMux(try String(contentsOf: aerospaceImportUrl, encoding: .utf8))
+    {
+        let migratedUrl = FileManager.default.temporaryDirectory.appending(path: "winmux-aerospace-\(UUID().uuidString).toml")
+        try keyboardConfig.write(to: migratedUrl, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: migratedUrl) }
+        text = """
+            # Migrated from the AeroSpace config \(aerospaceImportUrl.path).
+            # WinMux owns this file after import; the AeroSpace config is not read again. Only its
+            # keyboard configuration was imported.
+
+            """ + (try convert(migratedUrl))
     } else {
-        try starterConfigText().write(to: targetUrl, atomically: true, encoding: .utf8)
+        text = starterConfigText()
     }
+    try text.write(to: targetUrl, atomically: true, encoding: .utf8)
     return true
 }
 
-func migrateAerospaceConfigForWinMux(_ rawToml: String) throws -> String {
+/// Runs `winmux-nickel convert` on a TOML config and returns the Nickel source it prints.
+func convertTomlConfigToNickel(_ tomlUrl: URL) throws -> String {
+    guard let helper = nickelHelperUrl() else {
+        throw ConfigConversionError(message: "The config helper winmux-nickel was not found, so \(tomlUrl.path) cannot be converted")
+    }
+    let process = Process()
+    let stdout = Pipe()
+    let stderr = Pipe()
+    process.executableURL = helper
+    process.arguments = ["convert", tomlUrl.path]
+    process.standardOutput = stdout
+    process.standardError = stderr
+    try process.run()
+    let output = stdout.fileHandleForReading.readDataToEndOfFile()
+    let diagnostic = stderr.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        throw ConfigConversionError(message: "Cannot convert \(tomlUrl.path)\n\n\(String(decoding: diagnostic, as: UTF8.self))")
+    }
+    return String(decoding: output, as: UTF8.self)
+}
+
+struct ConfigConversionError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+
+/// The keyboard configuration of an AeroSpace config, as WinMux TOML: its key mapping and its
+/// modes, with AeroSpace's names replaced by WinMux's. `nil` if it has none.
+func migrateAerospaceConfigForWinMux(_ rawToml: String) throws -> String? {
     _ = try TOMLTable(string: rawToml)
 
     var migrated = aerospaceKeyboardConfigSections(from: rawToml)
@@ -222,18 +174,7 @@ func migrateAerospaceConfigForWinMux(_ rawToml: String) throws -> String {
         #"(?<![A-Za-z0-9_-])accordion(?![A-Za-z0-9_-])"#,
         with: "tab-group",
     )
-    let baseConfig = migrated.isEmpty
-        ? starterConfigText()
-        : removingAerospaceKeyboardConfigSections(from: starterConfigText())
-
-    return """
-        # Migrated from AeroSpace config by WinMux.
-        # WinMux owns this file after import; the AeroSpace source is not read again.
-        # Current WinMux defaults are used for WinMux-specific behavior; AeroSpace keyboard sections are preserved below.
-
-        \(baseConfig)
-        \(migrated.isEmpty ? "" : "\n# Keyboard configuration imported from AeroSpace.\n\(migrated)")
-        """
+    return migrated.isEmpty ? nil : migrated
 }
 
 private extension String {
@@ -246,10 +187,6 @@ private extension String {
 
 private func aerospaceKeyboardConfigSections(from rawToml: String) -> String {
     keyboardConfigSections(from: rawToml, keepMatchingSections: true)
-}
-
-private func removingAerospaceKeyboardConfigSections(from rawToml: String) -> String {
-    keyboardConfigSections(from: rawToml, keepMatchingSections: false)
 }
 
 private func keyboardConfigSections(from rawToml: String, keepMatchingSections: Bool) -> String {

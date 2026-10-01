@@ -5,175 +5,158 @@ import XCTest
 
 @MainActor
 final class ConfigBootstrapTest: XCTestCase {
-    func testStarterConfigParses() {
-        let (parsedConfig, errors) = parseConfig(starterConfigText())
-        assertEquals(errors, [])
+    private var tempDir: URL!
 
-        let bindings: [(String, String)] = parsedConfig.modes["main"]?.bindings.values.map {
-            ($0.descriptionWithKeyNotation, $0.commands.prettyDescription)
-        } ?? []
-        let bindingMap: [String: String] = Dictionary(uniqueKeysWithValues: bindings)
-
-        XCTAssertEqual(bindingMap["alt-space"], "layout horizontal vertical")
-        XCTAssertEqual(bindingMap["ctrl-f"], "open-sidebar")
-        XCTAssertEqual(bindingMap["alt-h"], "focus left")
-        XCTAssertEqual(bindingMap["alt-1"], "focus --tab-index 1")
-        XCTAssertEqual(bindingMap["alt-0"], "focus --tab-index 10")
-        XCTAssertEqual(bindingMap["alt-tab"], "focus tab-next")
-        XCTAssertEqual(bindingMap["alt-shift-tab"], "focus tab-prev")
-        XCTAssertEqual(bindingMap["alt-n"], "focus dfs-next")
-        XCTAssertEqual(bindingMap["alt-shift-h"], "move left")
-        XCTAssertEqual(bindingMap["cmd-shift-h"], "join-with left")
-        XCTAssertEqual(bindingMap["ctrl-cmd-shift-h"], "stack-with left")
-        XCTAssertEqual(bindingMap["alt-cmd-j"], "swap down")
-        XCTAssertEqual(bindingMap["alt-cmd-k"], "swap up")
-        XCTAssertEqual(bindingMap["cmd-shift-i"], "balance-sizes")
-        XCTAssertEqual(bindingMap["ctrl-1"], "workspace 1")
-        XCTAssertEqual(bindingMap["ctrl-0"], "workspace 10")
-        XCTAssertEqual(bindingMap["ctrl-t"], "workspace 15")
-        XCTAssertEqual(bindingMap["ctrl-h"], "workspace prev")
-        XCTAssertEqual(bindingMap["cmd-ctrl-h"], "workspace prev")
-        XCTAssertEqual(bindingMap["alt-shift-1"], "move-node-to-workspace 1")
-        XCTAssertEqual(bindingMap["ctrl-shift-0"], "move-node-to-workspace 10")
-        XCTAssertEqual(bindingMap["ctrl-shift-h"], "move-node-to-workspace --focus-follows-window prev")
-        XCTAssertEqual(bindingMap["alt-shift-t"], "layout floating tiling")
-        XCTAssertEqual(bindingMap["alt-shift-m"], "fullscreen")
-        XCTAssertNil(bindingMap["alt-slash"])
-        XCTAssertNil(bindingMap["alt-comma"])
-        XCTAssertTrue(parsedConfig.windowTabs.enabled)
-        XCTAssertEqual(parsedConfig.windowTabs.height, 36)
-        XCTAssertTrue(parsedConfig.workspaceSidebar.enabled)
-        XCTAssertEqual(parsedConfig.workspaceSidebar.width, 280)
-        XCTAssertTrue(parsedConfig.autoReloadConfig)
-        if case .constant(let horizontalGap) = parsedConfig.gaps.inner.horizontal {
-            XCTAssertEqual(horizontalGap, 8)
-        } else {
-            XCTFail("Expected constant horizontal gap")
-        }
-        if case .constant(let verticalGap) = parsedConfig.gaps.inner.vertical {
-            XCTAssertEqual(verticalGap, 8)
-        } else {
-            XCTFail("Expected constant vertical gap")
-        }
-        if case .constant(let outerLeftGap) = parsedConfig.gaps.outer.left {
-            XCTAssertEqual(outerLeftGap, 12)
-        } else {
-            XCTFail("Expected constant outer left gap")
-        }
-        XCTAssertEqual(parsedConfig.configVersion, 2)
-    }
-
-    func testEnsureBootstrapConfigCopiesLegacyConfig() throws {
-        let tempDir = FileManager.default.temporaryDirectory
+    override func setUp() async throws {
+        tempDir = FileManager.default.temporaryDirectory
             .appending(path: "WinMuxTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
+    }
 
-        let legacyUrl = tempDir.appending(path: "legacy.toml")
-        let targetUrl = tempDir.appending(path: "winmux.toml")
-        let legacyText = """
-            config-version = 2
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(at: tempDir)
+    }
 
-            [mode.main.binding]
-            alt-h = 'focus left'
-            """
-        try legacyText.write(to: legacyUrl, atomically: true, encoding: .utf8)
+    private func write(_ text: String, to name: String) throws -> URL {
+        let url = tempDir.appending(path: name)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func testFirstLaunchWritesTheStarterConfig() throws {
+        let targetUrl = tempDir.appending(path: "winmux/winmux.ncl")
+
+        let didMaterialize = try materializeBootstrapConfigIfNeeded(targetUrl: targetUrl, existingLegacyUrls: [])
+
+        XCTAssertTrue(didMaterialize)
+        assertEquals(try String(contentsOf: targetUrl, encoding: .utf8), starterConfigText())
+    }
+
+    func testExistingConfigIsLeftAlone() throws {
+        let targetUrl = try write("{}", to: "winmux.ncl")
+
+        let didMaterialize = try materializeBootstrapConfigIfNeeded(targetUrl: targetUrl, existingLegacyUrls: [])
+
+        XCTAssertFalse(didMaterialize)
+        assertEquals(try String(contentsOf: targetUrl, encoding: .utf8), "{}")
+    }
+
+    func testStarterConfigLoadsWithEveryDefault() async throws {
+        guard nickelHelperUrl() != nil else { throw XCTSkip("winmux-nickel is not built") }
+        let starterUrl = try write(starterConfigText(), to: "winmux.ncl")
+        let supervisor = NickelSupervisor()
+
+        let loaded = try await supervisor.load(starterUrl).get()
+        supervisor.discard(loaded)
+        let builtIn = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: defaultConfigUrl))
+
+        assertEquals(loaded.settings, builtIn)
+    }
+
+    func testTomlConfigIsConvertedPreferringTheFirstOne() throws {
+        let preferredUrl = try write("alt-h = 'focus left'", to: "preferred.toml")
+        let secondaryUrl = try write("alt-l = 'focus right'", to: "secondary.toml")
+        let targetUrl = tempDir.appending(path: "winmux.ncl")
 
         let didMaterialize = try materializeBootstrapConfigIfNeeded(
             targetUrl: targetUrl,
-            existingLegacyUrls: [legacyUrl],
+            existingLegacyUrls: [preferredUrl, secondaryUrl],
+            convert: { "converted \($0.lastPathComponent)" },
         )
 
         XCTAssertTrue(didMaterialize)
-        let copiedText = try String(contentsOf: targetUrl, encoding: .utf8)
-        XCTAssertEqual(copiedText, legacyText)
+        assertEquals(try String(contentsOf: targetUrl, encoding: .utf8), "converted preferred.toml")
     }
 
-    func testEnsureBootstrapConfigPrefersFirstLegacyConfigWithoutFailing() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appending(path: "WinMuxTests-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let preferredLegacyUrl = tempDir.appending(path: "preferred.toml")
-        let secondaryLegacyUrl = tempDir.appending(path: "secondary.toml")
-        let targetUrl = tempDir.appending(path: "winmux.toml")
-        let preferredText = """
-            config-version = 2
-
-            [mode.main.binding]
-            alt-h = 'focus left'
+    func testAerospaceImportConvertsOnlyTheKeyboardConfiguration() throws {
+        let aerospaceUrl = try write(
             """
-        let secondaryText = """
-            config-version = 2
-
-            [mode.main.binding]
-            alt-l = 'focus right'
-            """
-        try preferredText.write(to: preferredLegacyUrl, atomically: true, encoding: .utf8)
-        try secondaryText.write(to: secondaryLegacyUrl, atomically: true, encoding: .utf8)
-
-        let didMaterialize = try materializeBootstrapConfigIfNeeded(
-            targetUrl: targetUrl,
-            existingLegacyUrls: [preferredLegacyUrl, secondaryLegacyUrl],
-        )
-
-        XCTAssertTrue(didMaterialize)
-        let copiedText = try String(contentsOf: targetUrl, encoding: .utf8)
-        XCTAssertEqual(copiedText, preferredText)
-    }
-
-    func testEnsureBootstrapConfigImportsAerospaceConfigWhenNoWinMuxConfigExists() throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appending(path: "WinMuxTests-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let aerospaceUrl = tempDir.appending(path: "aerospace.toml")
-        let targetUrl = tempDir.appending(path: "winmux.toml")
-        let aerospaceText = """
             start-at-login = false
             default-root-container-layout = 'accordion'
             accordion-padding = 22
-            window-tabs.enabled = false
-            exec-on-workspace-change = ['/bin/sh', '-c', 'echo $AEROSPACE_FOCUSED_WORKSPACE $AEROSPACE_PREV_WORKSPACE $AEROSPACE_WORKSPACE']
+            exec-on-workspace-change = ['/bin/sh', '-c', 'echo $AEROSPACE_FOCUSED_WORKSPACE']
 
             [workspace-sidebar]
             enabled = false
+
+            [key-mapping]
+            preset = 'dvorak'
 
             [mode.main.binding]
             alt-h = 'layout accordion tiles'
             alt-j = 'layout h_accordion v_accordion'
             alt-l = 'exec-and-forget echo $AEROSPACE_WINDOW_ID'
-            """
-        try aerospaceText.write(to: aerospaceUrl, atomically: true, encoding: .utf8)
+            """,
+            to: "aerospace.toml",
+        )
+        let targetUrl = tempDir.appending(path: "winmux.ncl")
+        var convertedToml = ""
 
         let didMaterialize = try materializeBootstrapConfigIfNeeded(
             targetUrl: targetUrl,
             existingLegacyUrls: [],
             aerospaceImportUrl: aerospaceUrl,
+            convert: {
+                convertedToml = try String(contentsOf: $0, encoding: .utf8)
+                return "converted"
+            },
         )
 
         XCTAssertTrue(didMaterialize)
-        let migratedText = try String(contentsOf: targetUrl, encoding: .utf8)
-        XCTAssertTrue(migratedText.contains("# Migrated from AeroSpace config by WinMux."))
-        XCTAssertTrue(migratedText.contains("default-root-container-layout = 'tiles'"))
-        XCTAssertTrue(migratedText.contains("tab-group-padding = 30"))
-        XCTAssertTrue(migratedText.contains("window-tabs.enabled = true"))
-        XCTAssertTrue(migratedText.contains("[workspace-sidebar]"))
-        XCTAssertTrue(migratedText.contains("enabled = true"))
-        XCTAssertTrue(migratedText.contains("layout tab-group tiles"))
-        XCTAssertTrue(migratedText.contains("layout h_tab_group v_tab_group"))
-        XCTAssertTrue(migratedText.contains("$WINMUX_WINDOW_ID"))
-        XCTAssertFalse(migratedText.contains("exec-on-workspace-change"))
-        XCTAssertFalse(migratedText.contains("accordion"))
-        XCTAssertFalse(migratedText.contains("AEROSPACE_"))
+        assertEquals(
+            convertedToml,
+            """
+            [key-mapping]
+            preset = 'dvorak'
 
-        let (parsedConfig, errors) = parseConfig(migratedText)
-        XCTAssertEqual(errors.descriptions, [])
-        XCTAssertTrue(parsedConfig.workspaceSidebar.enabled)
-        XCTAssertTrue(parsedConfig.windowTabs.enabled)
-        XCTAssertEqual(parsedConfig.configVersion, 2)
-        XCTAssertEqual(parsedConfig.modes[mainModeId]?.bindings.values.map(\.descriptionWithKeyNotation).sorted(), ["alt-h", "alt-j", "alt-l"])
+            [mode.main.binding]
+            alt-h = 'layout tab-group tiles'
+            alt-j = 'layout h_tab_group v_tab_group'
+            alt-l = 'exec-and-forget echo $WINMUX_WINDOW_ID'
+            """,
+        )
+        let written = try String(contentsOf: targetUrl, encoding: .utf8)
+        XCTAssertTrue(written.hasPrefix("# Migrated from the AeroSpace config \(aerospaceUrl.path)."), written)
+        XCTAssertTrue(written.hasSuffix("converted"), written)
+    }
+
+    func testAerospaceConfigWithoutKeyboardConfigurationGetsTheStarterConfig() throws {
+        let aerospaceUrl = try write("start-at-login = false", to: "aerospace.toml")
+        let targetUrl = tempDir.appending(path: "winmux.ncl")
+
+        _ = try materializeBootstrapConfigIfNeeded(
+            targetUrl: targetUrl,
+            existingLegacyUrls: [],
+            aerospaceImportUrl: aerospaceUrl,
+            convert: { _ in "converted" },
+        )
+
+        assertEquals(try String(contentsOf: targetUrl, encoding: .utf8), starterConfigText())
+    }
+
+    func testConvertedTomlConfigLoadsWithItsOwnBindingsInPlaceOfTheDefaultOnes() async throws {
+        guard nickelHelperUrl() != nil else { throw XCTSkip("winmux-nickel is not built") }
+        let tomlUrl = try write(
+            """
+            [gaps]
+                inner.horizontal = 3
+
+            [mode.main.binding]
+                alt-h = 'focus left'
+            """,
+            to: "winmux.toml",
+        )
+        let targetUrl = tempDir.appending(path: "winmux.ncl")
+        let supervisor = NickelSupervisor()
+
+        _ = try materializeBootstrapConfigIfNeeded(targetUrl: targetUrl, existingLegacyUrls: [tomlUrl])
+        let loaded = try await supervisor.load(targetUrl).get()
+        supervisor.discard(loaded)
+        let (config, errors) = parseConfig(loaded.settings)
+
+        assertEquals(errors, [])
+        assertEquals(config.gaps.inner.horizontal, .constant(3))
+        assertEquals(config.gaps.inner.vertical, .constant(8))
+        assertEquals(config.modes[mainModeId]?.bindings.values.map(\.descriptionWithKeyNotation), ["alt-h"])
     }
 }

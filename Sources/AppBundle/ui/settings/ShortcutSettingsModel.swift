@@ -16,7 +16,6 @@ public final class ShortcutSettingsModel: ObservableObject {
     @Published var workspaceOverrides: [WorkspaceOverride] = []
     @Published public var openRequestId: Int = 0
     @Published var settingsRevision: Int = 0
-    @Published var errorMessage: String? = nil
 
     var actionsById: [String: Action] = [:]
     var actionIdByCommand: [String: String] = [:]

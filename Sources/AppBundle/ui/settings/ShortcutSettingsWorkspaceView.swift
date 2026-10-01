@@ -40,41 +40,12 @@ private struct WorkspacePatternRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 16)
-            WorkspaceModifierMenu(model: model, kind: kind)
             Text(model.workspacePatternDisplay(for: kind))
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .frame(width: 74, alignment: .trailing)
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
-    }
-}
-
-private struct WorkspaceModifierMenu: View {
-    @ObservedObject var model: ShortcutSettingsModel
-    let kind: ShortcutSettingsModel.WorkspaceShortcutKind
-
-    private let modifiers: [(String, NSEvent.ModifierFlags)] = [
-        ("Control", .control),
-        ("Option", .option),
-        ("Command", .command),
-        ("Shift", .shift),
-    ]
-
-    var body: some View {
-        Menu {
-            ForEach(modifiers, id: \.0) { label, modifier in
-                Toggle(label, isOn: Binding(
-                    get: { model.workspacePatternIncludesModifier(modifier, kind: kind) },
-                    set: { model.setWorkspacePatternModifier(modifier, enabled: $0, kind: kind) }
-                ))
-            }
-        } label: {
-            Text("Modifiers")
-        }
-        .menuStyle(.borderedButton)
-        .controlSize(.small)
-        .frame(width: 94)
     }
 }
 
@@ -108,13 +79,7 @@ private struct WorkspaceOverrideRecorder: View {
     let kind: ShortcutSettingsModel.WorkspaceShortcutKind
 
     var body: some View {
-        ShortcutRecorderView(
-            shortcut: Binding(
-                get: { model.workspaceOverrideShortcutValue(workspaceName: workspaceName, kind: kind) },
-                set: { model.setWorkspaceOverrideShortcutValue($0, workspaceName: workspaceName, kind: kind) }
-            ),
-            onChange: { _ in }
-        )
+        ShortcutRecorderView(shortcut: model.workspaceOverrideShortcutValue(workspaceName: workspaceName, kind: kind))
         .frame(width: 150, height: 22)
     }
 }
