@@ -6,6 +6,8 @@ Labels: wayfinder:map
 
 A spec per feature for a personal WinMux fork that Prateek runs daily in place of AeroSpace, detailed enough to hand to an implementing agent. The features are filtered Lenses (grid, strip, and a cmd-K style search that finds windows to focus or Summon), fixed Columns with Width presets, and a `winmux` CLI that can drive all of it. Display profiles for switching between the laptop and the ultrawide were part of this destination until 2026-09-30 and are now deferred (see Out of scope). Upstream acceptance doesn't constrain the design.
 
+Reached 2026-09-30. The specs are GitHub issues on the fork: the umbrella [Fork foundation: Nickel config, Lenses, fixed Columns and the CLI](https://github.com/prateek/winmux/issues/1) and its twelve child issues, one per buildable slice, each consolidating the decisions from the tickets below. The drafts they were created from are in `build/`. Where an issue and a ticket disagree, the issue applies the later amendments.
+
 ## Notes
 
 - Domain: macOS window management. WinMux is an AeroSpace fork (Swift, i3-style tree, AX-based). Code lives at the root of this repo; the glossary is `CONTEXT.md`. Use its terms (Lens, Filter, Presentation, Trigger, Summon, Column, Width preset, Overflow policy, Display profile).
