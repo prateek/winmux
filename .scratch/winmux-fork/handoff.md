@@ -1,6 +1,6 @@
 # Handoff: building the WinMux fork foundation
 
-Planning is finished. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't.
+Planning is finished and nothing is built yet: the branch holds planning files, the glossary, one ADR and three release scripts, on top of upstream `v0.5.6`. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't. Last updated 2026-10-01.
 
 ## Start here
 
@@ -16,6 +16,7 @@ Planning is finished. This note orients an agent that is about to build. It hold
 - **Open details** remain in one issue only, the strip. Both can only be answered by running a build.
 - When an issue and a ticket disagree, the issue is right. The issues apply later amendments.
 - If an issue body needs correcting, edit the draft in `.scratch/winmux-fork/build/` and update the issue from it, so the two stay the same. The drafts use `{{UMBRELLA}}` and `{{CHILDREN}}` placeholders for the issue numbers.
+- **How far to trust the issues.** They were drafted by agents from the tickets, reviewed once against the tickets and the code, then patched. The review's three errors and the gaps it found were fixed, and the issues were checked against each other for names, key defaults and import paths. Nobody has re-read all twelve end to end since the patch. Treat a claim about existing code (a file path, a function name, a current default) as probably right, and check it before building on it.
 
 ## Where the reasoning lives
 
@@ -30,14 +31,17 @@ Read these only when an issue's reasoning isn't enough.
 
 Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactive registration of Accessory apps are deferred. The config keeps a `when.<profile>` slot with one implicit profile, `"default"`.
 
-## Decide with Prateek before the first pull request
+## Open with Prateek
 
+- **A release-pipeline issue.** Nothing built here can be installed with stable permissions until releases can be cut (see "Releases can't be cut yet" below). He was offered a thirteenth child issue for it, to be built early, and hasn't answered. Ask before starting the Lens or Column issues, because testing them on his daily machine depends on it.
 - **Commits and pushes.** He asks for each one. Planning used one commit per resolved ticket.
+- **Decisions belong to him.** For a discrete choice, ask with a recommended answer first; he usually takes it. Don't settle a product question for him, and don't reopen one he has settled.
 
 ## Repo setup
 
 - **The build lands on the `fork` branch.** It is the default branch of `prateek/winmux` and Orca's default worktree base (`fork/fork`). It holds the planning files, `CONTEXT.md` and the ADR. `main` only mirrors upstream `main`; don't build on it. The branch was called `wayfind-fork` until 2026-10-01, and GitHub redirects the old name.
-- This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
+- This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). The worktree directory is still named `wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
+- Start each child issue in its own Orca worktree cut from `fork/fork`, and open its pull request against `fork`.
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.
@@ -50,6 +54,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 - It has upstream WinMux 0.5.6 from the `ZimengXiong/homebrew` cask on the bundled default config, not Prateek's earlier dogfood build. His old config is kept at `~/.config/winmux.dogfood-backup-20260930`.
 - The upstream cask ships no CLI, so `/opt/homebrew/bin/winmux` is a copy built from `v0.5.6`. It warns about a client/server version mismatch and works. A build from this repo will replace both.
 - Ghost Pepper 2.4.4 is installed from the upstream cask; it was the test app for Accessory windows.
+- Neither WinMux nor Ghost Pepper was running when planning ended. Starting WinMux re-tiles the windows on the session, so ask first.
 
 ## Things not captured elsewhere
 
@@ -61,6 +66,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Suggested skills
 
+- `utils-agent:orca-cli`: create the worktree for each child issue.
 - `mattpocock:implement`: build one child issue.
 - `mattpocock:tdd`: test-first at the seams each issue's "Done when" list names.
 - `mattpocock:domain-modeling`: when a term needs to change, so `CONTEXT.md` stays current.
