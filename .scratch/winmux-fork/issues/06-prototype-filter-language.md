@@ -18,6 +18,8 @@ From the monitor-identity research: the Filter context should carry a monitor de
 
 ## Answer
 
+> Amended (2026-09-30): [Grilling: the Filter contract's final field list](33-grilling-filter-contract-field-list.md) drops `registered` from the Filter attributes, since no window reaches a Filter unregistered.
+
 > Superseded in part (2026-09-29): [Prototype: config and scripting language](27-prototype-config-language.md) replaced CEL and TOML with Nickel. The Window classes, popup defaults and Filter attributes below still stand.
 
 Prototype: [06-filter-language.html](../prototypes/06-filter-language.html), kept in `.scratch` rather than on a throwaway branch because the tracker is local.

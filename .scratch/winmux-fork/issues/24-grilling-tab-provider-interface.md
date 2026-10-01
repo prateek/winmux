@@ -19,6 +19,8 @@ Starting points from §9 and §10 of the research: `w.tabsSource` (which provide
 
 ## Answer
 
+> Amended (2026-09-30): [Grilling: the Filter contract's final field list](33-grilling-filter-contract-field-list.md) leaves `w.tabs`, `w.tabsSource`, `w.tabsAge` and `w.private` out of contract version 1, because tabs are deferred. `w.document` stays.
+
 Resolved 2026-09-30 with Prateek. `CONTEXT.md` gains **Tab** and **Tab provider**. Written after Nickel replaced TOML and CEL, so the research's `jq` transforms and `{tab.id}` string templates are gone.
 
 - **What a Tab is.** A Tab is something inside a window that can be switched to but isn't a window of its own: a browser tab, an editor file, a terminal in a sidebar app. Native `NSWindow` tabs are windows, so they are *not* Tabs and not a provider; they stay with [Grilling: grouping native macOS tabs in Lenses](22-grilling-native-tab-grouping.md). "Tab group" stays reserved for the Column tab group.

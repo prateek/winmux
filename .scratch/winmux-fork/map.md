@@ -70,6 +70,10 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 
 - [Grilling: config hot reload](issues/32-grilling-config-hot-reload.md): reload on save is on by default (`reload-on-save` turns it off), watching the config and its imports through their directories with a 300 ms debounce. Failures show as a notification, in `config status` and in the log, without repeating an identical error. New bindings apply at once; the mode is kept if it still exists, and an open Lens keeps its entries. A file change resets the helper's circuit breaker.
 
+- [Grilling: the Filter contract's final field list](issues/33-grilling-filter-contract-field-list.md): contract version 1 is fixed as tables of Window, App, Monitor, Filter context and Column fields, each with its value when unknown. Tab fields and `w.registered` are left out; absent context windows are `null` and the smoke run exercises both cases; `ctx.profile` is `"default"` for now. One `contract-version` integer, bumped only on removal or rename, and `winmux config schema` prints it.
+
+- [Grilling: CLI surface for the fork's features](issues/20-grilling-cli-surface.md): `--filter` takes a Filter name or a function body (double quotes, or `-` for stdin). A failed Filter in a script prints nothing and exits 2, unlike the interactive show-everything. Column commands keep their names, plus `column-count` and `place --dry-run --window-id`. `subscribe` gains `config-reloaded`, `lens-opened`, `lens-closed` and `columns-changed`.
+
 ## Not yet specified
 
 - **Grid Presentation look**: the packed arrangements from the grid prototype (rows, cells, a sidebar of sections; picture, card or text tiles; paging, shrinking or collapsing), for Lenses whose windows have no useful positions, such as floating windows. v1 rejects `presentation = 'grid`. The prototype's switches are the starting point; see [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md).
