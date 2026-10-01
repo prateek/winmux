@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Creates the self-signed dogfood code-signing identity if it does not exist.
+#
+# TCC keys permission grants on bundle id + signing certificate, so signing
+# every dogfood build with one stable local certificate keeps Accessibility,
+# Screen Recording, and Input Monitoring grants across upgrades. The identity
+# lives in a dedicated keychain so headless builds can unlock it without the
+# login-keychain password; its password is generated once and stored under
+# $XDG_CONFIG_HOME (never in the repo). Machines running the app need nothing:
+# TCC compares the recorded requirement against the app signature directly.
+#
+# Regenerating the certificate changes the designated requirement and resets
+# TCC grants once, so this script refuses to replace an existing identity.
+
+IDENTITY_NAME="${WINMUX_SIGN_IDENTITY:-WinMux Dogfood Signing}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing"
+PASS_FILE="$CONFIG_DIR/keychain-pass"
+KEYCHAIN="$HOME/Library/Keychains/winmux-signing.keychain-db"
+
+die() {
+    printf '[setup-signing] error: %s\n' "$*" >&2
+    exit 1
+}
+
+log() {
+    printf '[setup-signing] %s\n' "$*"
+}
+
+if security find-identity -p codesigning "$KEYCHAIN" 2>/dev/null | grep -Fq "$IDENTITY_NAME"; then
+    log "identity '$IDENTITY_NAME' already present in $KEYCHAIN"
+    exit 0
+fi
+
+[ -f "$KEYCHAIN" ] && die "keychain exists at $KEYCHAIN but lacks '$IDENTITY_NAME'; refusing to touch it"
+
+umask 077
+mkdir -p "$CONFIG_DIR"
+if [ ! -s "$PASS_FILE" ]; then
+    /usr/bin/openssl rand -hex 24 > "$PASS_FILE"
+fi
+keychain_pass="$(cat "$PASS_FILE")"
+
+workdir="$(mktemp -d)"
+trap 'rm -rf "$workdir"' EXIT
+
+log "generating self-signed code-signing certificate '$IDENTITY_NAME' (10y)"
+/usr/bin/openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+    -keyout "$workdir/key.pem" -out "$workdir/cert.pem" \
+    -subj "/CN=$IDENTITY_NAME" \
+    -addext "keyUsage=critical,digitalSignature" \
+    -addext "extendedKeyUsage=critical,codeSigning" \
+    -addext "basicConstraints=critical,CA:false" 2>/dev/null
+/usr/bin/openssl pkcs12 -export \
+    -inkey "$workdir/key.pem" -in "$workdir/cert.pem" \
+    -name "$IDENTITY_NAME" -out "$workdir/identity.p12" \
+    -passout "pass:$keychain_pass"
+
+log "creating keychain $KEYCHAIN"
+security create-keychain -p "$keychain_pass" "$KEYCHAIN"
+security set-keychain-settings "$KEYCHAIN"
+security unlock-keychain -p "$keychain_pass" "$KEYCHAIN"
+security import "$workdir/identity.p12" -k "$KEYCHAIN" \
+    -P "$keychain_pass" -T /usr/bin/codesign
+security set-key-partition-list -S 'apple-tool:,apple:,codesign:' \
+    -s -k "$keychain_pass" "$KEYCHAIN" >/dev/null
+
+log "adding keychain to the user search list"
+existing="$(security list-keychains -d user | /usr/bin/sed -e 's/^ *"//' -e 's/"$//')"
+# shellcheck disable=SC2086
+security list-keychains -d user -s $existing "$KEYCHAIN"
+
+# Self-signed identities list as CSSMERR_TP_NOT_TRUSTED, which codesign
+# accepts for signing; probe with a real signing operation instead of the
+# valid-identities filter.
+probe="$workdir/probe"
+cp /usr/bin/true "$probe"
+/usr/bin/codesign --force --sign "$IDENTITY_NAME" "$probe" 2>/dev/null \
+    || die "identity imported but codesign cannot use it"
+log "done: identity '$IDENTITY_NAME' ready"
