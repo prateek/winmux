@@ -122,10 +122,10 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] Unit tests in `Sources/AppBundleTests` cover the invariant pass, including the flatten-replaces-root case with several windows, which upstream's tests do not cover.
 ## Sources
 
-- [Grilling: fixed Columns, Width presets and Overflow policy semantics](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/09-grilling-fixed-columns-model.md)
-- [Research: WinMux layout engine seams for fixed Columns](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/04-research-layout-engine-for-columns.md)
-- [Research 04: WinMux layout engine seams for fixed Columns (findings)](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/04-layout-engine-for-columns.md)
-- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
-- [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
-- [Config language prototype](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/27-config-language.html)
-- [CONTEXT.md](https://github.com/prateek/winmux/blob/wayfind-fork/CONTEXT.md)
+- [Grilling: fixed Columns, Width presets and Overflow policy semantics](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/09-grilling-fixed-columns-model.md)
+- [Research: WinMux layout engine seams for fixed Columns](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/04-research-layout-engine-for-columns.md)
+- [Research 04: WinMux layout engine seams for fixed Columns (findings)](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/04-layout-engine-for-columns.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
+- [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
+- [Config language prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/27-config-language.html)
+- [CONTEXT.md](https://github.com/prateek/winmux/blob/fork/CONTEXT.md)

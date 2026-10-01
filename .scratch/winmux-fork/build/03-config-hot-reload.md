@@ -62,7 +62,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Sources
 
-- [Grilling: config hot reload](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/32-grilling-config-hot-reload.md)
-- [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
-- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
-- [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/wayfind-fork/docs/adr/0001-nickel-helper-process.md)
+- [Grilling: config hot reload](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/32-grilling-config-hot-reload.md)
+- [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
+- [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/fork/docs/adr/0001-nickel-helper-process.md)

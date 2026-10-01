@@ -53,6 +53,6 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Sources
 
-- [Grilling: raise the fork's minimum macOS to 26?](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/15-grilling-deployment-target.md)
-- [Research: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md)
-- [Task: measure thumbnail capture](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/14-task-measure-thumbnail-capture.md)
+- [Grilling: raise the fork's minimum macOS to 26?](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/15-grilling-deployment-target.md)
+- [Research: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md)
+- [Task: measure thumbnail capture](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/14-task-measure-thumbnail-capture.md)

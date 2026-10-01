@@ -151,12 +151,12 @@ Neither of these could be verified without the real build. Test each while build
 
 ## Sources
 
-- [Prototype: strip Presentation look and keyboard model](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/29-prototype-strip-presentation.md)
-- [Strip Presentation prototype](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/29-strip-presentation.html)
-- [Grilling: Lens configuration shape](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/07-grilling-picker-binding-shape.md)
-- [Research: taking over cmd+tab and cmd+` from the system](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/25-research-system-switcher-takeover.md)
-- [Research findings: taking over cmd-tab and cmd-backtick from the system](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/25-system-switcher-takeover.md)
-- [Research: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/03-research-thumbnails-and-alttab.md)
-- [Research findings: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md)
-- [Grilling: cmd-K search Lens](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/19-grilling-cmd-k-search.md)
-- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
+- [Prototype: strip Presentation look and keyboard model](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/29-prototype-strip-presentation.md)
+- [Strip Presentation prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/29-strip-presentation.html)
+- [Grilling: Lens configuration shape](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/07-grilling-picker-binding-shape.md)
+- [Research: taking over cmd+tab and cmd+` from the system](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/25-research-system-switcher-takeover.md)
+- [Research findings: taking over cmd-tab and cmd-backtick from the system](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/25-system-switcher-takeover.md)
+- [Research: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/03-research-thumbnails-and-alttab.md)
+- [Research findings: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md)
+- [Grilling: cmd-K search Lens](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/19-grilling-cmd-k-search.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)

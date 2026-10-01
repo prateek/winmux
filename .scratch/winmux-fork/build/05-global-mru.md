@@ -63,6 +63,6 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Sources
 
-- [Grilling: Lens configuration shape](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/07-grilling-picker-binding-shape.md) (the Global MRU decision)
-- [Research 03: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md) (AltTab writes its order only after focus is confirmed)
-- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md) (exposes the field to Filters)
+- [Grilling: Lens configuration shape](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/07-grilling-picker-binding-shape.md) (the Global MRU decision)
+- [Research 03: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md) (AltTab writes its order only after focus is confirmed)
+- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md) (exposes the field to Filters)

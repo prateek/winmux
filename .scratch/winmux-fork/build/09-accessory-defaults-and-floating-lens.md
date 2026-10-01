@@ -99,11 +99,11 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Sources
 
-- [Grilling: default handling of floating and Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/11-grilling-floating-and-accessory-defaults.md)
-- [Task: live check of Ghost Pepper's windows under WinMux](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/12-task-live-check-ghost-pepper.md)
-- [Ghost Pepper probe scripts and captures](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/12-ghost-pepper-probe)
-- [Research: how WinMux sees Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/02-research-accessory-app-windows.md)
-- [Research findings: how WinMux sees Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/02-accessory-app-windows.md)
-- [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
-- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
-- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
+- [Grilling: default handling of floating and Accessory app windows](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/11-grilling-floating-and-accessory-defaults.md)
+- [Task: live check of Ghost Pepper's windows under WinMux](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/12-task-live-check-ghost-pepper.md)
+- [Ghost Pepper probe scripts and captures](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/12-ghost-pepper-probe)
+- [Research: how WinMux sees Accessory app windows](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/02-research-accessory-app-windows.md)
+- [Research findings: how WinMux sees Accessory app windows](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/research/02-accessory-app-windows.md)
+- [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
+- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)

@@ -32,12 +32,12 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Decide with Prateek before the first pull request
 
-- **Which branch the build lands on.** `wayfind-fork` holds the planning files, `CONTEXT.md` and the ADR, and none of that is on `main`. The fork's `main` has been kept equal to upstream `main`. Whether the build branches from `wayfind-fork`, or the planning files are merged somewhere first, hasn't been decided.
 - **Commits and pushes.** He asks for each one. Planning used one commit per resolved ticket.
 
 ## Repo setup
 
-- This checkout is a worktree on branch `prateek/wayfind-fork`, tracking `fork/wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
+- **The build lands on the `fork` branch.** It is the default branch of `prateek/winmux` and Orca's default worktree base (`fork/fork`). It holds the planning files, `CONTEXT.md` and the ADR. `main` only mirrors upstream `main`; don't build on it. The branch was called `wayfind-fork` until 2026-10-01, and GitHub redirects the old name.
+- This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.
@@ -57,7 +57,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 - **A possible dotfiles bug, outside this work.** `g95nc`'s `discard` step appears to wipe BetterDisplay's "associate with display" setting; the evidence is in `research/05-*`. Mention it to Prateek; don't fix it here.
 - **Research limits.** The first research agents had no web fetch. Apple API facts come from SDK headers, and each findings file flags its own unverified points.
 - **Nickel binaries.** Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`. `nickel-lang-core` 0.19.0 builds from source, which is what the helper uses.
-- **Signing.** `script/dogfood-release`, which signs releases with a stable identity so Accessibility and Screen Recording grants survive upgrades, lives on `codex-columns`, not on this branch. The helper binary has to be signed with the app's identity, so that script or its equivalent has to come across.
+- **Releases can't be cut yet.** `script/dogfood-release`, `script/setup-signing` and `script/setup-sparkle-keys` were copied unchanged from `codex-columns`. The two setup scripts work as they are: they create the stable self-signed identity that lets Accessibility and Screen Recording grants survive upgrades, and the Sparkle keys. `dogfood-release` calls `make beta-package`, which exists only in `codex-columns`'s `makefile`; this branch's `Makefile` has upstream's Xcode-based `release` target, hardcoded to upstream's identity and URLs. Porting `beta-package` is not a copy: it assembles the app bundle by hand from a SwiftPM build, and upstream has since added bundle resources (the app icon, the asset catalog, the `MASShortcut` resource bundle) that a hand-built bundle would lack. Either port it and add those, or teach `dogfood-release` to drive `make release` with the dogfood identity and the fork's URLs. The new `winmux-nickel` helper has to be signed with the same identity either way. No issue tracks this yet.
 
 ## Suggested skills
 

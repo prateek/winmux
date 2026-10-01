@@ -172,12 +172,12 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] A test fails if the Nickel contracts, the Rust structs and the schema output disagree on a field.
 ## Sources
 
-- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
-- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md) (hyphenated names, `workspace` when unknown, reading `AXDocument`)
-- [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
-- [Grilling: default handling of floating and Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/11-grilling-floating-and-accessory-defaults.md)
-- [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
-- [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
-- [Task: Nickel binding spike](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/28-task-nickel-binding-spike.md) and its [spike code](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/28-nickel-spike/README.md)
-- [Grilling: CLI surface for the fork's features](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/20-grilling-cli-surface.md) (for `config schema`)
-- [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/wayfind-fork/docs/adr/0001-nickel-helper-process.md)
+- [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md) (hyphenated names, `workspace` when unknown, reading `AXDocument`)
+- [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
+- [Grilling: default handling of floating and Accessory app windows](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/11-grilling-floating-and-accessory-defaults.md)
+- [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
+- [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
+- [Task: Nickel binding spike](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/28-task-nickel-binding-spike.md) and its [spike code](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/28-nickel-spike/README.md)
+- [Grilling: CLI surface for the fork's features](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/20-grilling-cli-surface.md) (for `config schema`)
+- [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/fork/docs/adr/0001-nickel-helper-process.md)
