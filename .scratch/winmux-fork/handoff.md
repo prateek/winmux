@@ -10,6 +10,7 @@ A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (fi
 - **Tickets:** `.scratch/winmux-fork/issues/NN-*.md`, on the local-markdown tracker. They use `Type:`, `Status:` and `Blocked by:` lines; the tracker conventions are in `~/.agents/plugins/plugins/mattpocock/skills/setup-matt-pocock-skills/issue-tracker-local.md` under "Wayfinding operations".
 - **Research findings:** `.scratch/winmux-fork/research/`. **Prototypes:** `.scratch/winmux-fork/prototypes/`. Both live here rather than on throwaway branches, a deliberate deviation from the skills because the tracker is local.
 - **Glossary:** `CONTEXT.md` at the repo root. Use its terms (Lens, Filter, Filter context, Presentation, Trigger, Summon, Window class, Accessory app, Column, Width preset, Overflow policy, Policy hook, Display profile).
+- **ADRs:** `docs/adr/` at the repo root, for decisions that are hard to reverse. The first is the Nickel helper process.
 
 ## Finding the next ticket
 

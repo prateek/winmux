@@ -10,6 +10,8 @@ Already settled by [Grilling: cmd-K search Lens](19-grilling-cmd-k-search.md): `
 
 Also settled, by [Grilling: tab provider interface](24-grilling-tab-provider-interface.md): `list-tabs [--window-id N] [--refresh] [--json]`, `set-tabs --app-id --pid` (document on stdin), `focus-tab --window-id N --tab-id ID` and `list-tab-providers [--json]`.
 
+Also settled, by [Grilling: where the Nickel evaluator runs](31-grilling-nickel-evaluator-process.md): `config status` (JSON: the helper's state, pid, RSS, recycle count, last error, loaded config path), and `config check <file>` and `config convert`, which exec the `winmux-nickel` helper's one-shot modes and so work with the server down. `--filter '<expr>'` and Search's `=` go through the server to the helper's `eval-filter` request. A Filter that fails or times out shows every window; decide here how the non-interactive commands report that (exit code and stderr).
+
 Which `winmux` subcommands, flags and output formats do the fork's features need so users can drive everything from scripts? WinMux already has the AeroSpace-style command set (moving windows, workspaces, layouts, `list-windows --format`, `--json`, `subscribe`). Decide the additions and their shape:
 
 - Lenses: open a Lens or an ad-hoc Filter and Presentation from the CLI, and run a Filter non-interactively (`winmux list-windows --filter '<nickel|name>'`), including how Nickel diagnostics are reported on stderr and in exit codes. Filters are Nickel since [Prototype: config and scripting language](27-prototype-config-language.md); decide how an inline Filter is written on the command line, given that Nickel enum tags (`'minimized`) collide with zsh single quotes. The candidate is to pass only the function body with `w` and `ctx` bound.
