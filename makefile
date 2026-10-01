@@ -7,6 +7,12 @@ RELEASE_DIR ?= .release
 RELEASE_TAG ?= v$(VERSION)
 APP_INSTALL_DIR ?= /Applications
 SPARKLE_PUBLIC_KEY ?= kcc3956V3+Yo8GtwFJ8Odb9sphIr09/9dsuoYBNtxf0=
+# Where an installed app looks for updates, and where the appcast says the update archive is.
+SPARKLE_FEED_URL ?= https://github.com/ZimengXiong/winmux/releases/latest/download/appcast.xml
+RELEASE_DOWNLOAD_URL_PREFIX ?= https://github.com/ZimengXiong/winmux/releases/download/$(RELEASE_TAG)/
+# CFBundleVersion, which Sparkle compares. Its comparison stops at the first dash, so a release
+# line whose versions share a prefix, such as 0.5.6-dogfood.N, needs a number of its own here.
+BUILD_NUMBER ?= $(VERSION)
 ARGS ?=
 
 .PHONY: generate xcodeproj helper default-config build build-clean run run-clean cli check release install installed clean
@@ -23,6 +29,8 @@ xcodeproj:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	source ./script/setup.sh && \
 	export XCODEGEN_WINMUX_VERSION="$(VERSION)" && \
+	export XCODEGEN_WINMUX_BUILD_NUMBER="$(BUILD_NUMBER)" && \
+	export XCODEGEN_WINMUX_SPARKLE_FEED_URL="$(SPARKLE_FEED_URL)" && \
 	export XCODEGEN_WINMUX_CODE_SIGN_IDENTITY="$(CODESIGN_IDENTITY)" && \
 	export XCODEGEN_WINMUX_DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" && \
 	export XCODEGEN_WINMUX_SPARKLE_PUBLIC_KEY="$(SPARKLE_PUBLIC_KEY)" && \
@@ -101,7 +109,7 @@ check:
 	git diff --exit-code -- Package.resolved'
 
 release:
-	$(MAKE) xcodeproj VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)"
+	$(MAKE) xcodeproj VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" SPARKLE_PUBLIC_KEY="$(SPARKLE_PUBLIC_KEY)" SPARKLE_FEED_URL="$(SPARKLE_FEED_URL)"
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	set -euo pipefail && \
 	source ./script/setup.sh && \
@@ -128,7 +136,8 @@ release:
 	    archive; \
 	test -d "$$app_path"; \
 	test "$$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$$app_path/Contents/Info.plist")" = "$(VERSION)"; \
-	test "$$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$$app_path/Contents/Info.plist")" = "$(VERSION)"; \
+	test "$$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$$app_path/Contents/Info.plist")" = "$(BUILD_NUMBER)"; \
+	test "$$(/usr/libexec/PlistBuddy -c "Print SUFeedURL" "$$app_path/Contents/Info.plist")" = "$(SPARKLE_FEED_URL)"; \
 	codesign --verify --deep --strict --verbose=2 "$$app_path"; \
 	codesign -dv --verbose=4 "$$app_path" 2>&1 | grep -F "$(EXPECTED_CODESIGN_AUTHORITY_PREFIX)" >/dev/null; \
 	codesign -dv --verbose=4 "$$app_path" 2>&1 | grep -E "^CodeDirectory .*flags=.*runtime" >/dev/null; \
@@ -139,11 +148,11 @@ release:
 	trap "rm -rf \"$$appcast_stage\"" EXIT; \
 	cp "$$zip_path" "$$appcast_stage/"; \
 	if [ -n "$${SPARKLE_PRIVATE_KEY:-}" ]; then \
-	    printf "%s" "$$SPARKLE_PRIVATE_KEY" | "$$sparkle_appcast" --ed-key-file - --download-url-prefix "https://github.com/ZimengXiong/winmux/releases/download/$(RELEASE_TAG)/" "$$appcast_stage"; \
+	    printf "%s" "$$SPARKLE_PRIVATE_KEY" | "$$sparkle_appcast" --ed-key-file - --download-url-prefix "$(RELEASE_DOWNLOAD_URL_PREFIX)" "$$appcast_stage"; \
 	else \
-	    "$$sparkle_appcast" --download-url-prefix "https://github.com/ZimengXiong/winmux/releases/download/$(RELEASE_TAG)/" "$$appcast_stage"; \
+	    "$$sparkle_appcast" --download-url-prefix "$(RELEASE_DOWNLOAD_URL_PREFIX)" "$$appcast_stage"; \
 	fi; \
-	python3 script/validate-appcast.py "$$appcast_stage/appcast.xml" "$(VERSION)" "https://github.com/ZimengXiong/winmux/releases/download/$(RELEASE_TAG)/$$app_name-$(VERSION).zip"; \
+	python3 script/validate-appcast.py "$$appcast_stage/appcast.xml" "$(VERSION)" "$(RELEASE_DOWNLOAD_URL_PREFIX)$$app_name-$(VERSION).zip" "$(BUILD_NUMBER)"; \
 	cp "$$appcast_stage/appcast.xml" "$$appcast_path"; \
 	test -f "$$appcast_path"'
 
