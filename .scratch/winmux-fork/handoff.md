@@ -16,7 +16,7 @@ A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (fi
 
 Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open` (deferred tickets read `Status: out of scope`); a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
 
-As of 2026-09-30 no ticket is open: every one is resolved or out of scope. What remains is the fog in the map's Not yet specified section, of which only "Default Triggers and a leader mode" has to be settled before a daily-driver build. The feature specs the Destination asks for have not been written; the decisions they would be assembled from are in the resolved tickets.
+As of 2026-09-30 no ticket is open: every one is resolved or out of scope. What remains is the fog in the map's Not yet specified section, none of which blocks a build. Three things there are for the implementing agent to check while building, not to re-decide: whether a signed WinMux build with its own Screen Recording grant shows a capture indicator; `prateek/winmux-columns` as prior art to mine for Columns; and `'list` rows, which default to today's palette rows. The feature specs the Destination asks for have not been written; the decisions they would be assembled from are in the resolved tickets.
 
 Some tasks need Prateek's Mac in a particular state. On 2026-09-29 and 2026-09-30 the sessions ran on a Mac mini (`Mac16,10`) with one virtual display and no trackpad, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
 
