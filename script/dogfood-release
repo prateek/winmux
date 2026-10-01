@@ -86,6 +86,7 @@ SPARKLE_PRIVATE_KEY="$(cat "$SPARKLE_KEY_FILE")" make release \
     CODESIGN_IDENTITY="$SIGN_IDENTITY" \
     EXPECTED_CODESIGN_AUTHORITY_PREFIX="Authority=$SIGN_IDENTITY" \
     DEVELOPMENT_TEAM="" \
+    HARDENED_RUNTIME=NO \
     SPARKLE_PUBLIC_KEY="$(cat "$SPARKLE_PUB_FILE")" \
     SPARKLE_FEED_URL="$feed_url" \
     RELEASE_DOWNLOAD_URL_PREFIX="$feed_download_prefix" >/dev/null
@@ -108,7 +109,7 @@ rm -rf ".release/package"
 mkdir -p "$staging_dir/bin"
 /usr/bin/ditto "$app_path" "$staging_dir/WinMux.app"
 cp .build/release/winmux "$staging_dir/bin/winmux"
-codesign --force --sign "$SIGN_IDENTITY" --options runtime "$staging_dir/bin/winmux"
+codesign --force --sign "$SIGN_IDENTITY" "$staging_dir/bin/winmux"
 
 for artifact in "$staging_dir/WinMux.app" "$staging_dir/WinMux.app/Contents/Helpers/winmux-nickel" "$staging_dir/bin/winmux"; do
     # Untrusted self-signed authorities only appear at -dvvv verbosity.

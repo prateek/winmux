@@ -48,7 +48,9 @@ targets:
           mkdir -p "$helpers"
           cp "$SRCROOT/nickel-helper/target/release/winmux-nickel" "$helpers/winmux-nickel"
           # Signed with the app's identity before Xcode seals the bundle. It needs no entitlements.
-          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime "$helpers/winmux-nickel"
+          runtime=""
+          if [ "${ENABLE_HARDENED_RUNTIME:-NO}" = YES ]; then runtime="--options runtime"; fi
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" $runtime "$helpers/winmux-nickel"
     dependencies:
       - package: WinMuxPackage
         product: AppBundle

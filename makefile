@@ -13,6 +13,10 @@ RELEASE_DOWNLOAD_URL_PREFIX ?= https://github.com/ZimengXiong/winmux/releases/do
 # CFBundleVersion, which Sparkle compares. Its comparison stops at the first dash, so a release
 # line whose versions share a prefix, such as 0.5.6-dogfood.N, needs a number of its own here.
 BUILD_NUMBER ?= $(VERSION)
+# The hardened runtime only lets a process load libraries signed by Apple or by its own team.
+# A self-signed identity has no team, so a build signed with one cannot load its own
+# Sparkle.framework and has to turn the hardened runtime off.
+HARDENED_RUNTIME ?= YES
 ARGS ?=
 
 .PHONY: generate xcodeproj helper default-config build build-clean run run-clean cli check release install installed clean
@@ -133,6 +137,7 @@ release:
 	    CODE_SIGN_IDENTITY="$(CODESIGN_IDENTITY)" \
 	    DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" \
 	    CODE_SIGN_STYLE="$(CODE_SIGN_STYLE)" \
+	    ENABLE_HARDENED_RUNTIME="$(HARDENED_RUNTIME)" \
 	    archive; \
 	test -d "$$app_path"; \
 	test "$$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$$app_path/Contents/Info.plist")" = "$(VERSION)"; \
@@ -140,7 +145,9 @@ release:
 	test "$$(/usr/libexec/PlistBuddy -c "Print SUFeedURL" "$$app_path/Contents/Info.plist")" = "$(SPARKLE_FEED_URL)"; \
 	codesign --verify --deep --strict --verbose=2 "$$app_path"; \
 	codesign -dv --verbose=4 "$$app_path" 2>&1 | grep -F "$(EXPECTED_CODESIGN_AUTHORITY_PREFIX)" >/dev/null; \
-	codesign -dv --verbose=4 "$$app_path" 2>&1 | grep -E "^CodeDirectory .*flags=.*runtime" >/dev/null; \
+	if [ "$(HARDENED_RUNTIME)" = YES ]; then \
+	    codesign -dv --verbose=4 "$$app_path" 2>&1 | grep -E "^CodeDirectory .*flags=.*runtime" >/dev/null; \
+	fi; \
 	ditto -c -k --sequesterRsrc --keepParent "$$app_path" "$$zip_path"; \
 	sparkle_appcast="$$(find "$$derived_data_path/SourcePackages/artifacts" -type f -name generate_appcast -print -quit)"; \
 	test -n "$$sparkle_appcast"; \
