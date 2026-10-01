@@ -358,3 +358,17 @@ fn built_in_defaults_file_matches_the_shipped_defaults() {
         "regenerate with `make default-config`"
     );
 }
+
+#[test]
+fn eval_filter_works_in_a_config_with_no_named_filters() {
+    let mut helper = loaded("over-defaults.ncl");
+    let mut private = record("a", "tiled");
+    private["private"] = json!(true);
+
+    let reply = request(
+        &mut helper,
+        json!({ "id": 2, "op": "eval-filter", "filter": "w.private", "ctx": record("ctx", "tiled"), "windows": [private, record("b", "tiled")] }),
+    );
+
+    assert_eq!(reply["result"], json!([true, false]), "{}", reply["error"]);
+}

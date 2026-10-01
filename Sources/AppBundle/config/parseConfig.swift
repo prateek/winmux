@@ -172,7 +172,6 @@ private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))
 }
 
-/// TOML has no null, so a null field is left out.
 private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
     switch value {
         case .null: nil

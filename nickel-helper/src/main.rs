@@ -53,7 +53,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// Loads a config file, or the shipped defaults, and smoke-runs it without applying anything.
 fn check(file: Option<&Path>, library: &Path) -> ExitCode {
     match protocol::load(file, library) {
         Ok(_) => ExitCode::SUCCESS,
@@ -64,7 +63,6 @@ fn check(file: Option<&Path>, library: &Path) -> ExitCode {
     }
 }
 
-/// One request per stdin line, one reply per stdout line, in order, until stdin closes.
 fn serve(mut helper: protocol::Helper) -> ExitCode {
     let mut out = std::io::stdout().lock();
     for line in std::io::stdin().lock().lines() {

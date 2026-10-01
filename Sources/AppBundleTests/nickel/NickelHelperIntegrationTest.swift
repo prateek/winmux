@@ -89,3 +89,32 @@ final class NickelHelperIntegrationTest: XCTestCase {
         print("winmux-nickel latency: 50-window filter \(filterTime), hook \(hookTime)")
     }
 }
+
+/// `readConfig` is what startup and `reload-config` call. WinMux falls back to its built-in
+/// defaults when it fails at startup; that step runs inside `initAppBundle` and has no test.
+@MainActor
+final class ReadConfigTest: XCTestCase {
+    private func fixture(_ name: String) -> URL {
+        projectRootUrl.appending(path: "nickel-helper/tests/fixtures").appending(path: name)
+    }
+
+    func testValidConfigIsLoadedAndParsed() async throws {
+        guard nickelHelperUrl() != nil else { throw XCTSkip("winmux-nickel is not built") }
+
+        let loaded = try await readConfig(forceConfigUrl: fixture("over-defaults.ncl")).get()
+        NickelSupervisor.shared.discard(loaded.helper)
+
+        assertEquals(loaded.url, fixture("over-defaults.ncl"))
+        assertEquals(loaded.config.gaps.inner.horizontal, .constant(0))
+    }
+
+    func testBrokenConfigFailsWithThePathAndNickelsDiagnostic() async throws {
+        guard nickelHelperUrl() != nil else { throw XCTSkip("winmux-nickel is not built") }
+
+        let result = await readConfig(forceConfigUrl: fixture("unknown-key.ncl"))
+
+        guard case .failure(let message) = result else { return XCTFail("Expected a failure") }
+        XCTAssertTrue(message.hasPrefix("Failed to load \(fixture("unknown-key.ncl").path)"), message)
+        XCTAssertTrue(message.contains("extra field `gapz`"), message)
+    }
+}

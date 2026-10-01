@@ -50,7 +50,6 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     Ok(Converted { nickel, warnings })
 }
 
-/// An `[[on-window-detected]]` entry written as the `if … then …` an `arrive` hook would hold.
 fn arrive_branch(entry: &Value) -> String {
     let mut conditions = Vec::new();
     if let Some(matcher) = entry.get("if").and_then(Value::as_object) {
@@ -113,7 +112,6 @@ fn value_inline(value: &Value) -> String {
     }
 }
 
-/// A field name, quoted unless it is a plain Nickel identifier. Hyphens are part of identifiers.
 fn field_name(name: &str) -> String {
     const RESERVED: &[&str] = &[
         "if", "then", "else", "let", "in", "fun", "match", "forall", "import", "include", "rec", "null", "true",

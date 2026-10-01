@@ -30,8 +30,6 @@ func execNickelHelper(_ action: ConfigAction, file: String?) -> Never {
     exit(1, err: "Can't run \(helper): \(String(cString: strerror(errno)))")
 }
 
-/// `WINMUX_NICKEL_HELPER`, then next to this executable, then inside the WinMux.app that
-/// LaunchServices knows.
 private func findNickelHelper() -> String? {
     let name = "winmux-nickel"
     if let path = ProcessInfo.processInfo.environment["WINMUX_NICKEL_HELPER"] {

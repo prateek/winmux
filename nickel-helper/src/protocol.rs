@@ -47,7 +47,6 @@ impl Helper {
     }
 
     fn handle(&mut self, request: Value) -> Result<Value, Diagnostic> {
-        // Deserialising checks every host record before any Nickel runs.
         let request: Request = serde_json::from_value(request).map_err(|e| format!("bad request: {e}"))?;
         match request {
             Request::Load { path } => {
@@ -104,7 +103,6 @@ pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diag
     Ok((engine, json!({ "config": config, "imports": imports })))
 }
 
-/// One match bit per window. A Lens without a Filter matches every window.
 fn match_bits(
     engine: &mut Engine,
     filter: Option<&Closure>,
@@ -132,9 +130,6 @@ fn call_filter(
     })
 }
 
-/// Calls every Filter and Policy hook in the config against synthetic, fully populated
-/// arguments. Reading a missing field is an error in Nickel, so a misspelled field name fails
-/// here, at load, instead of at first use.
 fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
     let mut filters: Vec<(String, Closure)> = Vec::new();
     for name in engine.field_names(&["filters"])? {
