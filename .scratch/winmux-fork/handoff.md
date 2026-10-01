@@ -1,52 +1,68 @@
-# Handoff: WinMux fork wayfinding
+# Handoff: building the WinMux fork foundation
 
-Branch `wayfind-fork` on `prateek/winmux`, based on upstream `ZimengXiong/winmux@main` (470eedb). Charted 2026-09-28.
+Planning is finished. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't.
 
-## What this is
+## Start here
 
-A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (filtered Lenses covering exposé, cmd+tab and cmd-K search; fixed Columns; a `winmux` CLI for all of it; Display profiles, tabs and trackpad gestures were deferred on 2026-09-30) and produces specs, not code. Everything durable lives in the map; this note only orients you and holds what the map doesn't.
+- **The work:** the umbrella issue [Fork foundation: Nickel config, Lenses, fixed Columns and the CLI](https://github.com/prateek/winmux/issues/1) and its twelve child issues on `prateek/winmux`, linked as sub-issues with blocked-by dependencies. Each child is one buildable slice and stands alone. Build in dependency order; the Lens issues and the Column issues are independent of each other once the Nickel config lands.
+- **First two, in either order:** [Raise the deployment target to macOS 26](https://github.com/prateek/winmux/issues/2) and [Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`](https://github.com/prateek/winmux/issues/3). Everything else waits on the second.
+- **Glossary:** `CONTEXT.md` at the repo root. Use its terms and avoid the words it lists under _Avoid_.
+- **ADR:** `docs/adr/0001-nickel-helper-process.md`.
 
-- **Map (start here):** `.scratch/winmux-fork/map.md`. It holds the destination, standing decisions in Notes, Decisions-so-far, fog, and out-of-scope items.
-- **Tickets:** `.scratch/winmux-fork/issues/NN-*.md`, on the local-markdown tracker. They use `Type:`, `Status:` and `Blocked by:` lines; the tracker conventions are in `~/.agents/plugins/plugins/mattpocock/skills/setup-matt-pocock-skills/issue-tracker-local.md` under "Wayfinding operations".
-- **Research findings:** `.scratch/winmux-fork/research/`. **Prototypes:** `.scratch/winmux-fork/prototypes/`. Both live here rather than on throwaway branches, a deliberate deviation from the skills because the tracker is local.
-- **Glossary:** `CONTEXT.md` at the repo root. Use its terms (Lens, Filter, Filter context, Presentation, Trigger, Summon, Window class, Accessory app, Column, Width preset, Overflow policy, Policy hook, Display profile).
-- **ADRs:** `docs/adr/` at the repo root, for decisions that are hard to reverse. The first is the Nickel helper process.
+## How to read an issue
 
-## Finding the next ticket
+- **Decisions** are settled. Don't reopen them; if the code makes one impossible, stop and tell Prateek.
+- **Defaults chosen for you** are starting points no ticket settled. Change one if the code argues for it, and say so in the pull request.
+- **Open details** remain in one issue only, the strip. Both can only be answered by running a build.
+- When an issue and a ticket disagree, the issue is right. The issues apply later amendments.
+- If an issue body needs correcting, edit the draft in `.scratch/winmux-fork/build/` and update the issue from it, so the two stay the same. The drafts use `{{UMBRELLA}}` and `{{CHILDREN}}` placeholders for the issue numbers.
 
-Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open` (deferred tickets read `Status: out of scope`); a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
+## Where the reasoning lives
 
-As of 2026-09-30 no ticket is open: every one is resolved or out of scope, and the map's destination is reached. The decisions are consolidated into an umbrella issue with twelve child build issues on the fork, linked as sub-issues with blocked-by dependencies: https://github.com/prateek/winmux/issues/1. Build from those, in dependency order; each lists the details the tickets never settled under "Open details" for the implementer to decide and report. The fog left in the map's Not yet specified section blocks nothing. Three things there are for the implementing agent to check while building, not to re-decide: whether a signed WinMux build with its own Screen Recording grant shows a capture indicator; `prateek/winmux-columns` as prior art to mine for Columns; and `'list` rows, which default to today's palette rows. 
+Read these only when an issue's reasoning isn't enough.
 
-Some tasks need Prateek's Mac in a particular state. On 2026-09-29 and 2026-09-30 the sessions ran on a Mac mini (`Mac16,10`) with one virtual display and no trackpad, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
+- `.scratch/winmux-fork/map.md`: every decision in one line, in the order made, with links.
+- `.scratch/winmux-fork/issues/`: the 35 decision tickets, each resolved or marked out of scope.
+- `.scratch/winmux-fork/research/` and `prototypes/`: evidence and throwaway code. `prototypes/28-nickel-spike/` is the working Swift-to-Nickel spike the helper grows from.
+- `.scratch/winmux-fork/build/review.md`: the review of the issues against the tickets and code, with the source for every default.
 
-Since 2026-09-30 the Mac mini runs upstream WinMux 0.5.6 (cask `ZimengXiong/homebrew/winmux`) on the bundled default config, not the `prateek/tap` dogfood build. The old config is at `~/.config/winmux.dogfood-backup-20260930`. The upstream cask ships no CLI, so `/opt/homebrew/bin/winmux` is a copy built from v0.5.6 with `swift build -c release --product winmux`; it warns about a client/server version mismatch and works anyway. Ghost Pepper 2.4.4 is installed from the upstream cask.
+## Not being built
+
+Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactive registration of Accessory apps are deferred. The config keeps a `when.<profile>` slot with one implicit profile, `"default"`.
+
+## Decide with Prateek before the first pull request
+
+- **Which branch the build lands on.** `wayfind-fork` holds the planning files, `CONTEXT.md` and the ADR, and none of that is on `main`. The fork's `main` has been kept equal to upstream `main`. Whether the build branches from `wayfind-fork`, or the planning files are merged somewhere first, hasn't been decided.
+- **Commits and pushes.** He asks for each one. Planning used one commit per resolved ticket.
 
 ## Repo setup
 
-- Local clone: `~/code/github.com/ZimengXiong/winmux`, on branch `wayfind-fork`, which tracks `fork/wayfind-fork`.
-- Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS). `fork` is `prateek/winmux` over SSH.
+- This checkout is a worktree on branch `prateek/wayfind-fork`, tracking `fork/wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
+- Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
-- `prateek/winmux` defaults to `main`, and that `main` is kept equal to upstream `main`. Sync it with `git push fork origin/main:main` after `git fetch origin`.
-- Commit or push only when Prateek asks. Each resolved ticket has so far been one commit ("Resolve <ticket>…"). His machine conventions are in `~/.claude/CLAUDE.md` and `~/.agents/docs/`.
+- `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.
+- Build with `swift build`; the `Makefile` has the packaging targets. `swift build -c release --product winmux` builds the CLI alone.
+- Ignored and large: `.build/` (about 390 MB) and `prototypes/28-nickel-spike/target/` (about 1 GB). Both are caches and safe to delete.
 
-## Open with Prateek
+## The machine this was planned on
 
-- He asked why the map sits in `.scratch/`. It's the local-markdown tracker convention. He was offered a migration to GitHub issues on `prateek/winmux`, which would give native blocking but make the tickets public, and hasn't answered. Don't migrate unless he says so.
+- A Mac mini with one virtual display and no trackpad, not Prateek's laptop. Check `sysctl -n hw.model` and the display list before relying on anything measured here.
+- It has upstream WinMux 0.5.6 from the `ZimengXiong/homebrew` cask on the bundled default config, not Prateek's earlier dogfood build. His old config is kept at `~/.config/winmux.dogfood-backup-20260930`.
+- The upstream cask ships no CLI, so `/opt/homebrew/bin/winmux` is a copy built from `v0.5.6`. It warns about a client/server version mismatch and works. A build from this repo will replace both.
+- Ghost Pepper 2.4.4 is installed from the upstream cask; it was the test app for Accessory windows.
 
 ## Things not captured elsewhere
 
-- Prateek's own `prateek/winmux@codex-columns` branch (153 commits: columnar zones, scenes, rules, zone-expose) overlaps heavily. He chose upstream `main` as the base anyway. It's listed as prior art in the map's fog, so mine it when working the grid, Display profiles and Columns tickets; don't build on it.
-- A possible dotfiles bug sits outside this map and hasn't been acted on. `g95nc`'s `discard` step appears to wipe BetterDisplay's "associate with display" setting; the evidence is in `research/05-*`. Surface it to Prateek rather than fixing it here.
-- The first research agents had no web fetch. Apple API facts come from SDK headers, and some BetterDisplay claims come from search excerpts. Each findings file flags its own unverified points.
-- Hardware serials were redacted from `research/05-*` because the repo is public.
-- Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`.
-- Working mode: one ticket per session (research tickets excepted). Claim a ticket (`Status: claimed`) before starting work. Record each resolution as an `## Answer` section, set `Status: resolved`, and add a line to the map's Decisions-so-far. When a resolution changes an earlier ticket's decision, put a dated "Amended" or "Superseded" note at the top of that ticket's Answer.
+- **Prior art.** The `codex-columns` branch of the fork (153 commits: columnar zones, scenes, rules, an overview) overlaps the Column issues. Prateek chose upstream `main` as the base anyway. Mine it; don't build on it.
+- **A possible dotfiles bug, outside this work.** `g95nc`'s `discard` step appears to wipe BetterDisplay's "associate with display" setting; the evidence is in `research/05-*`. Mention it to Prateek; don't fix it here.
+- **Research limits.** The first research agents had no web fetch. Apple API facts come from SDK headers, and each findings file flags its own unverified points.
+- **Nickel binaries.** Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`. `nickel-lang-core` 0.19.0 builds from source, which is what the helper uses.
+- **Signing.** `script/dogfood-release`, which signs releases with a stable identity so Accessibility and Screen Recording grants survive upgrades, lives on `codex-columns`, not on this branch. The helper binary has to be signed with the app's identity, so that script or its equivalent has to come across.
 
 ## Suggested skills
 
-- `mattpocock:wayfinder`: invoke with the map path to work the next ticket.
-- `mattpocock:grilling` + `mattpocock:domain-modeling`: for every HITL ticket; keep `CONTEXT.md` current.
-- `mattpocock:prototype`: for prototype tickets (the grid Presentation, the Chrome tab source).
-- `mattpocock:research`: if a resolution surfaces new research tickets.
-- `writing-for-humans`: for replies to Prateek.
+- `mattpocock:implement`: build one child issue.
+- `mattpocock:tdd`: test-first at the seams each issue's "Done when" list names.
+- `mattpocock:domain-modeling`: when a term needs to change, so `CONTEXT.md` stays current.
+- `mattpocock:diagnosing-bugs`: for the two strip questions that need a running build.
+- `core:testing-philosophy` and `core:writing-for-humans`: for tests and for replies and pull request text.
