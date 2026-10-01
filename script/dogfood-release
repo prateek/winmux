@@ -58,6 +58,9 @@ cd "$(dirname "$0")/.."
 command -v gh >/dev/null || die "gh CLI is required"
 git diff --quiet && git diff --cached --quiet || die "working tree is dirty; commit or stash first"
 
+# Building rewrites the generated version files. Put them back however the run ends.
+trap 'git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift' EXIT
+
 head_sha="$(git rev-parse HEAD)"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 tag="v${VERSION}"
@@ -131,9 +134,6 @@ log "artifacts signed by '$SIGN_IDENTITY'"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir" "$zip_path"
 zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
 
-# Building rewrites the generated version files.
-git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift
-
 if [ "$DRY_RUN" = 1 ]; then
     log "dry run: built and verified, nothing published"
     log "package: $zip_path (sha256 $zip_sha256)"
@@ -176,7 +176,7 @@ gh release upload "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --clobber "$appcast
 
 log "bumping cask in $TAP_REPO"
 tap_dir="$(mktemp -d)"
-trap 'rm -rf "$tap_dir"' EXIT
+trap 'rm -rf "$tap_dir"; git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift' EXIT
 gh repo clone "$TAP_REPO" "$tap_dir" -- --depth 1 --quiet
 cask_file="$tap_dir/Casks/winmux.rb"
 test -f "$cask_file" || die "missing $cask_file in $TAP_REPO"

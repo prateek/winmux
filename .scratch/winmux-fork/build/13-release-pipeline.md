@@ -40,15 +40,17 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Upgrading from the old dogfood line.** The last `codex-columns` release was `0.51.0-dogfood.15`, built from a branch with a different commit count. A machine that still runs it may not see the new line as an update. Reinstalling the cask once is the fix; don't add version arithmetic for it.
 - **The cask.** One hand edit in `prateek/homebrew-tap`, made as part of this issue: `depends_on macos:` moves from `:ventura` to macOS 26, the description stops mentioning columnar zones, the caveats drop the zone setup text and keep the Gatekeeper steps, and `zap` covers the state directory the Nickel issue adds. After that only the script touches the cask.
 - **Release text.** The script's release title and notes mention zones and link `docs/ultrawide-zones.md`, which this branch does not have. Replace both with text that fits the fork.
-- **Hardened runtime.** The Release configuration enables it. Keep it if a self-signed build launches with it, and say in the pull request if it had to go.
+- **Hardened runtime.** Off for dogfood builds. With it on, the app cannot load its own `Sparkle.framework`: library validation wants Apple's signature or a shared team, and a self-signed identity has no team. `HARDENED_RUNTIME` is a `makefile` variable that defaults to `YES`, so upstream's build keeps it.
+- **Dry run.** `script/dogfood-release --dry-run <version>` builds, signs and verifies everything and publishes nothing.
+- **Start-up check.** Before it publishes, the script runs the packaged app with `--version` and the bundled helper with `check`, so a bundle that dyld refuses to load is caught on the build machine.
 
 ## Done when
 
-- [ ] `make release` with no variables set still produces upstream's build configuration, and `make check` passes.
-- [ ] `script/dogfood-release <version>` run from a clean `fork` checkout builds, signs, publishes the prerelease, updates the feed on the `dogfood` tag and bumps the cask, with no manual step in between.
-- [ ] `codesign -dvvv` reports `Authority=WinMux Dogfood Signing` for `WinMux.app`, `bin/winmux` and `WinMux.app/Contents/Helpers/winmux-nickel`, and `codesign --verify --deep --strict` passes for the app.
-- [ ] The built app has its icon, its asset catalog and the `MASShortcut` resource bundle, and the shortcut recorder in Settings renders.
-- [ ] The built `Info.plist` has the fork's `SUFeedURL`, the dogfood Sparkle public key, `CFBundleVersion` equal to the commit count, and `LSMinimumSystemVersion` 26.0.
+- [x] `make release` with no variables set still produces upstream's build configuration, and `make check` passes. Checked with `make -n release`; the real build needs upstream's certificate.
+- [ ] `script/dogfood-release <version>` run from a clean `fork` checkout builds, signs, publishes the prerelease, updates the feed on the `dogfood` tag and bumps the cask, with no manual step in between. A `--dry-run` passes; nothing has been published.
+- [x] `codesign -dvvv` reports `Authority=WinMux Dogfood Signing` for `WinMux.app`, `bin/winmux` and `WinMux.app/Contents/Helpers/winmux-nickel`, and `codesign --verify --deep --strict` passes for the app.
+- [ ] The built app has its icon, its asset catalog and the `MASShortcut` resource bundle, and the shortcut recorder in Settings renders. The three resources are in the bundle; the recorder has not been looked at.
+- [x] The built `Info.plist` has the fork's `SUFeedURL`, the dogfood Sparkle public key, `CFBundleVersion` equal to the commit count, and `LSMinimumSystemVersion` 26.0.
 - [ ] `brew install --cask prateek/tap/winmux` on a machine with no build toolchain installs the app and the CLI, and `winmux --version` reports the released version with no client/server mismatch warning.
 - [ ] After the Gatekeeper steps in the cask's caveats, WinMux launches, and `winmux config status` reports the helper `ready`.
 - [ ] Upgrading from one dogfood version to the next keeps the Accessibility and Screen Recording grants: no prompt, and window management and capture work at once.
