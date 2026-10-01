@@ -31,6 +31,24 @@ targets:
         excludes:
           - "marketing"
           - "screenshots"
+      # The Nickel library a config imports as winmux/winmux.ncl and winmux/defaults.ncl.
+      # It lands in Contents/Resources/nickel, where winmux-nickel looks for it.
+      - path: "nickel-helper/nickel"
+        type: folder
+        buildPhase: resources
+    postBuildScripts:
+      - name: Build, embed and sign winmux-nickel
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          # Xcode runs scripts with a minimal PATH that has no cargo on it.
+          export PATH="$HOME/.cargo/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$PATH"
+          cargo build --release --manifest-path "$SRCROOT/nickel-helper/Cargo.toml"
+          helpers="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Helpers"
+          mkdir -p "$helpers"
+          cp "$SRCROOT/nickel-helper/target/release/winmux-nickel" "$helpers/winmux-nickel"
+          # Signed with the app's identity before Xcode seals the bundle. It needs no entitlements.
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime "$helpers/winmux-nickel"
     dependencies:
       - package: WinMuxPackage
         product: AppBundle
@@ -40,6 +58,7 @@ targets:
     settings:
       base:
         SWIFT_VERSION: 6.2 # Swift Language Version
+        ENABLE_USER_SCRIPT_SANDBOXING: NO # The script phase runs cargo
         MARKETING_VERSION: ${XCODEGEN_WINMUX_VERSION}
         CURRENT_PROJECT_VERSION: ${XCODEGEN_WINMUX_VERSION}
         SPARKLE_PUBLIC_KEY: ${XCODEGEN_WINMUX_SPARKLE_PUBLIC_KEY}

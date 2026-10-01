@@ -335,8 +335,7 @@ fn convert_leaves_an_on_window_detected_rule_as_a_commented_arrive_branch_and_wa
 
 #[test]
 fn convert_of_the_upstream_default_config_passes_check() {
-    let default_config = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/default-config.toml");
-    let converted = run_helper(&["convert", &default_config.to_string_lossy()]);
+    let converted = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
     let out = std::env::temp_dir().join(format!("winmux-nickel-default-{}.ncl", std::process::id()));
     std::fs::write(&out, &converted.stdout).unwrap();
 

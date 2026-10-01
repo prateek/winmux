@@ -33,10 +33,8 @@ final class ConfigTest: XCTestCase {
         assertEquals(i3Config.enableNormalizationOppositeOrientationForNestedContainers, false)
     }
 
-    func testParseDefaultConfig() throws {
-        let toml = try String(contentsOf: projectRoot.appending(component: "resources/default-config.toml"), encoding: .utf8)
-        let (config, errors) = parseConfig(toml)
-        assertEquals(errors, [])
+    func testBuiltInDefaults() throws {
+        let config = defaultConfig
         XCTAssertTrue(config.automaticallyTileNewWindows)
         XCTAssertFalse(config.workspaceSidebar.showClock)
         XCTAssertTrue(config.workspaceSidebar.showSeconds)
