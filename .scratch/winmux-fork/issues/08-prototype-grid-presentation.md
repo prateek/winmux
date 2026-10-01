@@ -12,6 +12,8 @@ Inputs from [Task: measure thumbnail capture on Prateek's machine](14-task-measu
 
 ## Answer
 
+> Amended (2026-10-01): [Grilling: questions left by the review of the build issues](35-grilling-build-issue-review.md) spells every field and enum tag below with hyphens, not underscores (`frozen-thumbnail`, `'landing-spot`).
+
 > Amended (2026-09-30): [Prototype: strip Presentation look and keyboard model](29-prototype-strip-presentation.md) moves `frozen_thumbnail`, `accessory_window` and `summon_hints` out of the `miniatures` record and onto the Lens, so every Presentation reads them. The `miniatures` record keeps its layout settings.
 
 > Amended (2026-09-30): [Grilling: cmd-K search Lens](19-grilling-cmd-k-search.md) added `'list` to what v1 builds, and specified typing in `'miniatures`: non-matches dim in place and arrows move among matches.

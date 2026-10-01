@@ -45,10 +45,12 @@ Give every window a sequence number that records when it was last focused, acros
 
 Nothing.
 
-## Open details
+## Defaults chosen for you
 
-- `checkOnFocusChangedCallbacks` returns early during the startup refresh. Should the window that is focused at launch get a sequence number then, or only once focus first changes?
-- No CLI field for the sequence was decided. It becomes visible through `list-windows --lens <name>` once Lenses exist. If a `list-windows --format` variable or JSON field is added here to check the order by hand, say so in the PR.
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **The window focused at launch.** `checkOnFocusChangedCallbacks` returns early during the startup refresh, and that early return stays. The window focused at launch gets its number on the first refresh after startup. That refresh may not count as a focus change (`_lastKnownFocus` can already equal the current focus), so assign a number whenever the confirmed focused window is not the one holding the highest number, not only when the function's `hasFocusChanged` is true.
+- **A CLI field for the sequence.** `list-windows --json` gains `last-focused-seq`, and `list-windows --format` gains `%{window-last-focused-seq}`.
 
 ## Done when
 

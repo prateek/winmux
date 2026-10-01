@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Define the records WinMux hands to Nickel (Window, App, Monitor, Filter context, Column) as contract version 1, once, and generate the Nickel contracts, the helper's typed Rust structs and the `winmux config schema` output from that one definition. Let a config declare Filters as Nickel functions, check every Filter when the config loads with a smoke run, and evaluate a Lens's Filter over all windows in one batched request to the `winmux-nickel` helper. After this issue a Filter with a typo or an unguarded `null` fails at load with Nickel's diagnostic, and `winmux config schema` prints every field a Filter can read.
+Define the records WinMux hands to Nickel (Window, App, Monitor, Filter context, Column) as contract version 1, once, and generate the Nickel contracts, the helper's typed Rust structs and the `winmux config schema` output from that one definition. Fill the Window, App, Monitor and Filter context records from WinMux's live windows, and supply the synthetic records the load-time smoke run feeds to every Filter. The helper's requests, its smoke-run loop and its marshalling already exist, built against a stand-in record by "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`"; this issue supplies the real records they run on. After this issue a Filter with a typo or an unguarded `null` fails at load with Nickel's diagnostic, and `winmux config schema` prints every field a Filter can read.
 
 ## Decisions
 
@@ -24,9 +24,9 @@ Window (`w`):
 | `level` | Number (the CG window layer) | `0` |
 | `hasCloseButton` | Bool | `false` |
 | `document` | String (from `AXDocument`) | `""` |
-| `workspace` | String | never unknown |
+| `workspace` | String | `""` (every popup-class window; a minimized window reports the workspace it was minimized on) |
 | `project` | String | `""` |
-| `monitor` | Monitor | never unknown |
+| `monitor` | Monitor | a Monitor with every field at its "when unknown" value |
 | `lastFocusedSeq` | Number | `0` (never focused) |
 | `app` | App | never unknown |
 
@@ -44,9 +44,9 @@ Monitor (`w.monitor`, `ctx.monitor`):
 
 | Field | Type | When unknown |
 |---|---|---|
-| `name` | String | not specified |
+| `name` | String | `""` |
 | `uuid` | String | `""` |
-| `builtin` | Bool | not specified |
+| `builtin` | Bool | `false` |
 
 Filter context (`ctx`):
 
@@ -68,48 +68,54 @@ Column (passed to the `place` and `move-boundary` Policy hooks, never to Filters
 | `empty` | Bool |
 | `windows` | Array of Window |
 
+**Spelling**
+
+- Every field name and enum tag the fork adds to Nickel uses hyphens, never underscores: `'hidden-app`, `'accessory-popup`, `'app-popup`, `contract-version`, `filters.same-app`. Nickel accepts hyphens inside identifiers and enum tags. `a-b` is therefore one name, and a subtraction needs spaces around the minus sign.
+- The camelCase record fields in the tables above (`bundleId`, `hasCloseButton`, `lastFocusedSeq`, `activationPolicy`) are spelled as shown.
+
 **Field notes**
 
 - **Enums.** `class` and `activationPolicy` are Nickel enum tags. `subrole` is a String because the set of AX subroles is open. `ctx.profile` is a String.
 - **Absent context windows are `null`.** `ctx.focused`, `ctx.mouse` and `ctx.previous` are `null` when there is no such window. A Filter must guard them, for example `ctx.focused != null && ctx.focused.app.bundleId == w.app.bundleId`.
+- **One class per window, from the node it sits under.** The class follows the same parent relation that `list-windows`'s layout field prints (`getChildParentRelation` in `Sources/AppBundle/tree/TreeNodeCases.swift`): a window under a tiling container is `'tiled`, under a workspace `'floating`, under the native-fullscreen container `'fullscreen`, under the hidden-apps container `'hidden-app`, under the minimized container `'minimized`, and under the popup container one of the two popup classes. A window has exactly one parent, so exactly one class applies. A minimized floating window is `'minimized`.
+- **`'fullscreen` means macOS native fullscreen.** WinMux's own `fullscreen` command sets a flag on the window and leaves it where it is in the tree, so such a window keeps the class it had (`'tiled` or `'floating`).
 - **`'floating` keeps today's meaning:** the window's parent is a workspace.
 - **Popups are two classes.** `'accessory-popup` is a close-button-less window of an app that has no Dock icon at that moment. `'app-popup` is a regular app's popup, such as an autofill dropdown.
 - **`'accessory-popup` follows the live activation policy,** as upstream's popup classification does. A close-button-less window is an accessory-popup only while its app has no Dock icon. An Accessory app that turns `regular` while its dialog is open therefore has a `'floating` dialog, which stays in Lenses.
+- **`workspace` can be unknown.** WinMux keeps popup-class windows in a container outside every workspace, so their `workspace` is `""`. Minimized windows also sit in a container outside every workspace, but a minimized window reports the workspace it was on when it was minimized.
 - **`app.accessory`** is read from the bundle's `LSUIElement` and never changes while the app runs. "Windows of Accessory apps" is `w.app.accessory`.
 - **`app.activationPolicy`** is the live value and can change while the app runs.
 - **`lastFocusedSeq`** is the Global MRU sequence number. It is a Window field that Filters can read.
-- **`document`** stays in version 1 because WinMux reads `AXDocument` itself.
+- **`document`** is in version 1 because it needs no Tab provider: WinMux reads it from the window's own `AXDocument` attribute.
 - **Left out of version 1:** every tab field (`tabs`, `tabsSource`, `tabsAge`, `private`) and `registered`. With no proactive registration, every window a Filter sees is registered.
+
+**Filling the records**
+
+- This issue builds the Swift code that turns a live window into a Window record, and the focused window, the window under the mouse, the previous window, the current workspace and the focused monitor into a Filter context.
+- **Reading `AXDocument` is new work.** Nothing in WinMux reads `kAXDocumentAttribute` today; the name appears only in a comment in `Sources/AppBundle/util/accessibility.swift`. This issue adds the read. It is the one field in the contract that costs an extra AX round-trip per window.
+- **Remembering a minimized window's workspace is new work.** The minimized container has no workspace above it, and nothing records where a minimized window came from. This issue adds a last-known workspace to `Window`, written when WinMux moves the window into the minimized container, and `w.workspace` reads it. "Thumbnail cache and the `'miniatures` Presentation" uses the same value to draw minimized windows under their workspace.
+- **Values supplied elsewhere.** `lastFocusedSeq` is written by "Global MRU (`lastFocusedSeq`)". The values of `app.accessory` and `app.activationPolicy`, and which of the two popup classes a popup-classified window gets, are supplied by "Accessory window defaults and the `floating` Lens". This issue declares all of them in the contract.
 
 **Declaring Filters**
 
 - A Filter is a Nickel function `fun w ctx => …` that returns a Bool. It only says yes or no. Ordering belongs to the Lens.
-- Named Filters live in the config's `filters` record: `filters.<name> = fun w ctx => …`.
-- Wherever a Filter is accepted, the config can give a named Filter (`filter = filters.same_app`) or write the function inline.
+- Named Filters live in the config's top-level `filters` record: `filters.<name> = fun w ctx => …`.
+- This issue supplies the contract for a Filter (a Window, then a Filter context, to a Bool) and the contract for the `filters` record (every field is a Filter), and adds both to the shipped `winmux.ncl`.
+- Wherever a Filter is accepted, the config can give a named Filter (`filter = filters.same-app`) or write the function inline.
 - Filters call each other as ordinary functions: `filters.floating w ctx`. There is no other reference syntax.
 - A Filter can use anything Nickel offers: `let` bindings, helper functions, the standard library.
 
 **Checking at load**
 
-- The shipped `winmux.ncl` contracts cover the records above and the Filter function shape. The config is checked against them at load.
-- The helper then runs a smoke run. It calls every Filter, named and inline, twice against a synthetic, fully populated Window: once with `ctx.focused`, `ctx.mouse` and `ctx.previous` all set, and once with all three `null`. An unguarded `ctx.focused.app` therefore fails at load.
+- The shipped `winmux.ncl` contracts cover the records above and the Filter function shape. This issue generates them and adds them to the shipped library. The config is checked against them at load.
+- The smoke-run loop is not built here. This issue supplies what it runs on: a synthetic, fully populated Window and two Filter contexts. Every Filter, named and inline, is called twice against that Window: once with `ctx.focused`, `ctx.mouse` and `ctx.previous` all set, and once with all three `null`. An unguarded `ctx.focused.app` therefore fails at load.
 - Reading a missing field is a Nickel error, so a typo such as `w.app.bundelId` fails the smoke run with Nickel's own diagnostic (``missing field `bundelId` … Did you mean `bundleId`?``). The smoke run only catches errors in the branches the synthetic records take.
-- The smoke run happens on every load: startup, reload and `winmux config check`. A contract or smoke-run failure fails the load, and the diagnostic is the text Nickel prints.
-- Policy hooks go through the same smoke run, twice in the same way. Their records and return contracts belong to "Column Policy hooks and Column commands".
+- The same synthetic Window and the same two Filter contexts are what the smoke run passes to Policy hooks. The hooks' other arguments and their return contracts belong to "Column Policy hooks and Column commands".
 
 **Typed marshalling**
 
-- WinMux sends records to the helper as plain JSON, with enum values as JSON strings.
-- The helper holds one typed Rust struct per record. The struct knows which fields are enum tags and converts them. It rejects a record with a missing field before any Nickel runs, because Nickel's contracts are lazy and do not catch a missing field in host data before the Filter body runs.
+- The helper's typed Rust struct for each record, which knows which fields are enum tags and which fields must be present, is generated from this issue's definition. The conversion and the missing-field rejection that use those structs are not built here.
 - The structs are versioned with the Filter contract and ship in the same app as the contracts.
-
-**Evaluating Filters**
-
-- **One batched request per Lens open.** WinMux sends the Filter context and every candidate Window in one request that names the Lens's Filter. The helper answers with one match bit per window.
-- **`eval-filter` request.** A function body with `w` and `ctx` bound, sent as text with the Filter context and the windows. The helper evaluates it in the loaded config's environment, so `filters.<name> w ctx` works inside it. It is compiled per request and not cached. The answer is one match bit per window, or the Nickel diagnostic.
-- **Budget.** A Filter request gets 100 ms.
-- **When a Filter fails or times out,** or the helper is unavailable, an interactive Lens shows every window with a banner saying the Filter failed. A result from an earlier open is never reused, because it could hide a new window. Non-interactive commands treat the same failure differently, as described in "Lens core and the `'list` Presentation with Search".
-- A failed call does not poison the helper. The next request runs normally.
 
 **Versioning**
 
@@ -125,9 +131,10 @@ Column (passed to the `place` and `move-boundary` Policy hooks, never to Filters
 
 ## Not in this issue
 
-- The `winmux-nickel` helper itself, the JSON-lines transport, request ids, supervision, recycling, crash backoff, the circuit breaker, what a failed load does to the running config, and `config check`, `config convert` and `config status`: "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`". This issue adds the Filter requests and the smoke run to that helper.
+- The `winmux-nickel` helper itself, the JSON-lines transport, request ids, supervision, recycling, crash backoff, the circuit breaker, what a failed load does to the running config, and `config check`, `config convert` and `config status`: "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`". That issue also builds the batched Filter request, the `eval-filter` request, the Policy hook requests, their timeouts, the smoke-run loop, and the typed marshalling with its missing-field rejection, all tested against a stand-in record. This issue builds none of them. It supplies the record definitions, the contracts and the synthetic values they run on.
 - Writing `lastFocusedSeq`: "Global MRU (`lastFocusedSeq`)". Until that lands the field is `0`.
-- Lens records, leaving the popup classes out of Lenses, sort, Search, `lens --filter`, `list-windows --filter` and the exit codes for a failed Filter in a script: "Lens core and the `'list` Presentation with Search".
+- Reading `LSUIElement` for `app.accessory`, reading the live `app.activationPolicy`, and deciding which popup class a popup-classified window gets: "Accessory window defaults and the `floating` Lens". Until that lands, `accessory` is `false`, `activationPolicy` is `'regular` and every popup-classified window is `'app-popup`.
+- Lens records, the Lens's `popups` field that decides whether popup-class windows reach a Filter, sort, Search, the banner an interactive Lens shows when its Filter fails, `lens --filter`, `list-windows --filter` and the exit codes for a failed Filter in a script: "Lens core and the `'list` Presentation with Search".
 - Floating Accessory app windows by default: "Accessory window defaults and the `floating` Lens".
 - The `place`, `move-boundary` and `arrive` hooks, their return contracts, and filling the Column record: "Column Policy hooks and Column commands" and "Fixed Columns: slots, the count invariant, Width presets". This issue only defines the Column record's fields.
 - Deferred: tab fields and Tab providers, Display profile matching (`ctx.profile` is always `"default"`), and proactive registration of Accessory apps.
@@ -136,36 +143,37 @@ Column (passed to the `place` and `move-boundary` Policy hooks, never to Filters
 
 - "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`"
 
-## Open details
+## Defaults chosen for you
 
-- What is the single source that the Nickel contracts, the Rust structs and the `config schema` output are generated from, and which build step generates them? Only the requirement that they share one source was decided.
-- What values does the smoke run's synthetic Window carry (which `class`, which strings), and does it try more than one Window? Only "synthetic, fully populated" and the two context cases were decided.
-- Where is `contract-version` declared, and what happens when a user's config was written for an older version? Only the integer and when it is bumped were decided.
-- What is the shape of `config schema --json`?
-- Does `config schema` work with the server down, the way `config check` does by running the helper directly?
-- What do `monitor.name` and `monitor.builtin` hold when WinMux cannot read them? Only `uuid` has a stated value.
-- How does WinMux assign `class` when more than one could apply, for example a floating window that is minimized, and does `'fullscreen` mean WinMux fullscreen, macOS native fullscreen or both?
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **The single source.** The definition is a set of Rust types in `nickel-helper/` with a derive that emits the `.ncl` contracts and the schema JSON at build time.
+- **Synthetic smoke-run values.** One Window: `'tiled`, of a `'regular` app, with implausible strings such as `"winmux-smoke"` in every String field. The context windows of the first pass are fully populated in the same way. The smoke run includes no popup-class Window.
+- **Where `contract-version` is declared.** It is a `contract-version` field in the shipped library. A version declared in a user's config is accepted and ignored, because at version 1 no config can lag behind.
+- **Shape of `config schema --json`.** `{ "contract-version": 1, "records": { "Window": [ { "name", "type", "enum", "description" } ], … } }`.
+- **`config schema` with the server down.** It works: `schema` is a one-shot mode of `winmux-nickel` that the `winmux` CLI execs directly, the way it execs `check`.
+- **`monitor.name` and `monitor.builtin` when unknown.** `""` and `false`.
+- **`project` and `monitor` for a window outside every workspace.** The tree gives a minimized or popup-class window no monitor either (`nodeMonitor` in `Sources/AppBundle/tree/TreeNodeEx.swift` is `nil` under both containers). A minimized window reports the project and the monitor of its remembered workspace. A popup-class window reports `project = ""` and a Monitor with `name = ""`, `uuid = ""` and `builtin = false`.
+- **A window first seen minimized.** It has no remembered workspace, so its `workspace` and `project` are `""` and its `monitor` is the all-unknown Monitor.
+- **When `AXDocument` is read.** In the same per-window pass that reads the title when the records are built.
 
 ## Done when
 
-- [ ] A config with `filters.<name> = fun w ctx => …` loads, and a Lens can use the Filter by name or inline.
-- [ ] A named Filter that calls another (`filters.floating w ctx`) loads and evaluates.
+- [ ] A config with `filters.<name> = fun w ctx => …` loads, and a named Filter that calls another (`filters.floating w ctx`) passes the smoke run.
+- [ ] A Filter that reads every field in the tables above passes the smoke run, in both passes when its context reads are guarded.
 - [ ] `winmux config check` on a config whose Filter reads `w.app.bundelId` exits non-zero and prints Nickel's missing-field diagnostic.
 - [ ] `winmux config check` on a config whose Filter reads `ctx.focused.app` without a `null` guard exits non-zero. The same Filter with a guard passes.
-- [ ] A Filter that returns something other than a Bool fails at load.
-- [ ] The helper rejects a Window record with a missing field before evaluating any Nickel, and a test covers it.
-- [ ] One batched Filter request carrying the Filter context and every window returns one match bit per window.
-- [ ] An `eval-filter` request with the body `w.class == 'floating` returns match bits, and a body that calls a named Filter works.
-- [ ] `class` and `activationPolicy` reach Nickel as enum tags: `w.class == 'floating` matches a floating window and `w.app.activationPolicy == 'accessory` matches an app with no Dock icon.
-- [ ] A close-button-less window of an app with no Dock icon is `'accessory-popup`. The same app's window is `'floating` while the app is `regular`.
-- [ ] `w.app.accessory` is `true` for an `LSUIElement` app even while its activation policy is `'regular`.
-- [ ] A Filter request that runs past 100 ms, or whose Filter raises an error at run time, returns a failure with the diagnostic that the caller can turn into "every window, with a banner". A test covers both cases.
-- [ ] `winmux config schema` prints contract version 1 and every field in the tables above with type, enum values and a description. `winmux config schema --json` prints the same as JSON.
+- [ ] A Filter that returns something other than a Bool fails at load, and so does a `filters.<name>` that is not a function.
+- [ ] `class` and `activationPolicy` reach Nickel as enum tags: `w.class == 'floating` is true for a record whose `class` is sent as the JSON string `"floating"`, and `w.app.activationPolicy == 'accessory` is true for one whose `activationPolicy` is sent as `"accessory"`. A test covers both.
+- [ ] The record WinMux builds for a live window carries the right class: `'tiled` under a tiling container, `'floating` under a workspace, `'fullscreen` in macOS native fullscreen, `'hidden-app` for a window of a hidden app, `'minimized` when minimized. A tiled window put in WinMux's own fullscreen is still `'tiled`. A test covers the mapping.
+- [ ] A window minimized on workspace `2` reports `workspace = "2"` in its record while minimized, and a test covers it. A popup-classified window reports `workspace = ""`.
+- [ ] `w.document` holds the window's `AXDocument` value for a document window that has one and `""` for a window that does not.
+- [ ] `winmux config schema` prints contract version 1 and every field in the tables above with type, enum values and a description, including `accessory` and `activationPolicy` on App. `winmux config schema --json` prints the same as JSON.
 - [ ] A test fails if the Nickel contracts, the Rust structs and the schema output disagree on a field.
-
 ## Sources
 
 - [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md) (hyphenated names, `workspace` when unknown, reading `AXDocument`)
 - [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
 - [Grilling: default handling of floating and Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/11-grilling-floating-and-accessory-defaults.md)
 - [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)

@@ -11,7 +11,7 @@ WinMux reloads its Nickel config when the config file or any file it imports is 
 - **On by default.** Reload on save is on unless the config sets `reload-on-save` to false. With it off, `reload-config` is the only trigger. `reload-on-save` replaces the existing `auto-reload-config` setting.
 - **What is watched.** The config file and every file it imports. The list comes from the helper: every successful load returns the resolved list of imported files next to the static config.
 - **Re-arming.** The watch is set up again after every load, whether it succeeded or failed, so a newly added import is picked up.
-- **Watch directories, not files.** WinMux watches the directories that contain the watched files and filters events to those files. An editor that saves by writing a temporary file and renaming it over the original is then seen. Today's watcher opens the config file itself with `O_EVTONLY` and loses it on such a rename.
+- **Watch directories, not files.** WinMux watches the directories that contain the watched files and filters events to those files. Today's watcher (`Sources/AppBundle/config/ConfigFileWatcher.swift`) opens the one config file with `O_EVTONLY`, and it misses two cases this issue needs. It cannot see imported files, because a TOML config has none. And it cannot see a config file created after startup, because opening a file that does not exist fails and nothing tries again until the next reload. Watching directories makes both visible, and it still sees an editor that saves by writing a temporary file and renaming it over the original.
 - **Debounce.** WinMux waits 300 ms after the last change before loading, so a burst of writes becomes one reload. Today's value is 200 ms.
 - **Half-written files.** No special handling. A half-written file fails to load and the old config stays.
 - **The reload itself.** A file-triggered reload runs the same swap as `reload-config`: a fresh helper loads the file, checks contracts and runs the smoke run; on success WinMux applies the static config and swaps helpers atomically, and requests in flight finish on the old helper; on failure the old helper and config stay.
@@ -21,10 +21,11 @@ WinMux reloads its Nickel config when the config file or any file it imports is 
 - **Active mode.** The current mode is kept if it still exists in the new config. Otherwise WinMux returns to `main`.
 - **Open Lens.** A Lens that is open during a reload keeps its already-filtered entries until it closes.
 - **Circuit breaker.** A file change resets the helper's circuit breaker, the same as `reload-config` does. So after the breaker trips on a config that crashes the helper, saving a fix brings the helper back without a manual command.
+- **The Settings toggle is read-only.** Settings has a "Reload config when it changes" toggle that writes `auto-reload-config` into the TOML file today (`Sources/AppBundle/ui/settings/ConfigSettingsViews.swift`). The Settings panes are read-only in the first version, so the toggle shows the loaded value of `reload-on-save` and cannot change it. Changing it means editing the config file.
 
 ## Not in this issue
 
-- The helper, the load and swap sequence, `reload-config`, the circuit breaker and `config status`: "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`".
+- The helper, the load and swap sequence, `reload-config`, the circuit breaker, `config status`, and making the Settings panes read-only with their "Open config" button: "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`".
 - The `config-reloaded` event on `winmux subscribe`: "Default config, Triggers, the `lens` leader mode, `subscribe` events".
 - Lens behaviour during a reload beyond keeping its entries: "Lens core and the `'list` Presentation with Search".
 - Display profiles are deferred. A reload does not re-match a profile; the one implicit profile `"default"` stays active.
@@ -33,14 +34,15 @@ WinMux reloads its Nickel config when the config file or any file it imports is 
 
 - "Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`"
 
-## Open details
+## Defaults chosen for you
 
-- The helper returns the import list only on a successful load. Which files are watched after a failed load is not decided. Candidates: keep the last successful list plus the config file, or have the helper report the imports it resolved before failing.
-- Whether the WinMux-shipped contracts and defaults library counts as a watched import. It changes only when the app is replaced.
-- "The log" has no decided destination. Use WinMux's existing logging and say in the PR where the entry lands.
-- Whether "identical error" compares the full diagnostic text or something coarser. The diagnostic includes file positions, so an unrelated edit above the error changes the text.
-- What a file change does when no config file existed at startup and one is created later. Watching the directory makes this visible; the natural reading is that it loads like any other change.
-- The Settings pane has a "Reload config when it changes" toggle that writes `auto-reload-config` into the TOML file. What happens to the TOML-editing Settings panes is an open detail of the Nickel config issue; follow whatever that issue settles.
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **A config file that appears after startup.** WinMux watches the config directory (`$XDG_CONFIG_HOME/winmux/`, by default `~/.config/winmux/`) from startup even when it holds no config file. When the file appears it loads like any other change.
+- **Files watched after a failed load.** The config file plus the import list from the last successful load. The helper returns an import list only when a load succeeds.
+- **The shipped library.** Not watched. Paths inside the app bundle are left out of the watch list, since `winmux/winmux.ncl` and `winmux/defaults.ncl` change only when the app is replaced.
+- **The log.** WinMux's existing logging. Name the sink where the entry lands in the pull request.
+- **What counts as an identical error.** The full diagnostic text. The text includes file positions, so an edit above the error changes it and notifies again; that counts as failing differently.
 
 ## Done when
 
@@ -48,16 +50,19 @@ WinMux reloads its Nickel config when the config file or any file it imports is 
 - [ ] Saving a valid change to a file the config imports does the same.
 - [ ] Adding a new `import` to the config and then editing the newly imported file triggers a reload.
 - [ ] Saving through an editor that writes a temporary file and renames it triggers a reload, and later saves keep working.
+- [ ] With no config file at startup, creating `~/.config/winmux/winmux.ncl` loads it with no command run.
 - [ ] Several writes within 300 ms cause exactly one load.
 - [ ] Saving a config with an error keeps the old config running, shows one notification, and the error appears as the last error in `winmux config status` and in the log.
+- [ ] After a save that fails to load, saving a file from the last successful import list still triggers a reload.
 - [ ] Saving the same broken file again shows no second notification. Changing it to fail differently shows a new one. Fixing it loads the config, and `winmux config status` no longer shows the error.
 - [ ] A binding added in a save works immediately while a non-`main` mode is active, and the mode stays active. Removing the active mode from the config returns WinMux to `main`.
-- [ ] A Lens open during a save keeps its entries and still acts on a selection.
 - [ ] With the helper's circuit breaker tripped (`winmux config status` reports `failed`), saving the config file starts a new helper, and the state becomes `ready` if the file loads.
 - [ ] With `reload-on-save` set to false, a save does nothing and `winmux reload-config` still reloads.
+- [ ] The "Reload config when it changes" toggle in Settings shows the loaded value of `reload-on-save`, cannot be switched, and writes nothing to the config file.
 
 ## Sources
 
 - [Grilling: config hot reload](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/32-grilling-config-hot-reload.md)
 - [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
 - [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/wayfind-fork/docs/adr/0001-nickel-helper-process.md)

@@ -18,6 +18,8 @@ From the monitor-identity research: the Filter context should carry a monitor de
 
 ## Answer
 
+> Amended (2026-10-01): [Grilling: questions left by the review of the build issues](35-grilling-build-issue-review.md) replaces "Lenses drop popups unless the Filter names them" with a `popups` field on the Lens.
+
 > Amended (2026-09-30): [Grilling: the Filter contract's final field list](33-grilling-filter-contract-field-list.md) drops `registered` from the Filter attributes, since no window reaches a Filter unregistered.
 
 > Superseded in part (2026-09-29): [Prototype: config and scripting language](27-prototype-config-language.md) replaced CEL and TOML with Nickel. The Window classes, popup defaults and Filter attributes below still stand.

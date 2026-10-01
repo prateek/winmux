@@ -13,7 +13,7 @@ A named yes/no function over windows, checked when the config loads, evaluated a
 _Avoid_: query, rule, scope
 
 **Window class**:
-How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an app that has no Dock icon at that moment) or app-popup (a regular app's popup, such as an autofill dropdown). Lenses leave out both popup classes unless the Filter names them.
+How WinMux classifies a window: tiled, floating, fullscreen, minimized, hidden-app, accessory-popup (a close-button-less window of an app that has no Dock icon at that moment) or app-popup (a regular app's popup, such as an autofill dropdown). Lenses leave out both popup classes unless the Lens lists them.
 _Avoid_: kind, type, layout
 
 **Filter context**:

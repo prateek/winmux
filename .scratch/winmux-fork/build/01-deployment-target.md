@@ -10,12 +10,12 @@ Raise the fork's minimum macOS from 13 to 26 and remove every use of `CGWindowLi
 
 - **Target.** The deployment target is macOS 26 for every product. It is set in two places today: `platforms` in `Package.swift` (now `.macOS(.v13)`) and `deploymentTarget` in `project.yml` (now `"13.0"`). Both change, and the comment above `platforms` in `Package.swift` is updated to match.
 - **No availability gating.** New code does not wrap macOS 26 APIs in `#available`. Existing checks for macOS 14 and macOS 26 become dead once the target rises and are removed with their fallback branches. They are in `Sources/AppBundle/ui/menubar/MenuBarLabel.swift`, `Sources/WindowCapture/main.swift`, `Sources/AppBundle/ui/core/DesignTokens.swift`, `Sources/AppBundle/ui/tabs/WindowTabStripConstants.swift`, `Sources/AppBundle/ui/tabs/WindowTabGroupGeometry.swift` and `Sources/AppBundle/ui/sidebar/WorkspaceSidebarWorkspaceSection.swift`. The `@available(*, unavailable)` initialisers are unrelated and stay.
-- **`CGWindowListCreateImage` goes.** The function is deprecated in the macOS 14 SDK and obsoleted in the macOS 15 SDK, so it does not compile at the new target. The code has five call sites, and all five go:
+- **`CGWindowListCreateImage` goes.** The function is deprecated in the macOS 14 SDK and obsoleted in the macOS 15 SDK, so it does not compile at the new target. The code has five call sites, and all five go. The deployment-target ticket under Sources counts three; `rg CGWindowListCreateImage Sources` finds these five, and this list is the one to work from:
   - `Sources/AppBundle/ui/tabs/DoubleSidedWindowController.swift`, two calls: a single-window snapshot, and a capture of the screen region below a window (`.optionOnScreenBelowWindow`) used as the flip animation's background.
   - `Sources/AppBundle/ui/tabs/WindowTabsPanel.swift`: a single-window capture used to estimate a window's corner radius.
   - `Sources/AppBundle/ui/marketing/WinMuxMarketingRenderer.swift`: a capture of the renderer's own window.
   - `Sources/WindowCapture/main.swift`: the `--core-graphics` path of the dev-only capture tool.
-- **Replacement API.** Window capture uses ScreenCaptureKit's one-shot capture, `SCScreenshotManager.captureScreenshot(contentFilter:configuration:)`, which is macOS 26 only. Do not use `captureSampleBuffer` for ordinary windows: it creates and tears down a stream per call. Do not use the private `CGSHWCaptureWindowList`.
+- **Replacement API.** Window capture uses ScreenCaptureKit's one-shot capture, `SCScreenshotManager.captureScreenshot(contentFilter:configuration:)`, which is macOS 26 only. Do not use `captureSampleBuffer` for ordinary windows: it creates and tears down a stream per call. Do not use the private `CGSHWCaptureWindowList`. "Thumbnail cache and the `'miniatures` Presentation" uses the same call.
 - **Facts about the replacement that affect the call sites.** `SCContentFilter(desktopIndependentWindow:)` takes an `SCWindow`, not a `CGWindowID`. `SCWindow`s come from `SCShareableContent`, and that fetch costs about 30 ms, so cache it. The one-shot capture is asynchronous, while the current calls are synchronous and run on the main thread. A capture takes about 33 ms.
 - **Upstream compatibility is not a constraint.** This is a personal fork running on macOS 26.
 
@@ -27,11 +27,16 @@ Raise the fork's minimum macOS from 13 to 26 and remove every use of `CGWindowLi
 
 Nothing.
 
-## Open details
+## Defaults chosen for you
 
-- The decision says the `CGWindowListCreateImage` call sites go and that capture is ScreenCaptureKit one-shot. It does not say what each call site becomes. Four are single-window captures with a direct one-shot equivalent. The fifth captures everything on screen below a window, which a single-window filter cannot do; settle whether it becomes a display capture that excludes windows, or whether the flip animation drops its background.
-- The two dev tools (`winmux-window-capture` and `winmux-marketing-renderer`) are not part of the fork's features. Settle whether to port their capture paths or remove the `--core-graphics` path and leave the ScreenCaptureKit one.
-- The synchronous callers (`estimateWindowPreviewCornerRadiusFromImage`, the flip animation) need an async shape or a cached result. Settle which per call site.
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **The four single-window call sites.** Each becomes a one-shot capture of that window's `SCWindow`: the flip animation's snapshot, the corner-radius capture, the marketing renderer's capture of its own window, and the capture tool.
+- **The flip animation's background.** Dropped. The flip animates the two window snapshots with nothing captured behind them. A single-window filter cannot capture the screen below a window, and a display capture that excludes windows would put a `SCShareableContent` fetch on an animation path. Today `flip` skips the animation when the background capture returns nil (`DoubleSidedWindowController.swift`), so `animate` has to stop requiring a background.
+- **`winmux-window-capture`.** The `--core-graphics` flag and its code path are removed. The tool's ScreenCaptureKit path stays and moves from `SCScreenshotManager.captureImage` to the Replacement API above, so the fork has one capture call.
+- **`winmux-marketing-renderer`.** Its capture of its own window is ported to the same one-shot call.
+- **The corner-radius estimate.** `estimateWindowPreviewCornerRadiusFromImage` becomes async. `estimatedWindowPreviewCornerRadius(for:)` stays synchronous: it returns the cached radius for the window id when there is one, and otherwise returns today's fallback and starts a capture that fills the cache.
+- **The flip.** `flip` awaits its two snapshots before it starts the animation.
 
 ## Done when
 
@@ -41,7 +46,10 @@ Nothing.
 - [ ] `swift build` and the release Xcode build succeed with no deprecation or obsoletion warnings from window capture.
 - [ ] The existing test suite passes.
 - [ ] The release app bundle declares macOS 26.0 as its minimum system version (`LSMinimumSystemVersion` in the built `Info.plist`).
-- [ ] The double-sided tab flip and the tab preview corner radius still work on macOS 26 with Screen Recording granted, or the PR states what replaced them.
+- [ ] With Screen Recording granted on macOS 26, the double-sided tab flip animates between the two window snapshots.
+- [ ] With Screen Recording granted, a tab preview's corner radius matches its window's once the first capture of that window has finished, and no capture blocks the main thread.
+- [ ] `winmux-window-capture` has no `--core-graphics` flag and still writes a capture of the requested window.
+- [ ] `winmux-marketing-renderer` still writes its image.
 
 ## Sources
 

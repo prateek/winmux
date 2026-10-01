@@ -4,25 +4,25 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Build the `'strip` Presentation: a single centred row of a Lens's matches that is cycled while the invoking modifiers are held and commits when they are released. Ship the two Lenses that use it, `recent` on `cmd-tab` and `app-windows` on `cmd-backtick`, and make those two bindings actually fire by taking the chords away from macOS. After this issue, cmd+tab and cmd+backtick open WinMux Lenses in place of the native ones, and the system chords come back whenever WinMux stops listening for them.
+Build the `'strip` Presentation: a single centred row of a Lens's matches that is cycled while the invoking modifiers are held and commits when they are released. Ship the two Lenses that use it, `recent` on `cmd-tab` and `app-windows` on `cmd-backtick`, and make those two bindings actually fire by taking the chords away from macOS. Taking them needs three new pieces: a reconciler that turns the matching system chords off and back on, handlers that restore them on every exit WinMux can catch, and a screen-unlock observer beside the wake observers WinMux already has. After this issue, cmd+tab and cmd+backtick open WinMux Lenses in place of the native ones, and the system chords come back whenever WinMux stops listening for them.
 
 ## Decisions
 
 **The strip is the Lens machinery with a one-row layout**
 
 - The strip is not a second system. It uses the Lens's Filter, sort order, selection, `keys` actions, Summon, thumbnail cache and overlay panel, and adds only a one-row layout and hold-to-cycle.
-- The strip has no settings record of its own. It reads the Lens-level fields `frozen_thumbnail`, `accessory_window` and `summon_hints`, which every Presentation reads.
+- The strip has no settings record of its own. It reads the Lens-level fields `frozen-thumbnail`, `accessory-window` and `summon-hints`, which every Presentation reads.
 - A strip ignores `sections`. `entries` defaults to one entry per window. `sort` defaults to MRU order with the current window first, and the selection starts on the second entry.
 - The strip has no Search box, because letters typed while cmd is held are chords.
-- The panel is non-activating. It must not call `NSApp.activate` or `makeKey` the way `SwitcherPalette` does today (`Sources/AppBundle/ui/hud/SwitcherPalette.swift`); the app that had focus keeps it until the strip commits.
+- The panel is non-activating, and WinMux never becomes the active app while a strip is open. The strip must not call `NSApp.activate` the way `SwitcherPalette` does today (`Sources/AppBundle/ui/hud/SwitcherPalette.swift`); the app that had focus keeps it until the strip commits. How the panel receives keys without activating is under Open details.
 - Committing a selection asks the OS to focus the window and does not write MRU itself. MRU moves only when the OS confirms the focus, which is what `lastFocusedSeq` already guarantees.
 
 **Entry look**
 
 - Each entry shows a thumbnail with the app icon and the window title.
 - Until Thumbnail cache and the `'miniatures` Presentation lands, the strip shows the app icon and title only. Once the cache exists, an entry with no capture still shows the app icon.
-- A Frozen thumbnail is marked as the Lens's `frozen_thumbnail` says. The shipped default is `'dimmed`.
-- While Summon's modifier is held, the strip shows what the Lens's `summon_hints` lists. The shipped default is `'label` plus `'landing_spot`: a "Summon to N" label on the selected entry, and a dashed outline on the screen itself where the window will land.
+- A Frozen thumbnail is marked as the Lens's `frozen-thumbnail` says. The shipped default is `'dimmed`.
+- While Summon's modifier is held, the strip shows what the Lens's `summon-hints` lists. The shipped default is `'label` plus `'landing-spot`: a "Summon to N" label on the selected entry, and a dashed outline on the screen itself where the window will land.
 
 **Placement**
 
@@ -36,7 +36,7 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 - Summon at release is Option: holding Option when the invoking modifiers are released runs `summon` on the selection. Shift held at release never selects a binding in a strip, because Shift reverses the cycle. `shift-enter` stays Summon in `'list` and `'miniatures`.
 - There is a 100 ms display delay. If the invoking modifiers are released within it, the strip never draws and the commit lands on the initial selection, which swaps to the previous window.
 - When `lens` runs, it first samples the live modifier state (`CGEventSource.flagsState(.combinedSessionState)`). If the invoking modifiers are already up, it commits at once without drawing. This covers the quick tap and guards against the Carbon event arriving after the release.
-- Modifier releases come from the existing `flagsChanged` monitor (`GlobalObserver.swift`, feeding `noteTapBindingFlagsChanged`). No new event tap is added for commit on release.
+- Modifier releases come from the existing `flagsChanged` monitor (`Sources/AppBundle/GlobalObserver.swift`, feeding `noteTapBindingFlagsChanged`). No new event tap is added for commit on release.
 - There is no stay-open variant of the strip. A Lens that should stay open uses `'list`.
 
 **Keys while the strip is open**
@@ -44,7 +44,7 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 - Pressing the invoking key again moves the selection forward and wraps at the end.
 - Reverse is Shift plus the invoking key: `shift-tab` in `recent`, `shift-backtick` in `app-windows`. The backtick key does not reverse `recent`, which differs from the native cmd+tab.
 - `esc` closes the strip and leaves focus unchanged.
-- The Lens's other `keys` bindings apply in a strip as in any Presentation. The Lens defaults are `cmd-w` for `close` and `cmd-<n>` for `move-node-to-workspace <n>`. See Open details for a letter that is also a binding.
+- The Lens's other `keys` bindings apply in a strip as in any Presentation. The Lens defaults are `cmd-w` for `close` and `cmd-<n>` for `move-node-to-workspace <n>`.
 - With the mouse, hovering moves the selection, a click runs `enter`'s command, and a modifier-click runs the matching modifier binding.
 
 **Hand-off to Search**
@@ -54,13 +54,16 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 
 **The two default Lenses**
 
+- Both Lenses are defined in the shipped `defaults.ncl`, which a user's config imports and merges over. This issue adds them there, together with their bindings.
 - `recent`: a strip over every window, sorted by MRU, opened by `cmd-tab` running `lens recent`.
 - `app-windows`: a strip over the windows whose app has the same bundle id as the focused window's app, sorted by MRU, opened by `cmd-backtick` running `lens app-windows`. `cmd-backtick` is WinMux's spelling of the chord.
-- The `app-windows` Filter must handle `ctx.focused` being `null`, because the load-time smoke run calls every Filter once with no focused window. It matches nothing in that case.
+- The `app-windows` Filter is the named Filter `filters.same-app`, also defined in `defaults.ncl`: `fun w ctx => ctx.focused != null && ctx.focused.app.bundleId == w.app.bundleId`. It must handle `ctx.focused` being `null`, because the load-time smoke run calls every Filter once with no focused window. It matches nothing in that case.
+- Neither Lens sets `popups`, the Lens field that lists the popup Window classes a Lens includes. It is empty by default, so "every window" leaves out `'accessory-popup` and `'app-popup` windows: they never reach the Filter.
 - Both Triggers are ordinary entries in `mode.main.binding`. The user can rebind or remove them like any other binding.
 
 **Taking cmd+tab and cmd+backtick from the system**
 
+- "Symbolic hotkey" is Apple's term for a chord the system owns, such as the native cmd+tab, and "Carbon hotkey" is the name of the registration API. Both name system mechanisms in this issue. A WinMux binding that opens a Lens is a Trigger.
 - Bindings stay registered through the `HotKey` package (Carbon `RegisterEventHotKey`), as every binding is today.
 - A Carbon hotkey takes `cmd-backtick` directly. Nothing has to be turned off for it to fire.
 - A Carbon hotkey on `cmd-tab` registers without error but never fires while the system's symbolic hotkey for it is on. WinMux turns off symbolic hotkeys 1 (cmd-tab) and 2 (cmd-shift-tab) with the private `CGSSetSymbolicHotKeyEnabled`. Binding `cmd-tab` always takes `cmd-shift-tab` with it. This needs only the Accessibility permission WinMux already has.
@@ -74,7 +77,8 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 **Restoring and repairing**
 
 - A disabled symbolic hotkey outlives the process, and release builds catch no termination signals today. Signal handlers and an uncaught-exception handler that restore the marker's ids are armed before the first disable.
-- The reconciler repairs from the marker and re-applies on launch, on wake and on screen unlock. The observers for wake and unlock already exist in `GlobalObserver.swift`. This also covers macOS turning the system chord back on by itself after a reboot.
+- The reconciler repairs from the marker and re-applies on launch, on wake and on screen unlock. This also covers macOS turning the system chord back on by itself after a reboot.
+- The wake observers exist: `NSWorkspace.didWakeNotification` and `NSWorkspace.screensDidWakeNotification` in `Sources/AppBundle/GlobalObserver.swift`. WinMux has no unlock observer. This issue adds one, for `com.apple.screenIsUnlocked` on `DistributedNotificationCenter`.
 - A hard kill (`kill -9`, a kernel panic, power loss) leaves cmd+tab dead until WinMux next launches, when the marker repair runs. This is accepted.
 
 **Known failure behaviour**
@@ -84,7 +88,7 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 
 ## Not in this issue
 
-- The `lens` command, the Lens record, `keys` actions, `summon`, Search, the `'list` Presentation and `lens --presentation list` itself: Lens core and the `'list` Presentation with Search.
+- The `lens` command, the Lens record (including the `popups` field), `keys` actions, `summon`, Search, the `'list` Presentation and `lens --presentation list` itself: Lens core and the `'list` Presentation with Search.
 - `lastFocusedSeq` and MRU order: Global MRU (`lastFocusedSeq`).
 - Capturing thumbnails and the cache: Thumbnail cache and the `'miniatures` Presentation.
 - Where a Summoned window lands (the `place` hook): Column Policy hooks and Column commands. Until it exists, the landing spot is wherever the built-in insertion would put the window.
@@ -96,45 +100,54 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 - Lens core and the `'list` Presentation with Search
 - Thumbnail cache and the `'miniatures` Presentation, for thumbnails only. The strip ships with icon and title before it.
 
+## Defaults chosen for you
+
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **The cmd+backtick system chords stay on.** The reconciler disables a matching symbolic hotkey only for the cmd+tab pair. A match for `cmd-backtick` or its Shift variant (ids 27 and 220 in a stock table) is left on, because the Carbon hotkey fires without it, and disabling them would make a hard kill take cmd+backtick down along with cmd+tab. Disable them too only if a test shows the system chord winning over the Carbon hotkey.
+- **Opening a strip with no modifiers held.** It commits at once and swaps to the previous window without drawing. This applies to `winmux lens recent` from a shell and to a Trigger with no modifiers. The way to browse `recent` with nothing held is its `'list` Presentation.
+- **`cmd-shift-tab` with no strip open.** It opens `recent` with the selection on the last entry, as the native chord does. `defaults.ncl` binds `cmd-shift-tab` to `lens recent` next to `cmd-tab`, and the strip reads Shift from the invoking chord. Shift is not one of the modifiers whose release commits.
+- **A letter that is also a `keys` binding.** The `keys` binding wins, so `cmd-w` closes the selected window. Only a letter with no binding hands off to `'list`.
+- **How Summon at release is spelled.** The Lens `keys` defaults gain `alt-enter` for `summon`. Releasing the invoking modifiers with Option held selects it by the ordinary rule, with nothing special-cased. `shift-enter` stays beside it for a Lens that is also opened as a list.
+- **`accessory-window` and `'target-workspace` in a strip.** With `'enlarged`, an Accessory app window's entry is drawn at the normal entry size with a dashed outline and a "menu-bar app" caption. With `'actual-size`, the entry is scaled down. The `'target-workspace` hint draws nothing in a strip.
+- **Arrow keys.** Left and right move the selection.
+- **One match or none.** With one match the selection is on it. With none the strip shows "No windows" and releasing the modifiers does nothing.
+- **Summon hints for a window already on the current workspace.** The label and landing spot show only when the selected window is on another workspace. Summoning a window that is already on the current workspace does nothing.
+- **How many entries fit before the row scrolls.** As many as fit the screen width, capped at 9. Tune the cap on the real build.
+- **Marker storage and visibility.** The marker lives in `UserDefaults`. The reconciler checks the `CGError` from `CGSSetSymbolicHotKeyEnabled` and reads the result back with `CGSIsSymbolicHotKeyEnabled`. `HotKey` registration failures are logged, since the package swallows them. `winmux doctor` gains a line with the symbolic hotkey ids WinMux holds and the marker's contents.
+- **Restoring an id the user changed meanwhile.** The reconciler restores an id only if it is still in the state WinMux left it in: still disabled, with the same key and modifiers. Otherwise it leaves the id alone and drops it from the marker.
+
 ## Open details
 
-Settle each of these while building and note the choice in the PR.
+Neither of these could be verified without the real build. Test each while building and record the result in the pull request.
 
-- **Symbolic hotkeys 27 and 220.** These are cmd+backtick ("Move focus to next window") and its reverse. The Carbon hotkey fires without disabling them. Disabling them too is insurance against setups where the system chord wins, but then a hard kill leaves cmd+backtick dead as well as cmd+tab. Decide whether the reconciler disables them.
-- **How the strip receives keys other than the Trigger.** The panel is non-activating, so `shift-tab`, `esc`, the arrows, letters and the `keys` bindings do not reach it as ordinary key events. Options include registering extra Carbon hotkeys while the strip is open, or an event tap armed only while it is open. An always-on active tap is a known hazard for input methods and must be avoided.
-- **Opening a strip with no modifiers held.** The sample-the-flags decision means `winmux lens recent` from a shell commits at once and swaps to the previous window without drawing. Confirm that this is the intended behaviour for the CLI and for a Trigger with no modifiers.
-- **`cmd-shift-tab` with no strip open.** Symbolic hotkey 2 is disabled, so the chord does nothing unless it is bound. Decide whether it opens `recent` with the selection on the last entry.
-- **A letter that is also a `keys` binding.** `cmd-w` is a letter typed while cmd is held, and it is also the default `close` binding. Decide which wins: the `keys` binding or the hand-off to `'list`.
-- **How Summon at release is spelled in the `keys` map.** The decision is that Option at release runs `summon`. Whether that is a default `alt-enter` entry in the Lens's `keys` map, and how it sits beside `shift-enter` for a Lens that is also opened as a list, was not written down.
-- **`accessory_window` and `'target_workspace` in a one-row layout.** Both were defined for `'miniatures`, where windows are drawn to scale inside their workspace. The strip prototype drew an Accessory app window smaller, with a dashed outline and a "menu-bar app" caption. Decide what the two values of `accessory_window` and the `'target_workspace` hint do in a strip.
-- **Arrow keys.** In the prototype the left and right arrow keys also moved the selection. This was not written down as a decision.
-- **One match or none.** With one match the prototype put the selection on it. With no match nothing was decided.
-- **Summon hints for a window already on the current workspace.** The prototype showed the label and landing spot only when the selected window was on another workspace. This was not written down as a decision.
-- **How many entries fit before the row scrolls.** The prototype used 9 as a starting value. No number was decided.
-- **Marker storage and visibility.** The research recommends keeping the marker in `UserDefaults`, checking the `CGError` from `CGSSetSymbolicHotKeyEnabled` and reading the result back, logging `HotKey` registration failures (the package swallows them), and adding a `winmux doctor` line with the ids held and the marker contents. None of these was decided.
-- **Restoring an id the user changed meanwhile.** If the user turns a system chord off in System Settings while WinMux holds it, a later restore overwrites that choice. Decide whether to restore only when the id is still in the state WinMux left it.
-- **Unverified platform behaviour.** Whether the global `flagsChanged` monitor still fires under Secure Input, and whether symbolic-hotkey state is per login session (fast user switching), were not tested.
+- **How a non-activating panel receives keys.** The starting approach: keep the `makeKey()` call that `SwitcherPalettePanel.show()` makes today and drop only its `NSApp.activate`. The panel already has the `.nonactivatingPanel` style (`Sources/AppBundle/ui/hud/NSPanelHud.swift`) and overrides `canBecomeKey` to `true`. The Trigger key and its Shift variant arrive as Carbon hotkey events while the strip is open; `esc`, the arrows, letters and the `keys` bindings arrive as key events to the key panel. No event tap is added: an always-on active tap is a known hazard for input methods. Not verified: that a `.nonactivatingPanel` can be key without WinMux becoming the active app, and that the key events still arrive under Secure Input. If either fails, the fallbacks are extra Carbon hotkeys registered only while the strip is open, or an event tap armed only while it is open.
+- **Platform behaviour.** Not tested: whether the global `flagsChanged` monitor still fires under Secure Input, and whether symbolic-hotkey state is per login session (fast user switching).
 
 ## Done when
 
-- [ ] Holding cmd and pressing tab opens `recent`: a centred row of every window in MRU order, with the selection on the second entry.
-- [ ] Each further tab press moves the selection forward, `shift-tab` moves it back, and backtick does not move it in `recent`.
-- [ ] Releasing cmd focuses the selected window, switching workspace if needed. The strip never becomes the active app while open.
-- [ ] Releasing cmd with Option held runs `summon`: the selected window moves into the current workspace.
-- [ ] While Option is held on a window from another workspace, the selected entry shows "Summon to N" and the landing spot is outlined on the screen.
+- [ ] Holding cmd and pressing tab opens `recent`: a centred row of every window in MRU order, with the selection on the second entry. No popup-class window appears in it.
+- [ ] Each further tab press moves the selection forward, `shift-tab` moves it back, the left and right arrows move it, and backtick does not move it in `recent`.
+- [ ] With no strip open, holding cmd and pressing shift-tab opens `recent` with the selection on the last entry, and releasing Shift alone does not commit.
+- [ ] Releasing cmd focuses the selected window, switching workspace if needed. WinMux never becomes the active app while the strip is open.
+- [ ] Releasing cmd with Option held runs `summon`: the selected window moves into the current workspace. `winmux list-lenses --json` shows `alt-enter` bound to `summon` in the Lens's `keys`.
+- [ ] While Option is held on a window from another workspace, the selected entry shows "Summon to N" and the landing spot is outlined on the screen. On a window of the current workspace neither shows.
 - [ ] A cmd+tab released within 100 ms swaps to the previous window and the strip never draws.
+- [ ] `winmux lens recent` run from a shell, with no modifiers held, swaps to the previous window without drawing a strip.
 - [ ] `esc` closes the strip and focus is unchanged.
 - [ ] Holding cmd and pressing backtick opens `app-windows` with only the focused app's windows. `shift-backtick` reverses it.
-- [ ] Typing a letter in an open strip reopens the same Lens as `'list` with that letter in the Search box and the same window selected.
+- [ ] With one match the selection is on it. With no match the strip shows "No windows" and releasing cmd changes nothing.
+- [ ] Typing a letter that has no `keys` binding in an open strip reopens the same Lens as `'list` with that letter in the Search box and the same window selected. Pressing `w` while cmd is held closes the selected window and the strip stays a strip.
 - [ ] With more matches than fit, the row scrolls with the selection and shows "+N" at each end that has hidden entries.
 - [ ] Entries show icon and title with no thumbnail cache, and thumbnails with Frozen thumbnails dimmed once the cache exists.
-- [ ] `winmux lens recent` and `winmux lens app-windows` open the two Lenses, `winmux lens recent --presentation list` opens `recent` as a list, and `winmux lens --filter <name|body> --presentation strip` opens an ad-hoc strip.
+- [ ] `winmux lens recent --presentation list` opens `recent` as a list, and a binding that runs `lens --filter <name|body> --presentation strip` opens an ad-hoc strip while its modifiers are held.
 - [ ] `winmux list-lenses --json` lists `recent` and `app-windows` with the strip Presentation.
-- [ ] With `cmd-tab` bound, the native cmd+tab no longer appears. After removing the binding and reloading the config, after switching to a mode without it, and after `enable off`, the native cmd+tab works again.
+- [ ] With `cmd-tab` bound, the native cmd+tab no longer appears, and the native cmd+backtick system chord is still enabled in the live symbolic-hotkey table. After removing the binding and reloading the config, after switching to a mode without it, and after `enable off`, the native cmd+tab works again.
 - [ ] After a normal quit, `SIGTERM`, `SIGINT` or `SIGHUP`, the native cmd+tab works again.
 - [ ] After `kill -9`, cmd+tab does nothing until WinMux is launched again, and it works after that launch.
-- [ ] After sleep and wake, and after unlocking the screen, cmd+tab still opens `recent`.
+- [ ] After sleep and wake, and after unlocking the screen, cmd+tab still opens `recent`. The unlock case is handled by the new `com.apple.screenIsUnlocked` observer.
 - [ ] A symbolic hotkey the user had turned off before WinMux started is still off after WinMux quits.
+- [ ] `winmux doctor` prints the symbolic hotkey ids WinMux holds and the marker's contents.
 
 ## Sources
 
@@ -146,3 +159,4 @@ Settle each of these while building and note the choice in the PR.
 - [Research: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/03-research-thumbnails-and-alttab.md)
 - [Research findings: live thumbnails for parked windows, and AltTab's implementation](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/03-thumbnails-and-alttab.md)
 - [Grilling: cmd-K search Lens](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/19-grilling-cmd-k-search.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)

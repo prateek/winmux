@@ -82,6 +82,8 @@ Reached 2026-09-30. The specs are GitHub issues on the fork: the umbrella [Fork 
 
 - [Grilling: default Triggers and a leader mode](issues/34-grilling-default-triggers.md): `alt-slash` opens `search`, next to `cmd-tab` and `cmd-backtick`. `alt-semicolon` enters a `lens` leader mode with `o` overview, `f` floating, `s` search and `r` recent as a list. No other global chords.
 
+- [Grilling: questions left by the review of the build issues](issues/35-grilling-build-issue-review.md): Nickel names are spelled with hyphens; a Lens opts into popup windows through a `popups` field; a user config imports and merges over a shipped `defaults.ncl`; the Settings panes are read-only. `w.workspace` is `""` for popups and the last workspace for minimized windows.
+
 ## Not yet specified
 
 - **Grid Presentation look**: the packed arrangements from the grid prototype (rows, cells, a sidebar of sections; picture, card or text tiles; paging, shrinking or collapsing), for Lenses whose windows have no useful positions, such as floating windows. v1 rejects `presentation = 'grid`. The prototype's switches are the starting point; see [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md).

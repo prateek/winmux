@@ -14,6 +14,8 @@ Consolidate them into one list with each field's name, type, enum values, and va
 
 ## Answer
 
+> Amended (2026-10-01): [Grilling: questions left by the review of the build issues](35-grilling-build-issue-review.md) gives `workspace` a value when unknown: `""` for popup-class windows, and the workspace a minimized window was on when it was minimized.
+
 Resolved 2026-09-30 with Prateek. This is contract version 1. Every field is always present; the "when unknown" column gives the value used when WinMux has nothing to report.
 
 **Window (`w`)**

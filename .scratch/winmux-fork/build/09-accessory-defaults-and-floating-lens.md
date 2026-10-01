@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Make windows of Accessory apps float by default instead of tiling, give Filters a stable way to say "window of an Accessory app", and expose popup-classified windows as two Window classes that Lenses leave out unless asked. Ship a default `floating` Lens so that a floating window buried behind tiled windows can be reached and focused or Summoned.
+Make windows of Accessory apps float by default instead of tiling, give Filters a stable way to say "window of an Accessory app", and expose popup-classified windows as two Window classes that a Lens leaves out unless its `popups` field lists them. Ship a default `floating` Lens so that a floating window buried behind tiled windows can be reached and focused or Summoned.
 
 ## Decisions
 
@@ -24,16 +24,24 @@ Make windows of Accessory apps float by default instead of tiling, give Filters 
 **Two Filter fields, two different signals**
 
 - `a.accessory` is a boolean read from the app bundle's `LSUIElement`. It never changes while the app runs. It is `false` when the app has no bundle or the key is absent. "Windows of Accessory apps" is `w.app.accessory`.
+- WinMux reads `LSUIElement` from the bundle's `infoDictionary`, which `Sources/AppBundle/command/impl/DebugWindowsCommand.swift` already reads through `Bundle(url:)`. It reads the key once, when the app is registered. In a plist the value can be a boolean, a number or a string such as `"1"`, and all three are accepted.
 - `a.activationPolicy` is the live value from `NSRunningApplication`: `'regular`, `'accessory` or `'prohibited`. It can change at runtime.
-- Both fields are declared in the Filter contract. This issue supplies their values.
+- Filter contract v1 and `config schema` declares both fields and the two popup Window classes. This issue supplies their values, and its Done-when items are the ones that test those values.
 
 **Popup Window classes follow the live policy**
 
-- A popup-classified window has one of two Window classes: `accessory-popup` or `app-popup`.
-- `accessory-popup` follows the live activation policy, as upstream's check does today (`isWindowHeuristic` in `Sources/AppBundle/model/AxUiElementWindowType.swift`): a window with no close button is an `accessory-popup` only while its app's activation policy is `accessory`, that is, while the app has no Dock icon.
-- `app-popup` is a regular app's popup, such as an autofill dropdown.
-- A consequence, and the intended one: a modal dialog with no close button, shown by an Accessory app while that app reports `regular`, is floating and stays in Lenses. Hiding a dialog that needs an answer is the worse failure.
-- Lenses leave out both popup classes unless the Lens's Filter names them. A Filter that wants an Accessory app's popups as well as its floating windows names both classes. Lens core applies the leaving-out; this issue makes sure each popup-classified window carries the right class.
+- A popup-classified window has one of two Window classes: `'accessory-popup` or `'app-popup`.
+- `'accessory-popup` follows the live activation policy, as upstream's check does today (`isWindowHeuristic` in `Sources/AppBundle/model/AxUiElementWindowType.swift`): a window with no close button is an `'accessory-popup` only while its app's activation policy is `accessory`, that is, while the app has no Dock icon.
+- `'app-popup` is a regular app's popup, such as an autofill dropdown.
+- A consequence, and the intended one: a modal dialog with no close button, shown by an Accessory app while that app reports `regular`, is `'floating` and stays in Lenses. Hiding a dialog that needs an answer is the worse failure.
+
+**A Lens opts into popup windows with its `popups` field**
+
+- A Lens has a `popups` field listing the popup Window classes it includes: any of `'accessory-popup` and `'app-popup`. It is empty by default.
+- Windows of a popup class the Lens does not list never reach its Filter. For a listed class, the Filter still decides window by window.
+- A Lens that wants an Accessory app's popups as well as its floating windows sets `popups = ['accessory-popup]` and writes a Filter that matches both classes.
+- Popup-class windows sit in one global container outside every workspace (`macosPopupWindowsContainer` in `Sources/AppBundle/tree/MacosUnconventionalWindowsContainer.swift`), so they report `w.workspace` as `""`.
+- Lens core and the `'list` Presentation with Search declares the `popups` field, applies it, and reads the popup container for the classes a Lens lists. This issue gives each popup-classified window the right class.
 
 **No proactive registration**
 
@@ -42,19 +50,20 @@ Make windows of Accessory apps float by default instead of tiling, give Filters 
 
 **The default `floating` Lens**
 
-- The default config ships a Lens named `floating`.
-- Its Filter matches the floating Window class on every workspace (`w.class == 'floating`).
+- `floating` is defined in the shipped `defaults.ncl`, which a user's config imports and merges over. This issue adds it there.
+- Its Filter matches the floating Window class on every workspace. It is the named Filter `filters.floating`, defined beside the Lens in `defaults.ncl`: `fun w ctx => w.class == 'floating`.
+- It does not set `popups`, so it shows no popup-class windows.
 - Its Presentation is `'list`.
 - `enter` focuses the selected window and `shift-enter` Summons it. These are the Lens defaults.
-- It ships unbound in this issue. `winmux lens floating` opens it.
+- This issue adds no key binding for it. `winmux lens floating` opens it, and Default config, Triggers, the `lens` leader mode, `subscribe` events adds the binding.
 
 ## Not in this issue
 
-- The declaration of `a.accessory`, `a.activationPolicy`, `w.class` and the other contract fields, and `config schema`: Filter contract v1 and `config schema`.
-- The `lens` command, the `'list` Presentation, `keys` actions and `summon`: Lens core and the `'list` Presentation with Search.
+- The declaration of `a.accessory`, `a.activationPolicy`, `w.class`, `w.workspace` and the other contract fields, and `config schema`: Filter contract v1 and `config schema`.
+- The `lens` command, the Lens record, the `popups` field and the reading of the popup container, the `'list` Presentation, `keys` actions and `summon`: Lens core and the `'list` Presentation with Search.
 - The `arrive` hook itself, and how its result says "tile this window": Column Policy hooks and Column commands. This issue only has to leave the float as a default that an `arrive` result replaces.
 - The key that opens `floating` (`f` in the `lens` leader mode): Default config, Triggers, the `lens` leader mode, `subscribe` events.
-- How an Accessory app window is drawn in a Lens (the `accessory_window` field): Thumbnail cache and the `'miniatures` Presentation.
+- How an Accessory app window is drawn in a Lens (the `accessory-window` field): Thumbnail cache and the `'miniatures` Presentation.
 - Not built: proactive registration of Accessory apps, and watching activation-policy changes.
 - Not built: remembered positions for floating windows, keeping them visible across workspace switches, or re-placing them when the display changes.
 
@@ -63,30 +72,30 @@ Make windows of Accessory apps float by default instead of tiling, give Filters 
 - Filter contract v1 and `config schema`
 - Lens core and the `'list` Presentation with Search
 
-## Open details
+## Defaults chosen for you
 
-Settle each of these while building and note the choice in the PR.
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **How "the Filter names them" is detected.** This is shared with Lens core and the `'list` Presentation with Search; settle it in whichever lands first. Filters are Nickel functions, so "names a popup class" is not something the function's result shows. Candidates are a check on the Filter's source for the two class tags, or always passing popup-class windows through the Filter and relying on Filters not to match them. Not decided.
-- **Popup-class windows have no workspace.** WinMux keeps them in a global container outside every workspace, and Lenses today enumerate windows through workspaces. The Lens's window source has to include that container. The Filter contract says `w.workspace` is never unknown; what it holds for a popup-class window was not decided.
-- **Which popup class a window gets when it is not the close-button case.** `accessory-popup` is defined as a window with no close button of an app whose live policy is `accessory`. An app with policy `accessory` can also have a window classified as a popup for another reason (a non-standard subrole, for example). Whether that is `accessory-popup` or `app-popup` was not decided.
-- **What focus and Summon do on a popup-class window.** Not decided.
-- **The `floating` Lens's sort order.** None was given. The `search` Lens, which is also a `'list`, sorts by MRU.
-- **Reading `LSUIElement`.** `DebugWindowsCommand.swift` already reads the bundle's `infoDictionary`. In a plist the key can be a boolean or a string such as `"1"`; handle both. When to read it (once at app registration is enough, since it never changes) is the implementer's choice.
+- **Which popup class a window gets when it is not the close-button case.** The app's live activation policy decides. A popup-classified window of an app whose policy is `accessory` is `'accessory-popup`, whatever made it a popup (a non-standard subrole, for example). Every other popup-classified window is `'app-popup`.
+- **Focus and Summon on a popup-class window.** `focus` raises the window through `nativeFocus`. Summon refuses with a message and moves nothing, because the window has no workspace to leave.
+- **The `floating` Lens's sort order.** `['mru]`, the same as the `search` Lens.
 
 ## Done when
 
 - [ ] A window of an app whose bundle declares `LSUIElement`, with a standard subrole and an enabled fullscreen button, opens floating. The same window tiled before this change.
 - [ ] Windows of ordinary Dock apps are classified exactly as before.
-- [ ] `winmux list-windows --filter "w.app.accessory" --json` lists the windows of Accessory apps, including one whose app currently reports `regular`.
+- [ ] `winmux list-windows --filter "w.app.accessory" --json` lists the windows of Accessory apps.
+- [ ] `w.app.accessory` is `true` for an `LSUIElement` app even while its activation policy is `'regular`.
+- [ ] `w.app.accessory` is `true` whether the bundle writes `LSUIElement` as a boolean, a number or the string `"1"`, and `false` for an app with no bundle or no such key. A test covers each case.
 - [ ] `winmux list-windows --filter "w.app.activationPolicy == 'accessory" --json` reflects the live policy and changes when the app's policy changes.
-- [ ] A close-button-less window of an app whose live policy is `accessory` has the class `accessory-popup`; a regular app's popup has the class `app-popup`.
-- [ ] A close-button-less dialog of an Accessory app that reports `regular` at that moment has the class `floating` and appears in the `floating` Lens.
-- [ ] With Lens core landed, a Lens whose Filter does not name a popup class shows no popup-class windows, and a Lens whose Filter names `'accessory-popup` shows them.
-- [ ] `winmux lens floating` opens a list of every floating window on every workspace. `enter` focuses the selection, and `shift-enter` Summons it into the current workspace.
+- [ ] A close-button-less window of an app with no Dock icon is `'accessory-popup`; the same app's window is `'floating` while the app is `regular`.
+- [ ] A regular app's popup is `'app-popup`. A window of an app whose live policy is `accessory`, classified as a popup for a reason other than a missing close button, is `'accessory-popup`.
+- [ ] A close-button-less dialog of an Accessory app that reports `regular` at that moment appears in the `floating` Lens.
+- [ ] A Lens with `popups = ['accessory-popup]` and the Filter `fun w ctx => true` shows the close-button-less window of an app with no Dock icon and does not show a regular app's autofill dropdown. With `popups = ['app-popup]` it shows the dropdown and not the other.
+- [ ] In a Lens that lists a popup class, `enter` on a popup-class window raises it, and `shift-enter` prints a message and moves nothing.
+- [ ] `winmux lens floating` opens a list of every floating window on every workspace, most recently focused first. `enter` focuses the selection, and `shift-enter` Summons it into the current workspace.
 - [ ] `winmux list-windows --lens floating --json` prints the same windows.
-- [ ] `winmux list-lenses --json` includes `floating` with the `'list` Presentation.
-- [ ] `winmux config schema` shows `accessory` and `activationPolicy` on App.
+- [ ] `winmux list-lenses --json` includes `floating` with the `'list` Presentation, the Filter `filters.floating` and an empty `popups`.
 
 ## Sources
 
@@ -97,3 +106,4 @@ Settle each of these while building and note the choice in the PR.
 - [Research findings: how WinMux sees Accessory app windows](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/research/02-accessory-app-windows.md)
 - [Prototype: filter language worked examples](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/06-prototype-filter-language.md)
 - [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)

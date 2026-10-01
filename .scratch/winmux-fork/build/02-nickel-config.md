@@ -4,20 +4,24 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacing TOML. A small Rust binary, `winmux-nickel`, evaluates it in a separate process that WinMux spawns and supervises: it returns the static settings as JSON at load and keeps the config's functions (Filters and Policy hooks) to answer calls over a pipe. This issue builds the helper, the Swift side that supervises it, config load at startup and on `reload-config`, and the `winmux config check`, `config convert` and `config status` commands.
+WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacing TOML. A small Rust binary, `winmux-nickel`, evaluates it in a separate process that WinMux spawns and supervises: it returns the static settings as JSON at load and keeps the config's functions (Filters and Policy hooks) to answer calls over a pipe. This issue builds the helper, its request plumbing (load, the batched Filter request, `eval-filter`, the Policy hook requests and the smoke-run loop, tested against a stand-in record), the Swift side that supervises it, config load at startup and on `reload-config`, and the `winmux config check`, `config convert` and `config status` commands.
 
 ## Decisions
 
 **Config language**
 
 - **Nickel replaces TOML.** The config is `~/.config/winmux/winmux.ncl`. WinMux no longer loads a TOML config. There is no CEL or other expression language.
-- **Shipped library.** WinMux ships a Nickel file of contracts and defaults, and the user's config is checked against it. Contracts cover the config's shape and the return value of every Policy hook.
-- **Functions.** Filters and Policy hooks are Nickel functions written in the config, in the form `fun w ctx => …`. Inline type annotations in a user's config are optional.
-- **Named Filters.** Filters are named under a top-level `filters` record or written inline where one is used, and they call each other as functions. The `filters` record is part of this issue's library, so the Filter requests have something to call before Lenses exist.
-- **Shapes carry over path for path.** The shapes decided during planning keep their paths and meaning in Nickel: `mode.<mode>.binding`, `lenses.<name>`, `when.<profile>`, and the Columns settings from `columns` through `workspace.<name>.columns.when.<profile>`. This issue's library covers the settings WinMux already has; the fork's additions are filled in by their own issues.
+- **Shipped library.** WinMux ships two Nickel files in a directory named `winmux`: `winmux.ncl`, the contracts, and `defaults.ncl`, the defaults. Contracts cover the config's shape and the return value of every Policy hook. The helper adds the directory that holds `winmux/` to Nickel's import path, so a config imports them as `winmux/winmux.ncl` and `winmux/defaults.ncl` without copying anything.
+- **The directory prefix is required.** Nickel looks for a relative import in the importing file's own directory before the import path (`nickel-lang-core` 0.19.0, `src/cache.rs`), and the user's config is itself named `winmux.ncl`. A bare `import "winmux.ncl"` in the config would import the config into itself.
+- **The config applies the contract itself.** The user's file imports the contracts and applies them: `let W = import "winmux/winmux.ncl" in … | W.Config`. The helper does not apply a contract the file does not name.
+- **Defaults are imported, not implied.** This issue introduces `defaults.ncl` and its import path, holding only what this issue's checks need. The user's config imports `defaults.ncl` and merges over it explicitly: `((import "winmux/defaults.ncl") & { … }) | W.Config`. Nothing is merged in behind the file's back, so every default is visible and any of them can be dropped. A config that leaves the import out is a total config and gets no defaults. `config convert` writes the import line, and so does the starter config.
+- **Spelling.** Every field name and enum tag the fork adds to the config is spelled with hyphens, never underscores (`reload-on-save`, `move-boundary`, `'accessory-popup`), matching the keys inherited from upstream and the CLI. Nickel accepts hyphens inside identifiers, so `a-b` is one name and subtraction needs spaces.
+- **Functions.** Filters and Policy hooks are Nickel functions written in the config. A Filter has the form `fun w ctx => …`. A Policy hook takes `w` and `ctx` and then further arguments, which "Column Policy hooks and Column commands" defines per hook. Inline type annotations in a user's config are optional.
+- **Named Filters.** Filters are named under a top-level `filters` record or written inline where one is used, and they call each other as functions. The contract for a Filter and for the `filters` record comes from "Filter contract v1 and `config schema`".
+- **Shapes carry over path for path.** The shapes decided during planning keep their paths and meaning in Nickel: `mode.<mode>.binding`, `lenses.<name>`, `when.<profile>`, and the Columns settings from `columns` through `workspace.<name>.columns.when.<profile>`. This issue's contracts cover the settings WinMux already has; the fork's additions are filled in by their own issues.
 - **`when.<profile>` stays in the shape.** The `when.<profile>` override slot is accepted wherever it was decided. WinMux resolves it at runtime, not Nickel, so it arrives in the static JSON unresolved. The only profile is the implicit `"default"`.
-- **Merge priorities are for layering files.** Nickel's `&`, `| default` and `| force` are how a user layers one config file over another. WinMux gives them no other meaning.
-- **Editor support.** Nickel's language server (`nls`) and the official `nickel` CLI work on the config unchanged. WinMux does not define a Nickel dialect.
+- **Merge priorities are for layering files.** Nickel's `&`, `| default` and `| force` are how a user layers one config file over another, the shipped `defaults.ncl` included. WinMux gives them no other meaning.
+- **Editor support.** Nickel's language server (`nls`) and the official `nickel` CLI work on the config. WinMux does not define a Nickel dialect.
 
 **The helper process**
 
@@ -26,17 +30,17 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 - **Transport.** WinMux spawns the helper as a child process and talks JSON lines over its stdin and stdout: one request per line, one reply per line, a request id on every message. Not XPC.
 - **One helper, strict FIFO.** One helper process serves all requests in order. No pool. All Nickel state lives on one thread (`NickelValue` is not `Send`).
 - **How functions are held.** The helper keeps one `VmContext` for the loaded config and holds each function as a `Closure` (value plus environment), not a bare value. A call evaluates `Term::app(function, argument)` with `eval_full_closure`. Nothing is re-parsed per call. Holding only the value fails for functions wrapped by a function contract.
-- **Typed marshalling.** WinMux sends plain JSON. The helper has a typed Rust struct per host record (`Window`, `App`, Filter context, Column). The struct knows which fields are Nickel enum tags and converts them, and it rejects a record with a missing field before any Nickel runs. This check is required: Nickel's contracts are lazy and do not catch a missing host field before the function body runs. Host values are built directly as Nickel values, with no Nickel source text generated.
-- **One source for the records.** The Nickel contracts for these records and the Rust structs must come from one definition, because "Filter contract v1 and `config schema`" generates the contracts, the structs and the `config schema` output from the same source. Shape the marshalling so that issue can supply the definition without rewriting it.
+- **Typed marshalling.** WinMux sends plain JSON. The helper turns each host record into a Nickel value through a typed Rust struct. The struct knows which fields are Nickel enum tags and converts them, and it rejects a record with a missing field before any Nickel runs. This check is required: Nickel's contracts are lazy and do not catch a missing host field before the function body runs. Host values are built directly as Nickel values, with no Nickel source text generated.
+- **Stand-in record.** This issue builds the marshalling, the requests and the smoke-run loop, and tests them against one small stand-in record that has a String field, a Bool field, an enum-tag field and a nested record. The real records (Window, App, Monitor, Filter context, Column), their Nickel contracts and the synthetic values the smoke run passes come from "Filter contract v1 and `config schema`", which generates the contracts, the structs and the `config schema` output from one definition. Shape the marshalling so that issue can supply the definition without rewriting it.
 - **Results and diagnostics.** A result is fully evaluated and walked back to JSON. An error reply carries Nickel's own diagnostic text, the same text the `nickel` CLI prints, including "did you mean" hints and contract blame. A failed call does not poison the helper; it keeps serving.
 - **RSS in every reply.** Each reply reports the helper's resident memory.
 
 **Requests**
 
 - **Load.** Evaluates the config file, checks contracts, and runs the smoke run. On success it returns the static JSON plus the resolved list of imported files. On failure it returns the diagnostic.
-- **Smoke run.** At load the helper calls every Filter and Policy hook against synthetic, fully populated records, so a typo such as `w.bundelId` fails at load, not at first use. Reading a missing field is an error in Nickel, so this catches typos in every branch the synthetic records take.
-- **Filter, batched.** One request per Lens open: the Filter context plus all windows, answered with one match bit per window. The helper looks up the Filter and calls it once per window.
-- **Policy hooks.** One request per `arrive`, `place` or `move-boundary` call. This issue builds the request and reply plumbing only.
+- **Smoke-run loop.** At load the helper calls every Filter and Policy hook in the config against synthetic, fully populated arguments, and any error fails the load. A typo such as `w.bundelId` therefore fails at load, not at first use, because reading a missing field is an error in Nickel. The loop takes its synthetic arguments as data: a list of argument sets per kind of function, each run as one pass. This issue runs it with one pass of stand-in values. "Filter contract v1 and `config schema`" supplies the real values and the two passes (context windows set, then `null`).
+- **Filter, batched.** One request per Lens open: the Filter context plus all windows, answered with one match bit per window. The request names the Lens. The helper looks up `lenses.<name>.filter` and calls it once per window. The Lens record itself is defined by "Lens core and the `'list` Presentation with Search"; this issue's tests use a stand-in config whose `lenses.<name>` records hold only a `filter`.
+- **Policy hooks.** One request per `arrive`, `place` or `move-boundary` call. The request names the hook and carries its arguments as a JSON list, since hooks differ in how many they take. This issue builds the request and reply plumbing only.
 - **`eval-filter`.** Evaluates a Filter given as text (a function body with `w` and `ctx` bound) in the loaded config's environment, so it can call named Filters. It is compiled per request and not cached.
 
 **Supervision**
@@ -45,7 +49,7 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 - **Recycling.** WinMux replaces the helper on every config reload and when its reported RSS passes 256 MB. The replacement is spawned, loads the config and passes the smoke run in the background. WinMux then swaps it in between requests and closes the old helper's stdin, which ends it.
 - **Timeouts.** A Filter request gets 100 ms. A Policy hook request gets 50 ms. A request that times out means the helper is hung: WinMux kills it with SIGKILL and respawns it. Request ids keep a late reply from being matched to a newer request.
 - **What callers get on failure.** A timed-out, failed or unanswerable request returns a failure with the diagnostic, never a stale result. Callers apply their own fallback: a Lens shows every window with a banner, and a Policy hook falls back to the built-in behaviour as if no hook were configured.
-- **Crashes.** WinMux restarts a crashed helper with backoff: 1, 2, 4 s, capped at 30 s.
+- **Crashes.** WinMux restarts a crashed helper at once. If the helper crashes again, the next restarts wait 1, 2 and 4 s, doubling up to a cap of 30 s.
 - **Circuit breaker.** After 3 crashes within a minute WinMux stops respawning, shows a notification, keeps the static config it has, and answers every request with the failure above. `reload-config` resets the breaker.
 
 **`reload-config`**
@@ -57,10 +61,14 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 **CLI**
 
 - **`winmux config status`** prints JSON: the helper's state (`ready`, `restarting` or `failed`), pid, RSS, recycle count, last error, and the loaded config path.
-- **`winmux config check [<file>]`** loads the file and runs the smoke run without applying anything, and prints the diagnostic on failure.
-- **`winmux config convert`** translates an existing `winmux.toml` to Nickel, once. The helper reads the TOML through Nickel's own `import` of `.toml` files; printing the result as Nickel source is code this issue writes. The AeroSpace config importer emits Nickel too.
-- **One binary, three modes.** `winmux-nickel serve` is the JSON-lines loop. `winmux-nickel check <file>` and `winmux-nickel convert <file>` are one-shot. The `winmux` CLI execs the one-shot modes directly, so `config check` and `config convert` work when the WinMux server is not running.
+- **`winmux config check [<file>]`** loads the file and runs the smoke run without applying anything, and prints the diagnostic on failure. The file argument is optional.
+- **`winmux config convert`** translates an existing `winmux.toml` to Nickel, once. The helper reads the TOML through Nickel's own `import` of `.toml` files; printing the result as Nickel source is code this issue writes. The output imports `winmux/winmux.ncl` and `winmux/defaults.ncl`, merges the converted settings over the defaults and applies `W.Config`. The AeroSpace config importer emits Nickel too.
+- **One binary, two modes.** `winmux-nickel serve` is the JSON-lines loop. `winmux-nickel check <file>` and `winmux-nickel convert <file>` are the one-shot mode. The `winmux` CLI execs the one-shot commands directly, so `config check` and `config convert` work when the WinMux server is not running.
 - **Exit codes** for the new commands: 0 success, 1 runtime failure (server down, helper unavailable), 2 bad usage or a bad Filter.
+
+**Settings UI**
+
+- **Settings panes are read-only in the first version.** The panes under `Sources/AppBundle/ui/settings/` that write keys and bindings back into the config file (the toggles in `ConfigSettingsViews.swift`, the shortcut recorder and the advanced shortcut editor) show the loaded values and cannot change them. Each pane has an "Open config" button that opens the config file in the user's editor. WinMux does not patch a Nickel file.
 
 **Build and signing**
 
@@ -72,34 +80,40 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 
 ## Not in this issue
 
-- The field list of `Window`, `App`, Monitor, Filter context and Column, the `contract-version` integer, the smoke run's synthetic records (including the second pass with absent context windows), and `winmux config schema`: "Filter contract v1 and `config schema`". This issue builds the marshalling and smoke-run mechanism those definitions plug into.
+- The definitions of the Window, App, Monitor, Filter context and Column records, their Nickel contracts and Rust structs, the contract for a Filter and the `filters` record, the smoke run's synthetic values and its two passes, the `contract-version` integer, and `winmux config schema`: "Filter contract v1 and `config schema`". This issue builds the requests, the marshalling and the smoke-run loop those definitions plug into, and tests them with a stand-in record.
 - Reloading when the file is saved, the file watcher, and resetting the circuit breaker on a file change: "Config hot reload". This issue returns the list of imported files that the watcher needs.
-- Lens records, the banner shown when a Filter fails, `lens --filter` and Search's `=` prefix: "Lens core and the `'list` Presentation with Search". This issue builds only the batched Filter request and `eval-filter`.
+- Lens records, the banner shown when a Filter fails, `lens --filter` and Search's `=` prefix: "Lens core and the `'list` Presentation with Search".
 - What `arrive`, `place` and `move-boundary` receive, return and fall back to, and `place --dry-run`: "Column Policy hooks and Column commands".
 - Width presets and the Columns settings: "Fixed Columns: slots, the count invariant, Width presets".
-- The contents of the default config and the `config-reloaded` event on `subscribe`: "Default config, Triggers, the `lens` leader mode, `subscribe` events".
+- What `defaults.ncl` holds (upstream's settings and bindings carried over from the TOML, the default Lenses, their Triggers and the `lens` mode), and the `config-reloaded` event on `subscribe`: "Default config, Triggers, the `lens` leader mode, `subscribe` events".
 - Deferred: Tab provider `transform` and `focus` requests, gesture bindings, and Display profile matching.
 
 ## Depends on
 
 Nothing.
 
+## Defaults chosen for you
+
+No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
+
+- **Wire names.** The requests are `load`, `filter`, `hook` and `eval-filter`. A reply is `{id, ok, result, rss}` on success and `{id, ok, error, rss}` on failure. `config status` prints the keys `state`, `pid`, `rss`, `recycles`, `last-error` and `config-path`.
+- **Where the library ships.** `WinMux.app/Contents/Resources/nickel/winmux/`, with `Contents/Resources/nickel` on the import path. A dev build reads the same files from the `nickel-helper/` crate. `nls` and the `nickel` CLI find them when `NICKEL_IMPORT_PATH` is set to that directory, and the starter config says so in a comment.
+- **Built-in defaults.** The build runs `winmux-nickel` over `defaults.ncl` and embeds the resulting static JSON in the app. WinMux applies that JSON when no helper can load anything: a missing binary, a failed or timed-out first load, or the breaker open at startup. With no config file and a working helper, the helper loads `defaults.ncl` as the config, so the default functions are live.
+- **Recycle threshold.** 256 MB is a constant in the Swift supervisor, not a config setting.
+- **How the CLI finds the helper.** `WINMUX_NICKEL_HELPER`, then next to the `winmux` executable, then inside the app bundle that LaunchServices returns for WinMux's bundle id.
+- **`config check` with no argument.** It checks the file WinMux would load. A file that fails the check exits 2.
+- **`config convert` input and output.** It prints Nickel to stdout. With no path it reads the TOML file WinMux would have loaded, using the existing search order in `Sources/AppBundle/config/ConfigFile.swift`.
+- **`[[on-window-detected]]` in `convert`.** Each entry becomes a commented-out `arrive` branch in the output, and `convert` prints a warning on stderr that names it. These rules do nothing until "Column Policy hooks and Column commands" lands. Upstream's default config has none, so only a user's own rules are affected.
+- **Names of the settings WinMux already has.** The same keys and nesting as the TOML: `gaps`, `workspace-sidebar`, `mode.main.binding` and so on.
+- **Existing `config` and `reload-config` flags.** `config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `reload-config --dry-run` and `--no-gui`, keep working and read the static JSON. The server's `--config-path` argument keeps working and names a Nickel file.
+- **Search paths and the starter config.** The existing search order carries over with `.ncl` in place of `.toml`, `XDG_CONFIG_HOME` included. The first-launch bootstrap writes its starter config as Nickel.
+- **`TOMLKit`.** It stays as a dependency while the AeroSpace importer in Swift parses TOML with it, and goes when that importer moves into the helper.
+- **Where the signing step goes.** `script/dogfood-release` is not on this branch. Add the helper's signing step to the release build in `makefile` or `project.yml` and name the place in the pull request.
+- **Latency limits.** From Swift on Apple silicon, a 50-window Filter request that takes more than 10 ms fails the check, and so does a `place`-sized hook request that takes more than 2 ms. The spike measured about 2 ms and 0.2 ms.
+
 ## Open details
 
-- How a user's config reaches the shipped contracts and defaults library: an import path the helper adds, a path the user writes, or the helper applying the contract itself. The spike used a stand-in file next to the config.
-- How a batched Filter request names the function to call: a Filter name, a Lens name, or a path into the config.
-- The wire names of the requests other than `eval-filter`, and the JSON field names of requests, replies and `config status`. Only the contents are decided.
-- Where built-in defaults come from when the helper cannot load anything (missing binary, startup timeout, breaker open at startup). The defaults live in the shipped Nickel library, which needs the helper to evaluate.
-- Whether the 256 MB recycle threshold is a config setting or a constant. It was decided as tunable, not where.
-- Whether the first restart after a crash is immediate or waits 1 s. The decision reads "restarts at once with backoff (1, 2, 4 s, capped at 30 s)".
-- How the `winmux` CLI finds `winmux-nickel` when it is installed outside the app bundle and the server is down. `WINMUX_NICKEL_HELPER` and "next to the executable" were decided for dev builds.
-- `config check` with no file argument presumably checks the config path WinMux would load; the tickets do not say. The exit code for a file that fails the check is also not stated; the convention above suggests 2.
-- Where `config convert` writes its output (stdout or a file) and what it takes as input when no path is given.
-- What `config convert` emits for existing `[[on-window-detected]]` entries, and whether they keep working until `arrive` lands. The `arrive` hook replaces them, and its semantics belong to "Column Policy hooks and Column commands".
-- How the settings WinMux already has are named in Nickel. `convert` implies each has a Nickel form; the natural reading is the same key names and nesting as the TOML.
-- The existing config surface that the tickets do not mention: the `config --get`, `--all-keys`, `--major-keys` and `--config-path` flags, `reload-config --dry-run` and `--no-gui`, the server's `--config-path` argument, the `XDG_CONFIG_HOME` and dotfile search paths, the first-launch bootstrap that writes a starter config, and the Settings panes that edit the TOML file in place (`Sources/AppBundle/ui/settings/`). Settle which carry over, and whether the Settings panes become read-only, are removed, or write Nickel.
-- Whether `TOMLKit` stays as a dependency once `convert` reads TOML through Nickel.
-- `script/dogfood-release`, named in the decision as the script that signs the helper, is not on this branch. Add the signing step wherever the release build lives here (`makefile`, `project.yml`) and note it in the PR.
+- The Settings panes are not the only code that writes the config file. Renaming a workspace or a project and setting a project's colour in the sidebar write `[workspace-sidebar]` keys into the TOML (`Sources/AppBundle/ui/sidebar/WorkspaceSidebarConfigEdits.swift`, called from `Sources/AppBundle/tree/WorkspaceProjects.swift` and `Sources/AppBundle/ui/sidebar/WorkspaceSidebarActions.swift`). The Settings decision above does not cover them, and they cannot patch a Nickel file either. Not decided: whether those sidebar actions become read-only too, or keep working by storing their values somewhere other than the config file.
 
 ## Done when
 
@@ -107,25 +121,32 @@ Nothing.
 - [ ] The release app contains `Contents/Helpers/winmux-nickel`, signed with the app's identity. A dev build finds the helper through `WINMUX_NICKEL_HELPER`.
 - [ ] WinMux starts with a valid `~/.config/winmux/winmux.ncl`, applies its gaps and bindings, and `winmux config status` prints JSON with state `ready`, a pid, RSS, recycle count, last error and the loaded config path.
 - [ ] WinMux does not link `nickel-lang-core`: the Swift package has no Nickel dependency.
+- [ ] A config that imports `winmux/winmux.ncl` and `winmux/defaults.ncl` loads from `~/.config/winmux/winmux.ncl` with no copy of either file beside it. A setting the config leaves out has its value from `defaults.ncl`, and a config without the `defaults.ncl` import gets no defaults.
+- [ ] A config that sets a key the contracts do not know fails to load with Nickel's diagnostic.
 - [ ] With a config that has a contract error, WinMux starts on built-in defaults and shows the Nickel diagnostic. The same happens when the helper does not answer within 2 s.
-- [ ] A config whose Filter reads a misspelled field fails at load, and the diagnostic names the field and suggests the correct one.
+- [ ] In a helper test, a Filter that reads a misspelled field of the stand-in record fails the load in the smoke run, and the diagnostic names the field and suggests the correct one.
 - [ ] `winmux reload-config` with a valid change applies it and `config status` shows a new pid and a higher recycle count. With a broken file it exits non-zero, prints the diagnostic, shows a notification, and the old config and helper keep working.
-- [ ] A batched Filter request for a Filter named under `filters`, with 50 windows, returns 50 match bits. A window record with a missing field is rejected by the helper with an error that names the field, before any Nickel runs.
-- [ ] An `eval-filter` request whose body calls a Filter named under `filters` returns that Filter's result.
+- [ ] In a helper test, a batched Filter request that names a Lens of the stand-in config and carries 50 stand-in records returns 50 match bits.
+- [ ] In a helper test, a stand-in record with a missing field is rejected with an error that names the field, before any Nickel runs, and a JSON string in the enum-tag field reaches Nickel as an enum tag.
+- [ ] In a helper test, an `eval-filter` request whose body calls a Filter named under `filters` returns that Filter's result.
 - [ ] A request for a Policy hook returns the hook's result as JSON, or a failure after 50 ms.
 - [ ] A Filter that loops returns a failure after 100 ms, the helper is killed and respawned, and the next request succeeds.
-- [ ] Killing the helper with `kill -9` brings up a new one; `config status` shows `restarting`, then `ready`.
+- [ ] Killing the helper with `kill -9` brings up a new one at once; `config status` shows `restarting`, then `ready`. After a second kill the restart waits 1 s.
 - [ ] Killing it 3 times within a minute trips the breaker: a notification shows, `config status` reports `failed`, the static config stays applied, and `winmux reload-config` brings the helper back.
 - [ ] Pushing the helper's RSS past the threshold replaces it without a failed or delayed request, and the recycle count goes up.
-- [ ] `winmux config check <file>` exits 0 for a valid file and non-zero with the diagnostic for a broken one, with the WinMux server stopped.
-- [ ] `winmux config convert` turns an existing `winmux.toml` into Nickel that passes `winmux config check`, with the WinMux server stopped.
-- [ ] A 50-window Filter request takes about 2 ms and a `place` request about 0.2 ms from Swift on Apple silicon, in line with the spike.
+- [ ] `winmux config check <file>` exits 0 for a valid file and exits 2 with the diagnostic for a broken one, with the WinMux server stopped. With no argument it checks the file WinMux would load.
+- [ ] `winmux config convert` turns an existing `winmux.toml` into Nickel on stdout, with the WinMux server stopped. The output imports `winmux/defaults.ncl`, applies `W.Config` and passes `winmux config check`. A `[[on-window-detected]]` entry comes out as a commented-out `arrive` branch with a warning on stderr.
+- [ ] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
+- [ ] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
+- [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file.
+- [ ] From Swift on Apple silicon, a 50-window Filter request takes no more than 10 ms and a hook request no more than 2 ms.
 
 ## Sources
 
 - [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
 - [Task: Nickel binding spike](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/28-task-nickel-binding-spike.md)
 - [Grilling: where the Nickel evaluator runs](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/31-grilling-nickel-evaluator-process.md)
+- [Grilling: questions left by the review of the build issues](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/issues/35-grilling-build-issue-review.md)
 - [ADR 0001: Nickel runs in a supervised helper process](https://github.com/prateek/winmux/blob/wayfind-fork/docs/adr/0001-nickel-helper-process.md)
 - [Nickel binding spike (prototype)](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/28-nickel-spike/README.md)
 - [Config language prototype](https://github.com/prateek/winmux/blob/wayfind-fork/.scratch/winmux-fork/prototypes/27-config-language.html)
