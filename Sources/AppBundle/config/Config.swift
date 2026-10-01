@@ -3,27 +3,31 @@ import Common
 import HotKey
 import OrderedCollections
 
-func getDefaultConfigUrlFromProject() -> URL {
+/// The source checkout this build was compiled from. Only builds that are not app bundles use it.
+let projectRootUrl: URL = {
     var url = URL(filePath: #filePath)
     check(FileManager.default.fileExists(atPath: url.path))
     while !FileManager.default.fileExists(atPath: url.appending(component: ".git").path) {
         url.deleteLastPathComponent()
     }
-    let projectRoot: URL = url
-    return projectRoot.appending(component: "resources/default-config.toml")
-}
+    return url
+}()
 
+/// The settings of the shipped `defaults.ncl`, written out as JSON when WinMux is built. WinMux
+/// applies them when no helper can load anything.
 var defaultConfigUrl: URL {
+    let fromProject = { projectRootUrl.appending(component: "resources/default-config.json") }
     if isUnitTest {
-        return getDefaultConfigUrlFromProject()
+        return fromProject()
     } else {
-        return Bundle.main.url(forResource: "default-config", withExtension: "toml")
+        return Bundle.main.url(forResource: "default-config", withExtension: "json")
             // Useful for debug builds that are not app bundles
-            ?? getDefaultConfigUrlFromProject()
+            ?? fromProject()
     }
 }
 @MainActor let defaultConfig: Config = {
-    let parsedConfig = parseConfig(Result { try String(contentsOf: defaultConfigUrl, encoding: .utf8) }.getOrDie())
+    let settings = Result { try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: defaultConfigUrl)) }.getOrDie()
+    let parsedConfig = parseConfig(settings)
     if !parsedConfig.errors.isEmpty {
         die("Can't parse default config: \(parsedConfig.errors)")
     }

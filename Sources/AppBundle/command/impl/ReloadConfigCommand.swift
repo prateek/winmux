@@ -30,15 +30,14 @@ struct ReloadConfigCommand: Command {
     stdout: inout String,
 ) async throws -> Bool {
     let result: Bool
-    switch readConfig(forceConfigUrl: forceConfigUrl) {
-        case .success(let (parsedConfig, url)):
-            if !args.dryRun {
-                resetHotKeys()
-                config = parsedConfig
-                configUrl = url
-                try await activateMode(activeMode)
-                syncStartAtLogin()
-                applyReloadedConfigurationToRunningApp()
+    switch await readConfig(forceConfigUrl: forceConfigUrl) {
+        case .success(let loaded):
+            if args.dryRun {
+                NickelSupervisor.shared.discard(loaded.helper)
+            } else {
+                // The settings and the helper that holds the config's functions change together.
+                NickelSupervisor.shared.adopt(loaded.helper)
+                try await applyConfig(loaded.config, url: loaded.url)
                 MessageModel.shared.message = nil
             }
             result = true
@@ -55,6 +54,15 @@ struct ReloadConfigCommand: Command {
         syncConfigFileWatcher()
     }
     return result
+}
+
+@MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
+    resetHotKeys()
+    config = newConfig
+    configUrl = url
+    try await activateMode(activeMode)
+    syncStartAtLogin()
+    applyReloadedConfigurationToRunningApp()
 }
 
 /// Apply a newly loaded config to all running surfaces. This is intentionally part of config

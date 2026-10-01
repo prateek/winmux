@@ -21,17 +21,15 @@ import Foundation
                 body: error.localizedDescription,
             )
         }
+        NickelSupervisor.shared.onBreakerOpened = { message in
+            MessageModel.shared.message = Message(description: "WinMux Config Helper Stopped", body: message)
+        }
+        // Window management waits for the first load. A config that fails to load, or a helper
+        // that is missing or does not answer in time, leaves WinMux on its built-in defaults,
+        // with the reason on screen.
         if try await !reloadConfig(forceConfigUrl: bootstrappedConfigUrl) {
-            var out = ""
-            check(
-                try await reloadConfig(forceConfigUrl: defaultConfigUrl, stdout: &out),
-                """
-                Can't load default config. Your installation is probably corrupted.
-                Please don't modify '\(defaultConfigUrl)'
-
-                \(out)
-                """,
-            )
+            try await applyConfig(defaultConfig, url: defaultConfigUrl)
+            syncConfigFileWatcher()
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 

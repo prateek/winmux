@@ -4,15 +4,23 @@ import HotKey
 import TOMLKit
 import OrderedCollections
 
+/// A config that `winmux-nickel` has loaded and WinMux has parsed, not yet in effect.
+struct LoadedConfig {
+    let config: Config
+    let url: URL
+    let helper: LoadedNickelConfig
+}
+
+/// Has a fresh helper load the config file, or the shipped defaults when there is no config file.
 @MainActor
-func readConfig(forceConfigUrl: URL? = nil) -> Result<(Config, URL), String> {
-    let configUrl: URL
+func readConfig(forceConfigUrl: URL? = nil) async -> Result<LoadedConfig, String> {
+    let customConfigUrl: URL?
     if let forceConfigUrl {
-        configUrl = forceConfigUrl
+        customConfigUrl = forceConfigUrl
     } else {
         switch findCustomConfigUrl() {
-            case .file(let url): configUrl = url
-            case .noCustomConfigExists: configUrl = defaultConfigUrl
+            case .file(let url): customConfigUrl = url
+            case .noCustomConfigExists: customConfigUrl = nil
             case .ambiguousConfigError(let candidates):
                 let msg = """
                     Ambiguous config error. Several configs found:
@@ -21,11 +29,23 @@ func readConfig(forceConfigUrl: URL? = nil) -> Result<(Config, URL), String> {
                 return .failure(msg)
         }
     }
-    let (parsedConfig, errors) = (try? String(contentsOf: configUrl, encoding: .utf8)).map { parseConfig($0) } ?? (defaultConfig, [])
-
+    let supervisor = NickelSupervisor.shared
+    let loaded: LoadedNickelConfig
+    switch await supervisor.load(customConfigUrl) {
+        case .success(let value): loaded = value
+        case .failure(let failure):
+            let subject = customConfigUrl.map { "Failed to load \($0.absoluteURL.path)" } ?? "Failed to load the default config"
+            return .failure("\(subject)\n\n\(failure.message)")
+    }
+    // With no config file the helper loads the shipped defaults, so that is the file in effect.
+    let configUrl = customConfigUrl
+        ?? loaded.imports.first { $0.path.hasSuffix("winmux/defaults.ncl") }
+        ?? defaultConfigUrl
+    let (parsedConfig, errors) = parseConfig(loaded.settings)
     if errors.isEmpty {
-        return .success((parsedConfig, configUrl))
+        return .success(LoadedConfig(config: parsedConfig, url: configUrl, helper: loaded))
     } else {
+        supervisor.discard(loaded)
         let msg = """
             Failed to parse \(configUrl.absoluteURL.path)
 
@@ -34,6 +54,7 @@ func readConfig(forceConfigUrl: URL? = nil) -> Result<(Config, URL), String> {
         return .failure(msg)
     }
 }
+
 
 private let keyMappingConfigRootKey = "key-mapping"
 private let modeConfigRootKey = "mode"
@@ -129,15 +150,42 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
 }
 
 @MainActor func parseConfig(_ rawToml: String) -> (config: Config, errors: [TomlParseError]) { // todo change return value to Result
-    let rawTable: TOMLTable
     do {
-        rawTable = try TOMLTable(string: rawToml)
+        return parseConfig(try TOMLTable(string: rawToml))
     } catch let e as TOMLParseError {
         return (defaultConfig, [.syntax(e.debugDescription)])
     } catch let e {
         return (defaultConfig, [.syntax(e.localizedDescription)])
     }
+}
 
+/// Parses the settings `winmux-nickel` returns for a loaded config. The parser was written for
+/// TOML, so the settings are handed to it as a TOML table.
+@MainActor func parseConfig(_ settings: JSONValue) -> (config: Config, errors: [TomlParseError]) {
+    guard case .object(let fields) = settings else {
+        return (Config(), [.syntax("The config must be a record")])
+    }
+    return parseConfig(tomlTable(fields))
+}
+
+private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
+    TOMLTable(fields.compactMapValues(tomlValue))
+}
+
+/// TOML has no null, so a null field is left out.
+private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
+    switch value {
+        case .null: nil
+        case .bool(let value): value
+        case .int(let value): value
+        case .double(let value): value
+        case .string(let value): value
+        case .array(let values): TOMLArray(values.compactMap(tomlValue))
+        case .object(let fields): tomlTable(fields)
+    }
+}
+
+@MainActor private func parseConfig(_ rawTable: TOMLTable) -> (config: Config, errors: [TomlParseError]) {
     var errors: [TomlParseError] = []
 
     var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &errors)
