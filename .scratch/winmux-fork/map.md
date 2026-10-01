@@ -74,6 +74,8 @@ A spec per feature for a personal WinMux fork that Prateek runs daily in place o
 
 - [Grilling: CLI surface for the fork's features](issues/20-grilling-cli-surface.md): `--filter` takes a Filter name or a function body (double quotes, or `-` for stdin). A failed Filter in a script prints nothing and exits 2, unlike the interactive show-everything. Column commands keep their names, plus `column-count` and `place --dry-run --window-id`. `subscribe` gains `config-reloaded`, `lens-opened`, `lens-closed` and `columns-changed`.
 
+- [Task: confirm the grid backdrop keeps Electron and Metal windows live](issues/30-task-grid-backdrop-liveness.md): VS Code and Ghostty keep painting under a non-opaque cover up to 99% black, with or without blur, and freeze at 100% even with `isOpaque = false`. The backdrop is capped at 95% black; the 60% with blur default is safe.
+
 ## Not yet specified
 
 - **Grid Presentation look**: the packed arrangements from the grid prototype (rows, cells, a sidebar of sections; picture, card or text tiles; paging, shrinking or collapsing), for Lenses whose windows have no useful positions, such as floating windows. v1 rejects `presentation = 'grid`. The prototype's switches are the starting point; see [Prototype: grid Presentation look and behaviour](issues/08-prototype-grid-presentation.md).

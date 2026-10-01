@@ -1,0 +1,17 @@
+screen: Jump Desktop Display 1 (0.0, 0.0, 1512.0, 920.0) scale=2.0
+cell alpha=1.00 blur=yes isOpaque=no
+target Code#4620 frame=(1024.0, 42.0, 475.0, 865.0) onScreen=true
+target Ghostty#4593 frame=(545.0, 42.0, 471.0, 865.0) onScreen=true
+Code#4620 visible: changed=0.125
+Ghostty#4593 visible: changed=0.918
+display luma uncovered: 84.2
+cover frame=(0.0, 0.0, 1512.0, 920.0) isOpaque=false visible=true occlusionVisible=true
+display luma covered: 1.3
+Code#4620 covered 1-3s: changed=0.098
+Ghostty#4593 covered 1-3s: changed=0.928
+Code#4620 covered 8-10s: changed=0.089
+Ghostty#4593 covered 8-10s: changed=0.921
+Code#4620 verdict: 1-3s live, 8-10s live; first changed frame after uncover: 49 ms (1 polls)
+Ghostty#4593 verdict: 1-3s live, 8-10s live; first changed frame after uncover: 90 ms (1 polls)
+Code#4620 uncovered: changed=0.118
+Ghostty#4593 uncovered: changed=0.928
