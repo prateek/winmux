@@ -69,6 +69,7 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 **Settings UI**
 
 - **Settings panes are read-only in the first version.** The panes under `Sources/AppBundle/ui/settings/` that write keys and bindings back into the config file (the toggles in `ConfigSettingsViews.swift`, the shortcut recorder and the advanced shortcut editor) show the loaded values and cannot change them. Each pane has an "Open config" button that opens the config file in the user's editor. WinMux does not patch a Nickel file.
+- **Sidebar edits go to a state file, not the config.** Renaming a workspace or a project and setting a project's colour in the sidebar write `[workspace-sidebar]` keys into the TOML today (`Sources/AppBundle/ui/sidebar/WorkspaceSidebarConfigEdits.swift`, called from `Sources/AppBundle/tree/WorkspaceProjects.swift` and `Sources/AppBundle/ui/sidebar/WorkspaceSidebarActions.swift`). They keep working: WinMux writes them to a state file it owns. The config declares the starting names and colours, and a value in the state file overrides the config's value for the same workspace or project. Nothing in WinMux writes to the config file.
 
 **Build and signing**
 
@@ -96,6 +97,7 @@ Nothing.
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
+- **Where the sidebar state file lives.** `$XDG_STATE_HOME/winmux/sidebar.json`, falling back to `~/.local/state/winmux/sidebar.json`. A missing or unreadable file means no overrides. Deleting it returns every name and colour to what the config declares.
 - **Wire names.** The requests are `load`, `filter`, `hook` and `eval-filter`. A reply is `{id, ok, result, rss}` on success and `{id, ok, error, rss}` on failure. `config status` prints the keys `state`, `pid`, `rss`, `recycles`, `last-error` and `config-path`.
 - **Where the library ships.** `WinMux.app/Contents/Resources/nickel/winmux/`, with `Contents/Resources/nickel` on the import path. A dev build reads the same files from the `nickel-helper/` crate. `nls` and the `nickel` CLI find them when `NICKEL_IMPORT_PATH` is set to that directory, and the starter config says so in a comment.
 - **Built-in defaults.** The build runs `winmux-nickel` over `defaults.ncl` and embeds the resulting static JSON in the app. WinMux applies that JSON when no helper can load anything: a missing binary, a failed or timed-out first load, or the breaker open at startup. With no config file and a working helper, the helper loads `defaults.ncl` as the config, so the default functions are live.
@@ -110,10 +112,6 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **`TOMLKit`.** It stays as a dependency while the AeroSpace importer in Swift parses TOML with it, and goes when that importer moves into the helper.
 - **Where the signing step goes.** `script/dogfood-release` is not on this branch. Add the helper's signing step to the release build in `makefile` or `project.yml` and name the place in the pull request.
 - **Latency limits.** From Swift on Apple silicon, a 50-window Filter request that takes more than 10 ms fails the check, and so does a `place`-sized hook request that takes more than 2 ms. The spike measured about 2 ms and 0.2 ms.
-
-## Open details
-
-- The Settings panes are not the only code that writes the config file. Renaming a workspace or a project and setting a project's colour in the sidebar write `[workspace-sidebar]` keys into the TOML (`Sources/AppBundle/ui/sidebar/WorkspaceSidebarConfigEdits.swift`, called from `Sources/AppBundle/tree/WorkspaceProjects.swift` and `Sources/AppBundle/ui/sidebar/WorkspaceSidebarActions.swift`). The Settings decision above does not cover them, and they cannot patch a Nickel file either. Not decided: whether those sidebar actions become read-only too, or keep working by storing their values somewhere other than the config file.
 
 ## Done when
 
@@ -139,6 +137,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
 - [ ] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
 - [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file.
+- [ ] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares.
 - [ ] From Swift on Apple silicon, a 50-window Filter request takes no more than 10 ms and a hook request no more than 2 ms.
 
 ## Sources

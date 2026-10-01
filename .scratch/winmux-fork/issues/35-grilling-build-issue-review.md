@@ -20,3 +20,7 @@ Two contract details the review surfaced were settled as defaults by the agent, 
 
 - **`w.workspace` can be unknown.** Popup-class windows sit outside every workspace and report `""`. A minimized window reports the workspace it was on when it was minimized, which WinMux has to start remembering; that also gives `'miniatures` what it needs to draw minimized windows under their workspace. This amends [Grilling: the Filter contract's final field list](33-grilling-filter-contract-field-list.md), which said "never unknown".
 - **`w.document` is new work.** Nothing in WinMux reads `AXDocument` today, so the Filter contract issue builds that read.
+
+Added 2026-10-01, after the issues were revised: the sidebar also writes to the config file (renaming a workspace or a project, setting a project's colour), which the Settings-pane answer didn't cover.
+
+- **Sidebar edits go to a state file WinMux owns.** They keep working. The config declares the starting names and colours, and the state file overrides them. Nothing in WinMux writes to the config file. Making the sidebar actions read-only was rejected because it removes features that work today. The file's location is an implementer default (`$XDG_STATE_HOME/winmux/sidebar.json`).
