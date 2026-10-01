@@ -4,9 +4,9 @@ use std::{
     process::ExitCode,
 };
 
-use winmux_nickel::{library_dir, protocol};
+use winmux_nickel::{convert, library_dir, protocol};
 
-const USAGE: &str = "usage: winmux-nickel serve | check <file>";
+const USAGE: &str = "usage: winmux-nickel serve | check <file> | convert <file> | defaults";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -25,6 +25,30 @@ fn main() -> ExitCode {
             Err(diagnostic) => {
                 eprint!("{diagnostic}");
                 ExitCode::from(2)
+            }
+        },
+        // The static settings of the shipped defaults: what WinMux falls back to without a helper.
+        ["defaults"] => match protocol::load(None, &library) {
+            Ok((_, result)) => {
+                println!("{:#}", result["config"]);
+                ExitCode::SUCCESS
+            }
+            Err(diagnostic) => {
+                eprint!("{diagnostic}");
+                ExitCode::from(1)
+            }
+        },
+        ["convert", file] => match convert::convert(Path::new(file), &library) {
+            Ok(converted) => {
+                for warning in converted.warnings {
+                    eprintln!("warning: {warning}");
+                }
+                print!("{}", converted.nickel);
+                ExitCode::SUCCESS
+            }
+            Err(diagnostic) => {
+                eprint!("{diagnostic}");
+                ExitCode::from(1)
             }
         },
         _ => {

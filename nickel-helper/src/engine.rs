@@ -183,6 +183,19 @@ impl Engine {
     }
 }
 
+/// Evaluates a standalone Nickel expression fully and returns it as JSON.
+pub fn evaluate_to_json(source: &str, library: &Path) -> Result<serde_json::Value, Diagnostic> {
+    let mut ctx = VmContext::new(CacheHub::new(), std::io::sink(), NullReporter {});
+    ctx.import_resolver.sources.add_import_paths(std::iter::once(OsString::from(library)));
+    let file = ctx.import_resolver.sources.add_string(SourcePath::Generated("expression".to_owned()), source.to_owned());
+    let closure = Engine::evaluate(&mut ctx, file)?;
+    let result = VirtualMachine::new(&mut ctx).eval_full_closure(closure);
+    match result {
+        Ok(closure) => Ok(to_json(&closure.value).unwrap_or(serde_json::Value::Null)),
+        Err(e) => Err(Engine::report(&mut ctx, e.into())),
+    }
+}
+
 pub fn is_function(value: &NickelValue) -> bool {
     value.type_of() == Some("Function")
 }

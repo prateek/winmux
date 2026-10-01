@@ -1,6 +1,7 @@
 //! `winmux-nickel` evaluates WinMux's Nickel config in a process of its own, so that WinMux
 //! never links Nickel. See docs/adr/0001-nickel-helper-process.md.
 
+pub mod convert;
 pub mod engine;
 pub mod host;
 pub mod protocol;

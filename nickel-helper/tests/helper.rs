@@ -46,6 +46,31 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
 }
 
 #[test]
+fn key_the_contracts_do_not_know_fails_the_load_with_nickels_diagnostic() {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({ "id": 1, "op": "load", "path": fixture("unknown-key.ncl") }));
+
+    assert_eq!(reply["ok"], false);
+    assert!(reply["error"].as_str().unwrap().contains("extra field `gapz`"), "{}", reply["error"]);
+}
+
+#[test]
+fn setting_the_config_leaves_out_comes_from_the_defaults_it_imports() {
+    let mut helper = Helper::new(library());
+    let over = request(&mut helper, json!({ "id": 1, "op": "load", "path": fixture("over-defaults.ncl") }));
+    let total = request(&mut helper, json!({ "id": 2, "op": "load", "path": fixture("config.ncl") }));
+
+    let config = &over["result"]["config"];
+    assert_eq!(config["gaps"]["inner"], json!({ "horizontal": 0, "vertical": 8 }), "{}", over["error"]);
+    assert_eq!(config["default-root-container-layout"], "tab-group", "an enum tag comes back as its name");
+    assert_eq!(config["mode"]["main"]["binding"]["alt-h"], "focus left");
+    assert_eq!(config["gaps"].to_string(), r#"{"inner":{"horizontal":0,"vertical":8},"outer":{"bottom":12,"left":12,"right":12,"top":12}}"#, "whole numbers are written as integers");
+    // config.ncl does not import the defaults, so it has only what it sets.
+    assert_eq!(total["result"]["config"]["gaps"], json!({ "inner": { "horizontal": 4 } }), "{}", total["error"]);
+    assert!(total["result"]["config"].get("mode").is_none());
+}
+
+#[test]
 fn no_path_loads_the_shipped_defaults() {
     let mut helper = Helper::new(library());
     let reply = request(&mut helper, json!({ "id": 1, "op": "load", "path": null }));
@@ -252,4 +277,85 @@ fn check_exits_zero_for_a_valid_file_and_two_with_the_diagnostic_for_a_broken_on
     assert_eq!(valid.status.code(), Some(0), "{}", String::from_utf8_lossy(&valid.stderr));
     assert_eq!(broken.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&broken.stderr).contains("Did you mean `bundleId`?"));
+}
+
+fn run_helper(args: &[&str]) -> std::process::Output {
+    std::process::Command::new(env!("CARGO_BIN_EXE_winmux-nickel"))
+        .args(args)
+        .env("WINMUX_NICKEL_LIBRARY", library())
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn convert_writes_a_config_over_the_defaults_that_passes_check() {
+    let converted = run_helper(&["convert", &fixture("legacy.toml")]);
+    let nickel = String::from_utf8(converted.stdout).unwrap();
+    let stderr = String::from_utf8(converted.stderr).unwrap();
+
+    assert_eq!(converted.status.code(), Some(0), "{stderr}");
+    assert!(nickel.contains(r#"import "winmux/defaults.ncl""#), "{nickel}");
+    assert!(nickel.ends_with("}) | W.Config\n"), "{nickel}");
+    assert!(nickel.contains(r#"cmd-1 = ["workspace 1", "mode main"],"#), "{nickel}");
+    assert!(nickel.contains(r#""default" = "Home","#), "{nickel}");
+    assert!(nickel.contains(r#""my project" = "Work \%{x}","#), "{nickel}");
+
+    let out = std::env::temp_dir().join(format!("winmux-nickel-convert-{}.ncl", std::process::id()));
+    std::fs::write(&out, &nickel).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({ "id": 1, "op": "load", "path": out }));
+    std::fs::remove_file(&out).unwrap();
+    assert_eq!(reply["ok"], true, "{}", reply["error"].as_str().unwrap_or_default());
+    let config = &reply["result"]["config"];
+    assert_eq!(config["start-at-login"], true);
+    assert_eq!(config["gaps"]["inner"], json!({ "horizontal": 4, "vertical": 8 }), "unset settings come from the defaults");
+    assert_eq!(
+        config["mode"]["main"]["binding"],
+        json!({ "alt-h": "focus left", "cmd-1": ["workspace 1", "mode main"] }),
+        "the converted bindings replace the default ones, as they did in TOML"
+    );
+    assert_eq!(config["workspace-sidebar"]["project-labels"]["my project"], "Work %{x}");
+}
+
+#[test]
+fn convert_leaves_an_on_window_detected_rule_as_a_commented_arrive_branch_and_warns() {
+    let converted = run_helper(&["convert", &fixture("legacy.toml")]);
+    let nickel = String::from_utf8(converted.stdout).unwrap();
+    let stderr = String::from_utf8(converted.stderr).unwrap();
+
+    assert!(stderr.contains("warning: on-window-detected rule 1 is not converted"), "{stderr}");
+    assert!(!nickel.contains("\n  on-window-detected"), "{nickel}");
+    assert!(
+        nickel.contains(
+            r#"  #   if w.app.bundleId == "com.apple.mail" && std.string.is_match "(?i)inbox" w.title then { run = ["layout floating"] } else …"#
+        ),
+        "{nickel}"
+    );
+}
+
+#[test]
+fn convert_of_the_upstream_default_config_passes_check() {
+    let default_config = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/default-config.toml");
+    let converted = run_helper(&["convert", &default_config.to_string_lossy()]);
+    let out = std::env::temp_dir().join(format!("winmux-nickel-default-{}.ncl", std::process::id()));
+    std::fs::write(&out, &converted.stdout).unwrap();
+
+    let checked = run_helper(&["check", &out.to_string_lossy()]);
+    std::fs::remove_file(&out).unwrap();
+
+    assert_eq!(converted.stderr, b"");
+    assert_eq!(checked.status.code(), Some(0), "{}", String::from_utf8_lossy(&checked.stderr));
+}
+
+#[test]
+fn built_in_defaults_file_matches_the_shipped_defaults() {
+    let embedded = Path::new(env!("CARGO_MANIFEST_DIR")).join("../resources/default-config.json");
+    let printed = run_helper(&["defaults"]);
+
+    assert_eq!(printed.status.code(), Some(0), "{}", String::from_utf8_lossy(&printed.stderr));
+    assert_eq!(
+        std::fs::read_to_string(&embedded).unwrap(),
+        String::from_utf8(printed.stdout).unwrap(),
+        "regenerate with `make default-config`"
+    );
 }
