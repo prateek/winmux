@@ -16,7 +16,7 @@ Raise the fork's minimum macOS from 13 to 26 and remove every use of `CGWindowLi
   - `Sources/AppBundle/ui/marketing/WinMuxMarketingRenderer.swift`: a capture of the renderer's own window.
   - `Sources/WindowCapture/main.swift`: the `--core-graphics` path of the dev-only capture tool.
 - **Replacement API.** Window capture uses ScreenCaptureKit's one-shot capture, `SCScreenshotManager.captureScreenshot(contentFilter:configuration:)`, which is macOS 26 only. Do not use `captureSampleBuffer` for ordinary windows: it creates and tears down a stream per call. Do not use the private `CGSHWCaptureWindowList`. "Thumbnail cache and the `'miniatures` Presentation" uses the same call.
-- **Facts about the replacement that affect the call sites.** `SCContentFilter(desktopIndependentWindow:)` takes an `SCWindow`, not a `CGWindowID`. `SCWindow`s come from `SCShareableContent`, and that fetch costs about 30 ms, so cache it. The one-shot capture is asynchronous, while the current calls are synchronous and run on the main thread. A capture takes about 33 ms.
+- **Facts about the replacement that affect the call sites.** `SCContentFilter(desktopIndependentWindow:)` takes an `SCWindow`, not a `CGWindowID`. `SCWindow`s come from `SCShareableContent`, and that fetch costs about 30 ms, so cache it. The one-shot capture is asynchronous, while the current calls are synchronous and run on the main thread. A capture takes about 33 ms. `SCScreenshotConfiguration`'s default `width` and `height` are the window's size in points, not in native pixels, so a caller that wants native resolution sets both from the window's backing scale.
 - **Upstream compatibility is not a constraint.** This is a personal fork running on macOS 26.
 
 ## Not in this issue
@@ -31,25 +31,26 @@ Nothing.
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **The four single-window call sites.** Each becomes a one-shot capture of that window's `SCWindow`: the flip animation's snapshot, the corner-radius capture, the marketing renderer's capture of its own window, and the capture tool.
+- **The single-window call sites.** Three become a one-shot capture of that window's `SCWindow`: the flip animation's snapshot, the marketing renderer's capture of its own window, and the capture tool. The fourth, the corner-radius capture, is deleted (see below). `WindowScreenshot` in `Sources/AppBundle/util/` holds the call and the `SCWindow` cache for the app; its caller passes the output size in pixels.
 - **The flip animation's background.** Dropped. The flip animates the two window snapshots with nothing captured behind them. A single-window filter cannot capture the screen below a window, and a display capture that excludes windows would put a `SCShareableContent` fetch on an animation path. Today `flip` skips the animation when the background capture returns nil (`DoubleSidedWindowController.swift`), so `animate` has to stop requiring a background.
 - **`winmux-window-capture`.** The `--core-graphics` flag and its code path are removed. The tool's ScreenCaptureKit path stays and moves from `SCScreenshotManager.captureImage` to the Replacement API above, so the fork has one capture call.
 - **`winmux-marketing-renderer`.** Its capture of its own window is ported to the same one-shot call.
-- **The corner-radius estimate.** `estimateWindowPreviewCornerRadiusFromImage` becomes async. `estimatedWindowPreviewCornerRadius(for:)` stays synchronous: it returns the cached radius for the window id when there is one, and otherwise returns today's fallback and starts a capture that fills the cache.
-- **The flip.** `flip` awaits its two snapshots before it starts the animation.
+- **The corner-radius estimate.** Deleted, with its capture. On macOS 26 `windowTabGroupAppCornerRadius` returns the system window corner radius and reaches `estimatedWindowPreviewCornerRadius(for:)` only from the pre-26 fallback branch, which goes under "No availability gating". Nothing else calls the estimate.
+- **The flip.** `flip` awaits its two snapshots before it starts the animation, and ignores a second flip while it waits.
+- **Deprecations the new target surfaces.** Fix only the ones that fail the Release build, which treats warnings as errors for the app target (`Sources/WinMuxApp`). The rest (`onChange(of:perform:)`, `CVDisplayLink`, `activateIgnoringOtherApps`) are left for later.
 
 ## Done when
 
-- [ ] `Package.swift` and `project.yml` both declare macOS 26 as the minimum.
-- [ ] `rg CGWindowListCreateImage Sources` returns nothing.
-- [ ] `rg '#available\(macOS' Sources` returns nothing.
-- [ ] `swift build` and the release Xcode build succeed with no deprecation or obsoletion warnings from window capture.
-- [ ] The existing test suite passes.
-- [ ] The release app bundle declares macOS 26.0 as its minimum system version (`LSMinimumSystemVersion` in the built `Info.plist`).
-- [ ] With Screen Recording granted on macOS 26, the double-sided tab flip animates between the two window snapshots.
-- [ ] With Screen Recording granted, a tab preview's corner radius matches its window's once the first capture of that window has finished, and no capture blocks the main thread.
-- [ ] `winmux-window-capture` has no `--core-graphics` flag and still writes a capture of the requested window.
-- [ ] `winmux-marketing-renderer` still writes its image.
+- [x] `Package.swift` and `project.yml` both declare macOS 26 as the minimum.
+- [x] `rg CGWindowListCreateImage Sources` returns nothing.
+- [x] `rg '#available\(macOS' Sources` returns nothing.
+- [x] `swift build` and the release Xcode build succeed with no deprecation or obsoletion warnings from window capture.
+- [x] The existing test suite passes.
+- [x] The release app bundle declares macOS 26.0 as its minimum system version (`LSMinimumSystemVersion` in the built `Info.plist`).
+- [ ] With Screen Recording granted on macOS 26, the double-sided tab flip animates between the two window snapshots. Not yet checked: it needs a running WinMux build that holds the grant.
+- [x] `rg 'estimatedWindowPreviewCornerRadius|estimateTopCornerRadius' Sources` returns nothing, and no capture blocks the main thread.
+- [x] `winmux-window-capture` has no `--core-graphics` flag and still writes a capture of the requested window.
+- [x] `winmux-marketing-renderer` still writes its image.
 
 ## Sources
 

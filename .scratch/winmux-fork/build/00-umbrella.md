@@ -15,7 +15,7 @@ The terms are defined in [`CONTEXT.md`](https://github.com/prateek/winmux/blob/f
 
 {{CHILDREN}}
 
-Two tracks can run in parallel after the Nickel config lands: the Lens issues and the Column issues don't depend on each other. The default config comes last because it binds everything together.
+The dogfood release issue comes straight after the Nickel config, so that every later issue can be tested from an installed build with stable permissions. Two tracks can then run in parallel: the Lens issues and the Column issues don't depend on each other. The default config comes last because it binds everything together.
 
 ## Deferred
 
