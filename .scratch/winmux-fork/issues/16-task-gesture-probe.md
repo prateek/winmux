@@ -1,7 +1,9 @@
 # Task: gesture probe on Prateek's Mac
 
 Type: task
-Status: open
+Status: out of scope
+
+Deferred 2026-09-30: Prateek put trackpad gestures off to a later effort so the keyboard-driven foundation can be built first. See the map's Out of scope section.
 
 ## Question
 

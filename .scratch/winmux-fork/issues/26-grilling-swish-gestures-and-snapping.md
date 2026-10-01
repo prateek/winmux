@@ -1,8 +1,10 @@
 # Grilling: Swish-style gestures and snapping
 
 Type: grilling
-Status: open
+Status: out of scope
 Blocked by: 09, 16, 17
+
+Deferred 2026-09-30: Prateek put trackpad gestures off to a later effort so the keyboard-driven foundation can be built first. See the map's Out of scope section.
 
 ## Question
 

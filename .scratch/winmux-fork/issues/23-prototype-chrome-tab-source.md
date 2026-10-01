@@ -1,8 +1,10 @@
 # Prototype: Chrome-family AppleScript tab source
 
 Type: prototype
-Status: open
+Status: out of scope
 Blocked by: 21, 24
+
+Deferred 2026-09-30: Prateek put tabs off to a later effort so the foundation can be built first. See the map's Out of scope section.
 
 ## Question
 
