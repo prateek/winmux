@@ -16,7 +16,9 @@ A `/mattpocock:wayfinder` effort. It plans changes to a personal WinMux fork (fi
 
 Don't trust a list here; derive the frontier from the tickets. Open tickets are `Status: open`; a ticket is on the frontier when every ticket in its `Blocked by:` line is `resolved`. Take the lowest-numbered one unless Prateek names another.
 
-Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: "Task: live check of Ghost Pepper's windows under WinMux" needs Ghost Pepper installed and the WinMux server running (neither was, 2026-09-29), and the display-capture task needs him at the ultrawide with BetterDisplay running. On 2026-09-29 the session ran on a Mac mini (`Mac16,10`) with a 1× virtual display, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
+Some frontier tasks need Prateek's Mac in a particular state. Check before claiming: the display-capture task needs him at the ultrawide with BetterDisplay running, and the gesture probe needs a trackpad. On 2026-09-29 and 2026-09-30 the sessions ran on a Mac mini (`Mac16,10`) with one virtual display and no trackpad, not his laptop; check `sysctl -n hw.model` and the display list before claiming a live task.
+
+Since 2026-09-30 the Mac mini runs upstream WinMux 0.5.6 (cask `ZimengXiong/homebrew/winmux`) on the bundled default config, not the `prateek/tap` dogfood build. The old config is at `~/.config/winmux.dogfood-backup-20260930`. The upstream cask ships no CLI, so `/opt/homebrew/bin/winmux` is a copy built from v0.5.6 with `swift build -c release --product winmux`; it warns about a client/server version mismatch and works anyway. Ghost Pepper 2.4.4 is installed from the upstream cask.
 
 ## Repo setup
 

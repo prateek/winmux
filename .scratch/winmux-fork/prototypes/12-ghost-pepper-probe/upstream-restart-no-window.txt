@@ -1,0 +1,8 @@
+restart with GP accessory, no window, 21:31:28, winmux pid 65964
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=accessory active=false hidden=false
+-- apps
+1036  | com.stablyai.orca | Orca
+46595 | com.apple.finder  | Finder
+-- windows
+4297 | com.stablyai.orca | Orca | h_tiles

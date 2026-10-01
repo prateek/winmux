@@ -14,3 +14,8 @@ Sub-questions surfaced by the Accessory-app research:
 - Should popup-classified windows (Accessory windows with no close button) be reachable at all, and if so, only through an opt-in on the Filter?
 
 Partly settled by [Prototype: filter language worked examples](06-prototype-filter-language.md): popup-classified windows are reachable, as the `accessory-popup` and `app-popup` window classes, and Lenses drop them unless a Filter mentions them. `floating` keeps today's meaning.
+
+Sub-questions surfaced by [Task: live check of Ghost Pepper's windows under WinMux](12-task-live-check-ghost-pepper.md):
+- Ghost Pepper is `regular` whenever it has a window, so WinMux already registers and floats its windows. What Prateek can't do is reach a floater buried behind tiles. Is a Lens over floating windows the whole fix for this app, or does a default have to change too?
+- How does a Filter say "window of an Accessory app" when the activation policy reads `regular` at the moment the window exists? `CONTEXT.md` already defines an Accessory app by `LSUIElement`, so the Filter contract ([Grilling: the Filter contract's final field list](33-grilling-filter-contract-field-list.md)) needs a field derived from the bundle's `LSUIElement`, next to or instead of the live activation policy.
+- Is proactive registration still worth building when the one app that prompted it doesn't need it? No app that shows windows while staying `accessory` has been tested.

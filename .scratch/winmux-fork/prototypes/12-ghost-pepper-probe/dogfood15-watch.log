@@ -1,0 +1,832 @@
+===== 21:21:37
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=accessory active=false hidden=false
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:22:29
+frontmost: com.p5sys.jump.connect pid=42907
+app pid=38990 policy=accessory active=false hidden=false
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:22:40
+frontmost: com.zimengxiong.winmux pid=38765
+app pid=38990 policy=accessory active=false hidden=false
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:22:41
+frontmost: com.apple.UserNotificationCenter pid=63841
+app pid=38990 policy=accessory active=false hidden=false
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:22:44
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4395.txt (     121 lines)
+===== 21:22:47
+frontmost: com.apple.UserNotificationCenter pid=63841
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:48
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:54
+frontmost: com.apple.systempreferences pid=43774
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:56
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:57
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,0 0x0 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:57
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:58
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4408 layer=500 onscreen=true alpha=1.0 bounds=0,0 1512x920 name=""
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4408.txt (       1 lines)
+===== 21:22:58
+frontmost: com.apple.systempreferences pid=43774
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4409 layer=0 onscreen=false alpha=1.0 bounds=0,0 44x44 name=""
+  cgwin id=4408 layer=500 onscreen=true alpha=1.0 bounds=0,0 1512x920 name=""
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:22:59
+frontmost: com.apple.systempreferences pid=43774
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:05
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:16
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4418 layer=101 onscreen=true alpha=1.0 bounds=672,246 211x58 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4418.txt (       1 lines)
+===== 21:23:18
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:24
+frontmost: com.apple.systempreferences pid=43774
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:29
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:30
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:31
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4420 layer=0 onscreen=false alpha=1.0 bounds=0,0 0x0 name=""
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:32
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4420 layer=101 onscreen=true alpha=1.0 bounds=913,31 157x69 name=""
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4420.txt (       1 lines)
+===== 21:23:33
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:39
+frontmost: com.apple.systempreferences pid=45855
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:42
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:46
+frontmost: com.apple.systempreferences pid=45855
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:23:49
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:24:05
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4431 layer=101 onscreen=true alpha=1.0 bounds=913,31 157x69 name=""
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4431.txt (       1 lines)
+===== 21:24:06
+frontmost: com.github.matthartman.ghostpepper pid=38990
+app pid=38990 policy=regular active=true hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+4395 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:24:08
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:24:09
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4433 layer=101 onscreen=true alpha=1.0 bounds=913,31 157x69 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4433.txt (       1 lines)
+===== 21:24:09
+frontmost: com.stablyai.orca pid=1036
+app pid=38990 policy=regular active=false hidden=false
+  cgwin id=4398 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4396 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4399 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4433 layer=101 onscreen=true alpha=0.13421523571014404 bounds=913,31 157x69 name=""
+  cgwin id=4397 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4407 layer=0 onscreen=false alpha=1.0 bounds=0,420 500x500 name=""
+  cgwin id=4395 layer=0 onscreen=false alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+38990 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:24:10
+frontmost: com.stablyai.orca pid=1036
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:24:13
+frontmost: com.zimengxiong.winmux pid=38765
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:24:17
+frontmost: com.stablyai.orca pid=1036
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:24:44
+frontmost: com.github.matthartman.ghostpepper pid=48594
+app pid=48594 policy=regular active=true hidden=false
+  cgwin id=4445 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4443 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4441 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4444 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4442 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4441 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+48594 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4441.txt (     121 lines)
+===== 21:24:52
+frontmost: com.apple.systempreferences pid=45855
+app pid=48594 policy=regular active=false hidden=false
+  cgwin id=4445 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4443 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4441 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4444 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4442 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4441 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+48594 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:24:54
+frontmost: com.apple.accessibility.universalAccessAuthWarn pid=844
+app pid=48594 policy=regular active=false hidden=false
+  cgwin id=4445 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4443 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4441 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4444 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4442 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4441 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+48594 | com.github.matthartman.ghostpepper              | Ghost Pepper
+===== 21:24:55
+frontmost: com.apple.systempreferences pid=45855
+app pid=48594 policy=regular active=false hidden=false
+  cgwin id=4445 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4443 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4441 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4444 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4442 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4441 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+48594 | com.github.matthartman.ghostpepper              | Ghost Pepper
+===== 21:25:01
+frontmost: com.apple.systempreferences pid=45855
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+===== 21:25:04
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+
+-- wrote debug-4461.txt (       2 lines)
+===== 21:25:07
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:10
+frontmost: dev.zed.Zed pid=49620
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:11
+frontmost: com.zimengxiong.winmux pid=49529
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:14
+frontmost: dev.zed.Zed pid=49620
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:20
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:23
+frontmost: com.apple.systempreferences pid=45855
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:25:50
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:22
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:25
+frontmost: com.apple.systempreferences pid=45855
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:30
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:31
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4504 layer=500 onscreen=true alpha=1.0 bounds=0,0 1512x920 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4504.txt (       1 lines)
+===== 21:26:31
+frontmost: com.apple.systempreferences pid=45855
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4505 layer=0 onscreen=false alpha=1.0 bounds=0,0 44x44 name=""
+  cgwin id=4504 layer=500 onscreen=false alpha=1.0 bounds=0,0 1512x920 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:32
+frontmost: com.apple.systempreferences pid=45855
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:33
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper | Ghost Pepper | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:47
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4461 layer=0 onscreen=true alpha=1.0 bounds=516,90 480x652 name="Ghost Pepper"
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper |  | 1 | floating
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:47
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4510 layer=8 onscreen=true alpha=1.0 bounds=626,172 260x322 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4461 | com.github.matthartman.ghostpepper |  | 1 | floating
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4510 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4509.txt (     112 lines)
+-- wrote debug-4507.txt (       1 lines)
+-- wrote debug-4510.txt (      91 lines)
+===== 21:26:50
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4510 layer=8 onscreen=true alpha=1.0 bounds=626,172 260x322 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4510 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:52
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4510 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:52
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:53
+frontmost: com.apple.systempreferences pid=45855
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:26:59
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=276,30 960x890 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:27:02
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=618,332 618x588 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:27:03
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=true alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4507 | com.github.matthartman.ghostpepper | Ghost Pepper Settings | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:27:06
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:27:08
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:27:11
+frontmost: com.github.matthartman.ghostpepper pid=49339
+app pid=49339 policy=regular active=true hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper

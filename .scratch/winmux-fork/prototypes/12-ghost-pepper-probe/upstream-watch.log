@@ -1,0 +1,40 @@
+===== 21:31:05
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- wrote debug-4509.txt (     120 lines)
+===== 21:31:11
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=accessory active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=false alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+===== 21:31:24
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=accessory active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=false alpha=1.0 bounds=712,315 524x605 name=""
+  cgwin id=4463 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4462 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4507 layer=0 onscreen=false alpha=1.0 bounds=756,30 900x712 name="Ghost Pepper Settings"
+  cgwin id=4465 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+  cgwin id=4464 layer=0 onscreen=false alpha=1.0 bounds=0,0 1512x30 name=""
+-- winmux list-windows --all (ghostpepper rows):
+
+-- winmux list-apps (ghostpepper rows):
+

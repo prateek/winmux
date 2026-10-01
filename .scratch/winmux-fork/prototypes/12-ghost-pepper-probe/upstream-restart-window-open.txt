@@ -1,0 +1,15 @@
+before restart 21:30:54
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+server up 21:30:54
+frontmost: com.stablyai.orca pid=1036
+app pid=49339 policy=regular active=false hidden=false
+  cgwin id=4509 layer=0 onscreen=true alpha=1.0 bounds=712,315 524x605 name=""
+-- apps
+1036  | com.stablyai.orca                  | Orca
+46595 | com.apple.finder                   | Finder
+49339 | com.github.matthartman.ghostpepper | Ghost Pepper
+-- windows
+4509 | com.github.matthartman.ghostpepper |  | 1 | floating
+4297 | com.stablyai.orca | Orca | 1 | h_tiles

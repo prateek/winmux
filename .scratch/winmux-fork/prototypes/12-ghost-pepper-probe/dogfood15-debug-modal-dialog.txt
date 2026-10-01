@@ -1,0 +1,91 @@
+com.github.matthartman.ghostpepper.4510 ||| {
+com.github.matthartman.ghostpepper.4510 |||   "AXActivationPoint" : "<AXValue 0xaf0a45ad0> {value = x:636.000000 y:188.000000 type = kAXValueCGPointType}",
+com.github.matthartman.ghostpepper.4510 |||   "AXCancelButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXCloseButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXDefaultButton" : {
+com.github.matthartman.ghostpepper.4510 |||     "AXEnabled" : 1,
+com.github.matthartman.ghostpepper.4510 |||     "AXIdentifier" : "action-button-1",
+com.github.matthartman.ghostpepper.4510 |||     "AXParent" : "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||     "AXRole" : "AXButton",
+com.github.matthartman.ghostpepper.4510 |||     "AXTitle" : "Open Meetings",
+com.github.matthartman.ghostpepper.4510 |||     "AXTopLevelUIElement" : "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||     "AXWindow" : "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||     "WinMux.AxIgnored" : "AXFrame, AXSize, AXFocused, AXHelp, AXPosition, AXRoleDescription"
+com.github.matthartman.ghostpepper.4510 |||   },
+com.github.matthartman.ghostpepper.4510 |||   "AXDescription" : "alert",
+com.github.matthartman.ghostpepper.4510 |||   "AXDocument" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXFocused" : 1,
+com.github.matthartman.ghostpepper.4510 |||   "AXFrame" : "<AXValue 0xaf0bc03c0> {value = x:626.000000 y:172.000000 w:260.000000 h:322.000000 type = kAXValueCGRectType}",
+com.github.matthartman.ghostpepper.4510 |||   "AXFullScreen" : 0,
+com.github.matthartman.ghostpepper.4510 |||   "AXFullScreenButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXGrowArea" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXIdentifier" : "_NS:87",
+com.github.matthartman.ghostpepper.4510 |||   "AXMain" : 0,
+com.github.matthartman.ghostpepper.4510 |||   "AXMinimizeButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXMinimized" : 0,
+com.github.matthartman.ghostpepper.4510 |||   "AXModal" : 1,
+com.github.matthartman.ghostpepper.4510 |||   "AXParent" : "<AXUIElement Application 0xaf0b3b150> {pid=49339}",
+com.github.matthartman.ghostpepper.4510 |||   "AXPosition" : "<AXValue 0xaf0a45ad0> {value = x:626.000000 y:172.000000 type = kAXValueCGPointType}",
+com.github.matthartman.ghostpepper.4510 |||   "AXProxy" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXRole" : "AXWindow",
+com.github.matthartman.ghostpepper.4510 |||   "AXSections" : [
+com.github.matthartman.ghostpepper.4510 |||     "{\n    SectionDescription = Content;\n    SectionObject = \"<AXUIElement 0xaf0b3b150> {pid=49339}\";\n    SectionUniqueID = AXContent;\n}"
+com.github.matthartman.ghostpepper.4510 |||   ],
+com.github.matthartman.ghostpepper.4510 |||   "AXSize" : "<AXValue 0xaf0a45ad0> {value = w:260.000000 h:322.000000 type = kAXValueCGSizeType}",
+com.github.matthartman.ghostpepper.4510 |||   "AXSubrole" : "AXDialog",
+com.github.matthartman.ghostpepper.4510 |||   "AXTitle" : "",
+com.github.matthartman.ghostpepper.4510 |||   "AXTitleUIElement" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXToolbarButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "AXZoomButton" : null,
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AXApp" : {
+com.github.matthartman.ghostpepper.4510 |||     "AXExtrasMenuBar" : "<AXUIElement 0xaf0b3b150> {pid=49339}",
+com.github.matthartman.ghostpepper.4510 |||     "AXFocusedUIElement" : "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||     "AXFocusedWindow" : "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||     "AXFrame" : null,
+com.github.matthartman.ghostpepper.4510 |||     "AXFrontmost" : 1,
+com.github.matthartman.ghostpepper.4510 |||     "AXFunctionRowTopLevelElements" : [
+com.github.matthartman.ghostpepper.4510 ||| 
+com.github.matthartman.ghostpepper.4510 |||     ],
+com.github.matthartman.ghostpepper.4510 |||     "AXMainWindow" : "AXUIElement(AxWindowId=4509, title=\"\", role=\"AXWindow\", subrole=\"AXStandardWindow\")",
+com.github.matthartman.ghostpepper.4510 |||     "AXMenuBar" : "<AXUIElement 0xaf0b3b150> {pid=49339}",
+com.github.matthartman.ghostpepper.4510 |||     "AXPosition" : null,
+com.github.matthartman.ghostpepper.4510 |||     "AXRole" : "AXApplication",
+com.github.matthartman.ghostpepper.4510 |||     "AXSize" : null,
+com.github.matthartman.ghostpepper.4510 |||     "AXTitle" : "Ghost Pepper",
+com.github.matthartman.ghostpepper.4510 |||     "AXWindows" : [
+com.github.matthartman.ghostpepper.4510 |||       "AXUIElement(AxWindowId=4510, title=\"\", role=\"AXWindow\", subrole=\"AXDialog\")",
+com.github.matthartman.ghostpepper.4510 |||       "AXUIElement(AxWindowId=4509, title=\"\", role=\"AXWindow\", subrole=\"AXStandardWindow\")",
+com.github.matthartman.ghostpepper.4510 |||       "AXUIElement(AxWindowId=4507, title=\"Ghost Pepper Settings\", role=\"AXWindow\", subrole=\"AXStandardWindow\")"
+com.github.matthartman.ghostpepper.4510 |||     ],
+com.github.matthartman.ghostpepper.4510 |||     "WinMux.AxFailed" : "isWritable.AXFunctionRowTopLevelElements(failure), get.AXFrame(attributeUnsupported), isWritable.AXFrame(failure), isWritable.AXExtrasMenuBar(failure), get.AXSize(attributeUnsupported), isWritable.AXSize(attributeUnsupported), get.AXPosition(attributeUnsupported), isWritable.AXPosition(attributeUnsupported)",
+com.github.matthartman.ghostpepper.4510 |||     "WinMux.AxIgnored" : "AXChildren, AXChildrenInNavigationOrder, AXEnhancedUserInterface, AXPreferredLanguage, AXRoleDescription, AXHidden",
+com.github.matthartman.ghostpepper.4510 |||     "WinMux.AxWritable" : "AXFrontmost"
+com.github.matthartman.ghostpepper.4510 |||   },
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.appBundleId" : "com.github.matthartman.ghostpepper",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.nsApp.activationPolicy" : "regular",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.nsApp.appBundlePath" : "file:///Applications/GhostPepper.app/",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.nsApp.execPath" : "file:///Applications/GhostPepper.app/Contents/MacOS/GhostPepper",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.pid" : 49339,
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.version" : "22",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.App.versionShort" : "2.4.4",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AxFailed" : "isWritable.AXFrame(failure), get.AXGrowArea(failure), get.AXMinimizeButton(noValue), get.AXDocument(noValue), get.AXCloseButton(noValue), isWritable.AXActivationPoint(failure), get.AXFullScreenButton(noValue), get.AXProxy(noValue), get.AXTitleUIElement(noValue), get.AXCancelButton(noValue), isWritable.AXDescription(failure), get.AXZoomButton(noValue), get.AXToolbarButton(noValue)",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AxIgnored" : "AXChildrenInNavigationOrder, AXChildren, AXRoleDescription",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AxUiElementWindowType" : "dialog",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AxUiElementWindowType_isDialogHeuristic" : true,
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.AxWritable" : "AXPosition, AXSections",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.axWindowId" : 4510,
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.macOS.version" : "Version 26.4.1 (Build 25E253)",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.on-window-detected" : [
+com.github.matthartman.ghostpepper.4510 ||| 
+com.github.matthartman.ghostpepper.4510 |||   ],
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.rules" : [
+com.github.matthartman.ghostpepper.4510 ||| 
+com.github.matthartman.ghostpepper.4510 |||   ],
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.treeNodeParent" : "Optional(AppBundle.Workspace)",
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.windowLevel" : 8,
+com.github.matthartman.ghostpepper.4510 |||   "WinMux.workspace" : "1"
+com.github.matthartman.ghostpepper.4510 ||| }
+
+!!! DISCLAIMER !!!
+!!! 'debug-windows' command is not stable API. Please don't rely on the command existence and output format !!!
+!!! The only intended use case is to report bugs about incorrect windows handling !!!
