@@ -26,3 +26,5 @@
 # XCode User settings
 xcuserdata/
 xcshareddata/
+# Python bytecode from the script tests
+__pycache__/
