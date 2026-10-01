@@ -4,7 +4,7 @@ import Foundation
 @main
 struct MarketingRendererCommand {
     @MainActor
-    static func main() throws {
+    static func main() async throws {
         let arguments = CommandLine.arguments.dropFirst()
         let isSafariProof = arguments.contains("--safari-proof")
         let isAppsProof = arguments.contains("--apps-proof")
@@ -19,13 +19,13 @@ struct MarketingRendererCommand {
             withIntermediateDirectories: true
         )
         if isSafariPlasticityProof {
-            try renderWinMuxSafariPlasticityProofImage(to: outputURL)
+            try await renderWinMuxSafariPlasticityProofImage(to: outputURL)
         } else if isAppsProof {
-            try renderWinMuxAppsProofImage(to: outputURL)
+            try await renderWinMuxAppsProofImage(to: outputURL)
         } else if isSafariProof {
-            try renderWinMuxSafariProofImage(to: outputURL)
+            try await renderWinMuxSafariProofImage(to: outputURL)
         } else {
-            try renderWinMuxMarketingImage(to: outputURL)
+            try await renderWinMuxMarketingImage(to: outputURL)
         }
         print(outputURL.path)
     }

@@ -24,24 +24,20 @@ struct MenuBarLabel: View {
     }
 
     var body: some View {
-        if #available(macOS 14, *) { // https://github.com/nikitabobko/WinMux/issues/1122
-            // body re-runs on every publish of the whole TrayMenuModel (sidebar hover, drop
-            // previews, ...), but rasterizing is only needed when the rendered inputs change.
-            let renderKey = MenuBarLabelRenderKey(
-                trayText: viewModel.trayText,
-                trayItems: viewModel.trayItems,
-                style: style ?? viewModel.experimentalUISettings.displayStyle,
-                colorScheme: menuColorScheme,
-                colorOverride: color,
-            )
-            if let cgImage = cachedMenuBarLabelImage(for: renderKey, render: { ImageRenderer(content: menuBarContent).cgImage }) {
-                // Using scale: 1 results in a blurry image for unknown reasons
-                Image(cgImage, scale: 2, label: Text(viewModel.trayText))
-            } else {
-                // In case image can't be rendered fallback to plain text
-                Text(viewModel.trayText)
-            }
-        } else { // macOS 13 and lower
+        // body re-runs on every publish of the whole TrayMenuModel (sidebar hover, drop
+        // previews, ...), but rasterizing is only needed when the rendered inputs change.
+        let renderKey = MenuBarLabelRenderKey(
+            trayText: viewModel.trayText,
+            trayItems: viewModel.trayItems,
+            style: style ?? viewModel.experimentalUISettings.displayStyle,
+            colorScheme: menuColorScheme,
+            colorOverride: color,
+        )
+        if let cgImage = cachedMenuBarLabelImage(for: renderKey, render: { ImageRenderer(content: menuBarContent).cgImage }) {
+            // Using scale: 1 results in a blurry image for unknown reasons
+            Image(cgImage, scale: 2, label: Text(viewModel.trayText))
+        } else {
+            // In case image can't be rendered fallback to plain text
             Text(viewModel.trayText)
         }
     }

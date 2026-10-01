@@ -6,11 +6,13 @@ import QuartzCore
 final class DoubleSidedWindowController {
     static let shared = DoubleSidedWindowController()
     private var animationPanel: NSPanel?
-    private let backdropPadding: CGFloat = 64
+    private var isCapturing = false
+    // Room for the edge that swings toward the viewer, which perspective draws outside the window's frame.
+    private let rotationPadding: CGFloat = 64
 
-    var isAnimating: Bool { animationPanel != nil }
+    var isAnimating: Bool { isCapturing || animationPanel != nil }
 
-    func flip(_ window: Window) {
+    func flip(_ window: Window) async {
         guard !isAnimating, TrayMenuModel.shared.isEnabled,
               let group = window.nearestWindowTabGroup,
               group.usesDoubleSidedWindows,
@@ -18,35 +20,35 @@ final class DoubleSidedWindowController {
               let other = group.children.compactMap({ $0 as? Window }).first(where: { $0 !== window }),
               let rect = window.lastAppliedLayoutPhysicalRect
         else { return }
-        let canAnimate = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && CGPreflightScreenCaptureAccess()
-        let front = canAnimate ? snapshot(window.windowId) : nil
-        let back = canAnimate ? snapshot(other.windowId) : nil
-        if let front, let back,
-           let background = CGWindowListCreateImage(
-               CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
-                   .insetBy(dx: -backdropPadding, dy: -backdropPadding),
-               .optionOnScreenBelowWindow, window.windowId, [.nominalResolution]
-           ) {
-            animate(front: front, back: back, background: background, rect: rect)
+        let frontId = window.windowId
+        let backId = other.windowId
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && CGPreflightScreenCaptureAccess() {
+            isCapturing = true
+            let size = CGSize(width: rect.width, height: rect.height)
+            async let front = snapshot(frontId, size: size)
+            async let back = snapshot(backId, size: size)
+            let (frontImage, backImage) = await (front, back)
+            isCapturing = false
+            if let frontImage, let backImage {
+                animate(front: frontImage, back: backImage, rect: rect)
+            }
         }
-        focusWindowFromTabStrip(other.windowId, fallbackWorkspace: focus.workspace.name)
+        focusWindowFromTabStrip(backId, fallbackWorkspace: focus.workspace.name)
     }
 
-    private func snapshot(_ id: UInt32) -> CGImage? {
-        guard let image = CGWindowListCreateImage(
-            .null, .optionIncludingWindow, id, [.boundsIgnoreFraming, .nominalResolution]
-        ) else { return nil }
-        // Nominal resolution is one pixel per point. Trim the native one-point outline
-        // so it does not become a bright edge when the snapshot rotates.
+    private func snapshot(_ id: UInt32, size: CGSize) async -> CGImage? {
+        guard let image = await WindowScreenshot.capture(id, pixelSize: size) else { return nil }
+        // Trim the native one-point outline so it does not become a bright edge when the
+        // snapshot rotates.
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         guard image.width > 2, image.height > 2 else { return image }
         return image.cropping(to: bounds.insetBy(dx: 1, dy: 1))
     }
 
-    private func animate(front: CGImage, back: CGImage, background: CGImage, rect: Rect) {
+    private func animate(front: CGImage, back: CGImage, rect: Rect) {
         let frame = CGRect(x: rect.topLeftX, y: mainMonitor.height - rect.topLeftY - rect.height,
                            width: rect.width, height: rect.height)
-            .insetBy(dx: -backdropPadding, dy: -backdropPadding)
+            .insetBy(dx: -rotationPadding, dy: -rotationPadding)
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -60,9 +62,6 @@ final class DoubleSidedWindowController {
         let view = NSView(frame: CGRect(origin: .zero, size: frame.size))
         view.wantsLayer = true
         let root = CALayer()
-        // Cover the real windows and their shadows throughout the rotation.
-        root.contents = background
-        root.contentsGravity = .resize
         view.layer = root
         panel.contentView = view
         var perspective = CATransform3DIdentity
@@ -71,7 +70,7 @@ final class DoubleSidedWindowController {
         let duration = 0.48
         for (image, start, end) in [(front, 0.0, Double.pi), (back, -Double.pi, 0.0)] {
             let face = CALayer()
-            face.frame = view.bounds.insetBy(dx: backdropPadding, dy: backdropPadding)
+            face.frame = view.bounds.insetBy(dx: rotationPadding, dy: rotationPadding)
             face.contents = image
             face.contentsGravity = .resize
             face.isDoubleSided = false

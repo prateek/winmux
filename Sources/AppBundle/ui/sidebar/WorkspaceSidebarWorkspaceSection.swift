@@ -200,10 +200,10 @@ extension WorkspaceSidebarWorkspaceSection {
     /// things that give real Liquid Glass its depth — a refractive edge, a specular top
     /// highlight, and a lift shadow — and renders inside a `GlassEffectContainer` (only glass,
     /// no foreground text, so it's safe) where the native lensing actually engages. The state
-    /// tint fills on top. No-op on older systems; the plain tint fill stands in.
+    /// tint fills on top.
     @ViewBuilder
     var sectionGlassCard: some View {
-        if #available(macOS 26.0, *), layout.chromeStyle == .liquidGlass {
+        if layout.chromeStyle == .liquidGlass {
             GlassEffectContainer {
                 ZStack {
                     Color.clear.glassEffect(.regular, in: sectionShape)

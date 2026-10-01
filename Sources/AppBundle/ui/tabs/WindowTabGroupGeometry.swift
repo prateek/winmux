@@ -31,13 +31,9 @@ func systemWindowCornerRadius() -> CGFloat {
 }
 
 @MainActor
-func windowTabGroupAppCornerRadius(activeWindowId: UInt32?) -> CGFloat {
-    if #available(macOS 26.0, *) {
-        // Unified system radius: stable across windows, no estimation noise.
-        return min(max(systemWindowCornerRadius(), 6), windowTabGroupFrameMaxInnerCornerRadius)
-    }
-    let radius = activeWindowId.map(estimatedWindowPreviewCornerRadius) ?? windowTabPreviewCornerRadius
-    return min(max(radius, 6), windowTabGroupFrameMaxInnerCornerRadius)
+func windowTabGroupAppCornerRadius() -> CGFloat {
+    // Unified system radius: stable across windows, no estimation noise.
+    min(max(systemWindowCornerRadius(), 6), windowTabGroupFrameMaxInnerCornerRadius)
 }
 
 

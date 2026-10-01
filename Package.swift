@@ -5,9 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "WinMuxPackage",
-    // Runtime support for parameterized protocol types is only available in macOS 13.0.0 or newer
+    // ScreenCaptureKit's one-shot window capture is only available in macOS 26.0 or newer
     // And it specifies deploymentTarget for CLI
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v26)],
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
         .executable(name: "winmux", targets: ["Cli"]),

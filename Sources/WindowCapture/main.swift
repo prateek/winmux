@@ -1,11 +1,11 @@
 import AppKit
-import ApplicationServices
 import Foundation
 import ScreenCaptureKit
 
 private enum CaptureError: LocalizedError {
     case noMatchingWindow(String, availableTitles: [String])
     case applicationNotFound(String)
+    case captureFailed
     case encodingFailed
 
     var errorDescription: String? {
@@ -14,6 +14,8 @@ private enum CaptureError: LocalizedError {
                 "No matching visible window belongs to \(bundleIdentifier). Available windows: \(availableTitles.joined(separator: ", "))."
             case let .applicationNotFound(bundleIdentifier):
                 "No installed application has the bundle identifier \(bundleIdentifier)."
+            case .captureFailed:
+                "ScreenCaptureKit did not return an image for the window."
             case .encodingFailed:
                 "AppKit could not encode the captured window as PNG."
         }
@@ -28,17 +30,12 @@ private struct WindowCaptureCommand {
         let bundleIdentifier = arguments.dropFirst().first ?? "com.apple.Safari"
         let rawTitleFilter = arguments.dropFirst(2).first(where: { !$0.hasPrefix("--") })
         let titleFilter = rawTitleFilter.flatMap { $0.isEmpty ? nil : $0 }
-        let useCoreGraphics = arguments.contains("--core-graphics")
         let requestedURL = value(after: "--url", in: arguments).flatMap(URL.init(string:))
         let settleMilliseconds = value(after: "--settle-ms", in: arguments).flatMap(UInt64.init) ?? 1_500
         let outputURL = URL(
             fileURLWithPath: outputPath,
             relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         ).standardizedFileURL
-
-        guard #available(macOS 14.0, *) else {
-            fatalError("High-resolution window capture requires macOS 14 or newer.")
-        }
 
         await MainActor.run {
             let application = NSApplication.shared
@@ -54,15 +51,6 @@ private struct WindowCaptureCommand {
                 withApplicationIdentifier: bundleIdentifier,
                 settleMilliseconds: settleMilliseconds
             )
-        }
-
-        if useCoreGraphics {
-            try await captureUsingCoreGraphics(
-                bundleIdentifier: bundleIdentifier,
-                titleFilter: titleFilter,
-                outputURL: outputURL
-            )
-            return
         }
 
         let content = try await SCShareableContent.excludingDesktopWindows(
@@ -92,20 +80,19 @@ private struct WindowCaptureCommand {
         }
 
         let filter = SCContentFilter(desktopIndependentWindow: window)
-        let configuration = SCStreamConfiguration()
+        let configuration = SCScreenshotConfiguration()
         configuration.width = Int(window.frame.width.rounded(.up)) * 2
         configuration.height = Int(window.frame.height.rounded(.up)) * 2
-        configuration.captureResolution = .best
-        configuration.preservesAspectRatio = true
-        configuration.ignoreShadowsSingleWindow = true
+        configuration.ignoreShadows = true
         configuration.showsCursor = false
-        configuration.pixelFormat = kCVPixelFormatType_32BGRA
-        configuration.colorSpaceName = CGColorSpace.sRGB
+        configuration.dynamicRange = .sdr
 
-        let image = try await SCScreenshotManager.captureImage(
+        guard let image = try await SCScreenshotManager.captureScreenshot(
             contentFilter: filter,
             configuration: configuration
-        )
+        ).sdrImage else {
+            throw CaptureError.captureFailed
+        }
         let bitmap = NSBitmapImageRep(cgImage: image)
         guard let data = bitmap.representation(using: .png, properties: [.compressionFactor: 1]) else {
             throw CaptureError.encodingFailed
@@ -155,108 +142,5 @@ private struct WindowCaptureCommand {
             }
         }
         try await Task.sleep(for: .milliseconds(settleMilliseconds))
-    }
-
-    private static func captureUsingCoreGraphics(
-        bundleIdentifier: String,
-        titleFilter: String?,
-        outputURL: URL
-    ) async throws {
-        let windowInfo = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[String: Any]] ?? []
-
-        let candidates = windowInfo.compactMap { information -> (id: CGWindowID, title: String, pid: pid_t, area: CGFloat)? in
-            guard let processIdentifier = information[kCGWindowOwnerPID as String] as? pid_t,
-                  let application = NSRunningApplication(processIdentifier: processIdentifier),
-                  application.bundleIdentifier == bundleIdentifier,
-                  let number = information[kCGWindowNumber as String] as? CGWindowID,
-                  let boundsDictionary = information[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDictionary),
-                  bounds.width >= 400,
-                  bounds.height >= 300
-            else { return nil }
-
-            let title = information[kCGWindowName as String] as? String ?? ""
-            if let titleFilter,
-               !title.localizedCaseInsensitiveContains(titleFilter)
-            {
-                return nil
-            }
-            return (number, title, processIdentifier, bounds.width * bounds.height)
-        }
-
-        guard let window = candidates.max(by: { $0.area < $1.area }) else {
-            let availableTitles = windowInfo.compactMap { information -> String? in
-                guard let processIdentifier = information[kCGWindowOwnerPID as String] as? pid_t,
-                      NSRunningApplication(processIdentifier: processIdentifier)?.bundleIdentifier == bundleIdentifier
-                else { return nil }
-                return information[kCGWindowName as String] as? String
-            }
-            throw CaptureError.noMatchingWindow(bundleIdentifier, availableTitles: availableTitles)
-        }
-
-        if let application = NSRunningApplication(processIdentifier: window.pid) {
-            application.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-            try await Task.sleep(for: .milliseconds(150))
-            focusWindow(processIdentifier: window.pid, title: window.title)
-            try await Task.sleep(for: .milliseconds(700))
-        }
-
-        guard let image = CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            window.id,
-            [.boundsIgnoreFraming, .bestResolution]
-        ) else {
-            throw CaptureError.encodingFailed
-        }
-        try write(image, to: outputURL)
-        print("Captured \(window.title.isEmpty ? bundleIdentifier : window.title) at \(image.width)x\(image.height) with Core Graphics")
-        print(outputURL.path)
-    }
-
-    private static func focusWindow(processIdentifier: pid_t, title: String) {
-        guard !title.isEmpty else { return }
-
-        let application = AXUIElementCreateApplication(processIdentifier)
-        var windowsValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            application,
-            kAXWindowsAttribute as CFString,
-            &windowsValue
-        ) == .success,
-              let windows = windowsValue as? [AXUIElement]
-        else { return }
-
-        for window in windows {
-            var titleValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(
-                window,
-                kAXTitleAttribute as CFString,
-                &titleValue
-            ) == .success,
-                  let candidateTitle = titleValue as? String,
-                  candidateTitle.localizedCaseInsensitiveCompare(title) == .orderedSame
-            else { continue }
-
-            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-            AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-            return
-        }
-    }
-
-    private static func write(_ image: CGImage, to outputURL: URL) throws {
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        guard let data = bitmap.representation(using: .png, properties: [.compressionFactor: 1]) else {
-            throw CaptureError.encodingFailed
-        }
-        try FileManager.default.createDirectory(
-            at: outputURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: outputURL, options: .atomic)
     }
 }

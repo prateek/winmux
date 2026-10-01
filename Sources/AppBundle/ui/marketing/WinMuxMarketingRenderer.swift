@@ -4,26 +4,26 @@ import SwiftUI
 /// Exports a deterministic marketing composition that embeds WinMux's production SwiftUI views.
 /// The renderer does not capture the screen or read pixels from application windows.
 @MainActor
-public func renderWinMuxMarketingImage(to outputURL: URL) throws {
-    try renderMarketingView(WinMuxMarketingCanvas(), to: outputURL)
+public func renderWinMuxMarketingImage(to outputURL: URL) async throws {
+    try await renderMarketingView(WinMuxMarketingCanvas(), to: outputURL)
 }
 
 /// Exports a focused proof containing one real Safari surface and two WinMux tabs.
 @MainActor
-public func renderWinMuxSafariProofImage(to outputURL: URL) throws {
-    try renderMarketingView(WinMuxSafariProofCanvas(), to: outputURL)
+public func renderWinMuxSafariProofImage(to outputURL: URL) async throws {
+    try await renderMarketingView(WinMuxSafariProofCanvas(), to: outputURL)
 }
 
 /// Exports a collage of native Helium, Ghostty, and Finder window surfaces.
 @MainActor
-public func renderWinMuxAppsProofImage(to outputURL: URL) throws {
-    try renderMarketingView(WinMuxAppsProofCanvas(), to: outputURL)
+public func renderWinMuxAppsProofImage(to outputURL: URL) async throws {
+    try await renderMarketingView(WinMuxAppsProofCanvas(), to: outputURL)
 }
 
 /// Exports a tiled Safari and Plasticity workspace using their measured split ratio.
 @MainActor
-public func renderWinMuxSafariPlasticityProofImage(to outputURL: URL) throws {
-    try renderMarketingView(
+public func renderWinMuxSafariPlasticityProofImage(to outputURL: URL) async throws {
+    try await renderMarketingView(
         WinMuxSafariPlasticityProofCanvas(),
         to: outputURL,
         size: CGSize(width: 1_600, height: 928),
@@ -37,7 +37,7 @@ private func renderMarketingView<Content: View>(
     to outputURL: URL,
     size: CGSize = CGSize(width: 1_600, height: 900),
     renderScale: CGFloat = 1
-) throws {
+) async throws {
     let renderSize = CGSize(width: size.width * renderScale, height: size.height * renderScale)
     let content = rootView
         .frame(width: size.width, height: size.height)
@@ -84,20 +84,17 @@ private func renderMarketingView<Content: View>(
     window.orderFrontRegardless()
     hostingView.layoutSubtreeIfNeeded()
     hostingView.displayIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+    try await Task.sleep(for: .milliseconds(800))
 
-    let windowNumber = CGWindowID(window.windowNumber)
-    guard let image = CGWindowListCreateImage(
-        .null,
-        .optionIncludingWindow,
-        windowNumber,
-        [.boundsIgnoreFraming, .bestResolution]
-    ) else {
-        window.orderOut(nil)
+    let scale = window.backingScaleFactor
+    let image = await WindowScreenshot.capture(
+        CGWindowID(window.windowNumber),
+        pixelSize: CGSize(width: renderSize.width * scale, height: renderSize.height * scale),
+    )
+    window.orderOut(nil)
+    guard let image else {
         throw WinMuxMarketingRenderError.renderFailed
     }
-
-    window.orderOut(nil)
     let bitmap = NSBitmapImageRep(cgImage: image)
     guard let data = bitmap.representation(using: .png, properties: [.compressionFactor: 1]) else {
         throw WinMuxMarketingRenderError.encodingFailed

@@ -87,7 +87,7 @@ final class DoubleSidedWindowGesture {
                     return false
                 }
                 // Capture and animate outside the event tap to avoid timing out mouse input.
-                Task { @MainActor in DoubleSidedWindowController.shared.flip(window) }
+                Task { @MainActor in await DoubleSidedWindowController.shared.flip(window) }
                 return true
             default:
                 return false
@@ -111,7 +111,7 @@ final class DoubleSidedWindowGesture {
         isTabHeld = true
         if event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
            !DoubleSidedWindowController.shared.isAnimating {
-            Task { @MainActor in DoubleSidedWindowController.shared.flip(window) }
+            Task { @MainActor in await DoubleSidedWindowController.shared.flip(window) }
         }
         return true
     }
