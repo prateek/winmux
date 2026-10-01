@@ -1,0 +1,17 @@
+[package]
+name = "winmux-nickel"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.89"
+publish = false
+
+[dependencies]
+libc = "0.2"
+# 0.x: upgrade deliberately with each Nickel CLI release, and only when the tests still pass.
+nickel-lang-core = { version = "=0.19.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+strip = true
+lto = "thin"

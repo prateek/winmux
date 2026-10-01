@@ -17,6 +17,8 @@
 /.vscode
 # External dependencies
 /.deps
+# Cargo build output of the winmux-nickel helper
+/nickel-helper/target
 
 # For whatever local files that developers might want to keep there (I personally keep a separate `generated-html` git worktree here)
 /.local
