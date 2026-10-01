@@ -84,7 +84,17 @@ final class NickelSupervisorTest: XCTestCase {
         guard case .failure(.diagnostic(let diagnostic)) = broken else { return XCTFail("\(broken)") }
         assertEquals(diagnostic, "error: contract broken by a value")
         assertEquals(supervisor.status.pid, pid)
+        assertEquals(supervisor.status.lastError, nil)
         assertEquals(await matches(supervisor), .success([true, true]))
+    }
+
+    func testFailedFirstLoadIsTheStatusLastError() async throws {
+        let supervisor = supervisor()
+
+        _ = await supervisor.load(URL(filePath: "/config/broken.ncl"))
+
+        assertEquals(supervisor.status.state, .failed)
+        assertEquals(supervisor.status.lastError, "error: contract broken by a value")
     }
 
     func testReloadSwapsInANewHelperAndCountsARecycle() async throws {

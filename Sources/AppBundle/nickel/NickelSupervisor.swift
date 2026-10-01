@@ -106,6 +106,9 @@ final class NickelSupervisor {
                 ))
             case .failure(let failure):
                 await process.kill()
+                // With a helper serving, a failed load is the caller's to report. With none, it is
+                // why nothing is serving.
+                if current == nil, restart == nil { lastError = failure.message }
                 return .failure(failure)
         }
     }

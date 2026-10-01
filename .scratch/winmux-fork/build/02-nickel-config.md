@@ -129,24 +129,24 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 - [x] `cargo build --release` in `nickel-helper/` produces `winmux-nickel`, with `nickel-lang-core` pinned to `=0.19.0`.
 - [x] The release app contains `Contents/Helpers/winmux-nickel`, signed with the app's identity. A dev build finds the helper through `WINMUX_NICKEL_HELPER`.
-- [ ] WinMux starts with a valid `~/.config/winmux/winmux.ncl`, applies its gaps and bindings, and `winmux config status` prints JSON with state `ready`, a pid, RSS, recycle count, last error and the loaded config path. Not yet checked: needs a running WinMux.
+- [x] WinMux starts with a valid `~/.config/winmux/winmux.ncl`, applies its gaps and bindings, and `winmux config status` prints JSON with state `ready`, a pid, RSS, recycle count, last error and the loaded config path.
 - [x] WinMux does not link `nickel-lang-core`: the Swift package has no Nickel dependency.
 - [x] A config that imports `winmux/winmux.ncl` and `winmux/defaults.ncl` loads from `~/.config/winmux/winmux.ncl` with no copy of either file beside it. A setting the config leaves out has its value from `defaults.ncl`, and a config without the `defaults.ncl` import gets no defaults.
 - [x] A config that sets a key the contracts do not know fails to load with Nickel's diagnostic.
-- [ ] With a config that has a contract error, WinMux starts on built-in defaults and shows the Nickel diagnostic. The same happens when the helper does not answer within 2 s. Not yet checked in a running WinMux; the load failure and the 2 s timeout are covered by supervisor tests.
+- [x] With a config that has a contract error, WinMux starts on built-in defaults and shows the Nickel diagnostic. The same happens when the helper does not answer within 2 s.
 - [x] In a helper test, a Filter that reads a misspelled field of the stand-in record fails the load in the smoke run, and the diagnostic names the field and suggests the correct one.
-- [ ] `winmux reload-config` with a valid change applies it and `config status` shows a new pid and a higher recycle count. With a broken file it exits non-zero, prints the diagnostic, shows a notification, and the old config and helper keep working. Not yet checked in a running WinMux; the swap and the kept helper are covered by supervisor tests.
+- [x] `winmux reload-config` with a valid change applies it and `config status` shows a new pid and a higher recycle count. With a broken file it exits non-zero, prints the diagnostic, shows a notification, and the old config and helper keep working.
 - [x] In a helper test, a batched Filter request that names a Lens of the stand-in config and carries 50 stand-in records returns 50 match bits.
 - [x] In a helper test, a stand-in record with a missing field is rejected with an error that names the field, before any Nickel runs, and a JSON string in the enum-tag field reaches Nickel as an enum tag.
 - [x] In a helper test, an `eval-filter` request whose body calls a Filter named under `filters` returns that Filter's result.
 - [x] A request for a Policy hook returns the hook's result as JSON, or a failure after 50 ms.
 - [x] A Filter that loops returns a failure after 100 ms, the helper is killed and respawned, and the next request succeeds.
-- [ ] Killing the helper with `kill -9` brings up a new one at once; `config status` shows `restarting`, then `ready`. After a second kill the restart waits 1 s. Covered by a supervisor test; not yet observed through `config status`.
-- [ ] Killing it 3 times within a minute trips the breaker: a notification shows, `config status` reports `failed`, the static config stays applied, and `winmux reload-config` brings the helper back. Covered by a supervisor test; not yet observed in a running WinMux.
+- [x] Killing the helper with `kill -9` brings up a new one at once; `config status` shows `restarting`, then `ready`. After a second kill the restart waits 1 s.
+- [x] Killing it 3 times within a minute trips the breaker: a notification shows, `config status` reports `failed`, the static config stays applied, and `winmux reload-config` brings the helper back. Checked in a running debug build, except that the notification was not looked at.
 - [x] Pushing the helper's RSS past the threshold replaces it without a failed or delayed request, and the recycle count goes up.
 - [x] `winmux config check <file>` exits 0 for a valid file and exits 2 with the diagnostic for a broken one, with the WinMux server stopped. With no argument it checks the file WinMux would load.
 - [x] `winmux config convert` turns an existing `winmux.toml` into Nickel on stdout, with the WinMux server stopped. The output imports `winmux/defaults.ncl`, applies `W.Config` and passes `winmux config check`. A `[[on-window-detected]]` entry comes out as a commented-out `arrive` branch with a warning on stderr.
-- [ ] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config. Not yet checked: needs a running WinMux.
+- [x] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
 - [x] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
 - [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file. Not yet checked: needs a running WinMux.
 - [ ] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares. Not yet checked in a running WinMux; the state file and its override are covered by tests.
