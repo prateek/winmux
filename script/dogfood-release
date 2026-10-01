@@ -63,6 +63,8 @@ trap 'git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Comm
 
 head_sha="$(git rev-parse HEAD)"
 branch="$(git rev-parse --abbrev-ref HEAD)"
+# The build number is the commit count, which only means something on one branch.
+[ "$branch" = fork ] || [ "$DRY_RUN" = 1 ] || die "releases are cut from the fork branch, not $branch"
 tag="v${VERSION}"
 # Sparkle compares CFBundleVersion and stops at the first dash, so every dogfood version needs
 # a build number of its own. The commit count only grows on one branch.
@@ -107,7 +109,8 @@ swift build -c release --product winmux >/dev/null
 # The cask installs the app and the CLI from one archive: WinMux-<version>/WinMux.app and
 # WinMux-<version>/bin/winmux.
 staging_dir=".release/package/WinMux-${VERSION}"
-zip_path=".release/package/WinMux-${VERSION}.zip"
+# Named apart from the app-only update archive, which is WinMux-<version>.zip on the feed's tag.
+zip_path=".release/package/WinMux-${VERSION}-with-cli.zip"
 rm -rf ".release/package"
 mkdir -p "$staging_dir/bin"
 /usr/bin/ditto "$app_path" "$staging_dir/WinMux.app"
