@@ -6,7 +6,7 @@ use std::{
 
 use winmux_nickel::{convert, library_dir, protocol};
 
-const USAGE: &str = "usage: winmux-nickel serve | check <file> | convert <file> | defaults";
+const USAGE: &str = "usage: winmux-nickel serve | check [<file>] | convert <file> | defaults";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -20,13 +20,8 @@ fn main() -> ExitCode {
     };
     match args.as_slice() {
         ["serve"] => serve(protocol::Helper::new(library)),
-        ["check", file] => match protocol::load(Some(Path::new(file)), &library) {
-            Ok(_) => ExitCode::SUCCESS,
-            Err(diagnostic) => {
-                eprint!("{diagnostic}");
-                ExitCode::from(2)
-            }
-        },
+        ["check", file] => check(Some(Path::new(file)), &library),
+        ["check"] => check(None, &library),
         // The static settings of the shipped defaults: what WinMux falls back to without a helper.
         ["defaults"] => match protocol::load(None, &library) {
             Ok((_, result)) => {
@@ -53,6 +48,17 @@ fn main() -> ExitCode {
         },
         _ => {
             eprintln!("{USAGE}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Loads a config file, or the shipped defaults, and smoke-runs it without applying anything.
+fn check(file: Option<&Path>, library: &Path) -> ExitCode {
+    match protocol::load(file, library) {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(diagnostic) => {
+            eprint!("{diagnostic}");
             ExitCode::from(2)
         }
     }

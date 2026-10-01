@@ -2,31 +2,9 @@ import Common
 import Foundation
 import TOMLKit
 
-let legacyConfigDotfileName = ".winmux.toml"
-let generatedConfigDirectoryName = "winmux"
-let generatedConfigFileName = "winmux.ncl"
-let legacyConfigFileName = "winmux.toml"
 let aerospaceLegacyConfigDotfileName = ".aerospace.toml"
 let aerospaceConfigDirectoryName = "aerospace"
 let aerospaceConfigFileName = "aerospace.toml"
-
-func xdgConfigHomeUrl() -> URL {
-    ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].map { URL(filePath: $0) }
-        ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".config/")
-}
-
-func generatedConfigUrl() -> URL {
-    xdgConfigHomeUrl()
-        .appending(path: generatedConfigDirectoryName)
-        .appending(path: generatedConfigFileName)
-}
-
-func legacyConfigCandidateUrls() -> [URL] {
-    [
-        xdgConfigHomeUrl().appending(path: generatedConfigDirectoryName).appending(path: legacyConfigFileName),
-        FileManager.default.homeDirectoryForCurrentUser.appending(path: legacyConfigDotfileName),
-    ]
-}
 
 func preferredLegacyConfigImportUrl() -> URL? {
     legacyConfigCandidateUrls().first { FileManager.default.fileExists(atPath: $0.path) }
