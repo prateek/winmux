@@ -1,6 +1,5 @@
 {
   "auto-add-new-windows-to-tab-group": true,
-  "auto-reload-config": true,
   "automatically-tile-new-windows": true,
   "automatically-unhide-macos-hidden-apps": false,
   "config-version": 2,
@@ -125,6 +124,7 @@
   ],
   "on-mode-changed": [],
   "persistent-workspaces": [],
+  "reload-on-save": true,
   "shortcuts-preset": "none",
   "start-at-login": false,
   "tab-group-padding": 30,

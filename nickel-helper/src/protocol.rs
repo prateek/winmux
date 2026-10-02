@@ -93,14 +93,14 @@ impl Helper {
 }
 
 /// Loads a config, checks its contracts and smoke-runs its functions. The result holds the
-/// static settings and every file the config was read from.
+/// static settings, every file the config was read from, and the directory of the shipped library.
 pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diagnostic> {
     let source = path.map_or(Source::Defaults, Source::File);
     let mut engine = Engine::load(source, library)?;
     let config = engine.static_json()?;
     smoke_run(&mut engine)?;
     let imports: Vec<String> = engine.imports().iter().map(|p| p.to_string_lossy().into_owned()).collect();
-    Ok((engine, json!({ "config": config, "imports": imports })))
+    Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy() })))
 }
 
 fn match_bits(

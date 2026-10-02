@@ -67,7 +67,7 @@ Contract
     contract-version | Int | optional,
 
     start-at-login | Bool | optional,
-    auto-reload-config | Bool | optional,
+    reload-on-save | Bool | optional,
     automatically-unhide-macos-hidden-apps | Bool | optional,
     automatically-tile-new-windows | Bool | optional,
     enable-shake-to-toggle-tiling | Bool | optional,

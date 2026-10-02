@@ -33,6 +33,19 @@ final class ConfigTest: XCTestCase {
         assertEquals(i3Config.enableNormalizationOppositeOrientationForNestedContainers, false)
     }
 
+    func testReloadOnSaveIsOnUnlessTheConfigTurnsItOff() {
+        let (unset, unsetErrors) = parseConfig("config-version = 2")
+        let (off, offErrors) = parseConfig("reload-on-save = false")
+        let (replaced, replacedErrors) = parseConfig("auto-reload-config = false")
+
+        assertEquals(unsetErrors + offErrors, [])
+        XCTAssertTrue(unset.reloadOnSave)
+        XCTAssertFalse(off.reloadOnSave)
+        XCTAssertTrue(defaultConfig.reloadOnSave)
+        assertEquals(replacedErrors.map(\.description), ["auto-reload-config: Unknown top-level key"])
+        XCTAssertTrue(replaced.reloadOnSave)
+    }
+
     func testBuiltInDefaults() throws {
         let config = defaultConfig
         XCTAssertTrue(config.automaticallyTileNewWindows)

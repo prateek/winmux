@@ -7,7 +7,6 @@
 # that does not import this file gets none of it.
 {
   auto-add-new-windows-to-tab-group | default = true,
-  auto-reload-config | default = true,
   automatically-tile-new-windows | default = true,
   automatically-unhide-macos-hidden-apps | default = false,
   config-version | default = 2,
@@ -130,6 +129,7 @@
   on-focused-monitor-changed | default = ["move-mouse monitor-lazy-center"],
   on-mode-changed | default = [],
   persistent-workspaces | default = [],
+  reload-on-save | default = true,
   shortcuts-preset | default = "none",
   start-at-login | default = false,
   tab-group-padding | default = 30,

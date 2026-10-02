@@ -25,7 +25,7 @@ struct ConfigCommand: Command {
             case .configPath:
                 return io.out(configUrl.absoluteURL.path)
             case .status:
-                return switch JSONEncoder.winMuxDefault.encodeToString(ConfigHelperStatus(NickelSupervisor.shared.status)) {
+                return switch JSONEncoder.winMuxDefault.encodeToString(ConfigHelperStatus(NickelSupervisor.shared.status, reloadError: configReloadErrors.last)) {
                     case .some(let json): io.out(json)
                     case nil: io.err("Can't encode the config helper's status")
                 }
@@ -35,7 +35,7 @@ struct ConfigCommand: Command {
     }
 }
 
-private struct ConfigHelperStatus: Encodable {
+struct ConfigHelperStatus: Encodable {
     let state: String
     let pid: Int32?
     let rss: Int
@@ -43,12 +43,13 @@ private struct ConfigHelperStatus: Encodable {
     let lastError: String?
     let configPath: String?
 
-    init(_ status: NickelStatus) {
+    /// - Parameter reloadError: Why the last reload failed, while the helper itself is fine.
+    init(_ status: NickelStatus, reloadError: String?) {
         state = status.state.rawValue
         pid = status.pid
         rss = status.rss
         recycles = status.recycles
-        lastError = status.lastError
+        lastError = status.lastError ?? reloadError
         configPath = status.configPath
     }
 

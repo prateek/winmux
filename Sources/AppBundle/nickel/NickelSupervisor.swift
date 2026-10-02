@@ -10,6 +10,8 @@ struct LoadedNickelConfig: Sendable {
     let settings: JSONValue
     /// The config file and every file it imports.
     let imports: [URL]
+    /// The directory of the shipped library, which the config imports `winmux/` files from.
+    let library: URL?
 }
 
 struct NickelStatus: Equatable, Sendable {
@@ -103,6 +105,7 @@ final class NickelSupervisor {
                     path: path,
                     settings: reply.result["config"] ?? .object([:]),
                     imports: imports,
+                    library: reply.result["library"]?.stringOrNil.map { URL(filePath: $0) },
                 ))
             case .failure(let failure):
                 await process.kill()

@@ -1,5 +1,6 @@
 import AppKit
 import Common
+import os
 
 /// Becomes true once the initial workspace model exists. Config parsing happens earlier during
 /// launch, when scheduling a live layout pass would race app initialization.
@@ -19,17 +20,63 @@ struct ReloadConfigCommand: Command {
     }
 }
 
+enum ConfigReloadTrigger: Equatable, Sendable {
+    /// `reload-config`, or WinMux starting.
+    case command
+    /// A save of the config file or of a file it imports.
+    case fileChange
+}
+
+/// What failed reloads leave to report.
+struct ConfigReloadErrors {
+    /// The diagnostic of the last reload, or nil if it loaded.
+    private(set) var last: String?
+    private var notified: String?
+
+    mutating func failed(_ diagnostic: String) {
+        last = diagnostic
+    }
+
+    /// Whether to notify the user of `diagnostic`. A save that fails the way the last notified
+    /// failure did is not notified again.
+    mutating func shouldNotify(_ diagnostic: String, trigger: ConfigReloadTrigger) -> Bool {
+        if trigger == .fileChange && diagnostic == notified { return false }
+        notified = diagnostic
+        return true
+    }
+
+    mutating func loaded() {
+        last = nil
+        notified = nil
+    }
+}
+
+@MainActor var configReloadErrors = ConfigReloadErrors()
+
+private let configLog = Logger(subsystem: winMuxAppId, category: "config")
+
 @MainActor func reloadConfig(forceConfigUrl: URL? = nil) async throws -> Bool {
     var devNull = ""
     return try await reloadConfig(forceConfigUrl: forceConfigUrl, stdout: &devNull)
 }
 
+/// Reloads after a save. It is the same reload `reload-config` runs.
+@MainActor func reloadConfigAfterFileChange() async {
+    guard let token: RunSessionGuard = .isServerEnabled else { return }
+    _ = try? await runLightSession(.configAutoReload, token) {
+        var devNull = ""
+        return try await reloadConfig(trigger: .fileChange, stdout: &devNull)
+    }
+}
+
 @MainActor func reloadConfig(
     args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []),
     forceConfigUrl: URL? = nil,
+    trigger: ConfigReloadTrigger = .command,
     stdout: inout String,
 ) async throws -> Bool {
     let result: Bool
+    var adopted: LoadedNickelConfig? = nil
     switch await readConfig(forceConfigUrl: forceConfigUrl) {
         case .success(let loaded):
             if args.dryRun {
@@ -37,13 +84,20 @@ struct ReloadConfigCommand: Command {
             } else {
                 // The settings and the helper that holds the config's functions change together.
                 NickelSupervisor.shared.adopt(loaded.helper)
+                adopted = loaded.helper
                 try await applyConfig(loaded.config, url: loaded.url)
                 MessageModel.shared.message = nil
+                configReloadErrors.loaded()
+                configLog.notice("Loaded the config from \(loaded.url.path, privacy: .public)")
             }
             result = true
         case .failure(let msg):
             stdout.append(msg)
-            if !args.noGui {
+            if !args.dryRun {
+                configReloadErrors.failed(msg)
+                configLog.error("The config failed to load and the one in effect stays: \(msg, privacy: .public)")
+            }
+            if !args.noGui && configReloadErrors.shouldNotify(msg, trigger: trigger) {
                 Task { @MainActor in
                     MessageModel.shared.message = Message(description: "WinMux Config Error", body: msg)
                 }
@@ -51,7 +105,7 @@ struct ReloadConfigCommand: Command {
             result = false
     }
     if !args.dryRun {
-        syncConfigFileWatcher()
+        syncConfigFileWatcher(loaded: adopted)
     }
     return result
 }
@@ -61,7 +115,7 @@ struct ReloadConfigCommand: Command {
     config = newConfig
     config.workspaceSidebar.apply(readWorkspaceSidebarState())
     configUrl = url
-    try await activateMode(activeMode)
+    try await activateMode(config.modeToKeep(activeMode))
     syncStartAtLogin()
     applyReloadedConfigurationToRunningApp()
 }
