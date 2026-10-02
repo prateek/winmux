@@ -8,6 +8,7 @@ final class DoubleSidedWindowController {
     private var animationPanel: NSPanel?
     private var isCapturing = false
     private let captureTimeout: Duration = .milliseconds(500)
+    private static let redrawDelay: Duration = .milliseconds(80)
     // Room for the edge that swings toward the viewer, which perspective draws outside the window's
     // frame, and for the backdrop to cover the windows' shadows.
     private let rotationPadding: CGFloat = 64
@@ -22,7 +23,8 @@ final class DoubleSidedWindowController {
             let workspace = focus.workspace
             isCapturing = true
             let snapshots = await firstResult(within: captureTimeout) {
-                await Self.snapshots(front: frontId, back: backId, rect: rect, padding: self.rotationPadding)
+                await Self.resizeHiddenWindow(other, toMatch: rect)
+                return await Self.snapshots(front: frontId, back: backId, rect: rect, padding: self.rotationPadding)
             }
             isCapturing = false
             // The capture takes long enough for the pair to change or the user to move on.
@@ -45,6 +47,19 @@ final class DoubleSidedWindowController {
               let rect = window.lastAppliedLayoutPhysicalRect
         else { return nil }
         return (other, rect)
+    }
+
+    /// A hidden tab keeps the size it had when it was parked. Its snapshot fills the visible
+    /// window's frame, so it is given that size first, or the snapshot would be stretched.
+    private static func resizeHiddenWindow(_ window: Window, toMatch rect: Rect) async {
+        let size = CGSize(width: rect.width, height: rect.height)
+        guard let window = window as? MacWindow,
+              let current = try? await window.getAxSize(),
+              abs(current.width - size.width) > 1 || abs(current.height - size.height) > 1
+        else { return }
+        try? await window.setAxFrameBlocking(nil, size)
+        // The app needs a moment to draw its content at the new size.
+        try? await Task.sleep(for: redrawDelay)
     }
 
     private struct Snapshots: Sendable {
