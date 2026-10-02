@@ -129,6 +129,12 @@ final class NickelSupervisor {
         lastError = nil
     }
 
+    /// Records why a reload failed while this helper kept serving, as the status's last error. A
+    /// later crash, or a load that succeeds, replaces it.
+    func recordFailedReload(_ message: String) {
+        lastError = message
+    }
+
     func discard(_ loaded: LoadedNickelConfig) {
         Task { await loaded.process.close() }
     }

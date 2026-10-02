@@ -70,14 +70,21 @@ final class ConfigWatchListTest: XCTestCase {
     func testAfterAFailedLoadAnyNickelFileInTheDirectoriesCounts() throws {
         let config = try write("config/winmux.ncl")
         let unseenImport = realPath(dir.appending(path: "config/keys.ncl").path)
-        let notNickel = realPath(dir.appending(path: "config/notes.txt").path)
+        let notImportable = realPath(dir.appending(path: "config/notes.swift").path)
 
         let loaded = ConfigWatchList(configFile: config, imports: [config], library: nil)
         let failed = ConfigWatchList(configFile: config, imports: [config], library: nil, anyNickelFile: true)
 
+        let inASubdirectory = realPath(dir.appending(path: "config").path) + "/lib/keys.ncl"
+        let json = realPath(dir.appending(path: "config").path) + "/colors.json"
+        let elsewhere = realPath(dir.path) + "/other/keys.ncl"
+
         XCTAssertFalse(loaded.holds(anyOf: [unseenImport]))
         XCTAssertTrue(failed.holds(anyOf: [unseenImport]))
-        XCTAssertFalse(failed.holds(anyOf: [notNickel]))
+        XCTAssertTrue(failed.holds(anyOf: [inASubdirectory]))
+        XCTAssertTrue(failed.holds(anyOf: [json]), "Nickel imports JSON too")
+        XCTAssertFalse(failed.holds(anyOf: [notImportable]))
+        XCTAssertFalse(failed.holds(anyOf: [elsewhere]))
     }
 
     func testOnlyAChangeToAWatchedFilesContentsCounts() throws {
@@ -260,64 +267,34 @@ final class ConfigReloadSchedulerTest: XCTestCase {
 }
 
 @MainActor
-final class ConfigReloadErrorsTest: XCTestCase {
+final class ConfigReloadNotificationsTest: XCTestCase {
     func testSaveThatFailsTheSameWayIsNotNotifiedAgain() {
-        var errors = ConfigReloadErrors()
+        var notifications = ConfigReloadNotifications()
 
-        let first = errors.shouldNotify("extra field `gapz`", trigger: .fileChange)
-        let same = errors.shouldNotify("extra field `gapz`", trigger: .fileChange)
-        let different = errors.shouldNotify("extra field `gapzz`", trigger: .fileChange)
+        let first = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)
+        let same = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)
+        let different = notifications.shouldNotify("extra field `gapzz`", trigger: .fileChange)
 
         assertEquals([first, same, different], [true, false, true])
     }
 
     func testLoadThatSucceedsMakesTheSameFailureNewAgain() {
-        var errors = ConfigReloadErrors()
-        _ = errors.shouldNotify("extra field `gapz`", trigger: .fileChange)
+        var notifications = ConfigReloadNotifications()
+        _ = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)
 
-        errors.loaded()
+        notifications.loaded()
 
-        XCTAssertTrue(errors.shouldNotify("extra field `gapz`", trigger: .fileChange))
+        XCTAssertTrue(notifications.shouldNotify("extra field `gapz`", trigger: .fileChange))
     }
 
     func testReloadConfigCommandAlwaysNotifiesAndASaveAfterItDoesNotRepeatIt() {
-        var errors = ConfigReloadErrors()
-        _ = errors.shouldNotify("extra field `gapz`", trigger: .fileChange)
+        var notifications = ConfigReloadNotifications()
+        _ = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)
 
-        let command = errors.shouldNotify("extra field `gapz`", trigger: .command)
-        let saveAfterIt = errors.shouldNotify("extra field `gapz`", trigger: .fileChange)
+        let command = notifications.shouldNotify("extra field `gapz`", trigger: .command)
+        let saveAfterIt = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)
 
         assertEquals([command, saveAfterIt], [true, false])
-    }
-
-    func testLastErrorIsTheLastFailureUntilALoadSucceeds() {
-        var errors = ConfigReloadErrors()
-
-        errors.failed("first")
-        errors.failed("second")
-        let afterFailures = errors.last
-        errors.loaded()
-
-        assertEquals(afterFailures, "second")
-        XCTAssertNil(errors.last)
-    }
-
-    func testConfigStatusShowsAFailedReloadBeforeTheHelpersOwnError() {
-        func status(helperError: String?) -> NickelStatus {
-            NickelStatus(state: .ready, pid: 1, rss: 0, recycles: 0, lastError: helperError, configPath: "/config/winmux.ncl")
-        }
-
-        let reloadFailed = ConfigHelperStatus(status(helperError: nil), reloadError: "extra field `gapz`")
-        let helperFailed = ConfigHelperStatus(status(helperError: "The config helper exited unexpectedly"), reloadError: "extra field `gapz`")
-        let fine = ConfigHelperStatus(status(helperError: nil), reloadError: nil)
-
-        let helperOnly = ConfigHelperStatus(status(helperError: "The config helper exited unexpectedly"), reloadError: nil)
-
-        assertEquals(reloadFailed.lastError, "extra field `gapz`")
-        // The helper keeps its error after it restarts, so it may be older than the reload.
-        assertEquals(helperFailed.lastError, "extra field `gapz`")
-        assertEquals(helperOnly.lastError, "The config helper exited unexpectedly")
-        XCTAssertNil(fine.lastError)
     }
 }
 

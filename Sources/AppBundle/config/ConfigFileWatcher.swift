@@ -9,8 +9,9 @@ struct ConfigWatchList: Equatable, Sendable {
     /// its symbolic links resolved, which is the one macOS reports.
     let files: Set<String>
     let directories: Set<String>
-    /// Whether any Nickel file in the directories counts. After a failed load WinMux does not know
-    /// what the config imports, and the file that failed may be one it has not seen.
+    /// Whether any file Nickel can import, anywhere under the directories, counts. After a failed
+    /// load WinMux does not know what the config imports, and the file that failed may be one it
+    /// has not seen.
     let anyNickelFile: Bool
 
     /// - Parameter configFile: Where the config file is, or would be if it does not exist yet.
@@ -37,7 +38,8 @@ struct ConfigWatchList: Equatable, Sendable {
     func holds(anyOf paths: [String]) -> Bool {
         paths.contains { path in
             files.contains(path)
-                || anyNickelFile && path.hasSuffix(".ncl") && directories.contains((path as NSString).deletingLastPathComponent)
+                || anyNickelFile && importableExtensions.contains((path as NSString).pathExtension)
+                && directories.contains { path.hasPrefix($0 + "/") }
         }
     }
 
@@ -54,6 +56,9 @@ struct ConfigWatchList: Equatable, Sendable {
         }
     }
 }
+
+/// The kinds of file a Nickel config can import.
+private let importableExtensions: Set<String> = ["ncl", "json", "yaml", "yml", "toml", "txt"]
 
 /// `path` with its symbolic links resolved. The part of the path that does not exist is kept as
 /// written.
@@ -103,6 +108,9 @@ final class ConfigFileWatcher {
             matches: { events in watched.value.withLock { $0?.isChanged(by: events) ?? false } },
             onMatch: { [weak self] in self?.onChange() },
         )
+        if stream == nil {
+            configLog.error("Cannot watch \(list.directories.sorted().joined(separator: ", "), privacy: .public), so saves are not reloaded")
+        }
     }
 }
 
@@ -221,7 +229,7 @@ private let reloadDebounceDelay: Duration = .milliseconds(300)
 @MainActor private var lastLoadFailed = false
 
 enum ConfigLoadOutcome {
-    case loaded(LoadedNickelConfig)
+    case loaded(imports: [URL], library: URL?)
     case failed
 }
 
@@ -230,8 +238,8 @@ enum ConfigLoadOutcome {
 /// successful one, and any Nickel file in their directories counts until a load succeeds.
 @MainActor func syncConfigFileWatcher(after outcome: ConfigLoadOutcome? = nil) {
     switch outcome {
-        case .loaded(let loaded):
-            lastLoadedFiles = (loaded.imports, loaded.library)
+        case .loaded(let imports, let library):
+            lastLoadedFiles = (imports, library)
             lastLoadFailed = false
         case .failed: lastLoadFailed = true
         case nil: break

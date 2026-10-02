@@ -137,7 +137,8 @@ final class NickelHelperIntegrationTest: XCTestCase {
         XCTAssertTrue(loaded.imports.contains { $0.path.hasSuffix("winmux/defaults.ncl") })
         assertEquals(list.files.filter { $0.contains("/winmux/") && !$0.contains("/fixtures/") }, [])
         XCTAssertTrue(list.holds(anyOf: [realPath(fixture("over-defaults.ncl").path)]))
-        assertEquals(list.directories, [realPath(fixture("over-defaults.ncl").deletingLastPathComponent().path)])
+        let fixtures = fixture("over-defaults.ncl").deletingLastPathComponent()
+        assertEquals(list.directories, [fixtures.standardizedFileURL.path, realPath(fixtures.path)])
     }
 
     func testNoConfigFileLoadsTheShippedDefaultsWhichMatchTheBuiltInOnes() async throws {
