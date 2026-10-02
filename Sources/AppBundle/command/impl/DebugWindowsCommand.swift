@@ -28,7 +28,7 @@ struct DebugWindowsCommand: Command {
             guard let window = Window.get(byId: windowId) else {
                 return io.err("Can't find window with the specified window-id: \(windowId)")
             }
-            io.out(try await dumpWindowDebugInfo(window) + "\n")
+            io.out(try await dumpWindowDebugInfo(window, withFilterContext: true) + "\n")
             io.out(disclaimer)
             return true
         }
@@ -71,7 +71,7 @@ struct DebugWindowsCommand: Command {
 }
 
 @MainActor
-private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
+private func dumpWindowDebugInfo(_ window: Window, withFilterContext: Bool = false) async throws -> String {
     guard let window = window as? MacWindow else {
         return "Window \(window.windowId) isn't a macOS-backed window"
     }
@@ -99,6 +99,14 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     let isWindow = try await window.isWindowHeuristic(windowLevel)
     result["WinMux.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["WinMux.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
+
+    // What a Filter is given for this window. The Filter context it would be given now is left
+    // out of a recording session, whose output is meant for a bug report: the context holds the
+    // titles and documents of up to three other windows.
+    result["WinMux.windowRecord"] = try await window.windowRecord().map { Json($0.json) } ?? .null
+    if withFilterContext {
+        result["WinMux.filterContext"] = Json(try await filterContextRecord().json)
+    }
 
     var matchingCallbacks: [Json] = []
     for callback in config.onWindowDetected where try await callback.matches(window) {

@@ -29,7 +29,7 @@ public struct ConfigCmdArgs: CmdArgs, Equatable {
 }
 
 public enum ConfigAction: String, CaseIterable, Sendable {
-    case status, check, convert
+    case status, check, convert, schema
 }
 
 private func parseConfigAction(i: PosArgParserInput) -> ParsedCliArgs<ConfigAction> {
@@ -42,7 +42,7 @@ extension ConfigCmdArgs {
         /// The state of the config helper.
         case status
         /// Run by the CLI itself, so that they work when the server is not running.
-        case check(file: String?), convert(file: String?)
+        case check(file: String?), convert(file: String?), schema(json: Bool)
     }
 
     public var mode: Mode {
@@ -54,6 +54,7 @@ extension ConfigCmdArgs {
             case .status: return .status
             case .check: return .check(file: file)
             case .convert: return .convert(file: file)
+            case .schema: return .schema(json: json)
             case nil: break
         }
         die("At least one mode must be specified")
@@ -71,11 +72,11 @@ func parseConfigCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ConfigCmdArgs> {
             if let action = raw.action { conflicting.insert(action.rawValue) }
             return switch conflicting.count {
                 case 1: .cmd(raw)
-                case 0: .failure("Specify one of: status, check, convert, --get, --major-keys, --all-keys, --config-path")
+                case 0: .failure("Specify one of: status, check, convert, schema, --get, --major-keys, --all-keys, --config-path")
                 default: .failure("Conflicting flags are specified: \(conflicting.joined(separator: ", "))")
             }
         }
         .filter("--keys flag requires --get flag") { !$0.keys || $0.keyNameToGet != nil }
-        .filter("--json flag requires --get flag") { !$0.json || $0.keyNameToGet != nil }
+        .filter("--json flag requires --get flag or schema") { !$0.json || $0.keyNameToGet != nil || $0.action == .schema }
         .filter("Only check and convert take a file") { $0.file == nil || $0.action == .check || $0.action == .convert }
 }

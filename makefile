@@ -19,7 +19,7 @@ BUILD_NUMBER ?= $(VERSION)
 HARDENED_RUNTIME ?= YES
 ARGS ?=
 
-.PHONY: generate xcodeproj helper default-config build build-clean run run-clean cli check release install installed clean
+.PHONY: generate xcodeproj helper default-config contract build build-clean run run-clean cli check release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -49,6 +49,11 @@ helper:
 # when no helper can load anything. Regenerate after changing defaults.ncl.
 default-config: helper
 	/bin/bash -lc 'cd "$(CURDIR)" && ./nickel-helper/target/release/winmux-nickel defaults > resources/default-config.json'
+
+# The Nickel contracts for the records in nickel-helper/src/records.rs. Regenerate after
+# changing a record.
+contract: helper
+	/bin/bash -lc 'cd "$(CURDIR)" && ./nickel-helper/target/release/winmux-nickel contract > nickel-helper/nickel/winmux/contract.ncl'
 
 build:
 	$(MAKE) generate VERSION="$(VERSION)"

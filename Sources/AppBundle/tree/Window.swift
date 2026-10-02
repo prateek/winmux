@@ -8,6 +8,10 @@ open class Window: TreeNode, Hashable {
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
+    /// The workspace the window was on when WinMux moved it into the minimized container, which
+    /// sits outside every workspace. WinMux may delete that workspace while the window is
+    /// minimized, so its project is kept too. Stale once the window leaves that container.
+    var minimizedOn: (workspaceName: String, projectId: WorkspaceProjectId)? = nil
     /// Event-invalidated caches of the native window state (frame, fullscreen, minimized),
     /// read on hot paths instead of polling every window over AX. Entering/exiting native
     /// fullscreen always resizes the window (invalidated via moved/resized events); minimize
@@ -83,6 +87,9 @@ open class Window: TreeNode, Hashable {
 
     func getAxSize() async throws -> CGSize? { die("Not implemented") }
     var title: String { get async throws { die("Not implemented") } }
+    @MainActor var axRecordAttributes: WindowAxRecordAttributes { get async throws { die("Not implemented") } }
+    /// The window's layer in the window server: 0 for a normal window, and 0 when unknown.
+    @MainActor var cgWindowLevel: Int { die("Not implemented") }
     var isMacosFullscreen: Bool { get async throws { false } }
     var isMacosMinimized: Bool { get async throws { false } } // todo replace with enum MacOsWindowNativeState { normal, fullscreen, invisible }
     var isHiddenInCorner: Bool { die("Not implemented") }
@@ -112,6 +119,7 @@ extension Window {
     @MainActor
     func rememberMacOsLayoutOrigin(detachFromWorkspace: Bool = false) {
         guard let parent else { return }
+        if detachFromWorkspace { minimizedOn = nodeWorkspace.map { ($0.name, $0.projectId) } }
         layoutReason = .macos(
             prevParentKind: parent.kind,
             prevWorkspaceName: detachFromWorkspace ? nil : nodeWorkspace?.name,

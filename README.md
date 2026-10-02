@@ -181,6 +181,19 @@ let W = import "winmux/winmux.ncl" in
 
 The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, `winmux reload-config` applies the file, and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
 
+### Filters
+A Filter is a function that says yes or no to a window. It takes the window as `w` and the Filter context as `ctx`, and named Filters live in the config's `filters` record:
+
+```nickel
+filters = {
+  mail = fun w ctx => w.app.bundleId == "com.apple.mail",
+  same-app = fun w ctx => ctx.focused != null && ctx.focused.app.bundleId == w.app.bundleId,
+  other-mail = fun w ctx => filters.mail w ctx && w.workspace != ctx.workspace.name,
+},
+```
+
+`winmux config schema` prints every field of `w` and `ctx` with its type and a description, and `--json` prints the same as JSON. WinMux calls every Filter twice when the config loads, against a made-up window, so a misspelled field fails the load with Nickel's diagnostic. `ctx.focused`, `ctx.mouse` and `ctx.previous` are `null` when there is no such window. The first call sets all three and the second leaves them `null`, so the load fails for a Filter that reads one without checking.
+
 ## Migrating
 ### From a TOML config
 If `~/.config/winmux/winmux.ncl` does not exist and `~/.config/winmux/winmux.toml` does, WinMux converts it on first launch. `winmux config convert` prints the same conversion, and works without WinMux running.

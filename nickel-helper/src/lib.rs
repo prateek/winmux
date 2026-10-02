@@ -7,6 +7,7 @@ pub mod host;
 pub mod protocol;
 pub mod records;
 pub mod rss;
+pub mod schema;
 
 use std::path::PathBuf;
 

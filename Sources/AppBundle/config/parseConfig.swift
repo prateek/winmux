@@ -165,8 +165,12 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     guard case .object(let fields) = settings else {
         return (Config(), [.syntax("The config must be a record")])
     }
-    return parseConfig(tomlTable(fields))
+    return parseConfig(tomlTable(fields.filter { !helperOwnedRootKeys.contains($0.key) }))
 }
+
+/// Top-level keys that hold functions, which stay in `winmux-nickel`, or that only the helper
+/// reads. What is left of them in the settings is not for this parser.
+private let helperOwnedRootKeys: Set<String> = ["filters", "lenses", "contract-version"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))

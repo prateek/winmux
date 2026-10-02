@@ -183,4 +183,23 @@ extension TreeNodeTest {
         XCTAssertTrue(stagingWorkspace.floatingWindows.contains(window))
         XCTAssertEqual(window.layoutReason, .standard)
     }
+
+    func testRestoredWindowFoundMinimizedRemembersItsFrozenWorkspace() async throws {
+        let workspace = Workspace.get(byName: "restore")
+        let window = TestWindow.new(id: 45, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        window.layoutReason = .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspace.name)
+        let frozenWorld = FrozenWorld(
+            workspaces: [FrozenWorkspace(workspace)],
+            monitors: monitors.map(FrozenMonitor.init),
+            windowIds: [window.windowId],
+        )
+        window.bindAsFloatingWindow(to: Workspace.get(byName: "staging"))
+        window.nativeIsMacosMinimized = true
+
+        let didRestore = try await restoreFrozenWorldIfNeeded(frozenWorld, newlyDetectedWindow: window)
+
+        XCTAssertTrue(didRestore)
+        XCTAssertTrue(window.parent is MacosMinimizedWindowsContainer)
+        XCTAssertEqual(window.minimizedOn?.workspaceName, "restore")
+    }
 }

@@ -6,6 +6,7 @@
 # `Config` checks the config's shape: every key it knows, and nothing else. WinMux checks the
 # values that have a syntax of their own (commands, key names, monitor patterns) when it applies
 # the config.
+let Contract = import "contract.ncl" in
 let Int = std.number.Integer in
 let Choice = fun tags => std.contract.Sequence [std.enum.TagOrString, tags] in
 
@@ -49,9 +50,18 @@ let WorkspaceSidebar = {
   project-colors | { _ | String } | optional,
 } in
 
-{
+# The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
+# `FilterContext` and the rest) and `contract-version` come from contract.ncl.
+Contract
+& {
+  # A yes/no function over a window, given the Filter context.
+  Filter = Contract.Window -> Contract.FilterContext -> Bool,
+
   Config = {
     config-version | Int | optional,
+    # The version of the Filter contract the config was written for. Accepted and ignored: at
+    # version 1 no config can lag behind.
+    contract-version | Int | optional,
 
     start-at-login | Bool | optional,
     auto-reload-config | Bool | optional,
@@ -105,7 +115,7 @@ let WorkspaceSidebar = {
     workspace-to-monitor-force-assignment | { _ | Monitors } | optional,
 
     # Named Filters, and the Lenses that use them.
-    filters | { _ | Dyn } | optional,
-    lenses | { _ | { filter | Dyn | optional, .. } } | optional,
+    filters | { _ | Filter } | optional,
+    lenses | { _ | { filter | Filter | optional, .. } } | optional,
   },
 }

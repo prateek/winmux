@@ -2,9 +2,9 @@ import Common
 import CoreServices
 import Foundation
 
-/// `config check` and `config convert` run `winmux-nickel` in place of this process, so they
-/// work when the WinMux server is not running.
-func execNickelHelper(_ action: ConfigAction, file: String?) -> Never {
+/// `config check`, `config convert` and `config schema` run `winmux-nickel` in place of this
+/// process, so they work when the WinMux server is not running.
+func execNickelHelper(_ action: ConfigAction, file: String? = nil, json: Bool = false) -> Never {
     guard let helper = findNickelHelper() else {
         exit(1, err: "Can't find the config helper winmux-nickel. Set WINMUX_NICKEL_HELPER to its path, or install WinMux.app")
     }
@@ -22,6 +22,8 @@ func execNickelHelper(_ action: ConfigAction, file: String?) -> Never {
                 exit(1, err: "No TOML config to convert. Looked for:\n\(candidates.map(\.path).joined(separator: "\n"))")
             }
             arguments.append(tomlUrl.path)
+        case (.schema, nil):
+            if json { arguments.append("--json") }
         case (.status, nil):
             die("'config status' is answered by the server")
     }

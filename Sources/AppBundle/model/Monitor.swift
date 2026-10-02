@@ -8,6 +8,8 @@ private struct MonitorImpl {
     let rect: Rect
     let visibleRect: Rect
     let isMain: Bool
+    var displayUuid: String = ""
+    var isBuiltin: Bool = false
 }
 
 extension MonitorImpl: Monitor {
@@ -25,6 +27,14 @@ protocol Monitor: WinMuxAny {
     var width: CGFloat { get }
     var height: CGFloat { get }
     var isMain: Bool { get }
+    /// The display's UUID, which survives reconnecting it. Empty when unknown.
+    var displayUuid: String { get }
+    var isBuiltin: Bool { get }
+}
+
+extension Monitor {
+    var displayUuid: String { "" }
+    var isBuiltin: Bool { false }
 }
 
 final class LazyMonitor: Monitor {
@@ -53,6 +63,9 @@ final class LazyMonitor: Monitor {
     var visibleRect: Rect {
         _visibleRect ?? screen.visibleRect.also { _visibleRect = $0 }
     }
+
+    var displayUuid: String { screen.displayUuid }
+    var isBuiltin: Bool { screen.isBuiltin }
 }
 
 // Note to myself: Don't use NSScreen.main, it's garbage
@@ -64,6 +77,13 @@ extension NSScreen {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber).map { CGDirectDisplayID(truncating: $0) }
     }
 
+    fileprivate var displayUuid: String {
+        guard let displayId, let uuid = CGDisplayCreateUUIDFromDisplayID(displayId)?.takeRetainedValue() else { return "" }
+        return CFUUIDCreateString(nil, uuid) as String
+    }
+
+    fileprivate var isBuiltin: Bool { displayId.map { CGDisplayIsBuiltin($0) != 0 } ?? false }
+
     fileprivate func toMonitor(monitorAppKitNsScreenScreensId: Int) -> Monitor {
         MonitorImpl(
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
@@ -71,6 +91,8 @@ extension NSScreen {
             rect: rect,
             visibleRect: visibleRect,
             isMain: isMainScreen,
+            displayUuid: displayUuid,
+            isBuiltin: isBuiltin,
         )
     }
 

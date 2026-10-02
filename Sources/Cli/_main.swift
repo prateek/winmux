@@ -66,6 +66,7 @@ struct Main {
             switch configArgs.mode {
                 case .check(let file): execNickelHelper(.check, file: file)
                 case .convert(let file): execNickelHelper(.convert, file: file)
+                case .schema(let json): execNickelHelper(.schema, json: json)
                 case .getKey, .majorKeys, .allKeys, .configPath, .status: break
             }
         }
