@@ -24,6 +24,8 @@ final class TestWindow: Window, CustomStringConvertible {
     @MainActor
     static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
         let wi = TestWindow(id, parent, adaptiveWeight, rect)
+        // A test's window stands for one WinMux already manages, not one it has just found.
+        wi.wasSeenUnminimized = true
         TestApp.shared._windows.append(wi)
         return wi
     }
@@ -51,9 +53,11 @@ final class TestWindow: Window, CustomStringConvertible {
 
     @MainActor var testAxRecordAttributes: WindowAxRecordAttributes? = nil
     @MainActor var testAxRecordError: (any Error)? = nil
-    @MainActor override var axRecordAttributes: WindowAxRecordAttributes {
+    @MainActor var testAxElementIsGone = false
+    @MainActor override var axRecordAttributes: WindowAxRecordAttributes? {
         get async throws {
             if let testAxRecordError { throw testAxRecordError }
+            if testAxElementIsGone { return nil }
             return testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
         }
     }

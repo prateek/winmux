@@ -187,9 +187,15 @@ extension Workspace {
 }
 /// The window that held focus before the focused one, if it still exists. `prevFocus` falls back
 /// to another window of that workspace when it does not; this never does.
+///
+/// Moving the focused window to another workspace or monitor is a focus change that keeps the
+/// window, so the focus before that one is looked at too.
 @MainActor var prevFocusedWindow: Window? {
-    guard let window = _prevFocus?.windowId.flatMap({ Window.get(byId: $0) }), window != focus.windowOrNil else { return nil }
-    return window
+    let focused = focus.windowOrNil
+    return [_prevFocus, _prevPrevFocus].lazy
+        .compactMap { $0?.windowId }
+        .first { $0 != focused?.windowId }
+        .flatMap { Window.get(byId: $0) }
 }
 @MainActor private var _prevPrevFocus: FrozenFocus? = nil
 @MainActor var prevPrevFocus: LiveFocus? {

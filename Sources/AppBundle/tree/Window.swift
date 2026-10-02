@@ -83,7 +83,11 @@ open class Window: TreeNode, Hashable {
 
     func getAxSize() async throws -> CGSize? { die("Not implemented") }
     var title: String { get async throws { die("Not implemented") } }
-    @MainActor var axRecordAttributes: WindowAxRecordAttributes { get async throws { die("Not implemented") } }
+    /// `nil` when the window's AX element is gone, which is a window that is closing.
+    @MainActor var axRecordAttributes: WindowAxRecordAttributes? { get async throws { die("Not implemented") } }
+    /// Whether WinMux has seen the window unminimized. A window first seen minimized, such as one
+    /// minimized before WinMux started, was bound to a workspace only to have somewhere to sit.
+    var wasSeenUnminimized = false
     /// The window's layer in the window server: 0 for a normal window, and 0 when unknown.
     @MainActor var cgWindowLevel: Int { die("Not implemented") }
     var isMacosFullscreen: Bool { get async throws { false } }
@@ -197,11 +201,11 @@ extension Window {
     }
 
     @MainActor
-    func rememberMacOsLayoutOrigin(detachFromWorkspace: Bool = false) {
+    func rememberMacOsLayoutOrigin(detachFromWorkspace: Bool = false, originIsKnown: Bool = true) {
         guard let parent else { return }
         layoutReason = .macos(
             prevParentKind: parent.kind,
-            origin: nodeWorkspace.map(WorkspaceOrigin.init),
+            origin: originIsKnown ? nodeWorkspace.map(WorkspaceOrigin.init) : nil,
             returnsToOrigin: !detachFromWorkspace,
         )
     }

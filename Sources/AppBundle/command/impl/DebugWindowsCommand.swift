@@ -24,11 +24,14 @@ struct DebugWindowsCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        if args.filterContext && args.windowId == nil {
+            return io.err("--filter-context requires --window-id")
+        }
         if let windowId = args.windowId {
             guard let window = Window.get(byId: windowId) else {
                 return io.err("Can't find window with the specified window-id: \(windowId)")
             }
-            io.out(try await dumpWindowDebugInfo(window, withFilterContext: true) + "\n")
+            io.out(try await dumpWindowDebugInfo(window, withFilterContext: args.filterContext) + "\n")
             io.out(disclaimer)
             return true
         }
@@ -100,8 +103,8 @@ private func dumpWindowDebugInfo(_ window: Window, withFilterContext: Bool = fal
     result["WinMux.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["WinMux.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
-    // What a Filter is given for this window. The Filter context it would be given now is left
-    // out of a recording session, whose output is meant for a bug report: the context holds the
+    // What a Filter is given for this window. The Filter context it would be given now is
+    // printed only on request: this output is meant for a bug report, and the context holds the
     // titles and documents of up to three other windows.
     result["WinMux.windowRecord"] = try await window.windowRecord().map { Json($0.json) } ?? .null
     if withFilterContext {

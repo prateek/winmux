@@ -242,4 +242,65 @@ final class ContractRecordsTest: XCTestCase {
 
         assertEquals(underMouse?.windowId, 2)
     }
+
+    func testWindowFirstSeenMinimizedReportsNoWorkspace() async throws {
+        // WinMux binds a window it has just found to the active workspace, minimized or not.
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        window.wasSeenUnminimized = false
+        window.nativeIsMacosMinimized = true
+        try await normalizeLayoutReason()
+
+        let record = try await window.windowRecord()
+
+        assertEquals(record?.windowClass, .minimized)
+        assertEquals(record?.workspace, "")
+        assertEquals(record?.project, "")
+        assertEquals(record?.monitor, .unknown)
+    }
+
+    func testWindowWhoseAxElementIsGoneHasNoRecord() async throws {
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        window.testAxElementIsGone = true
+
+        let record = try await window.windowRecord()
+
+        XCTAssertNil(record)
+    }
+
+    func testPreviousSurvivesTheFocusedWindowMovingToAnotherWorkspace() async throws {
+        let workspace = focus.workspace
+        let first = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let second = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        check(first.focusWindow())
+        checkOnFocusChangedCallbacks()
+        check(second.focusWindow())
+        checkOnFocusChangedCallbacks()
+
+        second.bind(to: Workspace.get(byName: "elsewhere").rootTilingContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        check(second.focusWindow())
+        checkOnFocusChangedCallbacks()
+        let context = try await filterContextRecord(mouse: .zero)
+
+        assertEquals(context.focused?.id, 2)
+        assertEquals(context.focused?.workspace, "elsewhere")
+        assertEquals(context.previous?.id, 1)
+    }
+
+    func testMouseOverATabGroupWithAFullscreenTabIsItsActiveTab() async throws {
+        let workspace = focus.workspace
+        workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 0, topLeftY: 0, width: 800, height: 600)
+        let beside = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        beside.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 0, topLeftY: 0, width: 400, height: 600)
+        let tabGroup = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        TestWindow.new(id: 2, parent: tabGroup)
+        let fullscreenTab = TestWindow.new(id: 3, parent: tabGroup)
+        fullscreenTab.isFullscreen = true
+        fullscreenTab.markAsMostRecentChild()
+        beside.markAsMostRecentChild()
+
+        let underMouse = try await windowUnderMouse(CGPoint(x: 100, y: 100))
+
+        XCTAssertTrue(tabGroup.hasFullscreenTab)
+        assertEquals(underMouse?.windowId, 3)
+    }
 }

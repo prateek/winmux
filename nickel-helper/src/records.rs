@@ -49,9 +49,9 @@ host_record! {
         "name" => name: String,
         /// The app's process id.
         "pid" => pid: i64,
-        /// Whether the app's bundle declares it an Accessory app (LSUIElement). Fixed while the app runs.
+        /// Whether the app's bundle declares it an Accessory app (LSUIElement). Fixed while the app runs. Always false for now.
         "accessory" => accessory: bool,
-        /// The app's activation policy right now. It can change while the app runs.
+        /// The app's activation policy right now. It can change while the app runs. Always 'regular for now.
         "activationPolicy" => activation_policy: ActivationPolicy,
     }
 }
@@ -62,11 +62,11 @@ host_record! {
         "id" => id: i64,
         /// The window's title, or "" when it has none.
         "title" => title: String,
-        /// Where the window sits in WinMux's layout. Every window has exactly one class.
+        /// Where the window sits in WinMux's layout. Every window has exactly one class. For now every popup is 'app-popup.
         "class" => class: WindowClass,
         /// The window's accessibility subrole, such as "AXStandardWindow", or "" when unknown.
         "subrole" => subrole: String,
-        /// The window's layer in the window server: 0 for a normal window.
+        /// The window's layer in the window server: 0 for a normal window, and 0 when unknown, as for a window that is off screen.
         "level" => level: i64,
         /// Whether the window has a close button.
         "hasCloseButton" => has_close_button: bool,
@@ -78,7 +78,7 @@ host_record! {
         "project" => project: String,
         /// The monitor showing the window's workspace. Every field is at its unknown value when the window has no workspace on a monitor.
         "monitor" => monitor: Monitor,
-        /// The window's place in focus order: higher is more recent, and 0 is never focused.
+        /// The window's place in focus order: higher is more recent, and 0 is never focused. Always 0 for now.
         "lastFocusedSeq" => last_focused_seq: i64,
         /// The app that owns the window.
         "app" => app: App,
