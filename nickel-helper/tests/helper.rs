@@ -488,6 +488,23 @@ fn filter_that_does_not_return_a_bool_fails_the_load() {
 }
 
 #[test]
+fn filter_called_with_swapped_arguments_fails_at_the_field_it_reads() {
+    let error = load_error("swapped-arguments.ncl");
+
+    assert!(error.contains("smoke run of `filters.other-mail` failed"), "{error}");
+    assert!(error.contains("missing field `app`"), "{error}");
+    assert!(error.contains("swapped-arguments.ncl:4"), "the diagnostic points into the config:\n{error}");
+    assert!(!error.contains("winmux.ncl"), "and not into the shipped library:\n{error}");
+}
+
+#[test]
+fn filter_that_takes_one_argument_fails_the_load() {
+    let error = load_error("one-argument.ncl");
+
+    assert!(error.contains("smoke run of `filters.everything` failed"), "{error}");
+}
+
+#[test]
 fn named_filter_that_is_not_a_function_fails_the_load() {
     let error = load_error("not-a-function.ncl");
 

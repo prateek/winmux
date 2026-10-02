@@ -54,8 +54,11 @@ let WorkspaceSidebar = {
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
 Contract
 & {
-  # A yes/no function over a window, given the Filter context.
-  Filter = Contract.Window -> Contract.FilterContext -> Bool,
+  # A yes/no function over a window, given the Filter context. Its arguments are `Dyn`, not
+  # `Window` and `FilterContext`: WinMux checks every record before it reaches a Filter, and
+  # checking it again on each call makes a Filter several times slower. A Filter called with the
+  # wrong arguments still fails, at the field it reads.
+  Filter = Dyn -> Dyn -> Bool,
 
   Config = {
     config-version | Int | optional,
