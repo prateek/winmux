@@ -1,41 +1,103 @@
 import AppKit
 import ScreenCaptureKit
 
-/// One-shot capture of a single window. Requires the Screen Recording grant.
+enum WindowScreenshotError: LocalizedError {
+    case screenRecordingNotGranted
+    case windowNotFound(CGWindowID)
+    case captureFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+            case .screenRecordingNotGranted:
+                "Capturing a window needs the Screen Recording permission. Grant it to this app, or to the terminal it runs in, under System Settings > Privacy & Security."
+            case .windowNotFound(let id):
+                "No window with id \(id) can be captured."
+            case .captureFailed(let reason):
+                "ScreenCaptureKit could not capture the window: \(reason)"
+        }
+    }
+}
+
+/// One-shot captures through ScreenCaptureKit. They need the Screen Recording grant, even for a
+/// window of this process.
 @MainActor
 enum WindowScreenshot {
-    // SCContentFilter takes an SCWindow, and listing them costs about 30 ms, so the list is
-    // kept between captures and fetched again only for a window id it doesn't have.
-    private static var shareableWindows: [CGWindowID: SCWindow] = [:]
+    // SCContentFilter takes SCWindows and SCDisplays, and listing them costs about 30 ms, so the
+    // list is kept between captures and fetched again only for a window id it doesn't have.
+    private static var content: SCShareableContent?
+    private static var contentFetch: Task<Void, Never>?
 
-    /// - Parameter pixelSize: Size of the returned image. The window's size in points gives one pixel per point.
-    static func capture(_ windowId: CGWindowID, pixelSize: CGSize) async -> CGImage? {
-        guard let window = await shareableWindow(windowId) else { return nil }
-        let configuration = SCScreenshotConfiguration()
-        configuration.width = Int(pixelSize.width.rounded(.up))
-        configuration.height = Int(pixelSize.height.rounded(.up))
-        configuration.showsCursor = false
+    /// - Parameter pixelSize: Size of the returned image. `nil` gives one pixel per point of the
+    ///   window's own size.
+    static func capture(_ windowId: CGWindowID, pixelSize: CGSize? = nil) async throws -> CGImage {
+        let window = try await shareableWindow(windowId)
+        let configuration = baseConfiguration()
+        if let pixelSize {
+            configuration.width = Int(pixelSize.width.rounded(.up))
+            configuration.height = Int(pixelSize.height.rounded(.up))
+        }
         configuration.ignoreShadows = true
         configuration.includeChildWindows = false
-        configuration.dynamicRange = .sdr
         do {
-            return try await SCScreenshotManager.captureScreenshot(
-                contentFilter: SCContentFilter(desktopIndependentWindow: window),
-                configuration: configuration,
-            ).sdrImage
+            return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
         } catch {
             // The window may have closed since it was listed
-            shareableWindows[windowId] = nil
-            return nil
+            content = nil
+            throw error
         }
     }
 
-    private static func shareableWindow(_ windowId: CGWindowID) async -> SCWindow? {
-        if let window = shareableWindows[windowId] { return window }
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false) else {
-            return nil
+    /// What the screen shows in `rect` with the given windows left out, at one pixel per point.
+    /// - Parameter rect: In global display coordinates, origin at the top left of the main display.
+    static func captureScreen(_ rect: CGRect, excluding windowIds: [CGWindowID]) async throws -> CGImage {
+        var excluded: [SCWindow] = []
+        for id in windowIds {
+            excluded.append(try await shareableWindow(id))
         }
-        shareableWindows = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
-        return shareableWindows[windowId]
+        guard let display = content?.displays.first(where: { $0.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) }) else {
+            throw WindowScreenshotError.captureFailed("no display contains the requested area")
+        }
+        let configuration = baseConfiguration()
+        configuration.sourceRect = rect.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
+        configuration.width = Int(rect.width.rounded(.up))
+        configuration.height = Int(rect.height.rounded(.up))
+        return try await screenshot(SCContentFilter(display: display, excludingWindows: excluded), configuration)
+    }
+
+    private static func baseConfiguration() -> SCScreenshotConfiguration {
+        let configuration = SCScreenshotConfiguration()
+        configuration.showsCursor = false
+        configuration.dynamicRange = .sdr
+        return configuration
+    }
+
+    private static func screenshot(_ filter: SCContentFilter, _ configuration: SCScreenshotConfiguration) async throws -> CGImage {
+        let output: SCScreenshotOutput
+        do {
+            output = try await SCScreenshotManager.captureScreenshot(contentFilter: filter, configuration: configuration)
+        } catch {
+            throw WindowScreenshotError.captureFailed(error.localizedDescription)
+        }
+        guard let image = output.sdrImage else {
+            throw WindowScreenshotError.captureFailed("no image was returned")
+        }
+        return image
+    }
+
+    private static func shareableWindow(_ windowId: CGWindowID) async throws -> SCWindow {
+        if let window = content?.windows.first(where: { $0.windowID == windowId }) { return window }
+        guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
+        // Captures that start together share one fetch.
+        let fetch = contentFetch ?? Task { @MainActor in
+            content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            contentFetch = nil
+        }
+        contentFetch = fetch
+        await fetch.value
+        guard let content else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
+        guard let window = content.windows.first(where: { $0.windowID == windowId }) else {
+            throw WindowScreenshotError.windowNotFound(windowId)
+        }
+        return window
     }
 }

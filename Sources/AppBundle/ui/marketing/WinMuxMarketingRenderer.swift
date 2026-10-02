@@ -87,14 +87,11 @@ private func renderMarketingView<Content: View>(
     try await Task.sleep(for: .milliseconds(800))
 
     let scale = window.backingScaleFactor
-    let image = await WindowScreenshot.capture(
+    defer { window.orderOut(nil) }
+    let image = try await WindowScreenshot.capture(
         CGWindowID(window.windowNumber),
         pixelSize: CGSize(width: renderSize.width * scale, height: renderSize.height * scale),
     )
-    window.orderOut(nil)
-    guard let image else {
-        throw WinMuxMarketingRenderError.renderFailed
-    }
     let bitmap = NSBitmapImageRep(cgImage: image)
     guard let data = bitmap.representation(using: .png, properties: [.compressionFactor: 1]) else {
         throw WinMuxMarketingRenderError.encodingFailed
