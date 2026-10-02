@@ -17,10 +17,7 @@ func workspaceHasSidebarVisibleWindows(_ workspace: Workspace) -> Bool {
 @MainActor
 func workspaceOwnedMinimizedWindows(_ workspace: Workspace) -> [Window] {
     macosMinimizedWindowsContainer.children.filterIsInstance(of: Window.self).filter {
-        switch $0.layoutReason {
-            case .macos(_, let prevWorkspaceName): prevWorkspaceName == workspace.name
-            case .standard: false
-        }
+        $0.layoutReason.returnWorkspaceName == workspace.name
     }
 }
 

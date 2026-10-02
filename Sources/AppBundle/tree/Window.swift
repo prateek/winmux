@@ -8,10 +8,6 @@ open class Window: TreeNode, Hashable {
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
-    /// The workspace the window was on when WinMux moved it into the minimized container, which
-    /// sits outside every workspace. WinMux may delete that workspace while the window is
-    /// minimized, so its project is kept too. Stale once the window leaves that container.
-    var minimizedOn: (workspaceName: String, projectId: WorkspaceProjectId)? = nil
     /// Event-invalidated caches of the native window state (frame, fullscreen, minimized),
     /// read on hot paths instead of polling every window over AX. Entering/exiting native
     /// fullscreen always resizes the window (invalidated via moved/resized events); minimize
@@ -101,10 +97,94 @@ open class Window: TreeNode, Hashable {
     func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) { die("Not implemented") }
 }
 
-enum LayoutReason: Codable, Equatable, Sendable {
+/// The workspace a window was on, with its project: WinMux may delete the workspace while the
+/// window is away from it.
+struct WorkspaceOrigin: Codable, Equatable, Sendable {
+    var workspaceName: String
+    var projectId: WorkspaceProjectId
+
+    init(workspaceName: String, projectId: WorkspaceProjectId) {
+        self.workspaceName = workspaceName
+        self.projectId = projectId
+    }
+
+    init(_ workspace: Workspace) {
+        self.init(workspaceName: workspace.name, projectId: workspace.projectId)
+    }
+}
+
+enum LayoutReason: Equatable, Sendable {
     case standard
-    /// Reason for the cur temp layout is macOS native fullscreen, minimize, or hide
-    case macos(prevParentKind: NonLeafTreeNodeKind, prevWorkspaceName: String?)
+    /// Reason for the cur temp layout is macOS native fullscreen, minimize, or hide.
+    ///
+    /// `origin` is where the window was. A minimized window is detached from it: the window does
+    /// not keep that workspace alive, and when unminimized it lands on the focused workspace. So
+    /// `returnsToOrigin` is false for it, and the origin only says where the window came from.
+    case macos(prevParentKind: NonLeafTreeNodeKind, origin: WorkspaceOrigin?, returnsToOrigin: Bool)
+
+    var origin: WorkspaceOrigin? {
+        switch self {
+            case .standard: nil
+            case .macos(_, let origin, _): origin
+        }
+    }
+
+    /// The workspace the window goes back to when it leaves the macOS state, which it also keeps
+    /// alive meanwhile. `nil` means the focused workspace.
+    var returnWorkspaceName: String? {
+        switch self {
+            case .standard: nil
+            case .macos(_, let origin, let returnsToOrigin): returnsToOrigin ? origin?.workspaceName : nil
+        }
+    }
+
+    /// The same reason with its origin moved to `workspace`.
+    func movingOrigin(to workspace: Workspace) -> LayoutReason {
+        switch self {
+            case .standard: .standard
+            case .macos(let prevParentKind, _, let returnsToOrigin):
+                .macos(prevParentKind: prevParentKind, origin: WorkspaceOrigin(workspace), returnsToOrigin: returnsToOrigin)
+        }
+    }
+}
+
+extension LayoutReason: Codable {
+    private enum CodingKeys: String, CodingKey { case standard, macos }
+    private enum MacosKeys: String, CodingKey { case prevParentKind, origin, returnsToOrigin, prevWorkspaceName }
+    private struct Empty: Codable {}
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard container.contains(.macos) else {
+            self = .standard
+            return
+        }
+        let macos = try container.nestedContainer(keyedBy: MacosKeys.self, forKey: .macos)
+        let prevParentKind = try macos.decode(NonLeafTreeNodeKind.self, forKey: .prevParentKind)
+        if let returnsToOrigin = try macos.decodeIfPresent(Bool.self, forKey: .returnsToOrigin) {
+            let origin = try macos.decodeIfPresent(WorkspaceOrigin.self, forKey: .origin)
+            self = .macos(prevParentKind: prevParentKind, origin: origin, returnsToOrigin: returnsToOrigin)
+        } else {
+            // State saved before the origin was kept: a workspace name meant "return there", and
+            // a detached window had none. The project was not saved.
+            let origin = try macos.decodeIfPresent(String.self, forKey: .prevWorkspaceName)
+                .map { WorkspaceOrigin(workspaceName: $0, projectId: workspaceProjectDefaultId) }
+            self = .macos(prevParentKind: prevParentKind, origin: origin, returnsToOrigin: origin != nil)
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+            case .standard:
+                try container.encode(Empty(), forKey: .standard)
+            case .macos(let prevParentKind, let origin, let returnsToOrigin):
+                var macos = container.nestedContainer(keyedBy: MacosKeys.self, forKey: .macos)
+                try macos.encode(prevParentKind, forKey: .prevParentKind)
+                try macos.encodeIfPresent(origin, forKey: .origin)
+                try macos.encode(returnsToOrigin, forKey: .returnsToOrigin)
+        }
+    }
 }
 
 extension Window {
@@ -119,10 +199,10 @@ extension Window {
     @MainActor
     func rememberMacOsLayoutOrigin(detachFromWorkspace: Bool = false) {
         guard let parent else { return }
-        if detachFromWorkspace { minimizedOn = nodeWorkspace.map { ($0.name, $0.projectId) } }
         layoutReason = .macos(
             prevParentKind: parent.kind,
-            prevWorkspaceName: detachFromWorkspace ? nil : nodeWorkspace?.name,
+            origin: nodeWorkspace.map(WorkspaceOrigin.init),
+            returnsToOrigin: !detachFromWorkspace,
         )
     }
 

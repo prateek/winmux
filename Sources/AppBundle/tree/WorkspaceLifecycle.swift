@@ -137,17 +137,9 @@ func moveWorkspaceContents(from source: Workspace, to target: Workspace) {
         }
     }
     for window in macosMinimizedWindowsContainer.children.filterIsInstance(of: Window.self)
-        where window.minimizedOn?.workspaceName == source.name
+        where window.layoutReason.origin?.workspaceName == source.name
     {
-        window.minimizedOn = (target.name, target.projectId)
-    }
-    for window in workspaceOwnedMinimizedWindows(source) {
-        switch window.layoutReason {
-            case .macos(let prevParentKind, _):
-                window.layoutReason = .macos(prevParentKind: prevParentKind, prevWorkspaceName: target.name)
-            case .standard:
-                break
-        }
+        window.layoutReason = window.layoutReason.movingOrigin(to: target)
     }
 }
 

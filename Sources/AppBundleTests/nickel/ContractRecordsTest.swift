@@ -89,6 +89,7 @@ final class ContractRecordsTest: XCTestCase {
 
         let record = try await window.windowRecord()
         assertEquals(record?.workspace, "3")
+        assertEquals(workspaceOwnedMinimizedWindows(target), [], additionalMsg: "a detached window does not keep its workspace alive")
     }
 
     func testWindowOutsideEveryWorkspaceReportsNoWorkspaceProjectOrMonitor() async throws {

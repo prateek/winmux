@@ -72,12 +72,12 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.bind(to: workspace.macOsNativeHiddenAppsWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     default: break
                 }
-            case .macos(let prevParentKind, let prevWorkspaceName):
+            case .macos(let prevParentKind, _, _):
                 if !isMacosFullscreen && !isMacosMinimized && !isMacosWindowOfHiddenApp {
                     try await exitMacOsNativeUnconventionalState(
                         window: window,
                         prevParentKind: prevParentKind,
-                        prevWorkspaceName: prevWorkspaceName,
+                        prevWorkspaceName: window.layoutReason.returnWorkspaceName,
                         workspace: workspace,
                     )
                 }

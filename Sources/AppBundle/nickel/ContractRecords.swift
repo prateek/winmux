@@ -153,7 +153,7 @@ extension Window {
         guard let windowClass else { return nil }
         // A minimized window sits outside every workspace and reports the one it was minimized on,
         // which WinMux may have deleted since. A popup reports none.
-        let minimizedOn = windowClass == .minimized ? minimizedOn : nil
+        let minimizedOn = windowClass == .minimized ? layoutReason.origin : nil
         let workspace = nodeWorkspace ?? minimizedOn.flatMap { Workspace.existing(byName: $0.workspaceName) }
         let monitor = workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown
         let level = cgWindowLevel

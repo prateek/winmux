@@ -7,7 +7,7 @@ extension TreeNodeTest {
         let window = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         let workspaceB = Workspace.get(byName: "b")
 
-        window.layoutReason = .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspaceA.name)
+        window.layoutReason = .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspaceA), returnsToOrigin: true)
         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
         _ = workspaceB.focusWorkspace()
 
@@ -34,7 +34,7 @@ extension TreeNodeTest {
         TestWindow.new(id: 12, parent: tabGroup, adaptiveWeight: 1)
         fullscreenWindow.isFullscreen = true
         fullscreenWindow.noOuterGapsInFullscreen = true
-        fullscreenWindow.layoutReason = .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspace.name)
+        fullscreenWindow.layoutReason = .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: true)
 
         let frozenWorld = FrozenWorld(
             workspaces: [FrozenWorkspace(workspace)],
@@ -60,7 +60,7 @@ extension TreeNodeTest {
                 }
                 XCTAssertTrue(decodedWindow.isFullscreen)
                 XCTAssertTrue(decodedWindow.noOuterGapsInFullscreen)
-                XCTAssertEqual(decodedWindow.layoutReason, .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspace.name))
+                XCTAssertEqual(decodedWindow.layoutReason, .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: true))
             case .window:
                 XCTFail("Expected nested container in persisted frozen world")
         }
@@ -187,7 +187,7 @@ extension TreeNodeTest {
     func testRestoredWindowFoundMinimizedRemembersItsFrozenWorkspace() async throws {
         let workspace = Workspace.get(byName: "restore")
         let window = TestWindow.new(id: 45, parent: workspace.macOsNativeFullscreenWindowsContainer)
-        window.layoutReason = .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspace.name)
+        window.layoutReason = .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: true)
         let frozenWorld = FrozenWorld(
             workspaces: [FrozenWorkspace(workspace)],
             monitors: monitors.map(FrozenMonitor.init),
@@ -200,6 +200,42 @@ extension TreeNodeTest {
 
         XCTAssertTrue(didRestore)
         XCTAssertTrue(window.parent is MacosMinimizedWindowsContainer)
-        XCTAssertEqual(window.minimizedOn?.workspaceName, "restore")
+        XCTAssertEqual(window.layoutReason.origin?.workspaceName, "restore")
+    }
+
+    func testLayoutReasonSurvivesBeingSavedWithItsOriginAndWhetherItReturnsThere() throws {
+        let origin = WorkspaceOrigin(workspaceName: "2", projectId: WorkspaceProjectId("work"))
+        let reasons: [LayoutReason] = [
+            .standard,
+            .macos(prevParentKind: .tilingContainer, origin: origin, returnsToOrigin: true),
+            .macos(prevParentKind: .workspace, origin: origin, returnsToOrigin: false),
+            .macos(prevParentKind: .macosPopupWindowsContainer, origin: nil, returnsToOrigin: false),
+        ]
+
+        let decoded = try JSONDecoder().decode([LayoutReason].self, from: JSONEncoder().encode(reasons))
+
+        XCTAssertEqual(decoded, reasons)
+    }
+
+    func testLayoutReasonSavedBeforeTheOriginWasKeptStillLoads() throws {
+        let saved = """
+            [
+                {"standard": {}},
+                {"macos": {"prevParentKind": "tilingContainer", "prevWorkspaceName": "2"}},
+                {"macos": {"prevParentKind": "tilingContainer"}}
+            ]
+            """
+
+        let decoded = try JSONDecoder().decode([LayoutReason].self, from: Data(saved.utf8))
+
+        XCTAssertEqual(decoded, [
+            .standard,
+            .macos(
+                prevParentKind: .tilingContainer,
+                origin: WorkspaceOrigin(workspaceName: "2", projectId: workspaceProjectDefaultId),
+                returnsToOrigin: true,
+            ),
+            .macos(prevParentKind: .tilingContainer, origin: nil, returnsToOrigin: false),
+        ])
     }
 }
