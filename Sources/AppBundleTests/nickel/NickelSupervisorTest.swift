@@ -24,6 +24,8 @@ final class NickelSupervisorTest: XCTestCase {
         var settings = NickelSupervisor.Settings()
         let stubUrl: URL = stubUrl
         settings.executable = { stubUrl }
+        // The stub is a Python script, and a cold interpreter start on a CI runner can take seconds.
+        settings.loadTimeout = .seconds(20)
         settings.firstRestartDelay = .milliseconds(400)
         adjust(&settings)
         let supervisor = NickelSupervisor(settings: settings)
@@ -40,7 +42,7 @@ final class NickelSupervisorTest: XCTestCase {
     }
 
     private func eventually(_ what: String, _ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(30)
         while !condition() {
             if ContinuousClock.now > deadline { return XCTFail("Timed out waiting until \(what)") }
             try await Task.sleep(for: .milliseconds(10))
@@ -159,7 +161,7 @@ final class NickelSupervisorTest: XCTestCase {
     }
 
     func testKilledHelperRestartsAtOnceAndTheSecondKillWaits() async throws {
-        let supervisor = supervisor()
+        let supervisor = supervisor { $0.firstRestartDelay = .seconds(3) }
         try await loadAndAdopt(supervisor)
         let firstPid = try XCTUnwrap(supervisor.status.pid)
 
@@ -168,7 +170,7 @@ final class NickelSupervisorTest: XCTestCase {
         assertEquals(supervisor.status.state, .restarting)
         let restarted = ContinuousClock.now
         try await eventually("a new helper is ready") { supervisor.status.state == .ready }
-        XCTAssertLessThan(ContinuousClock.now - restarted, .milliseconds(350), "the first restart does not wait")
+        XCTAssertLessThan(ContinuousClock.now - restarted, .milliseconds(2500), "the first restart does not wait")
         let secondPid = try XCTUnwrap(supervisor.status.pid)
         assertEquals(supervisor.status.recycles, 1)
 
@@ -177,7 +179,7 @@ final class NickelSupervisorTest: XCTestCase {
         let killedAgain = ContinuousClock.now
         assertEquals(supervisor.status.state, .restarting)
         try await eventually("a third helper is ready") { supervisor.status.state == .ready }
-        XCTAssertGreaterThanOrEqual(ContinuousClock.now - killedAgain, .milliseconds(350), "the second restart waits")
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - killedAgain, .milliseconds(2900), "the second restart waits")
         assertEquals(await matches(supervisor), .success([true, true]))
     }
 
