@@ -185,17 +185,13 @@ extension Workspace {
     guard let prevFocus = _prevFocus?.liveOrNil, prevFocus != focus else { return nil }
     return prevFocus
 }
-/// The window that held focus before the focused one, if it still exists. `prevFocus` falls back
-/// to another window of that workspace when it does not; this never does.
-///
-/// Moving the focused window to another workspace or monitor is a focus change that keeps the
-/// window, so the focus before that one is looked at too.
+/// The most recently focused window other than the focused one, or `nil` when no other window
+/// has held focus. `prevFocus` falls back to a window that was never focused; this never does.
 @MainActor var prevFocusedWindow: Window? {
     let focused = focus.windowOrNil
-    return [_prevFocus, _prevPrevFocus].lazy
-        .compactMap { $0?.windowId }
-        .first { $0 != focused?.windowId }
-        .flatMap { Window.get(byId: $0) }
+    return Window.all
+        .filter { $0 != focused && $0.lastFocusedSeq != 0 }
+        .max { $0.lastFocusedSeq < $1.lastFocusedSeq }
 }
 @MainActor private var _prevPrevFocus: FrozenFocus? = nil
 @MainActor var prevPrevFocus: LiveFocus? {
@@ -230,6 +226,9 @@ extension Workspace {
         hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus
+    // This also runs after each command, when `focus` is still only what `setFocus` asked for.
+    // So the number goes to the window macOS reported, not to the focused one.
+    nativeFocusedWindowId.flatMap { Window.get(byId: $0) }?.recordConfirmedFocus()
 
     if onFocusChangedRecursionGuard { return }
     onFocusChangedRecursionGuard = true

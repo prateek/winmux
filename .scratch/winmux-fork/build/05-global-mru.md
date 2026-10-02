@@ -17,6 +17,7 @@ Give every window a sequence number that records when it was last focused, acros
 **Where it is written**
 
 - It is written in `checkOnFocusChangedCallbacks` (`Sources/AppBundle/focus.swift`), after the refresh has read the OS's focused window.
+- That function also runs after every command, before the OS has been asked for anything. So the number goes to the window the last refresh found focused in the OS, whatever WinMux's own focus says. A window in macOS native fullscreen, which WinMux's focus never points at, is numbered too.
 - It is never written in `setFocus`. `setFocus` is only a request, and the OS may not honour it.
 - Selecting a window in a Lens or the palette, or running `focus`, therefore does not change the order by itself. The order changes when the next refresh confirms that the window has focus. This keeps the order from claiming a window the user never reached.
 
@@ -50,7 +51,9 @@ Nothing.
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
 - **The window focused at launch.** `checkOnFocusChangedCallbacks` returns early during the startup refresh, and that early return stays. The window focused at launch gets its number on the first refresh after startup. That refresh may not count as a focus change (`_lastKnownFocus` can already equal the current focus), so assign a number whenever the confirmed focused window is not the one holding the highest number, not only when the function's `hasFocusChanged` is true.
-- **A CLI field for the sequence.** `list-windows --json` gains `last-focused-seq`, and `list-windows --format` gains `%{window-last-focused-seq}`.
+- **A CLI field for the sequence.** `list-windows --format` gains `%{window-last-focused-seq}`. `--json` prints the variables of the format under their own names, so the JSON key is `window-last-focused-seq`, and it appears when the format asks for it. The default format is unchanged.
+- **Registration order.** No `created` order existed. Each `Window` gets a `createdSeq` when WinMux registers it, which the `created` sort key of a Lens reads later.
+- **`ctx.previous`.** The Filter context's previous window is read from this order: the most recently focused window other than the focused one. When that window closes, the one focused before it takes its place.
 
 ## Done when
 

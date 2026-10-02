@@ -60,17 +60,43 @@ open class Window: TreeNode, Hashable {
         lastKnownActualRect = rect
     }
 
+    /// The window's place in registration order: lower was registered earlier.
+    let createdSeq: Int
+    /// The window's place in focus order across all workspaces: higher was focused more recently,
+    /// and 0 is never focused. Kept in memory only, so every window starts at 0 after a restart.
+    @MainActor private(set) var lastFocusedSeq: Int = 0
+
+    @MainActor private static var lastCreatedSeq = 0
+    @MainActor private static var highestLastFocusedSeq = 0
+
+    /// Records that macOS has the window focused. `setFocus` is only a request, which macOS may
+    /// not honour, so this is called once a refresh has read the focused window back.
+    @MainActor
+    func recordConfirmedFocus() {
+        if lastFocusedSeq != 0 && lastFocusedSeq == Window.highestLastFocusedSeq { return }
+        Window.highestLastFocusedSeq += 1
+        lastFocusedSeq = Window.highestLastFocusedSeq
+    }
+
     @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
+        Window.lastCreatedSeq += 1
+        self.createdSeq = Window.lastCreatedSeq
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+    }
+
+    @MainActor static var all: [Window] {
+        isUnitTest
+            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }
+            : MacWindow.allWindows
     }
 
     @MainActor static func get(byId windowId: UInt32) -> Window? { // todo make non optional
         isUnitTest
-            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }.first(where: { $0.windowId == windowId })
+            ? all.first(where: { $0.windowId == windowId })
             : MacWindow.allWindowsMap[windowId]
     }
 
@@ -211,4 +237,13 @@ extension Window {
     }
 
     func asMacWindow() -> MacWindow { self as! MacWindow }
+}
+
+extension Sequence<Window> {
+    /// Most recently focused first. Windows never focused come last, in registration order.
+    @MainActor func sortedByMostRecentUse() -> [Window] {
+        sorted { a, b in
+            a.lastFocusedSeq != b.lastFocusedSeq ? a.lastFocusedSeq > b.lastFocusedSeq : a.createdSeq < b.createdSeq
+        }
+    }
 }

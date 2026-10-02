@@ -169,8 +169,7 @@ extension Window {
             workspace: workspace?.name ?? minimizedOn?.workspaceName ?? "",
             project: (workspace?.projectId ?? minimizedOn?.projectId)?.rawValue ?? "",
             monitor: monitor,
-            // Written by "Global MRU (`lastFocusedSeq`)".
-            lastFocusedSeq: 0,
+            lastFocusedSeq: lastFocusedSeq,
             app: AppRecord(app),
         )
     }

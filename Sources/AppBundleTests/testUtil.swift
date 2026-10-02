@@ -61,6 +61,16 @@ func setUpWorkspacesForTests() {
     TestApp.shared.windows = []
 }
 
+/// A refresh that finds `window` focused in macOS: what a click on it, or macOS honouring a
+/// request to focus it, leads to.
+@MainActor
+func refreshWithMacOsFocus(on window: Window) async throws {
+    TrayMenuModel.shared.isEnabled = true
+    appForTests = TestApp.shared
+    TestApp.shared.focusedWindow = window
+    try await runRefreshSessionBlocking(.ax(kAXFocusedWindowChangedNotification as String))
+}
+
 extension ParsedCmd {
     var errorOrNil: String? {
         if case .failure(let e) = self {
