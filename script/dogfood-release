@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Cuts a dogfood release: builds the beta package, publishes a GitHub
-# prerelease, and bumps the winmux cask in the Homebrew tap so machines
-# without a build toolchain pick it up via `brew upgrade --cask winmux`.
+# Cuts a dogfood release: builds and signs the app, the CLI and the config
+# helper, publishes a GitHub prerelease, updates the Sparkle feed, and bumps
+# the winmux cask in the Homebrew tap so machines without a build toolchain
+# pick it up via `brew upgrade --cask winmux`.
 
 RELEASE_REPO="${WINMUX_RELEASE_REPO:-prateek/winmux}"
 TAP_REPO="${WINMUX_TAP_REPO:-prateek/homebrew-tap}"
@@ -13,15 +14,15 @@ SIGN_KEYCHAIN="$HOME/Library/Keychains/winmux-signing.keychain-db"
 SIGN_PASS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/keychain-pass"
 SPARKLE_KEY_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/sparkle-ed25519-key"
 SPARKLE_PUB_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/sparkle-ed25519-key.pub"
-SPARKLE_BIN=".build/artifacts/sparkle/Sparkle/bin"
 SPARKLE_FEED_TAG="dogfood"
-SPARKLE_FEED_DIR=".release/sparkle-feed"
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <version>
+Usage: $(basename "$0") [--dry-run] <version>
 
-Example: $(basename "$0") 0.51.0-dogfood.2
+Example: $(basename "$0") 0.5.6-dogfood.1
+
+  --dry-run   Build, sign and verify everything, and publish nothing.
 
 Environment overrides:
   WINMUX_RELEASE_REPO    GitHub repo for releases (default: $RELEASE_REPO)
@@ -40,39 +41,98 @@ log() {
     printf '[dogfood-release] %s\n' "$*"
 }
 
-[ $# -eq 1 ] || { usage >&2; exit 64; }
-case "$1" in
-    -h|--help) usage; exit 0 ;;
-esac
-VERSION="$1"
+DRY_RUN=0
+VERSION=""
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help) usage; exit 0 ;;
+        --dry-run) DRY_RUN=1 ;;
+        -*) usage >&2; exit 64 ;;
+        *) [ -z "$VERSION" ] || { usage >&2; exit 64; }; VERSION="$arg" ;;
+    esac
+done
+[ -n "$VERSION" ] || { usage >&2; exit 64; }
 
 cd "$(dirname "$0")/.."
 
 command -v gh >/dev/null || die "gh CLI is required"
 git diff --quiet && git diff --cached --quiet || die "working tree is dirty; commit or stash first"
 
-head_sha="$(git rev-parse HEAD)"
-branch="$(git rev-parse --abbrev-ref HEAD)"
-zip_path=".release/WinMux-${VERSION}.zip"
-tag="v${VERSION}"
+# Building rewrites the generated version files. Put them back however the run ends.
+trap 'git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift' EXIT
 
-gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1 && die "release $tag already exists on $RELEASE_REPO"
+head_sha="$(git rev-parse HEAD)"
+# Not `rev-parse --abbrev-ref`: with a remote that is also named fork, it prints heads/fork.
+branch="$(git symbolic-ref --quiet --short HEAD || echo detached)"
+# The build number is the commit count, which only means something on one branch.
+[ "$branch" = fork ] || [ "$DRY_RUN" = 1 ] || die "releases are cut from the fork branch, not $branch"
+tag="v${VERSION}"
+# Sparkle compares CFBundleVersion and stops at the first dash, so every dogfood version needs
+# a build number of its own. The commit count only grows on one branch.
+build_number="$(git rev-list --count HEAD)"
+feed_url="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/appcast.xml"
+feed_download_prefix="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/"
+
+# A run that failed after creating the release can be run again from the same commit: it
+# replaces the package and finishes the feed and the cask. Any other answer from GitHub than
+# "found" or "not found" stops the run before it builds anything.
+release_exists=0
+if [ "$DRY_RUN" != 1 ]; then
+    if release_target="$(gh release view "$tag" --repo "$RELEASE_REPO" --json targetCommitish --jq .targetCommitish 2>&1)"; then
+        [ "$release_target" = "$head_sha" ] \
+            || die "release $tag already exists on $RELEASE_REPO for $release_target, not $head_sha"
+        release_exists=1
+    else
+        case "$release_target" in
+            *"release not found"*) ;;
+            *) die "cannot tell whether release $tag exists: $release_target" ;;
+        esac
+    fi
+fi
 
 ./script/setup-signing
 test -s "$SIGN_PASS_FILE" || die "missing keychain password file $SIGN_PASS_FILE"
 security unlock-keychain -p "$(cat "$SIGN_PASS_FILE")" "$SIGN_KEYCHAIN"
+# setup-sparkle-keys needs Sparkle's tools, which SwiftPM fetches with the package.
+swift package resolve >/dev/null
 ./script/setup-sparkle-keys
 test -s "$SPARKLE_PUB_FILE" || die "missing Sparkle public key $SPARKLE_PUB_FILE"
+test -s "$SPARKLE_KEY_FILE" || die "missing Sparkle private key $SPARKLE_KEY_FILE"
 
-log "building beta package $VERSION from $head_sha"
-SPARKLE_PUBLIC_ED_KEY="$(cat "$SPARKLE_PUB_FILE")" \
-    make beta-package VERSION="$VERSION" PUBLISH=0 BETA_CODESIGN_IDENTITY="$SIGN_IDENTITY" \
-        SPARKLE_FEED_URL="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/appcast.xml" >/dev/null
-test -s "$zip_path" || die "expected package at $zip_path"
-zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
+log "building $VERSION (build $build_number) from $head_sha"
+SPARKLE_PRIVATE_KEY="$(cat "$SPARKLE_KEY_FILE")" make release \
+    VERSION="$VERSION" \
+    BUILD_NUMBER="$build_number" \
+    CODESIGN_IDENTITY="$SIGN_IDENTITY" \
+    EXPECTED_CODESIGN_AUTHORITY_PREFIX="Authority=$SIGN_IDENTITY" \
+    DEVELOPMENT_TEAM="" \
+    HARDENED_RUNTIME=NO \
+    SPARKLE_PUBLIC_KEY="$(cat "$SPARKLE_PUB_FILE")" \
+    SPARKLE_FEED_URL="$feed_url" \
+    RELEASE_DOWNLOAD_URL_PREFIX="$feed_download_prefix" >/dev/null
 
-staging_dir=".release/WinMux-${VERSION}"
-for artifact in "$staging_dir/WinMux.app" "$staging_dir/bin/winmux"; do
+app_path=".release/WinMux-${VERSION}.xcarchive/Products/Applications/WinMux.app"
+sparkle_zip=".release/WinMux-${VERSION}.zip"
+appcast=".release/appcast.xml"
+test -d "$app_path" || die "expected app at $app_path"
+test -s "$sparkle_zip" || die "expected update archive at $sparkle_zip"
+test -s "$appcast" || die "expected appcast at $appcast"
+
+log "building the CLI"
+swift build -c release --product winmux >/dev/null
+
+# The cask installs the app and the CLI from one archive: WinMux-<version>/WinMux.app and
+# WinMux-<version>/bin/winmux.
+staging_dir=".release/package/WinMux-${VERSION}"
+# Named apart from the app-only update archive, which is WinMux-<version>.zip on the feed's tag.
+zip_path=".release/package/WinMux-${VERSION}-with-cli.zip"
+rm -rf ".release/package"
+mkdir -p "$staging_dir/bin"
+/usr/bin/ditto "$app_path" "$staging_dir/WinMux.app"
+cp .build/release/winmux "$staging_dir/bin/winmux"
+codesign --force --sign "$SIGN_IDENTITY" "$staging_dir/bin/winmux"
+
+for artifact in "$staging_dir/WinMux.app" "$staging_dir/WinMux.app/Contents/Helpers/winmux-nickel" "$staging_dir/bin/winmux"; do
     # Untrusted self-signed authorities only appear at -dvvv verbosity.
     # Capture before grepping: with pipefail, grep -q exiting on the first
     # match SIGPIPEs codesign and fails the pipeline spuriously.
@@ -80,25 +140,29 @@ for artifact in "$staging_dir/WinMux.app" "$staging_dir/bin/winmux"; do
     printf '%s\n' "$signature_info" | grep -Fq "Authority=$SIGN_IDENTITY" \
         || die "$artifact is not signed by '$SIGN_IDENTITY'; refusing to publish"
 done
+codesign --verify --deep --strict "$staging_dir/WinMux.app" || die "the app's signature does not verify"
 log "artifacts signed by '$SIGN_IDENTITY'"
 
-log "generating Sparkle feed artifacts"
-mkdir -p "$SPARKLE_FEED_DIR"
-sparkle_zip="$SPARKLE_FEED_DIR/WinMux-Sparkle-${VERSION}.zip"
-# generate_appcast wants exactly one app bundle at each archive's root, so the Sparkle
-# enclosure is an app-only zip, separate from the full package zip above.
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir/WinMux.app" "$sparkle_zip"
-"$SPARKLE_BIN/generate_appcast" \
-    --ed-key-file "$SPARKLE_KEY_FILE" \
-    --download-url-prefix "https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/" \
-    --maximum-deltas 0 \
-    -o "$SPARKLE_FEED_DIR/appcast.xml" \
-    "$SPARKLE_FEED_DIR"
+# A signed bundle that dyld refuses to load would install and then never start.
+"$staging_dir/WinMux.app/Contents/MacOS/WinMux" --version >/dev/null \
+    || die "the built app does not start"
+"$staging_dir/WinMux.app/Contents/Helpers/winmux-nickel" check \
+    || die "the bundled config helper cannot load the shipped defaults"
+
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir" "$zip_path"
+zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
+
+if [ "$DRY_RUN" = 1 ]; then
+    log "dry run: built and verified, nothing published"
+    log "package: $zip_path (sha256 $zip_sha256)"
+    log "update archive: $sparkle_zip, feed: $appcast"
+    exit 0
+fi
 
 log "pushing $branch to $RELEASE_REMOTE"
 git push "$RELEASE_REMOTE" "$branch"
 
-log "creating prerelease $tag on $RELEASE_REPO"
+log "publishing prerelease $tag on $RELEASE_REPO"
 notes="$(cat <<EOF
 Dogfood build from \`${head_sha}\` (branch \`${branch}\`).
 
@@ -108,18 +172,22 @@ Install or upgrade via the tap:
 brew install --cask prateek/tap/winmux   # or: brew upgrade --cask winmux
 \`\`\`
 
-User guide: [docs/ultrawide-zones.md](https://github.com/${RELEASE_REPO}/blob/${branch}/docs/ultrawide-zones.md)
-
 **Package SHA-256:** \`${zip_sha256}\`
 EOF
 )"
-gh release create "$tag" \
-    --repo "$RELEASE_REPO" \
-    --target "$head_sha" \
-    --prerelease \
-    --title "WinMux zones dogfood ${VERSION}" \
-    --notes "$notes" \
-    "$zip_path"
+if [ "$release_exists" = 1 ]; then
+    # A rebuilt package has a new checksum, so the one already uploaded is replaced.
+    gh release upload "$tag" --repo "$RELEASE_REPO" --clobber "$zip_path"
+    gh release edit "$tag" --repo "$RELEASE_REPO" --notes "$notes" >/dev/null
+else
+    gh release create "$tag" \
+        --repo "$RELEASE_REPO" \
+        --target "$head_sha" \
+        --prerelease \
+        --title "WinMux dogfood ${VERSION}" \
+        --notes "$notes" \
+        "$zip_path"
+fi
 
 log "updating Sparkle feed on the rolling '$SPARKLE_FEED_TAG' release"
 # Create-first is idempotent: when the rolling release already exists the create fails and
@@ -128,12 +196,11 @@ gh release create "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --prerelease \
     --title "Sparkle update feed" \
     --notes "Rolling Sparkle appcast and update archives. Installed apps update from here; humans should use the versioned releases." \
     2>/dev/null || true
-gh release upload "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --clobber \
-    "$SPARKLE_FEED_DIR/appcast.xml" "$sparkle_zip"
+gh release upload "$SPARKLE_FEED_TAG" --repo "$RELEASE_REPO" --clobber "$appcast" "$sparkle_zip"
 
 log "bumping cask in $TAP_REPO"
 tap_dir="$(mktemp -d)"
-trap 'rm -rf "$tap_dir"' EXIT
+trap 'rm -rf "$tap_dir"; git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift' EXIT
 gh repo clone "$TAP_REPO" "$tap_dir" -- --depth 1 --quiet
 cask_file="$tap_dir/Casks/winmux.rb"
 test -f "$cask_file" || die "missing $cask_file in $TAP_REPO"
@@ -143,8 +210,12 @@ test -f "$cask_file" || die "missing $cask_file in $TAP_REPO"
     "$cask_file"
 grep -q "version \"${VERSION}\"" "$cask_file" || die "version bump failed in $cask_file"
 grep -q "sha256 \"${zip_sha256}\"" "$cask_file" || die "sha256 bump failed in $cask_file"
-git -C "$tap_dir" commit --quiet -am "winmux ${VERSION}"
-git -C "$tap_dir" push --quiet
+if git -C "$tap_dir" diff --quiet; then
+    log "cask already at ${VERSION} with this checksum"
+else
+    git -C "$tap_dir" commit --quiet -am "winmux ${VERSION}"
+    git -C "$tap_dir" push --quiet
+fi
 
 log "done: $tag published, cask bumped to ${VERSION}"
 log "on the daily driver: brew upgrade --cask winmux"

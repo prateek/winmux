@@ -20,14 +20,14 @@ ITEM = f"""<item>
 
 
 class AppcastValidationTest(unittest.TestCase):
-    def validate(self, items):
+    def validate(self, items, build_number=None):
         with tempfile.TemporaryDirectory() as directory:
             feed = Path(directory) / "appcast.xml"
             feed.write_text(
                 '<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
                 f"<channel>{items}</channel></rss>"
             )
-            validator.validate_appcast(feed, "0.5.3", URL)
+            validator.validate_appcast(feed, "0.5.3", URL, build_number)
 
     def test_current_release_is_accepted(self):
         self.validate(ITEM)
@@ -41,6 +41,12 @@ class AppcastValidationTest(unittest.TestCase):
             self.validate(ITEM.replace(
                 "<sparkle:version>0.5.3", "<sparkle:version>1"
             ))
+
+    def test_build_number_is_what_sparkle_compares(self):
+        dogfood = ITEM.replace("<sparkle:version>0.5.3", "<sparkle:version>1842")
+        self.validate(dogfood, build_number="1842")
+        with self.assertRaisesRegex(ValueError, "version must be 1843"):
+            self.validate(dogfood, build_number="1843")
 
     def test_wrong_archive_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "current release archive"):

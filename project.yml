@@ -23,7 +23,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         SUEnableAutomaticChecks: true
-        SUFeedURL: https://github.com/ZimengXiong/winmux/releases/latest/download/appcast.xml
+        SUFeedURL: $(SPARKLE_FEED_URL)
         SUPublicEDKey: $(SPARKLE_PUBLIC_KEY)
     sources:
       - "Sources/WinMuxApp"
@@ -48,7 +48,9 @@ targets:
           mkdir -p "$helpers"
           cp "$SRCROOT/nickel-helper/target/release/winmux-nickel" "$helpers/winmux-nickel"
           # Signed with the app's identity before Xcode seals the bundle. It needs no entitlements.
-          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime "$helpers/winmux-nickel"
+          runtime=""
+          if [ "${ENABLE_HARDENED_RUNTIME:-NO}" = YES ]; then runtime="--options runtime"; fi
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" $runtime "$helpers/winmux-nickel"
     dependencies:
       - package: WinMuxPackage
         product: AppBundle
@@ -60,8 +62,9 @@ targets:
         SWIFT_VERSION: 6.2 # Swift Language Version
         ENABLE_USER_SCRIPT_SANDBOXING: NO # The script phase runs cargo
         MARKETING_VERSION: ${XCODEGEN_WINMUX_VERSION}
-        CURRENT_PROJECT_VERSION: ${XCODEGEN_WINMUX_VERSION}
+        CURRENT_PROJECT_VERSION: ${XCODEGEN_WINMUX_BUILD_NUMBER}
         SPARKLE_PUBLIC_KEY: ${XCODEGEN_WINMUX_SPARKLE_PUBLIC_KEY}
+        SPARKLE_FEED_URL: ${XCODEGEN_WINMUX_SPARKLE_FEED_URL}
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: ${XCODEGEN_WINMUX_CODE_SIGN_IDENTITY}
         DEVELOPMENT_TEAM: ${XCODEGEN_WINMUX_DEVELOPMENT_TEAM}
