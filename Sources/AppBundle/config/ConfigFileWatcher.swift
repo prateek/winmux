@@ -166,7 +166,9 @@ private final class DirectoryEventStream {
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
-        handler.release()
+        // A callback may still be running on the queue. The queue is serial, so this runs after it.
+        let handler = handler
+        DirectoryEventStream.queue.async { handler.release() }
     }
 }
 
