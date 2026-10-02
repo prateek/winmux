@@ -72,8 +72,22 @@ build_number="$(git rev-list --count HEAD)"
 feed_url="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/appcast.xml"
 feed_download_prefix="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/"
 
-[ "$DRY_RUN" = 1 ] || ! gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1 \
-    || die "release $tag already exists on $RELEASE_REPO"
+# A run that failed after creating the release can be run again from the same commit: it
+# replaces the package and finishes the feed and the cask. Any other answer from GitHub than
+# "found" or "not found" stops the run before it builds anything.
+release_exists=0
+if [ "$DRY_RUN" != 1 ]; then
+    if release_target="$(gh release view "$tag" --repo "$RELEASE_REPO" --json targetCommitish --jq .targetCommitish 2>&1)"; then
+        [ "$release_target" = "$head_sha" ] \
+            || die "release $tag already exists on $RELEASE_REPO for $release_target, not $head_sha"
+        release_exists=1
+    else
+        case "$release_target" in
+            *"release not found"*) ;;
+            *) die "cannot tell whether release $tag exists: $release_target" ;;
+        esac
+    fi
+fi
 
 ./script/setup-signing
 test -s "$SIGN_PASS_FILE" || die "missing keychain password file $SIGN_PASS_FILE"
@@ -147,7 +161,7 @@ fi
 log "pushing $branch to $RELEASE_REMOTE"
 git push "$RELEASE_REMOTE" "$branch"
 
-log "creating prerelease $tag on $RELEASE_REPO"
+log "publishing prerelease $tag on $RELEASE_REPO"
 notes="$(cat <<EOF
 Dogfood build from \`${head_sha}\` (branch \`${branch}\`).
 
@@ -160,13 +174,19 @@ brew install --cask prateek/tap/winmux   # or: brew upgrade --cask winmux
 **Package SHA-256:** \`${zip_sha256}\`
 EOF
 )"
-gh release create "$tag" \
-    --repo "$RELEASE_REPO" \
-    --target "$head_sha" \
-    --prerelease \
-    --title "WinMux dogfood ${VERSION}" \
-    --notes "$notes" \
-    "$zip_path"
+if [ "$release_exists" = 1 ]; then
+    # A rebuilt package has a new checksum, so the one already uploaded is replaced.
+    gh release upload "$tag" --repo "$RELEASE_REPO" --clobber "$zip_path"
+    gh release edit "$tag" --repo "$RELEASE_REPO" --notes "$notes" >/dev/null
+else
+    gh release create "$tag" \
+        --repo "$RELEASE_REPO" \
+        --target "$head_sha" \
+        --prerelease \
+        --title "WinMux dogfood ${VERSION}" \
+        --notes "$notes" \
+        "$zip_path"
+fi
 
 log "updating Sparkle feed on the rolling '$SPARKLE_FEED_TAG' release"
 # Create-first is idempotent: when the rolling release already exists the create fails and
@@ -189,8 +209,12 @@ test -f "$cask_file" || die "missing $cask_file in $TAP_REPO"
     "$cask_file"
 grep -q "version \"${VERSION}\"" "$cask_file" || die "version bump failed in $cask_file"
 grep -q "sha256 \"${zip_sha256}\"" "$cask_file" || die "sha256 bump failed in $cask_file"
-git -C "$tap_dir" commit --quiet -am "winmux ${VERSION}"
-git -C "$tap_dir" push --quiet
+if git -C "$tap_dir" diff --quiet; then
+    log "cask already at ${VERSION} with this checksum"
+else
+    git -C "$tap_dir" commit --quiet -am "winmux ${VERSION}"
+    git -C "$tap_dir" push --quiet
+fi
 
 log "done: $tag published, cask bumped to ${VERSION}"
 log "on the daily driver: brew upgrade --cask winmux"
