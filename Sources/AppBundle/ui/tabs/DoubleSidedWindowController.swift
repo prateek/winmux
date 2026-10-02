@@ -7,37 +7,66 @@ final class DoubleSidedWindowController {
     static let shared = DoubleSidedWindowController()
     private var animationPanel: NSPanel?
     private var isCapturing = false
-    // Room for the edge that swings toward the viewer, which perspective draws outside the window's frame.
+    private let captureTimeout: Duration = .milliseconds(500)
+    // Room for the edge that swings toward the viewer, which perspective draws outside the window's
+    // frame, and for the backdrop to cover the windows' shadows.
     private let rotationPadding: CGFloat = 64
 
     var isAnimating: Bool { isCapturing || animationPanel != nil }
 
     func flip(_ window: Window) async {
-        guard !isAnimating, TrayMenuModel.shared.isEnabled,
-              let group = window.nearestWindowTabGroup,
-              group.usesDoubleSidedWindows,
-              group.tabActiveWindow === window,
-              let other = group.children.compactMap({ $0 as? Window }).first(where: { $0 !== window }),
-              let rect = window.lastAppliedLayoutPhysicalRect
-        else { return }
-        let frontId = window.windowId
+        guard !isAnimating, let (other, rect) = flipTarget(of: window) else { return }
         let backId = other.windowId
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && CGPreflightScreenCaptureAccess() {
+            let frontId = window.windowId
+            let workspace = focus.workspace
             isCapturing = true
-            let size = CGSize(width: rect.width, height: rect.height)
-            async let front = snapshot(frontId, size: size)
-            async let back = snapshot(backId, size: size)
-            let (frontImage, backImage) = await (front, back)
+            let snapshots = await firstResult(within: captureTimeout) {
+                await Self.snapshots(front: frontId, back: backId, rect: rect, padding: self.rotationPadding)
+            }
             isCapturing = false
-            if let frontImage, let backImage {
-                animate(front: frontImage, back: backImage, rect: rect)
+            // The capture takes long enough for the pair to change or the user to move on.
+            guard let current = flipTarget(of: window), current.other === other, current.rect == rect,
+                  focus.workspace === workspace
+            else { return }
+            if let snapshots {
+                animate(snapshots, rect: rect)
             }
         }
         focusWindowFromTabStrip(backId, fallbackWorkspace: focus.workspace.name)
     }
 
-    private func snapshot(_ id: UInt32, size: CGSize) async -> CGImage? {
-        guard let image = await WindowScreenshot.capture(id, pixelSize: size) else { return nil }
+    private func flipTarget(of window: Window) -> (other: Window, rect: Rect)? {
+        guard TrayMenuModel.shared.isEnabled,
+              let group = window.nearestWindowTabGroup,
+              group.usesDoubleSidedWindows,
+              group.tabActiveWindow === window,
+              let other = group.children.compactMap({ $0 as? Window }).first(where: { $0 !== window }),
+              let rect = window.lastAppliedLayoutPhysicalRect
+        else { return nil }
+        return (other, rect)
+    }
+
+    private struct Snapshots: Sendable {
+        let front: CGImage
+        let back: CGImage
+        /// What is on screen under and around the pair, to cover the real windows while the
+        /// snapshots rotate. Missing if it could not be captured.
+        let backdrop: CGImage?
+    }
+
+    private static func snapshots(front: UInt32, back: UInt32, rect: Rect, padding: CGFloat) async -> Snapshots? {
+        let area = CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
+            .insetBy(dx: -padding, dy: -padding)
+        async let frontImage = snapshot(front)
+        async let backImage = snapshot(back)
+        async let backdrop = try? WindowScreenshot.captureScreen(area, excluding: [front, back])
+        guard let frontImage = await frontImage, let backImage = await backImage else { return nil }
+        return Snapshots(front: frontImage, back: backImage, backdrop: await backdrop)
+    }
+
+    private static func snapshot(_ id: UInt32) async -> CGImage? {
+        guard let image = try? await WindowScreenshot.capture(id) else { return nil }
         // Trim the native one-point outline so it does not become a bright edge when the
         // snapshot rotates.
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
@@ -45,7 +74,25 @@ final class DoubleSidedWindowController {
         return image.cropping(to: bounds.insetBy(dx: 1, dy: 1))
     }
 
-    private func animate(front: CGImage, back: CGImage, rect: Rect) {
+    /// The result of `operation`, or nil if it has not finished in time. A capture that never
+    /// returns must not leave the controller waiting on it.
+    private func firstResult<T: Sendable>(within timeout: Duration, _ operation: @escaping @MainActor () async -> T?) async -> T? {
+        var waiting: CheckedContinuation<T?, Never>?
+        func finish(_ result: T?) {
+            waiting?.resume(returning: result)
+            waiting = nil
+        }
+        return await withCheckedContinuation { continuation in
+            waiting = continuation
+            Task { @MainActor in finish(await operation()) }
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                finish(nil)
+            }
+        }
+    }
+
+    private func animate(_ snapshots: Snapshots, rect: Rect) {
         let frame = CGRect(x: rect.topLeftX, y: mainMonitor.height - rect.topLeftY - rect.height,
                            width: rect.width, height: rect.height)
             .insetBy(dx: -rotationPadding, dy: -rotationPadding)
@@ -62,13 +109,15 @@ final class DoubleSidedWindowController {
         let view = NSView(frame: CGRect(origin: .zero, size: frame.size))
         view.wantsLayer = true
         let root = CALayer()
+        root.contents = snapshots.backdrop
+        root.contentsGravity = .resize
         view.layer = root
         panel.contentView = view
         var perspective = CATransform3DIdentity
         perspective.m34 = -1 / max(rect.width * 2, 1000)
         root.sublayerTransform = perspective
         let duration = 0.48
-        for (image, start, end) in [(front, 0.0, Double.pi), (back, -Double.pi, 0.0)] {
+        for (image, start, end) in [(snapshots.front, 0.0, Double.pi), (snapshots.back, -Double.pi, 0.0)] {
             let face = CALayer()
             face.frame = view.bounds.insetBy(dx: rotationPadding, dy: rotationPadding)
             face.contents = image

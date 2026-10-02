@@ -90,7 +90,7 @@ private struct WindowCaptureCommand {
         guard let image = try await SCScreenshotManager.captureScreenshot(
             contentFilter: filter,
             configuration: configuration
-        ).sdrImage else {
+        ).sdrImage.flatMap(convertedToSRGB) else {
             throw CaptureError.captureFailed
         }
         let bitmap = NSBitmapImageRep(cgImage: image)
@@ -105,6 +105,23 @@ private struct WindowCaptureCommand {
         try data.write(to: outputURL, options: .atomic)
         print("Captured \(window.title ?? bundleIdentifier) at \(image.width)x\(image.height)")
         print(outputURL.path)
+    }
+
+    // The capture comes back in the display's colour space. Marketing assets are sRGB.
+    private static func convertedToSRGB(_ image: CGImage) -> CGImage? {
+        guard let sRGB = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: image.width,
+                  height: image.height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: 0,
+                  space: sRGB,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
+              )
+        else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     private static func value(after option: String, in arguments: [String]) -> String? {
