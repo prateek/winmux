@@ -60,14 +60,22 @@ open class Window: TreeNode, Hashable {
         lastKnownActualRect = rect
     }
 
-    /// The window's place in registration order: lower was registered earlier.
-    let createdSeq: Int
-    /// The window's place in focus order across all workspaces: higher was focused more recently,
-    /// and 0 is never focused. Kept in memory only, so every window starts at 0 after a restart.
-    @MainActor private(set) var lastFocusedSeq: Int = 0
+    private struct OrderNumbers {
+        let created: Int
+        var lastFocused = 0
+    }
 
+    /// Kept by window id, not on the window: when the screen locks WinMux drops every window, and
+    /// it registers them again as new objects on unlock.
+    @MainActor private static var orderNumbers: [UInt32: OrderNumbers] = [:]
     @MainActor private static var lastCreatedSeq = 0
     @MainActor private static var highestLastFocusedSeq = 0
+
+    /// The window's place in registration order: lower was registered earlier.
+    @MainActor var createdSeq: Int { Window.orderNumbers[windowId]?.created ?? 0 }
+    /// The window's place in focus order across all workspaces: higher was focused more recently,
+    /// and 0 is never focused. Kept in memory only, so every window starts at 0 after a restart.
+    @MainActor var lastFocusedSeq: Int { Window.orderNumbers[windowId]?.lastFocused ?? 0 }
 
     /// Records that macOS has the window focused. `setFocus` is only a request, which macOS may
     /// not honour, so this is called once a refresh has read the focused window back.
@@ -75,7 +83,21 @@ open class Window: TreeNode, Hashable {
     func recordConfirmedFocus() {
         if lastFocusedSeq != 0 && lastFocusedSeq == Window.highestLastFocusedSeq { return }
         Window.highestLastFocusedSeq += 1
-        lastFocusedSeq = Window.highestLastFocusedSeq
+        Window.orderNumbers[windowId]?.lastFocused = Window.highestLastFocusedSeq
+    }
+
+    /// Forgets the numbers of every window but `windowIds`: the ones that exist, and the ones
+    /// that may yet be registered again.
+    @MainActor
+    static func forgetOrderNumbers(except windowIds: Set<UInt32>) {
+        orderNumbers = orderNumbers.filter { windowIds.contains($0.key) }
+    }
+
+    @MainActor
+    static func resetOrderNumbersForTests() {
+        orderNumbers = [:]
+        lastCreatedSeq = 0
+        highestLastFocusedSeq = 0
     }
 
     @MainActor
@@ -83,20 +105,23 @@ open class Window: TreeNode, Hashable {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
-        Window.lastCreatedSeq += 1
-        self.createdSeq = Window.lastCreatedSeq
+        if Window.orderNumbers[id] == nil {
+            Window.lastCreatedSeq += 1
+            Window.orderNumbers[id] = OrderNumbers(created: Window.lastCreatedSeq)
+        }
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
     @MainActor static var all: [Window] {
         isUnitTest
             ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }
+                + (macosMinimizedWindowsContainer.children + macosPopupWindowsContainer.children).filterIsInstance(of: Window.self)
             : MacWindow.allWindows
     }
 
     @MainActor static func get(byId windowId: UInt32) -> Window? { // todo make non optional
         isUnitTest
-            ? all.first(where: { $0.windowId == windowId })
+            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }.first(where: { $0.windowId == windowId })
             : MacWindow.allWindowsMap[windowId]
     }
 

@@ -13,6 +13,7 @@ Give every window a sequence number that records when it was last focused, acros
 - Each `Window` gets a monotonic `lastFocusedSeq`. A higher number means focused more recently.
 - `0` means the window has never been focused.
 - It is kept in memory only. Nothing is written to disk, so after a restart every window starts at `0`.
+- It is kept by window id. Locking the screen makes WinMux drop every window and register it again on unlock, and the number survives that.
 
 **Where it is written**
 

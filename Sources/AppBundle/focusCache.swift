@@ -2,8 +2,9 @@ import Common
 import Foundation
 
 @MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
-/// The window the last refresh found focused in macOS. `nil` when it found none, or one outside
-/// the project that holds focus.
+/// The window WinMux last took its focus from: the one macOS had focused when a session last
+/// read it. While a popup has macOS focus this stays at the window before it. It is `nil` when
+/// macOS had no window focused, or one outside the project that holds focus.
 @MainActor var nativeFocusedWindowId: UInt32? { lastKnownNativeFocusedWindowId }
 
 @MainActor private struct WorkspaceProjectFocusHold {

@@ -7,6 +7,7 @@ import AppKit
 /// That's why every time a window dies WinMux caches the "entire world" (unless window is already presented in the cache)
 /// so that once the screen is unlocked, WinMux could restore windows to where they were
 @MainActor private var closedWindowsCache = FrozenWorld(workspaces: [], monitors: [], windowIds: [])
+@MainActor var closedWindowsCacheWindowIds: Set<UInt32> { closedWindowsCache.windowIds }
 
 struct FrozenMonitor: Codable, Sendable {
     let topLeftCorner: CGPoint

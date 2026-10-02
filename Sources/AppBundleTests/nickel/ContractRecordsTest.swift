@@ -224,6 +224,42 @@ final class ContractRecordsTest: XCTestCase {
         assertEquals(context.previous?.id, 1)
     }
 
+    func testPreviousMayBeAWindowThatWasMinimizedSinceItHeldFocus() async throws {
+        let workspace = focus.workspace
+        let minimized = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let current = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: minimized)
+        try await refreshWithMacOsFocus(on: current)
+
+        minimized.nativeIsMacosMinimized = true
+        try await normalizeLayoutReason()
+        let context = try await filterContextRecord(mouse: .zero)
+
+        XCTAssertTrue(minimized.parent is MacosMinimizedWindowsContainer)
+        assertEquals(context.focused?.id, 2)
+        assertEquals(context.previous?.id, 1)
+        assertEquals(context.previous?.windowClass, .minimized)
+    }
+
+    func testPreviousIsTheNativeFullscreenWindowWhileAndAfterMacOsHasItFocused() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        try await refreshWithMacOsFocus(on: tiled)
+
+        try await refreshWithMacOsFocus(on: fullscreen)
+        let whileInFullscreen = try await filterContextRecord(mouse: .zero)
+        try await refreshWithMacOsFocus(on: tiled)
+        let afterLeavingIt = try await filterContextRecord(mouse: .zero)
+
+        // WinMux's focus never points at a window in native fullscreen, so `focused` is the tiled
+        // window throughout.
+        assertEquals(whileInFullscreen.focused?.id, 1)
+        assertEquals(whileInFullscreen.previous?.id, 2)
+        assertEquals(afterLeavingIt.focused?.id, 1)
+        assertEquals(afterLeavingIt.previous?.id, 2)
+    }
+
     func testRecordCarriesTheWindowsPlaceInFocusOrder() async throws {
         let workspace = focus.workspace
         let focused = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)

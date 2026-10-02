@@ -104,6 +104,43 @@ final class GlobalMruTest: XCTestCase {
         XCTAssertGreaterThan(fullscreen.lastFocusedSeq, tiled.lastFocusedSeq)
     }
 
+    func testWindowRegisteredAgainKeepsItsNumbers() async throws {
+        // Locking the screen makes WinMux drop every window and register it again on unlock.
+        let workspace = focus.workspace
+        let first = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let second = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: second)
+        try await refreshWithMacOsFocus(on: first)
+        let before = [first.lastFocusedSeq, first.createdSeq, second.lastFocusedSeq, second.createdSeq]
+        TestApp.shared.focusedWindow = nil
+        first.unbindFromParent()
+        second.unbindFromParent()
+
+        let secondAgain = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        let firstAgain = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+
+        assertEquals([firstAgain.lastFocusedSeq, firstAgain.createdSeq, secondAgain.lastFocusedSeq, secondAgain.createdSeq], before)
+        assertEquals([secondAgain, firstAgain].sortedByMostRecentUse().map(\.windowId), [1, 2])
+    }
+
+    func testForgottenWindowStartsOverWhenItsIdIsSeenAgain() async throws {
+        let workspace = focus.workspace
+        let kept = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let closed = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: closed)
+        try await refreshWithMacOsFocus(on: kept)
+        let keptBefore = kept.lastFocusedSeq
+        TestApp.shared.focusedWindow = kept
+        closed.unbindFromParent()
+
+        Window.forgetOrderNumbers(except: [1])
+        let reused = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+
+        assertEquals(reused.lastFocusedSeq, 0)
+        XCTAssertGreaterThan(reused.createdSeq, kept.createdSeq)
+        assertEquals(kept.lastFocusedSeq, keptBefore)
+    }
+
     func testRefreshThatFindsTheSameWindowFocusedKeepsItsNumber() async throws {
         let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
         try await refreshWithMacOsFocus(on: window)

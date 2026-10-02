@@ -44,6 +44,10 @@ func setUpWorkspacesForTests() {
             child.unbindFromParent()
         }
     }
+    for child in macosMinimizedWindowsContainer.children + macosPopupWindowsContainer.children {
+        child.unbindFromParent()
+    }
+    Window.resetOrderNumbersForTests()
     resetWinMuxWorkspaceStateForTests()
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     Workspace.reconcileWorkspaceState()
