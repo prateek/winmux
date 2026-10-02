@@ -1,13 +1,14 @@
 # Handoff: building the WinMux fork foundation
 
-Planning is finished and the build is under way: the deployment target and Nickel config issues have landed on `fork`, on top of upstream `v0.5.6`, and the dogfood release issue is next. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't. Last updated 2026-10-01.
+Planning is finished and the build is under way: the deployment target, Nickel config and dogfood release issues have landed on `fork`, on top of upstream `v0.5.6`, and `0.5.6-dogfood.1` is published. Config hot reload and the Filter contract are next. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't. Last updated 2026-10-01.
 
 ## Start here
 
 - **The work:** the umbrella issue [Fork foundation: Nickel config, Lenses, fixed Columns and the CLI](https://github.com/prateek/winmux/issues/1) and its thirteen child issues on `prateek/winmux`, linked as sub-issues with blocked-by dependencies. Each child is one buildable slice and stands alone. Build in dependency order; the Lens issues and the Column issues are independent of each other once the Nickel config lands.
 - **Done:** [Raise the deployment target to macOS 26](https://github.com/prateek/winmux/issues/2), landed as `9aac8be2`. The issue stays open for one check that needs an installed build: the double-sided flip animating.
 - **Done, with checks left:** [Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`](https://github.com/prateek/winmux/issues/3). A debug build was run on scratch config and state directories and passed the startup, reload, kill and breaker checks. Two Done-when items are left, both needing someone at the screen: the Settings panes, and sidebar renames surviving a restart.
-- **Next:** [Dogfood releases: cut a signed build from `fork` and install it through the tap](https://github.com/prateek/winmux/issues/14), before the Lens and Column issues, so they can be tested on Prateek's daily machine. After it, [Config hot reload](https://github.com/prateek/winmux/issues/4) and [Filter contract v1 and `config schema`](https://github.com/prateek/winmux/issues/5) are unblocked.
+- **Done, with checks left:** [Dogfood releases: cut a signed build from `fork` and install it through the tap](https://github.com/prateek/winmux/issues/14). `0.5.6-dogfood.1` is published and the cask points at it. Nobody has installed it yet, so the issue's install, upgrade and Sparkle checks are open. The by-eye checks of the two issues above were done in a debug build, with the recording on pull request #15 and the screenshots on #16.
+- **Next:** [Config hot reload](https://github.com/prateek/winmux/issues/4) and [Filter contract v1 and `config schema`](https://github.com/prateek/winmux/issues/5), in either order.
 - **Glossary:** `CONTEXT.md` at the repo root. Use its terms and avoid the words it lists under _Avoid_.
 - **ADR:** `docs/adr/0001-nickel-helper-process.md`.
 
@@ -35,15 +36,14 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Open with Prateek
 
-- **Landing.** Each piece of work is a pull request against `fork`, squash-merged after CI passes and Prateek has reviewed it. Push the branch over SSH and open the pull request; the merge is his. An issue that depends on an unmerged one targets that issue's branch. The first build issue went straight onto `fork` before this was the rule.
-- **Running a release.** `script/dogfood-release` publishes a release and pushes to the tap. Ask before each run.
+- **Landing.** `AGENTS.md` at the repo root has the process: a pull request against `fork`, with screenshots or video of anything visible, squash-merged after CI and Prateek's review. The first build issue went straight onto `fork` before this was the rule.
+- **Running a release.** Ask before each run; see `AGENTS.md`.
 - **Decisions belong to him.** For a discrete choice, ask with a recommended answer first; he usually takes it. Don't settle a product question for him, and don't reopen one he has settled.
 
 ## Repo setup
 
 - **The build lands on the `fork` branch.** It is the default branch of `prateek/winmux` and Orca's default worktree base (`fork/fork`). It holds the planning files, `CONTEXT.md` and the ADR. `main` only mirrors upstream `main`; don't build on it. The branch was called `wayfind-fork` until 2026-10-01, and GitHub redirects the old name.
 - This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). The worktree directory is still named `wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
-- Start each child issue in its own Orca worktree cut from `fork/fork`, and open its pull request against `fork`.
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.
@@ -73,9 +73,11 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
   - The startup fallback (a failed first load leaves WinMux on the built-in defaults with the reason on screen) lives in `initAppBundle` and has no test. `ReadConfigTest` covers the load and its failure message.
   - The Swift parser still takes TOMLKit types; the helper's JSON is converted to a `TOMLTable` in `parseConfig.swift`. Its error text still says TOML things such as "actual type is 'integer'".
   - CI runs only for `main` and pull requests, so nothing runs on a push to `fork`. `make check` now needs cargo, and `ci.yml` installs only swiftly; whether the `macos-26` runner has Rust is unchecked.
+- **Driving the UI for screenshots.** `cliclick` and System Events work from the build machine. Raise the Settings window first (`AXRaise` and `set frontmost`), and move it clear of WinMux's own sidebar, which expands under the pointer and takes the clicks. Capture one window with `screencapture -l <window id>`, record with `screencapture -v -V <seconds>`, and upload with `gh attach --repo prateek/winmux <pr> <files>`; without `--repo` it targets upstream.
+- **Known flaw in the flip.** A hidden tab keeps its own size, so its snapshot is stretched to the visible window's frame during the rotation.
 - **Running a debug build.** `make run` fails: it copies the binary to `.debug/` without `Sparkle.framework`. Run `.build/debug/WinMuxApp` instead. Set `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to scratch directories to keep Prateek's own config out of it; his `~/.config/winmux/winmux.toml` is upstream's and would be converted on first launch.
 - **Nickel binaries.** Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`. `nickel-lang-core` 0.19.0 builds from source, which is what the helper uses.
-- **Releases can't be cut yet.** `script/dogfood-release`, `script/setup-signing` and `script/setup-sparkle-keys` were copied unchanged from `codex-columns`. The two setup scripts work as they are: they create the stable self-signed identity that lets Accessibility and Screen Recording grants survive upgrades, and the Sparkle keys. `dogfood-release` calls `make beta-package`, which exists only in `codex-columns`'s `makefile`; this branch's `Makefile` has upstream's Xcode-based `release` target, hardcoded to upstream's identity and URLs. Porting `beta-package` is not a copy: it assembles the app bundle by hand from a SwiftPM build, and upstream has since added bundle resources (the app icon, the asset catalog, the `MASShortcut` resource bundle) that a hand-built bundle would lack. Either port it and add those, or teach `dogfood-release` to drive `make release` with the dogfood identity and the fork's URLs. The new `winmux-nickel` helper has to be signed with the same identity either way. The dogfood release issue (#14) tracks this and takes the second route.
+- **Releases.** `script/dogfood-release <version>` cuts one from `fork`; `--dry-run` publishes nothing. Builds are signed with the self-signed `WinMux Dogfood Signing` identity, which lives in its own keychain on the build machine and keeps Accessibility and Screen Recording grants across upgrades. The hardened runtime is off for these builds, because a self-signed app cannot load its own `Sparkle.framework` with it on. The build number is the commit count of `fork`. The old `codex-columns` line ended at build 1889, so until `fork` passes that many commits Sparkle will not offer the new line to a machine still on `0.51.0-dogfood.15`; that machine reinstalls the cask once.
 
 ## Suggested skills
 

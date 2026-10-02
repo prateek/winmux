@@ -148,8 +148,8 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [x] `winmux config convert` turns an existing `winmux.toml` into Nickel on stdout, with the WinMux server stopped. The output imports `winmux/defaults.ncl`, applies `W.Config` and passes `winmux config check`. A `[[on-window-detected]]` entry comes out as a commented-out `arrive` branch with a warning on stderr.
 - [x] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
 - [x] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
-- [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file. Not yet checked: needs a running WinMux.
-- [ ] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares. Not yet checked in a running WinMux; the state file and its override are covered by tests.
+- [x] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file. Checked in a debug build; screenshots are on pull request #16. The "Open config" button was not clicked.
+- [x] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares. Checked for a workspace rename in a debug build; screenshots are on pull request #16. Project renames and colours go through the same state file and were not clicked through.
 - [x] From Swift on Apple silicon, a 50-window Filter request takes no more than 10 ms and a hook request no more than 2 ms.
 
 ## Sources
