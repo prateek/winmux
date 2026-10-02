@@ -23,8 +23,8 @@ let windowTabGroupFrameStrokeWidth: CGFloat = 0.5
 let windowTabGroupFrameInnerStrokeWidth: CGFloat = 0.5
 // Must be >= the OS standard window corner radius (26pt on macOS 26, unified system-wide on
 // macOS 27), otherwise the chrome frame's inner cutout clamps below the real window corners
-// and visibly mismatches them. The actual radius comes from per-window measurement; this only
-// bounds absurd estimates.
+// and visibly mismatches them. The actual radius is the system's; this only bounds an absurd
+// value.
 let windowTabGroupFrameMaxInnerCornerRadius: CGFloat = 36
 let windowTabGroupFrameMaxTopInnerCornerRadius: CGFloat = 40
 let windowTabPillAnimation: Animation = MotionToken.pill
