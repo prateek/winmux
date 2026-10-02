@@ -86,7 +86,7 @@ WinMux's config becomes one Nickel file, `~/.config/winmux/winmux.ncl`, replacin
 - Lens records, the banner shown when a Filter fails, `lens --filter` and Search's `=` prefix: "Lens core and the `'list` Presentation with Search".
 - What `arrive`, `place` and `move-boundary` receive, return and fall back to, and `place --dry-run`: "Column Policy hooks and Column commands".
 - Width presets and the Columns settings: "Fixed Columns: slots, the count invariant, Width presets".
-- What `defaults.ncl` holds (upstream's settings and bindings carried over from the TOML, the default Lenses, their Triggers and the `lens` mode), and the `config-reloaded` event on `subscribe`: "Default config, Triggers, the `lens` leader mode, `subscribe` events".
+- The default Lenses, their Triggers and the `lens` mode in `defaults.ncl`, and the `config-reloaded` event on `subscribe`: "Default config, Triggers, the `lens` leader mode, `subscribe` events". This issue already carries upstream's settings and bindings over into `defaults.ncl` (see the defaults below).
 - Deferred: Tab provider `transform` and `focus` requests, gesture bindings, and Display profile matching.
 
 ## Depends on
@@ -100,45 +100,57 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Where the sidebar state file lives.** `$XDG_STATE_HOME/winmux/sidebar.json`, falling back to `~/.local/state/winmux/sidebar.json`. A missing or unreadable file means no overrides. Deleting it returns every name and colour to what the config declares.
 - **Wire names.** The requests are `load`, `filter`, `hook` and `eval-filter`. A reply is `{id, ok, result, rss}` on success and `{id, ok, error, rss}` on failure. `config status` prints the keys `state`, `pid`, `rss`, `recycles`, `last-error` and `config-path`.
 - **Where the library ships.** `WinMux.app/Contents/Resources/nickel/winmux/`, with `Contents/Resources/nickel` on the import path. A dev build reads the same files from the `nickel-helper/` crate. `nls` and the `nickel` CLI find them when `NICKEL_IMPORT_PATH` is set to that directory, and the starter config says so in a comment.
-- **Built-in defaults.** The build runs `winmux-nickel` over `defaults.ncl` and embeds the resulting static JSON in the app. WinMux applies that JSON when no helper can load anything: a missing binary, a failed or timed-out first load, or the breaker open at startup. With no config file and a working helper, the helper loads `defaults.ncl` as the config, so the default functions are live.
+- **Built-in defaults.** `resources/default-config.json` is the static JSON of `defaults.ncl`. It is checked in, `make default-config` regenerates it, and a helper test fails when it is out of date; a build step would have needed the helper before every `swift build`. WinMux applies that JSON when no helper can load anything: a missing binary, a failed or timed-out first load, or the breaker open at startup. With no config file and a working helper, the helper loads `defaults.ncl` as the config, so the default functions are live.
+- **What `defaults.ncl` holds.** Upstream's settings and bindings, every value marked `| default`, generated from upstream's `default-config.toml` with `convert`. Without them a WinMux with no config file has no bindings. `resources/default-config.toml` is gone; a copy stays as a helper test fixture.
+- **How the settings reach the Swift parser.** The parser was written against TOMLKit types (about 54 functions). The static JSON is turned into a `TOMLTable` and handed to it unchanged, so the parser and its tests stay. `Config`'s contracts check shape and scalar types; values with a syntax of their own (commands, key names, monitor patterns) are still checked by the Swift parser, whose errors are shown the same way as a Nickel diagnostic.
 - **Recycle threshold.** 256 MB is a constant in the Swift supervisor, not a config setting.
 - **How the CLI finds the helper.** `WINMUX_NICKEL_HELPER`, then next to the `winmux` executable, then inside the app bundle that LaunchServices returns for WinMux's bundle id.
 - **`config check` with no argument.** It checks the file WinMux would load. A file that fails the check exits 2.
 - **`config convert` input and output.** It prints Nickel to stdout. With no path it reads the TOML file WinMux would have loaded, using the existing search order in `Sources/AppBundle/config/ConfigFile.swift`.
-- **`[[on-window-detected]]` in `convert`.** Each entry becomes a commented-out `arrive` branch in the output, and `convert` prints a warning on stderr that names it. These rules do nothing until "Column Policy hooks and Column commands" lands. Upstream's default config has none, so only a user's own rules are affected.
+- **`[[on-window-detected]]` in `convert`.** Each entry becomes a commented-out `arrive` branch in the output, and `convert` prints a warning on stderr that names it. `on-window-detected` is not a key of `W.Config`, so these rules do nothing until "Column Policy hooks and Column commands" lands. Upstream's default config has none, so only a user's own rules are affected.
+- **Bindings in `convert`.** A TOML config replaced the default bindings wholesale. Merging over `defaults.ncl` would add the default bindings back, so when the TOML defines `mode`, the output merges over `std.record.remove "mode" defaults` and says so in a comment.
+- **Keys `convert` does not translate.** Deprecated TOML keys (`after-login-command`, `use-liquid-glass` and the like) are printed as they are and then fail `config check` with Nickel's diagnostic.
 - **Names of the settings WinMux already has.** The same keys and nesting as the TOML: `gaps`, `workspace-sidebar`, `mode.main.binding` and so on.
 - **Existing `config` and `reload-config` flags.** `config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `reload-config --dry-run` and `--no-gui`, keep working and read the static JSON. The server's `--config-path` argument keeps working and names a Nickel file.
 - **Search paths and the starter config.** The existing search order carries over with `.ncl` in place of `.toml`, `XDG_CONFIG_HOME` included. The first-launch bootstrap writes its starter config as Nickel.
 - **`TOMLKit`.** It stays as a dependency while the AeroSpace importer in Swift parses TOML with it, and goes when that importer moves into the helper.
-- **Where the signing step goes.** `script/dogfood-release` is not on this branch. Add the helper's signing step to the release build in `makefile` or `project.yml` and name the place in the pull request.
+- **Where the signing step goes.** A post-build script in `project.yml` builds the helper with cargo, copies it to `Contents/Helpers` and signs it with the app's identity before Xcode seals the bundle. "Dogfood releases" verifies the signature under the dogfood identity.
+- **What `eval-filter` can see.** `w`, `ctx` and `filters`, the config's named Filters. The text is compiled as its own source that imports the loaded config, so a `let` at the top of the config file is not in scope.
+- **Hook arguments.** Until "Column Policy hooks and Column commands" defines them, the helper knows `arrive`, `columns.place` and `columns.move-boundary`, each taking a Window and a Filter context. `W.Config` does not accept the hooks yet.
+- **A hung helper and the breaker.** A helper killed for a timeout is respawned at once and is not counted as a crash. The restart delays start over once the helper has stayed up for five minutes. A load gets the same 2 s at reload as at startup.
+- **Notifications.** The breaker and a failed load use WinMux's existing message window, the one config errors already used.
+- **Removing a name in the sidebar.** Resetting a name or colour removes the override from the state file. It cannot hide a name the config declares.
+- **`config check` and `convert` with no file.** The CLI uses the default locations and does not know a `--config-path` the server was started with. With no config file, `check` checks the shipped defaults.
+- **Settings panes.** The Configuration pane shows the file's text and cannot edit it. The unused `ShortcutGeneralView` is deleted with the writers it called.
+- **Licences.** `nickel-lang-core` depends on `malachite`, which is LGPL-3.0, and the helper links it statically. `legal/README.md` records it.
 - **Latency limits.** From Swift on Apple silicon, a 50-window Filter request that takes more than 10 ms fails the check, and so does a `place`-sized hook request that takes more than 2 ms. The spike measured about 2 ms and 0.2 ms.
 
 ## Done when
 
-- [ ] `cargo build --release` in `nickel-helper/` produces `winmux-nickel`, with `nickel-lang-core` pinned to `=0.19.0`.
-- [ ] The release app contains `Contents/Helpers/winmux-nickel`, signed with the app's identity. A dev build finds the helper through `WINMUX_NICKEL_HELPER`.
-- [ ] WinMux starts with a valid `~/.config/winmux/winmux.ncl`, applies its gaps and bindings, and `winmux config status` prints JSON with state `ready`, a pid, RSS, recycle count, last error and the loaded config path.
-- [ ] WinMux does not link `nickel-lang-core`: the Swift package has no Nickel dependency.
-- [ ] A config that imports `winmux/winmux.ncl` and `winmux/defaults.ncl` loads from `~/.config/winmux/winmux.ncl` with no copy of either file beside it. A setting the config leaves out has its value from `defaults.ncl`, and a config without the `defaults.ncl` import gets no defaults.
-- [ ] A config that sets a key the contracts do not know fails to load with Nickel's diagnostic.
-- [ ] With a config that has a contract error, WinMux starts on built-in defaults and shows the Nickel diagnostic. The same happens when the helper does not answer within 2 s.
-- [ ] In a helper test, a Filter that reads a misspelled field of the stand-in record fails the load in the smoke run, and the diagnostic names the field and suggests the correct one.
-- [ ] `winmux reload-config` with a valid change applies it and `config status` shows a new pid and a higher recycle count. With a broken file it exits non-zero, prints the diagnostic, shows a notification, and the old config and helper keep working.
-- [ ] In a helper test, a batched Filter request that names a Lens of the stand-in config and carries 50 stand-in records returns 50 match bits.
-- [ ] In a helper test, a stand-in record with a missing field is rejected with an error that names the field, before any Nickel runs, and a JSON string in the enum-tag field reaches Nickel as an enum tag.
-- [ ] In a helper test, an `eval-filter` request whose body calls a Filter named under `filters` returns that Filter's result.
-- [ ] A request for a Policy hook returns the hook's result as JSON, or a failure after 50 ms.
-- [ ] A Filter that loops returns a failure after 100 ms, the helper is killed and respawned, and the next request succeeds.
-- [ ] Killing the helper with `kill -9` brings up a new one at once; `config status` shows `restarting`, then `ready`. After a second kill the restart waits 1 s.
-- [ ] Killing it 3 times within a minute trips the breaker: a notification shows, `config status` reports `failed`, the static config stays applied, and `winmux reload-config` brings the helper back.
-- [ ] Pushing the helper's RSS past the threshold replaces it without a failed or delayed request, and the recycle count goes up.
-- [ ] `winmux config check <file>` exits 0 for a valid file and exits 2 with the diagnostic for a broken one, with the WinMux server stopped. With no argument it checks the file WinMux would load.
-- [ ] `winmux config convert` turns an existing `winmux.toml` into Nickel on stdout, with the WinMux server stopped. The output imports `winmux/defaults.ncl`, applies `W.Config` and passes `winmux config check`. A `[[on-window-detected]]` entry comes out as a commented-out `arrive` branch with a warning on stderr.
-- [ ] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
-- [ ] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
-- [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file.
-- [ ] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares.
-- [ ] From Swift on Apple silicon, a 50-window Filter request takes no more than 10 ms and a hook request no more than 2 ms.
+- [x] `cargo build --release` in `nickel-helper/` produces `winmux-nickel`, with `nickel-lang-core` pinned to `=0.19.0`.
+- [x] The release app contains `Contents/Helpers/winmux-nickel`, signed with the app's identity. A dev build finds the helper through `WINMUX_NICKEL_HELPER`.
+- [x] WinMux starts with a valid `~/.config/winmux/winmux.ncl`, applies its gaps and bindings, and `winmux config status` prints JSON with state `ready`, a pid, RSS, recycle count, last error and the loaded config path.
+- [x] WinMux does not link `nickel-lang-core`: the Swift package has no Nickel dependency.
+- [x] A config that imports `winmux/winmux.ncl` and `winmux/defaults.ncl` loads from `~/.config/winmux/winmux.ncl` with no copy of either file beside it. A setting the config leaves out has its value from `defaults.ncl`, and a config without the `defaults.ncl` import gets no defaults.
+- [x] A config that sets a key the contracts do not know fails to load with Nickel's diagnostic.
+- [x] With a config that has a contract error, WinMux starts on built-in defaults and shows the Nickel diagnostic. The same happens when the helper does not answer within 2 s.
+- [x] In a helper test, a Filter that reads a misspelled field of the stand-in record fails the load in the smoke run, and the diagnostic names the field and suggests the correct one.
+- [x] `winmux reload-config` with a valid change applies it and `config status` shows a new pid and a higher recycle count. With a broken file it exits non-zero, prints the diagnostic, shows a notification, and the old config and helper keep working.
+- [x] In a helper test, a batched Filter request that names a Lens of the stand-in config and carries 50 stand-in records returns 50 match bits.
+- [x] In a helper test, a stand-in record with a missing field is rejected with an error that names the field, before any Nickel runs, and a JSON string in the enum-tag field reaches Nickel as an enum tag.
+- [x] In a helper test, an `eval-filter` request whose body calls a Filter named under `filters` returns that Filter's result.
+- [x] A request for a Policy hook returns the hook's result as JSON, or a failure after 50 ms.
+- [x] A Filter that loops returns a failure after 100 ms, the helper is killed and respawned, and the next request succeeds.
+- [x] Killing the helper with `kill -9` brings up a new one at once; `config status` shows `restarting`, then `ready`. After a second kill the restart waits 1 s.
+- [x] Killing it 3 times within a minute trips the breaker: a notification shows, `config status` reports `failed`, the static config stays applied, and `winmux reload-config` brings the helper back. Checked in a running debug build, except that the notification was not looked at.
+- [x] Pushing the helper's RSS past the threshold replaces it without a failed or delayed request, and the recycle count goes up.
+- [x] `winmux config check <file>` exits 0 for a valid file and exits 2 with the diagnostic for a broken one, with the WinMux server stopped. With no argument it checks the file WinMux would load.
+- [x] `winmux config convert` turns an existing `winmux.toml` into Nickel on stdout, with the WinMux server stopped. The output imports `winmux/defaults.ncl`, applies `W.Config` and passes `winmux config check`. A `[[on-window-detected]]` entry comes out as a commented-out `arrive` branch with a warning on stderr.
+- [x] `winmux config --get`, `--all-keys`, `--major-keys` and `--config-path`, and `winmux reload-config --dry-run`, work against a Nickel config.
+- [x] On first launch with no config file, WinMux writes a Nickel starter config that passes `winmux config check`.
+- [ ] The Settings panes show the loaded values, offer an "Open config" button that opens the config file, and never write to the file. Not yet checked: needs a running WinMux.
+- [ ] Renaming a workspace, renaming a project and changing a project's colour in the sidebar still work and survive a restart. The config file is byte-for-byte unchanged afterwards, and deleting the state file restores the names and colours the config declares. Not yet checked in a running WinMux; the state file and its override are covered by tests.
+- [x] From Swift on Apple silicon, a 50-window Filter request takes no more than 10 ms and a hook request no more than 2 ms.
 
 ## Sources
 

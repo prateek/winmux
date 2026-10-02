@@ -23,19 +23,21 @@ completely until the pointer reaches the left display edge, enable auto-hide. On
 newer, native Liquid Glass is enabled by default. Choose an opaque solid color for greater
 contrast across the sidebar, tab groups, and switcher:
 
-```toml
-[workspace-sidebar]
-    auto-hide = true
-    chrome-style = 'solid'
-    solid-chrome-color = 'lavender' # Choose any color shown in Appearance, including custom.
+```nickel
+workspace-sidebar = {
+  auto-hide = true,
+  chrome-style = 'solid,
+  solid-chrome-color = "lavender", # Choose any color shown in Appearance, including custom.
+},
 ```
 
 To keep the full sidebar visible, reserve its expanded width when laying out tiled windows:
 
-```toml
-[workspace-sidebar]
-    always-expanded = true
-    width = 240
+```nickel
+workspace-sidebar = {
+  always-expanded = true,
+  width = 240,
+},
 ```
 
 `always-expanded` takes precedence over `auto-hide`. The configured `gaps.outer.left` remains
@@ -44,12 +46,13 @@ control which displays reserve sidebar space.
 
 The sidebar clock can be configured independently:
 
-```toml
-[workspace-sidebar]
-    show-clock = true
-    show-seconds = true
-    show-date = true
-    show-weekday = true
+```nickel
+workspace-sidebar = {
+  show-clock = true,
+  show-seconds = true,
+  show-date = true,
+  show-weekday = true,
+},
 ```
 
 `show-clock` hides the entire clock card. The other settings independently control seconds,
@@ -58,21 +61,18 @@ the month and day, and the weekday; for example, `show-date = false` with
 
 ### Window and sidebar spacing
 
-The `[gaps]` settings control the visible borders around tiled windows. `inner.horizontal`
+The `gaps` settings control the visible borders around tiled windows. `inner.horizontal`
 and `inner.vertical` set the space between neighboring windows. The outer gaps set the space
 at each display edge; when the sidebar is enabled, `outer.left` is the space between the
 sidebar and the tiled windows. Any of these values can be reduced or set to zero independently.
 
 For borderless tiling, including no border beside the sidebar:
 
-```toml
-[gaps]
-    inner.horizontal = 0
-    inner.vertical = 0
-    outer.left = 0
-    outer.bottom = 0
-    outer.top = 0
-    outer.right = 0
+```nickel
+gaps = {
+  inner = { horizontal = 0, vertical = 0 },
+  outer = { left = 0, bottom = 0, top = 0, right = 0 },
+},
 ```
 ### Tab Groups
 ![](resources/screenshots/tab-groups.png)
@@ -86,16 +86,16 @@ Unlike stack-only layouts, WinMux tab groups behave more intuitively like you wo
 
 WinMux tiles newly discovered windows by default. To keep their existing macOS size and position while still using WinMux's sidebar, workspaces, and manual layout commands, disable automatic tiling:
 
-```toml
-automatically-tile-new-windows = false
+```nickel
+automatically-tile-new-windows = false,
 ```
 
 This applies to windows discovered when WinMux starts and windows opened later. You can still tile an individual floating window with `winmux layout tiling` or the configured `layout floating tiling` shortcut.
 
 While dragging a window by its title bar, shake it horizontally to toggle between floating and tiling. The gesture requires several deliberate direction changes in quick succession, and does not activate during resize, sidebar, tab-strip, or tab-group drags. Disable it with:
 
-```toml
-enable-shake-to-toggle-tiling = false
+```nickel
+enable-shake-to-toggle-tiling = false,
 ```
 
 #### Workspaces
@@ -111,17 +111,20 @@ WinMux supports single-modifer keybindings (e.g. triggering an action on press o
 
 I highly recommend that you configure the apps you use every day to be launch with Left/Right Option+Command, or similar shortcuts, otherwise it might be hard to launch common things into the current workspace (and instead, take you to the other workspace where the app is currently active). Here is some of the apps that I have keybinded:
 
-```toml
-[mode.main.binding-tap]
-    left-alt = 'exec-and-forget /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --profile-directory="Default"'
-    right-cmd = 'exec-and-forget /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --profile-directory="Profile 1"'
-
-[mode.main.binding]
+```nickel
+mode.main = {
+  binding-tap = {
+    left-alt = m%"exec-and-forget /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --profile-directory="Default""%,
+    right-cmd = m%"exec-and-forget /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --profile-directory="Profile 1""%,
+  },
+  binding = {
     # Disable the native "Hide App" shortcut.
-    cmd-h = []
+    cmd-h = [],
 
-    cmd-d = 'exec-and-forget osascript ~/Documents/scripts/launchTerminalWindow.scpt'
-    cmd-e = 'exec-and-forget osascript ~/Documents/scripts/launchFinderWindow.scpt'
+    cmd-d = "exec-and-forget osascript ~/Documents/scripts/launchTerminalWindow.scpt",
+    cmd-e = "exec-and-forget osascript ~/Documents/scripts/launchFinderWindow.scpt",
+  },
+},
 ```
 
 ```applescript
@@ -165,15 +168,27 @@ Release builds are signed with the project's Apple Development certificate. They
 
 WinMux checks GitHub Releases for signed updates automatically. You can also select **Check for Updates…** from the menu bar.
 
+## Config
+The config is one [Nickel](https://nickel-lang.org) file, `~/.config/winmux/winmux.ncl`. It merges your settings over the defaults WinMux ships and checks the result against WinMux's contracts:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  gaps.inner.horizontal = 0,
+  mode.main.binding.alt-enter = "exec-and-forget open -a Terminal",
+}) | W.Config
+```
+
+The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, `winmux reload-config` applies the file, and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
+
 ## Migrating
+### From a TOML config
+If `~/.config/winmux/winmux.ncl` does not exist and `~/.config/winmux/winmux.toml` does, WinMux converts it on first launch. `winmux config convert` prints the same conversion, and works without WinMux running.
+
 ### From AeroSpace
-If `~/.config/winmux/winmux.toml` already exists, WinMux uses it as-is.
+If you have an AeroSpace config but no WinMux config yet, WinMux creates one for you on first launch. It converts your AeroSpace key mapping and bindings and takes WinMux's defaults for everything else, including the sidebar and window tabs. WinMux leaves your AeroSpace config alone and does not read it again.
 
-If you have an AeroSpace config but no WinMux config yet, WinMux creates one for you on first launch. It copies over your AeroSpace shortcuts/key mapping and fills in the rest with WinMux defaults, including the sidebar and window tabs.
-
-You do not need to edit anything to get started. After import, WinMux uses `~/.config/winmux/winmux.toml` and leaves your AeroSpace config alone.
-
-If neither exists, WinMux creates a new WinMux config with the bundled defaults.
+If neither exists, WinMux writes a starter config that takes every default.
 
 ## Credits
 [Aerospace](https://github.com/nikitabobko/AeroSpace)

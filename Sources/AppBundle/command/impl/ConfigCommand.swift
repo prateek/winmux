@@ -24,7 +24,49 @@ struct ConfigCommand: Command {
                 return io.out(allKeys.joined(separator: "\n"))
             case .configPath:
                 return io.out(configUrl.absoluteURL.path)
+            case .status:
+                return switch JSONEncoder.winMuxDefault.encodeToString(ConfigHelperStatus(NickelSupervisor.shared.status)) {
+                    case .some(let json): io.out(json)
+                    case nil: io.err("Can't encode the config helper's status")
+                }
+            case .check, .convert:
+                return io.err("'config check' and 'config convert' are run by the winmux CLI, not by the server")
         }
+    }
+}
+
+private struct ConfigHelperStatus: Encodable {
+    let state: String
+    let pid: Int32?
+    let rss: Int
+    let recycles: Int
+    let lastError: String?
+    let configPath: String?
+
+    init(_ status: NickelStatus) {
+        state = status.state.rawValue
+        pid = status.pid
+        rss = status.rss
+        recycles = status.recycles
+        lastError = status.lastError
+        configPath = status.configPath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case state, pid, rss, recycles
+        case lastError = "last-error"
+        case configPath = "config-path"
+    }
+
+    // Every key is always present, with null for a value there is none of.
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(state, forKey: .state)
+        try container.encode(pid, forKey: .pid)
+        try container.encode(rss, forKey: .rss)
+        try container.encode(recycles, forKey: .recycles)
+        try container.encode(lastError, forKey: .lastError)
+        try container.encode(configPath, forKey: .configPath)
     }
 }
 

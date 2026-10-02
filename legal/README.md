@@ -22,6 +22,16 @@ TOMLKIT is used as a more convenient Swift wrapper around tomlplusplus C++ API.
 [tomlplusplus MIT license](./third-party-license/LICENSE-tomlplusplus.txt).
 tomlplusplus is used as TOML parser. tomlplusplus is used indirectly through TOMLKIT Swift API.
 
+**Nickel**.
+[Nickel GitHub link](https://github.com/tweag/nickel).
+[Nickel MIT license](./third-party-license/LICENSE-nickel.txt).
+Nickel is the config language. `winmux-nickel`, a separate helper binary, links `nickel-lang-core` and its dependencies to evaluate the config.
+
+**malachite**.
+[malachite GitHub link](https://github.com/mhogrefe/malachite).
+[malachite LGPL-3.0 license](./third-party-license/LICENSE-malachite.txt).
+malachite is Nickel's arbitrary-precision number library. `winmux-nickel` links it statically. The helper's source and build are in [`nickel-helper/`](../nickel-helper), so it can be rebuilt against another version of malachite; WinMux.app itself does not link it.
+
 **ANTLR v4**.
 [ANTLR v4 GitHub link](https://github.com/antlr/antlr4).
 [ANTLR BSD-3 license](./third-party-license/LICENSE-antlr.txt).

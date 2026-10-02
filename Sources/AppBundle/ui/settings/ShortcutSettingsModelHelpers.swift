@@ -237,12 +237,6 @@ private func quoteCommandArgument(_ raw: String) -> String {
     return "\"\(escaped)\""
 }
 
-func notation(from shortcut: MASShortcut) -> String? {
-    guard let key = Key(carbonKeyCode: UInt32(shortcut.keyCode)) else { return nil }
-    let modifiers = normalizedRecorderModifiers(from: shortcut.modifierFlags)
-    return renderBindingNotation(modifiers: modifiers, key: key)
-}
-
 func masShortcut(from notation: String) -> MASShortcut? {
     guard let (modifiers, key) = try? parseBinding(notation, .emptyRoot, keyNotationToKeyCode).get() else {
         return nil
@@ -300,6 +294,11 @@ private extension Result {
     }
 }
 
-func shortcutSettingsError(_ message: String) -> NSError {
-    NSError(domain: winMuxAppId, code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+func canonicalConfigCommandScript(_ raw: String) -> String? {
+    switch parseCommand(raw) {
+        case .cmd(let command):
+            command.args.description
+        case .help, .failure:
+            nil
+    }
 }

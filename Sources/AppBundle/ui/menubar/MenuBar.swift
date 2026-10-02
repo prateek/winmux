@@ -56,21 +56,25 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
 
 @MainActor @ViewBuilder
 func openConfigButton(showShortcutGroup: Bool = false) -> some View {
-    let button = Button("Open config") {
-        switch findCustomConfigUrl() {
-            case .file(let url):
-                NSWorkspace.shared.open(url)
-            case .noCustomConfigExists:
-                let createdUrl = try? ensureBootstrapConfigExistsIfNeeded()
-                NSWorkspace.shared.open(createdUrl ?? preferredEditableConfigUrl())
-            case .ambiguousConfigError:
-                NSWorkspace.shared.open(preferredEditableConfigUrl())
-        }
-    }.keyboardShortcut(",", modifiers: .command)
+    let button = Button("Open config") { openConfigFile() }.keyboardShortcut(",", modifiers: .command)
     if showShortcutGroup {
         shortcutGroup(label: Text("⌘ ,"), content: button)
     } else {
         button
+    }
+}
+
+/// Opens the config file in the user's editor, writing the starter config first if there is none.
+@MainActor
+func openConfigFile() {
+    switch findCustomConfigUrl() {
+        case .file(let url):
+            NSWorkspace.shared.open(url)
+        case .noCustomConfigExists:
+            let createdUrl = try? ensureBootstrapConfigExistsIfNeeded()
+            NSWorkspace.shared.open(createdUrl ?? preferredEditableConfigUrl())
+        case .ambiguousConfigError:
+            NSWorkspace.shared.open(preferredEditableConfigUrl())
     }
 }
 

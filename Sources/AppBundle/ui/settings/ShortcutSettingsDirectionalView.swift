@@ -239,11 +239,7 @@ struct CompassPad<Demo: View>: View {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
-            ShortcutRecorderView(
-                shortcut: .init(get: { model.shortcutValue(for: id) },
-                                set: { model.setShortcutValue($0, for: id) }),
-                onChange: { _ in }
-            )
+            ShortcutRecorderView(shortcut: model.shortcutValue(for: id))
             .frame(width: 120, height: 22)
         }
     }

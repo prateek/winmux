@@ -6,7 +6,7 @@ struct ShortcutConfigurationReferenceView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Configuration Reference")
                     .font(.headline)
-                Text("Use Configuration to edit the complete winmux.toml file. The settings panes cover the everyday options; this reference lists the remaining advanced sections.")
+                Text("Every setting lives in the config file, winmux.ncl. The settings panes show the everyday options; this reference lists the remaining sections.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 

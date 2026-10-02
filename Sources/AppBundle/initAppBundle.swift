@@ -21,17 +21,15 @@ import Foundation
                 body: error.localizedDescription,
             )
         }
+        NickelSupervisor.shared.onBreakerOpened = { message in
+            MessageModel.shared.message = Message(description: "WinMux Config Helper Stopped", body: message)
+        }
+        // Window management waits for the first load. A config that fails to load, or a helper
+        // that is missing or does not answer in time, leaves WinMux on its built-in defaults,
+        // with the reason on screen.
         if try await !reloadConfig(forceConfigUrl: bootstrappedConfigUrl) {
-            var out = ""
-            check(
-                try await reloadConfig(forceConfigUrl: defaultConfigUrl, stdout: &out),
-                """
-                Can't load default config. Your installation is probably corrupted.
-                Please don't modify '\(defaultConfigUrl)'
-
-                \(out)
-                """,
-            )
+            try await applyConfig(defaultConfig, url: defaultConfigUrl)
+            syncConfigFileWatcher()
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
@@ -85,8 +83,8 @@ private let serverHelp = """
     OPTIONS:
       -h, --help              Print help
       -v, --version           Print WinMux.app version
-      --config-path <path>    Config path. It will take priority over ~/.config/winmux/winmux.toml,
-                              ~/.winmux.toml and ${XDG_CONFIG_HOME}/winmux/winmux.toml
+      --config-path <path>    Config path. It will take priority over
+                              ${XDG_CONFIG_HOME}/winmux/winmux.ncl and ~/.config/winmux/winmux.ncl
       --read-only             Run without mutating macOS windows.
                               Useful if you want to use only debug-windows or other query commands.
     """

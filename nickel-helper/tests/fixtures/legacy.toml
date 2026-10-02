@@ -1,0 +1,17 @@
+start-at-login = true
+
+[gaps]
+    inner.horizontal = 4
+
+[mode.main.binding]
+    alt-h = 'focus left'
+    cmd-1 = ['workspace 1', 'mode main']
+
+[workspace-sidebar.project-labels]
+    "default" = "Home"
+    "my project" = "Work %{x}"
+
+[[on-window-detected]]
+    if.app-id = 'com.apple.mail'
+    if.window-title-regex-substring = 'inbox'
+    run = 'layout floating'

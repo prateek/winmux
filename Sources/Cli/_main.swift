@@ -57,7 +57,17 @@ struct Main {
             case .help(let help):
                 exit(0, out: help)
             case .failure(let e):
-                exit(1, err: e)
+                // The config helper's commands report bad usage with 2. The rest keep 1.
+                let isConfigAction = args.first == "config" && args.dropFirst().contains { ConfigAction(rawValue: $0) != nil }
+                exit(isConfigAction ? 2 : 1, err: e)
+        }
+
+        if let configArgs = parsedArgs as? ConfigCmdArgs {
+            switch configArgs.mode {
+                case .check(let file): execNickelHelper(.check, file: file)
+                case .convert(let file): execNickelHelper(.convert, file: file)
+                case .getKey, .majorKeys, .allKeys, .configPath, .status: break
+            }
         }
 
         let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)

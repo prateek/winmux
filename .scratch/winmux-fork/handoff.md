@@ -1,13 +1,13 @@
 # Handoff: building the WinMux fork foundation
 
-Planning is finished and the build has started: the deployment target issue has landed on `fork`, on top of upstream `v0.5.6`, and the Nickel config issue is next. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't. Last updated 2026-10-01.
+Planning is finished and the build is under way: the deployment target and Nickel config issues have landed on `fork`, on top of upstream `v0.5.6`, and the dogfood release issue is next. This note orients an agent that is about to build. It holds only what the issues, the map and the code don't. Last updated 2026-10-01.
 
 ## Start here
 
 - **The work:** the umbrella issue [Fork foundation: Nickel config, Lenses, fixed Columns and the CLI](https://github.com/prateek/winmux/issues/1) and its thirteen child issues on `prateek/winmux`, linked as sub-issues with blocked-by dependencies. Each child is one buildable slice and stands alone. Build in dependency order; the Lens issues and the Column issues are independent of each other once the Nickel config lands.
 - **Done:** [Raise the deployment target to macOS 26](https://github.com/prateek/winmux/issues/2), landed as `9aac8be2`. The issue stays open for one check that needs an installed build: the double-sided flip animating.
-- **Next:** [Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`](https://github.com/prateek/winmux/issues/3). Everything else waits on it.
-- **Then:** [Dogfood releases: cut a signed build from `fork` and install it through the tap](https://github.com/prateek/winmux/issues/14), before the Lens and Column issues, so they can be tested on Prateek's daily machine.
+- **Done, with checks left:** [Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`](https://github.com/prateek/winmux/issues/3). A debug build was run on scratch config and state directories and passed the startup, reload, kill and breaker checks. Two Done-when items are left, both needing someone at the screen: the Settings panes, and sidebar renames surviving a restart.
+- **Next:** [Dogfood releases: cut a signed build from `fork` and install it through the tap](https://github.com/prateek/winmux/issues/14), before the Lens and Column issues, so they can be tested on Prateek's daily machine. After it, [Config hot reload](https://github.com/prateek/winmux/issues/4) and [Filter contract v1 and `config schema`](https://github.com/prateek/winmux/issues/5) are unblocked.
 - **Glossary:** `CONTEXT.md` at the repo root. Use its terms and avoid the words it lists under _Avoid_.
 - **ADR:** `docs/adr/0001-nickel-helper-process.md`.
 
@@ -35,7 +35,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Open with Prateek
 
-- **Commits and pushes.** He asks for each one. Planning used one commit per resolved ticket. The first build issue landed as one squashed commit pushed straight to `fork`, with no pull request, and its worktree was removed afterwards.
+- **Landing.** Each piece of work is a pull request against `fork`, squash-merged after CI passes and Prateek has reviewed it. Push the branch over SSH and open the pull request; the merge is his. An issue that depends on an unmerged one targets that issue's branch. The first build issue went straight onto `fork` before this was the rule.
 - **Running a release.** `script/dogfood-release` publishes a release and pushes to the tap. Ask before each run.
 - **Decisions belong to him.** For a discrete choice, ask with a recommended answer first; he usually takes it. Don't settle a product question for him, and don't reopen one he has settled.
 
@@ -65,6 +65,15 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 - **Research limits.** The first research agents had no web fetch. Apple API facts come from SDK headers, and each findings file flags its own unverified points.
 - **Window capture.** `WindowScreenshot` in `Sources/AppBundle/util/` wraps the one-shot ScreenCaptureKit call and caches the `SCWindow` list, refetching only when a window id is missing. The thumbnail issue builds its cache on it. The capture's default size is the window's size in points, so callers pass a pixel size.
 - **Deprecation warnings.** The macOS 26 target surfaces about 30 that were left alone: `onChange(of:perform:)`, `CVDisplayLink` and `activateIgnoringOtherApps`. Only code in `Sources/WinMuxApp` fails the Release build on a warning.
+- **Working on the Nickel config.**
+  - `make helper` builds `winmux-nickel`; `make check` builds it and runs its tests before the Swift ones. A debug build of WinMux and the Swift tests find it in `nickel-helper/target/`, release before debug, or through `WINMUX_NICKEL_HELPER`. Swift tests that need it skip when it is missing.
+  - After changing `nickel-helper/nickel/winmux/defaults.ncl`, run `make default-config`. A helper test fails while `resources/default-config.json` is out of date.
+  - `nickel-helper/src/records.rs` holds the stand-in Window and Filter context records and the hook argument table. The Filter contract issue and the Column hooks issue replace its contents; nothing else names a field.
+  - Supervisor behaviour (timeouts, restarts, the breaker, memory recycling) is tested against a stub helper, a Python script written out by `NickelSupervisorTest`. Extend the stub for new failure cases instead of starting WinMux.
+  - The startup fallback (a failed first load leaves WinMux on the built-in defaults with the reason on screen) lives in `initAppBundle` and has no test. `ReadConfigTest` covers the load and its failure message.
+  - The Swift parser still takes TOMLKit types; the helper's JSON is converted to a `TOMLTable` in `parseConfig.swift`. Its error text still says TOML things such as "actual type is 'integer'".
+  - CI runs only for `main` and pull requests, so nothing runs on a push to `fork`. `make check` now needs cargo, and `ci.yml` installs only swiftly; whether the `macos-26` runner has Rust is unchecked.
+- **Running a debug build.** `make run` fails: it copies the binary to `.debug/` without `Sparkle.framework`. Run `.build/debug/WinMuxApp` instead. Set `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to scratch directories to keep Prateek's own config out of it; his `~/.config/winmux/winmux.toml` is upstream's and would be converted on first launch.
 - **Nickel binaries.** Nickel's 1.18 macOS release binaries link libiconv from `/nix/store` and won't run outside Nix. To try one, repoint it with `install_name_tool -change <nix libiconv path> /usr/lib/libiconv.2.dylib` and re-sign with `codesign -f -s -`. `nickel-lang-core` 0.19.0 builds from source, which is what the helper uses.
 - **Releases can't be cut yet.** `script/dogfood-release`, `script/setup-signing` and `script/setup-sparkle-keys` were copied unchanged from `codex-columns`. The two setup scripts work as they are: they create the stable self-signed identity that lets Accessibility and Screen Recording grants survive upgrades, and the Sparkle keys. `dogfood-release` calls `make beta-package`, which exists only in `codex-columns`'s `makefile`; this branch's `Makefile` has upstream's Xcode-based `release` target, hardcoded to upstream's identity and URLs. Porting `beta-package` is not a copy: it assembles the app bundle by hand from a SwiftPM build, and upstream has since added bundle resources (the app icon, the asset catalog, the `MASShortcut` resource bundle) that a hand-built bundle would lack. Either port it and add those, or teach `dogfood-release` to drive `make release` with the dogfood identity and the fork's URLs. The new `winmux-nickel` helper has to be signed with the same identity either way. The dogfood release issue (#14) tracks this and takes the second route.
 

@@ -9,7 +9,7 @@ APP_INSTALL_DIR ?= /Applications
 SPARKLE_PUBLIC_KEY ?= kcc3956V3+Yo8GtwFJ8Odb9sphIr09/9dsuoYBNtxf0=
 ARGS ?=
 
-.PHONY: generate xcodeproj build build-clean run run-clean cli check release install installed clean
+.PHONY: generate xcodeproj helper default-config build build-clean run run-clean cli check release install installed clean
 
 generate:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -29,8 +29,18 @@ xcodeproj:
 	./script/install-dep.sh --xcodegen && \
 	./.deps/xcodegen/xcodegen'
 
+# winmux-nickel evaluates the Nickel config. A debug build of WinMux runs it from this crate.
+helper:
+	/bin/bash -lc 'cd "$(CURDIR)/nickel-helper" && cargo build --release'
+
+# The settings of nickel-helper/nickel/winmux/defaults.ncl as JSON: what WinMux falls back to
+# when no helper can load anything. Regenerate after changing defaults.ncl.
+default-config: helper
+	/bin/bash -lc 'cd "$(CURDIR)" && ./nickel-helper/target/release/winmux-nickel defaults > resources/default-config.json'
+
 build:
 	$(MAKE) generate VERSION="$(VERSION)"
+	$(MAKE) helper
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	source ./script/setup.sh && \
 	swift build && \
@@ -83,6 +93,7 @@ cli:
 check:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
 	set -euo pipefail && \
+	(cd nickel-helper && cargo build --release && cargo test) && \
 	source ./script/setup.sh && \
 	swift test && \
 	python3 -m unittest script/test_validate_appcast.py && \
@@ -156,4 +167,4 @@ install:
 installed: install
 
 clean:
-	/bin/bash -lc 'cd "$(CURDIR)" && rm -rf .build .debug .deps .derived "$(RELEASE_DIR)" WinMux.xcodeproj'
+	/bin/bash -lc 'cd "$(CURDIR)" && rm -rf .build .debug .deps .derived nickel-helper/target "$(RELEASE_DIR)" WinMux.xcodeproj'

@@ -19,11 +19,11 @@ struct ShortcutBehaviorSettingsView: View {
     var body: some View {
         SettingsScrollView {
             SettingsSection("New windows") {
-                SettingsToggle("Tile new windows automatically", isOn: $automaticallyTileNewWindows, help: "Place new windows in the current tiled layout.") { persistRootBool("automatically-tile-new-windows", automaticallyTileNewWindows) }
-                SettingsToggle("Add new windows to the current tab group", isOn: $autoAddNewWindowsToTabGroup, help: "Keep new windows in the selected stack instead of creating a new tile.") { persistRootBool("auto-add-new-windows-to-tab-group", autoAddNewWindowsToTabGroup) }
-                SettingsToggle("Unhide macOS-hidden apps", isOn: $automaticallyUnhideMacosHiddenApps, help: "Restore apps macOS has hidden when they receive focus.") { persistRootBool("automatically-unhide-macos-hidden-apps", automaticallyUnhideMacosHiddenApps) }
+                SettingsToggle("Tile new windows automatically", isOn: $automaticallyTileNewWindows, help: "Place new windows in the current tiled layout.")
+                SettingsToggle("Add new windows to the current tab group", isOn: $autoAddNewWindowsToTabGroup, help: "Keep new windows in the selected stack instead of creating a new tile.")
+                SettingsToggle("Unhide macOS-hidden apps", isOn: $automaticallyUnhideMacosHiddenApps, help: "Restore apps macOS has hidden when they receive focus.")
             }
-            SettingsSection("Window pairs") {
+            SettingsSection("Window pairs", readOnly: false) {
                 SettingsToggle("Double-sided windows", isOn: $doubleSidedWindows, help: "Replace two-window tab strips with two sides. Option-click anywhere in the window or press Option-Tab to flip.") {
                     var settings = ExperimentalUISettings()
                     settings.doubleSidedWindows = doubleSidedWindows
@@ -37,42 +37,34 @@ struct ShortcutBehaviorSettingsView: View {
                     .padding(14)
             }
             SettingsSection("Interaction") {
-                SettingsToggle("Shake to toggle tiling", isOn: $enableShakeToToggleTiling, help: "Shake a window by its title bar to switch between floating and tiled.") { persistRootBool("enable-shake-to-toggle-tiling", enableShakeToToggleTiling) }
-                SettingsToggle("Flatten matching containers", isOn: $flattenContainers, help: "Simplify adjacent containers with the same layout orientation.") { persistRootBool("enable-normalization-flatten-containers", flattenContainers) }
-                SettingsToggle("Normalize nested orientations", isOn: $normalizeNestedContainers, help: "Avoid nested tiled containers with the same orientation.") { persistRootBool("enable-normalization-opposite-orientation-for-nested-containers", normalizeNestedContainers) }
+                SettingsToggle("Shake to toggle tiling", isOn: $enableShakeToToggleTiling, help: "Shake a window by its title bar to switch between floating and tiled.")
+                SettingsToggle("Flatten matching containers", isOn: $flattenContainers, help: "Simplify adjacent containers with the same layout orientation.")
+                SettingsToggle("Normalize nested orientations", isOn: $normalizeNestedContainers, help: "Avoid nested tiled containers with the same orientation.")
             }
             SettingsSection("Startup") {
-                SettingsToggle("Start at login", isOn: $startAtLogin, help: "Launch WinMux after you sign in.") { persistRootBool("start-at-login", startAtLogin) }
-                SettingsToggle("Reload config when it changes", isOn: $autoReloadConfig, help: "Apply valid edits saved from another editor automatically.") { persistRootBool("auto-reload-config", autoReloadConfig) }
+                SettingsToggle("Start at login", isOn: $startAtLogin, help: "Launch WinMux after you sign in.")
+                SettingsToggle("Reload config when it changes", isOn: $autoReloadConfig, help: "Apply valid edits saved from another editor automatically.")
             }
             SettingsSection("Default layout") {
                 SettingsPicker("Root layout", selection: $defaultLayout, help: "Used for new workspaces.") {
                     Text("Tiles").tag(Layout.tiles)
                     Text("Tab group").tag(Layout.tabGroup)
-                } onChange: { persistRootString("default-root-container-layout", defaultLayout.rawValue) }
+                }
                 SettingsPicker("Root orientation", selection: $defaultOrientation, help: "Controls how new tiled containers split.") {
                     Text("Automatic").tag(DefaultContainerOrientation.auto)
                     Text("Horizontal").tag(DefaultContainerOrientation.horizontal)
                     Text("Vertical").tag(DefaultContainerOrientation.vertical)
-                } onChange: { persistRootString("default-root-container-orientation", defaultOrientation.rawValue) }
+                }
                 SettingsPicker("Shortcut preset", selection: $shortcutsPreset, help: "Install the built-in default shortcut set, or use your own.") {
                     Text("Custom").tag("none")
                     Text("Rectangle").tag("rectangle")
-                } onChange: { persistRootString("shortcuts-preset", shortcutsPreset) }
+                }
             }
             SettingsSection("Workspaces") {
-                SettingsTextField("Persistent workspaces", text: $persistentWorkspaces, help: "Comma-separated workspace names that remain available when empty.") {
-                    persistConfig(section: nil, key: "persistent-workspaces", value: tomlStringArray(persistentWorkspaces))
-                }
+                SettingsTextField("Persistent workspaces", text: $persistentWorkspaces, help: "Comma-separated workspace names that remain available when empty.")
             }
         }
         .id(model.settingsRevision)
-    }
-
-    private func persistRootBool(_ key: String, _ value: Bool) { persistConfig(section: nil, key: key, value: value ? "true" : "false") }
-    private func persistRootString(_ key: String, _ value: String) { persistConfig(section: nil, key: key, value: "'\(value)'") }
-    private func persistConfig(section: String?, key: String, value: String) {
-        persistSettingsConfig(section: section, key: key, renderedValue: value, model: model)
     }
 }
 
@@ -110,55 +102,49 @@ struct ShortcutAppearanceSettingsView: View {
                 SettingsPicker("Style", selection: $chromeStyle, help: "Apply Liquid Glass or an opaque solid color to the sidebar, tab groups, and switcher. Settings keep their own appearance.") {
                     Text("Liquid Glass").tag(ChromeStyle.liquidGlass)
                     Text("Solid color").tag(ChromeStyle.solid)
-                } onChange: { persist("workspace-sidebar", "chrome-style", "'\(chromeStyle.rawValue)'") }
+                }
                 SettingsSolidColorPalette(
                     selection: $solidChromeColor,
                     customColor: $solidChromeCustomColor,
                     isEnabled: chromeStyle == .solid,
-                    onSelectionChange: { persist("workspace-sidebar", "solid-chrome-color", "'\(solidChromeColor.rawValue)'") },
-                    onCustomColorChange: { persist("workspace-sidebar", "solid-chrome-custom-color", "'\(solidChromeCustomColor)'") },
                 )
             }
             SettingsSection("Sidebar") {
-                SettingsToggle("Show sidebar", isOn: $sidebarEnabled, help: "Show the workspace rail on configured displays.") { sidebarBool("enabled", sidebarEnabled) }
-                SettingsToggle("Focus sidebar monitor only", isOn: $sidebarFocusEnabled, help: "Show the sidebar only on the focused monitor when monitor scope allows it.") { sidebarBool("enable-focus", sidebarFocusEnabled) }
-                SettingsToggle("Reveal sidebar at the display edge", isOn: $sidebarAutoHide, help: "Hide the compact rail until the pointer reaches the left edge.") { sidebarBool("auto-hide", sidebarAutoHide) }
-                SettingsToggle("Keep sidebar expanded", isOn: $sidebarAlwaysExpanded, help: "Reserve the full sidebar width for tiled windows.") { sidebarBool("always-expanded", sidebarAlwaysExpanded) }
-                SettingsStepper("Expanded width", value: $sidebarWidth, range: 120...480, help: "Width of the fully expanded sidebar.") { sidebarInt("width", sidebarWidth) }
-                SettingsStepper("Collapsed width", value: $collapsedWidth, range: 28...120, help: "Width of the compact sidebar rail.") { sidebarInt("collapsed-width", collapsedWidth) }
-                SettingsStepper("Menu bar reserve", value: $menuBarReserveHeight, range: 0...72, help: "Use 0 px when the macOS menu bar auto-hides.") { sidebarInt("menu-bar-reserve-height", menuBarReserveHeight) }
+                SettingsToggle("Show sidebar", isOn: $sidebarEnabled, help: "Show the workspace rail on configured displays.")
+                SettingsToggle("Focus sidebar monitor only", isOn: $sidebarFocusEnabled, help: "Show the sidebar only on the focused monitor when monitor scope allows it.")
+                SettingsToggle("Reveal sidebar at the display edge", isOn: $sidebarAutoHide, help: "Hide the compact rail until the pointer reaches the left edge.")
+                SettingsToggle("Keep sidebar expanded", isOn: $sidebarAlwaysExpanded, help: "Reserve the full sidebar width for tiled windows.")
+                SettingsStepper("Expanded width", value: $sidebarWidth, range: 120...480, help: "Width of the fully expanded sidebar.")
+                SettingsStepper("Collapsed width", value: $collapsedWidth, range: 28...120, help: "Width of the compact sidebar rail.")
+                SettingsStepper("Menu bar reserve", value: $menuBarReserveHeight, range: 0...72, help: "Use 0 px when the macOS menu bar auto-hides.")
                 SettingsPicker("Deleting projects", selection: $projectDeletionAction, help: "Choose what happens to the project's windows.") {
                     Text("Close project windows").tag(WorkspaceProjectDeletionAction.closeWindows)
                     Text("Move windows elsewhere").tag(WorkspaceProjectDeletionAction.moveWindowsToFallback)
-                } onChange: { persist("workspace-sidebar", "project-deletion-action", "'\(projectDeletionAction.rawValue)'") }
+                }
             }
             SettingsSection("Sidebar content") {
-                SettingsToggle("Show status pills", isOn: $showStatusPills) { sidebarBool("show-status-pills", showStatusPills) }
-                SettingsToggle("Show clock", isOn: $showClock) { sidebarBool("show-clock", showClock) }
-                SettingsToggle("Show seconds", isOn: $showSeconds) { sidebarBool("show-seconds", showSeconds) }
-                SettingsToggle("Show date", isOn: $showDate) { sidebarBool("show-date", showDate) }
-                SettingsToggle("Show weekday", isOn: $showWeekday) { sidebarBool("show-weekday", showWeekday) }
+                SettingsToggle("Show status pills", isOn: $showStatusPills)
+                SettingsToggle("Show clock", isOn: $showClock)
+                SettingsToggle("Show seconds", isOn: $showSeconds)
+                SettingsToggle("Show date", isOn: $showDate)
+                SettingsToggle("Show weekday", isOn: $showWeekday)
             }
             SettingsSection("Window tabs") {
-                SettingsToggle("Show tab strips", isOn: $tabEnabled, help: "Display browser-like tabs for stacked windows.") { persist("window-tabs", "enabled", tabEnabled ? "true" : "false") }
-                SettingsStepper("Tab strip height", value: $tabHeight, range: 21...80, help: "Height of the window tab strip.") { persist("window-tabs", "height", "\(tabHeight)") }
-                SettingsStepper("Tab group padding", value: $tabPadding, range: 0...80, help: "Space around tab groups.") { persist(nil, "tab-group-padding", "\(tabPadding)") }
+                SettingsToggle("Show tab strips", isOn: $tabEnabled, help: "Display browser-like tabs for stacked windows.")
+                SettingsStepper("Tab strip height", value: $tabHeight, range: 21...80, help: "Height of the window tab strip.")
+                SettingsStepper("Tab group padding", value: $tabPadding, range: 0...80, help: "Space around tab groups.")
             }
             SettingsSection("Tiling gaps") {
-                SettingsStepper("Inner horizontal", value: $innerHorizontalGap, range: 0...80, help: "Space between windows side by side.") { persist("gaps", "inner.horizontal", "\(innerHorizontalGap)") }
-                SettingsStepper("Inner vertical", value: $innerVerticalGap, range: 0...80, help: "Space between vertically stacked windows.") { persist("gaps", "inner.vertical", "\(innerVerticalGap)") }
-                SettingsStepper("Outer left", value: $outerLeftGap, range: 0...120, help: "Inset at the left display edge.") { persist("gaps", "outer.left", "\(outerLeftGap)") }
-                SettingsStepper("Outer right", value: $outerRightGap, range: 0...120, help: "Inset at the right display edge.") { persist("gaps", "outer.right", "\(outerRightGap)") }
-                SettingsStepper("Outer top", value: $outerTopGap, range: 0...120, help: "Inset at the top display edge.") { persist("gaps", "outer.top", "\(outerTopGap)") }
-                SettingsStepper("Outer bottom", value: $outerBottomGap, range: 0...120, help: "Inset at the bottom display edge.") { persist("gaps", "outer.bottom", "\(outerBottomGap)") }
+                SettingsStepper("Inner horizontal", value: $innerHorizontalGap, range: 0...80, help: "Space between windows side by side.")
+                SettingsStepper("Inner vertical", value: $innerVerticalGap, range: 0...80, help: "Space between vertically stacked windows.")
+                SettingsStepper("Outer left", value: $outerLeftGap, range: 0...120, help: "Inset at the left display edge.")
+                SettingsStepper("Outer right", value: $outerRightGap, range: 0...120, help: "Inset at the right display edge.")
+                SettingsStepper("Outer top", value: $outerTopGap, range: 0...120, help: "Inset at the top display edge.")
+                SettingsStepper("Outer bottom", value: $outerBottomGap, range: 0...120, help: "Inset at the bottom display edge.")
             }
         }
         .id(model.settingsRevision)
     }
-
-    private func sidebarBool(_ key: String, _ value: Bool) { persist("workspace-sidebar", key, value ? "true" : "false") }
-    private func sidebarInt(_ key: String, _ value: Int) { persist("workspace-sidebar", key, "\(value)") }
-    private func persist(_ section: String?, _ key: String, _ value: String) { persistSettingsConfig(section: section, key: key, renderedValue: value, model: model) }
 }
 
 struct ShortcutAutomationSettingsView: View {
@@ -167,37 +153,14 @@ struct ShortcutAutomationSettingsView: View {
     @State private var focusCommands = ""
     @State private var monitorCommands = ""
     @State private var modeCommands = ""
-    @State private var configurationText = ""
 
     var body: some View {
         SettingsScrollView {
             SettingsSection("Event actions") {
-                SettingsMultilineField("On workspace change", text: $workspaceCommands, help: "One command per line. Commands run after changing workspaces.") { saveCommands("exec-on-workspace-change", workspaceCommands) }
-                SettingsMultilineField("On focus change", text: $focusCommands, help: "One command per line. Commands run after the focused window changes.") { saveCommands("on-focus-changed", focusCommands) }
-                SettingsMultilineField("On focused monitor change", text: $monitorCommands, help: "One command per line. Commands run after the active display changes.") { saveCommands("on-focused-monitor-changed", monitorCommands) }
-                SettingsMultilineField("On mode change", text: $modeCommands, help: "One command per line. Commands run after a mode changes.") { saveCommands("on-mode-changed", modeCommands) }
-            }
-            SettingsSection("Advanced rules") {
-                Text("Window-detected rules, execution environment variables, key remapping, custom modes, tap bindings, sequence bindings, and workspace-to-monitor assignments are all available below as TOML blocks. This keeps their variable-length rules editable without hiding any option.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                Button("Load all advanced rules") { configurationText = currentSettingsConfigText() }
-                    .padding(.horizontal, 12)
-                TextEditor(text: $configurationText)
-                    .font(.system(size: 12, design: .monospaced))
-                    .frame(minHeight: 260)
-                    .padding(8)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .padding(.horizontal, 12)
-                HStack {
-                    Button("Validate rules") { validate() }
-                    Button("Save all advanced rules") { saveAll() }
-                        .keyboardShortcut("s", modifiers: [.command, .option])
-                }
-                .padding(12)
+                SettingsMultilineField("On workspace change", text: $workspaceCommands, help: "One command per line. Commands run after changing workspaces.")
+                SettingsMultilineField("On focus change", text: $focusCommands, help: "One command per line. Commands run after the focused window changes.")
+                SettingsMultilineField("On focused monitor change", text: $monitorCommands, help: "One command per line. Commands run after the active display changes.")
+                SettingsMultilineField("On mode change", text: $modeCommands, help: "One command per line. Commands run after a mode changes.")
             }
         }
         .task { loadCommands() }
@@ -209,29 +172,6 @@ struct ShortcutAutomationSettingsView: View {
         focusCommands = config.onFocusChanged.map { $0.args.description }.joined(separator: "\n")
         monitorCommands = config.onFocusedMonitorChanged.map { $0.args.description }.joined(separator: "\n")
         modeCommands = config.onModeChanged.map { $0.args.description }.joined(separator: "\n")
-    }
-
-    private func saveCommands(_ key: String, _ commands: String) {
-        persistSettingsConfig(section: nil, key: key, renderedValue: tomlStringArray(commands), model: model)
-    }
-
-    private func validate() {
-        let errors = parseConfig(configurationText).errors
-        model.errorMessage = errors.isEmpty ? nil : errors.map(\.description).joined(separator: "\n\n")
-    }
-
-    private func saveAll() {
-        let errors = parseConfig(configurationText).errors
-        guard errors.isEmpty else { model.errorMessage = errors.map(\.description).joined(separator: "\n\n"); return }
-        Task { @MainActor in
-            do {
-                let url = preferredEditableConfigUrl()
-                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try configurationText.write(to: url, atomically: true, encoding: .utf8)
-                guard try await reloadConfig(forceConfigUrl: url) else { throw NSError(domain: "WinMux", code: 1, userInfo: [NSLocalizedDescriptionKey: "Saved the rules, but could not reload the config."]) }
-                model.reload()
-            } catch { model.errorMessage = error.localizedDescription }
-        }
     }
 }
 
@@ -250,8 +190,10 @@ private struct SettingsScrollView<Content: View>: View {
 
 private struct SettingsSection<Content: View>: View {
     let title: String
+    /// Settings that live in the config file are shown and cannot be changed here.
+    let readOnly: Bool
     @ViewBuilder let content: Content
-    init(_ title: String, @ViewBuilder content: () -> Content) { self.title = title; self.content = content() }
+    init(_ title: String, readOnly: Bool = true, @ViewBuilder content: () -> Content) { self.title = title; self.readOnly = readOnly; self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title)
@@ -261,6 +203,7 @@ private struct SettingsSection<Content: View>: View {
             VStack(spacing: 0) {
                 content
             }
+            .disabled(readOnly)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
@@ -273,7 +216,7 @@ private struct SettingsSection<Content: View>: View {
 
 private struct SettingsToggle: View {
     let title: String; @Binding var isOn: Bool; var help: String? = nil; let save: () -> Void
-    init(_ title: String, isOn: Binding<Bool>, help: String? = nil, save: @escaping () -> Void) { self.title = title; _isOn = isOn; self.help = help; self.save = save }
+    init(_ title: String, isOn: Binding<Bool>, help: String? = nil, save: @escaping () -> Void = {}) { self.title = title; _isOn = isOn; self.help = help; self.save = save }
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
@@ -294,13 +237,12 @@ private struct SettingsToggle: View {
 }
 
 private struct SettingsStepper: View {
-    let title: String; @Binding var value: Int; let range: ClosedRange<Int>; let help: String; let save: () -> Void
-    init(_ title: String, value: Binding<Int>, range: ClosedRange<Int>, help: String, save: @escaping () -> Void) {
+    let title: String; @Binding var value: Int; let range: ClosedRange<Int>; let help: String
+    init(_ title: String, value: Binding<Int>, range: ClosedRange<Int>, help: String) {
         self.title = title
         _value = value
         self.range = range
         self.help = help
-        self.save = save
     }
     var body: some View {
         HStack(spacing: 10) {
@@ -322,13 +264,12 @@ private struct SettingsStepper: View {
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 14)
         }
-        .onChange(of: value) { _ in save() }
     }
 }
 
 private struct SettingsTextField: View {
-    let title: String; @Binding var text: String; let help: String; let save: () -> Void
-    init(_ title: String, text: Binding<String>, help: String, save: @escaping () -> Void) { self.title = title; _text = text; self.help = help; self.save = save }
+    let title: String; @Binding var text: String; let help: String
+    init(_ title: String, text: Binding<String>, help: String) { self.title = title; _text = text; self.help = help }
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
@@ -336,7 +277,6 @@ private struct SettingsTextField: View {
             TextField("", text: $text)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 230)
-                .onSubmit(save)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 42)
@@ -345,14 +285,14 @@ private struct SettingsTextField: View {
 }
 
 private struct SettingsMultilineField: View {
-    let title: String; @Binding var text: String; let help: String; let save: () -> Void
-    init(_ title: String, text: Binding<String>, help: String, save: @escaping () -> Void) { self.title = title; _text = text; self.help = help; self.save = save }
-    var body: some View { VStack(alignment: .leading, spacing: 5) { Text(title); Text(help).font(.caption).foregroundStyle(.secondary); TextEditor(text: $text).font(.system(size: 12, design: .monospaced)).frame(minHeight: 50).overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(nsColor: .separatorColor))); Button("Apply") { save() }.controlSize(.small) }.padding(12) }
+    let title: String; @Binding var text: String; let help: String
+    init(_ title: String, text: Binding<String>, help: String) { self.title = title; _text = text; self.help = help }
+    var body: some View { VStack(alignment: .leading, spacing: 5) { Text(title); Text(help).font(.caption).foregroundStyle(.secondary); TextEditor(text: $text).font(.system(size: 12, design: .monospaced)).frame(minHeight: 50).overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(nsColor: .separatorColor))) }.padding(12) }
 }
 
 private struct SettingsPicker<Selection: Hashable, Content: View>: View {
-    let title: String; @Binding var selection: Selection; let help: String; @ViewBuilder let content: Content; let onChange: () -> Void
-    init(_ title: String, selection: Binding<Selection>, help: String, @ViewBuilder content: () -> Content, onChange: @escaping () -> Void) { self.title = title; _selection = selection; self.help = help; self.content = content(); self.onChange = onChange }
+    let title: String; @Binding var selection: Selection; let help: String; @ViewBuilder let content: Content
+    init(_ title: String, selection: Binding<Selection>, help: String, @ViewBuilder content: () -> Content) { self.title = title; _selection = selection; self.help = help; self.content = content() }
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
@@ -368,7 +308,6 @@ private struct SettingsPicker<Selection: Hashable, Content: View>: View {
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 14)
         }
-        .onChange(of: selection) { _ in onChange() }
     }
 }
 
@@ -376,8 +315,6 @@ private struct SettingsSolidColorPalette: View {
     @Binding var selection: ChromeSolidColor
     @Binding var customColor: String
     let isEnabled: Bool
-    let onSelectionChange: () -> Void
-    let onCustomColorChange: () -> Void
     private let columns = Array(repeating: GridItem(.flexible(minimum: 40), spacing: 8), count: 6)
 
     var body: some View {
@@ -428,71 +365,7 @@ private struct SettingsSolidColorPalette: View {
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 14)
         }
-        .onChange(of: selection) { _ in onSelectionChange() }
-        .onChange(of: customColor) { _ in
-            guard selection == .custom else { return }
-            onCustomColorChange()
-        }
     }
-}
-
-@MainActor
-private func persistSettingsConfig(section: String?, key: String, renderedValue: String, model: ShortcutSettingsModel) {
-    Task { @MainActor in
-        do {
-            let url = preferredEditableConfigUrl()
-            let current = (try? String(contentsOf: url, encoding: .utf8)) ?? starterConfigText()
-            let updated = updateSettingsScalarConfig(in: current, section: section, key: key, renderedValue: renderedValue)
-            let parsed = parseConfig(updated)
-            guard parsed.errors.isEmpty else {
-                throw NSError(domain: "WinMux", code: 1, userInfo: [NSLocalizedDescriptionKey: parsed.errors.map(\.description).joined(separator: "\n")])
-            }
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try updated.write(to: url, atomically: true, encoding: .utf8)
-            guard try await reloadConfig(forceConfigUrl: url) else { throw NSError(domain: "WinMux", code: 1, userInfo: [NSLocalizedDescriptionKey: "Saved the setting, but could not reload the config."]) }
-            model.reload()
-            WorkspaceSidebarPanel.refreshAll()
-        } catch { model.errorMessage = error.localizedDescription }
-    }
-}
-
-func updateSettingsScalarConfig(in text: String, section: String?, key: String, renderedValue: String) -> String {
-    let header = section.map { "[\($0)]" }
-    var lines = text.components(separatedBy: "\n")
-    let start: Int
-    let end: Int
-    if let header, let index = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == header }) {
-        start = index + 1
-        end = lines[start...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[") }) ?? lines.endIndex
-    } else if let header {
-        if !lines.last.map({ $0.isEmpty })! { lines.append("") }
-        lines.append(header)
-        lines.append("    \(key) = \(renderedValue)")
-        return lines.joined(separator: "\n")
-    } else {
-        start = 0
-        end = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[") }) ?? lines.endIndex
-    }
-    for index in start..<end where settingsKey(in: lines[index]) == key {
-        let indent = String(lines[index].prefix(while: { $0.isWhitespace }))
-        lines[index] = "\(indent)\(key) = \(renderedValue)"
-        return lines.joined(separator: "\n")
-    }
-    lines.insert("\(section == nil ? "" : "    ")\(key) = \(renderedValue)", at: start)
-    return lines.joined(separator: "\n")
-}
-
-private func settingsKey(in line: String) -> String? {
-    let line = line.trimmingCharacters(in: .whitespaces)
-    guard !line.hasPrefix("#"), let equal = line.firstIndex(of: "=") else { return nil }
-    return String(line[..<equal]).trimmingCharacters(in: .whitespaces)
-}
-
-private func tomlStringArray(_ text: String) -> String {
-    let values = text.split(whereSeparator: \ .isNewline).map { value in
-        "\"\(value.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
-    }
-    return "[\(values.joined(separator: ", "))]"
 }
 
 private func settingsConstantValue(_ value: DynamicConfigValue<Int>) -> Int {
@@ -500,10 +373,4 @@ private func settingsConstantValue(_ value: DynamicConfigValue<Int>) -> Int {
         case .constant(let value): value
         case .perMonitor(_, let `default`): `default`
     }
-}
-
-@MainActor
-private func currentSettingsConfigText() -> String {
-    let url = preferredEditableConfigUrl()
-    return (try? String(contentsOf: url, encoding: .utf8)) ?? starterConfigText()
 }
