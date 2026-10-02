@@ -7,7 +7,12 @@ public struct DebugWindowsCmdArgs: CmdArgs {
         help: debug_windows_help_generated,
         flags: [
             "--window-id": ArgParser(\.windowId, upcastArgParserFun(parseUInt32SubArg)),
+            "--filter-context": trueBoolFlag(\.filterContext),
         ],
         posArgs: [],
     )
+
+    /// Also print the Filter context, which holds the records of the focused, hovered and
+    /// previously focused windows.
+    public var filterContext: Bool = false
 }

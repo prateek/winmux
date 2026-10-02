@@ -96,7 +96,7 @@ final class AxRefreshFastPathTest: XCTestCase {
             ) === minimizedWorkspace
         )
         XCTAssertTrue(minimizedWindow.parent === macosMinimizedWindowsContainer)
-        XCTAssertEqual(minimizedWindow.layoutReason, .macos(prevParentKind: .tilingContainer, prevWorkspaceName: nil))
+        XCTAssertEqual(minimizedWindow.layoutReason, .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(minimizedWorkspace), returnsToOrigin: false))
     }
 
     @MainActor

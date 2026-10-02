@@ -195,7 +195,7 @@ final class TreeNodeTest: XCTestCase {
 
         Workspace.reconcileWorkspaceState()
 
-        XCTAssertEqual(window.layoutReason, .macos(prevParentKind: .tilingContainer, prevWorkspaceName: nil))
+        XCTAssertEqual(window.layoutReason, .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: false))
         XCTAssertNil(Workspace.existing(byName: workspace.name))
     }
 
@@ -260,7 +260,7 @@ final class TreeNodeTest: XCTestCase {
 
         XCTAssertEqual(
             window.layoutReason,
-            .macos(prevParentKind: .tilingContainer, prevWorkspaceName: nil),
+            .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: false),
         )
     }
 
@@ -272,7 +272,7 @@ final class TreeNodeTest: XCTestCase {
 
         XCTAssertEqual(
             window.layoutReason,
-            .macos(prevParentKind: .tilingContainer, prevWorkspaceName: workspace.name),
+            .macos(prevParentKind: .tilingContainer, origin: WorkspaceOrigin(workspace), returnsToOrigin: true),
         )
     }
 

@@ -93,21 +93,22 @@ Column (passed to the `place` and `move-boundary` Policy hooks, never to Filters
 
 - This issue builds the Swift code that turns a live window into a Window record, and the focused window, the window under the mouse, the previous window, the current workspace and the focused monitor into a Filter context.
 - **Reading `AXDocument` is new work.** Nothing in WinMux reads `kAXDocumentAttribute` today; the name appears only in a comment in `Sources/AppBundle/util/accessibility.swift`. This issue adds the read. It is the one field in the contract that costs an extra AX round-trip per window.
-- **Remembering a minimized window's workspace is new work.** The minimized container has no workspace above it, and nothing records where a minimized window came from. This issue adds a last-known workspace to `Window`, written when WinMux moves the window into the minimized container, and `w.workspace` reads it. "Thumbnail cache and the `'miniatures` Presentation" uses the same value to draw minimized windows under their workspace.
+- **Remembering a minimized window's workspace is new work.** The minimized container has no workspace above it, and nothing recorded where a minimized window came from. A window's layout reason now carries its origin, a workspace name with its project, and says separately whether the window returns there. A minimized window has an origin it does not return to, so it still lands on the focused workspace when unminimized and does not keep its old workspace alive. `w.workspace` reads the origin. "Thumbnail cache and the `'miniatures` Presentation" uses the same value to draw minimized windows under their workspace.
 - **Values supplied elsewhere.** `lastFocusedSeq` is written by "Global MRU (`lastFocusedSeq`)". The values of `app.accessory` and `app.activationPolicy`, and which of the two popup classes a popup-classified window gets, are supplied by "Accessory window defaults and the `floating` Lens". This issue declares all of them in the contract.
 
 **Declaring Filters**
 
 - A Filter is a Nickel function `fun w ctx => …` that returns a Bool. It only says yes or no. Ordering belongs to the Lens.
 - Named Filters live in the config's top-level `filters` record: `filters.<name> = fun w ctx => …`.
-- This issue supplies the contract for a Filter (a Window, then a Filter context, to a Bool) and the contract for the `filters` record (every field is a Filter), and adds both to the shipped `winmux.ncl`.
+- This issue supplies the contract for a Filter (a function of two arguments to a Bool) and the contract for the `filters` record (every field is a Filter), and adds both to the shipped `winmux.ncl`.
+- The Filter contract does not check its two arguments against the `Window` and `FilterContext` contracts. The helper checks every record before a Filter sees it, and checking again on each call made a Filter three to seven times slower. It also made the one diagnostic it changed worse: a Filter that calls another with `w` and `ctx` swapped was reported at a line of the shipped library, where it is now reported at the field the Filter reads. The record contracts stay in the library for a config's own helper functions.
 - Wherever a Filter is accepted, the config can give a named Filter (`filter = filters.same-app`) or write the function inline.
 - Filters call each other as ordinary functions: `filters.floating w ctx`. There is no other reference syntax.
 - A Filter can use anything Nickel offers: `let` bindings, helper functions, the standard library.
 
 **Checking at load**
 
-- The shipped `winmux.ncl` contracts cover the records above and the Filter function shape. This issue generates them and adds them to the shipped library. The config is checked against them at load.
+- The shipped library's contracts cover the records above and the Filter function shape. This issue generates them and adds them to the shipped library. The config is checked against them at load.
 - The smoke-run loop is not built here. This issue supplies what it runs on: a synthetic, fully populated Window and two Filter contexts. Every Filter, named and inline, is called twice against that Window: once with `ctx.focused`, `ctx.mouse` and `ctx.previous` all set, and once with all three `null`. An unguarded `ctx.focused.app` therefore fails at load.
 - Reading a missing field is a Nickel error, so a typo such as `w.app.bundelId` fails the smoke run with Nickel's own diagnostic (``missing field `bundelId` … Did you mean `bundleId`?``). The smoke run only catches errors in the branches the synthetic records take.
 - The same synthetic Window and the same two Filter contexts are what the smoke run passes to Policy hooks. The hooks' other arguments and their return contracts belong to "Column Policy hooks and Column commands".

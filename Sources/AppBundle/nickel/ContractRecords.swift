@@ -146,18 +146,18 @@ extension Window {
         }
     }
 
-    /// The Window record, or `nil` for a window that is in no tree.
+    /// The Window record, or `nil` for a window that is in no tree or whose AX element is gone.
     @MainActor func windowRecord() async throws -> WindowRecord? {
         // Everything the tree says is read before the AX round-trip, during which the window can
         // move to another node. The record then describes one moment.
         guard let windowClass else { return nil }
         // A minimized window sits outside every workspace and reports the one it was minimized on,
         // which WinMux may have deleted since. A popup reports none.
-        let minimizedOn = windowClass == .minimized ? minimizedOn : nil
+        let minimizedOn = windowClass == .minimized ? layoutReason.origin : nil
         let workspace = nodeWorkspace ?? minimizedOn.flatMap { Workspace.existing(byName: $0.workspaceName) }
         let monitor = workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown
         let level = cgWindowLevel
-        let ax = try await axRecordAttributes
+        guard let ax = try await axRecordAttributes else { return nil }
         return WindowRecord(
             id: Int(windowId),
             title: ax.title,
@@ -188,6 +188,9 @@ extension MacOsWindowLevel {
 
 /// The window under the mouse on the workspace the mouse is over: a floating window, the most
 /// recently used first, before the tiled one beneath it.
+///
+/// A window in macOS native fullscreen is never the answer. It has a Space of its own, and
+/// WinMux's focus, which says what is on screen here, never points at one.
 @MainActor func windowUnderMouse(_ point: CGPoint = mouseLocation) async throws -> Window? {
     let workspace = point.monitorApproximation.activeWorkspace
     for window in workspace.childrenByMostRecentUse.filterIsInstance(of: Window.self) {
@@ -198,7 +201,10 @@ extension MacOsWindowLevel {
     // wherever the point is. So the point is checked against the laid-out tree first.
     let root = workspace.rootTilingContainer
     guard root.lastAppliedLayoutPhysicalRect?.contains(point) == true else { return nil }
-    // A window in WinMux's fullscreen covers the tree, and the windows it hides keep their old rects.
+    // A window in WinMux's fullscreen covers the tree, and the windows it hides keep their old
+    // rects. The order is the one `layoutWorkspace` lays out by: a tab group with a fullscreen
+    // tab first, then the most recent window if it is fullscreen.
+    if let tabGroup = root.allTabbedContainersRecursive.first(where: \.hasFullscreenTab) { return tabGroup.tabActiveWindow }
     if let fullscreen = root.mostRecentWindowRecursive, fullscreen.isFullscreen { return fullscreen }
     return point.findIn(tree: root, virtual: false)
 }

@@ -57,6 +57,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
         // MacWindow), and non-Mac windows (tests) are simply never "windows of a hidden app".
         let isMacosWindowOfHiddenApp = !isMacosFullscreen && !isMacosMinimized &&
             !config.automaticallyUnhideMacosHiddenApps && (window.app as? MacApp)?.nsApp.isHidden == true
+        if !isMacosMinimized { window.wasSeenUnminimized = true }
         switch window.layoutReason {
             case .standard:
                 guard window.parent != nil else { continue }
@@ -65,19 +66,19 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.rememberMacOsLayoutOrigin()
                         window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     case isMacosMinimized:
-                        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
+                        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true, originIsKnown: window.wasSeenUnminimized)
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
                     case isMacosWindowOfHiddenApp:
                         window.rememberMacOsLayoutOrigin()
                         window.bind(to: workspace.macOsNativeHiddenAppsWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     default: break
                 }
-            case .macos(let prevParentKind, let prevWorkspaceName):
+            case .macos(let prevParentKind, _, _):
                 if !isMacosFullscreen && !isMacosMinimized && !isMacosWindowOfHiddenApp {
                     try await exitMacOsNativeUnconventionalState(
                         window: window,
                         prevParentKind: prevParentKind,
-                        prevWorkspaceName: prevWorkspaceName,
+                        prevWorkspaceName: window.layoutReason.returnWorkspaceName,
                         workspace: workspace,
                     )
                 }

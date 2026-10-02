@@ -21,7 +21,7 @@ let config_help_generated = """
        OR: config [-h|--help] schema [--json]
     """
 let debug_windows_help_generated = """
-    USAGE: debug-windows [-h|--help] [--window-id <window-id>]
+    USAGE: debug-windows [-h|--help] [--window-id <window-id> [--filter-context]]
     """
 let enable_help_generated = """
     USAGE: enable [-h|--help] toggle
