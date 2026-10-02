@@ -90,10 +90,12 @@ struct ShortcutSettingsView: View {
                         ShortcutSettingsShortcutsView(model: model)
                     case .workspaces:
                         ShortcutSettingsWorkspacePane(model: model)
+                    // These panes copy the config into their own state when they are created, so a
+                    // new revision creates them again.
                     case .behavior:
-                        ShortcutBehaviorSettingsView(model: model)
+                        ShortcutBehaviorSettingsView(model: model).id(model.settingsRevision)
                     case .appearance:
-                        ShortcutAppearanceSettingsView(model: model)
+                        ShortcutAppearanceSettingsView(model: model).id(model.settingsRevision)
                     case .configuration:
                         ShortcutAdvancedView(model: model)
                     case .reference:

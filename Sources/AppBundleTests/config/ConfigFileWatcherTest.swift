@@ -278,6 +278,16 @@ final class ConfigReloadNotificationsTest: XCTestCase {
         assertEquals([first, same, different], [true, false, true])
     }
 
+    func testSameFailureFromAnotherHelperProcessIsTheSame() {
+        var notifications = ConfigReloadNotifications()
+        let first = "extra field `gapz`\n25 │ │   workspace-sidebar = %<closure@0x16d7f71a8>,"
+        let second = "extra field `gapz`\n25 │ │   workspace-sidebar = %<closure@0x16cef31a8>,"
+
+        _ = notifications.shouldNotify(first, trigger: .fileChange)
+
+        XCTAssertFalse(notifications.shouldNotify(second, trigger: .fileChange))
+    }
+
     func testLoadThatSucceedsMakesTheSameFailureNewAgain() {
         var notifications = ConfigReloadNotifications()
         _ = notifications.shouldNotify("extra field `gapz`", trigger: .fileChange)

@@ -43,7 +43,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **A save while the config file is missing.** Changes nothing. Loading would put the shipped defaults in effect, and a checkout or a move can remove the file for a moment.
 - **The shipped library.** Not watched. The helper's `load` reply names the library directory, and imports under it are left out of the watch list, since `winmux/winmux.ncl` and `winmux/defaults.ncl` change only when the app is replaced. "Inside the app bundle" would miss a debug build, whose library is in the source tree.
 - **The log.** WinMux had no log outside debug builds, which print to stderr. A failed reload is written to the unified log under WinMux's app id with the category `config`.
-- **What counts as an identical error.** The full diagnostic text. The text includes file positions, so an edit above the error changes it and notifies again; that counts as failing differently.
+- **What counts as an identical error.** The full diagnostic text, with the addresses Nickel prints for functions (`%<closure@0x…>`) left out: they differ in every helper process. The text includes file positions, so an edit above the error changes it and notifies again; that counts as failing differently.
 - **`reload-config` always notifies.** Only a save is silenced when it fails the way the last notified failure did. A reload the user asked for by name reports its failure every time.
 - **The old setting.** `auto-reload-config` is not kept as an alias. A config that sets it fails to load with Nickel's "extra field" diagnostic, and `config convert` renames it.
 - **A change during a reload.** One more reload runs after the one under way. A reload is never cancelled part way.

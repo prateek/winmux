@@ -64,7 +64,6 @@ struct ShortcutBehaviorSettingsView: View {
                 SettingsTextField("Persistent workspaces", text: $persistentWorkspaces, help: "Comma-separated workspace names that remain available when empty.")
             }
         }
-        .id(model.settingsRevision)
     }
 }
 
@@ -143,7 +142,6 @@ struct ShortcutAppearanceSettingsView: View {
                 SettingsStepper("Outer bottom", value: $outerBottomGap, range: 0...120, help: "Inset at the bottom display edge.")
             }
         }
-        .id(model.settingsRevision)
     }
 }
 

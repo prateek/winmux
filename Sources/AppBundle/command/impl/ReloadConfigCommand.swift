@@ -34,9 +34,16 @@ struct ConfigReloadNotifications {
     /// Whether to notify the user of `diagnostic`. A save that fails the way the last notified
     /// failure did is not notified again.
     mutating func shouldNotify(_ diagnostic: String, trigger: ConfigReloadTrigger) -> Bool {
-        if trigger == .fileChange && diagnostic == notified { return false }
-        notified = diagnostic
+        let key = ConfigReloadNotifications.comparable(diagnostic)
+        if trigger == .fileChange && key == notified { return false }
+        notified = key
         return true
+    }
+
+    /// Nickel prints a function in the config as `%<closure@0x…>`, with an address that differs in
+    /// every helper process. Two loads of the same broken file differ only there.
+    private static func comparable(_ diagnostic: String) -> String {
+        diagnostic.replacing(/@0x[0-9a-fA-F]+/, with: "@")
     }
 
     mutating func loaded() {
@@ -161,6 +168,7 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
 /// reload rather than individual Settings controls, so GUI edits, config-editor saves, and
 /// filesystem auto-reloads share the same live-update behavior.
 @MainActor private func applyReloadedConfigurationToRunningApp() {
+    ShortcutSettingsModel.shared.reload()
     WorkspaceSidebarPanel.refreshAll()
     WindowTabStripPanelController.shared.refresh()
     SecureInputPanel.shared.refresh()
