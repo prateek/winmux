@@ -100,6 +100,10 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     result["WinMux.AxUiElementWindowType"] = .string(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
     result["WinMux.AxUiElementWindowType_isDialogHeuristic"] = .bool(isDialog)
 
+    // What a Filter is given for this window, and the Filter context it would be given now.
+    result["WinMux.windowRecord"] = await window.windowRecord().map { Json($0.json) } ?? .null
+    result["WinMux.filterContext"] = Json(await filterContextRecord().json)
+
     var matchingCallbacks: [Json] = []
     for callback in config.onWindowDetected where try await callback.matches(window) {
         matchingCallbacks.append(callback.debugJson)

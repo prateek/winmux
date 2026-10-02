@@ -165,12 +165,12 @@ final class NickelSupervisorTest: XCTestCase {
         try await loadAndAdopt(supervisor)
         let firstPid = try XCTUnwrap(supervisor.status.pid)
 
+        // The first restart is immediate, so the new helper may be ready by the time the old one is
+        // seen to be gone. Only the time from the kill to a ready helper is checked.
+        let killed = ContinuousClock.now
         kill(firstPid, SIGKILL)
-        try await eventually("the helper is seen to be gone") { supervisor.status.pid != firstPid }
-        assertEquals(supervisor.status.state, .restarting)
-        let restarted = ContinuousClock.now
-        try await eventually("a new helper is ready") { supervisor.status.state == .ready }
-        XCTAssertLessThan(ContinuousClock.now - restarted, .milliseconds(2500), "the first restart does not wait")
+        try await eventually("a new helper is ready") { supervisor.status.pid != firstPid && supervisor.status.state == .ready }
+        XCTAssertLessThan(ContinuousClock.now - killed, .milliseconds(2500), "the first restart does not wait")
         let secondPid = try XCTUnwrap(supervisor.status.pid)
         assertEquals(supervisor.status.recycles, 1)
 

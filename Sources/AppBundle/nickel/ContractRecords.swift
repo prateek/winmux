@@ -207,3 +207,19 @@ extension MacOsWindowLevel {
         profile: "default",
     )
 }
+
+extension Json {
+    /// A record as `debug-windows` prints it. `Json` has no fractional number, and no record
+    /// WinMux builds holds one.
+    init(_ value: JSONValue) {
+        self = switch value {
+            case .null: .null
+            case .bool(let value): .bool(value)
+            case .int(let value): .int(value)
+            case .double(let value): .string(value.description)
+            case .string(let value): .string(value)
+            case .array(let values): .array(values.map(Json.init))
+            case .object(let fields): .dict(fields.mapValues(Json.init))
+        }
+    }
+}

@@ -169,7 +169,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [x] `class` and `activationPolicy` reach Nickel as enum tags: `w.class == 'floating` is true for a record whose `class` is sent as the JSON string `"floating"`, and `w.app.activationPolicy == 'accessory` is true for one whose `activationPolicy` is sent as `"accessory"`. A test covers both.
 - [x] The record WinMux builds for a live window carries the right class: `'tiled` under a tiling container, `'floating` under a workspace, `'fullscreen` in macOS native fullscreen, `'hidden-app` for a window of a hidden app, `'minimized` when minimized. A tiled window put in WinMux's own fullscreen is still `'tiled`. A test covers the mapping.
 - [x] A window minimized on workspace `2` reports `workspace = "2"` in its record while minimized, and a test covers it. A popup-classified window reports `workspace = ""`.
-- [ ] `w.document` holds the window's `AXDocument` value for a document window that has one and `""` for a window that does not. _Covered by a test on a stand-in window; not yet checked on a live window._
+- [x] `w.document` holds the window's `AXDocument` value for a document window that has one and `""` for a window that does not.
 - [x] `winmux config schema` prints contract version 1 and every field in the tables above with type, enum values and a description, including `accessory` and `activationPolicy` on App. `winmux config schema --json` prints the same as JSON.
 - [x] A test fails if the Nickel contracts, the Rust structs and the schema output disagree on a field.
 ## Sources
