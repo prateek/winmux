@@ -35,15 +35,14 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Open with Prateek
 
-- **Landing.** Each piece of work is a pull request against `fork`, squash-merged after CI passes and Prateek has reviewed it. Push the branch over SSH and open the pull request; the merge is his. An issue that depends on an unmerged one targets that issue's branch. The first build issue went straight onto `fork` before this was the rule.
-- **Running a release.** `script/dogfood-release` publishes a release and pushes to the tap. Ask before each run.
+- **Landing.** `AGENTS.md` at the repo root has the process: a pull request against `fork`, with screenshots or video of anything visible, squash-merged after CI and Prateek's review. The first build issue went straight onto `fork` before this was the rule.
+- **Running a release.** Ask before each run; see `AGENTS.md`.
 - **Decisions belong to him.** For a discrete choice, ask with a recommended answer first; he usually takes it. Don't settle a product question for him, and don't reopen one he has settled.
 
 ## Repo setup
 
 - **The build lands on the `fork` branch.** It is the default branch of `prateek/winmux` and Orca's default worktree base (`fork/fork`). It holds the planning files, `CONTEXT.md` and the ADR. `main` only mirrors upstream `main`; don't build on it. The branch was called `wayfind-fork` until 2026-10-01, and GitHub redirects the old name.
 - This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). The worktree directory is still named `wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
-- Start each child issue in its own Orca worktree cut from `fork/fork`, and open its pull request against `fork`.
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.
