@@ -11,7 +11,7 @@ Make `script/dogfood-release <version>` work on the `fork` branch. One run build
 - **Signing identity.** Builds are signed with the self-signed identity `WinMux Dogfood Signing`, held in its own keychain and created by `script/setup-signing`. A stable certificate gives a stable designated requirement, so TCC grants made to one version carry to the next. The builds are not notarized. `script/setup-signing` and `script/setup-sparkle-keys` already work on this branch and are not rewritten.
 - **Everything executable carries the same identity.** The app, the `winmux` CLI, the Sparkle framework's nested executables and `Contents/Helpers/winmux-nickel` are all signed with it. `dogfood-release` refuses to publish if any of them is not.
 - **Where releases go.** Each version is a GitHub prerelease on `prateek/winmux`, tagged `v<version>`. The Sparkle appcast and app-only update archives live on the rolling `dogfood` release tag. The cask is `winmux` in `prateek/homebrew-tap`, and `dogfood-release` bumps its version and checksum; nobody bumps it by hand.
-- **Package layout.** The release zip holds `WinMux-<version>/WinMux.app` and `WinMux-<version>/bin/winmux`, which is what the cask installs.
+- **Package layout.** The release zip holds `WinMux-<version>/WinMux.app` and `WinMux-<version>/bin/winmux`, which is what the cask installs. It is named `WinMux-<version>-with-cli.zip`, apart from the app-only update archive `WinMux-<version>.zip` on the `dogfood` tag, so the cask's `url` changes with it.
 - **Build number.** `CFBundleVersion` is the git commit count, because Sparkle's version comparison stops at the first dash and every dogfood version shares its prefix. `CFBundleShortVersionString` is the full version, such as `0.5.6-dogfood.1`.
 - **Minimum system.** The cask requires macOS 26, matching the deployment target.
 - **Releases are cut from `fork`.** The script pushes the branch it runs on and tags the commit it built.
@@ -37,18 +37,22 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **The CLI.** Built with `swift build -c release --product winmux`, signed, and placed at `bin/winmux` in the package. Xcode builds only the app.
 - **Bundle identifier.** Stays `com.zimengxiong.winmux`. The cask's `uninstall quit:` and existing TCC grants are keyed to it.
 - **Version numbers.** `<upstream VERSION>-dogfood.<n>`, starting at `0.5.6-dogfood.1`.
-- **Upgrading from the old dogfood line.** The last `codex-columns` release was `0.51.0-dogfood.15`, built from a branch with a different commit count. A machine that still runs it may not see the new line as an update. Reinstalling the cask once is the fix; don't add version arithmetic for it.
-- **The cask.** One hand edit in `prateek/homebrew-tap`, made as part of this issue: `depends_on macos:` moves from `:ventura` to macOS 26, the description stops mentioning columnar zones, the caveats drop the zone setup text and keep the Gatekeeper steps, and `zap` covers the state directory the Nickel issue adds. After that only the script touches the cask.
+- **Upgrading from the old dogfood line.** The last `codex-columns` release was `0.51.0-dogfood.15` with build number 1889. `fork` is at about 1840 commits, so a machine that still runs the old line will not be offered the new one by Sparkle until `fork` passes 1889 commits. Reinstalling the cask once is the fix; don't add version arithmetic for it.
+- **The cask.** One hand edit in `prateek/homebrew-tap`, made as part of this issue: `depends_on macos:` moves from `:ventura` to `:tahoe` (Homebrew's name for macOS 26), the `url` takes the `-with-cli` package name, the description stops mentioning columnar zones, the caveats drop the zone setup text and keep the Gatekeeper steps, and `zap` covers the state directory the Nickel issue adds. After that only the script touches the cask.
 - **Release text.** The script's release title and notes mention zones and link `docs/ultrawide-zones.md`, which this branch does not have. Replace both with text that fits the fork.
-- **Hardened runtime.** The Release configuration enables it. Keep it if a self-signed build launches with it, and say in the pull request if it had to go.
+- **Hardened runtime.** Off for dogfood builds. With it on, the app cannot load its own `Sparkle.framework`: library validation wants Apple's signature or a shared team, and a self-signed identity has no team. `HARDENED_RUNTIME` is a `makefile` variable that defaults to `YES`, so upstream's build keeps it.
+- **Running it again.** A run that failed after creating the release can be repeated from the same commit: it replaces the package, re-uploads the feed and bumps the cask only if it changed. A release of the same version from another commit, or any GitHub error other than "release not found", stops the run before it builds.
+- **`setup-signing`.** It passes the keychain list back one argument per keychain, so a path with a space no longer breaks the search list, and it keeps the password out of `openssl`'s arguments. `security` still takes the password as an argument; its stdin mode hides it but reports no failures.
+- **Dry run.** `script/dogfood-release --dry-run <version>` builds, signs and verifies everything and publishes nothing.
+- **Start-up check.** Before it publishes, the script runs the packaged app with `--version` and the bundled helper with `check`, so a bundle that dyld refuses to load is caught on the build machine.
 
 ## Done when
 
-- [ ] `make release` with no variables set still produces upstream's build configuration, and `make check` passes.
-- [ ] `script/dogfood-release <version>` run from a clean `fork` checkout builds, signs, publishes the prerelease, updates the feed on the `dogfood` tag and bumps the cask, with no manual step in between.
-- [ ] `codesign -dvvv` reports `Authority=WinMux Dogfood Signing` for `WinMux.app`, `bin/winmux` and `WinMux.app/Contents/Helpers/winmux-nickel`, and `codesign --verify --deep --strict` passes for the app.
-- [ ] The built app has its icon, its asset catalog and the `MASShortcut` resource bundle, and the shortcut recorder in Settings renders.
-- [ ] The built `Info.plist` has the fork's `SUFeedURL`, the dogfood Sparkle public key, `CFBundleVersion` equal to the commit count, and `LSMinimumSystemVersion` 26.0.
+- [x] `make release` with no variables set still produces upstream's build configuration, and `make check` passes. Checked with `make -n release`; the real build needs upstream's certificate.
+- [ ] `script/dogfood-release <version>` run from a clean `fork` checkout builds, signs, publishes the prerelease, updates the feed on the `dogfood` tag and bumps the cask, with no manual step in between. A `--dry-run` passes; nothing has been published.
+- [x] `codesign -dvvv` reports `Authority=WinMux Dogfood Signing` for `WinMux.app`, `bin/winmux` and `WinMux.app/Contents/Helpers/winmux-nickel`, and `codesign --verify --deep --strict` passes for the app.
+- [ ] The built app has its icon, its asset catalog and the `MASShortcut` resource bundle, and the shortcut recorder in Settings renders. The three resources are in the bundle; the recorder has not been looked at.
+- [x] The built `Info.plist` has the fork's `SUFeedURL`, the dogfood Sparkle public key, `CFBundleVersion` equal to the commit count, and `LSMinimumSystemVersion` 26.0.
 - [ ] `brew install --cask prateek/tap/winmux` on a machine with no build toolchain installs the app and the CLI, and `winmux --version` reports the released version with no client/server mismatch warning.
 - [ ] After the Gatekeeper steps in the cask's caveats, WinMux launches, and `winmux config status` reports the helper `ready`.
 - [ ] Upgrading from one dogfood version to the next keeps the Accessibility and Screen Recording grants: no prompt, and window management and capture work at once.
