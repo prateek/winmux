@@ -185,6 +185,12 @@ extension Workspace {
     guard let prevFocus = _prevFocus?.liveOrNil, prevFocus != focus else { return nil }
     return prevFocus
 }
+/// The window that held focus before the focused one, if it still exists. `prevFocus` falls back
+/// to another window of that workspace when it does not; this never does.
+@MainActor var prevFocusedWindow: Window? {
+    guard let window = _prevFocus?.windowId.flatMap({ Window.get(byId: $0) }), window != focus.windowOrNil else { return nil }
+    return window
+}
 @MainActor private var _prevPrevFocus: FrozenFocus? = nil
 @MainActor var prevPrevFocus: LiveFocus? {
     guard let prevPrevFocus = _prevPrevFocus?.liveOrNil, prevPrevFocus != focus else { return nil }

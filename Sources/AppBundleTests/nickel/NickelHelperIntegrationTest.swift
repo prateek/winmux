@@ -16,17 +16,17 @@ final class NickelHelperIntegrationTest: XCTestCase {
 
     /// The records WinMux builds for its windows: one mail window among `count`, with nothing
     /// focused.
-    private func records(count: Int) async -> (context: JSONValue, windows: [JSONValue]) {
+    private func records(count: Int) async throws -> (context: JSONValue, windows: [JSONValue]) {
         setUpWorkspacesForTests()
         var windows: [JSONValue] = []
         for id in 0 ..< count {
             let window = TestWindow.new(id: UInt32(id + 1), parent: focus.workspace.rootTilingContainer)
             window.testAxRecordAttributes = WindowAxRecordAttributes(title: "Inbox", subrole: "AXStandardWindow", hasCloseButton: true, document: "")
-            var record = await window.windowRecord().orDie()
+            var record = try await window.windowRecord().orDie()
             record.app.bundleId = id % 5 == 0 ? "com.apple.mail" : "com.example.other"
             windows.append(record.json)
         }
-        return (await filterContextRecord(mouse: .zero).json, windows)
+        return (try await filterContextRecord(mouse: .zero).json, windows)
     }
 
     private func schema() throws -> JSONValue {
@@ -56,8 +56,8 @@ final class NickelHelperIntegrationTest: XCTestCase {
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         check(window.focusWindow())
 
-        let record = await window.windowRecord().orDie().json
-        let context = await filterContextRecord(mouse: .zero).json
+        let record = try await window.windowRecord().orDie().json
+        let context = try await filterContextRecord(mouse: .zero).json
 
         assertEquals(schema["contract-version"], .int(1))
         assertEquals(fieldNames(record), schemaFields("Window"))
@@ -81,9 +81,9 @@ final class NickelHelperIntegrationTest: XCTestCase {
         check(tiled.focusWindow())
         var windows: [JSONValue] = []
         for window in [tiled, floating, minimized] {
-            windows.append(await window.windowRecord().orDie().json)
+            windows.append(try await window.windowRecord().orDie().json)
         }
-        let context = await filterContextRecord(mouse: .zero).json
+        let context = try await filterContextRecord(mouse: .zero).json
 
         let isFloating = await supervisor.evalFilter("w.class == 'floating", context: context, windows: windows)
         let isMinimizedHere = await supervisor.evalFilter(
@@ -152,7 +152,7 @@ final class NickelHelperIntegrationTest: XCTestCase {
             throw XCTSkip("Latency is only checked against a release build of winmux-nickel")
         }
         supervisor.adopt(try await supervisor.load(fixture("config.ncl")).get())
-        let (context, windows) = await records(count: 50)
+        let (context, windows) = try await records(count: 50)
 
         func median(_ body: () async -> Void) async -> Duration {
             await body() // Warm up

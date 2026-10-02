@@ -46,10 +46,15 @@ final class TestWindow: Window, CustomStringConvertible {
         }
     }
 
+    @MainActor var testCgWindowLevel = 0
+    @MainActor override var cgWindowLevel: Int { testCgWindowLevel }
+
     @MainActor var testAxRecordAttributes: WindowAxRecordAttributes? = nil
+    @MainActor var testAxRecordError: (any Error)? = nil
     @MainActor override var axRecordAttributes: WindowAxRecordAttributes {
         get async throws {
-            testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
+            if let testAxRecordError { throw testAxRecordError }
+            return testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
         }
     }
 

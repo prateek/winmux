@@ -196,6 +196,7 @@ private func restoreFrozenUnconventionalWindow(
         case isMacosFullscreen:
             window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
         case isMacosMinimized:
+            window.minimizedOn = (workspace.name, workspace.projectId)
             window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
         case isMacosWindowOfHiddenApp:
             window.bind(to: workspace.macOsNativeHiddenAppsWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)

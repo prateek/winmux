@@ -88,6 +88,8 @@ open class Window: TreeNode, Hashable {
     func getAxSize() async throws -> CGSize? { die("Not implemented") }
     var title: String { get async throws { die("Not implemented") } }
     @MainActor var axRecordAttributes: WindowAxRecordAttributes { get async throws { die("Not implemented") } }
+    /// The window's layer in the window server: 0 for a normal window, and 0 when unknown.
+    @MainActor var cgWindowLevel: Int { die("Not implemented") }
     var isMacosFullscreen: Bool { get async throws { false } }
     var isMacosMinimized: Bool { get async throws { false } } // todo replace with enum MacOsWindowNativeState { normal, fullscreen, invisible }
     var isHiddenInCorner: Bool { die("Not implemented") }

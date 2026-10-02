@@ -192,7 +192,7 @@ filters = {
 },
 ```
 
-`winmux config schema` prints every field of `w` and `ctx` with its type and a description, and `--json` prints the same as JSON. WinMux calls every Filter once when the config loads, against a made-up window, so a misspelled field fails the load with Nickel's diagnostic. `ctx.focused`, `ctx.mouse` and `ctx.previous` are `null` when there is no such window; the load fails for a Filter that reads one without checking.
+`winmux config schema` prints every field of `w` and `ctx` with its type and a description, and `--json` prints the same as JSON. WinMux calls every Filter twice when the config loads, against a made-up window, so a misspelled field fails the load with Nickel's diagnostic. `ctx.focused`, `ctx.mouse` and `ctx.previous` are `null` when there is no such window. The first call sets all three and the second leaves them `null`, so the load fails for a Filter that reads one without checking.
 
 ## Migrating
 ### From a TOML config

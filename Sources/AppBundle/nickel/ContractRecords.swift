@@ -147,25 +147,28 @@ extension Window {
     }
 
     /// The Window record, or `nil` for a window that is in no tree.
-    @MainActor func windowRecord() async -> WindowRecord? {
+    @MainActor func windowRecord() async throws -> WindowRecord? {
+        // Everything the tree says is read before the AX round-trip, during which the window can
+        // move to another node. The record then describes one moment.
         guard let windowClass else { return nil }
-        // A window that closes while it is being read reports what is still known about it.
-        let ax = (try? await axRecordAttributes) ?? .unknown
         // A minimized window sits outside every workspace and reports the one it was minimized on,
         // which WinMux may have deleted since. A popup reports none.
         let minimizedOn = windowClass == .minimized ? minimizedOn : nil
         let workspace = nodeWorkspace ?? minimizedOn.flatMap { Workspace.existing(byName: $0.workspaceName) }
+        let monitor = workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown
+        let level = cgWindowLevel
+        let ax = try await axRecordAttributes
         return WindowRecord(
             id: Int(windowId),
             title: ax.title,
             windowClass: windowClass,
             subrole: ax.subrole,
-            level: isUnitTest ? 0 : getWindowLevel(for: windowId)?.cgWindowLevel ?? 0,
+            level: level,
             hasCloseButton: ax.hasCloseButton,
             document: ax.document,
             workspace: workspace?.name ?? minimizedOn?.workspaceName ?? "",
             project: (workspace?.projectId ?? minimizedOn?.projectId)?.rawValue ?? "",
-            monitor: workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown,
+            monitor: monitor,
             // Written by "Global MRU (`lastFocusedSeq`)".
             lastFocusedSeq: 0,
             app: AppRecord(app),
@@ -185,22 +188,29 @@ extension MacOsWindowLevel {
 
 /// The window under the mouse on the workspace the mouse is over: a floating window, the most
 /// recently used first, before the tiled one beneath it.
-@MainActor func windowUnderMouse(_ point: CGPoint = mouseLocation) async -> Window? {
+@MainActor func windowUnderMouse(_ point: CGPoint = mouseLocation) async throws -> Window? {
     let workspace = point.monitorApproximation.activeWorkspace
     for window in workspace.childrenByMostRecentUse.filterIsInstance(of: Window.self) {
-        let rect = if let known = window.lastKnownActualRect { known } else { try? await window.getAxRect() }
+        let rect = if let known = window.lastKnownActualRect { known } else { try await window.getAxRect() }
         if rect?.contains(point) == true { return window }
     }
-    return point.findIn(tree: workspace.rootTilingContainer, virtual: false)
+    // `findIn` descends by rect only through tiles: a tab group answers with its active tab
+    // wherever the point is. So the point is checked against the laid-out tree first.
+    let root = workspace.rootTilingContainer
+    guard root.lastAppliedLayoutPhysicalRect?.contains(point) == true else { return nil }
+    // A window in WinMux's fullscreen covers the tree, and the windows it hides keep their old rects.
+    if let fullscreen = root.mostRecentWindowRecursive, fullscreen.isFullscreen { return fullscreen }
+    return point.findIn(tree: root, virtual: false)
 }
 
 /// The Filter context for a Filter evaluated now.
-@MainActor func filterContextRecord(mouse: CGPoint = mouseLocation) async -> FilterContextRecord {
+@MainActor func filterContextRecord(mouse: CGPoint = mouseLocation) async throws -> FilterContextRecord {
     let focus = focus
+    let previous = prevFocusedWindow
     return FilterContextRecord(
-        focused: await focus.windowOrNil?.windowRecord(),
-        mouse: await windowUnderMouse(mouse)?.windowRecord(),
-        previous: await prevFocus?.windowOrNil?.windowRecord(),
+        focused: try await focus.windowOrNil?.windowRecord(),
+        mouse: try await windowUnderMouse(mouse)?.windowRecord(),
+        previous: try await previous?.windowRecord(),
         workspaceName: focus.workspace.name,
         workspaceProject: focus.workspace.projectId.rawValue,
         monitor: MonitorRecord(focus.workspace.workspaceMonitor),
