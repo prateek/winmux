@@ -47,7 +47,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [x] `swift build` and the release Xcode build succeed with no deprecation or obsoletion warnings from window capture.
 - [x] The existing test suite passes.
 - [x] The release app bundle declares macOS 26.0 as its minimum system version (`LSMinimumSystemVersion` in the built `Info.plist`).
-- [ ] With Screen Recording granted on macOS 26, the double-sided tab flip animates between the two window snapshots. Not yet checked: it needs a running WinMux build that holds the grant.
+- [x] With Screen Recording granted on macOS 26, the double-sided tab flip animates between the two window snapshots. Checked in a debug build; the recording is on pull request #15. A window parked at a different size is stretched during the rotation.
 - [x] `rg 'estimatedWindowPreviewCornerRadius|estimateTopCornerRadius' Sources` returns nothing, and no capture blocks the main thread.
 - [x] `winmux-window-capture` has no `--core-graphics` flag and still writes a capture of the requested window.
 - [x] `winmux-marketing-renderer` still writes its image.
