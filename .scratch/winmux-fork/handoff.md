@@ -35,7 +35,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 
 ## Open with Prateek
 
-- **Commits and pushes.** He asks for each one. Planning used one commit per resolved ticket. The first build issue landed as one squashed commit pushed straight to `fork`, with no pull request, and its worktree was removed afterwards.
+- **Landing.** Each piece of work is a pull request against `fork`, squash-merged after CI passes and Prateek has reviewed it. Push the branch over SSH and open the pull request; the merge is his. An issue that depends on an unmerged one targets that issue's branch. The first build issue went straight onto `fork` before this was the rule.
 - **Running a release.** `script/dogfood-release` publishes a release and pushes to the tap. Ask before each run.
 - **Decisions belong to him.** For a discrete choice, ask with a recommended answer first; he usually takes it. Don't settle a product question for him, and don't reopen one he has settled.
 
