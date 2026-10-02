@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import CoreServices
 import XCTest
 
 private func eventually(_ what: String, _ condition: @MainActor () -> Bool) async throws {
@@ -64,6 +65,33 @@ final class ConfigWatchListTest: XCTestCase {
         let expected = realPath(dir.path) + "/not-yet/winmux.ncl"
         XCTAssertTrue(list.holds(anyOf: [expected]))
         XCTAssertTrue(list.directories.contains(realPath(dir.path) + "/not-yet"))
+    }
+
+    func testAfterAFailedLoadAnyNickelFileInTheDirectoriesCounts() throws {
+        let config = try write("config/winmux.ncl")
+        let unseenImport = realPath(dir.appending(path: "config/keys.ncl").path)
+        let notNickel = realPath(dir.appending(path: "config/notes.txt").path)
+
+        let loaded = ConfigWatchList(configFile: config, imports: [config], library: nil)
+        let failed = ConfigWatchList(configFile: config, imports: [config], library: nil, anyNickelFile: true)
+
+        XCTAssertFalse(loaded.holds(anyOf: [unseenImport]))
+        XCTAssertTrue(failed.holds(anyOf: [unseenImport]))
+        XCTAssertFalse(failed.holds(anyOf: [notNickel]))
+    }
+
+    func testOnlyAChangeToAWatchedFilesContentsCounts() throws {
+        let config = try write("config/winmux.ncl")
+        let path = realPath(config.path)
+        let list = ConfigWatchList(configFile: config, imports: [], library: nil)
+        func flags(_ value: Int) -> FSEventStreamEventFlags { FSEventStreamEventFlags(value) }
+
+        XCTAssertTrue(list.isChanged(by: [(path, flags(kFSEventStreamEventFlagItemModified | kFSEventStreamEventFlagItemIsFile))]))
+        XCTAssertTrue(list.isChanged(by: [(path, flags(kFSEventStreamEventFlagItemRenamed | kFSEventStreamEventFlagItemIsFile))]))
+        XCTAssertFalse(list.isChanged(by: [(path, flags(kFSEventStreamEventFlagItemXattrMod | kFSEventStreamEventFlagItemIsFile))]), "an attribute only")
+        XCTAssertFalse(list.isChanged(by: [(path, flags(kFSEventStreamEventFlagItemInodeMetaMod | kFSEventStreamEventFlagItemIsFile))]), "metadata only")
+        XCTAssertFalse(list.isChanged(by: [(realPath(dir.path) + "/config/other.ncl", flags(kFSEventStreamEventFlagItemModified))]))
+        XCTAssertTrue(list.isChanged(by: [(realPath(dir.path), flags(kFSEventStreamEventFlagMustScanSubDirs))]), "dropped events")
     }
 
     func testHoldsBothTheLinkAndTheFileALinkedConfigPointsTo() throws {
@@ -185,7 +213,9 @@ final class ConfigFileWatcherTest: XCTestCase {
 final class ConfigReloadSchedulerTest: XCTestCase {
     func testSeveralChangesWithinTheDelayCauseOneReload() async throws {
         var reloads = 0
-        let scheduler = ConfigReloadScheduler(delay: .milliseconds(200)) { reloads += 1 }
+        // The delay is far longer than the gaps between changes, so a slow runner cannot let it
+        // run out between two of them.
+        let scheduler = ConfigReloadScheduler(delay: .milliseconds(800)) { reloads += 1 }
 
         for _ in 0 ..< 5 {
             scheduler.fileChanged()
@@ -193,7 +223,7 @@ final class ConfigReloadSchedulerTest: XCTestCase {
         }
         try await eventually("the reload runs") { reloads > 0 }
         // Long enough for a second reload to have run if one had been scheduled.
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: .milliseconds(1200))
 
         assertEquals(reloads, 1)
     }
@@ -272,7 +302,7 @@ final class ConfigReloadErrorsTest: XCTestCase {
         XCTAssertNil(errors.last)
     }
 
-    func testConfigStatusShowsAFailedReloadUnlessTheHelperHasAnErrorOfItsOwn() {
+    func testConfigStatusShowsAFailedReloadBeforeTheHelpersOwnError() {
         func status(helperError: String?) -> NickelStatus {
             NickelStatus(state: .ready, pid: 1, rss: 0, recycles: 0, lastError: helperError, configPath: "/config/winmux.ncl")
         }
@@ -281,8 +311,12 @@ final class ConfigReloadErrorsTest: XCTestCase {
         let helperFailed = ConfigHelperStatus(status(helperError: "The config helper exited unexpectedly"), reloadError: "extra field `gapz`")
         let fine = ConfigHelperStatus(status(helperError: nil), reloadError: nil)
 
+        let helperOnly = ConfigHelperStatus(status(helperError: "The config helper exited unexpectedly"), reloadError: nil)
+
         assertEquals(reloadFailed.lastError, "extra field `gapz`")
-        assertEquals(helperFailed.lastError, "The config helper exited unexpectedly")
+        // The helper keeps its error after it restarts, so it may be older than the reload.
+        assertEquals(helperFailed.lastError, "extra field `gapz`")
+        assertEquals(helperOnly.lastError, "The config helper exited unexpectedly")
         XCTAssertNil(fine.lastError)
     }
 }

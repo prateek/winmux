@@ -1,18 +1,23 @@
 import Common
 import CoreServices
 import Foundation
+import Synchronization
 
 /// The files whose change reloads the config, and the directories that hold them.
-struct ConfigWatchList: Equatable {
+struct ConfigWatchList: Equatable, Sendable {
     /// Every path an event for a watched file may carry: the path as written, and the path with
     /// its symbolic links resolved, which is the one macOS reports.
     let files: Set<String>
     let directories: Set<String>
+    /// Whether any Nickel file in the directories counts. After a failed load WinMux does not know
+    /// what the config imports, and the file that failed may be one it has not seen.
+    let anyNickelFile: Bool
 
     /// - Parameter configFile: Where the config file is, or would be if it does not exist yet.
     /// - Parameter library: The shipped library. Its files change only when WinMux is replaced,
     ///   so they are left out.
-    init(configFile: URL, imports: [URL], library: URL?) {
+    init(configFile: URL, imports: [URL], library: URL?, anyNickelFile: Bool = false) {
+        self.anyNickelFile = anyNickelFile
         let libraryPrefix = library.map { realPath($0.standardizedFileURL.path) + "/" }
         var files: Set<String> = []
         for file in [configFile] + imports {
@@ -30,7 +35,23 @@ struct ConfigWatchList: Equatable {
 
     /// Whether any of `paths`, as macOS reports changed files, is a watched file.
     func holds(anyOf paths: [String]) -> Bool {
-        paths.contains(where: files.contains)
+        paths.contains { path in
+            files.contains(path)
+                || anyNickelFile && path.hasSuffix(".ncl") && directories.contains((path as NSString).deletingLastPathComponent)
+        }
+    }
+
+    /// Whether FSEvents' `events` change a watched file's contents. A change to a file's
+    /// attributes alone, such as macOS recording when it was last opened, does not.
+    func isChanged(by events: [(path: String, flags: FSEventStreamEventFlags)]) -> Bool {
+        let content = kFSEventStreamEventFlagItemCreated | kFSEventStreamEventFlagItemRemoved
+            | kFSEventStreamEventFlagItemRenamed | kFSEventStreamEventFlagItemModified
+        // macOS sets these when it dropped events and cannot say which files changed.
+        let dropped = kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped
+        return events.contains { event in
+            event.flags & UInt32(dropped) != 0
+                || event.flags & UInt32(content) != 0 && holds(anyOf: [event.path])
+        }
     }
 }
 
@@ -51,8 +72,13 @@ func realPath(_ path: String) -> String {
 @MainActor
 final class ConfigFileWatcher {
     private let onChange: @MainActor () -> Void
-    private var list: ConfigWatchList?
+    /// Read by the stream off the main thread, where it filters events.
+    private let list = WatchedList()
     private var stream: DirectoryEventStream?
+
+    private final class WatchedList: Sendable {
+        let value = Mutex<ConfigWatchList?>(nil)
+    }
 
     init(onChange: @escaping @MainActor () -> Void) {
         self.onChange = onChange
@@ -60,8 +86,10 @@ final class ConfigFileWatcher {
 
     /// Watches the files of `list`, or nothing when it is nil.
     func watch(_ list: ConfigWatchList?) {
-        let directoriesBefore = self.list?.directories
-        self.list = list
+        let directoriesBefore = self.list.value.withLock { old in
+            defer { old = list }
+            return old?.directories
+        }
         guard let list else {
             stream = nil
             return
@@ -69,34 +97,46 @@ final class ConfigFileWatcher {
         // The stream is kept while it covers the same directories, so no change is lost between
         // stopping one stream and starting the next.
         if stream != nil && directoriesBefore == list.directories { return }
-        stream = DirectoryEventStream(directories: list.directories) { [weak self] paths, mustRescan in
-            guard let self, let list = self.list else { return }
-            if mustRescan || list.holds(anyOf: paths) { self.onChange() }
-        }
+        let watched = self.list
+        stream = DirectoryEventStream(
+            directories: list.directories,
+            matches: { events in watched.value.withLock { $0?.isChanged(by: events) ?? false } },
+            onMatch: { [weak self] in self?.onChange() },
+        )
     }
 }
 
-/// An FSEvents stream over a set of directories that reports the path of each file that changes.
+/// An FSEvents stream over a set of directories. Events are filtered on a queue of its own, so a
+/// busy directory costs WinMux's main thread nothing until a watched file changes.
 private final class DirectoryEventStream {
     private let stream: FSEventStreamRef
     private let handler: Unmanaged<Handler>
+    private static let queue = DispatchQueue(label: "winmux.config-file-watcher")
 
     private final class Handler: Sendable {
-        let onEvents: @MainActor (_ paths: [String], _ mustRescan: Bool) -> Void
-        init(_ onEvents: @escaping @MainActor ([String], Bool) -> Void) { self.onEvents = onEvents }
+        let matches: @Sendable ([(path: String, flags: FSEventStreamEventFlags)]) -> Bool
+        let onMatch: @MainActor () -> Void
+        init(_ matches: @escaping @Sendable ([(path: String, flags: FSEventStreamEventFlags)]) -> Bool, _ onMatch: @escaping @MainActor () -> Void) {
+            self.matches = matches
+            self.onMatch = onMatch
+        }
     }
 
-    init?(directories: Set<String>, onEvents: @escaping @MainActor (_ paths: [String], _ mustRescan: Bool) -> Void) {
-        let handler = Unmanaged.passRetained(Handler(onEvents))
+    init?(
+        directories: Set<String>,
+        matches: @escaping @Sendable ([(path: String, flags: FSEventStreamEventFlags)]) -> Bool,
+        onMatch: @escaping @MainActor () -> Void,
+    ) {
+        let handler = Unmanaged.passRetained(Handler(matches, onMatch))
         var context = FSEventStreamContext(version: 0, info: handler.toOpaque(), retain: nil, release: nil, copyDescription: nil)
         let callback: FSEventStreamCallback = { _, info, count, paths, flags, _ in
             guard let info else { return }
             let handler = Unmanaged<Handler>.fromOpaque(info).takeUnretainedValue()
             let paths = Unmanaged<CFArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
-            // macOS sets these when it dropped events and cannot say which files changed.
-            let rescan = kFSEventStreamEventFlagMustScanSubDirs | kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped
-            let mustRescan = (0 ..< count).contains { flags[$0] & UInt32(rescan) != 0 }
-            MainActor.checkIsolated { handler.onEvents(paths, mustRescan) }
+            let events = zip(paths, UnsafeBufferPointer(start: flags, count: count)).map { (path: $0, flags: $1) }
+            if handler.matches(events) {
+                Task { @MainActor in handler.onMatch() }
+            }
         }
         let flags = kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagUseCFTypes
         guard let stream = FSEventStreamCreate(
@@ -111,7 +151,7 @@ private final class DirectoryEventStream {
             handler.release()
             return nil
         }
-        FSEventStreamSetDispatchQueue(stream, .main)
+        FSEventStreamSetDispatchQueue(stream, DirectoryEventStream.queue)
         guard FSEventStreamStart(stream) else {
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
@@ -176,21 +216,29 @@ private let reloadDebounceDelay: Duration = .milliseconds(300)
 @MainActor private let reloadScheduler = ConfigReloadScheduler(delay: reloadDebounceDelay) { await reloadConfigAfterFileChange() }
 @MainActor private let configFileWatcher = ConfigFileWatcher { reloadScheduler.fileChanged() }
 @MainActor private var lastLoadedFiles: (imports: [URL], library: URL?) = ([], nil)
+@MainActor private var lastLoadFailed = false
 
-/// Where the config file is, or would be if it does not exist yet.
-@MainActor func watchedConfigFileUrl() -> URL {
-    serverArgs.configLocation.map { URL(filePath: $0) } ?? generatedConfigUrl()
+enum ConfigLoadOutcome {
+    case loaded(LoadedNickelConfig)
+    case failed
 }
 
 /// Watches the config file and the files it imported when it last loaded. Called after every
-/// load, so a newly imported file is watched, and a failed load keeps the files of the last
-/// successful one.
-@MainActor func syncConfigFileWatcher(loaded: LoadedNickelConfig? = nil) {
-    if let loaded { lastLoadedFiles = (loaded.imports, loaded.library) }
+/// load, so a newly imported file is watched. A failed load keeps the files of the last
+/// successful one, and any Nickel file in their directories counts until a load succeeds.
+@MainActor func syncConfigFileWatcher(after outcome: ConfigLoadOutcome? = nil) {
+    switch outcome {
+        case .loaded(let loaded):
+            lastLoadedFiles = (loaded.imports, loaded.library)
+            lastLoadFailed = false
+        case .failed: lastLoadFailed = true
+        case nil: break
+    }
     guard config.reloadOnSave else { return configFileWatcher.watch(nil) }
     configFileWatcher.watch(ConfigWatchList(
-        configFile: watchedConfigFileUrl(),
+        configFile: preferredEditableConfigUrl(),
         imports: lastLoadedFiles.imports,
         library: lastLoadedFiles.library,
+        anyNickelFile: lastLoadFailed,
     ))
 }

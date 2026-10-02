@@ -43,13 +43,14 @@ struct ConfigHelperStatus: Encodable {
     let lastError: String?
     let configPath: String?
 
-    /// - Parameter reloadError: Why the last reload failed, while the helper itself is fine.
+    /// - Parameter reloadError: Why the last reload failed. It comes first: the helper's own
+    ///   error stays after the helper restarts, and may be older.
     init(_ status: NickelStatus, reloadError: String?) {
         state = status.state.rawValue
         pid = status.pid
         rss = status.rss
         recycles = status.recycles
-        lastError = status.lastError ?? reloadError
+        lastError = reloadError ?? status.lastError
         configPath = status.configPath
     }
 

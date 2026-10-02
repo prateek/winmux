@@ -62,10 +62,16 @@ private let configLog = Logger(subsystem: winMuxAppId, category: "config")
 
 /// Reloads after a save. It is the same reload `reload-config` runs.
 @MainActor func reloadConfigAfterFileChange() async {
-    guard let token: RunSessionGuard = .isServerEnabled else { return }
-    _ = try? await runLightSession(.configAutoReload, token) {
-        var devNull = ""
-        return try await reloadConfig(trigger: .fileChange, stdout: &devNull)
+    // Until startup is done, a change is the first launch writing the starter config, which the
+    // startup load has already read.
+    guard isWinMuxRuntimeReady, let token: RunSessionGuard = .isServerEnabled else { return }
+    do {
+        _ = try await runLightSession(.configAutoReload, token) {
+            var devNull = ""
+            return try await reloadConfig(trigger: .fileChange, stdout: &devNull)
+        }
+    } catch {
+        configLog.error("A reload after a save failed: \(error.localizedDescription, privacy: .public)")
     }
 }
 
@@ -76,7 +82,12 @@ private let configLog = Logger(subsystem: winMuxAppId, category: "config")
     stdout: inout String,
 ) async throws -> Bool {
     let result: Bool
-    var adopted: LoadedNickelConfig? = nil
+    var outcome = ConfigLoadOutcome.failed
+    // Even when applying the config throws, its helper is in effect and its files are the ones to
+    // watch.
+    defer {
+        if !args.dryRun { syncConfigFileWatcher(after: outcome) }
+    }
     switch await readConfig(forceConfigUrl: forceConfigUrl) {
         case .success(let loaded):
             if args.dryRun {
@@ -84,11 +95,11 @@ private let configLog = Logger(subsystem: winMuxAppId, category: "config")
             } else {
                 // The settings and the helper that holds the config's functions change together.
                 NickelSupervisor.shared.adopt(loaded.helper)
-                adopted = loaded.helper
-                try await applyConfig(loaded.config, url: loaded.url)
+                outcome = .loaded(loaded.helper)
                 MessageModel.shared.message = nil
                 configReloadErrors.loaded()
                 configLog.notice("Loaded the config from \(loaded.url.path, privacy: .public)")
+                try await applyConfig(loaded.config, url: loaded.url)
             }
             result = true
         case .failure(let msg):
@@ -103,9 +114,6 @@ private let configLog = Logger(subsystem: winMuxAppId, category: "config")
                 }
             }
             result = false
-    }
-    if !args.dryRun {
-        syncConfigFileWatcher(loaded: adopted)
     }
     return result
 }
