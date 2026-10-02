@@ -196,6 +196,10 @@ enum Ax {
         getter: { $0 as? String },
         setter: { $0 as CFTypeRef },
     )
+    static let documentAttr = ReadableAttrImpl<String>(
+        key: kAXDocumentAttribute,
+        getter: { $0 as? String },
+    )
     static let identifierAttr = ReadableAttrImpl<String>(
         key: kAXIdentifierAttribute,
         getter: { $0 as? String },

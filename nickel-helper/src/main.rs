@@ -4,13 +4,22 @@ use std::{
     process::ExitCode,
 };
 
-use winmux_nickel::{convert, library_dir, protocol};
+use winmux_nickel::{convert, library_dir, protocol, schema};
 
-const USAGE: &str = "usage: winmux-nickel serve | check [<file>] | convert <file> | defaults";
+const USAGE: &str =
+    "usage: winmux-nickel serve | check [<file>] | convert <file> | schema [--json] | defaults | contract";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    // These three print what is compiled in, so they work without the shipped library.
+    match args.as_slice() {
+        ["schema"] => return print(&schema::schema_text()),
+        ["schema", "--json"] => return print(&format!("{:#}\n", schema::schema_json())),
+        // The source of nickel/winmux/contract.ncl. Regenerate it after changing a record.
+        ["contract"] => return print(&schema::nickel_contracts()),
+        _ => {}
+    }
     let library = match library_dir() {
         Ok(library) => library,
         Err(e) => {
@@ -51,6 +60,11 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+fn print(text: &str) -> ExitCode {
+    print!("{text}");
+    ExitCode::SUCCESS
 }
 
 fn check(file: Option<&Path>, library: &Path) -> ExitCode {

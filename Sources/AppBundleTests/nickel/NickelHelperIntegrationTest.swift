@@ -14,13 +14,102 @@ final class NickelHelperIntegrationTest: XCTestCase {
         return NickelSupervisor()
     }
 
-    private func standIn(bundleId: String, cls: String = "tiled") -> JSONValue {
-        .object([
-            "title": .string("Inbox"),
-            "private": .bool(false),
-            "class": .string(cls),
-            "app": .object(["bundleId": .string(bundleId)]),
-        ])
+    /// The records WinMux builds for its windows: one mail window among `count`, with nothing
+    /// focused.
+    private func records(count: Int) async -> (context: JSONValue, windows: [JSONValue]) {
+        setUpWorkspacesForTests()
+        var windows: [JSONValue] = []
+        for id in 0 ..< count {
+            let window = TestWindow.new(id: UInt32(id + 1), parent: focus.workspace.rootTilingContainer)
+            window.testAxRecordAttributes = WindowAxRecordAttributes(title: "Inbox", subrole: "AXStandardWindow", hasCloseButton: true, document: "")
+            var record = await window.windowRecord().orDie()
+            record.app.bundleId = id % 5 == 0 ? "com.apple.mail" : "com.example.other"
+            windows.append(record.json)
+        }
+        return (await filterContextRecord(mouse: .zero).json, windows)
+    }
+
+    private func schema() throws -> JSONValue {
+        let process = Process()
+        process.executableURL = try XCTUnwrap(nickelHelperUrl())
+        process.arguments = ["schema", "--json"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
+    private func fieldNames(_ record: JSONValue?) -> [String] {
+        guard case .object(let fields) = record else { return [] }
+        return fields.keys.sorted()
+    }
+
+    func testRecordsWinMuxBuildsHoldExactlyTheFieldsOfTheSchema() async throws {
+        _ = try supervisor()
+        let schema = try schema()
+        func schemaFields(_ record: String) -> [String] {
+            (schema["records"]?[record]?.arrayOrNil ?? []).compactMap { $0["name"]?.stringOrNil }.sorted()
+        }
+        let workspace = focus.workspace
+        let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        check(window.focusWindow())
+
+        let record = await window.windowRecord().orDie().json
+        let context = await filterContextRecord(mouse: .zero).json
+
+        assertEquals(schema["contract-version"], .int(1))
+        assertEquals(fieldNames(record), schemaFields("Window"))
+        assertEquals(fieldNames(record["app"]), schemaFields("App"))
+        assertEquals(fieldNames(record["monitor"]), schemaFields("Monitor"))
+        assertEquals(fieldNames(context), schemaFields("FilterContext"))
+        assertEquals(fieldNames(context["workspace"]), schemaFields("Workspace"))
+        assertEquals(fieldNames(context["focused"]), schemaFields("Window"))
+    }
+
+    func testFilterReadsTheRecordsWinMuxBuilds() async throws {
+        let supervisor = try supervisor()
+        supervisor.adopt(try await supervisor.load(fixture("config.ncl")).get())
+        setUpWorkspacesForTests()
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let floating = TestWindow.new(id: 2, parent: workspace)
+        let minimized = TestWindow.new(id: 3, parent: workspace.rootTilingContainer)
+        minimized.nativeIsMacosMinimized = true
+        try await normalizeLayoutReason()
+        check(tiled.focusWindow())
+        var windows: [JSONValue] = []
+        for window in [tiled, floating, minimized] {
+            windows.append(await window.windowRecord().orDie().json)
+        }
+        let context = await filterContextRecord(mouse: .zero).json
+
+        let isFloating = await supervisor.evalFilter("w.class == 'floating", context: context, windows: windows)
+        let isMinimizedHere = await supervisor.evalFilter(
+            "w.class == 'minimized && w.workspace == ctx.workspace.name",
+            context: context,
+            windows: windows,
+        )
+        let sameApp = await supervisor.filter(lens: "same-app", context: context, windows: windows)
+        let isRegular = await supervisor.evalFilter("w.app.activationPolicy == 'regular && !w.app.accessory", context: context, windows: windows)
+
+        assertEquals(isFloating, .success([false, true, false]))
+        assertEquals(isMinimizedHere, .success([false, false, true]))
+        assertEquals(sameApp, .success([true, true, true]))
+        assertEquals(isRegular, .success([true, true, true]))
+    }
+
+    func testConfigWithFiltersParsesIntoWinMuxSettings() async throws {
+        let supervisor = try supervisor()
+
+        for name in ["config.ncl", "every-field.ncl"] {
+            let loaded = try await supervisor.load(fixture(name)).get()
+            supervisor.discard(loaded)
+            let (_, errors) = parseConfig(loaded.settings)
+
+            assertEquals(errors, [])
+        }
     }
 
     func testConfigOverTheDefaultsParsesIntoWinMuxSettings() async throws {
@@ -63,8 +152,7 @@ final class NickelHelperIntegrationTest: XCTestCase {
             throw XCTSkip("Latency is only checked against a release build of winmux-nickel")
         }
         supervisor.adopt(try await supervisor.load(fixture("config.ncl")).get())
-        let context = standIn(bundleId: "ctx")
-        let windows = (0 ..< 50).map { standIn(bundleId: $0 % 5 == 0 ? "com.apple.mail" : "com.example.other") }
+        let (context, windows) = await records(count: 50)
 
         func median(_ body: () async -> Void) async -> Duration {
             await body() // Warm up

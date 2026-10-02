@@ -308,6 +308,18 @@ final class MacApp: AbstractApp {
         }
     }
 
+    /// Everything a Window record takes from the window's AX element, in one round-trip.
+    func getAxRecordAttributes(_ windowId: UInt32) async throws -> WindowAxRecordAttributes? {
+        try await withWindow(windowId) { window, job in
+            WindowAxRecordAttributes(
+                title: window.get(Ax.titleAttr) ?? "",
+                subrole: window.get(Ax.subroleAttr) ?? "",
+                hasCloseButton: window.get(Ax.closeButtonAttr) != nil,
+                document: window.get(Ax.documentAttr) ?? "",
+            )
+        }
+    }
+
     func isMacosNativeFullscreen(_ windowId: UInt32) async throws -> Bool? {
         try await withWindow(windowId) { window, job in
             window.get(Ax.isFullscreenAttr)

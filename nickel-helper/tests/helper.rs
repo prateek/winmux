@@ -3,7 +3,13 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use winmux_nickel::protocol::Helper;
+use winmux_nickel::{
+    engine::{Engine, Source, evaluate_to_json},
+    host::HostValue,
+    protocol::Helper,
+    records::{Column, FilterContext, Window},
+    schema,
+};
 
 fn library() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("nickel")
@@ -17,6 +23,13 @@ fn request(helper: &mut Helper, request: Value) -> Value {
     serde_json::from_str(&helper.handle_line(&request.to_string())).unwrap()
 }
 
+fn load_error(config: &str) -> String {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({ "id": 0, "op": "load", "path": fixture(config) }));
+    assert_eq!(reply["ok"], false, "{config} loaded");
+    reply["error"].as_str().unwrap().to_owned()
+}
+
 fn loaded(config: &str) -> Helper {
     let mut helper = Helper::new(library());
     let reply = request(&mut helper, json!({ "id": 0, "op": "load", "path": fixture(config) }));
@@ -24,8 +37,44 @@ fn loaded(config: &str) -> Helper {
     helper
 }
 
-fn record(bundle_id: &str, class: &str) -> Value {
-    json!({ "title": "Inbox", "private": false, "class": class, "app": { "bundleId": bundle_id } })
+fn monitor() -> Value {
+    json!({ "name": "Built-in Retina Display", "uuid": "37D8832A-2D66-02CA-B9F7-8F30A301B230", "builtin": true })
+}
+
+/// A Window record as WinMux sends it.
+fn window(bundle_id: &str, class: &str) -> Value {
+    json!({
+        "id": 42,
+        "title": "Inbox",
+        "class": class,
+        "subrole": "AXStandardWindow",
+        "level": 0,
+        "hasCloseButton": true,
+        "document": "",
+        "workspace": "1",
+        "project": "default",
+        "monitor": monitor(),
+        "lastFocusedSeq": 0,
+        "app": { "bundleId": bundle_id, "name": "Mail", "pid": 501, "accessory": false, "activationPolicy": "regular" },
+    })
+}
+
+/// A Filter context with no focused, hovered or previous window.
+fn context() -> Value {
+    json!({
+        "focused": null,
+        "mouse": null,
+        "previous": null,
+        "workspace": { "name": "1", "project": "default" },
+        "monitor": monitor(),
+        "profile": "default",
+    })
+}
+
+fn context_focused_on(bundle_id: &str) -> Value {
+    let mut ctx = context();
+    ctx["focused"] = window(bundle_id, "tiled");
+    ctx
 }
 
 #[test]
@@ -94,15 +143,15 @@ fn misspelled_field_fails_the_load_in_the_smoke_run() {
 }
 
 #[test]
-fn batched_filter_returns_one_match_bit_per_record() {
+fn batched_filter_returns_one_match_bit_per_window() {
     let mut helper = loaded("config.ncl");
     let windows: Vec<Value> = (0..50)
-        .map(|i| record(if i % 5 == 0 { "com.apple.mail" } else { "com.example.other" }, "tiled"))
+        .map(|i| window(if i % 5 == 0 { "com.apple.mail" } else { "com.example.other" }, "tiled"))
         .collect();
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": context(), "windows": windows }),
     );
 
     assert_eq!(reply["ok"], true, "{}", reply["error"]);
@@ -114,13 +163,13 @@ fn batched_filter_returns_one_match_bit_per_record() {
 }
 
 #[test]
-fn filter_reads_the_context_record() {
+fn filter_reads_the_context_window() {
     let mut helper = loaded("config.ncl");
-    let windows = json!([record("com.apple.mail", "tiled"), record("com.example.other", "tiled")]);
+    let windows = json!([window("com.apple.mail", "tiled"), window("com.example.other", "tiled")]);
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "filter", "lens": "same-app", "ctx": record("com.example.other", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "filter", "lens": "same-app", "ctx": context_focused_on("com.example.other"), "windows": windows }),
     );
 
     assert_eq!(reply["result"], json!([false, true]), "{}", reply["error"]);
@@ -129,15 +178,15 @@ fn filter_reads_the_context_record() {
 #[test]
 fn lens_without_a_filter_matches_every_record_and_an_unknown_lens_fails() {
     let mut helper = loaded("config.ncl");
-    let windows = json!([record("a", "tiled"), record("b", "tiled")]);
+    let windows = json!([window("a", "tiled"), window("b", "tiled")]);
 
     let all = request(
         &mut helper,
-        json!({ "id": 2, "op": "filter", "lens": "everything", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "filter", "lens": "everything", "ctx": context(), "windows": windows }),
     );
     let unknown = request(
         &mut helper,
-        json!({ "id": 3, "op": "filter", "lens": "nope", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 3, "op": "filter", "lens": "nope", "ctx": context(), "windows": windows }),
     );
 
     assert_eq!(all["result"], json!([true, true]));
@@ -149,12 +198,12 @@ fn lens_without_a_filter_matches_every_record_and_an_unknown_lens_fails() {
 fn record_missing_a_field_is_rejected_before_any_nickel_runs() {
     // No config is loaded, so a reply about the field proves the record was checked first.
     let mut helper = Helper::new(library());
-    let mut window = record("com.apple.mail", "tiled");
+    let mut window = window("com.apple.mail", "tiled");
     window.as_object_mut().unwrap().remove("title");
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": record("ctx", "tiled"), "windows": [window] }),
+        json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": context(), "windows": [window] }),
     );
 
     assert_eq!(reply["ok"], false);
@@ -164,18 +213,31 @@ fn record_missing_a_field_is_rejected_before_any_nickel_runs() {
 #[test]
 fn json_string_in_an_enum_field_reaches_nickel_as_an_enum_tag() {
     let mut helper = loaded("config.ncl");
-    let windows = json!([record("a", "accessory-popup"), record("b", "tiled")]);
+    let windows = json!([window("a", "accessory-popup"), window("b", "tiled")]);
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "filter", "lens": "popups", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "filter", "lens": "popups", "ctx": context(), "windows": windows }),
     );
     let unknown_tag = request(
         &mut helper,
-        json!({ "id": 3, "op": "filter", "lens": "popups", "ctx": record("ctx", "tiled"), "windows": [record("a", "sideways")] }),
+        json!({ "id": 3, "op": "filter", "lens": "popups", "ctx": context(), "windows": [window("a", "sideways")] }),
+    );
+
+    let mut accessory = window("a", "floating");
+    accessory["app"]["activationPolicy"] = json!("accessory");
+    let policy = request(
+        &mut helper,
+        json!({ "id": 4, "op": "filter", "lens": "accessory-apps", "ctx": context(), "windows": [accessory, window("b", "floating")] }),
+    );
+    let floating = request(
+        &mut helper,
+        json!({ "id": 5, "op": "eval-filter", "filter": "w.class == 'floating", "ctx": context(), "windows": [window("a", "floating"), window("b", "tiled")] }),
     );
 
     assert_eq!(reply["result"], json!([true, false]), "{}", reply["error"]);
+    assert_eq!(policy["result"], json!([true, false]), "{}", policy["error"]);
+    assert_eq!(floating["result"], json!([true, false]), "{}", floating["error"]);
     assert_eq!(unknown_tag["ok"], false);
     assert!(unknown_tag["error"].as_str().unwrap().contains("unknown variant `sideways`"), "{}", unknown_tag["error"]);
 }
@@ -183,13 +245,13 @@ fn json_string_in_an_enum_field_reaches_nickel_as_an_enum_tag() {
 #[test]
 fn eval_filter_can_call_a_named_filter() {
     let mut helper = loaded("config.ncl");
-    let mut private_mail = record("com.apple.mail", "tiled");
-    private_mail["private"] = json!(true);
-    let windows = json!([record("com.apple.mail", "tiled"), private_mail, record("com.example.other", "tiled")]);
+    let mut popup_mail = window("com.apple.mail", "tiled");
+    popup_mail["hasCloseButton"] = json!(false);
+    let windows = json!([window("com.apple.mail", "tiled"), popup_mail, window("com.example.other", "tiled")]);
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "eval-filter", "filter": "filters.mail w ctx && !w.private", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "eval-filter", "filter": "filters.mail w ctx && w.hasCloseButton", "ctx": context(), "windows": windows }),
     );
 
     assert_eq!(reply["result"], json!([true, false, false]), "{}", reply["error"]);
@@ -201,7 +263,7 @@ fn eval_filter_reports_a_bad_filter_with_nickels_diagnostic() {
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "eval-filter", "filter": "filters.male w ctx", "ctx": record("ctx", "tiled"), "windows": [record("a", "tiled")] }),
+        json!({ "id": 2, "op": "eval-filter", "filter": "filters.male w ctx", "ctx": context(), "windows": [window("a", "tiled")] }),
     );
 
     assert_eq!(reply["ok"], false);
@@ -214,11 +276,11 @@ fn hook_returns_its_result_as_json() {
 
     let tiled = request(
         &mut helper,
-        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [record("a", "tiled"), record("ctx", "tiled")] }),
+        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [window("a", "tiled"), context()] }),
     );
     let popup = request(
         &mut helper,
-        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [record("a", "accessory-popup"), record("ctx", "tiled")] }),
+        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "accessory-popup"), context()] }),
     );
 
     assert_eq!(tiled["result"], json!({ "workspace": "Inbox", "column": 2 }), "{}", tiled["error"]);
@@ -230,10 +292,10 @@ fn hook_requests_are_checked_against_the_hooks_arguments() {
     let mut helper = loaded("config.ncl");
 
     let unknown = request(&mut helper, json!({ "id": 2, "op": "hook", "hook": "depart", "args": [] }));
-    let too_few = request(&mut helper, json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [record("a", "tiled")] }));
+    let too_few = request(&mut helper, json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "tiled")] }));
     let undefined = request(
         &mut helper,
-        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [record("a", "tiled"), record("ctx", "tiled")] }),
+        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [window("a", "tiled"), context()] }),
     );
 
     assert!(unknown["error"].as_str().unwrap().contains("no Policy hook named `depart`"));
@@ -244,16 +306,16 @@ fn hook_requests_are_checked_against_the_hooks_arguments() {
 #[test]
 fn failed_request_leaves_the_helper_serving() {
     let mut helper = loaded("config.ncl");
-    let windows = json!([record("com.apple.mail", "tiled")]);
+    let windows = json!([window("com.apple.mail", "tiled")]);
 
     let garbage: Value = serde_json::from_str(&helper.handle_line("not json")).unwrap();
     let failed = request(
         &mut helper,
-        json!({ "id": 2, "op": "eval-filter", "filter": "w.nope", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 2, "op": "eval-filter", "filter": "w.nope", "ctx": context(), "windows": windows }),
     );
     let next = request(
         &mut helper,
-        json!({ "id": 3, "op": "filter", "lens": "mail", "ctx": record("ctx", "tiled"), "windows": windows }),
+        json!({ "id": 3, "op": "filter", "lens": "mail", "ctx": context(), "windows": windows }),
     );
 
     assert_eq!(garbage["ok"], false);
@@ -362,13 +424,186 @@ fn built_in_defaults_file_matches_the_shipped_defaults() {
 #[test]
 fn eval_filter_works_in_a_config_with_no_named_filters() {
     let mut helper = loaded("over-defaults.ncl");
-    let mut private = record("a", "tiled");
-    private["private"] = json!(true);
+    let mut minimized = window("a", "minimized");
+    minimized["workspace"] = json!("2");
 
     let reply = request(
         &mut helper,
-        json!({ "id": 2, "op": "eval-filter", "filter": "w.private", "ctx": record("ctx", "tiled"), "windows": [private, record("b", "tiled")] }),
+        json!({ "id": 2, "op": "eval-filter", "filter": "w.class == 'minimized && w.workspace == \"2\"", "ctx": context(), "windows": [minimized, window("b", "tiled")] }),
     );
 
     assert_eq!(reply["result"], json!([true, false]), "{}", reply["error"]);
+}
+
+#[test]
+fn lens_can_name_a_filter_or_write_one_inline() {
+    let mut helper = loaded("config.ncl");
+    let mut elsewhere = window("a", "tiled");
+    elsewhere["workspace"] = json!("2");
+    let windows = json!([window("com.apple.mail", "tiled"), elsewhere]);
+
+    let named = request(&mut helper, json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": context(), "windows": windows }));
+    let inline = request(&mut helper, json!({ "id": 3, "op": "filter", "lens": "inline", "ctx": context(), "windows": windows }));
+
+    assert_eq!(named["result"], json!([true, false]), "{}", named["error"]);
+    assert_eq!(inline["result"], json!([true, false]), "{}", inline["error"]);
+}
+
+#[test]
+fn filter_that_reads_every_field_passes_both_smoke_passes() {
+    let mut helper = loaded("every-field.ncl");
+
+    let reply = request(
+        &mut helper,
+        json!({ "id": 2, "op": "filter", "lens": "nope", "ctx": context(), "windows": [] }),
+    );
+
+    assert!(reply["error"].as_str().unwrap().contains("no Lens named"), "the helper is serving the config");
+}
+
+#[test]
+fn context_window_read_without_a_null_guard_fails_the_load() {
+    let filter = load_error("unguarded.ncl");
+    let hook = load_error("unguarded-hook.ncl");
+
+    assert!(filter.contains("smoke run of `filters.same-app` failed"), "{filter}");
+    assert!(filter.contains("ctx.focused"), "{filter}");
+    assert!(hook.contains("smoke run of `arrive` failed"), "{hook}");
+}
+
+#[test]
+fn inline_filter_is_smoke_run_too() {
+    let error = load_error("inline-typo.ncl");
+
+    assert!(error.contains("smoke run of `lenses.mail.filter` failed"), "{error}");
+    assert!(error.contains("Did you mean `bundleId`?"), "{error}");
+}
+
+#[test]
+fn filter_that_does_not_return_a_bool_fails_the_load() {
+    let error = load_error("not-a-bool.ncl");
+
+    assert!(error.contains("smoke run of `filters.title` failed"), "{error}");
+    assert!(error.contains("contract broken"), "{error}");
+}
+
+#[test]
+fn named_filter_that_is_not_a_function_fails_the_load() {
+    let error = load_error("not-a-function.ncl");
+
+    assert!(error.contains("expected a function"), "{error}");
+    assert!(error.contains("not-a-function.ncl:3"), "{error}");
+}
+
+#[test]
+fn context_missing_a_window_field_is_rejected() {
+    let mut helper = loaded("config.ncl");
+    let mut ctx = context();
+    ctx.as_object_mut().unwrap().remove("previous");
+    let mut focused_without_app = context_focused_on("a");
+    focused_without_app["focused"].as_object_mut().unwrap().remove("app");
+
+    let absent = request(&mut helper, json!({ "id": 2, "op": "filter", "lens": "mail", "ctx": ctx, "windows": [] }));
+    let nested = request(&mut helper, json!({ "id": 3, "op": "filter", "lens": "mail", "ctx": focused_without_app, "windows": [] }));
+
+    assert!(absent["error"].as_str().unwrap().contains("missing field `previous`"), "{}", absent["error"]);
+    assert!(nested["error"].as_str().unwrap().contains("missing field `app`"), "{}", nested["error"]);
+}
+
+#[test]
+fn schema_prints_the_version_and_every_field() {
+    let text = String::from_utf8(run_helper(&["schema"]).stdout).unwrap();
+    let json: Value = serde_json::from_slice(&run_helper(&["schema", "--json"]).stdout).unwrap();
+
+    assert!(text.starts_with("contract-version 1\n"), "{text}");
+    assert_eq!(json["contract-version"], 1);
+    let records = json["records"].as_object().unwrap();
+    assert_eq!(records.keys().collect::<Vec<_>>(), ["App", "Column", "FilterContext", "Monitor", "Window", "Workspace"]);
+    for (record, fields) in records {
+        let section = text.split("\n\n").find(|section| section.starts_with(&format!("{record}\n"))).unwrap_or_else(|| panic!("{record} is missing from:\n{text}"));
+        for field in fields.as_array().unwrap() {
+            let (name, ty, description) = (field["name"].as_str().unwrap(), field["type"].as_str().unwrap(), field["description"].as_str().unwrap());
+            assert!(!description.is_empty(), "{record}.{name} has no description");
+            let line = section.lines().find(|line| line.starts_with(&format!("  {name} "))).unwrap_or_else(|| panic!("{record}.{name} is missing"));
+            assert!(line.contains(ty), "{line}");
+        }
+    }
+    let field = |record: &str, name: &str| {
+        records[record].as_array().unwrap().iter().find(|field| field["name"] == name).unwrap_or_else(|| panic!("{record}.{name}")).clone()
+    };
+    assert_eq!(field("App", "accessory")["type"], "Bool");
+    assert_eq!(field("App", "activationPolicy")["enum"], json!(["regular", "accessory", "prohibited"]));
+    assert_eq!(
+        field("Window", "class")["enum"],
+        json!(["tiled", "floating", "fullscreen", "minimized", "hidden-app", "accessory-popup", "app-popup"])
+    );
+    assert_eq!(field("FilterContext", "focused")["type"], "Window or null");
+    assert!(text.contains("'tiled, 'floating, 'fullscreen, 'minimized, 'hidden-app, 'accessory-popup, 'app-popup"), "{text}");
+}
+
+/// A record built from nothing but what `config schema --json` says about it.
+fn from_schema(schema: &Value, ty: &str, tags: &Value) -> Value {
+    if let Some(inner) = ty.strip_suffix(" or null") {
+        return from_schema(schema, inner, tags);
+    }
+    if let Some(inner) = ty.strip_prefix("Array of ") {
+        return json!([from_schema(schema, inner, tags)]);
+    }
+    match ty {
+        "String" => json!("text"),
+        "Bool" => json!(false),
+        "Number" => json!(3),
+        "Enum" => tags.as_array().unwrap().last().unwrap().clone(),
+        record => schema["records"][record]
+            .as_array()
+            .unwrap_or_else(|| panic!("the schema has no record {record}"))
+            .iter()
+            .map(|field| (field["name"].as_str().unwrap().to_owned(), from_schema(schema, field["type"].as_str().unwrap(), &field["enum"])))
+            .collect::<serde_json::Map<_, _>>()
+            .into(),
+    }
+}
+
+#[test]
+fn contracts_structs_and_schema_agree_on_every_field() {
+    let generated = String::from_utf8(run_helper(&["contract"]).stdout).unwrap();
+    let shipped = std::fs::read_to_string(library().join("winmux/contract.ncl")).unwrap();
+    assert_eq!(shipped, generated, "regenerate with `make contract`");
+
+    let schema = schema::schema_json();
+    for (record, fields) in schema["records"].as_object().unwrap() {
+        // The contract and the schema name the same fields.
+        let in_contract = evaluate_to_json(&format!(r#"std.record.fields (import "winmux/contract.ncl").{record}"#), &library()).unwrap();
+        let mut in_schema: Vec<&str> = fields.as_array().unwrap().iter().map(|field| field["name"].as_str().unwrap()).collect();
+        in_schema.sort();
+        assert_eq!(in_contract, json!(in_schema), "{record}");
+    }
+
+    // A record that holds what the schema lists, and nothing else, is one the structs accept...
+    let none = Value::Null;
+    let window: Window = serde_json::from_value(from_schema(&schema, "Window", &none)).unwrap();
+    let context: FilterContext = serde_json::from_value(from_schema(&schema, "FilterContext", &none)).unwrap();
+    let column: Column = serde_json::from_value(from_schema(&schema, "Column", &none)).unwrap();
+
+    // ...and one the contracts accept, in every field.
+    let mut engine = Engine::load(Source::Defaults, &library()).unwrap();
+    let mut check = |contract: &str, value| {
+        let body = format!(r#"let W = import "winmux/winmux.ncl" in std.deep_seq (w | W.{contract}) true"#);
+        let function = engine.compile_filter(&body).unwrap();
+        if let Err(diagnostic) = engine.call(&function, &[value, FilterContext::synthetic().to_nickel()]) {
+            panic!("{contract}:\n{diagnostic}");
+        }
+    };
+    check("Window", window.to_nickel());
+    check("FilterContext", context.to_nickel());
+    check("FilterContext", FilterContext::synthetic().to_nickel());
+    check("Column", column.to_nickel());
+    check("Window", Window::synthetic().to_nickel());
+}
+
+#[test]
+fn shipped_library_declares_contract_version_one() {
+    let version = evaluate_to_json(r#"(import "winmux/winmux.ncl").contract-version"#, &library()).unwrap();
+
+    assert_eq!(version, json!(1));
 }

@@ -18,6 +18,7 @@ let config_help_generated = """
        OR: config [-h|--help] status
        OR: config [-h|--help] check [<file>]
        OR: config [-h|--help] convert [<file>]
+       OR: config [-h|--help] schema [--json]
     """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id>]

@@ -17,6 +17,8 @@ final class ConfigCmdArgsTest: XCTestCase {
         guard case .check(file: "a.ncl") = mode(["check", "a.ncl"]) else { return XCTFail("check <file>") }
         guard case .convert(file: nil) = mode(["convert"]) else { return XCTFail("convert") }
         guard case .convert(file: "a.toml") = mode(["convert", "a.toml"]) else { return XCTFail("convert <file>") }
+        guard case .schema(json: false) = mode(["schema"]) else { return XCTFail("schema") }
+        guard case .schema(json: true) = mode(["schema", "--json"]) else { return XCTFail("schema --json") }
     }
 
     func testExistingFlagsStillParse() {
@@ -25,8 +27,10 @@ final class ConfigCmdArgsTest: XCTestCase {
     }
 
     func testBadUsage() {
-        assertEquals(error([]), "Specify one of: status, check, convert, --get, --major-keys, --all-keys, --config-path")
+        assertEquals(error([]), "Specify one of: status, check, convert, schema, --get, --major-keys, --all-keys, --config-path")
         assertEquals(error(["status", "a.ncl"]), "Only check and convert take a file")
+        assertEquals(error(["schema", "a.ncl"]), "Only check and convert take a file")
+        assertEquals(error(["status", "--json"]), "--json flag requires --get flag or schema")
         assertEquals(error(["check", "a.ncl", "b.ncl"]), "ERROR: Unknown argument 'b.ncl'")
         XCTAssertNotNil(error(["status", "--all-keys"]))
         XCTAssertNotNil(error(["frobnicate"]))

@@ -29,8 +29,8 @@ struct ConfigCommand: Command {
                     case .some(let json): io.out(json)
                     case nil: io.err("Can't encode the config helper's status")
                 }
-            case .check, .convert:
-                return io.err("'config check' and 'config convert' are run by the winmux CLI, not by the server")
+            case .check, .convert, .schema:
+                return io.err("'config check', 'config convert' and 'config schema' are run by the winmux CLI, not by the server")
         }
     }
 }

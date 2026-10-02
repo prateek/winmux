@@ -46,6 +46,13 @@ final class TestWindow: Window, CustomStringConvertible {
         }
     }
 
+    @MainActor var testAxRecordAttributes: WindowAxRecordAttributes? = nil
+    @MainActor override var axRecordAttributes: WindowAxRecordAttributes {
+        get async throws {
+            testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
+        }
+    }
+
     @MainActor override func getAxRect() async throws -> Rect? { // todo change to not Optional
         recordAuthoritativeActualRect(_rect)
         return _rect

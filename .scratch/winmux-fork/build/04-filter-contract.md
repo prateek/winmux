@@ -147,29 +147,31 @@ Column (passed to the `place` and `move-boundary` Policy hooks, never to Filters
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **The single source.** The definition is a set of Rust types in `nickel-helper/` with a derive that emits the `.ncl` contracts and the schema JSON at build time.
+- **The single source.** The definition is a set of Rust types in `nickel-helper/src/records.rs`, written with the helper's `host_record!` and `host_enum!` macros. The helper prints the `.ncl` contracts and the schema from them. The contracts are checked in as `nickel/winmux/contract.ncl`, regenerated with `make contract`, and a test fails when the file is out of date.
 - **Synthetic smoke-run values.** One Window: `'tiled`, of a `'regular` app, with implausible strings such as `"winmux-smoke"` in every String field. The context windows of the first pass are fully populated in the same way. The smoke run includes no popup-class Window.
 - **Where `contract-version` is declared.** It is a `contract-version` field in the shipped library. A version declared in a user's config is accepted and ignored, because at version 1 no config can lag behind.
 - **Shape of `config schema --json`.** `{ "contract-version": 1, "records": { "Window": [ { "name", "type", "enum", "description" } ], … } }`.
 - **`config schema` with the server down.** It works: `schema` is a one-shot mode of `winmux-nickel` that the `winmux` CLI execs directly, the way it execs `check`.
 - **`monitor.name` and `monitor.builtin` when unknown.** `""` and `false`.
+- **What `project` holds.** The project's id, the key `project-labels` uses, such as `default`.
+- **`ctx.workspace` is a record of its own.** `Workspace`, with `name` and `project`, listed by `config schema` beside the other five.
 - **`project` and `monitor` for a window outside every workspace.** The tree gives a minimized or popup-class window no monitor either (`nodeMonitor` in `Sources/AppBundle/tree/TreeNodeEx.swift` is `nil` under both containers). A minimized window reports the project and the monitor of its remembered workspace. A popup-class window reports `project = ""` and a Monitor with `name = ""`, `uuid = ""` and `builtin = false`.
 - **A window first seen minimized.** It has no remembered workspace, so its `workspace` and `project` are `""` and its `monitor` is the all-unknown Monitor.
 - **When `AXDocument` is read.** In the same per-window pass that reads the title when the records are built.
 
 ## Done when
 
-- [ ] A config with `filters.<name> = fun w ctx => …` loads, and a named Filter that calls another (`filters.floating w ctx`) passes the smoke run.
-- [ ] A Filter that reads every field in the tables above passes the smoke run, in both passes when its context reads are guarded.
-- [ ] `winmux config check` on a config whose Filter reads `w.app.bundelId` exits non-zero and prints Nickel's missing-field diagnostic.
-- [ ] `winmux config check` on a config whose Filter reads `ctx.focused.app` without a `null` guard exits non-zero. The same Filter with a guard passes.
-- [ ] A Filter that returns something other than a Bool fails at load, and so does a `filters.<name>` that is not a function.
-- [ ] `class` and `activationPolicy` reach Nickel as enum tags: `w.class == 'floating` is true for a record whose `class` is sent as the JSON string `"floating"`, and `w.app.activationPolicy == 'accessory` is true for one whose `activationPolicy` is sent as `"accessory"`. A test covers both.
-- [ ] The record WinMux builds for a live window carries the right class: `'tiled` under a tiling container, `'floating` under a workspace, `'fullscreen` in macOS native fullscreen, `'hidden-app` for a window of a hidden app, `'minimized` when minimized. A tiled window put in WinMux's own fullscreen is still `'tiled`. A test covers the mapping.
-- [ ] A window minimized on workspace `2` reports `workspace = "2"` in its record while minimized, and a test covers it. A popup-classified window reports `workspace = ""`.
-- [ ] `w.document` holds the window's `AXDocument` value for a document window that has one and `""` for a window that does not.
-- [ ] `winmux config schema` prints contract version 1 and every field in the tables above with type, enum values and a description, including `accessory` and `activationPolicy` on App. `winmux config schema --json` prints the same as JSON.
-- [ ] A test fails if the Nickel contracts, the Rust structs and the schema output disagree on a field.
+- [x] A config with `filters.<name> = fun w ctx => …` loads, and a named Filter that calls another (`filters.floating w ctx`) passes the smoke run.
+- [x] A Filter that reads every field in the tables above passes the smoke run, in both passes when its context reads are guarded.
+- [x] `winmux config check` on a config whose Filter reads `w.app.bundelId` exits non-zero and prints Nickel's missing-field diagnostic.
+- [x] `winmux config check` on a config whose Filter reads `ctx.focused.app` without a `null` guard exits non-zero. The same Filter with a guard passes.
+- [x] A Filter that returns something other than a Bool fails at load, and so does a `filters.<name>` that is not a function.
+- [x] `class` and `activationPolicy` reach Nickel as enum tags: `w.class == 'floating` is true for a record whose `class` is sent as the JSON string `"floating"`, and `w.app.activationPolicy == 'accessory` is true for one whose `activationPolicy` is sent as `"accessory"`. A test covers both.
+- [x] The record WinMux builds for a live window carries the right class: `'tiled` under a tiling container, `'floating` under a workspace, `'fullscreen` in macOS native fullscreen, `'hidden-app` for a window of a hidden app, `'minimized` when minimized. A tiled window put in WinMux's own fullscreen is still `'tiled`. A test covers the mapping.
+- [x] A window minimized on workspace `2` reports `workspace = "2"` in its record while minimized, and a test covers it. A popup-classified window reports `workspace = ""`.
+- [ ] `w.document` holds the window's `AXDocument` value for a document window that has one and `""` for a window that does not. _Covered by a test on a stand-in window; not yet checked on a live window._
+- [x] `winmux config schema` prints contract version 1 and every field in the tables above with type, enum values and a description, including `accessory` and `activationPolicy` on App. `winmux config schema --json` prints the same as JSON.
+- [x] A test fails if the Nickel contracts, the Rust structs and the schema output disagree on a field.
 ## Sources
 
 - [Grilling: the Filter contract's final field list](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/33-grilling-filter-contract-field-list.md)
