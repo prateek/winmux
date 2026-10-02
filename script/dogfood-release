@@ -62,7 +62,8 @@ git diff --quiet && git diff --cached --quiet || die "working tree is dirty; com
 trap 'git checkout --quiet -- Sources/Common/versionGenerated.swift Sources/Common/gitHashGenerated.swift' EXIT
 
 head_sha="$(git rev-parse HEAD)"
-branch="$(git rev-parse --abbrev-ref HEAD)"
+# Not `rev-parse --abbrev-ref`: with a remote that is also named fork, it prints heads/fork.
+branch="$(git symbolic-ref --quiet --short HEAD || echo detached)"
 # The build number is the commit count, which only means something on one branch.
 [ "$branch" = fork ] || [ "$DRY_RUN" = 1 ] || die "releases are cut from the fork branch, not $branch"
 tag="v${VERSION}"
