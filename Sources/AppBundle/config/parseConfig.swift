@@ -64,8 +64,6 @@ private let persistentWorkspacesKey = "persistent-workspaces"
 // 1. Does it make sense to have different value
 // 2. Prefer commands and commands flags over toml options if possible
 private let configParser: [String: any ParserProtocol<Config>] = [
-    "config-version": Parser(\.configVersion, parseConfigVersion),
-
     "after-login-command": Parser(\.afterLoginCommand, parseAfterLoginCommand),
     "after-startup-command": Parser(\.afterStartupCommand) { parseCommandOrCommands($0).toParsedToml($1) },
 
@@ -214,6 +212,9 @@ private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
 
 @MainActor private func parseConfig(_ rawTable: TOMLTable) -> (config: Config, errors: [TomlParseError]) {
     var errors: [TomlParseError] = []
+    if rawTable.contains(key: "config-version") {
+        errors.append(.semantic(.rootKey("config-version"), "Removed; Nickel contracts replace config-version; use config convert for TOML"))
+    }
     if rawTable.contains(key: "on-window-detected") {
         errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
     }
@@ -232,20 +233,6 @@ private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
     let shouldValidateMainMode = rawTable.contains(key: modeConfigRootKey) || config.shortcutsPreset != .none
     if shouldValidateMainMode && !config.modes.keys.contains(mainModeId) {
         errors += [.semantic(.rootKey(modeConfigRootKey), "Please specify '\(mainModeId)' mode")]
-    }
-
-    if config.configVersion <= 1 {
-        if rawTable.contains(key: persistentWorkspacesKey) {
-            errors += [.semantic(.rootKey(persistentWorkspacesKey), "This config option is only available since 'config-version = 2'")]
-        }
-        config.persistentWorkspaces = (config.modes.values.lazy
-            .flatMap { (mode: Mode) -> [HotkeyBinding] in Array(mode.bindings.values) }
-            .flatMap { (binding: HotkeyBinding) -> [String] in
-                binding.commands.filterIsInstance(of: WorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw } +
-                    binding.commands.filterIsInstance(of: MoveNodeToWorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw }
-            }
-            + (config.workspaceToMonitorForceAssignment).keys)
-            .toOrderedSet()
     }
 
     if config.enableNormalizationFlattenContainers {
@@ -275,13 +262,6 @@ func parseIndentForNestedContainersWithTheSameOrientation(
 ) -> ParsedToml<Void> {
     let msg = "Deprecated. Please drop it from the config. See https://github.com/nikitabobko/WinMux/issues/96"
     return .failure(.semantic(backtrace, msg))
-}
-
-func parseConfigVersion(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Int> {
-    let min = 1
-    let max = 2
-    return parseInt(raw, backtrace)
-        .filter(.semantic(backtrace, "Must be in [\(min), \(max)] range")) { (min ... max).contains($0) }
 }
 
 func parseInt(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> ParsedToml<Int> {

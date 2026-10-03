@@ -373,11 +373,9 @@ fn convert_writes_a_config_over_the_defaults_that_passes_check() {
     let config = &reply["result"]["config"];
     assert_eq!(config["start-at-login"], true);
     assert_eq!(config["gaps"]["inner"], json!({ "horizontal": 4, "vertical": 8 }), "unset settings come from the defaults");
-    assert_eq!(
-        config["mode"]["main"]["binding"],
-        json!({ "alt-h": "focus left", "cmd-1": ["workspace 1", "mode main"] }),
-        "the converted bindings replace the default ones, as they did in TOML"
-    );
+    assert_eq!(config["mode"]["main"]["binding"]["alt-h"], "focus left");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-1"], json!(["workspace 1", "mode main"]));
+    assert_eq!(config["mode"]["lens"]["binding"]["esc"], "mode main");
     assert_eq!(config["workspace-sidebar"]["project-labels"]["my project"], "Work %{x}");
 }
 
@@ -845,4 +843,59 @@ fn columns_normalization_adds_no_keys_to_the_config() {
     let reply = columns_load("workspace.Demo = {}");
     assert_eq!(reply["ok"], true, "{reply}");
     assert_eq!(reply["result"]["config"]["workspace"]["Demo"], json!({}));
+}
+
+
+#[test]
+fn default_triggers_import_overrides_and_upstream_conversion() {
+    let mut helper = Helper::new(library());
+    let defaults = request(&mut helper, json!({"op": "load"}));
+    let config = &defaults["result"]["config"];
+    assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
+    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
+    assert_eq!(config["mode"]["lens"]["binding"], json!({
+        "o": ["lens overview", "mode main"], "f": ["lens floating", "mode main"],
+        "s": ["lens search", "mode main"], "r": ["lens recent --presentation list", "mode main"], "esc": "mode main"
+    }));
+    assert_eq!(config["columns"]["count"], "off");
+    assert!(config.get("config-version").is_none());
+    assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search"]);
+    let imported = loaded_source("import-only", r#"(import "winmux/defaults.ncl") | (import "winmux/winmux.ncl").Config"#);
+    assert_eq!(imported, *config);
+    let changed = loaded_source("binding-override", r#"((import "winmux/defaults.ncl") & { mode.main.binding.alt-slash = "focus left" }) | (import "winmux/winmux.ncl").Config"#);
+    let mut expected = config.clone();
+    expected["mode"]["main"]["binding"]["alt-slash"] = json!("focus left");
+    assert_eq!(changed, expected);
+    let removed = loaded_source("binding-remove", r#"let d = import "winmux/defaults.ncl" in (d & { mode.main.binding | force = std.record.remove "alt-slash" d.mode.main.binding }) | (import "winmux/winmux.ncl").Config"#);
+    expected["mode"]["main"]["binding"].as_object_mut().unwrap().remove("alt-slash");
+    assert_eq!(removed, expected);
+
+    let converted = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
+    assert_eq!(converted.status.code(), Some(0));
+    let converted = loaded_source("converted-defaults", &String::from_utf8(converted.stdout).unwrap());
+    assert_eq!(converted, *config);
+    let upstream = evaluate_to_json(&format!("import {} as 'Toml", winmux_nickel::engine::nickel_string(&fixture("upstream-default-config.toml"))), &library()).unwrap();
+    for (key, command) in upstream["mode"]["main"]["binding"].as_object().unwrap() {
+        assert_eq!(config["mode"]["main"]["binding"][key], *command, "upstream chord {key}");
+    }
+    assert_eq!(run_helper(&["check", &library().join("winmux/defaults.ncl").to_string_lossy()]).status.code(), Some(0));
+}
+
+fn loaded_source(label: &str, source: &str) -> Value {
+    let file = std::env::temp_dir().join(format!("winmux-default-{label}-{}.ncl", std::process::id()));
+    std::fs::write(&file, source).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"op": "load", "path": file}));
+    std::fs::remove_file(file).unwrap();
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    reply["result"]["config"].clone()
+}
+
+#[test]
+fn config_version_is_rejected_and_converted_away() {
+    let source = r#"let W = import "winmux/winmux.ncl" in { config-version = 2 } | W.Config"#;
+    let error = evaluate_to_json(source, &library()).unwrap_err();
+    assert!(error.contains("config-version"), "{error}");
+    let output = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
+    assert!(!String::from_utf8(output.stdout).unwrap().contains("config-version"));
 }

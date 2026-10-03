@@ -53,7 +53,7 @@ func starterConfigText() -> String {
 }
 
 @MainActor
-func ensureBootstrapConfigExistsIfNeeded() throws -> URL? {
+func ensureBootstrapConfigExistsIfNeeded(createStarter: Bool = true) throws -> URL? {
     guard serverArgs.configLocation == nil else { return nil }
     let targetUrl = generatedConfigUrl()
     let existingLegacyUrls = preferredLegacyConfigImportUrl().map { [$0] } ?? []
@@ -62,6 +62,7 @@ func ensureBootstrapConfigExistsIfNeeded() throws -> URL? {
         targetUrl: targetUrl,
         existingLegacyUrls: existingLegacyUrls,
         aerospaceImportUrl: aerospaceImportUrl,
+        createStarter: createStarter,
     ) {
         return targetUrl
     } else {
@@ -74,9 +75,11 @@ func materializeBootstrapConfigIfNeeded(
     targetUrl: URL,
     existingLegacyUrls: [URL],
     aerospaceImportUrl: URL? = nil,
+    createStarter: Bool = true,
     convert: (URL) throws -> String = convertTomlConfigToNickel,
 ) throws -> Bool {
     guard !FileManager.default.fileExists(atPath: targetUrl.path) else { return false }
+    if !createStarter && existingLegacyUrls.isEmpty && aerospaceImportUrl == nil { return false }
     let parentUrl = targetUrl.deletingLastPathComponent()
     if parentUrl.path != targetUrl.path {
         try FileManager.default.createDirectory(at: parentUrl, withIntermediateDirectories: true)

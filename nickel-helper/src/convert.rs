@@ -26,6 +26,8 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         settings.insert("reload-on-save".to_owned(), value);
     }
 
+    settings.remove("config-version");
+
     let mut warnings = Vec::new();
     let mut rules = String::new();
     if let Some(Value::Array(entries)) = settings.remove("on-window-detected") {
@@ -39,16 +41,10 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         }
     }
 
-    // A TOML config replaced the default bindings wholesale, so the converted one must too.
-    let defaults = if settings.contains_key("mode") { r#"std.record.remove "mode" defaults"# } else { "defaults" };
     let mut nickel = format!("# Converted from {} by `winmux config convert`.\n", path.display());
     nickel.push_str("let W = import \"winmux/winmux.ncl\" in\n");
     nickel.push_str("let defaults = import \"winmux/defaults.ncl\" in\n");
-    if settings.contains_key("mode") {
-        nickel.push_str("# Your bindings replace the default ones. To add them to the defaults instead, merge over\n");
-        nickel.push_str("# `defaults` itself.\n");
-    }
-    nickel.push_str(&format!("(({defaults}) & {{\n"));
+    nickel.push_str("(defaults & {\n");
     write_fields(&settings, 1, &mut nickel);
     nickel.push_str(&rules);
     nickel.push_str("}) | W.Config\n");
