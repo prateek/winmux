@@ -4,7 +4,7 @@ A personal fork of WinMux. The trunk is `fork`; `main` only mirrors upstream. Th
 
 ## Landing work
 
-Every change reaches `fork` through a pull request, squash-merged after CI passes and Prateek has reviewed it.
+Every change reaches `fork` through a pull request, squash-merged after CI passes and Prateek has reviewed it. The `issue-relay` skill's driver merges under that skill's merge gate instead of waiting for him.
 
 1. **Branch.** Work in an Orca worktree cut from `fork/fork`. Work that depends on an unmerged pull request branches from that pull request's branch.
 2. **Check.** Run `make check`. It is what CI runs, and it needs cargo for the `winmux-nickel` helper.
@@ -12,7 +12,7 @@ Every change reaches `fork` through a pull request, squash-merged after CI passe
 4. **Describe it.** Say what changes and why, where the work departs from its issue, what was checked, and what was not checked.
 5. **Show it.** Attach screenshots and video demos of anything a person can see or operate: UI, an animation, CLI output worth reading. Attach them with `gh attach`. A change with nothing to show says so in the description.
 6. **Wait for CI.** The step is done when the `Build and test` check is green on the latest commit.
-7. **Merge when Prateek says to.** The `issue-relay` skill is the one exception: its driver merges once the skill's merge gate holds. Squash, and write the squash message as a commit message: a subject, then a body that explains the change. The pull request text is for the reviewer and stays on the pull request.
+7. **Merge when Prateek says to**, or, for the `issue-relay` skill, when its merge gate holds. Squash, and write the squash message as a commit message: a subject, then a body that explains the change. The pull request text is for the reviewer and stays on the pull request.
 8. **Finish.** Each of these is part of landing:
    - Update the issue body from its draft in `.scratch/winmux-fork/build/`, so the two stay the same.
    - Retarget a stacked pull request to `fork`, after merging `fork` into its branch.

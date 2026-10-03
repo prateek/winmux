@@ -13,19 +13,19 @@ Paths below: `$SKILL` is this skill's directory, `$WT` the issue worktree, and `
 
 ## 1. Orient
 
-Read the brief named in your prompt, `AGENTS.md`, and `.scratch/winmux-fork/handoff.md` end to end.
+Read the brief named in your prompt, `AGENTS.md`, and `.scratch/winmux-fork/handoff.md` end to end. Confirm the relay can finish: the installed `ho` skill (`~/.agents/plugins/plugins/utils-agent/skills/ho/SKILL.md`) must lack `disable-model-invocation`, or step 10 cannot run.
 
-Done when you can name the issue the brief points to, or the brief points to none.
+Done when you can name the issue the brief points to, or the brief points to none, and `ho` is invocable.
 
 ## 2. Pick the issue
 
-Take the brief's next issue. When it names none, take the open child of #1 whose blockers are all closed, preferring the one the handoff's **Next** line names. Read the issue and its draft in `.scratch/winmux-fork/build/`.
+Take the brief's next issue. When it names none, take the open child of #1 whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining checks are Prateek's, as are releases. Read the issue and its draft in `.scratch/winmux-fork/build/`.
 
 Done when you have one issue number and its draft. When no buildable child of #1 is open, the relay is over: stop and tell Prateek.
 
 ## 3. Cut the worktree
 
-`orca worktree create --repo id:<repo id> --name <slug> --no-parent`, with the repo id from the memory file `winmux-fork-trunk-branch.md`, then `make helper` in it.
+`git fetch fork`, then `orca worktree create --repo id:b2cfff9e-e8d3-4db1-9795-83a57e421be8 --name <slug> --no-parent`, then `make helper` in it.
 
 Done when `$WT` is on a fresh branch at `fork/fork`.
 
@@ -39,11 +39,11 @@ Fill [codex-brief.md](codex-brief.md)'s **First pass** into `$STATE/pass1.prompt
   --agent "$SKILL/codex-sol" exec -f "$STATE/pass1.prompt.md"
 ```
 
-Done when the log ends on the builder's report, and `$WT` has its commits, `$STATE/pr.md`, and the captures the brief asks for. A builder that stopped short of that gets one resume with what is missing; a second shortfall is a stop.
+Done when the log ends on the builder's report, and `$WT` has its commits, `$STATE/pr.md`, and the captures the brief asks for. A builder that stopped short, by timeout or otherwise, leaves its work in `$WT`; what is missing becomes pending work for step 7.
 
 ## 5. Verify and open the pull request
 
-Read the whole diff. Run `make check` yourself. Open every capture and look for usernames, home paths, machine names and other people's content. Then follow `AGENTS.md` steps 3 to 6: push, open the pull request from `$STATE/pr.md`, attach the captures with `gh attach --repo prateek/winmux`, and wait for CI.
+Read the whole diff. Run `make check` yourself. Check every capture for usernames, home paths, machine names and other people's content: read each image, and for each video read a contact sheet of a frame every two seconds (`ffmpeg -i <video> -vf fps=1/2,scale=640:-1,tile=4x4 <sheet>-%02d.png`). Then follow `AGENTS.md` steps 3 to 6: push, open the pull request from `$STATE/pr.md`, attach the captures with `gh attach --repo prateek/winmux`, and wait for CI.
 
 Done when the pull request is open with its captures and `Build and test` has a result.
 
@@ -67,7 +67,7 @@ A question no issue settles does not stop the relay. Take the recommended answer
 
 ## 9. Land
 
-Do `AGENTS.md` step 8. Before updating an issue body from its draft, diff the live body against the draft at the commit before this change; an edit made only on GitHub is a stop. Close the issue, then `git pull --ff-only` the trunk checkout.
+Do `AGENTS.md` step 8. An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by `#1`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Close the issue, then `git pull --ff-only` the trunk checkout.
 
 Done when the issue is closed, its body matches its draft, the worktree and both branches are gone, and the trunk checkout is at the merge commit.
 
@@ -79,8 +79,8 @@ Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief 
 
 Stop the relay, leave everything where it is, and tell Prateek what is blocked and what you recommend, when:
 
-- No buildable child of #1 is open.
-- Something is still pending after the second builder pass and your own fixes, or CI stays red for a reason in the change.
-- An issue body was edited on GitHub and differs from its draft.
-
-A CI failure outside the change, such as the runner failing to resolve a registry, gets one re-run first.
+- No buildable child of #1 is open, or the brief names an issue that is closed or still blocked.
+- `ho` is not invocable.
+- Something is still pending after the second builder pass and your own fixes.
+- CI stays red: for a reason in the change after the second pass, or for a reason outside it after one re-run, such as the runner failing to resolve a registry.
+- An issue body was edited on GitHub and differs from its rendered draft.

@@ -13,6 +13,7 @@ Build it:
 1. Test first, at the seams the issue's **Done when** list names. Every behaviour change gets a test that fails without it.
 2. `make check` passes.
 3. Do a live run of anything a person can see or operate, CLI output included, and save the captures in `<STATE>/captures/`. Follow the handoff's **Live runs** and **Running a debug build** notes. Save every window's frame first and restore it after, close every app you opened, keep usernames, home paths and machine names out of every capture, and leave any macOS permission prompt unanswered.
+   Releases are Prateek's: `script/dogfood-release` runs only when he asks for a release.
 4. Update the issue's draft wherever the build departs from it, and the handoff wherever this issue changes what the next builder needs to know, including its status lines.
 5. Commit on `<branch>` in commits a reviewer can follow. Leave pushing, the pull request and merging to the driver.
 6. Write `<STATE>/pr.md`, the pull request description, as `AGENTS.md` step 4 asks: what changes and why, where it departs from the issue, what was checked and what was not, and a **Live run** section naming each capture file.
