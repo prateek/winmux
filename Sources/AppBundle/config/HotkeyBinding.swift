@@ -79,10 +79,8 @@ extension HotKey {
                 if hotkeysSuspended { return }
                 noteTapBindingKeyDown()
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers, openedAt: ProcessInfo.processInfo.systemUptime)
-                if let model = SwitcherPalettePanel.shared.session, model.settings.presentation == "strip" {
-                    _ = model.cycleStrip(keyCode: UInt16(binding.keyCode.carbonKeyCode), flags: binding.modifiers)
-                    return
-                }
+                let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
+                if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text) { return }
                 triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture)
             }
         })

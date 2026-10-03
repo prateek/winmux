@@ -32,6 +32,8 @@ struct StripGesture {
     }
 }
 
+enum StripInput { case ignored, consumed, cancel, list }
+
 @TaskLocal var lensInvocation: StripGesture?
 
 extension LensSession {
@@ -45,6 +47,21 @@ extension LensSession {
         guard settings.presentation == "strip", stripGesture?.keyCode == keyCode else { return false }
         cycleStripSelection(flags.contains(.shift) ? -1 : 1)
         return true
+    }
+
+    func stripInput(_ event: NSEvent) -> StripInput {
+        guard settings.presentation == "strip" else { return .ignored }
+        if cycleStrip(keyCode: event.keyCode, flags: event.modifierFlags) { return .consumed }
+        switch event.keyCode {
+            case 53: return .cancel
+            case 123: cycleStripSelection(-1); return .consumed
+            case 124: cycleStripSelection(1); return .consumed
+            case 48, 50: return .consumed
+            default: break
+        }
+        if event.charactersIgnoringModifiers == "`" { return .consumed }
+        if handleStripLetter(event) { return settings.presentation == "list" ? .list : .consumed }
+        return .ignored
     }
 
     func cycleStripSelection(_ delta: Int) {

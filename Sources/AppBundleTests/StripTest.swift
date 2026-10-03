@@ -57,6 +57,27 @@ final class StripSessionTest: XCTestCase {
         let empty = self.model(count: 0); empty.beginStrip(StripGesture(keyCode: 48, invoking: [.command], openedAt: 0))
         empty.cycleStrip(keyCode: 48, flags: [.command]); XCTAssertNil(empty.selectedId)
     }
+    func testCarbonAndLocalInputsShareNavigationActionAndHandOff() throws {
+        let model = model()
+        model.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        func key(_ code: UInt16, _ text: String, flags: NSEvent.ModifierFlags = .command) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code))
+        }
+        XCTAssertEqual(model.stripInput(try key(50, "`")), .consumed)
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertEqual(model.stripInput(try key(124, "")), .consumed)
+        XCTAssertEqual(model.selectedId, 3)
+        XCTAssertEqual(model.stripInput(try key(48, "\t")), .consumed)
+        XCTAssertEqual(model.selectedId, 1)
+        XCTAssertEqual(model.stripInput(try key(53, "")), .cancel)
+        var action: String?
+        model.onAction = { action = $0 }
+        XCTAssertEqual(model.stripInput(try key(13, "w")), .consumed)
+        XCTAssertEqual(action, "cmd-w")
+        XCTAssertEqual(model.stripInput(try key(2, "d")), .list)
+        XCTAssertEqual(model.query, "d")
+    }
+
     func testReleaseChoosesEnterBindingWithoutShiftAndLetterBindingWins() throws {
         let model = model()
         model.beginStrip(StripGesture(keyCode: 48, invoking: [.command], openedAt: 0))

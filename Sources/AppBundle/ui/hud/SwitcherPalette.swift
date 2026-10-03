@@ -87,6 +87,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
         if settings.presentation == "strip", let invocation {
+            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip ready elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)") }
             model.beginStrip(invocation)
             let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
             if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
@@ -97,6 +98,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
                 let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
                 if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
+                if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)") }
                 self.present(model)
                 self.orderFrontRegardless()
                 self.makeKey()
@@ -227,19 +229,20 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func handleStripKey(_ event: NSEvent) -> Bool {
         guard let model = session, model.settings.presentation == "strip" else { return false }
-        if model.cycleStrip(keyCode: event.keyCode, flags: event.modifierFlags) { return true }
-        switch event.keyCode {
-            case 53: dismiss(); return true
-            case 123: model.cycleStripSelection(-1); return true
-            case 124: model.cycleStripSelection(1); return true
-            case 48, 50: return true
-            default: break
+        switch model.stripInput(event) {
+            case .ignored: return false
+            case .consumed: return true
+            case .cancel: dismiss(); return true
+            case .list: changePresentationToList(); return true
         }
-        if model.handleStripLetter(event) {
-            if model.settings.presentation == "list" { changePresentationToList() }
-            return true
-        }
-        return false
+    }
+
+    func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String) -> Bool {
+        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                                          timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,
+                                          context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                                          isARepeat: false, keyCode: keyCode) else { return false }
+        return handleStripKey(event)
     }
 
     // Intercept navigation keys before the field editor consumes them; other typing
