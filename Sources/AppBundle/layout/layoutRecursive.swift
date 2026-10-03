@@ -164,12 +164,12 @@ extension TilingContainer {
                 let offset = columns.widths.prefix(slot - 1).reduce(0, +) * width
                 let columnWidth = columns.widths[slot - 1] * width
                 let gap = context.resolvedGaps.inner.get(.h).toDouble()
-                let leftGap = slot == 1 ? 0 : gap / 2
-                let rightGap = slot == columns.count ? 0 : gap / 2
+                let frame = ColumnState.frame(slot: slot, widths: columns.widths,
+                    in: CGRect(origin: point, size: CGSize(width: width, height: height)), gap: gap)
                 child.setWeight(.h, columnWidth)
                 try await child.layoutRecursive(
-                    point.addingXOffset(offset + leftGap),
-                    width: columnWidth - leftGap - rightGap, height: height,
+                    frame.origin,
+                    width: frame.width, height: frame.height,
                     virtual: Rect(topLeftX: virtual.topLeftX + offset, topLeftY: virtual.topLeftY,
                                   width: columnWidth, height: virtual.height), context)
             }

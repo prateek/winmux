@@ -24,7 +24,7 @@ final class LensSession: ObservableObject {
     @Published private(set) var searchError: String?
     @Published var banner: String?
     @Published var summonHeld = false { didSet { updateMiniatureLanding() } }
-    private(set) var miniatureLanding: CGRect?
+    @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var miniatureSize = CGSize(width: 1000, height: 700)
     var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }

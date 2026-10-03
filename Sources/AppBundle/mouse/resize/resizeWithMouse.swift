@@ -37,7 +37,7 @@ func resizedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutabl
 @MainActor
 func resetManipulatedWithMouseIfPossible() async throws {
     await WindowMouseInteractionDriver.shared.flushBeforeMouseUp()
-    let didApplyPendingDragIntent = applyPendingWindowDragIntentIfPossible()
+    let didApplyPendingDragIntent = try await applyPendingWindowDragIntentWithPolicy()
     clearPendingWindowDragIntent()
     if currentlyManipulatedWithMouseWindowId != nil || didApplyPendingDragIntent {
         armGlobalPostDragAxObserverSuppression()

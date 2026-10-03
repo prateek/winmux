@@ -9,7 +9,10 @@ struct SummonCommand: Command {
         let window = (args.windowId ?? env.windowId).flatMap { Window.get(byId: $0) } ?? ((args.windowId ?? env.windowId) == nil ? focus.windowOrNil : nil)
         guard let window else { return io.err("Can't find the window to Summon") }
         guard ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) else { return io.err("Cannot Summon a popup window") }
-        try await restoreLensWindow(window, on: destination)
+        try await restoreLensWindow(window, on: destination, runPlace: false)
+        if destination.columns != nil {
+            try await ColumnPolicy.place(window, on: destination)
+        }
         if window.nodeWorkspace != destination {
             guard moveWindowToWorkspace(window, destination, io, focusFollowsWindow: false, failIfNoop: false) else { return false }
         }
@@ -18,7 +21,7 @@ struct SummonCommand: Command {
 }
 
 @MainActor
-func restoreLensWindow(_ window: Window, on workspace: Workspace) async throws {
+func restoreLensWindow(_ window: Window, on workspace: Workspace, runPlace: Bool = true) async throws {
     if let macWindow = window as? MacWindow {
         if window.windowClass == .minimized { macWindow.setNativeMinimized(false) }
         if window.windowClass == .hiddenApp { macWindow.macApp.nsApp.unhide() }
@@ -26,7 +29,7 @@ func restoreLensWindow(_ window: Window, on workspace: Workspace) async throws {
     if [.minimized, .hiddenApp].contains(window.windowClass) {
         let kind: NonLeafTreeNodeKind
         if case .macos(let previousKind, _, _) = window.layoutReason { kind = previousKind } else { kind = .tilingContainer }
-        try await exitMacOsNativeUnconventionalState(window: window, prevParentKind: kind, prevWorkspaceName: nil, workspace: workspace)
+        try await exitMacOsNativeUnconventionalState(window: window, prevParentKind: kind, prevWorkspaceName: nil, workspace: workspace, runPlace: runPlace)
     }
 }
 

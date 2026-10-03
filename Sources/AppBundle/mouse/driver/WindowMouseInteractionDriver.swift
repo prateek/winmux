@@ -343,9 +343,28 @@ extension WindowMouseInteractionDriver {
         guard sample.timestamp - state.lastToggleTimestamp >= shakeToggleCooldown else { return }
 
         clearPendingWindowDragIntent()
-        toggleFloatingForShake(sourceWindow)
+        if sourceWindow.isFloating, let workspace = sourceWindow.nodeWorkspace,
+           workspace.columns != nil, config.columns.hook("place", workspace: workspace.name) != nil {
+            Task { @MainActor in
+                do { try await toggleFloatingForShakeWithPolicy(sourceWindow) }
+                catch { NickelSupervisor.shared.recordHookFailure("Shake placement: \(error.localizedDescription)") }
+            }
+        } else {
+            toggleFloatingForShake(sourceWindow)
+        }
         state.lastToggleTimestamp = sample.timestamp
         didToggleLayoutWithShake = true
+    }
+
+    func toggleFloatingForShakeWithPolicy(_ window: Window) async throws {
+        if window.isFloating, let workspace = window.nodeWorkspace,
+           workspace.columns != nil, config.columns.hook("place", workspace: workspace.name) != nil {
+            try await ColumnPolicy.place(window, on: workspace)
+            window.shakeWindowState.tilingPlacement = nil
+            window.lastAppliedLayoutPhysicalRect = nil
+        } else {
+            toggleFloatingForShake(window)
+        }
     }
 
     func toggleFloatingForShake(_ window: Window) {

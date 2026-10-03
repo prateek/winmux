@@ -1,11 +1,78 @@
 import AppKit
 import Common
 
-struct MoveCommand: Command {
+struct MoveCommand: PolicyCommand {
     let args: MoveCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+    func runWithPolicy(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        guard let target = args.resolveTargetOrReportError(env, io), let window = target.windowOrNil,
+              let workspace = window.nodeWorkspace, let columns = workspace.columns,
+              args.direction.val.orientation == .h else { return try await runFallback(env, io) }
+        let direction = args.direction.val
+        let node = window.moveNode
+        for child in node.parentsWithSelf {
+            guard let parent = child.parent as? TilingContainer else { break }
+            if parent === workspace.rootTilingContainer { break }
+            if parent.orientation == .h, let index = child.ownIndex,
+               parent.children.indices.contains(index + direction.focusOffset) { return try await runFallback(env, io) }
+        }
+        workspace.enforceColumnInvariant()
+        guard let slot = workspace.columnSlot(containing: node) else { return try await runFallback(env, io) }
+        let destination = slot + direction.focusOffset
+        let edge = !(1...columns.slotCount).contains(destination)
+        let neighbour = workspace.rootTilingContainer.children.first { $0.columnSlot == destination }
+        if !edge && neighbour == nil { return try await runFallback(env, io) }
+        let path = config.columns.hook("move-boundary", workspace: workspace.name)
+        let result = await ColumnPolicy.call(path, window: window, workspace: workspace, edge: edge)
+        if path != nil && result == nil { return try await runFallback(env, io) }
+        let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")
+        if result == nil && edge { return try await runFallback(env, io) }
+        guard (edge ? ["stop", "wrap", "next-workspace", "next-monitor"] : ["join", "swap"]).contains(action) else {
+            NickelSupervisor.shared.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
+            return try await runFallback(env, io)
+        }
+        var success = true
+        switch action {
+            case "join":
+                let overflow: String
+                if let selected = result?["overflow"]?.stringOrNil { overflow = selected }
+                else { overflow = await ColumnPolicy.decision(window: window, workspace: workspace).overflow }
+                window.unbindFromParent()
+                workspace.bindToColumn(window, slot: destination, overflow: overflow)
+            case "swap":
+                if let neighbour {
+                    let moving = workspace.rootTilingContainer.children.first { $0.columnSlot == slot }.orDie()
+                    moving.columnSlot = destination
+                    neighbour.columnSlot = slot
+                }
+            case "wrap":
+                window.unbindFromParent()
+                workspace.bindToColumn(window, slot: direction.focusOffset > 0 ? 1 : columns.slotCount)
+            case "next-workspace":
+                if let next = getNextPrevWorkspace(current: workspace, isNext: direction.focusOffset > 0, wrapAround: true, stdin: nil) {
+                    success = moveWindowToWorkspace(window, next, io, focusFollowsWindow: focus.windowOrNil == window, failIfNoop: false)
+                    if success, next !== workspace, !window.isFloating { try await ColumnPolicy.place(window, on: next) }
+                } else { success = io.err("No adjacent workspace") }
+            case "next-monitor":
+                success = try await MoveNodeToMonitorCommand(args: MoveNodeToMonitorCmdArgs(target: .direction(direction))
+                    .copy(\.windowId, window.windowId).copy(\.focusFollowsWindow, focus.windowOrNil == window)).runWithPolicy(env, io)
+            default: break
+        }
+        workspace.normalizeContainers()
+        if success { try await ColumnPolicy.run(ColumnPolicy.commands(result), window: window) }
+        return success
+    }
+    @MainActor private func runFallback(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        let window = args.resolveTargetOrReportError(env, io)?.windowOrNil
+        let previous = window?.nodeWorkspace
+        let success = runBuiltIn(env, io)
+        if let window { return try await ColumnPolicy.afterTransfer(window, from: previous, didMove: success) }
+        return success
+    }
+    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool { runBuiltIn(env, io) }
+
+    @MainActor private func runBuiltIn(_ env: CmdEnv, _ io: CmdIo) -> Bool {
         let direction = args.direction.val
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         guard let currentWindow = target.windowOrNil else {
@@ -207,7 +274,7 @@ extension Window {
     guard let columns = workspace.columns, let slot = workspace.columnSlot(containing: node) else {
         return io.err("Cannot resolve the window's Column")
     }
-    if direction.orientation == .h, (1...columns.count).contains(slot + direction.focusOffset) {
+    if direction.orientation == .h, (1...columns.slotCount).contains(slot + direction.focusOffset) {
         return workspace.moveAcrossColumnBoundary(node, window: window, direction: direction)
     }
     return hitWorkspaceBoundaries(node, workspace, io, args, direction, env)

@@ -126,7 +126,41 @@ extension LensSession {
         guard summonHeld, (settings.presentation == "miniatures" || settings.presentation == "strip"), settings.summonHints.contains("landing-spot"),
               let id = selectedId, let entry = items.first(where: { $0.id == id })?.miniature,
               let workspace = miniatureWorkspaces.first(where: { $0.current }) else { setMiniatureLanding(nil); return }
-        if entry.workspace == workspace.name { setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame); return }
+        if focus.workspace.columns == nil, entry.workspace == workspace.name { setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame); return }
+        if let columns = focus.workspace.columns {
+            let destination = focus.workspace
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination)
+                guard self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
+                let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
+                let occupied = destination.rootTilingContainer.children.contains {
+                    $0.columnSlot == decision.slot && $0.allLeafWindowsRecursive.contains { $0 !== entry.window }
+                }
+                if occupied && decision.overflow == "float" {
+                    self.setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: workspace.source, to: rect))
+                    return
+                }
+                var widths = columns.widths
+                var slot = decision.slot
+                if occupied && decision.overflow == "squeeze" {
+                    if widths.count == columns.count {
+                        let fraction = 1.0 / CGFloat(columns.count + 1)
+                        widths = widths.map { $0 * (1 - fraction) } + [fraction]
+                    }
+                    slot = widths.count
+                }
+                let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
+                var frame = ColumnState.frame(slot: slot, widths: widths, in: rect, gap: gaps.inner.get(.h).toDouble())
+                if occupied && decision.overflow == "split" {
+                    let gap = gaps.inner.get(.v).toDouble() / 2
+                    frame.origin.y += frame.height / 2 + gap
+                    frame.size.height = frame.height / 2 - gap
+                }
+                self.setMiniatureLanding(frame)
+            }
+            return
+        }
         if entry.floating {
             let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
             setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))

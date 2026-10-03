@@ -184,6 +184,25 @@ private func updateWindowTabReentryPreview(sourceWindowId: UInt32, destination: 
 }
 
 @MainActor
+func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
+    let intent = pendingWindowDragIntent
+    let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
+    let windows = source.map { dragSubjectNode(for: $0, subject: intent!.sourceSubject).allLeafWindowsRecursive } ?? []
+    let previous = windows.map { ($0, $0.nodeWorkspace, $0.isFloating, $0.nodeWorkspace?.columnSlot(containing: $0)) }
+    let applied = applyPendingWindowDragIntentIfPossible()
+    if applied {
+        for (window, oldWorkspace, wasFloating, oldSlot) in previous {
+            if let workspace = window.nodeWorkspace, !window.isFloating,
+               (workspace !== oldWorkspace || wasFloating || oldSlot != workspace.columnSlot(containing: window)),
+               config.columns.hook("place", workspace: workspace.name) != nil {
+                try await ColumnPolicy.place(window, on: workspace)
+            }
+        }
+    }
+    return applied
+}
+
+@MainActor
 func applyPendingWindowDragIntentIfPossible() -> Bool {
     defer { clearPendingWindowDragIntent() }
     let currentMouseLocation = MousePointerTracker.shared.currentSample.point

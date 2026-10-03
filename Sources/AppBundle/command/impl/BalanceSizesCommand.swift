@@ -10,7 +10,12 @@ struct BalanceSizesCommand: Command {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         let workspace = target.workspace
         if let columns = workspace.columns {
-            columns.widths = columns.declaredWidths
+            if columns.slotCount > columns.count {
+                let extra = 1.0 / CGFloat(columns.slotCount)
+                columns.widths = columns.declaredWidths.map { $0 * (1 - extra) } + [extra]
+            } else {
+                columns.widths = columns.declaredWidths
+            }
             for child in workspace.rootTilingContainer.children {
                 if let container = child as? TilingContainer { balance(container) }
             }

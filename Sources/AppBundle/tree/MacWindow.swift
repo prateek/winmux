@@ -29,14 +29,12 @@ final class MacWindow: Window {
             return existing
         }
         let rect = try await macApp.getAxRect(windowId)
-        let data = try await unbindAndGetBindingDataForNewWindow(
-            windowId,
-            macApp,
-            isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
-                : focus.workspace,
-            window: nil,
-        )
+        let detectedWorkspace = isStartup
+            ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
+            : focus.workspace
+        let windowType = try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId))
+        let data = BindingData(parent: windowType == .popup ? macosPopupWindowsContainer : detectedWorkspace,
+                               adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
@@ -51,8 +49,14 @@ final class MacWindow: Window {
         let didRestorePersistedFrozenWorld = try await restorePersistedFrozenWorldIfNeeded(newlyDetectedWindow: window)
         let didRestoreClosedWindowsCache = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window)
         if !didRestorePersistedFrozenWorld && !didRestoreClosedWindowsCache {
-            try await tryOnWindowDetected(window)
+            window.arriveHandled = true
+            try await ColumnPolicy.arrive(window, on: detectedWorkspace,
+                floatingDefault: windowType == .dialog || !config.automaticallyTileNewWindows)
+            broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
+                appBundleId: window.app.rawAppBundleId, appName: window.app.name))
         }
+
+        if didRestorePersistedFrozenWorld || didRestoreClosedWindowsCache { window.arriveHandled = true }
         return window
     }
 

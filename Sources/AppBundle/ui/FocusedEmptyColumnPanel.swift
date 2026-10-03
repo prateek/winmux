@@ -3,7 +3,7 @@ import AppKit
 extension Workspace {
     @MainActor var focusedEmptyColumnRect: Rect? {
         guard isVisible, focus.workspace === self, let columns,
-              let slot = columns.focusedSlot, (1...columns.count).contains(slot),
+              let slot = columns.focusedSlot, (1...columns.slotCount).contains(slot),
               !rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) else { return nil }
         let rect = workspaceMonitor.visibleRectPaddedByOuterGaps
         let offset = columns.widths.prefix(slot - 1).reduce(0, +) * rect.width

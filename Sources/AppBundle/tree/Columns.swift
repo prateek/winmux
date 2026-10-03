@@ -3,6 +3,7 @@ import Common
 
 final class ColumnState {
     let count: Int
+    var slotCount: Int { widths.count }
     var focusedSlot: Int?
     var lastFocusedWindowSlot: Int?
     let declaredWidths: [CGFloat]
@@ -19,9 +20,18 @@ final class ColumnState {
         self.declaredWidths = widths.map { $0 / total }
         self.widths = declaredWidths
     }
+    static func frame(slot: Int, widths: [CGFloat], in rect: CGRect, gap: CGFloat) -> CGRect {
+        let offset = widths.prefix(slot - 1).reduce(0, +) * rect.width
+        let left = slot == 1 ? 0 : gap / 2
+        let right = slot == widths.count ? 0 : gap / 2
+        return CGRect(x: rect.minX + offset + left, y: rect.minY,
+                      width: widths[slot - 1] * rect.width - left - right, height: rect.height)
+    }
+
     func proposedWidths(slot: Int, fraction: CGFloat, availableWidth: CGFloat, starting: [CGFloat]? = nil) -> [CGFloat] {
         let base = starting ?? widths
         guard base.indices.contains(slot - 1), fraction.isFinite, availableWidth > 0 else { return base }
+        let count = base.count
         guard count > 1 else { return [1] }
         if availableWidth < minimumTiledResizeWeight * CGFloat(count) {
             return Array(repeating: 1 / CGFloat(count), count: count)
@@ -81,10 +91,15 @@ extension Workspace {
             }
         }
         let root = rootTilingContainer
+        if columns.slotCount > columns.count,
+           !root.children.contains(where: { $0.columnSlot == columns.slotCount && !$0.allLeafWindowsRecursive.isEmpty }) {
+            columns.widths = columns.declaredWidths
+            columns.focusedSlot = columns.focusedSlot.map { min($0, columns.count) }
+        }
         let slots = root.children.compactMap(\.columnSlot)
         let recoversRoot = columns.root.map { $0 !== root && $0.nodeWorkspace === self } ?? false
         if !recoversRoot, slots.count == root.children.count,
-           Set(slots).count == slots.count, slots.allSatisfy({ (1...columns.count).contains($0) }) {
+           Set(slots).count == slots.count, slots.allSatisfy({ (1...columns.slotCount).contains($0) }) {
             root.changeOrientation(.h)
             root.layout = .tiles
             columns.root = root
@@ -112,7 +127,7 @@ extension Workspace {
         var occupied: Set<Int> = []
         var extras: [TreeNode] = []
         for child in root.children {
-            if let slot = child.columnSlot, (1...columns.count).contains(slot), occupied.insert(slot).inserted {
+            if let slot = child.columnSlot, (1...columns.slotCount).contains(slot), occupied.insert(slot).inserted {
                 continue
             }
             child.columnSlot = nil
@@ -144,7 +159,7 @@ extension Workspace {
         guard let columns, let slot = columnSlot(containing: node) else { return false }
         guard direction.orientation == .h else { return true }
         let destination = slot + direction.focusOffset
-        guard (1...columns.count).contains(destination) else { return true }
+        guard (1...columns.slotCount).contains(destination) else { return true }
         // A window in a tab group leaves the group alone; `node` is then the group, not the window.
         let moving = (node as? TilingContainer)?.layout == .tabGroup ? window : node
         moving.unbindFromParent()
@@ -159,13 +174,13 @@ extension Workspace {
     }
 
     @MainActor
-    func columnPlacementSlot() -> Int {
-        let columns = columns.orDie()
+    func columnPlacementSlot(excluding window: Window? = nil) -> Int {
+        guard let columns else { return 1 }
         let root = rootTilingContainer
-        let anchor = max(1, min(columns.count, columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
+        let anchor = max(1, min(columns.slotCount, columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
             root.childrenByMostRecentUse.first?.columnSlot ?? 1))
-        let occupied = Set(root.children.compactMap(\.columnSlot))
-        return (1...columns.count).filter { !occupied.contains($0) }.min {
+        let occupied = Set(root.children.filter { $0.allLeafWindowsRecursive.contains { $0 !== window } }.compactMap(\.columnSlot))
+        return (1...columns.slotCount).filter { !occupied.contains($0) }.min {
             let left = abs($0 - anchor)
             let right = abs($1 - anchor)
             return left == right ? $0 < $1 : left < right
@@ -196,7 +211,32 @@ extension Workspace {
     }
 
     @MainActor
-    func bindToColumn(_ node: TreeNode, slot: Int) {
+    func bindToColumn(_ node: TreeNode, slot: Int, overflow: String = "tab-group") {
+        if let existing = rootTilingContainer.children.first(where: { $0.columnSlot == slot && $0 !== node }) {
+            switch overflow {
+                case "float":
+                    node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                    return
+                case "squeeze":
+                    let columns = columns.orDie()
+                    if columns.slotCount == columns.count {
+                        let width = 1.0 / CGFloat(columns.count + 1)
+                        columns.widths = columns.widths.map { $0 * (1 - width) } + [width]
+                    }
+                    bindToColumn(node, slot: columns.slotCount)
+                    return
+                case "split":
+                    let binding = existing.unbindFromParent()
+                    let wrapper = TilingContainer(parent: binding.parent, adaptiveWeight: binding.adaptiveWeight, .v, .tiles, index: binding.index)
+                    wrapper.columnSlot = slot
+                    existing.columnSlot = nil
+                    existing.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
+                    node.columnSlot = nil
+                    node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                    return
+                default: break
+            }
+        }
         if let group = node as? TilingContainer,
            rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {
             let windows = group.allLeafWindowsRecursive
