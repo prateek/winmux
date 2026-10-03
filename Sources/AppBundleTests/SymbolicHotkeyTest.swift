@@ -84,6 +84,44 @@ final class SymbolicHotkeyTest: XCTestCase {
         XCTAssertEqual(table.read(50)?.enabled, false)
     }
 
+    func testNothingIsTakenAgainAfterRestoreAndShutDown() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([tab])
+        reconciler.restoreAndShutDown()
+        reconciler.reconcile([tab])
+        reconciler.repair(.wake, wanted: [tab])
+        XCTAssertEqual(table.read(1)?.enabled, true)
+        XCTAssertEqual(table.read(2)?.enabled, true)
+        XCTAssertTrue(marker.entries.isEmpty)
+    }
+
+    func testUnreadableOwnedIdStaysInTheMarkerUntilItCanBeRestored() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([tab])
+        let hidden = table.entries.removeValue(forKey: 1)
+        reconciler.reconcile([tab])
+        reconciler.restore()
+        XCTAssertEqual(Set(marker.entries.keys), [1])
+        table.entries[1] = hidden
+        reconciler.restore()
+        XCTAssertEqual(table.read(1)?.enabled, true)
+        XCTAssertTrue(marker.entries.isEmpty)
+    }
+
+    func testAnEmptyScanIsRepeatedOnTheNextReconcile() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let entries = table.entries
+        table.entries = [:]
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([tab])
+        XCTAssertTrue(marker.entries.isEmpty)
+        table.entries = entries
+        reconciler.reconcile([tab])
+        XCTAssertEqual(Set(marker.entries.keys), [1, 2])
+    }
+
     func testWriteAheadOnlyEnabledCandidatesAndBacktickStaysOn() {
         let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
         table.entries[2]?.enabled = false

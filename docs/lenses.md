@@ -123,10 +123,13 @@ They use the same Lens session, Filter evaluation and thumbnail cache as the lis
 
 Hold cmd and press Tab to select the previous window: the second entry when the first is
 focused, otherwise the first. Further Tab presses cycle forward, including presses received
-while the Filter is still opening. Shift-Tab cycles backward, and the arrows cycle with wrap.
+while the Filter is still opening. Releasing cmd while it is still opening settles the selection:
+the commit runs as soon as the Lens is ready, and a press after that release is ignored.
+Shift-Tab cycles backward, and the arrows cycle with wrap.
 An initial cmd-shift-tab selects
 the last entry; releasing Shift alone does not commit. Cmd-backtick cycles the focused app's
-windows, with Shift reversing it. Backtick does nothing inside `recent`.
+windows, with Shift reversing it. Backtick does nothing inside `recent`, and Tab does nothing
+inside `app-windows`.
 
 The strip waits 100 ms before drawing. A faster release, or `winmux lens recent` with no
 modifiers held, focuses the previous window immediately. On a held invocation, releasing all
@@ -148,8 +151,9 @@ An unbound letter with the invoking modifiers (Shift may also be held), or with 
 the same session to a list, puts the letter in Search and preserves the selection when it remains
 a match. A Lens `keys` binding wins first: cmd-w closes the selected window while the strip stays
 open. Modifier release no longer commits after conversion to a list. You can also open
-`winmux lens recent --presentation list` explicitly. An unrelated global binding closes the strip and
-runs normally; releasing the invoking modifiers afterward cannot undo that binding.
+`winmux lens recent --presentation list` explicitly. A global binding whose modifiers are not the
+strip's, Tab and backtick bindings included, closes the strip and runs normally, whether the strip
+is drawn or still opening; releasing the invoking modifiers afterward cannot undo that binding.
 
 An ad-hoc binding can use the strip:
 
@@ -167,8 +171,9 @@ and leaves native cmd-backtick enabled. Removing the bindings, changing to a mod
 disabled. An id whose chord changed, or an enabled id whose chord is no longer wanted, is left alone
 and removed from the marker. An id re-enabled while its chord is still wanted is taken again
 in the same pass, with ownership persisted before disabling it. Candidate ids are cached after
-the first active scan and rescanned during repair. An idle reconcile does no table work, and
-marker writes happen only when ownership changes. Repair reports failures from both restoration
+the first active scan and rescanned during repair; a scan that finds none is repeated on the next
+reconcile. An id that cannot be read stays in the marker until it can be restored. An idle
+reconcile does no table work, and marker writes happen only when ownership changes. Repair reports failures from both restoration
 and retaking; a later successful operation clears them. Launch, wake and unlock repair and
 reconcile the current registrations.
 
@@ -181,7 +186,7 @@ The private macOS API changes the session's live state, not System Settings. Bef
 id, WinMux records its original chord in a UserDefaults recovery marker. Quit, SIGTERM, SIGINT,
 SIGHUP, an uncaught Objective-C exception and the exit hook restore owned ids. Signal sources
 restore off the main queue before normal cleanup, with a two-second exit deadline if cleanup
-stalls. Their no-op signal dispositions reset to defaults on exec. A hard kill cannot
+stalls. Once WinMux has restored the chords to exit, it does not take them again. Their no-op signal dispositions reset to defaults on exec. A hard kill cannot
 run these hooks: native cmd-tab remains disabled until WinMux launches again and repairs the
 marker. Quit that recovered instance to return the native chord. The debug executable uses the
 `WinMuxApp` defaults domain; an app bundle uses its own bundle domain. An unrelated installed

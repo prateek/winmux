@@ -7,6 +7,7 @@ final class LensLifecycle {
     private var opening: String?
     private var openingGesture: StripGesture?
     private var openingSteps = 0
+    private var openingRelease: NSEvent.ModifierFlags?
     private var generation = 0
     private var remembered: [String: String] = [:]
 
@@ -25,22 +26,40 @@ final class LensLifecycle {
         if session.settings.presentation == "strip", let gesture = openingGesture {
             session.beginStrip(gesture)
             session.cycleStripSelection(openingSteps)
+            session.stripReleasedWhileOpening = openingRelease
         }
         self.session = session
         opening = nil
         openingGesture = nil
         openingSteps = 0
+        openingRelease = nil
         return true
     }
 
-    func cycleStrip(name: String? = nil, keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-        if let session {
-            guard name == nil || session.name == name else { return false }
-            return session.cycleStrip(keyCode: keyCode, flags: flags)
+    func cycleStrip(name: String, keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
+        if let session { return session.name == name && session.cycleStrip(keyCode: keyCode, flags: flags) }
+        guard opening == name, openingGesture?.step(keyCode: keyCode, flags: flags) != nil else { return false }
+        return openingStripKey(keyCode: keyCode, flags: flags) == .consumed
+    }
+
+    /// A key that arrives while a strip is opening. The invoking key is a step applied when the
+    /// session is ready; Tab and backtick with the strip's modifiers do nothing; anything else is
+    /// `.ignored`, which means it is not the strip's. Nil when no strip is opening.
+    func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> StripInput? {
+        guard session == nil, opening != nil, let gesture = openingGesture else { return nil }
+        if let step = gesture.step(keyCode: keyCode, flags: flags) {
+            // After the release the selection is settled: the commit waits only for the session.
+            if openingRelease == nil { openingSteps += step }
+            return .consumed
         }
-        guard let opening, name == nil || opening == name, openingGesture?.keyCode == keyCode else { return false }
-        openingSteps += flags.contains(.shift) ? -1 : 1
-        return true
+        return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
+    }
+
+    /// Records a release of the invoking modifiers that happens before the session is ready, so a
+    /// press that follows it cannot hide it from the live modifier state.
+    func openingFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        guard session == nil, opening != nil, let gesture = openingGesture, openingRelease == nil else { return }
+        if gesture.shouldCommit(flags: flags) { openingRelease = flags }
     }
 
     func cancelOpening(ticket: Int) {
@@ -54,6 +73,7 @@ final class LensLifecycle {
         opening = nil
         openingGesture = nil
         openingSteps = 0
+        openingRelease = nil
         generation += 1
     }
 

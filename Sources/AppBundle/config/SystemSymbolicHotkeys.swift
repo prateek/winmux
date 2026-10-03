@@ -38,7 +38,7 @@ private let symbolicLog = Logger(subsystem: winMuxAppId, category: "symbolic-hot
         signal(number) { @Sendable _ in }
         let source = DispatchSource.makeSignalSource(signal: number, queue: .global(qos: .userInitiated))
         source.setEventHandler(handler: symbolicTermination.eventHandler(
-            restore: { systemSymbolicHotkeys.restore() },
+            restore: { systemSymbolicHotkeys.restoreAndShutDown() },
             cleanup: { finish in
                 Task { @MainActor in
                     defer { finish() }
@@ -50,8 +50,8 @@ private let symbolicLog = Logger(subsystem: winMuxAppId, category: "symbolic-hot
         source.resume()
         symbolicSignalSources.append(source)
     }
-    NSSetUncaughtExceptionHandler { @Sendable _ in systemSymbolicHotkeys.restore() }
-    atexit { @Sendable in systemSymbolicHotkeys.restore() }
+    NSSetUncaughtExceptionHandler { @Sendable _ in systemSymbolicHotkeys.restoreAndShutDown() }
+    atexit { @Sendable in systemSymbolicHotkeys.restoreAndShutDown() }
     systemSymbolicHotkeys.repair(.launch, wanted: [])
 }
 

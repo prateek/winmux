@@ -171,6 +171,13 @@ helpers supplied backtick and letters that cliclick's `kp` does not support. Inv
 attempts were discarded rather than used as failure evidence. No thumbnail-refresh stall was
 observed during this issue's sessions.
 
+A last set of fixes came after the live runs and is covered by tests only. Tab and backtick are the
+strip's only with exactly its invoking modifiers; any other chord closes the strip, drawn or still
+opening, and runs its global binding. Releasing the invoking modifiers while the Lens is still
+opening commits when it is ready, and a press after that release is ignored. A key bound to an
+empty command list closes only a strip's release. Once the chords are restored for exit they are
+not taken again during cleanup. An owned id that cannot be read stays in the marker.
+
 ## Done when
 
 - [x] Holding cmd and pressing tab opens `recent`: a centred row of every window in MRU order, with the selection on the second entry. No popup-class window appears in it.

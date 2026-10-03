@@ -71,9 +71,7 @@ enum GlobalObserver {
     }
 
     private static func onFlagsChanged(_ event: NSEvent, source: String) {
-        if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" {
-            debugFocusLog("strip flags source=\(source) modifiers=\(event.modifierFlags.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime) timestamp=\(event.timestamp)")
-        }
+        stripDebugLog("strip flags source=\(source) modifiers=\(event.modifierFlags.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime) timestamp=\(event.timestamp)")
         let keyCode = event.keyCode
         let modifierFlags = event.modifierFlags
         runOnMainActor {

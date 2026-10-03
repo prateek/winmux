@@ -59,6 +59,49 @@ final class StripSessionTest: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
+    func testUnrelatedGlobalBindingDropsAnOpeningStrip() async {
+        _ = NSApplication.shared
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
+        let ticket = panel.beginLens("opening", toggle: true, strip: gesture)!
+        XCTAssertTrue(panel.handleStripHotkey(keyCode: 48, modifiers: .command, characters: "\t"))
+        XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
+        await panel.openLens(name: "opening", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: gesture)
+        XCTAssertNil(panel.session)
+    }
+
+    func testEmptyBindingClosesOnlyAStripRelease() async {
+        _ = NSApplication.shared
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        var settings = LensConfig(); settings.keys["cmd-w"] = []
+        let ticket = panel.beginLens("neutralised", toggle: false)!
+        await panel.openLens(name: "neutralised", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket)
+        panel.session?.onAction?("cmd-w")
+        XCTAssertNotNil(panel.session)
+        panel.session?.changePresentation("strip")
+        panel.session?.onAction?("cmd-w")
+        XCTAssertNotNil(panel.session)
+    }
+
+    func testTabAndBacktickWithOtherModifiersAreNotTheStrips() throws {
+        let model = model()
+        model.beginStrip(StripGesture(keyCode: 50, invoking: .command, openedAt: 0))
+        func key(_ code: UInt16, _ flags: NSEvent.ModifierFlags) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code))
+        }
+        // cmd-tab inside a cmd-backtick strip does nothing; alt-tab is a global binding.
+        XCTAssertEqual(model.stripInput(try key(48, .command)), .consumed)
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertEqual(model.stripInput(try key(48, .option)), .ignored)
+        XCTAssertEqual(model.stripInput(try key(50, [.command, .control])), .ignored)
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertEqual(model.stripInput(try key(50, [.command, .shift])), .consumed)
+        XCTAssertEqual(model.selectedId, 1)
+    }
+
     func testReleaseWithoutEnterClosesEvenBeforePresentation() async {
         _ = NSApplication.shared
         let panel = SwitcherPalettePanel.shared

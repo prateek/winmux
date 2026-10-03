@@ -87,9 +87,9 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
         if settings.presentation == "strip", let invocation {
-            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)") }
+            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)")
             if model.stripGesture == nil { model.beginStrip(invocation) }
-            let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+            let flags = model.stripReleasedWhileOpening ?? NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
             if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
             model.updateSummonModifiers(flags)
             stripDisplay = Task { @MainActor [weak self, weak model] in
@@ -98,7 +98,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
                 let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
                 if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
-                if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)") }
+                stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
                 self.present(model)
                 self.orderFrontRegardless()
                 self.makeKey()
@@ -143,7 +143,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
-        guard let model = session, model.settings.presentation == "strip" else { return }
+        guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
+        guard model.settings.presentation == "strip" else { return }
         model.updateSummonModifiers(flags)
         if let key = model.stripReleaseKey(flags: flags) { performAction(key) }
     }
@@ -208,9 +209,13 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func performAction(_ key: String) {
         guard let model = session else { return }
         let commands = model.commands(for: key)
+        guard !commands.isEmpty else {
+            // A release always closes the strip, even when its binding runs nothing.
+            if model.settings.presentation == "strip", key.hasSuffix("enter") { dismiss() }
+            return
+        }
         let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
         if !keepStrip { dismiss() }
-        guard !commands.isEmpty else { return }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
@@ -239,9 +244,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String) -> Bool {
-        if session == nil, lifecycle.cycleStrip(keyCode: keyCode, flags: modifiers) {
-            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip queued cycle uptime=\(ProcessInfo.processInfo.systemUptime) key=\(keyCode) modifiers=\(modifiers.rawValue)") }
-            return true
+        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers) {
+            if input == .consumed {
+                stripDebugLog("strip queued key uptime=\(ProcessInfo.processInfo.systemUptime) key=\(keyCode) modifiers=\(modifiers.rawValue)")
+                return true
+            }
+            // Not the strip's: drop the opening strip so its release cannot undo the binding that runs now.
+            dismiss()
+            return false
         }
         guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
                                           timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,

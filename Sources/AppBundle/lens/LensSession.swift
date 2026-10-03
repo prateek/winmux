@@ -33,6 +33,8 @@ final class LensSession: ObservableObject {
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
     var stripGesture: StripGesture?
+    /// The modifiers held when the invoking ones were released before the session was ready.
+    var stripReleasedWhileOpening: NSEvent.ModifierFlags?
     var removedIds: Set<UInt32> = []
     var onSearchChanged: (() -> Void)?
     var onAction: ((String) -> Void)?

@@ -30,6 +30,19 @@ struct StripGesture {
     func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .control, .option]).subtracting(committingModifiers)
     }
+    /// A chord is the strip's own when it holds exactly the invoking modifiers; Shift is free.
+    func owns(_ flags: NSEvent.ModifierFlags) -> Bool {
+        flags.intersection([.command, .control, .option]) == committingModifiers
+    }
+    /// The step the invoking key makes, Shift reversing it. Nil for any other key or chord.
+    func step(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Int? {
+        guard keyCode == self.keyCode, owns(flags) else { return nil }
+        return flags.contains(.shift) ? -1 : 1
+    }
+}
+
+func stripDebugLog(_ message: @autoclosure () -> String) {
+    if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog(message()) }
 }
 
 enum StripInput { case ignored, consumed, cancel, list }
@@ -44,8 +57,8 @@ extension LensSession {
 
     @discardableResult
     func cycleStrip(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-        guard settings.presentation == "strip", stripGesture?.keyCode == keyCode else { return false }
-        cycleStripSelection(flags.contains(.shift) ? -1 : 1)
+        guard settings.presentation == "strip", let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
+        cycleStripSelection(step)
         return true
     }
 
@@ -56,10 +69,11 @@ extension LensSession {
             case 53: return .cancel
             case 123: cycleStripSelection(-1); return .consumed
             case 124: cycleStripSelection(1); return .consumed
-            case 48, 50: return .consumed
+            // Tab and backtick belong to the strip only with its own modifiers; another chord on them is a global binding.
+            case 48, 50: return stripGesture?.owns(event.modifierFlags) == true ? .consumed : .ignored
             default: break
         }
-        if event.charactersIgnoringModifiers == "`" { return .consumed }
+        if event.charactersIgnoringModifiers == "`" { return stripGesture?.owns(event.modifierFlags) == true ? .consumed : .ignored }
         if handleStripLetter(event) { return settings.presentation == "list" ? .list : .consumed }
         return .ignored
     }
@@ -89,10 +103,12 @@ extension LensSession {
     }
 
     func removeStripItems(_ ids: Set<UInt32>) {
-        let selected = selectedId
-        let replacement = results.prefix(selection).filter { !ids.contains($0.id) }.count
+        let before = results
+        let selected = before.indices.contains(selection) ? before[selection].id : nil
+        let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
         removedIds.formUnion(ids)
-        selection = selected.flatMap { id in results.firstIndex { $0.id == id } } ?? min(replacement, max(0, results.count - 1))
+        let after = results
+        selection = after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))
         objectWillChange.send()
     }
 

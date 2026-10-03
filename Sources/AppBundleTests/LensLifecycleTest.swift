@@ -15,25 +15,68 @@ final class LensLifecycleTest: XCTestCase {
             let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
             let ticket = store.begin("recent", toggle: true, strip: gesture)!
             XCTAssertFalse(store.cycleStrip(name: "other", keyCode: 48, flags: .command))
-            XCTAssertFalse(store.cycleStrip(keyCode: 50, flags: .command))
-            XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: flags))
+            XCTAssertFalse(store.cycleStrip(name: "recent", keyCode: 50, flags: .command))
+            XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: flags))
             var settings = LensConfig(); settings.presentation = "strip"
             let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
             let model = LensSession(name: "recent", settings: settings, items: items, search: "")
             XCTAssertTrue(store.complete(model, ticket: ticket))
             XCTAssertEqual(model.selectedId, expected)
-            XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: .command))
+            XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
             XCTAssertNotNil(store.session)
         }
+    }
+
+    private func stripSession() -> LensSession {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        return LensSession(name: "recent", settings: settings, items: items, search: "")
+    }
+
+    func testOpeningStripSortsKeysIntoStepsIgnoredKeysAndOtherBindings() {
+        let store = LensLifecycle()
+        XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
+        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        // Another binding on the invoking key is not a step.
+        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .option), .ignored)
+        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: [.command, .control]), .ignored)
+        // Backtick with the strip's modifiers does nothing in `recent`, as when the strip is ready.
+        XCTAssertEqual(store.openingStripKey(keyCode: 50, flags: .command), .consumed)
+        XCTAssertEqual(store.openingStripKey(keyCode: 37, flags: [.command, .control]), .ignored)
+        let model = stripSession()
+        XCTAssertTrue(store.complete(model, ticket: ticket))
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
+    }
+
+    func testReleaseWhileOpeningSettlesTheSelectionAndIsHandedToTheSession() {
+        let store = LensLifecycle()
+        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        store.openingFlagsChanged([.command, .shift])
+        store.openingFlagsChanged([.option])
+        store.openingFlagsChanged([])
+        // A press after the release is consumed and does not move the selection.
+        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .command), .consumed)
+        let model = stripSession()
+        XCTAssertTrue(store.complete(model, ticket: ticket))
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertEqual(model.stripReleasedWhileOpening, [.option])
+        XCTAssertEqual(model.stripReleaseKey(flags: [.option]), "alt-enter")
+
+        let held = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        store.openingFlagsChanged([.command, .option])
+        let second = stripSession()
+        XCTAssertTrue(store.complete(second, ticket: held))
+        XCTAssertNil(second.stripReleasedWhileOpening)
     }
 
     func testCancelledOpeningDoesNotTransferPendingSteps() {
         let store = LensLifecycle()
         let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
         let ticket = store.begin("recent", toggle: true, strip: gesture)!
-        XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: .command))
+        XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
         store.cancelOpening(ticket: ticket)
-        XCTAssertFalse(store.cycleStrip(keyCode: 48, flags: .command))
+        XCTAssertFalse(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
         XCTAssertFalse(store.complete(session("recent"), ticket: ticket))
     }
 

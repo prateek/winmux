@@ -15,7 +15,7 @@ func initTerminationHandler() {
 
 private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
-        systemSymbolicHotkeys.restore()
+        systemSymbolicHotkeys.restoreAndShutDown()
         persistFrozenWorldForRestartIfPossible()
         try await makeAllWindowsVisibleAndRestoreSize()
         await toggleReleaseServerIfDebug(.on)
