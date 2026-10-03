@@ -60,22 +60,14 @@ open class Window: TreeNode, Hashable {
         lastKnownActualRect = rect
     }
 
-    private struct OrderNumbers {
-        let created: Int
-        var lastFocused = 0
-    }
-
     /// Kept by window id, not on the window: when the screen locks WinMux drops every window, and
     /// it registers them again as new objects on unlock.
-    @MainActor private static var orderNumbers: [UInt32: OrderNumbers] = [:]
-    @MainActor private static var lastCreatedSeq = 0
+    @MainActor private static var lastFocusedSeqs: [UInt32: Int] = [:]
     @MainActor private static var highestLastFocusedSeq = 0
 
-    /// The window's place in registration order: lower was registered earlier.
-    @MainActor var createdSeq: Int { Window.orderNumbers[windowId]?.created ?? 0 }
     /// The window's place in focus order across all workspaces: higher was focused more recently,
     /// and 0 is never focused. Kept in memory only, so every window starts at 0 after a restart.
-    @MainActor var lastFocusedSeq: Int { Window.orderNumbers[windowId]?.lastFocused ?? 0 }
+    @MainActor var lastFocusedSeq: Int { Window.lastFocusedSeqs[windowId] ?? 0 }
 
     /// Records that macOS has the window focused. `setFocus` is only a request, which macOS may
     /// not honour, so this is called once a refresh has read the focused window back.
@@ -83,20 +75,19 @@ open class Window: TreeNode, Hashable {
     func recordConfirmedFocus() {
         if lastFocusedSeq != 0 && lastFocusedSeq == Window.highestLastFocusedSeq { return }
         Window.highestLastFocusedSeq += 1
-        Window.orderNumbers[windowId]?.lastFocused = Window.highestLastFocusedSeq
+        Window.lastFocusedSeqs[windowId] = Window.highestLastFocusedSeq
     }
 
     /// Forgets the numbers of every window but `windowIds`: the ones that exist, and the ones
     /// that may yet be registered again.
     @MainActor
-    static func forgetOrderNumbers(except windowIds: Set<UInt32>) {
-        orderNumbers = orderNumbers.filter { windowIds.contains($0.key) }
+    static func forgetLastFocusedSeqs(except windowIds: Set<UInt32>) {
+        lastFocusedSeqs = lastFocusedSeqs.filter { windowIds.contains($0.key) }
     }
 
     @MainActor
-    static func resetOrderNumbersForTests() {
-        orderNumbers = [:]
-        lastCreatedSeq = 0
+    static func resetLastFocusedSeqsForTests() {
+        lastFocusedSeqs = [:]
         highestLastFocusedSeq = 0
     }
 
@@ -105,10 +96,6 @@ open class Window: TreeNode, Hashable {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
-        if Window.orderNumbers[id] == nil {
-            Window.lastCreatedSeq += 1
-            Window.orderNumbers[id] = OrderNumbers(created: Window.lastCreatedSeq)
-        }
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
     }
 
@@ -265,10 +252,12 @@ extension Window {
 }
 
 extension Sequence<Window> {
-    /// Most recently focused first. Windows never focused come last, in registration order.
+    /// Most recently focused first. Windows never focused come last, in the order they were
+    /// created: macOS numbers windows from one counter, in creation order, and does not reuse a
+    /// number.
     @MainActor func sortedByMostRecentUse() -> [Window] {
         sorted { a, b in
-            a.lastFocusedSeq != b.lastFocusedSeq ? a.lastFocusedSeq > b.lastFocusedSeq : a.createdSeq < b.createdSeq
+            a.lastFocusedSeq != b.lastFocusedSeq ? a.lastFocusedSeq > b.lastFocusedSeq : a.windowId < b.windowId
         }
     }
 }

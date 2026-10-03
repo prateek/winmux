@@ -2,10 +2,6 @@ import Common
 import Foundation
 
 @MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
-/// The window WinMux last took its focus from: the one macOS had focused when a session last
-/// read it. While a popup has macOS focus this stays at the window before it. It is `nil` when
-/// macOS had no window focused, or one outside the project that holds focus.
-@MainActor var nativeFocusedWindowId: UInt32? { lastKnownNativeFocusedWindowId }
 
 @MainActor private struct WorkspaceProjectFocusHold {
     let projectId: WorkspaceProjectId
@@ -73,6 +69,7 @@ private func shouldIgnoreNativeFocusDuringProjectHold(_ nativeFocused: Window?) 
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
+    nativeFocused?.recordConfirmedFocus()
     (nativeFocused?.app as? MacApp)?.lastNativeFocusedWindowId = nativeFocused?.windowId
     debugFocusLog(
         "updateFocusCache event=\(refreshSessionEvent.prettyDescription) nativeFocused=\(nativeFocused?.windowId.description ?? "nil") lastKnownNative=\(lastKnownNativeFocusedWindowIdBefore?.description ?? "nil") -> \(lastKnownNativeFocusedWindowId?.description ?? "nil") logicalFocus=\(debugDescribe(focus))"

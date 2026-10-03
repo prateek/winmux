@@ -17,15 +17,15 @@ Give every window a sequence number that records when it was last focused, acros
 
 **Where it is written**
 
-- It is written in `checkOnFocusChangedCallbacks` (`Sources/AppBundle/focus.swift`), after the refresh has read the OS's focused window.
-- That function also runs after every command, before the OS has been asked for anything. So the number goes to the window the last refresh found focused in the OS, whatever WinMux's own focus says. A window in macOS native fullscreen, which WinMux's focus never points at, is numbered too.
+- It is written in `updateFocusCache` (`Sources/AppBundle/focusCache.swift`), where a refresh reads the OS's focused window, and goes to that window, whatever WinMux's own focus says. A window in macOS native fullscreen, which WinMux's focus never points at, is numbered too.
+- `checkOnFocusChangedCallbacks`, which this issue first named, also runs after every command, before the OS has been asked for anything, so it is not where the number is written.
 - It is never written in `setFocus`. `setFocus` is only a request, and the OS may not honour it.
 - Selecting a window in a Lens or the palette, or running `focus`, therefore does not change the order by itself. The order changes when the next refresh confirms that the window has focus. This keeps the order from claiming a window the user never reached.
 
 **Ordering by it**
 
 - Most-recently-used order is `lastFocusedSeq` descending.
-- Windows that were never focused sort after every focused window, in `created` order (registration order).
+- Windows that were never focused sort after every focused window, in `created` order: the order of their window ids, which macOS gives out from one counter in creation order.
 - After a restart, when every window is at `0`, the order is therefore `created` order until focus moves.
 
 **Who reads it**
@@ -51,9 +51,9 @@ Nothing.
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **The window focused at launch.** `checkOnFocusChangedCallbacks` returns early during the startup refresh, and that early return stays. The window focused at launch gets its number on the first refresh after startup. That refresh may not count as a focus change (`_lastKnownFocus` can already equal the current focus), so assign a number whenever the confirmed focused window is not the one holding the highest number, not only when the function's `hasFocusChanged` is true.
+- **The window focused at launch.** The startup refresh reads the OS's focused window like any other, so that window gets its number then. A refresh assigns a number whenever the confirmed focused window is not the one holding the highest number, not only when focus changed.
 - **A CLI field for the sequence.** `list-windows --format` gains `%{window-last-focused-seq}`. `--json` prints the variables of the format under their own names, so the JSON key is `window-last-focused-seq`, and it appears when the format asks for it. The default format is unchanged.
-- **Registration order.** No `created` order existed. Each `Window` gets a `createdSeq` when WinMux registers it, which the `created` sort key of a Lens reads later.
+- **`created` order.** No such order existed. Window ids give it: macOS hands them out from one counter shared by all processes, in creation order, and does not reuse them. Registration order was rejected because WinMux registers windows with one task per app at startup, so it differs from launch to launch.
 - **`ctx.previous`.** The Filter context's previous window is read from this order: the most recently focused window other than the focused one. When that window closes, the one focused before it takes its place.
 
 ## Done when

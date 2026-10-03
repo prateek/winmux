@@ -229,9 +229,6 @@ extension Workspace {
         hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus
-    // This also runs after each command, when `focus` is still only what `setFocus` asked for.
-    // So the number goes to the window macOS reported, not to the focused one.
-    nativeFocusedWindowId.flatMap { Window.get(byId: $0) }?.recordConfirmedFocus()
 
     if onFocusChangedRecursionGuard { return }
     onFocusChangedRecursionGuard = true

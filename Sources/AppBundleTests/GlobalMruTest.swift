@@ -77,7 +77,7 @@ final class GlobalMruTest: XCTestCase {
         XCTAssertGreaterThan(clicked.lastFocusedSeq, a.lastFocusedSeq)
     }
 
-    func testWindowFocusedAtLaunchIsNumberedOnTheFirstRefreshAfterStartup() async throws {
+    func testWindowFocusedAtLaunchIsNumberedByTheStartupRefresh() async throws {
         let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
         TrayMenuModel.shared.isEnabled = true
         appForTests = TestApp.shared
@@ -85,10 +85,7 @@ final class GlobalMruTest: XCTestCase {
         setBlockingRefreshOverridesForTests(refresh: {}, normalizeLayoutReason: {})
 
         try await runRefreshSessionBlocking(.startup)
-        let duringStartup = window.lastFocusedSeq
-        try await refreshWithMacOsFocus(on: window)
 
-        assertEquals(duringStartup, 0)
         XCTAssertGreaterThan(window.lastFocusedSeq, 0)
     }
 
@@ -111,7 +108,7 @@ final class GlobalMruTest: XCTestCase {
         let second = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         try await refreshWithMacOsFocus(on: second)
         try await refreshWithMacOsFocus(on: first)
-        let before = [first.lastFocusedSeq, first.createdSeq, second.lastFocusedSeq, second.createdSeq]
+        let before = [first.lastFocusedSeq, second.lastFocusedSeq]
         TestApp.shared.focusedWindow = nil
         first.unbindFromParent()
         second.unbindFromParent()
@@ -119,7 +116,7 @@ final class GlobalMruTest: XCTestCase {
         let secondAgain = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         let firstAgain = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
 
-        assertEquals([firstAgain.lastFocusedSeq, firstAgain.createdSeq, secondAgain.lastFocusedSeq, secondAgain.createdSeq], before)
+        assertEquals([firstAgain.lastFocusedSeq, secondAgain.lastFocusedSeq], before)
         assertEquals([secondAgain, firstAgain].sortedByMostRecentUse().map(\.windowId), [1, 2])
     }
 
@@ -133,11 +130,10 @@ final class GlobalMruTest: XCTestCase {
         TestApp.shared.focusedWindow = kept
         closed.unbindFromParent()
 
-        Window.forgetOrderNumbers(except: [1])
+        Window.forgetLastFocusedSeqs(except: [1])
         let reused = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
 
         assertEquals(reused.lastFocusedSeq, 0)
-        XCTAssertGreaterThan(reused.createdSeq, kept.createdSeq)
         assertEquals(kept.lastFocusedSeq, keptBefore)
     }
 
@@ -151,9 +147,10 @@ final class GlobalMruTest: XCTestCase {
         assertEquals(window.lastFocusedSeq, before)
     }
 
-    func testNeverFocusedWindowsSortLastInRegistrationOrder() async throws {
+    func testNeverFocusedWindowsSortLastInWindowIdOrder() async throws {
         let here = focus.workspace
         let there = Workspace.get(byName: "there")
+        // Registered in an order other than their ids', as WinMux does at startup.
         let registeredFirst = TestWindow.new(id: 9, parent: there.rootTilingContainer)
         let focusedFirst = TestWindow.new(id: 5, parent: here.rootTilingContainer)
         let registeredLast = TestWindow.new(id: 1, parent: here.rootTilingContainer)
@@ -161,9 +158,9 @@ final class GlobalMruTest: XCTestCase {
         try await refreshWithMacOsFocus(on: focusedFirst)
         try await refreshWithMacOsFocus(on: focusedLast)
 
-        let order = [registeredLast, focusedFirst, registeredFirst, focusedLast].sortedByMostRecentUse()
+        let order = [registeredFirst, focusedFirst, registeredLast, focusedLast].sortedByMostRecentUse()
 
-        assertEquals(order.map(\.windowId), [7, 5, 9, 1])
+        assertEquals(order.map(\.windowId), [7, 5, 1, 9])
     }
 
     func testFocusBackAndForthStillReturnsToThePreviousFocus() async throws {
