@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import AppKit
 
 final class TestApp: AbstractApp {
     let pid: Int32
@@ -10,8 +11,13 @@ final class TestApp: AbstractApp {
     @MainActor
     static let shared = TestApp()
 
-    private init() {
-        self.pid = 0
+    var accessory: Bool
+    var activationPolicy: NSApplication.ActivationPolicy
+
+    init(pid: Int32 = 0, accessory: Bool = false, activationPolicy: NSApplication.ActivationPolicy = .regular) {
+        self.accessory = accessory
+        self.activationPolicy = activationPolicy
+        self.pid = pid
         self.rawAppBundleId = "bobko.WinMux.test-app"
         self.name = rawAppBundleId
     }

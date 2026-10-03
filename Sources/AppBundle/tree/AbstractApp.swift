@@ -1,3 +1,4 @@
+import AppKit
 import Common
 
 protocol AbstractApp: AnyObject, Hashable, WinMuxAny {
@@ -8,6 +9,8 @@ protocol AbstractApp: AnyObject, Hashable, WinMuxAny {
     var name: String? { get }
     var execPath: String? { get }
     var bundlePath: String? { get }
+    var accessory: Bool { get }
+    var activationPolicy: NSApplication.ActivationPolicy { get }
 }
 
 extension AbstractApp {

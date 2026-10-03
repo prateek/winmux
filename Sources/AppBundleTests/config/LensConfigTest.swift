@@ -19,6 +19,15 @@ final class LensConfigTest: XCTestCase {
         XCTAssertEqual(parsed.config.lenses["search"], LensConfig())
     }
 
+    func testFilterIntrospectionUsesOnlyTheActiveProfilePath() throws {
+        let settings = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"filter":"lenses.demo.filter","when":{"default":{"filter":"lenses.demo.when.default.filter"},"travel":{"filter":"lenses.demo.when.travel.filter"}}}
+        """.utf8))
+        let lens = LensConfig(settings)
+        XCTAssertEqual(lens.json["filter"], .string("lenses.demo.when.default.filter"))
+        XCTAssertEqual(LensConfig().json["filter"], .null)
+    }
+
     func testDefaultProfileResolvesAndOtherProfilesNeverApply() throws {
         let settings = try JSONDecoder().decode(JSONValue.self, from: Data("""
         {"lenses":{"demo":{"presentation":"list","keys":{"cmd-x":"close"},"when":{"default":{"enabled":false,"sort":["title"]},"travel":{"presentation":"strip"}}}}}

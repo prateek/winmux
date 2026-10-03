@@ -1,6 +1,7 @@
 import Common
 
 struct LensConfig: Equatable, Sendable {
+    var filter: String?
     var presentation = "list"
     var entries = "window"
     var sections = "workspace"
@@ -25,6 +26,7 @@ struct LensConfig: Equatable, Sendable {
     }
 
     private mutating func apply(_ value: JSONValue) {
+        filter = value["filter"]?.stringOrNil ?? filter
         presentation = value["presentation"]?.stringOrNil ?? presentation
         entries = value["entries"]?.stringOrNil ?? entries
         sections = value["sections"]?.stringOrNil ?? sections
@@ -43,6 +45,7 @@ struct LensConfig: Equatable, Sendable {
 
     var json: JSONValue {
         .object([
+            "filter": filter.map(JSONValue.string) ?? .null,
             "presentation": .string(presentation), "entries": .string(entries), "sections": .string(sections),
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),

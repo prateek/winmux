@@ -131,7 +131,9 @@
   persistent-workspaces | default = [],
   reload-on-save | default = true,
   shortcuts-preset | default = "none",
+  filters.floating | default = fun w ctx => w.class == 'floating,
   lenses.search = {},
+  lenses.floating.filter | default = filters.floating,
   start-at-login | default = false,
   tab-group-padding | default = 30,
   window-tabs = {

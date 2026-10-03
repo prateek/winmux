@@ -55,14 +55,17 @@ struct AppRecord: Equatable, Sendable {
     var accessory: Bool
     var activationPolicy: AppActivationPolicy
 
-    /// `accessory` and `activationPolicy` are supplied by "Accessory window defaults and the
-    /// `floating` Lens". Until then every app is reported as a regular one.
     init(_ app: any AbstractApp) {
         bundleId = app.rawAppBundleId ?? ""
         name = app.name ?? ""
         pid = Int(app.pid)
-        accessory = false
-        activationPolicy = .regular
+        accessory = app.accessory
+        activationPolicy = switch app.activationPolicy {
+            case .regular: .regular
+            case .accessory: .accessory
+            case .prohibited: .prohibited
+            @unknown default: .prohibited
+        }
     }
 
     var json: JSONValue {
@@ -140,8 +143,7 @@ extension Window {
             case .macosNativeFullscreenWindow: .fullscreen
             case .macosNativeHiddenAppWindow: .hiddenApp
             case .macosNativeMinimizedWindow: .minimized
-            // "Accessory window defaults and the `floating` Lens" tells the two popup classes apart.
-            case .macosPopupWindow: .appPopup
+            case .macosPopupWindow: app.activationPolicy == .accessory ? .accessoryPopup : .appPopup
             case .rootTilingContainer, .shimContainerRelation: illegalChildParentRelation(child: self, parent: parent)
         }
     }
@@ -157,6 +159,7 @@ extension Window {
         let workspace = nodeWorkspace ?? minimizedOn.flatMap { Workspace.existing(byName: $0.workspaceName) }
         let monitor = workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown
         let level = cgWindowLevel
+        let appRecord = AppRecord(app)
         guard let ax = try await axRecordAttributes else { return nil }
         return WindowRecord(
             id: Int(windowId),
@@ -170,7 +173,7 @@ extension Window {
             project: (workspace?.projectId ?? minimizedOn?.projectId)?.rawValue ?? "",
             monitor: monitor,
             lastFocusedSeq: lastFocusedSeq,
-            app: AppRecord(app),
+            app: appRecord,
         )
     }
 }
