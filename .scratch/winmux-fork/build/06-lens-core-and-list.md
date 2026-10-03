@@ -170,25 +170,29 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Look-setting defaults.** `frozen-thumbnail = 'dimmed`, `accessory-window = 'enlarged` and `summon-hints = ['label, 'landing-spot]` are the field defaults for every Lens, so a record can omit them. A `'list` row ignores `frozen-thumbnail` and `accessory-window`. The `'label` hint shows on the selected row.
 - **A Lens's `keys` merges over the defaults.** The merge is field by field, as a Nickel record merge: a Lens that sets one key keeps the other defaults.
 - **First selection in `'list`.** The second row when the first row is the focused window, otherwise the first row.
-- **Score.** `score` is the sum, over the Search's words, of tier weight times field weight. Tier weights run from 6 (exact) down to 1 (fuzzy subsequence). Title and app have field weight 2, workspace and project 1. The JSON key for the matched field is `matched-field`.
+- **Score.** `score` is the sum, over the Search's words, of tier weight times field weight. Tier weights run from 6 (exact) down to 1 (fuzzy subsequence). Title and app have field weight 2, workspace and project 1. For each word choose the field with the highest tier weight times field weight; title and app win a weighted tie over workspace and project. Remaining ties prefer title before app, workspace before project. Thus `my mail` on workspace `mailbox` contributes 8 from title, rather than 5 from workspace. The JSON key for the matched field is `matched-field`.
 - **What Summon does after moving.** Summon focuses the window once it is placed. A floating window moves and stays floating. A minimized or hidden-app window is restored the way `focus` restores it.
+- **Minimized and popup actions.** Focus restores a minimized window to its origin (recreating a cleaned-up workspace), falling back to the current workspace only when the origin is unknown. Summon restores it on the current workspace. Workspace moves restore minimized/hidden windows before moving, preserving floating layout. Close does not restore. Popup Focus raises it natively and Close closes it; Summon and workspace moves fail without mutating the popup tree.
+- **Reserved keys.** Escape, Tab and all four arrows, including modifier variants, are rejected in Lens `keys` at load. They belong to the list's navigation. Hover changes selection only when the pointer moves.
+- **Candidate failures.** AX record reads overlap; results preserve candidate order. A failed/missing record drops that window from the open or script request; context reads of a failed record become null.
 - **The two budgets.** The Search box's 50 ms is a display deadline: past it the box says "Filter too slow" and keeps the last result, while the request runs on. At 100 ms the helper's own timeout applies.
 - **`lens --filter` with a bad body.** A body that does not parse or breaks the contract exits 2 and opens nothing. A Filter that fails at run time or times out opens with every candidate window and the banner.
 - **Ad-hoc Lens Presentation.** `lens --filter` without `--presentation` opens as `'list`.
 - **Ad-hoc Lenses and popups.** `lens --filter` and `list-windows --filter` behave as a Lens with `popups = []`. `list-windows --lens <name>` uses that Lens's `popups`.
-- **Disabled Lens exit code.** `winmux lens <name>` on a Lens with `enabled = false` exits 2.
+- **Disabled Lens exit code.** Both `winmux lens <name>` and `winmux list-windows --lens <name>` on a Lens with `enabled = false` exit 2 with the same diagnostic and nothing on stdout.
 - **`'strip` and `'miniatures` before their issues land.** The contract accepts both values. Opening such a Lens falls back to `'list` and writes a log line.
 
 ## Build notes
 
-Implemented on `prateek/lens-core-list`; not yet pushed or landed. No settled Decision or chosen Default was changed.
+Implemented on `prateek/lens-core-list`, open as pull request #26 and awaiting driver push/CI/review. The review fixes clarify Score, disabled script Lenses, unconventional row actions, reserved navigation keys and per-window AX failure handling above.
 
 - A configured Lens that omits `presentation` defaults to `'list`; the original field table left that default blank.
 - Search reads the displayed workspace/project names; Filter records keep their existing workspace/project ids. When different words match different fields, JSON joins their names with commas in `matched-field`.
 - Ad-hoc and script Filter bodies use the helper’s new `check-filter` preflight. This catches an invalid body even when an explicit scope contains no windows. Runtime evaluation failures still follow the interactive/banner and script/fail-closed policies.
+- Configured key equivalents run before Search editing can consume Command shortcuts (such as Cmd+X).
 - `cmd-1` through `cmd-9` use the existing workspace-number command. Summon restores minimized/hidden windows, preserves floating layout, then uses the existing move/focus path without `arrive`. Column placement remains a later issue.
 - Popup-class inclusion is tested at the candidate seam; live Accessory classification is still issue #8. A real native fullscreen Space was not exercised.
-- `make check` and the debug live run cover the checked items below. The driver’s PR description and report list the tests and captures. CI remains the driver’s check after opening the PR.
+- `make check` and the debug live run cover the checked items below. The driver’s PR description and report list the tests and captures. CI on the latest commit remains the driver’s check after pushing the review fixes.
 
 ## Done when
 

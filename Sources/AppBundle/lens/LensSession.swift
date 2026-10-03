@@ -58,6 +58,7 @@ final class LensSession: ObservableObject {
     var selectedId: UInt32? { results.indices.contains(selection) ? results[selection].id : nil }
 
     func key(for event: NSEvent, click: Bool = false) -> String? {
+        // Return / keypad enter share a binding; a click runs that Enter action too.
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
         let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
