@@ -47,7 +47,12 @@ final class LensSession: ObservableObject {
         }
         query = search
         selection = 0
-        selection = results.count > 1 && results.first?.isFocused == true ? 1 : 0
+        if settings.presentation == "miniatures", search.isEmpty {
+            let previous = results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
+                lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
+            }?.element
+            selection = previous.flatMap { previous in results.firstIndex { $0.id == previous.id } } ?? 0
+        } else { selection = results.count > 1 && results.first?.isFocused == true ? 1 : 0 }
     }
 
     var results: [SwitcherPaletteItem] {

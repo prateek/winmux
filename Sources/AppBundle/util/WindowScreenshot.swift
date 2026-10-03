@@ -21,15 +21,19 @@ enum WindowScreenshotError: LocalizedError {
 @globalActor
 actor ScreenshotWorker { static let shared = ScreenshotWorker() }
 
+/// One-shot captures through ScreenCaptureKit. They need the Screen Recording grant, even for a
+/// window of this process.
 @ScreenshotWorker
 enum WindowScreenshot {
     // Listing shareable content costs about 30 ms; Lens captures use only this cached list.
-    private static var content: SCShareableContent?
-    private static var contentFetch: Task<Void, Never>?
+    private static let snapshot = RefreshingSnapshot<SCShareableContent> {
+        try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+    }
+    private static var content: SCShareableContent? { snapshot.value }
 
     nonisolated static func invalidateWindowList() {
         Task { @ScreenshotWorker in
-            content = nil
+            snapshot.invalidate()
             guard CGPreflightScreenCaptureAccess() else { return }
             await refreshWindowList()
         }
@@ -102,12 +106,6 @@ enum WindowScreenshot {
     }
 
     private static func refreshWindowList() async {
-        // Captures that start together share one fetch.
-        let fetch = contentFetch ?? Task { @ScreenshotWorker in
-            content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-            contentFetch = nil
-        }
-        contentFetch = fetch
-        await fetch.value
+        await snapshot.refresh()
     }
 }

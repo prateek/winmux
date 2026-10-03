@@ -24,19 +24,20 @@ extension LensSession {
         return MiniatureLayout(workspaces: visible.map(\.name), size: miniatureSize, aspect: aspect, fit: settings.miniatures.fit)
     }
 
-    func miniatureCells(on page: Int) -> [MiniatureLayout.Cell] {
-        miniatureLayout.cells(on: page).map { cell in
+    func miniatureCells(on page: Int, layout: MiniatureLayout? = nil) -> [MiniatureLayout.Cell] {
+        (layout ?? miniatureLayout).cells(on: page).map { cell in
             guard settings.miniatures.currentWorkspace == "enlarge", miniatureWorkspaces.first(where: { $0.name == cell.workspace })?.current == true else { return cell }
             let frame = cell.frame.insetBy(dx: -cell.frame.width * 0.02, dy: -cell.frame.height * 0.02)
             return MiniatureLayout.Cell(workspace: cell.workspace, frame: frame, tray: CGRect(x: frame.minX, y: frame.maxY + 4, width: frame.width, height: cell.tray.height))
         }
     }
 
-    var miniatureFrames: [UInt32: CGRect] {
+    var miniatureFrames: [UInt32: CGRect] { miniatureFrames(layout: miniatureLayout) }
+
+    func miniatureFrames(layout: MiniatureLayout) -> [UInt32: CGRect] {
         var frames: [UInt32: CGRect] = [:]
-        let layout = miniatureLayout
         for page in 0 ..< layout.pageCount {
-            for cell in miniatureCells(on: page) {
+            for cell in miniatureCells(on: page, layout: layout) {
                 guard let workspace = miniatureWorkspaces.first(where: { $0.name == cell.workspace }) else { continue }
                 let windows = items.compactMap(\.miniature).filter { $0.workspace == cell.workspace }
                 var trayIndex = 0
@@ -119,7 +120,12 @@ extension LensSession {
         guard summonHeld, settings.presentation == "miniatures", settings.summonHints.contains("landing-spot"),
               let id = selectedId, let entry = items.first(where: { $0.id == id })?.miniature,
               let workspace = miniatureWorkspaces.first(where: { $0.current }) else { setMiniatureLanding(nil); return }
-        if entry.floating || entry.workspace == workspace.name { setMiniatureLanding(entry.frame); return }
+        if entry.workspace == workspace.name { setMiniatureLanding(entry.frame); return }
+        if entry.floating {
+            let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
+            setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))
+            return
+        }
         let root = focus.workspace.rootTilingContainer
         let rect = root.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
         let wraps = root.layout == .tabGroup && !root.children.isEmpty
@@ -132,4 +138,24 @@ extension LensSession {
             setMiniatureLanding(CGRect(x: rect.minX, y: rect.maxY - rect.height / count + gap, width: rect.width, height: rect.height / count - gap))
         }
     }
+}
+
+func miniatureIsFrozen(tray: Bool, fullscreen: Bool, workspaceVisible: Bool, parked: Bool) -> Bool {
+    tray || fullscreen || !workspaceVisible || parked
+}
+
+func miniatureFloatingLanding(_ frame: CGRect, from source: CGRect, to destination: CGRect) -> CGRect {
+    let x = destination.minX + (frame.minX - source.minX) / max(1, source.width) * destination.width
+    let y = destination.minY + (frame.minY - source.minY) / max(1, source.height) * destination.height
+    return CGRect(x: min(max(destination.minX, x), max(destination.minX, destination.maxX - frame.width)),
+                  y: min(max(destination.minY, y), max(destination.minY, destination.maxY - frame.height)),
+                  width: frame.width, height: frame.height)
+}
+
+func appendingRetainedMiniatureWorkspaces(_ ordered: [MiniatureWorkspace], retained: [MiniatureWorkspace]) -> [MiniatureWorkspace] {
+    var snapshots = ordered
+    for workspace in retained where !snapshots.contains(where: { $0.name == workspace.name }) {
+        snapshots.append(MiniatureWorkspace(name: workspace.name, title: "Previous \(workspace.title)", source: workspace.source, current: false))
+    }
+    return snapshots
 }

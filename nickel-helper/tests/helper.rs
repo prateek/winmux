@@ -762,3 +762,15 @@ fn miniatures_profile_can_override_base_settings_without_merge_conflicts() {
     let value = evaluate_to_json(source, &library()).unwrap();
     assert_eq!(value["lenses"]["overview"]["presentation"], "list");
 }
+
+#[test]
+fn miniatures_rejections_include_actionable_message() {
+    for (body, message) in [
+        ("presentation = 'miniatures, sections = 'workspace", "miniatures rejects sections, entries and sort"),
+        ("presentation = 'miniatures, miniatures.current-workspace = 'hide", "current-workspace hide cannot show landing-spot"),
+    ] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let error = evaluate_to_json(&source, &library()).unwrap_err();
+        assert!(error.contains(message), "{error}");
+    }
+}

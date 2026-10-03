@@ -8,22 +8,24 @@ struct MiniaturesView: View {
     var body: some View {
         let layout = model.miniatureLayout
         let page = min(model.miniaturePage, layout.pageCount - 1)
-        let frames = model.miniatureFrames
+        let frames = model.miniatureFrames(layout: layout)
+        let results = model.results
+        let matchedIds = Set(results.map(\.id))
+        let selectedId = results.indices.contains(model.selection) ? results[model.selection].id : nil
         ZStack(alignment: .topLeading) {
             if model.settings.miniatures.blur { MiniatureBackdrop().allowsHitTesting(false) }
             Color.black.opacity(model.settings.miniatures.darkness).allowsHitTesting(false)
-            ForEach(model.miniatureCells(on: page), id: \.workspace) { cell in
-                workspaceCell(cell)
+            ForEach(model.miniatureCells(on: page, layout: layout), id: \.workspace) { cell in
+                workspaceCell(cell, selectedId: selectedId)
                 let entries = model.items.filter { $0.miniature?.workspace == cell.workspace }
                     .sorted { ($0.miniature?.floating == true ? 1 : 0) < ($1.miniature?.floating == true ? 1 : 0) }
                 ForEach(entries) { item in
                     if let entry = item.miniature, let frame = frames[item.id] {
                         MiniatureEntryView(item: item, entry: entry, settings: model.settings,
-                                           selected: model.selectedId == item.id, marked: model.marks.contains(item.id),
-                                           hint: model.selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                                           selected: selectedId == item.id, marked: model.marks.contains(item.id),
+                                           hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
                             .frame(width: max(1, frame.width), height: max(1, frame.height))
-                            .opacity(model.miniatureOpacity(item.id))
-                            .position(x: frame.midX, y: frame.midY - CGFloat(page) * model.miniatureSize.height)
+                            .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onContinuousHover { phase in
                                 if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                             }
@@ -31,18 +33,15 @@ struct MiniaturesView: View {
                                 model.hover(item.id)
                                 if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                             }
+                            .position(x: frame.midX, y: frame.midY - CGFloat(page) * model.miniatureSize.height)
                     }
                 }
             }
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                    TextField("Search windows…", text: $model.query)
+                    TextField(model.miniatureSearchVisible ? "Search windows…" : "\(model.name) • Type to Search", text: $model.query)
                         .textFieldStyle(.plain).focused($searchFocused)
-                        .opacity(model.miniatureSearchVisible ? 1 : 0)
-                        .overlay(alignment: .leading) {
-                            if !model.miniatureSearchVisible { Text("\(model.name) • Type to Search").allowsHitTesting(false) }
-                        }
                     Spacer()
                     Text("\(page + 1) / \(layout.pageCount)").monospacedDigit()
                 }
@@ -57,7 +56,7 @@ struct MiniaturesView: View {
     }
 
     @ViewBuilder
-    private func workspaceCell(_ cell: MiniatureLayout.Cell) -> some View {
+    private func workspaceCell(_ cell: MiniatureLayout.Cell, selectedId: UInt32?) -> some View {
         let workspace = model.miniatureWorkspaces.first { $0.name == cell.workspace }
         let current = workspace?.current == true
         RoundedRectangle(cornerRadius: 5)
@@ -70,7 +69,7 @@ struct MiniaturesView: View {
             .position(x: cell.frame.midX, y: cell.frame.midY)
         Text(workspace?.title ?? cell.workspace).font(.system(size: 12, weight: .semibold))
             .position(x: cell.frame.midX, y: cell.frame.minY - 12)
-        if let selected = model.items.first(where: { $0.id == model.selectedId && $0.miniature?.workspace == cell.workspace }) {
+        if let selected = model.items.first(where: { $0.id == selectedId && $0.miniature?.workspace == cell.workspace }) {
             Text(selected.title).font(.system(size: 12)).lineLimit(1)
                 .frame(width: cell.frame.width)
                 .position(x: cell.frame.midX, y: cell.tray.maxY + 12)

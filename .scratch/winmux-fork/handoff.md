@@ -13,7 +13,7 @@ Planning is finished and the build is under way: the deployment target, Nickel c
 - **Done:** [Config hot reload](https://github.com/prateek/winmux/issues/4). A debug build showed a save reloading the config and a file it imports, the error notification and its dedupe, the mode staying active, the breaker, `reload-on-save = false` and the Settings toggle, with the recordings on pull request #24. A newly added import, a config file created after startup and a burst of writes were checked in tests only.
 - **Done:** [Lens core and the `'list` Presentation with Search](https://github.com/prateek/winmux/issues/7). A debug build on scratch config showed the list, Search, inline Nickel, marks, Summon, the mouse and the CLI, with the captures on pull request #26. A Lens over a native fullscreen Space was not tried, and the debounce and display deadline were checked in tests only. The Accessory defaults live run subsequently checked an `'accessory-popup` row, Enter raising it and shift-enter refusing to Summon it.
 - **Done:** [Accessory window defaults and the `floating` Lens](https://github.com/prateek/winmux/issues/10). Bundle identity supplies the floating default; live activation policy supplies Filter records and popup classes. The debug live run used owned neutral Accessory and Dock apps and checked both popup gates, popup Enter and shift-enter, floating Focus and Summon across workspaces, and live policy changes. A real browser autofill dropdown was represented by a controlled Dock-app popup rather than opened in a browser.
-- **Done, with checks left:** [Thumbnail cache and the `'miniatures` Presentation](https://github.com/prateek/winmux/issues/9). The cache, `overview`, miniature settings and contracts pass offline tests; the captureScreenshot benchmark used 50 distinct owned windows. The desktop-wide debug Lens acceptance run remains unchecked. The signed-build screen-recording indicator is **not checkable: it needs a release build, which is Prateek's**; leave this check for Prateek.
+- **Done, with checks left:** [Thumbnail cache and the `'miniatures` Presentation](https://github.com/prateek/winmux/issues/9). The cache, `overview`, miniature settings and contracts are built. The debug run checked geometry, trays, Search, Focus/Summon, paging, Accessory styling and presentation conversion over owned windows. The first debug session stalled; an isolated restart recovered refreshes without answering permission dialogs, and recorded fresh departure captures and advancing miniatures. The original stall is unexplained. The captureScreenshot benchmark used 50 distinct owned windows. The signed-build screen-recording indicator is **not checkable: it needs a release build, which is Prateek's**; leave this check for Prateek.
 - **Next:** [Strip Presentation and the cmd+tab takeover](https://github.com/prateek/winmux/issues/8) and [Fixed Columns: slots, the count invariant, Width presets](https://github.com/prateek/winmux/issues/11) are unblocked.
 - **Glossary:** `CONTEXT.md` at the repo root. Use its terms and avoid the words it lists under _Avoid_.
 - **ADR:** `docs/adr/0001-nickel-helper-process.md`.
@@ -121,7 +121,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 - `move-node-to-workspace <n>` from a Lens counts workspaces in the selected window's project, not the one on screen. Marks survive a change of Search, so a hidden marked window is still acted on. A failed action is written to the unified log, category `lens`, because the Lens has closed by then. An inline result that arrives after the 50 ms display deadline is dropped, as the issue decides, so a Filter that always takes longer never applies.
 - The shipped `search` record is empty so its sort/Presentation contract defaults remain overridable. `floating` uses the default named `filters.floating`, list Presentation, MRU and empty `popups`, with no binding. Both its Filter and Lens settings are overridable. Disabled `list-windows --lens` and `lens` both exit 2 with the same message and empty stdout. Escape, Tab and arrows (including modifier variants) are reserved at load; row hover uses global pointer movement so scrolling cannot take keyboard selection. Inline JSON inputs are built once per open. Configured key equivalents are intercepted before the Search field can consume Command shortcuts such as Cmd+X.
 - CLI help is maintained in `subcommandDescriptionsGenerated.swift` and `cmdHelpGenerated.swift`; this fork has no adoc generator. `nonTomlRootKeys` names keys excluded from the TOML bridge accurately because Swift now parses Lens JSON itself.
-- `docs/lenses.md` documents the config, CLI, Search and keys. The draft for Lens core and the list records its build details. Its live run used isolated config/state and owned neutral demo windows; the captures are on pull request #26. The Accessory defaults live run covered classification and the formerly unreachable popup rows/actions. Native fullscreen Spaces remain unverified.
+- `docs/lenses.md` documents the config, CLI, Search and keys. The draft for Lens core and the list records its build details. Its live run used isolated config/state and owned neutral demo windows; the captures are on pull request #26. The Accessory defaults live run covered classification and the formerly unreachable popup rows/actions. The thumbnail live run tried an active native fullscreen Space: opening the Lens returned to the managed desktop. Inactive fullscreen entries retained their capture.
 
 ## Thumbnail and miniatures implementation for the next builder
 
@@ -132,21 +132,25 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
   Capture sizing preserves portrait aspect ratio and covers the 560-point workspace width plus
   its 4% current-workspace enlargement at the highest attached display scale. Shrink never
   enlarges a cell beyond that base width.
-- `ThumbnailCache` owns scheduling; `ThumbnailCaptureGate` owns all queue decisions. Park,
-  focus loss and minimize use the 800 ms throttle. Native focus observation precedes the
-  logical-focus guards, so opening a popup still captures the window that lost focus. A Presentation passes its session token for
-  live refreshes, which bypass that throttle and take priority. Drop queued refreshes with
-  `closeLens(token)`. A park/focus event for an already queued refresh gives it independent
-  ownership so dismissal cannot discard that event. Captures already running may complete. The strip should reuse these APIs
-  and the window-owned image, rather than create another cache or capture gate.
+- `ThumbnailCache` owns scheduling; `ThumbnailCaptureGate` owns all queue decisions. Park and
+  focus loss use the 800 ms throttle. Command minimization bypasses it and waits up to 200 ms
+  before minimizing; already-minimized captures cannot replace a good frame. Native focus
+  observation precedes logical-focus guards, so opening a popup still captures the window
+  that lost focus. A Presentation passes its session token for live refreshes, which bypass
+  the throttle. Park and minimize work take priority. `closeLens(token)` drops queued
+  refreshes; event ownership survives dismissal. Running captures may complete. The strip
+  should reuse these APIs and the window-owned image.
 - `WindowScreenshot` runs on `ScreenshotWorker`, away from the main actor. Its shareable-window
-  list includes off-screen windows. Registration/destruction refresh it; cache captures set
-  `cachedOnly: true` so opening a Lens never fetches it. Direct capture callers retain missing-id
-  lookup. Background capture checks the existing permission and never requests a grant.
+  list includes off-screen windows. Registration/destruction refresh it while retaining the
+  previous list; invalidation during a fetch forces a follow-up fetch. Capture sizing prefers
+  the current applied layout aspect to an older parked frame. Cache captures set
+  `cachedOnly: true` so opening a Lens never fetches the list. Direct callers retain missing-id
+  lookup. Enumeration checks the existing grant; WinMux does not request one explicitly.
+  macOS may still present bypass permission dialogs for the capture API.
 - `MiniatureSession` extends `LensSession`; `MiniatureLayout` is pure scale, grid, page and
   navigation geometry. Entries still come from `lensWindows` and the Lens Filter result. No
   second eligibility pipeline exists. The view uses retained workspace ids for trays, with
-  snapshot cells for deleted minimized origins. Unknown-origin minimized windows and popup
+  snapshot cells labeled “Previous …” for retained origins outside the sidebar order. Unknown-origin minimized windows and popup
   windows have no miniature cell; list conversion keeps them in the session snapshot.
 - The panel uses the focused monitor's visible rect, `isOpaque = false`, 60% black and
   behind-window HUD blur. It draws cached images immediately, then refreshes current-page
@@ -164,16 +168,20 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
   changes. It must never call the mutating append-binding helper. Today's preview uses the
   tree's appended-slot geometry; Column Policy hooks should supply the placement result at
   `updateMiniatureLanding`. Summon still uses the existing command path and does not run arrive.
-- `docs/lenses.md` documents overview and the settings. The build draft records tests and exact
-  live acceptance gaps. Only the owned 50-window capture benchmark, CLI contract rejections and
-  an inactive native-fullscreen capture were live-checked. The fullscreen capture succeeded
-  with a nonblank image on this system, unlike the earlier findings; the conservative fallback
-  is unchanged. A Lens over a native fullscreen Space, overlay liveness and the debug indicator
-  remain unverified. Prateek must check the signed-build indicator with his release build.
-- For the next live run, close private/restored terminal content before starting the cache.
-  Hiding private apps after startup preserves their captured content. Hide Orca before startup,
-  confirm it draws as an icon, and keep any protected updater dialog masked on the desktop and
-  inside its miniature. Save and restore frames, and leave permission prompts unanswered.
+- `docs/lenses.md` documents overview and the settings. The build draft records the live results
+  and remaining checks. The overview opened over 50 owned windows in 109.2 ms at the CLI;
+  debug tracing observed at most two captures in flight. The recordings show geometry,
+  retained trays, badges, Search, mouse and keyboard actions, Summon landing, Accessory tags,
+  paging and list conversion. Both owned clocks painted behind the non-opaque overlay with
+  blur disabled for readable evidence. Opening from active native fullscreen returned to
+  the managed desktop. The initial session stopped updating captures; an isolated restart
+  recovered them without answering permission dialogs. Fresh park captures and advancing
+  miniatures were then recorded. The initial stall is unexplained. The release-build indicator
+  remains Prateek's check.
+- For live runs, hiding apps before the build starts worked: Terminal and Orca stayed icon-only
+  and their restored windows were preserved. Keep them hidden throughout capture and never
+  select their tray entries. Save and restore frames, unhide the apps afterwards, and leave
+  permission prompts and protected updater dialogs unanswered.
 
 ## Accessory implementation for the next builder
 

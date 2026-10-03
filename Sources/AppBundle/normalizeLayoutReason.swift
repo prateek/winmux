@@ -66,7 +66,6 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.rememberMacOsLayoutOrigin()
                         window.bind(to: workspace.macOsNativeFullscreenWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     case isMacosMinimized:
-                        ThumbnailCache.shared.request(window)
                         window.rememberMacOsLayoutOrigin(detachFromWorkspace: true, originIsKnown: window.wasSeenUnminimized)
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
                     case isMacosWindowOfHiddenApp:

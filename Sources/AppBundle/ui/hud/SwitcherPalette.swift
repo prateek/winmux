@@ -28,6 +28,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let lifecycle = LensLifecycle()
     private var thumbnailRefresh: Task<Void, Never>?
     private var thumbnailSession = 0
+    private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
     private let inlineSearch = LensInlineSearch { body, context, windows in
         await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
@@ -50,19 +51,24 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int) async {
-        let focusedId = focus.windowOrNil?.windowId
         if settings.presentation == "miniatures" {
-            for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
-                if let rect = try? await entry.window.getAxRect() { entry.window.miniatureFrame = rect.cgRect }
+            await withTaskGroup(of: Void.self) { group in
+                for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
+                    group.addTask { @MainActor @Sendable in
+                        if let rect = try? await entry.window.getAxRect() { entry.window.miniatureFrame = rect.cgRect }
+                    }
+                }
             }
         }
+        let focusedId = focus.windowOrNil?.windowId
+        let onscreen = Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
         let items = entries.map { entry in
             SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
                 icon: (entry.window as? MacWindow)?.macApp.nsApp.icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
                 projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniatureEntry(entry)
+                miniature: miniatureEntry(entry, onscreen: onscreen)
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search))
@@ -84,7 +90,9 @@ final class SwitcherPalettePanel: NSPanelHud {
         NSApp.activate(ignoringOtherApps: true)
         makeKey()
         DispatchQueue.main.async { [weak self] in
-            (self?.firstResponder as? NSTextView)?.selectAll(nil)
+            guard let self else { return }
+            if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
+            (self.firstResponder as? NSTextView)?.selectAll(nil)
         }
         model.onSearchChanged?()
         if settings.presentation == "miniatures" {
@@ -101,7 +109,11 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func present(_ model: LensSession) {
-        let rect = focus.workspace.workspaceMonitor.visibleRect
+        scrollPaging = MiniatureScrollPaging()
+        let monitor = focus.workspace.workspaceMonitor
+        let visible = monitor.visibleRect
+        let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
+        let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
         isOpaque = false
         if model.settings.presentation == "miniatures" {
             model.miniatureSize = rect.size
@@ -109,6 +121,8 @@ final class SwitcherPalettePanel: NSPanelHud {
             setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: true)
             hostingView.rootView = AnyView(MiniaturesView(model: model))
         } else {
+            // Center on the focused monitor, with the top edge at one quarter of its height;
+            // convert the top-left coordinates to AppKit's bottom-left origin.
             setFrame(NSRect(x: rect.minX + (rect.width - switcherPaletteWidth) / 2,
                             y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - switcherPaletteMaxHeight,
                             width: switcherPaletteWidth, height: switcherPaletteMaxHeight), display: true)
@@ -190,8 +204,8 @@ final class SwitcherPalettePanel: NSPanelHud {
             }
             if model.performKeyAction(event) { return }
         }
-        if event.type == .scrollWheel, model.settings.presentation == "miniatures", event.phase == .began || event.phase.isEmpty {
-            if abs(event.scrollingDeltaY) > 1 { model.turnMiniaturePage(event.scrollingDeltaY < 0 ? 1 : -1) }
+        if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
+            if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, phase: event.phase, momentum: event.momentumPhase) { model.turnMiniaturePage(turn) }
             return
         }
         super.sendEvent(event)
@@ -338,25 +352,34 @@ private struct SwitcherPaletteRow: View {
 
 
 @MainActor
-private func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace] {
-    var snapshots = orderedWorkspacesForPresentation().map {
+func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace] {
+    let ordered = userFacingWorkspaces(orderedWorkspacesForPresentation(), focusedWorkspace: focus.workspace).map {
         MiniatureWorkspace(name: $0.name, title: workspaceDisplayName($0.name), source: $0.workspaceMonitor.visibleRect.cgRect, current: $0 == focus.workspace)
     }
-    for entry in entries where !entry.record.workspace.isEmpty && !snapshots.contains(where: { $0.name == entry.record.workspace }) {
+    let retained = entries.compactMap { entry -> MiniatureWorkspace? in
+        guard !entry.record.workspace.isEmpty else { return nil }
         let workspace = Workspace.existing(byName: entry.record.workspace)
-        snapshots.append(MiniatureWorkspace(name: entry.record.workspace, title: workspaceDisplayName(entry.record.workspace),
-                                            source: (workspace?.workspaceMonitor ?? focus.workspace.workspaceMonitor).visibleRect.cgRect, current: false))
+        return MiniatureWorkspace(name: entry.record.workspace, title: workspaceDisplayName(entry.record.workspace),
+                                  source: (workspace?.workspaceMonitor ?? focus.workspace.workspaceMonitor).visibleRect.cgRect, current: false)
     }
-    return snapshots
+    return appendingRetainedMiniatureWorkspaces(ordered, retained: retained)
 }
 
 @MainActor
-private func miniatureEntry(_ entry: LensWindow) -> MiniatureWindow {
+private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> MiniatureWindow {
     let window = entry.window
     let tray = window.parent is MacosMinimizedWindowsContainer || window.parent is MacosHiddenAppsWindowsContainer
     let source = window.nodeWorkspace?.workspaceMonitor.visibleRect.cgRect ?? focus.workspace.workspaceMonitor.visibleRect.cgRect
-    let frame = window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source
-    let frozen = tray || window.parent is MacosFullscreenWindowsContainer || window.nodeWorkspace != focus.workspace || (window as? MacWindow)?.isHiddenInCorner == true
+    let frame = window.isFloating ? (window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source) : (window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source)
+    let nativeFullscreen = window.parent is MacosFullscreenWindowsContainer
+    let frozen = miniatureIsFrozen(tray: tray, fullscreen: nativeFullscreen && !onscreen.contains(window.windowId),
+                                   workspaceVisible: nativeFullscreen ? onscreen.contains(window.windowId) : window.nodeWorkspace?.isVisible == true, parked: (window as? MacWindow)?.isHiddenInCorner == true)
     return MiniatureWindow(workspace: entry.record.workspace, frame: frame, tray: tray, frozen: frozen,
                            accessory: entry.record.app.accessory, floating: window.isFloating, window: window)
+}
+
+@MainActor
+func lensSearchField(in view: NSView) -> NSTextField? {
+    if let field = view as? NSTextField, field.isEditable { return field }
+    return view.subviews.lazy.compactMap { lensSearchField(in: $0) }.first
 }
