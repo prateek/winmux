@@ -513,12 +513,12 @@ final class FixedColumnsTest: XCTestCase {
         XCTAssertEqual(columns.widths[0], 0.5, accuracy: 0.000001)
         XCTAssertEqual(columns.widths[1] / columns.widths[2], 0.6, accuracy: 0.000001)
         XCTAssertEqual(columns.widths.reduce(0, +), 1, accuracy: 0.000001)
-        columns.stepWidth(slot: 1, forward: true, presets: [1/3, 1/2, 2/3], availableWidth: 1000)
-        XCTAssertEqual(columns.widths[0], 2/3, accuracy: 0.000001)
-        columns.stepWidth(slot: 1, forward: true, presets: [1/3, 1/2, 2/3], availableWidth: 1000)
-        XCTAssertEqual(columns.widths[0], 1/3, accuracy: 0.000001)
-        columns.stepWidth(slot: 1, forward: false, presets: [1/3, 1/2, 2/3], availableWidth: 1000)
-        XCTAssertEqual(columns.widths[0], 2/3, accuracy: 0.000001)
+        columns.stepWidth(slot: 1, forward: true, presets: [1.0 / 3, 1.0 / 2, 2.0 / 3], availableWidth: 1000)
+        XCTAssertEqual(columns.widths[0], 2.0 / 3, accuracy: 0.000001)
+        columns.stepWidth(slot: 1, forward: true, presets: [1.0 / 3, 1.0 / 2, 2.0 / 3], availableWidth: 1000)
+        XCTAssertEqual(columns.widths[0], 1.0 / 3, accuracy: 0.000001)
+        columns.stepWidth(slot: 1, forward: false, presets: [1.0 / 3, 1.0 / 2, 2.0 / 3], availableWidth: 1000)
+        XCTAssertEqual(columns.widths[0], 2.0 / 3, accuracy: 0.000001)
         columns.setWidth(slot: 1, fraction: 0, availableWidth: 1000)
         XCTAssertEqual(columns.widths[0] * 1000, minimumTiledResizeWeight, accuracy: 0.000001)
         columns.setWidth(slot: 1, fraction: 1, availableWidth: 1000)
@@ -585,7 +585,7 @@ final class FixedColumnsTest: XCTestCase {
         XCTAssertTrue(a.focusWindow())
         ws.columns?.focusedSlot = 3
         let frame = ws.workspaceMonitor.visibleRectPaddedByOuterGaps
-        XCTAssertEqual(ws.focusedEmptyColumnRect?.minX ?? 0, frame.minX + frame.width * 2/3, accuracy: 0.000001)
+        XCTAssertEqual(ws.focusedEmptyColumnRect?.minX ?? 0, frame.minX + frame.width * 2.0 / 3, accuracy: 0.000001)
         let b = arrive(2, ws)
         XCTAssertNil(ws.focusedEmptyColumnRect)
         b.unbindFromParent()
@@ -815,18 +815,18 @@ final class FixedColumnsTest: XCTestCase {
         let width = ws.workspaceMonitor.visibleRectPaddedByOuterGaps.width
         let session = ColumnDividerResizeSession(workspace: ws, slot: 2, startX: 500)
         let dragged = session.proposal(pointerX: 600).columnWidths!
-        XCTAssertEqual(dragged[0] + dragged[1], 2 / 3 + 100 / width, accuracy: 0.000001)
+        XCTAssertEqual(dragged[0] + dragged[1], 2.0 / 3 + 100 / width, accuracy: 0.000001)
         XCTAssertEqual(dragged[0] / dragged[2], 1, accuracy: 0.000001)
 
         let rect = middle.lastAppliedLayoutPhysicalRect!
         let wider = Rect(topLeftX: rect.minX, topLeftY: rect.minY, width: rect.width + 100, height: rect.height)
         let edge = proposedResizeWeightMap(middle, rect: wider)!.columnWidths!
-        XCTAssertEqual(edge[0] + edge[1], 2 / 3 + 100 / width, accuracy: 0.000001)
+        XCTAssertEqual(edge[0] + edge[1], 2.0 / 3 + 100 / width, accuracy: 0.000001)
         middle.resetResizeWeightBeforeResizeRecursive()
         ws.rootTilingContainer.resetResizeWeightBeforeResizeRecursive()
         let earlier = Rect(topLeftX: rect.minX - 100, topLeftY: rect.minY, width: rect.width + 100, height: rect.height)
         let leftEdge = proposedResizeWeightMap(middle, rect: earlier)!.columnWidths!
-        XCTAssertEqual(leftEdge[0], 1 / 3 - 100 / width, accuracy: 0.000001)
+        XCTAssertEqual(leftEdge[0], 1.0 / 3 - 100 / width, accuracy: 0.000001)
     }
 
     func testAClickOnADividerCommitsNothing() {
