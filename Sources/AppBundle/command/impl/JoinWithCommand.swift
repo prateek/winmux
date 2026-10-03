@@ -23,6 +23,7 @@ struct JoinWithCommand: Command {
             .tiles,
             index: prevBinding.index,
         )
+        newParent.columnSlot = joinWithTarget.columnSlot
         currentWindow.unbindFromParent()
 
         joinWithTarget.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)

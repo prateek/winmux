@@ -23,6 +23,10 @@ func bindingDataForNewRegularWindow(_ workspace: Workspace, window: Window?) -> 
 @MainActor
 func bindingDataForNewTilingWindow(_ workspace: Workspace, window: Window?) -> BindingData {
     window?.unbindFromParent()
+    if workspace.columns != nil {
+        workspace.enforceColumnInvariant()
+        return workspace.columnBinding(slot: workspace.columnPlacementSlot())
+    }
     if let tabGroupBinding = autoAddNewWindowToFocusedTabGroupBinding(workspace) {
         return tabGroupBinding
     }

@@ -6,6 +6,7 @@ open class TreeNode: Equatable, WinMuxAny {
     var children: [TreeNode] { _children }
     fileprivate final weak var _parent: NonLeafTreeNodeObject? = nil
     final var parent: NonLeafTreeNodeObject? { _parent }
+    var columnSlot: Int?
     private var adaptiveWeight: CGFloat
     private let _mruChildren: MruStack<TreeNode> = MruStack()
     // Usages:
@@ -66,6 +67,7 @@ open class TreeNode: Equatable, WinMuxAny {
     @MainActor
     @discardableResult
     func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
+        if columnSlot != nil, parent !== newParent { columnSlot = nil }
         let result = unbindIfBound()
 
         if newParent === NilTreeNode.instance {

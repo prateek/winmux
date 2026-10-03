@@ -9,6 +9,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     var projectId: WorkspaceProjectId = workspaceProjectDefaultId
     var preferredMonitorPoint: CGPoint?
     var lifecycle: WorkspaceLifecycle = .durable
+    var columns: ColumnState?
 
     @MainActor
     private init(_ name: String) {

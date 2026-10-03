@@ -25,6 +25,7 @@ func createOrAppendWindowTabStack(sourceWindow: Window, onto targetWindow: Windo
         .tabGroup,
         index: targetBinding.index,
     )
+    newParent.columnSlot = targetWindow.columnSlot
     sourceWindow.unbindFromParent()
     targetWindow.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)
     sourceWindow.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)

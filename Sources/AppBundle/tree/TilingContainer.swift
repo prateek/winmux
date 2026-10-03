@@ -46,7 +46,8 @@ extension TilingContainer {
     }
 
     func normalizeOppositeOrientationForNestedContainers() {
-        if orientation == (parent as? TilingContainer)?.orientation {
+        if orientation == (parent as? TilingContainer)?.orientation &&
+            !(columnSlot != nil && nodeWorkspace?.columns != nil) {
             _orientation = orientation.opposite
         }
         for child in children {

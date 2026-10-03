@@ -158,6 +158,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
         index: index,
     )
 
+    container.columnSlot = frozenContainer.columnSlot
     for (index, child) in frozenContainer.children.enumerated() {
         switch child {
             case .window(let w):
@@ -165,6 +166,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
                 guard let window = Window.get(byId: w.id) else { return false }
                 applyFrozenWindowState(window, w)
                 window.bind(to: container, adaptiveWeight: w.weight, index: index)
+                window.columnSlot = w.columnSlot
             case .container(let c):
                 // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }

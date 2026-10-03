@@ -15,6 +15,9 @@ struct MoveCommand: Command {
         guard let parent = currentNode.parent else { return false }
         switch parent.cases {
             case .tilingContainer(let parent):
+                if parent.isRootContainer, let workspace = currentNode.nodeWorkspace, workspace.columns != nil {
+                    return workspace.moveAcrossColumnBoundary(currentNode, direction: direction)
+                }
                 let indexOfCurrent = currentNode.ownIndex.orDie()
                 let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
                 if parent.orientation == direction.orientation && parent.children.indices.contains(indexOfSiblingTarget) {
@@ -120,11 +123,15 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     guard let parent = innerMostChild.parent else { return false }
     switch parent.cases {
         case .tilingContainer(let parent):
+            if parent.isRootContainer, let workspace = node.nodeWorkspace, workspace.columns != nil {
+                return workspace.moveAcrossColumnBoundary(node, direction: direction)
+            }
             check(parent.orientation == direction.orientation)
             guard let ownIndex = innerMostChild.ownIndex else { return false }
             node.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: ownIndex + direction.insertionOffset)
             return true
         case .workspace(let parent):
+            if parent.columns != nil { return parent.moveAcrossColumnBoundary(node, direction: direction) }
             return hitWorkspaceBoundaries(node, parent, io, args, direction, env)
         case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             return io.err(moveOutMacosUnconventionalWindow)
