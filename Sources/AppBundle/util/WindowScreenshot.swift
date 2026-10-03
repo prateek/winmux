@@ -18,19 +18,31 @@ enum WindowScreenshotError: LocalizedError {
     }
 }
 
-/// One-shot captures through ScreenCaptureKit. They need the Screen Recording grant, even for a
-/// window of this process.
-@MainActor
+@globalActor
+actor ScreenshotWorker { static let shared = ScreenshotWorker() }
+
+@ScreenshotWorker
 enum WindowScreenshot {
-    // SCContentFilter takes SCWindows and SCDisplays, and listing them costs about 30 ms, so the
-    // list is kept between captures and fetched again only for a window id it doesn't have.
+    // Listing shareable content costs about 30 ms; Lens captures use only this cached list.
     private static var content: SCShareableContent?
     private static var contentFetch: Task<Void, Never>?
 
+    nonisolated static func invalidateWindowList() {
+        Task { @ScreenshotWorker in
+            content = nil
+            guard CGPreflightScreenCaptureAccess() else { return }
+            await refreshWindowList()
+        }
+    }
+
     /// - Parameter pixelSize: Size of the returned image. `nil` gives one pixel per point of the
     ///   window's own size.
-    static func capture(_ windowId: CGWindowID, pixelSize: CGSize? = nil) async throws -> CGImage {
-        let window = try await shareableWindow(windowId)
+    static func capture(_ windowId: CGWindowID, pixelSize: CGSize? = nil, cachedOnly: Bool = false) async throws -> CGImage {
+        let window: SCWindow
+        if cachedOnly {
+            guard let cached = content?.windows.first(where: { $0.windowID == windowId }) else { throw WindowScreenshotError.windowNotFound(windowId) }
+            window = cached
+        } else { window = try await shareableWindow(windowId) }
         let configuration = baseConfiguration()
         if let pixelSize {
             configuration.width = Int(pixelSize.width.rounded(.up))
@@ -38,13 +50,7 @@ enum WindowScreenshot {
         }
         configuration.ignoreShadows = true
         configuration.includeChildWindows = false
-        do {
-            return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
-        } catch {
-            // The window may have closed since it was listed
-            content = nil
-            throw error
-        }
+        return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
     }
 
     /// What the screen shows in `rect` with the given windows left out, at one pixel per point.
@@ -87,17 +93,21 @@ enum WindowScreenshot {
     private static func shareableWindow(_ windowId: CGWindowID) async throws -> SCWindow {
         if let window = content?.windows.first(where: { $0.windowID == windowId }) { return window }
         guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
-        // Captures that start together share one fetch.
-        let fetch = contentFetch ?? Task { @MainActor in
-            content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-            contentFetch = nil
-        }
-        contentFetch = fetch
-        await fetch.value
+        await refreshWindowList()
         guard let content else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
         guard let window = content.windows.first(where: { $0.windowID == windowId }) else {
             throw WindowScreenshotError.windowNotFound(windowId)
         }
         return window
+    }
+
+    private static func refreshWindowList() async {
+        // Captures that start together share one fetch.
+        let fetch = contentFetch ?? Task { @ScreenshotWorker in
+            content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            contentFetch = nil
+        }
+        contentFetch = fetch
+        await fetch.value
     }
 }

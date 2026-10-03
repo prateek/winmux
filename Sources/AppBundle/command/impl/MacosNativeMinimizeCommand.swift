@@ -14,6 +14,7 @@ struct MacosNativeMinimizeCommand: Command {
             return io.err(noWindowIsFocused)
         }
         let newState: Bool = try await !window.isMacosMinimized
+        if newState { ThumbnailCache.shared.request(window) }
         window.asMacWindow().setNativeMinimized(newState)
         if newState { // minimize
             window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)

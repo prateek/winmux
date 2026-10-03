@@ -43,6 +43,7 @@ final class MacWindow: Window {
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.recordAuthoritativeActualRect(rect)
         allWindowsMap[windowId] = window
+        WindowScreenshot.invalidateWindowList()
         // A window that is gone can come back only while the closed-windows cache remembers it.
         Window.forgetLastFocusedSeqs(except: closedWindowsCacheWindowIds.union(allWindowsMap.keys))
 
@@ -94,6 +95,8 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        ThumbnailCache.shared.closeWindow(self)
+        WindowScreenshot.invalidateWindowList()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
         let parent = unbindFromParent().parent
         let deadWindowWorkspace = parent.nodeWorkspace
@@ -178,6 +181,8 @@ final class MacWindow: Window {
             guard let windowRect = try await getAxRect() else { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
+                miniatureFrame = windowRect.cgRect
+                ThumbnailCache.shared.request(self)
                 let topLeftCorner = windowRect.topLeftCorner
                 let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindow. Non idempotent
                 let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
