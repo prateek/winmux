@@ -795,6 +795,7 @@ final class ColumnPolicyTest: XCTestCase {
             try Data().write(to: release)
             try await task.value
             XCTAssertFalse(window.isBound, action)
+            XCTAssertNil(supervisor.status.lastError, action)
             watcher.cancel()
         }
     }
