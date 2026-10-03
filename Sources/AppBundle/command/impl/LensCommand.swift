@@ -32,6 +32,7 @@ struct LensCommand: Command {
                 return io.err(failure.message)
             }
         }
+        if activeMode == "lens" { try await activateMode(mainModeId) }
         let panel = SwitcherPalettePanel.shared
         if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation) { return true }
         guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil) else { return true }
@@ -51,7 +52,7 @@ struct LensCommand: Command {
             lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }
-        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation)
+        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation, eventFilter: args.name == nil ? filter : nil)
         return true
     }
 }

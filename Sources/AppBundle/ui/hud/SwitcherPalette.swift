@@ -51,7 +51,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil) async {
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
         if settings.presentation == "miniatures" {
             await withTaskGroup(of: Void.self) { group in
                 for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
@@ -72,7 +72,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 miniature: miniatureEntry(entry, onscreen: onscreen)
             )
         }
-        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search))
+        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
         model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
         if settings.miniatures.currentWorkspace == "hide" {
             model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))

@@ -159,6 +159,10 @@ let stack_with_help_generated = """
     """
 let subscribe_help_generated = """
     USAGE: subscribe [-h|--help] [--all] [--no-send-initial] [<event>...]
+
+    Events: focus-changed, focused-monitor-changed, focused-workspace-changed,
+            mode-changed, window-detected, binding-triggered, config-reloaded,
+            lens-opened, lens-closed, columns-changed
     """
 let summon_workspace_help_generated = """
     USAGE: summon-workspace [-h|--help] [--fail-if-noop] <workspace>

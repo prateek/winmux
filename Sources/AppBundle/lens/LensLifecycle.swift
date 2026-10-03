@@ -3,6 +3,10 @@ import Common
 
 @MainActor
 final class LensLifecycle {
+    private let emit: (ServerEvent) -> Void
+
+    init(emit: @escaping (ServerEvent) -> Void = broadcastEvent) { self.emit = emit }
+
     private(set) var session: LensSession?
     private var opening: String?
     private var openingGesture: StripGesture?
@@ -29,6 +33,7 @@ final class LensLifecycle {
             session.stripReleasedWhileOpening = openingRelease
         }
         self.session = session
+        emit(.lensEvent(opened: true, lens: session.eventFilter == nil ? session.name : nil, filter: session.eventFilter))
         opening = nil
         openingGesture = nil
         openingSteps = 0
@@ -68,7 +73,10 @@ final class LensLifecycle {
     }
 
     func dismiss() {
-        if let session { remembered[session.name] = session.query }
+        if let session {
+            remembered[session.name] = session.query
+            emit(.lensEvent(opened: false, lens: session.eventFilter == nil ? session.name : nil, filter: session.eventFilter))
+        }
         session?.cancelLanding()
         session = nil
         opening = nil

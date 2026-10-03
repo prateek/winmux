@@ -48,7 +48,7 @@ let subcommandDescriptions = [
     ["  resize", "Resize the focused window"],
     ["  split", "Split focused window"],
     ["  stack-with", "Put the focused window into the same tab group as the nearest window in the specified direction."],
-    ["  subscribe", "Subscribe to WinMux events and receive notifications via socket"],
+    ["  subscribe", "Subscribe to focus, mode, window, binding, config, Lens and Column events"],
     ["  summon-workspace", "Move the requested workspace to the focused monitor."],
     ["  swap", "Swaps the focused window with another window."],
     ["  trigger-binding", "Trigger WinMux binding as if it was pressed by user"],
