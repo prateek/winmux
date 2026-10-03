@@ -782,4 +782,74 @@ final class FixedColumnsTest: XCTestCase {
         XCTAssertEqual(arrive(2, ws).columnSlot, 1)
     }
 
+
+    func testMoveOutOfNestedTabGroupMovesTheTargetedWindowNotTheMostRecentTab() async throws {
+        let ws = workspace(2)
+        let split = TilingContainer(parent: ws.rootTilingContainer, adaptiveWeight: 1, .v, .tiles, index: INDEX_BIND_LAST)
+        split.columnSlot = 1
+        let group = TilingContainer(parent: split, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let a = TestWindow.new(id: 1, parent: group)
+        let b = TestWindow.new(id: 2, parent: group)
+        TestWindow.new(id: 3, parent: split)
+        ws.normalizeContainers()
+        XCTAssertTrue(b.focusWindow())
+        let result = try await parseCommand("move --window-id 1 right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        ws.normalizeContainers()
+        XCTAssertEqual(ws.columnSlot(containing: a), 2)
+        XCTAssertEqual(ws.columnSlot(containing: b), 1)
+    }
+
+    func testCreatingAWorkspaceDoesNotCreateItsRootContainer() {
+        XCTAssertTrue(Workspace.get(byName: "Fresh").children.isEmpty)
+        config.columns = ColumnsConfig(.object(["count": .int(3)]), workspaces: nil)
+        XCTAssertTrue(Workspace.get(byName: "FreshColumns").children.isEmpty)
+        XCTAssertEqual(Workspace.get(byName: "FreshColumns").columns?.count, 3)
+    }
+
+    func testDividerAndWindowEdgeFollowThePointerPastTheFirstColumn() async throws {
+        let ws = workspace()
+        ws.columns?.focusedSlot = 2
+        let middle = arrive(1, ws)
+        try await ws.layoutWorkspace()
+        let width = ws.workspaceMonitor.visibleRectPaddedByOuterGaps.width
+        let session = ColumnDividerResizeSession(workspace: ws, slot: 2, startX: 500)
+        let dragged = session.proposal(pointerX: 600).columnWidths!
+        XCTAssertEqual(dragged[0] + dragged[1], 2 / 3 + 100 / width, accuracy: 0.000001)
+        XCTAssertEqual(dragged[0] / dragged[2], 1, accuracy: 0.000001)
+
+        let rect = middle.lastAppliedLayoutPhysicalRect!
+        let wider = Rect(topLeftX: rect.minX, topLeftY: rect.minY, width: rect.width + 100, height: rect.height)
+        let edge = proposedResizeWeightMap(middle, rect: wider)!.columnWidths!
+        XCTAssertEqual(edge[0] + edge[1], 2 / 3 + 100 / width, accuracy: 0.000001)
+        middle.resetResizeWeightBeforeResizeRecursive()
+        ws.rootTilingContainer.resetResizeWeightBeforeResizeRecursive()
+        let earlier = Rect(topLeftX: rect.minX - 100, topLeftY: rect.minY, width: rect.width + 100, height: rect.height)
+        let leftEdge = proposedResizeWeightMap(middle, rect: earlier)!.columnWidths!
+        XCTAssertEqual(leftEdge[0], 1 / 3 - 100 / width, accuracy: 0.000001)
+    }
+
+    func testAClickOnADividerCommitsNothing() {
+        let ws = workspace()
+        // Narrow outer Columns make every proposal fall back to equal fractions on a small monitor.
+        let columns = ColumnState(count: 3, widths: [0.001, 0.998, 0.001])
+        ws.columns = columns
+        let session = ColumnDividerResizeSession(workspace: ws, slot: 1, startX: 300)
+        XCTAssertNotEqual(session.proposal(pointerX: 300).columnWidths, columns.widths)
+        session.commit(pointerX: 300)
+        XCTAssertEqual(columns.widths, [0.001, 0.998, 0.001])
+    }
+
+    func testDividerHandlesAreLeftOutUnderFullscreenAndFloatingWindows() {
+        let ws = workspace()
+        let tiled = arrive(1, ws)
+        XCTAssertTrue(ws.showsColumnDividers)
+        tiled.isFullscreen = true
+        XCTAssertFalse(ws.showsColumnDividers)
+        tiled.isFullscreen = false
+        TestWindow.new(id: 2, parent: ws)
+        XCTAssertFalse(ws.showsColumnDividers)
+        ws.columns = ColumnState(count: 1)
+        XCTAssertFalse(ws.showsColumnDividers)
+    }
 }

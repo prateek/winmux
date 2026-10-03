@@ -42,8 +42,11 @@ extension Workspace {
     @MainActor func applyColumns(_ settings: ColumnsConfig) {
         columns = settings.resolved(workspace: name)
         if columns == nil {
-            for child in rootTilingContainer.children { child.columnSlot = nil }
-        } else {
+            // `rootTilingContainer` creates the root, and its orientation, when there is none yet.
+            for root in children.filterIsInstance(of: TilingContainer.self) {
+                for child in root.children { child.columnSlot = nil }
+            }
+        } else if !children.isEmpty {
             enforceColumnInvariant()
         }
     }

@@ -839,3 +839,10 @@ fn columns_reject_invalid_numbers() {
         assert_eq!(columns_load(body)["ok"], false, "{body}");
     }
 }
+
+#[test]
+fn columns_normalization_adds_no_keys_to_the_config() {
+    let reply = columns_load("workspace.Demo = {}");
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["result"]["config"]["workspace"]["Demo"], json!({}));
+}

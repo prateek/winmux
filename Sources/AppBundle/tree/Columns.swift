@@ -36,6 +36,23 @@ final class ColumnState {
         return base.enumerated().map { $0.offset == slot - 1 ? desired : $0.element * scale }
     }
 
+    /// The fraction for `slot` that puts its right edge at `position`, a fraction of the workspace
+    /// width, once the other Columns have absorbed the change in proportion. A Column's own change
+    /// moves the Columns to its left too, so the edge does not move by the change in width alone.
+    func fraction(slot: Int, rightEdgeAt position: CGFloat, starting base: [CGFloat]) -> CGFloat {
+        let left = base.prefix(slot - 1).reduce(0, +)
+        let own = base[slot - 1]
+        let right = 1 - left - own
+        return right > 0.000001 ? (position * (1 - own) - left) / right : position - left
+    }
+
+    /// As `fraction(slot:rightEdgeAt:starting:)`, for the left edge.
+    func fraction(slot: Int, leftEdgeAt position: CGFloat, starting base: [CGFloat]) -> CGFloat {
+        let left = base.prefix(slot - 1).reduce(0, +)
+        let own = base[slot - 1]
+        return left > 0.000001 ? 1 - position * (1 - own) / left : own
+    }
+
     func setWidth(slot: Int, fraction: CGFloat, availableWidth: CGFloat) {
         widths = proposedWidths(slot: slot, fraction: fraction, availableWidth: availableWidth)
     }
@@ -123,13 +140,13 @@ extension Workspace {
     }
 
     @MainActor
-    func moveAcrossColumnBoundary(_ node: TreeNode, direction: CardinalDirection) -> Bool {
-        enforceColumnInvariant()
+    func moveAcrossColumnBoundary(_ node: TreeNode, window: Window, direction: CardinalDirection) -> Bool {
         guard let columns, let slot = columnSlot(containing: node) else { return false }
         guard direction.orientation == .h else { return true }
         let destination = slot + direction.focusOffset
         guard (1...columns.count).contains(destination) else { return true }
-        let moving = (node as? TilingContainer)?.layout == .tabGroup ? node.mostRecentWindowRecursive ?? node : node
+        // A window in a tab group leaves the group alone; `node` is then the group, not the window.
+        let moving = (node as? TilingContainer)?.layout == .tabGroup ? window : node
         moving.unbindFromParent()
         bindToColumn(moving, slot: destination)
         return true

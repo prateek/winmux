@@ -17,15 +17,26 @@ import AppKit
 
     func proposal(pointerX: CGFloat) -> WindowResizePreviewWeightMap {
         let width = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps.width
-        let fraction = startingWidths[slot - 1] + (pointerX - startX) / width
+        let edge = startingWidths.prefix(slot).reduce(0, +) + (pointerX - startX) / width
+        let fraction = columns.fraction(slot: slot, rightEdgeAt: edge, starting: startingWidths)
         let widths = columns.proposedWidths(slot: slot, fraction: fraction, availableWidth: width, starting: startingWidths)
         return WindowResizePreviewWeightMap(columnWidths: widths, workspace: workspace)
     }
 
     func commit(pointerX: CGFloat) {
-        guard workspace.columns === columns else { return }
+        // A click that never moved must not commit: a proposal can differ from the widths it started from.
+        guard workspace.columns === columns, abs(pointerX - startX) >= 1 else { return }
         columns.widths = proposal(pointerX: pointerX).columnWidths.orDie()
         workspace.enforceColumnInvariant()
+    }
+}
+
+extension Workspace {
+    /// The handles sit above every window, so they are left out while a fullscreen or floating
+    /// window could be under one. Dragging a window's edge still resizes its Column.
+    @MainActor var showsColumnDividers: Bool {
+        guard let columns, columns.count > 1 else { return false }
+        return floatingWindows.isEmpty && !rootTilingContainer.allLeafWindowsRecursive.contains(where: \.isFullscreen)
     }
 }
 
@@ -37,7 +48,7 @@ import AppKit
         var visible: Set<String> = []
         if TrayMenuModel.shared.isEnabled {
             for workspace in Workspace.all where workspace.isVisible {
-                guard let columns = workspace.columns, columns.count > 1 else { continue }
+                guard let columns = workspace.columns, workspace.showsColumnDividers else { continue }
                 let rect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
                 for slot in 1..<columns.count {
                     let key = "\(workspace.id.rawValue):\(slot)"

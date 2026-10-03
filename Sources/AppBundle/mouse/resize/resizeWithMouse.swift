@@ -155,14 +155,18 @@ func proposedResizeWeightMap(_ window: Window, rect: Rect) -> WindowResizePrevie
         let rightParent = window.closestParent(hasChildrenInDirection: .right, withLayout: .tiles)?.0
         let leftDiff = lastAppliedLayoutRect.minX - rect.minX
         let rightDiff = rect.maxX - lastAppliedLayoutRect.maxX
-        let diff = (leftParent == nil || leftParent === workspace.rootTilingContainer ? leftDiff : 0) +
-            (rightParent == nil || rightParent === workspace.rootTilingContainer ? rightDiff : 0)
-        if abs(diff) > 5 {
+        let left = leftParent == nil || leftParent === workspace.rootTilingContainer ? leftDiff : 0
+        let right = rightParent == nil || rightParent === workspace.rootTilingContainer ? rightDiff : 0
+        if abs(left + right) > 5 {
             let width = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps.width
             let base = columns.widthsBeforeMouseResize ?? columns.widths
             columns.widthsBeforeMouseResize = base
-            let widths = columns.proposedWidths(slot: slot,
-                fraction: (base[slot - 1] * width + diff) / width, availableWidth: width, starting: base)
+            // The dragged edge follows the pointer; the other Columns absorb in proportion.
+            let before = base.prefix(slot - 1).reduce(0, +)
+            let fraction = abs(right) >= abs(left)
+                ? columns.fraction(slot: slot, rightEdgeAt: before + base[slot - 1] + right / width, starting: base)
+                : columns.fraction(slot: slot, leftEdgeAt: before - left / width, starting: base)
+            let widths = columns.proposedWidths(slot: slot, fraction: fraction, availableWidth: width, starting: base)
             weightMap = WindowResizePreviewWeightMap(columnWidths: widths, workspace: workspace)
         }
     }

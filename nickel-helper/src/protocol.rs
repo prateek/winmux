@@ -179,7 +179,9 @@ fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
 }
 
 fn normalize_columns(config: &mut Value) -> Result<Vec<String>, Diagnostic> {
-    fn normalize(record: &mut Value, path: &str, warnings: &mut Vec<String>) {
+    // `value["key"]` on a `&mut Value` inserts a null for a missing key, so absent records are skipped.
+    fn normalize(record: Option<&mut Value>, path: &str, warnings: &mut Vec<String>) {
+        let Some(record) = record else { return };
         if let Some(widths) = record.get_mut("widths").and_then(Value::as_array_mut) {
             let total: f64 = widths.iter().filter_map(Value::as_f64).sum();
             if total > 0.0 && (total - 1.0).abs() > 1e-8 {
@@ -188,7 +190,7 @@ fn normalize_columns(config: &mut Value) -> Result<Vec<String>, Diagnostic> {
             }
         }
         if let Some(profiles) = record.get_mut("when").and_then(Value::as_object_mut) {
-            for (name, profile) in profiles { normalize(profile, &format!("{path}.when.{name}"), warnings); }
+            for (name, profile) in profiles { normalize(Some(profile), &format!("{path}.when.{name}"), warnings); }
         }
     }
     fn overlay(base: &mut Value, value: &Value) {
@@ -207,14 +209,14 @@ fn normalize_columns(config: &mut Value) -> Result<Vec<String>, Diagnostic> {
         Ok(())
     }
     let mut warnings = Vec::new();
-    normalize(&mut config["columns"], "columns", &mut warnings);
+    normalize(config.get_mut("columns"), "columns", &mut warnings);
     let mut base = json!({"count": "off"});
     overlay(&mut base, &config["columns"]);
     overlay(&mut base, &config["columns"]["when"]["default"]);
     validate(&base, "default")?;
     if let Some(workspaces) = config.get_mut("workspace").and_then(Value::as_object_mut) {
         for (name, workspace) in workspaces {
-            normalize(&mut workspace["columns"], &format!("workspace.{name}.columns"), &mut warnings);
+            normalize(workspace.get_mut("columns"), &format!("workspace.{name}.columns"), &mut warnings);
             let mut resolved = base.clone();
             overlay(&mut resolved, &workspace["columns"]);
             overlay(&mut resolved, &workspace["columns"]["when"]["default"]);
