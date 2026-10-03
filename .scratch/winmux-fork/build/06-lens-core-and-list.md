@@ -179,33 +179,44 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Disabled Lens exit code.** `winmux lens <name>` on a Lens with `enabled = false` exits 2.
 - **`'strip` and `'miniatures` before their issues land.** The contract accepts both values. Opening such a Lens falls back to `'list` and writes a log line.
 
+## Build notes
+
+Implemented on `prateek/lens-core-list`; not yet pushed or landed. No settled Decision or chosen Default was changed.
+
+- A configured Lens that omits `presentation` defaults to `'list`; the original field table left that default blank.
+- Search reads the displayed workspace/project names; Filter records keep their existing workspace/project ids. When different words match different fields, JSON joins their names with commas in `matched-field`.
+- Ad-hoc and script Filter bodies use the helper’s new `check-filter` preflight. This catches an invalid body even when an explicit scope contains no windows. Runtime evaluation failures still follow the interactive/banner and script/fail-closed policies.
+- `cmd-1` through `cmd-9` use the existing workspace-number command. Summon restores minimized/hidden windows, preserves floating layout, then uses the existing move/focus path without `arrive`. Column placement remains a later issue.
+- Popup-class inclusion is tested at the candidate seam; live Accessory classification is still issue #8. A real native fullscreen Space was not exercised.
+- `make check` and the debug live run cover the checked items below. The driver’s PR description and report list the tests and captures. CI remains the driver’s check after opening the PR.
+
 ## Done when
 
-- [ ] A config with a `lenses.<name>` record loads, and `winmux list-lenses --json` prints its resolved settings.
-- [ ] A Lens with `presentation = 'grid`, an unknown field (for example `frozen_thumbnail`, with an underscore) or an unknown sort key fails `winmux config check` with a diagnostic.
-- [ ] A Lens record with no `filter` loads and shows every window.
-- [ ] A binding `lens <name>` in `mode.main.binding` opens the Lens.
-- [ ] With a config that imports `defaults.ncl`, `winmux lens search` opens a list of every window in most-recently-used order. `winmux palette` does the same.
-- [ ] `winmux lens <name>` run while that Lens is open closes it. `winmux lens <other>` run while a Lens is open replaces it with the other Lens.
-- [ ] A Lens with the default `popups = []` shows no popup-class window, even when its Filter is `fun w ctx => true`. The same Lens with `popups = ['accessory-popup]` shows `'accessory-popup` windows its Filter matches and still no `'app-popup` window.
-- [ ] `enter` focuses the selected window. `shift-enter` moves it into the current workspace. `cmd-w` closes it.
-- [ ] `cmd-1` moves the selected window to workspace 1 and does not pick the first row. Rows show no cmd-number badge.
-- [ ] `winmux summon --window-id <id>` moves that window into the current workspace from a script.
-- [ ] A custom `keys` entry runs its command against the selected window.
-- [ ] Marking three windows with `tab` and pressing `shift-enter` Summons all three in the order marked. `enter` with marks present focuses only the selection.
-- [ ] Hover moves the selection, click focuses, shift-click Summons.
-- [ ] Typing narrows the rows. Words match in any order, `vsc` finds Visual Studio Code, and a title match ranks above a workspace-name match. Tests cover each tier.
-- [ ] Clearing the Search restores the Lens's `sort` order.
-- [ ] Reopening a Lens shows the last Search preselected. `winmux lens search --search 'foo'` opens with `foo` in the box.
-- [ ] Typing `= w.class == 'floating` shows only floating windows. A half-typed body keeps the previous rows, shows the first line of the Nickel error and turns the border amber.
-- [ ] `lens --presentation list` run while a Lens is open reopens it as a list with the same Filter, `sort`, selection, marks and Search.
-- [ ] A Lens with `enabled = false` does not open, and `winmux lens <name>` exits non-zero with a message.
-- [ ] A setting under `when.default` overrides the base Lens. A `when` record under any other profile name loads and never applies.
-- [ ] A Lens whose Filter fails at run time opens with every candidate window and a banner, and still shows no popup-class window it did not list in `popups`.
-- [ ] `winmux lens --filter "w.class == 'floating"` opens an ad-hoc Lens. `--filter <name>` uses the named Filter. `--filter -` reads the body from stdin.
-- [ ] `winmux list-windows --lens <name> --json`, with no scope flag, prints that Lens's matches across all workspaces in its `sort` order. Adding `--workspace <name>` prints only the matches on that workspace. `--search '<text>'` adds `score` and the matched field.
-- [ ] `winmux list-windows --filter "w.nope"` prints nothing on stdout, the Nickel diagnostic on stderr, and exits 2. With the server down the command exits 1.
-- [ ] A Lens open during a config reload keeps its entries and still acts on a selection.
+- [x] A config with a `lenses.<name>` record loads, and `winmux list-lenses --json` prints its resolved settings.
+- [x] A Lens with `presentation = 'grid`, an unknown field (for example `frozen_thumbnail`, with an underscore) or an unknown sort key fails `winmux config check` with a diagnostic.
+- [x] A Lens record with no `filter` loads and shows every window.
+- [x] A binding `lens <name>` in `mode.main.binding` opens the Lens.
+- [x] With a config that imports `defaults.ncl`, `winmux lens search` opens a list of every window in most-recently-used order. `winmux palette` does the same.
+- [x] `winmux lens <name>` run while that Lens is open closes it. `winmux lens <other>` run while a Lens is open replaces it with the other Lens.
+- [x] A Lens with the default `popups = []` shows no popup-class window, even when its Filter is `fun w ctx => true`. The same Lens with `popups = ['accessory-popup]` shows `'accessory-popup` windows its Filter matches and still no `'app-popup` window.
+- [x] `enter` focuses the selected window. `shift-enter` moves it into the current workspace. `cmd-w` closes it.
+- [x] `cmd-1` moves the selected window to workspace 1 and does not pick the first row. Rows show no cmd-number badge.
+- [x] `winmux summon --window-id <id>` moves that window into the current workspace from a script.
+- [x] A custom `keys` entry runs its command against the selected window.
+- [x] Marking three windows with `tab` and pressing `shift-enter` Summons all three in the order marked. `enter` with marks present focuses only the selection.
+- [x] Hover moves the selection, click focuses, shift-click Summons.
+- [x] Typing narrows the rows. Words match in any order, `vsc` finds Visual Studio Code, and a title match ranks above a workspace-name match. Tests cover each tier.
+- [x] Clearing the Search restores the Lens's `sort` order.
+- [x] Reopening a Lens shows the last Search preselected. `winmux lens search --search 'foo'` opens with `foo` in the box.
+- [x] Typing `= w.class == 'floating` shows only floating windows. A half-typed body keeps the previous rows, shows the first line of the Nickel error and turns the border amber.
+- [x] `lens --presentation list` run while a Lens is open reopens it as a list with the same Filter, `sort`, selection, marks and Search.
+- [x] A Lens with `enabled = false` does not open, and `winmux lens <name>` exits non-zero with a message.
+- [x] A setting under `when.default` overrides the base Lens. A `when` record under any other profile name loads and never applies.
+- [x] A Lens whose Filter fails at run time opens with every candidate window and a banner, and still shows no popup-class window it did not list in `popups`.
+- [x] `winmux lens --filter "w.class == 'floating"` opens an ad-hoc Lens. `--filter <name>` uses the named Filter. `--filter -` reads the body from stdin.
+- [x] `winmux list-windows --lens <name> --json`, with no scope flag, prints that Lens's matches across all workspaces in its `sort` order. Adding `--workspace <name>` prints only the matches on that workspace. `--search '<text>'` adds `score` and the matched field.
+- [x] `winmux list-windows --filter "w.nope"` prints nothing on stdout, the Nickel diagnostic on stderr, and exits 2. With the server down the command exits 1.
+- [x] A Lens open during a config reload keeps its entries and still acts on a selection.
 
 ## Sources
 
