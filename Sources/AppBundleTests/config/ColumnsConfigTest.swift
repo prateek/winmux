@@ -15,7 +15,7 @@ import XCTest
         XCTAssertEqual(parsed.config.columns.resolved(workspace: "Other")?.widths, [0.4, 0.6])
         XCTAssertEqual(parsed.config.columns.resolved(workspace: "Demo")?.count, 3)
         XCTAssertEqual(parsed.config.columns.resolved(workspace: "Demo")?.widths, [0.1, 0.2, 0.7])
-        XCTAssertEqual(parsed.config.columns.widthPresets, [1/3, 1/2, 2/3])
+        XCTAssertEqual(parsed.config.columns.widthPresets, [1.0 / 3, 1.0 / 2, 2.0 / 3] as [CGFloat])
     }
     func testReloadResetsWidthsFoldsCountAndOffClearsSlots() throws {
         let ws = Workspace.get(byName: "Demo")

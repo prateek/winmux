@@ -5,7 +5,8 @@ struct ColumnsConfig: Sendable {
     private var global: JSONValue = .object([:])
     private var workspaces: JSONValue = .object([:])
     var widthPresets: [CGFloat] {
-        global["width-presets"]?.arrayOrNil?.compactMap(columnNumber) ?? [1/3, 1/2, 2/3]
+        let shipped: [CGFloat] = [1.0 / 3, 1.0 / 2, 2.0 / 3]
+        return global["width-presets"]?.arrayOrNil?.compactMap(columnNumber) ?? shipped
     }
 
     init() {}
