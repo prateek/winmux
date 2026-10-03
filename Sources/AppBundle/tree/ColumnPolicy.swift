@@ -180,17 +180,19 @@ enum ColumnPolicy {
                                  hook: answer == nil ? path : "arrive", run: commands(result))
     }
 
+    @discardableResult
     static func place(_ window: Window, on workspace: Workspace, answer: JSONValue? = nil,
-                      supervisor: NickelSupervisor = .shared) async throws {
-        guard workspace.columns != nil else { return }
+                      supervisor: NickelSupervisor = .shared) async throws -> Bool {
+        guard workspace.columns != nil else { return false }
         let location = Location(window)
         let columns = workspace.columns
         let decision = await decision(window: window, workspace: workspace, answer: answer, supervisor: supervisor)
-        guard location.contains(window), workspace.columns === columns else { return }
+        guard location.contains(window), workspace.columns === columns else { return false }
         if window.isBound { window.unbindFromParent() }
         workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
         workspace.normalizeContainers()
         try await run(decision.run, window: window)
+        return true
     }
 
     static func afterTransfer(_ window: Window, from previous: Workspace?, didMove: Bool) async throws -> Bool {
@@ -223,7 +225,7 @@ enum ColumnPolicy {
             var placement = explicit
             if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
             if destination.columns != nil {
-                try await place(window, on: destination, answer: placement, supervisor: supervisor)
+                guard try await place(window, on: destination, answer: placement, supervisor: supervisor) else { return }
             } else {
                 window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
             }

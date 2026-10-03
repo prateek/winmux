@@ -799,4 +799,31 @@ final class ColumnPolicyTest: XCTestCase {
         }
     }
 
+    func testArriveSkipsRunWhenDestinationPlaceWasAbandoned() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { run = [\"column-count 2 --workspace Demo\"] }, columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }", shared: true)
+        let ws = demo()
+        let other = Workspace.get(byName: "Other")
+        let anchor = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
+        ws.enforceColumnInvariant()
+        XCTAssertTrue(anchor.focusWindow())
+        let window = TestWindow.new(id: 42, parent: ws)
+        let placing = expectation(description: "Arrival is collecting Place arguments")
+        var reads = 0
+        var release: CheckedContinuation<Void, Never>?
+        window.beforeAxRecord = {
+            reads += 1
+            if reads == 2 {
+                await withCheckedContinuation { continuation in release = continuation; placing.fulfill() }
+            }
+        }
+        let arrival = Task { @MainActor in try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false, supervisor: supervisor) }
+        await fulfillment(of: [placing], timeout: 2)
+        window.bindAsFloatingWindow(to: other)
+        release?.resume()
+        try await arrival.value
+        XCTAssertTrue(window.nodeWorkspace === other)
+        XCTAssertEqual(ws.columns?.count, 3)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
 }
