@@ -32,6 +32,8 @@ final class LensSession: ObservableObject {
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
+    var stripGesture: StripGesture?
+    var removedIds: Set<UInt32> = []
     var onSearchChanged: (() -> Void)?
     var onAction: ((String) -> Void)?
 
@@ -63,6 +65,7 @@ final class LensSession: ObservableObject {
     }
 
     var results: [SwitcherPaletteItem] {
+        let items = items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
         let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
@@ -85,8 +88,12 @@ final class LensSession: ObservableObject {
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
+    func enterKey(modifiers: NSEvent.ModifierFlags) -> String? {
+        keyBindings.first { $0.code == 36 && $0.modifiers == modifiers }?.name
+    }
+
     func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) {
-        let held = modifiers.intersection([.control, .option, .shift, .command])
+        let held = settings.presentation == "strip" ? (stripGesture?.releaseModifiers(modifiers) ?? []) : modifiers.intersection([.control, .option, .shift, .command])
         let shouldHold = !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }
