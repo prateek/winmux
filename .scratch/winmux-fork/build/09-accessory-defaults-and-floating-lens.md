@@ -80,22 +80,44 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Focus and Summon on a popup-class window.** `focus` raises the window through `nativeFocus`. Summon refuses with a message and moves nothing, because the window has no workspace to leave.
 - **The `floating` Lens's sort order.** `['mru]`, the same as the `search` Lens.
 
+## Build notes
+
+The decisions and chosen defaults are unchanged. Bundle identity is cached at app registration;
+live policy is read for each record. Popup classification still precedes the floating default.
+App fields and popup class are captured before the AX round-trip, so a policy change during
+that read does not mix two moments in one record.
+
+`list-lenses --json` reports a Filter's callable config path, `lenses.floating.filter`, rather
+than its source alias `filters.floating`; Nickel functions stay in the helper. Profile overrides
+report their `when.default.filter` path, and an absent Filter is `null`. The shipped Lens still
+references the named, overridable `filters.floating`. This extends Lens core's introspection,
+which previously omitted functions entirely.
+
+Validation: `make check` passes, including classifier, plist-value, record, AX snapshot,
+popup-gate, row-action and real-helper CLI tests. `make default-config` and `make contract`
+were run. The live run used owned neutral Accessory and Dock apps, with genuine AX close-button
+absence. It covered floating at open, the regular-policy dialog, both popup gates, popup Enter
+and shift-enter, cross-workspace floating Focus and Summon, policy changes on one window,
+and the CLI. Captures are named in the pull request's Live run section. The three popup checks
+left by Lens core and the list are now verified live. A native fullscreen Space was not tried;
+a controlled AXUnknown Dock-app popup represented a browser autofill dropdown.
+
 ## Done when
 
-- [ ] A window of an app whose bundle declares `LSUIElement`, with a standard subrole and an enabled fullscreen button, opens floating. The same window tiled before this change.
-- [ ] Windows of ordinary Dock apps are classified exactly as before.
-- [ ] `winmux list-windows --filter "w.app.accessory" --json` lists the windows of Accessory apps.
-- [ ] `w.app.accessory` is `true` for an `LSUIElement` app even while its activation policy is `'regular`.
-- [ ] `w.app.accessory` is `true` whether the bundle writes `LSUIElement` as a boolean, a number or the string `"1"`, and `false` for an app with no bundle or no such key. A test covers each case.
-- [ ] `winmux list-windows --filter "w.app.activationPolicy == 'accessory" --json` reflects the live policy and changes when the app's policy changes.
-- [ ] A close-button-less window of an app with no Dock icon is `'accessory-popup`; the same app's window is `'floating` while the app is `regular`.
-- [ ] A regular app's popup is `'app-popup`. A window of an app whose live policy is `accessory`, classified as a popup for a reason other than a missing close button, is `'accessory-popup`.
-- [ ] A close-button-less dialog of an Accessory app that reports `regular` at that moment appears in the `floating` Lens.
-- [ ] A Lens with `popups = ['accessory-popup]` and the Filter `fun w ctx => true` shows the close-button-less window of an app with no Dock icon and does not show a regular app's autofill dropdown. With `popups = ['app-popup]` it shows the dropdown and not the other.
-- [ ] In a Lens that lists a popup class, `enter` on a popup-class window raises it, and `shift-enter` prints a message and moves nothing.
-- [ ] `winmux lens floating` opens a list of every floating window on every workspace, most recently focused first. `enter` focuses the selection, and `shift-enter` Summons it into the current workspace.
-- [ ] `winmux list-windows --lens floating --json` prints the same windows.
-- [ ] `winmux list-lenses --json` includes `floating` with the `'list` Presentation, the Filter `filters.floating` and an empty `popups`.
+- [x] A window of an app whose bundle declares `LSUIElement`, with a standard subrole and an enabled fullscreen button, opens floating. The same window tiled before this change.
+- [x] Windows of ordinary Dock apps are classified exactly as before.
+- [x] `winmux list-windows --filter "w.app.accessory" --json` lists the windows of Accessory apps.
+- [x] `w.app.accessory` is `true` for an `LSUIElement` app even while its activation policy is `'regular`.
+- [x] `w.app.accessory` is `true` whether the bundle writes `LSUIElement` as a boolean, a number or the string `"1"`, and `false` for an app with no bundle or no such key. A test covers each case.
+- [x] `winmux list-windows --filter "w.app.activationPolicy == 'accessory" --json` reflects the live policy and changes when the app's policy changes.
+- [x] A close-button-less window of an app with no Dock icon is `'accessory-popup`; the same app's window is `'floating` while the app is `regular`.
+- [x] A regular app's popup is `'app-popup`. A window of an app whose live policy is `accessory`, classified as a popup for a reason other than a missing close button, is `'accessory-popup`.
+- [x] A close-button-less dialog of an Accessory app that reports `regular` at that moment appears in the `floating` Lens.
+- [x] A Lens with `popups = ['accessory-popup]` and the Filter `fun w ctx => true` shows the close-button-less window of an app with no Dock icon and does not show a regular app's autofill dropdown. With `popups = ['app-popup]` it shows the dropdown and not the other.
+- [x] In a Lens that lists a popup class, `enter` on a popup-class window raises it, and `shift-enter` prints a message and moves nothing.
+- [x] `winmux lens floating` opens a list of every floating window on every workspace, most recently focused first. `enter` focuses the selection, and `shift-enter` Summons it into the current workspace.
+- [x] `winmux list-windows --lens floating --json` prints the same windows.
+- [x] `winmux list-lenses --json` includes `floating` with the `'list` Presentation, the Filter `filters.floating` and an empty `popups`.
 
 ## Sources
 
