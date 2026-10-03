@@ -7,6 +7,7 @@
 # Overview uses priority -1 above the contract's fallback. A config that does not import this file
 # gets none of these settings.
 {
+  columns = { count | default = 'off, width-presets | default = [1/3, 1/2, 2/3] },
   auto-add-new-windows-to-tab-group | default = true,
   automatically-tile-new-windows | default = true,
   automatically-unhide-macos-hidden-apps | default = false,

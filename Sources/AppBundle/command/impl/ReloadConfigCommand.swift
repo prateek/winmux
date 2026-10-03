@@ -131,6 +131,10 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     }
     switch read {
         case .success(let loaded):
+            for warning in loaded.helper.warnings {
+                stdout.append("warning: \(warning)\n")
+                configLog.warning("\(warning, privacy: .public)")
+            }
             if args.dryRun {
                 NickelSupervisor.shared.discard(loaded.helper)
                 return true
@@ -157,6 +161,7 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
 @MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
     resetHotKeys()
     config = newConfig
+    for workspace in Workspace.all { workspace.applyColumns(config.columns) }
     config.workspaceSidebar.apply(readWorkspaceSidebarState())
     configUrl = url
     try await activateMode(config.modeToKeep(activeMode))

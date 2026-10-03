@@ -109,10 +109,11 @@ impl Helper {
 pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diagnostic> {
     let source = path.map_or(Source::Defaults, Source::File);
     let mut engine = Engine::load(source, library)?;
-    let config = engine.static_json()?;
+    let mut config = engine.static_json()?;
+    let warnings = normalize_columns(&mut config)?;
     smoke_run(&mut engine)?;
     let imports: Vec<String> = engine.imports().iter().map(|p| p.to_string_lossy().into_owned()).collect();
-    Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy() })))
+    Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy(), "warnings": warnings })))
 }
 
 fn match_bits(
@@ -175,4 +176,50 @@ fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
         }
     }
     Ok(())
+}
+
+fn normalize_columns(config: &mut Value) -> Result<Vec<String>, Diagnostic> {
+    fn normalize(record: &mut Value, path: &str, warnings: &mut Vec<String>) {
+        if let Some(widths) = record.get_mut("widths").and_then(Value::as_array_mut) {
+            let total: f64 = widths.iter().filter_map(Value::as_f64).sum();
+            if total > 0.0 && (total - 1.0).abs() > 1e-8 {
+                warnings.push(format!("{path}.widths sum to {total}; normalized proportionally to 1"));
+                for width in widths { *width = json!(width.as_f64().unwrap() / total); }
+            }
+        }
+        if let Some(profiles) = record.get_mut("when").and_then(Value::as_object_mut) {
+            for (name, profile) in profiles { normalize(profile, &format!("{path}.when.{name}"), warnings); }
+        }
+    }
+    fn overlay(base: &mut Value, value: &Value) {
+        for key in ["count", "widths"] {
+            if let Some(field) = value.get(key) { base[key] = field.clone(); }
+        }
+    }
+    fn validate(value: &Value, path: &str) -> Result<(), Diagnostic> {
+        if let Some(count) = value["count"].as_u64() {
+            if let Some(widths) = value["widths"].as_array() {
+                if widths.len() != count as usize {
+                    return Err(format!("{path}.columns.widths length {} differs from resolved count {count}", widths.len()));
+                }
+            }
+        }
+        Ok(())
+    }
+    let mut warnings = Vec::new();
+    normalize(&mut config["columns"], "columns", &mut warnings);
+    let mut base = json!({"count": "off"});
+    overlay(&mut base, &config["columns"]);
+    overlay(&mut base, &config["columns"]["when"]["default"]);
+    validate(&base, "default")?;
+    if let Some(workspaces) = config.get_mut("workspace").and_then(Value::as_object_mut) {
+        for (name, workspace) in workspaces {
+            normalize(&mut workspace["columns"], &format!("workspace.{name}.columns"), &mut warnings);
+            let mut resolved = base.clone();
+            overlay(&mut resolved, &workspace["columns"]);
+            overlay(&mut resolved, &workspace["columns"]["when"]["default"]);
+            validate(&resolved, &format!("workspace.{name}"))?;
+        }
+    }
+    Ok(warnings)
 }

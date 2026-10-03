@@ -29,6 +29,7 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
         } else {
             let workspace = Workspace(name)
             winMuxWorkspaceState.registerWorkspace(workspace)
+            workspace.applyColumns(config.columns)
             return workspace
         }
     }

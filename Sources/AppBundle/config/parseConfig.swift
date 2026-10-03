@@ -186,12 +186,12 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
             }
         }
     }
+    parsed.config.columns = ColumnsConfig(fields["columns"], workspaces: fields["workspace"])
     return parsed
 }
 
-/// Root keys handled outside the TOML bridge: Filters stay in the helper, Lenses are
-/// parsed from JSON above, and contract-version is read only by the helper.
-private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "contract-version"]
+/// Root keys handled outside the TOML bridge.
+private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))

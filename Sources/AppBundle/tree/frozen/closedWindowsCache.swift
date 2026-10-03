@@ -150,23 +150,15 @@ func restoreFrozenWorldIfNeeded(_ frozenWorld: FrozenWorld, newlyDetectedWindow:
 @discardableResult
 @MainActor
 private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int) -> Bool {
-    let container = TilingContainer(
-        parent: parent,
-        adaptiveWeight: frozenContainer.weight,
-        frozenContainer.orientation,
-        frozenContainer.layout,
-        index: index,
-    )
-
-    container.columnSlot = frozenContainer.columnSlot
+    let container = TilingContainer(replacing: BindingData(parent: parent, adaptiveWeight: frozenContainer.weight,
+        index: index, columnSlot: frozenContainer.columnSlot), frozenContainer.orientation, frozenContainer.layout)
     for (index, child) in frozenContainer.children.enumerated() {
         switch child {
             case .window(let w):
                 // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
                 guard let window = Window.get(byId: w.id) else { return false }
                 applyFrozenWindowState(window, w)
-                window.bind(to: container, adaptiveWeight: w.weight, index: index)
-                window.columnSlot = w.columnSlot
+                window.bind(to: BindingData(parent: container, adaptiveWeight: w.weight, index: index, columnSlot: w.columnSlot))
             case .container(let c):
                 // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }

@@ -86,6 +86,7 @@ func updateCompositedResizePreview(_ window: Window, rect: Rect) {
 func applyResizeWithMouse(_ window: Window, rect: Rect) {
     syncClosedWindowsCacheToCurrentWorld()
     guard let weightMap = proposedResizeWeightMap(window, rect: rect) else { return }
+    if let widths = weightMap.columnWidths { window.nodeWorkspace?.columns?.widths = widths }
     for change in weightMap.changes {
         change.node.setWeight(change.orientation, change.weight)
     }
@@ -101,6 +102,19 @@ struct WindowResizeWeightChange {
 }
 
 struct WindowResizePreviewWeightMap {
+    var columnWidths: [CGFloat]?
+
+    init() {}
+
+    @MainActor init(columnWidths: [CGFloat], workspace: Workspace) {
+        self.columnWidths = columnWidths
+        let width = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps.width
+        for child in workspace.rootTilingContainer.children {
+            if let slot = child.columnSlot, columnWidths.indices.contains(slot - 1) {
+                set(columnWidths[slot - 1] * width, for: child, orientation: .h)
+            }
+        }
+    }
     private var weights: [WindowResizeWeightKey: CGFloat] = [:]
     private var nodes: [ObjectIdentifier: TreeNode] = [:]
 
@@ -135,6 +149,23 @@ func proposedResizeWeightMap(_ window: Window, rect: Rect) -> WindowResizePrevie
     guard window.parent is TilingContainer else { return nil }
     guard let lastAppliedLayoutRect = window.lastAppliedLayoutPhysicalRect else { return nil }
     var weightMap = WindowResizePreviewWeightMap()
+    if let workspace = window.nodeWorkspace, let columns = workspace.columns,
+       let slot = workspace.columnSlot(containing: window) {
+        let leftParent = window.closestParent(hasChildrenInDirection: .left, withLayout: .tiles)?.0
+        let rightParent = window.closestParent(hasChildrenInDirection: .right, withLayout: .tiles)?.0
+        let leftDiff = lastAppliedLayoutRect.minX - rect.minX
+        let rightDiff = rect.maxX - lastAppliedLayoutRect.maxX
+        let diff = (leftParent == nil || leftParent === workspace.rootTilingContainer ? leftDiff : 0) +
+            (rightParent == nil || rightParent === workspace.rootTilingContainer ? rightDiff : 0)
+        if abs(diff) > 5 {
+            let width = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps.width
+            let base = columns.widthsBeforeMouseResize ?? columns.widths
+            columns.widthsBeforeMouseResize = base
+            let widths = columns.proposedWidths(slot: slot,
+                fraction: (base[slot - 1] * width + diff) / width, availableWidth: width, starting: base)
+            weightMap = WindowResizePreviewWeightMap(columnWidths: widths, workspace: workspace)
+        }
+    }
     let (lParent, lOwnIndex) = window.closestParent(hasChildrenInDirection: .left, withLayout: .tiles) ?? (nil, nil)
     let (dParent, dOwnIndex) = window.closestParent(hasChildrenInDirection: .down, withLayout: .tiles) ?? (nil, nil)
     let (uParent, uOwnIndex) = window.closestParent(hasChildrenInDirection: .up, withLayout: .tiles) ?? (nil, nil)
@@ -147,6 +178,7 @@ func proposedResizeWeightMap(_ window: Window, rect: Rect) -> WindowResizePrevie
     ]
     for (diff, parent, startIndex, pastTheEndIndex) in table {
         if let parent, let startIndex, let pastTheEndIndex, pastTheEndIndex - startIndex > 0 && abs(diff) > 5 { // 5 pixels should be enough to fight with accumulated floating precision error
+            if parent.isRootContainer && window.nodeWorkspace?.columns != nil { continue }
             let orientation = parent.orientation
             let resizedNodes = Array(window.parentsWithSelf.lazy
                 .prefix(while: { $0 != parent })
@@ -187,6 +219,7 @@ extension TreeNode {
     }
 
     func resetResizeWeightBeforeResizeRecursive() {
+        if (self as? TilingContainer)?.isRootContainer == true { nodeWorkspace?.columns?.widthsBeforeMouseResize = nil }
         cleanUserData(key: adaptiveWeightBeforeResizeWithMouseKey)
         for child in children {
             child.resetResizeWeightBeforeResizeRecursive()

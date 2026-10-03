@@ -4,8 +4,10 @@ import Common
 final class ColumnState {
     let count: Int
     var focusedSlot: Int?
+    var lastFocusedWindowSlot: Int?
     let declaredWidths: [CGFloat]
     var widths: [CGFloat]
+    var widthsBeforeMouseResize: [CGFloat]?
     weak var root: TilingContainer?
 
     init(count: Int, widths: [CGFloat]? = nil) {
@@ -17,18 +19,72 @@ final class ColumnState {
         self.declaredWidths = widths.map { $0 / total }
         self.widths = declaredWidths
     }
+    func proposedWidths(slot: Int, fraction: CGFloat, availableWidth: CGFloat, starting: [CGFloat]? = nil) -> [CGFloat] {
+        let base = starting ?? widths
+        guard base.indices.contains(slot - 1), fraction.isFinite, availableWidth > 0 else { return base }
+        guard count > 1 else { return [1] }
+        if availableWidth < minimumTiledResizeWeight * CGFloat(count) {
+            return Array(repeating: 1 / CGFloat(count), count: count)
+        }
+        let floor = min(minimumTiledResizeWeight / availableWidth, 1 / CGFloat(count))
+        let old = base[slot - 1]
+        let others = base.enumerated().filter { $0.offset != slot - 1 }.map(\.element)
+        let maximum = 1 - floor * (1 - old) / others.min().orDie()
+        let desired = max(floor, min(maximum, fraction))
+        let scale = (1 - desired) / (1 - old)
+        return base.enumerated().map { $0.offset == slot - 1 ? desired : $0.element * scale }
+    }
+
+    func setWidth(slot: Int, fraction: CGFloat, availableWidth: CGFloat) {
+        widths = proposedWidths(slot: slot, fraction: fraction, availableWidth: availableWidth)
+    }
+
+    func stepWidth(slot: Int, forward: Bool, presets: [CGFloat], availableWidth: CGFloat) {
+        guard widths.indices.contains(slot - 1), !presets.isEmpty else { return }
+        let sorted = presets.sorted()
+        let current = widths[slot - 1]
+        let preset = forward
+            ? sorted.first(where: { $0 > current + 0.000001 }) ?? sorted[0]
+            : sorted.last(where: { $0 < current - 0.000001 }) ?? sorted.last.orDie()
+        setWidth(slot: slot, fraction: preset, availableWidth: availableWidth)
+    }
+
 }
 
 extension Workspace {
     @MainActor
     func enforceColumnInvariant() {
         guard let columns else { return }
+        defer {
+            if focus.workspace === self, let slot = columnSlot(containing: focus.windowOrNil),
+               columns.lastFocusedWindowSlot != slot {
+                columns.focusedSlot = slot
+                columns.lastFocusedWindowSlot = slot
+            }
+        }
         let root = rootTilingContainer
+        let slots = root.children.compactMap(\.columnSlot)
+        let recoversRoot = columns.root.map { $0 !== root && $0.nodeWorkspace === self } ?? false
+        if !recoversRoot, slots.count == root.children.count,
+           Set(slots).count == slots.count, slots.allSatisfy({ (1...columns.count).contains($0) }) {
+            root.changeOrientation(.h)
+            root.layout = .tiles
+            columns.root = root
+            applyColumnWidthsAndOrder()
+            return
+        }
+        func snapshot(_ node: TreeNode) -> [(TreeNode, [TreeNode])] {
+            let order = node.childrenByMostRecentUse.flatMap { child in
+                recoversRoot && node === root && child === columns.root ? child.childrenByMostRecentUse : [child]
+            }
+            return [(node, order)] + node.children.flatMap(snapshot)
+        }
+        let mru = snapshot(self)
+        defer { for (node, order) in mru { node.restoreChildMru(order) } }
         if let oldRoot = columns.root, oldRoot !== root, oldRoot.nodeWorkspace === self {
             for child in oldRoot.children {
-                let slot = child.columnSlot
-                child.bind(to: root, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-                child.columnSlot = slot
+                let binding = child.unbindFromParent()
+                child.bind(to: BindingData(parent: root, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST, columnSlot: binding.columnSlot))
             }
             oldRoot.unbindFromParent()
         }
@@ -50,27 +106,31 @@ extension Workspace {
             let slot = columnPlacementSlot()
             bindToColumn(child, slot: slot)
         }
+        applyColumnWidthsAndOrder()
+    }
+
+    @MainActor
+    private func applyColumnWidthsAndOrder() {
+        guard let columns else { return }
+        let root = rootTilingContainer
         for child in root.children {
             if let slot = child.columnSlot {
                 child.setWeight(.h, root.hWeight * columns.widths[slot - 1])
             }
         }
-        let mostRecent = root.mostRecentChild
-        for child in root.children.sorted(by: { $0.columnSlot.orDie() < $1.columnSlot.orDie() }) {
-            let weight = child.hWeight
-            child.bind(to: root, adaptiveWeight: weight, index: INDEX_BIND_LAST)
-        }
-        mostRecent?.markAsMostRecentChild()
+        root.sortChildrenByColumnSlot()
     }
 
     @MainActor
     func moveAcrossColumnBoundary(_ node: TreeNode, direction: CardinalDirection) -> Bool {
+        enforceColumnInvariant()
         guard let columns, let slot = columnSlot(containing: node) else { return false }
         guard direction.orientation == .h else { return true }
         let destination = slot + direction.focusOffset
         guard (1...columns.count).contains(destination) else { return true }
-        node.unbindFromParent()
-        bindToColumn(node, slot: destination)
+        let moving = (node as? TilingContainer)?.layout == .tabGroup ? node.mostRecentWindowRecursive ?? node : node
+        moving.unbindFromParent()
+        bindToColumn(moving, slot: destination)
         return true
     }
 
@@ -84,8 +144,8 @@ extension Workspace {
     func columnPlacementSlot() -> Int {
         let columns = columns.orDie()
         let root = rootTilingContainer
-        let anchor = columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
-            root.childrenByMostRecentUse.first?.columnSlot ?? 1
+        let anchor = max(1, min(columns.count, columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
+            root.childrenByMostRecentUse.first?.columnSlot ?? 1))
         let occupied = Set(root.children.compactMap(\.columnSlot))
         return (1...columns.count).filter { !occupied.contains($0) }.min {
             let left = abs($0 - anchor)
@@ -104,7 +164,8 @@ extension Workspace {
             let index = existing.ownIndex.orDie()
             let weight = existing.hWeight
             existing.unbindFromParent()
-            let group = TilingContainer(parent: root, adaptiveWeight: weight, .v, .tabGroup, index: index)
+            let orientation = (existing as? TilingContainer)?.orientation.opposite ?? .v
+            let group = TilingContainer(parent: root, adaptiveWeight: weight, orientation, .tabGroup, index: index)
             group.columnSlot = slot
             existing.columnSlot = nil
             existing.bind(to: group, adaptiveWeight: WEIGHT_AUTO, index: 0)
@@ -118,6 +179,16 @@ extension Workspace {
 
     @MainActor
     func bindToColumn(_ node: TreeNode, slot: Int) {
+        if let group = node as? TilingContainer,
+           rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {
+            let windows = group.allLeafWindowsRecursive
+            for window in windows {
+                window.unbindFromParent()
+                bindToColumn(window, slot: slot)
+            }
+            if group.isBound { group.unbindFromParent() }
+            return
+        }
         let binding = columnBinding(slot: slot)
         node.columnSlot = nil
         node.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
@@ -135,7 +206,6 @@ extension TilingContainer {
         let weight = hWeight
         child.unbindFromParent()
         unbindFromParent()
-        child.bind(to: parent, adaptiveWeight: weight, index: index)
-        child.columnSlot = slot
+        child.bind(to: BindingData(parent: parent, adaptiveWeight: weight, index: index, columnSlot: slot))
     }
 }

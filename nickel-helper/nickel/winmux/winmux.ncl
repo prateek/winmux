@@ -149,6 +149,16 @@ let Lens = std.contract.Sequence [
   LensDefaults,
 ] in
 
+let PositiveFraction = std.contract.Sequence [Number, std.contract.from_predicate (fun n => n > 0)] in
+let ColumnFields = {
+  count | std.contract.any_of [Choice [| 'off |], std.contract.Sequence [Int, std.contract.from_predicate (fun n => n > 0)]] | optional,
+  widths | Array PositiveFraction | optional,
+} in
+let WorkspaceColumns = ColumnFields & { when | { _ | ColumnFields } | optional } in
+let Columns = WorkspaceColumns & {
+  width-presets | std.contract.Sequence [Array (std.contract.Sequence [Number, std.contract.from_predicate (fun n => n > 0 && n < 1)]), std.contract.from_predicate (fun xs => std.array.length xs > 0)] | optional,
+} in
+
 # The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
 Contract
@@ -160,6 +170,8 @@ Contract
   Filter = Dyn -> Dyn -> Bool,
 
   Config = {
+    columns | Columns | optional,
+    workspace | { _ | { columns | WorkspaceColumns | optional } } | optional,
     config-version | Int | optional,
     # The version of the Filter contract the config was written for. Accepted and ignored: at
     # version 1 no config can lag behind.

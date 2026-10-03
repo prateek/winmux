@@ -383,6 +383,10 @@ enum OptimalHideCorner {
 
 @MainActor
 private func layoutWorkspaces() async throws {
+    defer {
+        FocusedEmptyColumnPanel.shared.refresh()
+        ColumnDividerPanelController.shared.refresh()
+    }
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
             workspace.allLeafWindowsRecursive.forEach { window in

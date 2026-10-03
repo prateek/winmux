@@ -795,3 +795,47 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
         assert_eq!(filtered["result"], expected);
     }
 }
+
+fn columns_load(body: &str) -> Value {
+    let dir = std::env::temp_dir().join(format!("winmux-columns-{}-{}", std::process::id(), std::thread::current().name().unwrap_or("test")));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("config.ncl");
+    std::fs::write(&file, format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ {body} }}) | W.Config")).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op":"load", "path":file}));
+    std::fs::remove_dir_all(dir).unwrap();
+    reply
+}
+
+#[test]
+fn columns_acceptance_defaults_profiles_and_normalization_warning() {
+    let reply = columns_load("columns = { count = 3, widths = [2, 3, 5], when.default.count = 3, when.travel.count = 7 }, workspace.Demo.columns = { count = 2, widths = [1, 1], when.default.widths = [1, 3] }");
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    assert_eq!(reply["result"]["config"]["columns"]["widths"], json!([0.2, 0.3, 0.5]));
+    let presets = reply["result"]["config"]["columns"]["width-presets"].as_array().unwrap();
+    assert!((presets[0].as_f64().unwrap() - 1.0/3.0).abs() < 1e-8);
+    assert_eq!(reply["result"]["warnings"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn columns_reject_presets_at_all_other_paths_and_bad_resolved_lengths() {
+    for body in ["workspace.Demo.columns.width-presets = [1/2]", "columns.when.default.width-presets = [1/2]", "workspace.Demo.columns.when.default.width-presets = [1/2]"] {
+        let reply = columns_load(body);
+        assert_eq!(reply["ok"], false, "{body}");
+        assert!(reply["error"].as_str().unwrap().contains("width-presets"));
+    }
+    for body in ["columns = { count = 3, widths = [1, 1] }", "columns.count = 3, workspace.Demo.columns.widths = [1, 1]"] {
+        let reply = columns_load(body);
+        assert_eq!(reply["ok"], false, "{body}");
+        assert!(reply["error"].as_str().unwrap().contains("length"));
+    }
+    let reply = columns_load("columns = { count = 2, widths = [1, 1, 1], when.default.count = 3 }");
+    assert_eq!(reply["ok"], true, "length is checked after resolution: {}", reply["error"]);
+}
+
+#[test]
+fn columns_reject_invalid_numbers() {
+    for body in ["columns.count = 0", "columns.count = 1.5", "columns.widths = [0, 1]", "columns.width-presets = [1]", "columns.width-presets = []"] {
+        assert_eq!(columns_load(body)["ok"], false, "{body}");
+    }
+}

@@ -15,7 +15,8 @@ func windowStackSplitContext(
     let matchingParent = targetNode.parentsWithSelf.lazy
         .compactMap { $0.parent as? TilingContainer }
         .first { parent in
-            parent.layout == .tiles && parent.orientation == position.orientation
+            parent.layout == .tiles && parent.orientation == position.orientation &&
+                !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
         }
     if let insertionParent = matchingParent,
        let anchorNode = targetNode.directChild(in: insertionParent) {
@@ -90,13 +91,7 @@ func applyWindowStackSplitDragIntent(
         }
     } else {
         let targetBinding = targetNode.unbindFromParent()
-        let newParent = TilingContainer(
-            parent: targetBinding.parent,
-            adaptiveWeight: targetBinding.adaptiveWeight,
-            splitOrientation,
-            .tiles,
-            index: targetBinding.index,
-        )
+        let newParent = TilingContainer(replacing: targetBinding, splitOrientation, .tiles)
         if position.isPositive {
             targetNode.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)
             sourceNode.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
