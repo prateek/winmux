@@ -243,7 +243,7 @@ final class NickelSupervisorTest: XCTestCase {
     }
 }
 
-private let stubHelperScript = """
+let stubHelperScript = """
     #!/usr/bin/env python3
     import json, os, sys, time
 

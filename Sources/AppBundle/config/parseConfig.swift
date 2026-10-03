@@ -186,12 +186,13 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
             }
         }
     }
+    parsed.config.arrive = fields["arrive"]?.stringOrNil
     parsed.config.columns = ColumnsConfig(fields["columns"], workspaces: fields["workspace"])
     return parsed
 }
 
 /// Root keys handled outside the TOML bridge.
-private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version"]
+private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version", "arrive"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))

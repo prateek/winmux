@@ -91,9 +91,8 @@ impl Helper {
                     .map(|(index, (ty, arg))| ty.to_nickel(arg).map_err(|e| format!("`{hook}` argument {index}: {e}")))
                     .collect::<Result<Vec<_>, _>>()?;
                 let engine = self.engine()?;
-                let path: Vec<&str> = hook.split('.').collect();
-                let function = engine.lookup(&path)?.ok_or_else(|| format!("the config does not define `{hook}`"))?;
-                let result = engine.call(&function, &args)?;
+                let function = engine.lookup_hook(&hook)?.ok_or_else(|| format!("the config does not define `{hook}`"))?;
+                let result = engine.call_hook(&function, &args, &hook)?;
                 Ok(to_json(&result).unwrap_or(Value::Null))
             }
         }
@@ -168,11 +167,11 @@ fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
                 .map_err(|e| format!("smoke run of `{name}` failed:\n{e}"))?;
         }
     }
-    for (hook, types) in records::HOOKS {
-        let path: Vec<&str> = hook.split('.').collect();
-        let Some(function) = engine.lookup(&path)?.filter(|f| is_function(&f.value)) else { continue };
+    for hook in engine.hook_paths()? {
+        let types = records::hook_args(&hook).unwrap();
+        let Some(function) = engine.lookup_hook(&hook)?.filter(|f| is_function(&f.value)) else { continue };
         for args in records::hook_smoke_passes(types) {
-            engine.call(&function, &args).map_err(|e| format!("smoke run of `{hook}` failed:\n{e}"))?;
+            engine.call_hook(&function, &args, &hook).map_err(|e| format!("smoke run of `{hook}` failed:\n{e}"))?;
         }
     }
     Ok(())

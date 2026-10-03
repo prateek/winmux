@@ -89,7 +89,7 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
     assert_eq!(config["lenses"]["everything"]["presentation"], "list");
     assert_eq!(config["lenses"]["mail"]["sort"], json!(["mru"]));
     assert_eq!(config["lenses"]["mail"]["filter"], "lenses.mail.filter", "only the callable path leaves the helper");
-    assert!(config.get("arrive").is_none());
+    assert_eq!(config["arrive"], "arrive");
     let imports: Vec<&str> = reply["result"]["imports"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert!(imports.contains(&fixture("config.ncl").as_str()), "{imports:?}");
     assert!(imports.iter().any(|p| p.ends_with("nickel/winmux/winmux.ncl")), "{imports:?}");
@@ -278,11 +278,11 @@ fn hook_returns_its_result_as_json() {
 
     let tiled = request(
         &mut helper,
-        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [window("a", "tiled"), context()] }),
+        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [window("a", "tiled"), context(), []] }),
     );
     let popup = request(
         &mut helper,
-        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "accessory-popup"), context()] }),
+        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "accessory-popup"), context(), []] }),
     );
 
     assert_eq!(tiled["result"], json!({ "workspace": "Inbox", "column": 2 }), "{}", tiled["error"]);
@@ -297,11 +297,11 @@ fn hook_requests_are_checked_against_the_hooks_arguments() {
     let too_few = request(&mut helper, json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "tiled")] }));
     let undefined = request(
         &mut helper,
-        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [window("a", "tiled"), context()] }),
+        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [window("a", "tiled"), context(), []] }),
     );
 
     assert!(unknown["error"].as_str().unwrap().contains("no Policy hook named `depart`"));
-    assert!(too_few["error"].as_str().unwrap().contains("takes 2 arguments, got 1"));
+    assert!(too_few["error"].as_str().unwrap().contains("takes 3 arguments, got 1"));
     assert!(undefined["error"].as_str().unwrap().contains("does not define `columns.place`"));
 }
 

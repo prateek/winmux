@@ -37,6 +37,7 @@ var defaultConfigUrl: URL {
 @MainActor var configUrl: URL = defaultConfigUrl
 
 struct Config: ConvenienceCopyable {
+    var arrive: String? = nil
     var columns = ColumnsConfig()
     var lenses: [String: LensConfig] = [:]
     var configVersion: Int = 1
