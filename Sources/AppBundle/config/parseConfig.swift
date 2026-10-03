@@ -81,7 +81,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "default-root-container-orientation": Parser(\.defaultRootContainerOrientation, parseDefaultContainerOrientation),
 
     "start-at-login": Parser(\.startAtLogin, parseBool),
-    "auto-reload-config": Parser(\.autoReloadConfig, parseBool),
+    "reload-on-save": Parser(\.reloadOnSave, parseBool),
     "automatically-unhide-macos-hidden-apps": Parser(\.automaticallyUnhideMacosHiddenApps, parseBool),
     "automatically-tile-new-windows": Parser(\.automaticallyTileNewWindows, parseBool),
     "enable-shake-to-toggle-tiling": Parser(\.enableShakeToToggleTiling, parseBool),

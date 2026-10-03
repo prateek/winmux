@@ -38,8 +38,8 @@ func starterConfigText() -> String {
     # WinMux config. It is Nickel: https://nickel-lang.org
     #
     # `winmux/defaults.ncl` holds the settings and bindings WinMux starts with, and this file
-    # merges its own settings over them. `winmux config check` reports mistakes, and
-    # `winmux reload-config` applies the file.
+    # merges its own settings over them. Saving this file applies it, and `winmux config check`
+    # reports mistakes.
     #
     # The `nickel` CLI and its language server find the two imports when NICKEL_IMPORT_PATH is
     # set to the directory that holds `winmux/`: Contents/Resources/nickel inside WinMux.app.

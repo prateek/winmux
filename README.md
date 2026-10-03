@@ -179,7 +179,7 @@ let W = import "winmux/winmux.ncl" in
 }) | W.Config
 ```
 
-The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, `winmux reload-config` applies the file, and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
+The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, saving the file or any file it imports applies it (`reload-on-save = false` leaves that to `winmux reload-config`), and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
 
 ### Filters
 A Filter is a function that says yes or no to a window. It takes the window as `w` and the Filter context as `ctx`, and named Filters live in the config's `filters` record:

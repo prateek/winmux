@@ -10,6 +10,8 @@ struct LoadedNickelConfig: Sendable {
     let settings: JSONValue
     /// The config file and every file it imports.
     let imports: [URL]
+    /// The directory of the shipped library, which the config imports `winmux/` files from.
+    let library: URL?
 }
 
 struct NickelStatus: Equatable, Sendable {
@@ -103,6 +105,7 @@ final class NickelSupervisor {
                     path: path,
                     settings: reply.result["config"] ?? .object([:]),
                     imports: imports,
+                    library: reply.result["library"]?.stringOrNil.map { URL(filePath: $0) },
                 ))
             case .failure(let failure):
                 await process.kill()
@@ -124,6 +127,12 @@ final class NickelSupervisor {
         crashes = []
         crashStreak = 0
         lastError = nil
+    }
+
+    /// Records why a reload failed while this helper kept serving, as the status's last error. A
+    /// later crash, or a load that succeeds, replaces it.
+    func recordFailedReload(_ message: String) {
+        lastError = message
     }
 
     func discard(_ loaded: LoadedNickelConfig) {

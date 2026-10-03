@@ -21,6 +21,11 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         return Err(format!("{}: not a TOML table", path.display()));
     };
 
+    // `reload-on-save` replaced this setting.
+    if let Some(value) = settings.remove("auto-reload-config") {
+        settings.insert("reload-on-save".to_owned(), value);
+    }
+
     let mut warnings = Vec::new();
     let mut rules = String::new();
     if let Some(Value::Array(entries)) = settings.remove("on-window-detected") {

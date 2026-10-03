@@ -39,10 +39,14 @@ WinMux reloads its Nickel config when the config file or any file it imports is 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
 - **A config file that appears after startup.** WinMux watches the config directory (`$XDG_CONFIG_HOME/winmux/`, by default `~/.config/winmux/`) from startup even when it holds no config file. When the file appears it loads like any other change.
-- **Files watched after a failed load.** The config file plus the import list from the last successful load. The helper returns an import list only when a load succeeds.
-- **The shipped library.** Not watched. Paths inside the app bundle are left out of the watch list, since `winmux/winmux.ncl` and `winmux/defaults.ncl` change only when the app is replaced.
-- **The log.** WinMux's existing logging. Name the sink where the entry lands in the pull request.
-- **What counts as an identical error.** The full diagnostic text. The text includes file positions, so an edit above the error changes it and notifies again; that counts as failing differently.
+- **Files watched after a failed load.** The config file plus the import list from the last successful load. The helper returns an import list only when a load succeeds. Until a load succeeds, any file Nickel can import, anywhere under the watched directories, also triggers a reload, so fixing a newly imported file that failed is seen.
+- **A save while the config file is missing.** Changes nothing. Loading would put the shipped defaults in effect, and a checkout or a move can remove the file for a moment.
+- **The shipped library.** Not watched. The helper's `load` reply names the library directory, and imports under it are left out of the watch list, since `winmux/winmux.ncl` and `winmux/defaults.ncl` change only when the app is replaced. "Inside the app bundle" would miss a debug build, whose library is in the source tree.
+- **The log.** WinMux had no log outside debug builds, which print to stderr. A failed reload is written to the unified log under WinMux's app id with the category `config`.
+- **What counts as an identical error.** The full diagnostic text, with the addresses Nickel prints for functions (`%<closure@0x…>`) left out: they differ in every helper process. The text includes file positions, so an edit above the error changes it and notifies again; that counts as failing differently.
+- **`reload-config` always notifies.** Only a save is silenced when it fails the way the last notified failure did. A reload the user asked for by name reports its failure every time.
+- **The old setting.** `auto-reload-config` is not kept as an alias. A config that sets it fails to load with Nickel's "extra field" diagnostic, and `config convert` renames it.
+- **A change during a reload.** One more reload runs after the one under way. A reload is never cancelled part way.
 
 ## Done when
 

@@ -92,6 +92,7 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
     let imports: Vec<&str> = reply["result"]["imports"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert!(imports.contains(&fixture("config.ncl").as_str()), "{imports:?}");
     assert!(imports.iter().any(|p| p.ends_with("nickel/winmux/winmux.ncl")), "{imports:?}");
+    assert_eq!(reply["result"]["library"], library().to_string_lossy().as_ref());
 }
 
 #[test]
@@ -406,6 +407,26 @@ fn convert_of_the_upstream_default_config_passes_check() {
 
     assert_eq!(converted.stderr, b"");
     assert_eq!(checked.status.code(), Some(0), "{}", String::from_utf8_lossy(&checked.stderr));
+}
+
+#[test]
+fn convert_renames_the_setting_reload_on_save_replaced() {
+    let toml = std::env::temp_dir().join(format!("winmux-nickel-reload-{}.toml", std::process::id()));
+    std::fs::write(&toml, "auto-reload-config = false\n").unwrap();
+
+    let converted = run_helper(&["convert", &toml.to_string_lossy()]);
+    std::fs::remove_file(&toml).unwrap();
+    let nickel = String::from_utf8(converted.stdout).unwrap();
+
+    assert!(nickel.contains("\n  reload-on-save = false,\n"), "{nickel}");
+    assert!(!nickel.contains("auto-reload-config"), "{nickel}");
+}
+
+#[test]
+fn config_that_sets_the_replaced_setting_fails_to_load() {
+    let error = load_error("auto-reload-config.ncl");
+
+    assert!(error.contains("auto-reload-config"), "{error}");
 }
 
 #[test]

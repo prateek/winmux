@@ -209,6 +209,24 @@ final class NickelSupervisorTest: XCTestCase {
         assertEquals(await matches(supervisor), .success([true, true]))
     }
 
+    func testStatusShowsTheNewerOfAFailedReloadAndACrash() async throws {
+        let supervisor = supervisor()
+        try await loadAndAdopt(supervisor)
+
+        supervisor.recordFailedReload("extra field `gapz`")
+        let afterTheReload = supervisor.status
+        let pid = try XCTUnwrap(supervisor.status.pid)
+        kill(pid, SIGKILL)
+        try await eventually("the crash is seen") { supervisor.status.pid != pid }
+        let afterTheCrash = supervisor.status.lastError
+        try await loadAndAdopt(supervisor)
+
+        assertEquals(afterTheReload.state, .ready, additionalMsg: "the old helper keeps serving")
+        assertEquals(afterTheReload.lastError, "extra field `gapz`")
+        assertEquals(afterTheCrash, "The config helper exited unexpectedly")
+        assertEquals(supervisor.status.lastError, nil)
+    }
+
     func testHelperOverTheMemoryLimitIsReplacedWithoutFailingARequest() async throws {
         let supervisor = supervisor { $0.rssLimit = 1_000_000 }
         try await loadAndAdopt(supervisor)

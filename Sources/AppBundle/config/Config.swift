@@ -46,7 +46,7 @@ struct Config: ConvenienceCopyable {
     var defaultRootContainerLayout: Layout = .tiles
     var defaultRootContainerOrientation: DefaultContainerOrientation = .auto
     var startAtLogin: Bool = false
-    var autoReloadConfig: Bool = false
+    var reloadOnSave: Bool = true
     var automaticallyUnhideMacosHiddenApps: Bool = false
     var automaticallyTileNewWindows: Bool = true
     var enableShakeToToggleTiling: Bool = true
@@ -70,6 +70,15 @@ struct Config: ConvenienceCopyable {
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: [any Command] = []
+}
+
+extension Config {
+    /// The mode to be in once this config is applied while `active` is the mode. A mode the config
+    /// no longer has gives way to `main`. No mode at all means WinMux is disabled, which a reload
+    /// leaves alone.
+    func modeToKeep(_ active: String?) -> String? {
+        active.map { modes[$0] != nil ? $0 : mainModeId }
+    }
 }
 
 enum DefaultContainerOrientation: String {

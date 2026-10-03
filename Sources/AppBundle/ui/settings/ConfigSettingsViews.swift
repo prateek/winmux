@@ -7,7 +7,7 @@ struct ShortcutBehaviorSettingsView: View {
     @State private var autoAddNewWindowsToTabGroup = config.autoAddNewWindowsToTabGroup
     @State private var enableShakeToToggleTiling = config.enableShakeToToggleTiling
     @State private var automaticallyUnhideMacosHiddenApps = config.automaticallyUnhideMacosHiddenApps
-    @State private var autoReloadConfig = config.autoReloadConfig
+    @State private var reloadOnSave = config.reloadOnSave
     @State private var startAtLogin = config.startAtLogin
     @State private var defaultLayout = config.defaultRootContainerLayout
     @State private var defaultOrientation = config.defaultRootContainerOrientation
@@ -43,7 +43,7 @@ struct ShortcutBehaviorSettingsView: View {
             }
             SettingsSection("Startup") {
                 SettingsToggle("Start at login", isOn: $startAtLogin, help: "Launch WinMux after you sign in.")
-                SettingsToggle("Reload config when it changes", isOn: $autoReloadConfig, help: "Apply valid edits saved from another editor automatically.")
+                SettingsToggle("Reload config when it changes", isOn: $reloadOnSave, help: "Apply valid edits to the config file and the files it imports when they are saved.")
             }
             SettingsSection("Default layout") {
                 SettingsPicker("Root layout", selection: $defaultLayout, help: "Used for new workspaces.") {
@@ -64,7 +64,6 @@ struct ShortcutBehaviorSettingsView: View {
                 SettingsTextField("Persistent workspaces", text: $persistentWorkspaces, help: "Comma-separated workspace names that remain available when empty.")
             }
         }
-        .id(model.settingsRevision)
     }
 }
 
@@ -143,7 +142,6 @@ struct ShortcutAppearanceSettingsView: View {
                 SettingsStepper("Outer bottom", value: $outerBottomGap, range: 0...120, help: "Inset at the bottom display edge.")
             }
         }
-        .id(model.settingsRevision)
     }
 }
 
