@@ -10,8 +10,9 @@ private final class FakeSymbolicTable: SymbolicHotkeyTable {
         220: SymbolicHotkey(keyCode: 50, modifiers: 0x120000, enabled: true),
     ]
     var beforeDisable: ((Int) -> Void)?
+    var reads = 0
     var fail = false
-    func read(_ id: Int) -> SymbolicHotkey? { entries[id] }
+    func read(_ id: Int) -> SymbolicHotkey? { reads += 1; return entries[id] }
     func setEnabled(_ id: Int, _ enabled: Bool) -> Bool {
         if !enabled { beforeDisable?(id) }
         guard !fail else { return false }
@@ -20,12 +21,69 @@ private final class FakeSymbolicTable: SymbolicHotkeyTable {
     }
 }
 private final class MemorySymbolicMarker: SymbolicHotkeyMarkerStore {
+    var saves = 0
     var entries: [Int: SymbolicHotkeyChord] = [:]
     func load() -> [Int: SymbolicHotkeyChord] { entries }
-    func save(_ value: [Int: SymbolicHotkeyChord]) { entries = value }
+    func save(_ value: [Int: SymbolicHotkeyChord]) { saves += 1; entries = value }
 }
 final class SymbolicHotkeyTest: XCTestCase {
     private let tab = SymbolicHotkeyChord(keyCode: 48, modifiers: 0x100000)
+    func testReenabledWantedIdIsRetakenInTheSamePass() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([tab])
+        table.entries[1]?.enabled = true
+        table.beforeDisable = { id in XCTAssertNotNil(marker.entries[id]) }
+        reconciler.reconcile([tab])
+        XCTAssertEqual(table.read(1)?.enabled, false)
+        XCTAssertEqual(Set(marker.entries.keys), [1, 2])
+    }
+
+    func testRepairPreservesRestoreFailuresAndLaterSuccessClearsThem() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([tab]); table.fail = true
+        reconciler.repair(.wake, wanted: [tab])
+        XCTAssertEqual(reconciler.failures.count, 2)
+        XCTAssertTrue(reconciler.failures.allSatisfy { $0.contains("restore") })
+        table.fail = false
+        reconciler.restore()
+        XCTAssertEqual(reconciler.failures, [])
+    }
+
+    func testRepairReportsFailuresFromBothRestoreAndDisable() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        marker.entries[1] = tab; table.entries[1]?.enabled = false
+        table.fail = true
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.repair(.launch, wanted: [tab])
+        XCTAssertEqual(Set(reconciler.failures), ["id 1: could not restore", "id 2: could not disable"])
+        table.fail = false
+        reconciler.repair(.wake, wanted: [tab])
+        XCTAssertEqual(reconciler.failures, [])
+    }
+
+    func testIdleAndUnchangedOwnershipAvoidScansAndMarkerWrites() {
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile([])
+        XCTAssertEqual(table.reads, 0)
+        XCTAssertEqual(marker.saves, 0)
+        reconciler.reconcile([tab])
+        let saves = marker.saves
+        table.reads = 0
+        reconciler.reconcile([tab])
+        XCTAssertLessThan(table.reads, 10)
+        XCTAssertEqual(marker.saves, saves)
+        reconciler.reconcile([])
+        table.reads = 0
+        reconciler.reconcile([tab])
+        XCTAssertLessThan(table.reads, 20)
+        table.entries[50] = SymbolicHotkey(keyCode: 48, modifiers: 0x100000, enabled: true)
+        reconciler.repair(.unlock, wanted: [tab])
+        XCTAssertEqual(table.read(50)?.enabled, false)
+    }
+
     func testWriteAheadOnlyEnabledCandidatesAndBacktickStaysOn() {
         let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
         table.entries[2]?.enabled = false
@@ -52,7 +110,7 @@ final class SymbolicHotkeyTest: XCTestCase {
         XCTAssertEqual(table.read(2)?.enabled, true)
         XCTAssertEqual(table.read(27)?.enabled, false)
     }
-    func testUserChangedIdIsLeftAloneAndDropped() {
+    func testChangedChordAndNoLongerWantedEnabledIdAreLeftAloneAndDropped() {
         let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
         let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
         reconciler.reconcile([tab])

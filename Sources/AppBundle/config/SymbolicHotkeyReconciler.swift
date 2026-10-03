@@ -26,6 +26,7 @@ final class SymbolicHotkeyReconciler: @unchecked Sendable {
     private let table: any SymbolicHotkeyTable
     private let marker: any SymbolicHotkeyMarkerStore
     private var errors: [String] = []
+    private var candidates: [Int: SymbolicHotkeyChord]?
     var failures: [String] { lock.withLock { errors } }
     var markerIds: [Int] { lock.withLock { marker.load().keys.sorted() } }
     var heldIds: [Int] { lock.withLock { marker.load().filter { table.read($0.key)?.enabled == false && table.read($0.key)?.chord == $0.value }.keys.sorted() } }
@@ -37,41 +38,72 @@ final class SymbolicHotkeyReconciler: @unchecked Sendable {
     func reconcile(_ listening: Set<SymbolicHotkeyChord>) {
         lock.withLock {
             errors = []
-            let wanted = Self.takeoverChords(listening)
-            var owned = marker.load()
-            var changed: Set<Int> = []
-            for (id, chord) in owned {
-                guard let live = table.read(id), live.chord == chord, !live.enabled else {
-                    owned[id] = nil; changed.insert(id); continue
-                }
-                if !wanted.contains(chord), set(id, enabled: true) { owned[id] = nil }
+            reconcileLocked(Self.takeoverChords(listening))
+        }
+    }
+
+    private func reconcileLocked(_ wanted: Set<SymbolicHotkeyChord>) {
+        var owned = marker.load()
+        guard !wanted.isEmpty || !owned.isEmpty else { return }
+        var changed: Set<Int> = []
+        for (id, chord) in owned {
+            guard let live = table.read(id), live.chord == chord else {
+                owned[id] = nil
+                candidates?[id] = nil
+                changed.insert(id)
+                continue
             }
-            marker.save(owned)
-            for id in 0...symbolicHotkeyTableLimit where owned[id] == nil && !changed.contains(id) {
-                guard let live = table.read(id), live.enabled, wanted.contains(live.chord) else { continue }
-                owned[id] = live.chord
-                marker.save(owned)
-                if !set(id, enabled: false), table.read(id)?.enabled == true {
-                    owned[id] = nil
-                    marker.save(owned)
+            if live.enabled { owned[id] = nil }
+            else if !wanted.contains(chord), set(id, enabled: true) { owned[id] = nil }
+        }
+        saveIfChanged(owned)
+        guard !wanted.isEmpty else { return }
+        if candidates == nil {
+            candidates = [:]
+            for id in 0...symbolicHotkeyTableLimit {
+                if let live = table.read(id), Self.takeoverChords([live.chord]).contains(live.chord) {
+                    candidates?[id] = live.chord
                 }
+            }
+        }
+        for (id, chord) in candidates ?? [:] where owned[id] == nil && !changed.contains(id) && wanted.contains(chord) {
+            guard let live = table.read(id), live.chord == chord, live.enabled else { continue }
+            owned[id] = live.chord
+            saveIfChanged(owned)
+            if !set(id, enabled: false), table.read(id)?.enabled == true {
+                owned[id] = nil
+                saveIfChanged(owned)
             }
         }
     }
 
     func restore() {
         lock.withLock {
-            var owned = marker.load()
-            for (id, chord) in owned {
-                guard let live = table.read(id), live.chord == chord, !live.enabled else { owned[id] = nil; continue }
-                if set(id, enabled: true) { owned[id] = nil }
-            }
-            marker.save(owned)
+            errors = []
+            restoreLocked()
         }
     }
 
+    private func restoreLocked() {
+        var owned = marker.load()
+        for (id, chord) in owned {
+            guard let live = table.read(id), live.chord == chord, !live.enabled else { owned[id] = nil; continue }
+            if set(id, enabled: true) { owned[id] = nil }
+        }
+        saveIfChanged(owned)
+    }
+
     func repair(_ reason: SymbolicHotkeyRepair, wanted: Set<SymbolicHotkeyChord>) {
-        lock.withLock { restore(); reconcile(wanted) }
+        lock.withLock {
+            errors = []
+            restoreLocked()
+            candidates = nil
+            reconcileLocked(Self.takeoverChords(wanted))
+        }
+    }
+
+    private func saveIfChanged(_ owned: [Int: SymbolicHotkeyChord]) {
+        if owned != marker.load() { marker.save(owned) }
     }
 
     private func set(_ id: Int, enabled: Bool) -> Bool {

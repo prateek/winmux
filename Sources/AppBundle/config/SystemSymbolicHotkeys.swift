@@ -28,26 +28,30 @@ final class CGSSymbolicHotkeyTable: SymbolicHotkeyTable {
 let systemSymbolicHotkeys = SymbolicHotkeyReconciler(table: CGSSymbolicHotkeyTable(), marker: DefaultsSymbolicHotkeyMarker())
 @MainActor private var symbolicHotkeysArmed = false
 @MainActor private var symbolicSignalSources: [DispatchSourceSignal] = []
+private let symbolicTermination = SignalTermination()
 private let symbolicLog = Logger(subsystem: winMuxAppId, category: "symbolic-hotkeys")
 
 @MainActor func armSymbolicHotkeyRestoration() {
     guard !symbolicHotkeysArmed else { return }
     symbolicHotkeysArmed = true
     for number in [SIGTERM, SIGINT, SIGHUP] {
-        signal(number, SIG_IGN)
-        let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
-        source.setEventHandler {
-            systemSymbolicHotkeys.restore()
-            Task { @MainActor in
-                defer { exit(number) }
-                try await terminationHandler.beforeTermination()
-            }
-        }
+        signal(number) { @Sendable _ in }
+        let source = DispatchSource.makeSignalSource(signal: number, queue: .global(qos: .userInitiated))
+        source.setEventHandler(handler: symbolicTermination.eventHandler(
+            restore: { systemSymbolicHotkeys.restore() },
+            cleanup: { finish in
+                Task { @MainActor in
+                    defer { finish() }
+                    try await terminationHandler.beforeTermination()
+                }
+            },
+            terminate: { _exit(number) }
+        ))
         source.resume()
         symbolicSignalSources.append(source)
     }
-    NSSetUncaughtExceptionHandler { _ in systemSymbolicHotkeys.restore() }
-    atexit { systemSymbolicHotkeys.restore() }
+    NSSetUncaughtExceptionHandler { @Sendable _ in systemSymbolicHotkeys.restore() }
+    atexit { @Sendable in systemSymbolicHotkeys.restore() }
     systemSymbolicHotkeys.repair(.launch, wanted: [])
 }
 
