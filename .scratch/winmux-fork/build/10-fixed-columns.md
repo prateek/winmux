@@ -102,7 +102,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] With `count` off, the existing layout tests pass unchanged and layout is the same as upstream's.
+- [x] With `count` off, the existing layout tests pass unchanged and layout is the same as upstream's.
 - [ ] `winmux config check` accepts a config that sets `columns.count`, `columns.widths` and `columns.width-presets`, and a `workspace.<name>.columns` record overrides `count` and `widths` field by field for that workspace only.
 - [ ] `width-presets` set under `workspace.<name>.columns` or under a `when` record fails `winmux config check`. With `columns.width-presets` left out, the Width presets are 1/3, 1/2 and 2/3.
 - [ ] A `columns.when.default` record overrides `columns`, and a `when` record under any other profile name loads and never applies.
@@ -119,7 +119,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] Setting a Column to a Width preset changes its width to that fraction and the widths still sum to 1. Until `column-width` exists, a test calls the operation directly.
 - [ ] `resize` on a window alone in its Column changes the Column's width and stops when the Column is 80 points wide. `resize` on a window inside a split leaves the Column's width alone.
 - [ ] `balance-sizes` returns the Column widths to the declared `widths`.
-- [ ] Unit tests in `Sources/AppBundleTests` cover the invariant pass, including the flatten-replaces-root case with several windows, which upstream's tests do not cover.
+- [x] Unit tests in `Sources/AppBundleTests` cover the invariant pass, including the flatten-replaces-root case with several windows, which upstream's tests do not cover.
 ## Sources
 
 - [Grilling: fixed Columns, Width presets and Overflow policy semantics](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/09-grilling-fixed-columns-model.md)
@@ -129,3 +129,19 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [Prototype: config and scripting language](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/27-prototype-config-language.md)
 - [Config language prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/27-config-language.html)
 - [CONTEXT.md](https://github.com/prateek/winmux/blob/fork/CONTEXT.md)
+
+## Implementation status: model slice
+
+The slot index, invariant pass, fractional slot layout and built-in placement are implemented in `Sources/AppBundle/tree/Columns.swift`, with 20 tests in `Sources/AppBundleTests/FixedColumnsTest.swift`. Columns remain disabled in user configs: `Workspace.columns` is only populated directly by tests in this slice. No chosen default changed.
+
+Tests cover sparse slot geometry and gaps, closing without shifting neighbours, focused-empty placement, nearest-empty ties, focused and MRU overflow, forced root orientation/layout, single-occupied-Column flatten protection with several windows, slot transfer on flatten, idempotence, lowered counts, root wrapping, directional move edges and within-Column moves, focus skipping empties, workspace moves, Summon, floating-to-tiling arrival, drag tab-group creation, frozen-tree restore and monitor-size changes. Frozen records keep optional slots and still decode old records without them.
+
+The unchecked visible items have model coverage where listed above, but no live evidence. No debug build was launched. No captures were made, and no release was run. The existing tests are unchanged.
+
+Remaining, in build order:
+
+1. Width preset operation and stepping, free resize with the 80-point floor, internal-split resize, `balance-sizes`, proportional divider drag and their tests.
+2. Nickel shape and real-helper acceptance/rejection/warnings; Swift JSON parsing at top level and under workspaces; field-by-field precedence for all four paths; reset-on-reload and lowered-count reload tests. Regenerate defaults/contract outputs when their source changes.
+3. Focused-empty outline, focus observation wiring and outline tests.
+4. Full isolated live run and captures, including CLI output in owned windows, frame restoration and symbolic-hotkey before/during/after verification. Monitor-size changes and two-display checks remain tests only on this machine; release checks belong to Prateek.
+5. Complete the config examples in `docs/columns.md`, validate each with the helper, and update this checklist and the handoff as each item is fulfilled.
