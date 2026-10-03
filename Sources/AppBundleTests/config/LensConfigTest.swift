@@ -4,6 +4,14 @@ import XCTest
 
 @MainActor
 final class LensConfigTest: XCTestCase {
+    func testReservedNavigationKeysAreRejectedIncludingModifiers() throws {
+        for key in ["esc", "tab", "up", "down", "left", "right", "cmd-tab", "shift-down"] {
+            let settings = try JSONDecoder().decode(JSONValue.self, from: Data("{\"lenses\":{\"demo\":{\"keys\":{\"\(key)\":\"close\"}}}}".utf8))
+            let errors = parseConfig(settings).errors
+            XCTAssertTrue(errors.contains { String(describing: $0).contains("reserved") }, "\(key): \(errors)")
+        }
+    }
+
     func testDefaultProfileResolvesAndOtherProfilesNeverApply() throws {
         let settings = try JSONDecoder().decode(JSONValue.self, from: Data("""
         {"lenses":{"demo":{"presentation":"list","keys":{"cmd-x":"close"},"when":{"default":{"enabled":false,"sort":["title"]},"travel":{"presentation":"strip"}}}}}

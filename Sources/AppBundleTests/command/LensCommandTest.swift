@@ -1,6 +1,7 @@
 @testable import AppBundle
 import Common
 import XCTest
+import AppKit
 
 @MainActor
 final class LensCommandTest: XCTestCase {
@@ -79,12 +80,32 @@ final class LensScriptTest: XCTestCase {
 final class LensSettingsCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
+    func testThrowDuringOpeningDoesNotSwallowNextTrigger() async throws {
+        _ = NSApplication.shared
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer)
+        _ = window.focusWindow()
+        let hovered = TestWindow.new(id: 2, parent: mouseLocation.monitorApproximation.activeWorkspace)
+        hovered.testAxRectError = NSError(domain: "opening AX", code: 7)
+        config.lenses = ["demo": LensConfig()]
+        defer { SwitcherPalettePanel.shared.dismiss() }
+        for attempt in 1 ... 2 {
+            let command = try XCTUnwrap(parseCommand("lens demo").cmdOrNil)
+            do {
+                _ = try await command.run(.defaultEnv, .emptyStdin)
+                XCTFail("Attempt \(attempt) must collect context rather than swallowing the Trigger")
+            } catch {
+                XCTAssertEqual((error as NSError).domain, "opening AX")
+            }
+        }
+    }
+
     func testDisabledAndUnknownLensCommandsReportUsageWithoutOpening() async throws {
         var disabled = LensConfig()
         disabled.enabled = false
         config.lenses = ["disabled": disabled]
-        for name in ["disabled", "missing"] {
-            let command = try XCTUnwrap(parseCommand("lens \(name)").cmdOrNil)
+        for raw in ["lens disabled", "lens missing", "list-windows --lens disabled", "list-windows --lens missing"] {
+            let name = raw.split(separator: " ").last!
+            let command = try XCTUnwrap(parseCommand(raw).cmdOrNil)
             let result = try await command.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(result.exitCode, 2)
             XCTAssertEqual(result.stdout, [])
@@ -143,5 +164,77 @@ final class LensEmptyScopeTest: XCTestCase {
             XCTAssertEqual(result.stdout, [])
             XCTAssertFalse(result.stderr.isEmpty)
         }
+    }
+}
+
+@MainActor
+final class LensUnconventionalActionTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests() }
+
+    private func session(_ window: Window) -> LensSession {
+        LensSession(name: "demo", settings: LensConfig(), items: [SwitcherPaletteItem(id: window.windowId, title: "Demo", appName: "Demo", icon: nil, workspaceName: "", isFocused: false)], search: "")
+    }
+
+    func testFocusReturnsMinimizedWindowToOriginThroughNextRefresh() async throws {
+        let current = Workspace.get(byName: "1")
+        let origin = Workspace.get(byName: "3")
+        _ = TestWindow.new(id: 1, parent: current.rootTilingContainer).focusWindow()
+        let window = TestWindow.new(id: 2, parent: origin.rootTilingContainer)
+        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
+        window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        let result = try await runLensAction(["focus"], session: session(window), io: CmdIo(stdin: .emptyStdin))
+        XCTAssertTrue(result)
+        XCTAssertEqual(window.nodeWorkspace, origin)
+        XCTAssertEqual(focus.workspace, origin)
+        XCTAssertEqual(window.layoutReason, .standard)
+        try await normalizeLayoutReason()
+        XCTAssertEqual(window.nodeWorkspace, origin)
+    }
+
+    func testFocusRecreatesMinimizedOriginAfterWorkspaceCleanup() async throws {
+        let current = Workspace.get(byName: "1")
+        _ = TestWindow.new(id: 1, parent: current.rootTilingContainer).focusWindow()
+        let origin = Workspace.get(byName: "3")
+        let window = TestWindow.new(id: 2, parent: origin.rootTilingContainer)
+        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
+        window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        Workspace.reconcileWorkspaceState()
+        XCTAssertNil(Workspace.existing(byName: "3"))
+        let result = try await runLensAction(["focus"], session: session(window), io: CmdIo(stdin: .emptyStdin))
+        XCTAssertTrue(result)
+        XCTAssertEqual(window.nodeWorkspace?.name, "3")
+        XCTAssertEqual(focus.workspace.name, "3")
+    }
+
+    func testDefaultWorkspaceMoveRestoresMinimizedWindowBeforeMoving() async throws {
+        let current = Workspace.get(byName: "2")
+        _ = TestWindow.new(id: 1, parent: current.rootTilingContainer).focusWindow()
+        let window = TestWindow.new(id: 2, parent: Workspace.get(byName: "3"))
+        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
+        window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        let model = session(window)
+        let result = try await runLensAction(model.commands(for: "cmd-1"), session: model, io: CmdIo(stdin: .emptyStdin))
+        XCTAssertTrue(result)
+        XCTAssertEqual(window.nodeWorkspace?.name, "1")
+        XCTAssertEqual(window.layoutReason, .standard)
+        XCTAssertTrue(window.isFloating)
+        try await normalizeLayoutReason()
+        XCTAssertEqual(window.nodeWorkspace?.name, "1")
+    }
+
+    func testPopupMovesAndSummonFailWithoutTreeMutationButFocusWorks() async throws {
+        _ = TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer).focusWindow()
+        let popup = TestWindow.new(id: 2, parent: macosPopupWindowsContainer)
+        for key in (1 ... 9).map({ "cmd-\($0)" }) + ["shift-enter", "alt-enter"] {
+            let model = session(popup)
+            let result = try await runLensAction(model.commands(for: key), session: model, io: CmdIo(stdin: .emptyStdin))
+            XCTAssertFalse(result, key)
+            XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
+            try await normalizeLayoutReason()
+            XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
+        }
+        let result = try await runLensAction(["focus"], session: session(popup), io: CmdIo(stdin: .emptyStdin))
+        XCTAssertTrue(result)
+        XCTAssertTrue(TestApp.shared.focusedWindow === popup)
     }
 }

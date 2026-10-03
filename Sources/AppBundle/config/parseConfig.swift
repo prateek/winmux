@@ -170,7 +170,10 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
         for (name, lens) in parsed.config.lenses {
             for (key, commands) in lens.keys {
-                if case .failure = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
+                if case .success(let (_, code)) = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()),
+                   [53, 48, 123, 124, 125, 126].contains(Int(code.carbonKeyCode)) {
+                    parsed.errors.append(.syntax("lenses.\(name).keys: \(key) is reserved for Lens navigation"))
+                } else if case .failure = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
                     parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
                 }
                 for command in commands where command != "focus" {
@@ -184,6 +187,8 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     return parsed
 }
 
+/// Root keys handled outside the TOML bridge: Filters stay in the helper, Lenses are
+/// parsed from JSON above, and contract-version is read only by the helper.
 private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "contract-version"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {

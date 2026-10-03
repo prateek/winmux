@@ -69,6 +69,7 @@ extension ListWindowsCommand {
         let settings: LensConfig
         if let name = args.lens {
             guard let lens = config.lenses[name] else { io.failureExitCode = 2; return io.err("No Lens named '\(name)'") }
+            guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(name)' is disabled") }
             settings = lens
         } else { settings = LensConfig() }
         var entries = try await lensWindows(popups: settings.popups)
@@ -92,7 +93,7 @@ extension ListWindowsCommand {
         }
         if let pid = scope.pidFilter { entries = entries.filter { $0.record.app.pid == pid } }
         if let app = scope.appIdFilter { entries = entries.filter { $0.record.app.bundleId == app } }
-        let context = try await filterContextRecord()
+        let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
         let result: Result<[Bool], NickelFailure>
         if let lens = args.lens {
             result = await NickelSupervisor.shared.filter(lens: lens, context: context.json, windows: entries.map { $0.record.json })
@@ -105,7 +106,7 @@ extension ListWindowsCommand {
             result = await NickelSupervisor.shared.evalFilter(body, context: context.json, windows: entries.map { $0.record.json })
         } else { result = .success(Array(repeating: true, count: entries.count)) }
         switch result {
-            case .success(let bits): entries = entries.enumerated().filter { bits.indices.contains($0.offset) && bits[$0.offset] }.map(\.element)
+            case .success(let bits): entries = lensFilterMatches(entries, bits: bits)
             case .failure(let failure): io.failureExitCode = failure.usageExitCode; return io.err(failure.message)
         }
         entries = sortLensWindows(entries, by: settings.sort, previousId: context.previous.map { UInt32($0.id) })

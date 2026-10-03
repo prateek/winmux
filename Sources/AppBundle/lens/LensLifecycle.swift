@@ -23,6 +23,11 @@ final class LensLifecycle {
         return true
     }
 
+    func cancelOpening(ticket: Int) {
+        guard ticket == generation, opening != nil else { return }
+        dismiss()
+    }
+
     func dismiss() {
         if let session { remembered[session.name] = session.query }
         session = nil
@@ -40,11 +45,15 @@ struct LensFilterResolution {
     init(candidateIds: [UInt32], result: Result<[Bool], NickelFailure>) {
         switch result {
             case .success(let bits):
-                ids = candidateIds.enumerated().filter { bits.indices.contains($0.offset) && bits[$0.offset] }.map(\.element)
+                ids = lensFilterMatches(candidateIds, bits: bits)
                 banner = nil
             case .failure(let error):
                 ids = candidateIds
                 banner = "Filter failed: \(error.message)"
         }
     }
+}
+
+func lensFilterMatches<T>(_ candidates: [T], bits: [Bool]) -> [T] {
+    zip(candidates, bits).compactMap { candidate, matches in matches ? candidate : nil }
 }

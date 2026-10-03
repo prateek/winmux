@@ -680,3 +680,21 @@ fn named_filter_and_default_profile_filter_are_evaluated() {
         assert_eq!(reply["result"], json!([true, false]));
     }
 }
+
+#[test]
+fn shipped_search_lens_can_override_sort_and_presentation() {
+    let value = evaluate_to_json(r#"(import "winmux/defaults.ncl") & { lenses.search = { sort = ['title], presentation = 'strip } }"#, &library()).unwrap();
+    assert_eq!(value["lenses"]["search"]["sort"], json!(["title"]));
+    assert_eq!(value["lenses"]["search"]["presentation"], "strip");
+}
+
+#[test]
+fn lens_keys_reject_reserved_navigation_keys_in_base_and_profile() {
+    for key in ["esc", "tab", "up", "down", "left", "right", "cmd-tab", "shift-down"] {
+        for field in ["keys", "when.default.keys"] {
+            let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo.{field}.\"{key}\" = \"close\" }} | W.Config");
+            let error = evaluate_to_json(&source, &library()).unwrap_err();
+            assert!(error.contains("reserved"), "{field}.{key}: {error}");
+        }
+    }
+}

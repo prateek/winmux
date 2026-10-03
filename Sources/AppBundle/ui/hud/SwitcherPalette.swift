@@ -59,12 +59,16 @@ final class SwitcherPalettePanel: NSPanelHud {
         let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search))
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
+        let records = entries.map { $0.record.json }
+        let ids = entries.map { $0.window.windowId }
         model.onSearchChanged = { [weak self, weak model] in
             guard let self, let model else { return }
-            self.inlineSearch.update(model, context: context, windows: entries.map { $0.record.json }, ids: entries.map { $0.window.windowId })
+            self.inlineSearch.update(model, context: context, windows: records, ids: ids)
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
         let monitorRect = focus.workspace.workspaceMonitor.visibleRect
+        // Center on the focused monitor, with the top edge at one quarter of its height;
+        // convert the top-left coordinates to AppKit's bottom-left origin.
         setFrame(NSRect(
             x: monitorRect.topLeftX + (monitorRect.width - switcherPaletteWidth) / 2,
             y: appKitScreenMaxY() - monitorRect.topLeftY - monitorRect.height * 0.25 - switcherPaletteMaxHeight,
@@ -85,6 +89,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         clearPresentation()
         return ticket
     }
+
+    func cancelLensOpening(ticket: Int) { lifecycle.cancelOpening(ticket: ticket) }
 
     func dismiss() {
         lifecycle.dismiss()
@@ -115,6 +121,13 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if session?.performKeyAction(event) == true { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    // Intercept navigation keys before the field editor consumes them; other typing
+    // flows to the Search field unless it matches a configured action.
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged {
@@ -122,13 +135,13 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         if event.type == .keyDown {
             switch event.keyCode {
-                case 53: dismiss(); return
-                case 125: model.moveSelection(1); return
-                case 126: model.moveSelection(-1); return
-                case 48: model.toggleMark(); return
+                case 53: dismiss(); return // esc
+                case 125: model.moveSelection(1); return // down arrow
+                case 126: model.moveSelection(-1); return // up arrow
+                case 48: model.toggleMark(); return // tab
                 default: break
             }
-            if let key = model.key(for: event) { performAction(key); return }
+            if model.performKeyAction(event) { return }
         }
         super.sendEvent(event)
     }
@@ -196,7 +209,9 @@ struct SwitcherPaletteView: View {
                                 appCount: model.settings.entries == "app" ? model.items.filter { $0.appIdentity == item.appIdentity }.count : nil,
                             )
                             .id(item.id)
-                            .onHover { hovering in if hovering { model.hover(item.id) } }
+                            .onContinuousHover { phase in
+                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                            }
                             .onTapGesture {
                                 model.hover(item.id)
                                 if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }

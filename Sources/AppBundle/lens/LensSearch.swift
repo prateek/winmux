@@ -19,12 +19,14 @@ struct LensSearchFields {
         var matched: [String] = []
         for word in words {
             let best = fields.compactMap { name, value, weight -> (String, Int, Int)? in
-                lensSearchTier(word, in: value).map { (name, $0, weight) }
-            }.max { lhs, rhs in
-                lhs.1 == rhs.1 ? lhs.2 < rhs.2 : lhs.1 < rhs.1
+                lensSearchTier(word, in: value).map { (name, $0 * weight, weight) }
+            }.reduce(nil as (String, Int, Int)?) { best, candidate in
+                guard let best else { return candidate }
+                if candidate.1 > best.1 || (candidate.1 == best.1 && candidate.2 > best.2) { return candidate }
+                return best
             }
             guard let best else { return nil }
-            score += best.1 * best.2
+            score += best.1
             if !matched.contains(best.0) { matched.append(best.0) }
         }
         return LensSearchMatch(score: score, matchedField: matched.joined(separator: ","))

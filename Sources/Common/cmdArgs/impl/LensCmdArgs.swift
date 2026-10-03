@@ -7,16 +7,7 @@ public struct LensCmdArgs: CmdArgs {
     public var sort: String?
     public static let parser: CmdParser<Self> = .init(
         kind: .lens, allowInConfig: true,
-        help: """
-        USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures]
-               lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
-               lens --presentation list
-
-        Toggle a named Lens, open an ad-hoc Lens, or change the open Presentation.
-        Inline Filters bind w and ctx. Quote enum tags with double quotes:
-          lens --filter "w.class == 'floating"
-        --filter - reads a body from stdin.
-        """,
+        help: lens_help_generated,
         flags: ["--filter": filterBodySubArgParser(\.filter),
                 "--search": singleValueSubArgParser(\.search, "<text>") { $0 },
                 "--presentation": singleValueSubArgParser(\.presentation, "<presentation>") { $0 },
@@ -48,7 +39,7 @@ public struct ListLensesCmdArgs: CmdArgs {
     public init(rawArgs: StrArrSlice) { commonState = .init(rawArgs) }
     public var json = false
     public static let parser: CmdParser<Self> = .init(
-        kind: .listLenses, allowInConfig: false, help: "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile.",
+        kind: .listLenses, allowInConfig: false, help: list_lenses_help_generated,
         flags: ["--json": trueBoolFlag(\.json)], posArgs: []
     )
 }
@@ -57,7 +48,7 @@ public struct SummonCmdArgs: CmdArgs {
     public var commonState: CmdArgsCommonState
     public init(rawArgs: StrArrSlice) { commonState = .init(rawArgs) }
     public static let parser: CmdParser<Self> = .init(
-        kind: .summon, allowInConfig: true, help: "USAGE: summon [--window-id <id>]\nMove a window to the current workspace and focus it.",
+        kind: .summon, allowInConfig: true, help: summon_help_generated,
         flags: ["--window-id": optionalWindowIdFlag()], posArgs: []
     )
 }

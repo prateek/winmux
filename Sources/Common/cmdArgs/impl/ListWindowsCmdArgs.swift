@@ -8,18 +8,7 @@ public struct ListWindowsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
     public static let parser: CmdParser<Self> = .init(
         kind: .listWindows,
         allowInConfig: false,
-        help: list_windows_help_generated + """
-
-        LENS AND SEARCH:
-          --lens <name>             Match a configured Lens and use its sort order
-          --filter <name|body|->     Match a named Filter or inline Nickel body
-          --search <text>           Narrow and rank by title, app, workspace and project
-        These flags imply all workspaces when no scope flag is given. With a scope,
-        results are the intersection. Inline enum tags need double quotes, e.g.
-          --filter "w.class == 'floating"
-        --filter - reads stdin. Filter failures print no stdout and exit 2;
-        an unavailable helper or server exits 1. Search JSON adds score and matched-field.
-        """,
+        help: list_windows_help_generated,
         flags: [
             "--all": trueBoolFlag(\.allAlias),
 

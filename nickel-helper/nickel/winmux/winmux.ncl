@@ -50,13 +50,22 @@ let WorkspaceSidebar = {
   project-colors | { _ | String } | optional,
 } in
 
+let LensKeys = std.contract.Sequence [
+  { _ | Commands },
+  std.contract.from_validator (fun keys =>
+    if std.array.all (fun key =>
+      !(std.array.elem (std.array.last (std.string.split "-" key)) ["esc", "tab", "up", "down", "left", "right"])
+    ) (std.record.fields keys)
+    then 'Ok
+    else 'Error { message = "Escape, Tab and arrow keys (including modifier variants) are reserved for Lens navigation" }),
+] in
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
   entries | Choice [| 'window, 'app |] | optional,
   sections | Choice [| 'none, 'workspace, 'project, 'monitor, 'app |] | optional,
   sort | Array (Choice [| 'mru, 'previous, 'spatial, 'workspace, 'app, 'title, 'created |]) | optional,
-  keys | { _ | Commands } | optional,
+  keys | LensKeys | optional,
   popups | Array (Choice [| 'accessory-popup, 'app-popup |]) | optional,
   frozen-thumbnail | Choice [| 'plain, 'age-badge, 'pause-badge, 'dimmed |] | optional,
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,

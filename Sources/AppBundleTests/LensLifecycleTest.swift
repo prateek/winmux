@@ -8,6 +8,23 @@ final class LensLifecycleTest: XCTestCase {
         LensSession(name: name, settings: LensConfig(), items: [], search: search)
     }
 
+    func testFailedOpenCanRetryOnceAndOldCleanupCannotCancelNewerOpen() {
+        let store = LensLifecycle()
+        let failed = store.begin("search", toggle: true)!
+        store.cancelOpening(ticket: failed)
+        XCTAssertNotNil(store.begin("search", toggle: true))
+        let newer = store.begin("other", toggle: true)!
+        store.cancelOpening(ticket: failed)
+        XCTAssertTrue(store.complete(session("other"), ticket: newer))
+        store.cancelOpening(ticket: newer)
+        XCTAssertEqual(store.session?.name, "other")
+    }
+
+    func testFilterBitsHandleShortAndLongResponses() {
+        XCTAssertEqual(lensFilterMatches([1, 2, 3], bits: [false, true]), [2])
+        XCTAssertEqual(lensFilterMatches([1], bits: [true, true]), [1])
+    }
+
     func testSameLensTogglesAndAnotherReplacesRememberingSearch() {
         let store = LensLifecycle()
         let first = store.begin("search", toggle: true)!

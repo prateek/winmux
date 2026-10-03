@@ -57,8 +57,10 @@ impl Helper {
             }
             Request::Filter { lens, ctx, windows } => {
                 let engine = self.engine()?;
-                let filter = engine.lookup(&["lenses", &lens, "when", "default", "filter"])?
-                    .or(engine.lookup(&["lenses", &lens, "filter"])?);
+                let filter = match engine.lookup(&["lenses", &lens, "when", "default", "filter"])? {
+                    Some(filter) => Some(filter),
+                    None => engine.lookup(&["lenses", &lens, "filter"])?,
+                };
                 if filter.is_none() && engine.lookup(&["lenses", &lens])?.is_none() {
                     return Err(format!("no Lens named `{lens}`"));
                 }

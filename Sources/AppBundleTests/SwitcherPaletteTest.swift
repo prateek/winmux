@@ -77,6 +77,14 @@ final class LensSearchTierTest: XCTestCase {
         XCTAssertNil(lensSearchTier("ba", in: "ab"))
     }
 
+    func testWeightedFieldWinsBeforeTierAndTitleWinsTies() {
+        let match = LensSearchFields(title: "my mail", app: "", workspace: "mailbox", project: "").match("mail")
+        XCTAssertEqual(match, LensSearchMatch(score: 8, matchedField: "title"))
+        XCTAssertEqual(LensSearchFields(title: "abcdef", app: "ab", workspace: "", project: "").match("ab")?.matchedField, "app")
+        XCTAssertEqual(LensSearchFields(title: "a b", app: "", workspace: "ab", project: "").match("ab")?.matchedField, "workspace")
+        XCTAssertEqual(LensSearchFields(title: "my mail", app: "my mail", workspace: "", project: "").match("mail")?.matchedField, "title")
+    }
+
     func testProjectFieldAndWeights() {
         XCTAssertEqual(LensSearchFields(title: "", app: "", workspace: "", project: "Release").match("release")?.score, 6)
         XCTAssertEqual(LensSearchFields(title: "Release", app: "", workspace: "", project: "").match("release")?.score, 12)

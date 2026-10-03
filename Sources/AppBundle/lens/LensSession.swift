@@ -23,6 +23,7 @@ final class LensSession: ObservableObject {
     @Published private(set) var searchError: String?
     @Published var banner: String?
     @Published var summonHeld = false
+    private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
     var onSearchChanged: (() -> Void)?
@@ -62,8 +63,20 @@ final class LensSession: ObservableObject {
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
+    func performKeyAction(_ event: NSEvent) -> Bool {
+        guard let key = key(for: event) else { return false }
+        onAction?(key)
+        return true
+    }
+
     func moveSelection(_ delta: Int) { selection = min(max(selection + delta, 0), max(results.count - 1, 0)) }
     func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }) { selection = index } }
+    func hover(_ id: UInt32, at location: CGPoint) {
+        guard location != lastPointerLocation else { return }
+        lastPointerLocation = location
+        hover(id)
+    }
+
     func toggleMark() {
         guard let id = selectedId else { return }
         if let index = marks.firstIndex(of: id) { marks.remove(at: index) } else { marks.append(id) }

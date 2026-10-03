@@ -8,10 +8,40 @@ final class LensSessionTest: XCTestCase {
         SwitcherPaletteItem(id: id, title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: focused)
     }
 
+    func testStationaryPointerCannotReplaceDefaultOrKeyboardSelection() {
+        let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1, focused: true), item(2), item(3)], search: "")
+        let pointer = NSEvent.mouseLocation
+        session.hover(1, at: pointer)
+        XCTAssertEqual(session.selectedId, 2)
+        session.moveSelection(1)
+        session.hover(2, at: pointer)
+        XCTAssertEqual(session.selectedId, 3)
+        session.hover(1, at: CGPoint(x: pointer.x + 1, y: pointer.y))
+        XCTAssertEqual(session.selectedId, 1)
+        session.moveSelection(1)
+        session.hover(3, at: CGPoint(x: pointer.x + 1, y: pointer.y))
+        XCTAssertEqual(session.selectedId, 2)
+        session.hover(3)
+        XCTAssertEqual(session.selectedId, 3)
+    }
+
     func testPrefilledSearchSelectsAVisibleRowEvenWhenTheUnfilteredFirstWindowIsFocused() {
         let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1, focused: true), item(2)], search: "Window 2")
         XCTAssertEqual(session.selectedId, 2)
         XCTAssertEqual(session.targets(for: "shift-enter"), [2])
+    }
+
+    func testCommandKeyEquivalentRunsLensActionOnSelectionBeforeFieldEditing() throws {
+        var settings = LensConfig()
+        settings.keys["cmd-x"] = ["move-node-to-workspace 2"]
+        let session = LensSession(name: "demo", settings: settings, items: [item(1), item(2)], search: "Window 2")
+        var actions: [(String, [UInt32])] = []
+        session.onAction = { key in actions.append((key, session.targets(for: key))) }
+        let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command], timestamp: 0, windowNumber: 0, context: nil, characters: "x", charactersIgnoringModifiers: "x", isARepeat: false, keyCode: 7))
+        XCTAssertTrue(session.performKeyAction(event))
+        XCTAssertEqual(actions.map { $0.0 }, ["cmd-x"])
+        XCTAssertEqual(actions.first?.1, [2])
+        XCTAssertEqual(session.query, "Window 2")
     }
 
     func testCustomKeyModifierOrderAndSpecialKeysUseConfigNotation() throws {

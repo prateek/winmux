@@ -43,7 +43,7 @@ final class LensInlineSearch {
             guard !expired, ticket == self.generation, !Task.isCancelled else { return }
             switch result {
                 case .success(let bits):
-                    model.acceptInlineResult(ids.enumerated().filter { bits.indices.contains($0.offset) && bits[$0.offset] }.map(\.element))
+                    model.acceptInlineResult(lensFilterMatches(ids, bits: bits))
                 case .failure(let error): model.rejectInlineResult(error.message)
             }
         }

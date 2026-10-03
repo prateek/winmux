@@ -23,15 +23,21 @@ func lensWindows(popups: [String]) async throws -> [LensWindow] {
     let windows = workspaces.flatMap(\.allLeafWindowsRecursive)
         + macosMinimizedWindowsContainer.allLeafWindowsRecursive
         + macosPopupWindowsContainer.allLeafWindowsRecursive
-    var entries: [LensWindow] = []
-    for (index, window) in windows.enumerated() {
-        guard let windowClass = window.windowClass,
-              lensIncludes(windowClass, popups: popups),
-              let record = try await window.windowRecord()
-        else { continue }
-        entries.append(LensWindow(record: record, window: window, spatialIndex: index, workspaceIndex: indices[record.workspace] ?? Int.max,
-                                  workspaceSearchName: workspaceDisplayName(record.workspace),
-                                  projectSearchName: workspaceProjectDisplayName(WorkspaceProjectId(record.project), fallbackName: record.project)))
+    var records = [WindowRecord?](repeating: nil, count: windows.count)
+    await withTaskGroup(of: (Int, WindowRecord?).self) { group in
+        for (index, window) in windows.enumerated() {
+            guard let windowClass = window.windowClass, lensIncludes(windowClass, popups: popups) else { continue }
+            group.addTask { @MainActor @Sendable in
+                (index, try? await window.windowRecord())
+            }
+        }
+        for await (index, record) in group { records[index] = record }
+    }
+    let entries = windows.enumerated().compactMap { index, window -> LensWindow? in
+        guard let record = records[index] else { return nil }
+        return LensWindow(record: record, window: window, spatialIndex: index, workspaceIndex: indices[record.workspace] ?? Int.max,
+                          workspaceSearchName: workspaceDisplayName(record.workspace),
+                          projectSearchName: workspaceProjectDisplayName(WorkspaceProjectId(record.project), fallbackName: record.project))
     }
     return entries
 }

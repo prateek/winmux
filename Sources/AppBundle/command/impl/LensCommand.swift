@@ -31,8 +31,9 @@ struct LensCommand: Command {
         }
         let panel = SwitcherPalettePanel.shared
         guard let ticket = panel.beginLens(name, toggle: args.name != nil) else { return true }
+        defer { panel.cancelLensOpening(ticket: ticket) }
         let entries = try await lensWindows(popups: settings.popups)
-        let context = try await filterContextRecord()
+        let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
         let result = if let filter {
             await NickelSupervisor.shared.evalFilter(filter, context: context.json, windows: entries.map { $0.record.json })
         } else {
