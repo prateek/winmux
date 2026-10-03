@@ -105,3 +105,7 @@ extension LensSession {
         }
     }
 }
+
+func lensOnscreenWindows(presentation: String, read: () -> Set<UInt32>) -> Set<UInt32> {
+    presentation == "miniatures" || presentation == "strip" ? read() : []
+}

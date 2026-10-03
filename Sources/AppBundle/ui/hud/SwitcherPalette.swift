@@ -62,7 +62,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             }
         }
         let focusedId = focus.windowOrNil?.windowId
-        let onscreen: Set<UInt32> = settings.presentation != "miniatures" ? [] : Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
+        let onscreen = lensOnscreenWindows(presentation: settings.presentation) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
             SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,

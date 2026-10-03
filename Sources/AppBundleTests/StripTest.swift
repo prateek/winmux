@@ -16,6 +16,14 @@ final class StripLayoutTest: XCTestCase {
         XCTAssertEqual(StripLayout(count: 0, selection: 0, width: 600).range, 0..<0)
         XCTAssertEqual(StripLayout(count: 1, selection: 0, width: 600).range, 0..<1)
     }
+    func testStripAndMiniaturesUseOnscreenSnapshotForFullscreenThumbnails() {
+        for presentation in ["strip", "miniatures"] {
+            let onscreen = lensOnscreenWindows(presentation: presentation) { [42] }
+            XCTAssertFalse(miniatureIsFrozen(tray: false, fullscreen: !onscreen.contains(42), workspaceVisible: onscreen.contains(42), parked: false))
+            XCTAssertTrue(miniatureIsFrozen(tray: false, fullscreen: !onscreen.contains(43), workspaceVisible: onscreen.contains(43), parked: false))
+        }
+        XCTAssertTrue(lensOnscreenWindows(presentation: "list") { XCTFail("List does not capture thumbnails"); return [42] }.isEmpty)
+    }
     func testInvokingModifiersDelayAndReleaseBinding() {
         let gesture = StripGesture(keyCode: 48, invoking: [.command, .shift], openedAt: 10)
         XCTAssertEqual(gesture.committingModifiers, [.command])
