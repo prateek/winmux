@@ -12,7 +12,7 @@ Every change reaches `fork` through a pull request, squash-merged after CI passe
 4. **Describe it.** Say what changes and why, where the work departs from its issue, what was checked, and what was not checked.
 5. **Show it.** Attach screenshots and video demos of anything a person can see or operate: UI, an animation, CLI output worth reading. Attach them with `gh attach`. A change with nothing to show says so in the description.
 6. **Wait for CI.** The step is done when the `Build and test` check is green on the latest commit.
-7. **Merge when Prateek says to.** Squash, and write the squash message as a commit message: a subject, then a body that explains the change. The pull request text is for the reviewer and stays on the pull request.
+7. **Merge when Prateek says to.** The `issue-relay` skill is the one exception: its driver merges once the skill's merge gate holds. Squash, and write the squash message as a commit message: a subject, then a body that explains the change. The pull request text is for the reviewer and stays on the pull request.
 8. **Finish.** Each of these is part of landing:
    - Update the issue body from its draft in `.scratch/winmux-fork/build/`, so the two stay the same.
    - Retarget a stacked pull request to `fork`, after merging `fork` into its branch.

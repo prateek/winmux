@@ -1,0 +1,7 @@
+#!/bin/sh
+# The ACP agent for the relay's builder: Codex on GPT-6.1 Sol at medium effort, with full access.
+# codex-acp 1.12 rejects this model, so 2.0.1 is pinned. The sandbox and approval keys give the
+# session network access and writes outside the workspace; the mode it reports stays "Auto review".
+exec env -u CODEX_PATH -u CODEX_CONFIG -u MODEL_PROVIDER -u CODEX_API_KEY -u OPENAI_API_KEY \
+  CODEX_CONFIG='{"model":"gpt-6.1-sol","model_reasoning_effort":"medium","service_tier":"default","sandbox_mode":"danger-full-access","approval_policy":"never"}' \
+  npx -y @agentclientprotocol/codex-acp@2.0.1 "$@"
