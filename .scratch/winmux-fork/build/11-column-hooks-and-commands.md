@@ -115,25 +115,51 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] A config with `arrive`, `place` and `move-boundary` hooks loads. A hook whose smoke run returns an unknown action fails `winmux config check` with the Nickel diagnostic.
-- [ ] A new tiling window lands in the Column the `place` hook returns. With the target occupied, each of `'tab-group`, `'split`, `'float` and `'squeeze` does what it says.
-- [ ] `'squeeze` leaves the workspace with one Column more than the count; no other path does.
-- [ ] An `arrive` hook that branches on its Columns argument sees the Columns of the workspace the window was detected on.
-- [ ] An `arrive` hook that returns a `workspace` sends the window there, and `place` then runs with that workspace's Columns.
-- [ ] An `arrive` hook that returns `float = true` makes the window floating, and `place` does not run.
-- [ ] A hook's `run` commands execute after the window has been placed, and they act on that window, not on the focused one.
-- [ ] `summon` on a window from another workspace runs `place` and not `arrive`, and the `run` commands of that `place` result execute.
-- [ ] `move right` into an occupied Column follows the `move-boundary` result for `'join` and for `'swap`; at the workspace edge it follows `'stop`, `'wrap`, `'next-workspace` and `'next-monitor`.
-- [ ] A hook whose body is expensive enough to run past 50 ms, and a killed helper, both result in the built-in placement, and the window is still placed.
-- [ ] A hook that raises an error for one window, and a hook whose result breaks the contract for one window, both result in the built-in placement for that window.
-- [ ] `winmux focus-column 2` focuses Column 2, including when it is empty, and the next new window with a `'focused` target lands there.
-- [ ] `winmux move-node-to-column 3` moves the focused window to Column 3.
-- [ ] `winmux column-width next` and `prev` step through the Width presets, `winmux column-width 0.5` sets the fraction, and the widths still sum to 1.
-- [ ] `winmux compact` leaves no empty Column between occupied ones.
-- [ ] `winmux list-columns --json` prints index, width, empty and window ids for each Column.
-- [ ] `winmux column-count 2` changes the count at once, `winmux column-count off` returns the workspace to plain tree tiling, and `winmux reload-config` restores the configured count.
-- [ ] `winmux place --dry-run --window-id <id>` prints the hook result for that window, moves nothing, and runs none of the result's `run` commands.
-- [ ] Each new command exits 0 on success, 1 with the server down, and 2 on bad usage.
+- [x] A config with `arrive`, `place` and `move-boundary` hooks loads. A hook whose smoke run returns an unknown action fails `winmux config check` with the Nickel diagnostic.
+- [x] A new tiling window lands in the Column the `place` hook returns. With the target occupied, each of `'tab-group`, `'split`, `'float` and `'squeeze` does what it says.
+- [x] `'squeeze` leaves the workspace with one Column more than the count; no other path does.
+- [x] An `arrive` hook that branches on its Columns argument sees the Columns of the workspace the window was detected on.
+- [x] An `arrive` hook that returns a `workspace` sends the window there, and `place` then runs with that workspace's Columns.
+- [x] An `arrive` hook that returns `float = true` makes the window floating, and `place` does not run.
+- [x] A hook's `run` commands execute after the window has been placed, and they act on that window, not on the focused one.
+- [x] `summon` on a window from another workspace runs `place` and not `arrive`, and the `run` commands of that `place` result execute.
+- [x] `move right` into an occupied Column follows the `move-boundary` result for `'join` and for `'swap`; at the workspace edge it follows `'stop`, `'wrap`, `'next-workspace` and `'next-monitor`.
+- [x] A hook whose body is expensive enough to run past 50 ms, and a killed helper, both result in the built-in placement, and the window is still placed.
+- [x] A hook that raises an error for one window, and a hook whose result breaks the contract for one window, both result in the built-in placement for that window.
+- [x] `winmux focus-column 2` focuses Column 2, including when it is empty, and the next new window with a `'focused` target lands there.
+- [x] `winmux move-node-to-column 3` moves the focused window to Column 3.
+- [x] `winmux column-width next` and `prev` step through the Width presets, `winmux column-width 0.5` sets the fraction, and the widths still sum to 1.
+- [x] `winmux compact` leaves no empty Column between occupied ones.
+- [x] `winmux list-columns --json` prints index, width, empty and window ids for each Column.
+- [x] `winmux column-count 2` changes the count at once, `winmux column-count off` returns the workspace to plain tree tiling, and `winmux reload-config` restores the configured count.
+- [x] `winmux place --dry-run --window-id <id>` prints the hook result for that window, moves nothing, and runs none of the result's `run` commands.
+- [x] Each new command exits 0 on success, 1 with the server down, and 2 on bad usage.
+
+## Build results and checks left
+
+All nineteen behavior items above pass tests. `make check` passes with 851 Swift, 54 helper and 6 Python tests. The existing Fixed Columns tests are unchanged. Real-helper tests cover both smoke contexts, every result contract and all four hook precedence levels. Eight Nickel documentation examples pass the helper's `check`. The debug run used only owned neutral apps and workspace-local Columns; system chords stayed enabled.
+
+The captures establish the visible results except the specific checks below. The desktop locked independently during review; no lock or sleep command was issued. The build and all owned apps were quit normally, and Terminal and Orca were unhidden. Original frames and a restoration script are retained privately because Accessibility cannot restore them while locked.
+
+- [ ] Fresh live miniature and strip landing-outline showing after the asynchronous publication fix. The pure decision, exact gap geometry, no-mutation and observer-publication regressions pass; the existing Lens capture proves Summon but does not prove the outline.
+- [ ] A helper killed during a Place request, visibly demonstrating built-in placement. The live clip proves helper recovery and `config status` retaining the error; its placement raced a respawn. Stub-helper kill/fallback tests pass.
+- [ ] Restore saved desktop window frames after unlock. The attempted restore found zero accessible windows while locked; the private original geometry is preserved.
+- [ ] Physical second-display movement and monitor-size changes. Synthetic monitor tests pass; no display resolution or arrangement was changed.
+- [ ] Release-build behavior, for Prateek. No release command, including a dry run, was run.
+
+No **Default chosen for you** changed.
+
+Decided: Reject legacy `on-window-detected` at load. `config convert` preserves its source as migration comments and warns that Arrive needs a manual rewrite.
+Decided: Allow one extra squeeze Column; further squeezes share it. Its width is `1 / (count + 1)`, the average after proportional redistribution.
+Decided: An explicit Arrive Column without Overflow uses `'tab-group`.
+Decided: Dry-run evaluates placement into the focused workspace, the prospective Summon destination.
+Decided: Focus, Compact and Count accept `--workspace`; width and explicit movement accept the existing window-id flag spelling.
+Decided: Cross-Column drops on the same workspace run Place; reordering within one Column does not.
+Decided: Arrive's Window class describes its binding default before the hook. Popups preserve their native class when the result specifies no placement fields.
+Decided: Swap exchanges whole Columns.
+Decided: The landing hint describes placement before arbitrary `run` commands can move or resize the window.
+Decided: Quote hook-path segments containing punctuation, so workspace and profile names cannot collide with nested field paths.
+
 ## Sources
 
 - [Grilling: fixed Columns, Width presets and Overflow policy semantics](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/issues/09-grilling-fixed-columns-model.md)
