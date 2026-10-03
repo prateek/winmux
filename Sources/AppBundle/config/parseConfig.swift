@@ -165,12 +165,26 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     guard case .object(let fields) = settings else {
         return (Config(), [.syntax("The config must be a record")])
     }
-    return parseConfig(tomlTable(fields.filter { !helperOwnedRootKeys.contains($0.key) }))
+    var parsed = parseConfig(tomlTable(fields.filter { !nonTomlRootKeys.contains($0.key) }))
+    if case .object(let lenses) = fields["lenses"] {
+        parsed.config.lenses = lenses.mapValues(LensConfig.init)
+        for (name, lens) in parsed.config.lenses {
+            for (key, commands) in lens.keys {
+                if case .failure = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
+                    parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
+                }
+                for command in commands where command != "focus" {
+                    if case .failure(let error) = parseCommand(command) {
+                        parsed.errors.append(.syntax("lenses.\(name).keys.\(key): \(error)"))
+                    }
+                }
+            }
+        }
+    }
+    return parsed
 }
 
-/// Top-level keys that hold functions, which stay in `winmux-nickel`, or that only the helper
-/// reads. What is left of them in the settings is not for this parser.
-private let helperOwnedRootKeys: Set<String> = ["filters", "lenses", "contract-version"]
+private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "contract-version"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))

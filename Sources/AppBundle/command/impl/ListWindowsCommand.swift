@@ -6,6 +6,7 @@ struct ListWindowsCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        if args.usesLensPipeline { return try await runLensPipeline(io) }
         let focus = focus
         var windows: [Window] = []
 
@@ -59,5 +60,68 @@ struct ListWindowsCommand: Command {
                 ignoreRightPaddingVar: args._format.isEmpty,
             )
         }
+    }
+}
+
+extension ListWindowsCommand {
+    @MainActor
+    private func runLensPipeline(_ io: CmdIo) async throws -> Bool {
+        let settings: LensConfig
+        if let name = args.lens {
+            guard let lens = config.lenses[name] else { io.failureExitCode = 2; return io.err("No Lens named '\(name)'") }
+            settings = lens
+        } else { settings = LensConfig() }
+        var entries = try await lensWindows(popups: settings.popups)
+        let scope = args.filteringOptions
+        if scope.focused { entries = entries.filter { $0.window.windowId == focus.windowOrNil?.windowId } }
+        if !scope.workspaces.isEmpty {
+            let names = Set(scope.workspaces.flatMap { filter -> [String] in
+                switch filter {
+                    case .focused: [focus.workspace.name]
+                    case .visible: Workspace.all.filter(\.isVisible).map(\.name)
+                    case .name(let name): [name.raw]
+                }
+            })
+            entries = entries.filter { names.contains($0.record.workspace) }
+        }
+        if !scope.monitors.isEmpty && !scope.monitors.contains(.all) {
+            let points = scope.monitors.resolveMonitors(io)
+            if points.isEmpty { return false }
+            let names = Set(Workspace.all.filter { points.contains($0.workspaceMonitor.rect.topLeftCorner) }.map(\.name))
+            entries = entries.filter { names.contains($0.record.workspace) }
+        }
+        if let pid = scope.pidFilter { entries = entries.filter { $0.record.app.pid == pid } }
+        if let app = scope.appIdFilter { entries = entries.filter { $0.record.app.bundleId == app } }
+        let context = try await filterContextRecord()
+        let result: Result<[Bool], NickelFailure>
+        if let lens = args.lens {
+            result = await NickelSupervisor.shared.filter(lens: lens, context: context.json, windows: entries.map { $0.record.json })
+        } else if let filter = args.filter {
+            let body = filter == "-" ? io.readStdin() : filter
+            if case .failure(let failure) = await NickelSupervisor.shared.checkFilter(body) {
+                io.failureExitCode = failure.usageExitCode
+                return io.err(failure.message)
+            }
+            result = await NickelSupervisor.shared.evalFilter(body, context: context.json, windows: entries.map { $0.record.json })
+        } else { result = .success(Array(repeating: true, count: entries.count)) }
+        switch result {
+            case .success(let bits): entries = entries.enumerated().filter { bits.indices.contains($0.offset) && bits[$0.offset] }.map(\.element)
+            case .failure(let failure): io.failureExitCode = failure.usageExitCode; return io.err(failure.message)
+        }
+        entries = sortLensWindows(entries, by: settings.sort, previousId: context.previous.map { UInt32($0.id) })
+        if let search = args.search { entries = searchLensWindows(entries, search: search) }
+        if args.outputOnlyCount { return io.out(String(entries.count)) }
+        let objects = entries.map { FormatObject.window(window: $0.window, title: $0.record.title) }
+        if args.json {
+            let extra: [[String: Primitive]] = entries.map { entry in
+                guard let match = entry.searchMatch else { return [:] }
+                return ["score": .int(match.score), "matched-field": .string(match.matchedField)]
+            }
+            switch objects.formatToJson(args.format, ignoreRightPaddingVar: args._format.isEmpty, extraFields: extra) {
+                case .success(let json): return io.out(json)
+                case .failure(let message): return io.err(message)
+            }
+        }
+        return objects.writeFormattedOutput(to: io, format: args.format, json: false, ignoreRightPaddingVar: args._format.isEmpty)
     }
 }

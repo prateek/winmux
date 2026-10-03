@@ -8,7 +8,18 @@ public struct ListWindowsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
     public static let parser: CmdParser<Self> = .init(
         kind: .listWindows,
         allowInConfig: false,
-        help: list_windows_help_generated,
+        help: list_windows_help_generated + """
+
+        LENS AND SEARCH:
+          --lens <name>             Match a configured Lens and use its sort order
+          --filter <name|body|->     Match a named Filter or inline Nickel body
+          --search <text>           Narrow and rank by title, app, workspace and project
+        These flags imply all workspaces when no scope flag is given. With a scope,
+        results are the intersection. Inline enum tags need double quotes, e.g.
+          --filter "w.class == 'floating"
+        --filter - reads stdin. Filter failures print no stdout and exit 2;
+        an unavailable helper or server exits 1. Search JSON adds score and matched-field.
+        """,
         flags: [
             "--all": trueBoolFlag(\.allAlias),
 
@@ -19,6 +30,10 @@ public struct ListWindowsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
             "--pid": singleValueSubArgParser(\.filteringOptions.pidFilter, "<pid>", Int32.init),
             "--app-bundle-id": singleValueSubArgParser(\.filteringOptions.appIdFilter, "<app-bundle-id>") { $0 },
 
+            "--lens": singleValueSubArgParser(\.lens, "<name>") { $0 },
+            "--filter": filterBodySubArgParser(\.filter),
+            "--search": singleValueSubArgParser(\.search, "<text>") { $0 },
+
             // Formatting flags
             "--format": formatParser(\._format, for: .window),
             "--count": trueBoolFlag(\.outputOnlyCount),
@@ -28,10 +43,16 @@ public struct ListWindowsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
         conflictingOptions: [
             ["--all", "--focused", "--workspace"],
             ["--all", "--focused", "--monitor"],
+            ["--lens", "--filter"],
             ["--count", "--format"],
             ["--count", "--json"],
         ],
     )
+
+    public var lens: String?
+    public var filter: String?
+    public var search: String?
+    public var usesLensPipeline: Bool { lens != nil || filter != nil || search != nil }
 
     fileprivate var allAlias: Bool = false
 
@@ -65,7 +86,7 @@ func parseListWindowsCmdArgs(_ args: StrArrSlice) -> ParsedCmd<ListWindowsCmdArg
     let args = args.map { $0 == "--app-id" ? "--app-bundle-id" : $0 }.slice // Compatibility
     return parseSpecificCmdArgs(ListWindowsCmdArgs(commonState: .init(args)), args)
         .filter("Mandatory option is not specified (--focused|--all|--monitor|--workspace)") { raw in
-            raw.filteringOptions.focused || raw.allAlias || !raw.filteringOptions.monitors.isEmpty || !raw.filteringOptions.workspaces.isEmpty
+            raw.usesLensPipeline || raw.filteringOptions.focused || raw.allAlias || !raw.filteringOptions.monitors.isEmpty || !raw.filteringOptions.workspaces.isEmpty
         }
         .filter("--all conflicts with \"filtering\" flags. Please use '--monitor all' instead of '--all' alias") { raw in
             raw.allAlias.implies(raw.filteringOptions == ListWindowsCmdArgs.FilteringOptions())

@@ -1,6 +1,7 @@
 import Common
 
 struct CmdEnv: ConvenienceCopyable {
+    var windowWorkspaceFallback: String?
     var windowId: UInt32?
     var workspaceName: String?
 

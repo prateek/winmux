@@ -163,6 +163,10 @@ final class NickelSupervisor {
         return await send(request, timeout: settings.filterTimeout).flatMap(matchBits)
     }
 
+    func checkFilter(_ filter: String) async -> Result<JSONValue, NickelFailure> {
+        await send(["op": .string("check-filter"), "filter": .string(filter)], timeout: settings.filterTimeout)
+    }
+
     func hook(_ hook: String, args: [JSONValue]) async -> Result<JSONValue, NickelFailure> {
         await send(["op": .string("hook"), "hook": .string(hook), "args": .array(args)], timeout: settings.hookTimeout)
     }

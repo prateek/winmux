@@ -108,7 +108,7 @@ open class Window: TreeNode, Hashable {
 
     @MainActor static func get(byId windowId: UInt32) -> Window? { // todo make non optional
         isUnitTest
-            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }.first(where: { $0.windowId == windowId })
+            ? all.first(where: { $0.windowId == windowId })
             : MacWindow.allWindowsMap[windowId]
     }
 

@@ -14,6 +14,7 @@ struct CmdStdin: ~Copyable {
 
 final class CmdIo {
     private var stdin: CmdStdin
+    var failureExitCode: Int32 = 1
     var stdout: [String] = []
     var stderr: [String] = []
 

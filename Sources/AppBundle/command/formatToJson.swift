@@ -3,10 +3,10 @@ import Foundation
 
 extension [FormatObject] {
     @MainActor
-    func formatToJson(_ format: [StringInterToken], ignoreRightPaddingVar: Bool) -> Result<String, String> {
+    func formatToJson(_ format: [StringInterToken], ignoreRightPaddingVar: Bool, extraFields: [[String: Primitive]] = []) -> Result<String, String> {
         var list: [[String: Primitive]] = []
-        for richObj in self {
-            var rawObj: [String: Primitive] = [:]
+        for (index, richObj) in enumerated() {
+            var rawObj: [String: Primitive] = extraFields.indices.contains(index) ? extraFields[index] : [:]
             for token in format {
                 switch token {
                     case .interVar(PlainInterVar.rightPadding.rawValue) where ignoreRightPaddingVar:
