@@ -52,22 +52,20 @@ final class DefaultEventsTest: XCTestCase {
         }
     }
 
-    func testOneLensPairAcrossSearchAndPresentationChangesAndEveryDismissal() throws {
+    func testOneLensPairAcrossSearchAndPresentationChangesAndRepeatedDismissal() throws {
         for presentation in ["list", "strip", "miniatures"] {
-            for reason in ["Escape", "click", "release", "global binding", "closeLens"] {
-                var events: [ServerEvent] = []
-                let lifecycle = LensLifecycle(emit: { events.append($0) })
-                var settings = LensConfig(); settings.presentation = presentation
-                let ticket = try XCTUnwrap(lifecycle.begin("recent", toggle: true))
-                let session = LensSession(name: "recent", settings: settings, items: [], search: "")
-                XCTAssertTrue(lifecycle.complete(session, ticket: ticket))
-                session.query = "Demo"
-                session.changePresentation("list")
-                XCTAssertEqual(events.count, 1, reason)
-                lifecycle.dismiss()
-                lifecycle.dismiss()
-                XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed], reason)
-            }
+            var events: [ServerEvent] = []
+            let lifecycle = LensLifecycle(emit: { events.append($0) })
+            var settings = LensConfig(); settings.presentation = presentation
+            let ticket = try XCTUnwrap(lifecycle.begin("recent", toggle: true))
+            let session = LensSession(name: "recent", settings: settings, items: [], search: "")
+            XCTAssertTrue(lifecycle.complete(session, ticket: ticket))
+            session.query = "Demo"
+            session.changePresentation("list")
+            XCTAssertEqual(events.count, 1)
+            lifecycle.dismiss()
+            lifecycle.dismiss()
+            XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
         }
         var events: [ServerEvent] = []
         let lifecycle = LensLifecycle(emit: { events.append($0) })
@@ -81,6 +79,46 @@ final class DefaultEventsTest: XCTestCase {
         XCTAssertTrue(lifecycle.complete(adhoc, ticket: adhocTicket))
         lifecycle.dismiss()
         for event in events { XCTAssertEqual(try json(event)["filter"] as? String, "same-app") }
+    }
+
+    func testPanelDismissalRoutesEachEmitExactlyOnePair() async throws {
+        setUpWorkspacesForTests()
+        _ = NSApplication.shared
+        for route in ["Escape", "click", "release", "global binding", "closeLens", "handoff"] {
+            var events: [ServerEvent] = []
+            let panel = SwitcherPalettePanel(emit: { events.append($0) })
+            defer { panel.dismiss() }
+            var settings = LensConfig()
+            settings.presentation = ["release", "global binding", "handoff"].contains(route) ? "strip" : "list"
+            let ticket = try XCTUnwrap(panel.beginLens("recent", toggle: false))
+            await panel.openLens(name: "recent", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket)
+            XCTAssertEqual(events.map(\.eventType), [.lensOpened], route)
+            switch route {
+                case "Escape":
+                    let escape = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                        windowNumber: panel.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 53))
+                    panel.sendEvent(escape)
+                case "click":
+                    let click = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+                        windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+                    panel.session?.onAction?(try XCTUnwrap(panel.session?.key(for: click, click: true)))
+                case "release":
+                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+                    panel.stripFlagsChanged([])
+                case "global binding":
+                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+                    XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
+                case "handoff":
+                    panel.changePresentationToList()
+                    panel.session?.query = "Demo"
+                    XCTAssertEqual(events.map(\.eventType), [.lensOpened])
+                    panel.dismiss()
+                default: panel.dismiss()
+            }
+            panel.dismiss()
+            XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed], route)
+            XCTAssertNil(panel.session, route)
+        }
     }
 
     func testColumnsChangesIgnoreInitialRefreshAndWorkspaceSwitchButObserveOff() throws {
