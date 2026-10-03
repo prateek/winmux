@@ -526,6 +526,15 @@ final class FixedColumnsTest: XCTestCase {
         XCTAssertGreaterThanOrEqual(columns.widths[2] * 1000 + 0.000001, minimumTiledResizeWeight)
     }
 
+    func testResizeRepairsWidthsWhoseProportionsCannotFitTheFloor() {
+        let columns = ColumnState(count: 3, widths: [0.01, 0.01, 0.98])
+        columns.setWidth(slot: 1, fraction: 0.5, availableWidth: 1000)
+        XCTAssertEqual(columns.widths.reduce(0, +), 1, accuracy: 0.000001)
+        for width in columns.widths {
+            XCTAssertGreaterThanOrEqual(width * 1000, minimumTiledResizeWeight)
+        }
+    }
+
     func testResizeColumnSplitAndBalanceDeclaredWidths() async throws {
         let ws = workspace()
         ws.columns = ColumnState(count: 3, widths: [0.2, 0.3, 0.5])

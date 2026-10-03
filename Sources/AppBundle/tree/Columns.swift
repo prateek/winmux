@@ -30,6 +30,7 @@ final class ColumnState {
         let old = base[slot - 1]
         let others = base.enumerated().filter { $0.offset != slot - 1 }.map(\.element)
         let maximum = 1 - floor * (1 - old) / others.min().orDie()
+        if maximum < floor { return Array(repeating: 1 / CGFloat(count), count: count) }
         let desired = max(floor, min(maximum, fraction))
         let scale = (1 - desired) / (1 - old)
         return base.enumerated().map { $0.offset == slot - 1 ? desired : $0.element * scale }

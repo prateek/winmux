@@ -53,7 +53,7 @@ At workspace edges, the default move stops. `--boundaries-action fail` returns f
 
 ## Widths
 
-`resize width +40` on a window alone in its Column changes that Column's width. Its other Columns absorb the change in proportion to their widths, including empty Columns. Drag the faint divider at a Column boundary to use the same proportional operation and preview, including beside an empty Column. Resizing a split uses the ordinary sizing inside that Column. The minimum Column width is 80 points; on a monitor too narrow for all minimum widths, equal fractions are the feasible floor.
+`resize width +40` on a window alone in its Column changes that Column's width. Its other Columns absorb the change in proportion to their widths, including empty Columns. Drag the faint divider at a Column boundary to use the same proportional operation and preview, including beside an empty Column. Resizing a split uses the ordinary sizing inside that Column. The minimum Column width is 80 points; when the monitor or the initial width ratios cannot fit every minimum, resizing uses equal fractions.
 
 `balance-sizes` returns Columns to their declared widths and balances splits inside them. Width fractions survive a monitor size change, and gaps remain reserved beside empty Columns.
 
