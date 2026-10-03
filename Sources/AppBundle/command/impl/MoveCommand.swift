@@ -15,6 +15,9 @@ struct MoveCommand: Command {
         guard let parent = currentNode.parent else { return false }
         switch parent.cases {
             case .tilingContainer(let parent):
+                if parent.isRootContainer, let workspace = currentNode.nodeWorkspace, workspace.columns != nil {
+                    return moveAtColumnBoundary(currentNode, currentWindow, workspace, direction, io, args, env)
+                }
                 let indexOfCurrent = currentNode.ownIndex.orDie()
                 let indexOfSiblingTarget = indexOfCurrent + direction.focusOffset
                 if parent.orientation == direction.orientation && parent.children.indices.contains(indexOfSiblingTarget) {
@@ -29,7 +32,7 @@ struct MoveCommand: Command {
                             return moveNodeToSiblingIndex(currentNode, parent, indexOfSiblingTarget)
                     }
                 } else {
-                    return moveOut(node: currentNode, direction: direction, io, args, env)
+                    return moveOut(node: currentNode, window: currentWindow, direction: direction, io, args, env)
                 }
             case .workspace: // floating window
                 return io.err("moving floating windows isn't yet supported") // todo
@@ -62,7 +65,7 @@ private func moveNodeToSiblingIndex(_ node: TreeNode, _ parent: TilingContainer,
                 case .stop: return true
                 case .fail: return false
                 case .createImplicitContainer:
-                    createImplicitContainerAndMoveNode(node, workspace, direction)
+                    if workspace.columns == nil { createImplicitContainerAndMoveNode(node, workspace, direction) }
                     return true
             }
         case .allMonitorsOuterFrame:
@@ -94,7 +97,7 @@ private func moveNodeToSiblingIndex(_ node: TreeNode, _ parent: TilingContainer,
         case .stop: return true
         case .fail: return false
         case .createImplicitContainer:
-            createImplicitContainerAndMoveNode(node, workspace, direction)
+            if workspace.columns == nil { createImplicitContainerAndMoveNode(node, workspace, direction) }
             return true
     }
 }
@@ -103,6 +106,7 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
 
 @MainActor private func moveOut(
     node: TreeNode,
+    window: Window,
     direction: CardinalDirection,
     _ io: CmdIo,
     _ args: MoveCmdArgs,
@@ -120,11 +124,15 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     guard let parent = innerMostChild.parent else { return false }
     switch parent.cases {
         case .tilingContainer(let parent):
+            if parent.isRootContainer, let workspace = node.nodeWorkspace, workspace.columns != nil {
+                return moveAtColumnBoundary(node, window, workspace, direction, io, args, env)
+            }
             check(parent.orientation == direction.orientation)
             guard let ownIndex = innerMostChild.ownIndex else { return false }
             node.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: ownIndex + direction.insertionOffset)
             return true
         case .workspace(let parent):
+            if parent.columns != nil { return moveAtColumnBoundary(node, window, parent, direction, io, args, env) }
             return hitWorkspaceBoundaries(node, parent, io, args, direction, env)
         case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             return io.err(moveOutMacosUnconventionalWindow)
@@ -189,4 +197,18 @@ extension Window {
             return self
         }
     }
+}
+
+@MainActor private func moveAtColumnBoundary(
+    _ node: TreeNode, _ window: Window, _ workspace: Workspace, _ direction: CardinalDirection,
+    _ io: CmdIo, _ args: MoveCmdArgs, _ env: CmdEnv
+) -> Bool {
+    workspace.enforceColumnInvariant()
+    guard let columns = workspace.columns, let slot = workspace.columnSlot(containing: node) else {
+        return io.err("Cannot resolve the window's Column")
+    }
+    if direction.orientation == .h, (1...columns.count).contains(slot + direction.focusOffset) {
+        return workspace.moveAcrossColumnBoundary(node, window: window, direction: direction)
+    }
+    return hitWorkspaceBoundaries(node, workspace, io, args, direction, env)
 }

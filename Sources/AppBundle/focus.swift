@@ -130,7 +130,11 @@ func replaceWorkspaceNameInFocusState(oldName: String, newName: String) {
         oldFocus.windowOrNil?.markAsMostRecentChild()
     }
 
+    oldFocus.workspace.columns?.focusedSlot = nil
+    oldFocus.workspace.columns?.lastFocusedWindowSlot = nil
     _focus = newFocus.frozen
+    newFocus.workspace.columns?.focusedSlot = newFocus.workspace.columnSlot(containing: newFocus.windowOrNil)
+    newFocus.workspace.columns?.lastFocusedWindowSlot = newFocus.workspace.columns?.focusedSlot
     newFocus.windowOrNil?.markAsMostRecentChild()
     return true
 }

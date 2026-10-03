@@ -69,7 +69,12 @@ fn print(text: &str) -> ExitCode {
 
 fn check(file: Option<&Path>, library: &Path) -> ExitCode {
     match protocol::load(file, library) {
-        Ok(_) => ExitCode::SUCCESS,
+        Ok((_, result)) => {
+            if let Some(warnings) = result["warnings"].as_array() {
+                for warning in warnings { eprintln!("warning: {}", warning.as_str().unwrap_or_default()); }
+            }
+            ExitCode::SUCCESS
+        },
         Err(diagnostic) => {
             eprint!("{diagnostic}");
             ExitCode::from(2)

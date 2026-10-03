@@ -357,11 +357,8 @@ extension WindowMouseInteractionDriver {
                parent.isBound,
                parent.nodeWorkspace === workspace
             {
-                window.bind(
-                    to: parent,
-                    adaptiveWeight: placement.adaptiveWeight,
-                    index: min(placement.index, parent.children.count),
-                )
+                window.bind(to: BindingData(parent: parent, adaptiveWeight: placement.adaptiveWeight,
+                    index: min(placement.index, parent.children.count), columnSlot: placement.columnSlot))
             } else {
                 let placement = bindingDataForNewTilingWindow(workspace, window: window)
                 window.bind(to: placement.parent, adaptiveWeight: placement.adaptiveWeight, index: placement.index)

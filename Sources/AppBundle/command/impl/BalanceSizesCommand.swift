@@ -8,7 +8,16 @@ struct BalanceSizesCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
-        balance(target.workspace.rootTilingContainer)
+        let workspace = target.workspace
+        if let columns = workspace.columns {
+            columns.widths = columns.declaredWidths
+            for child in workspace.rootTilingContainer.children {
+                if let container = child as? TilingContainer { balance(container) }
+            }
+            workspace.enforceColumnInvariant()
+        } else {
+            balance(workspace.rootTilingContainer)
+        }
         return true
     }
 }

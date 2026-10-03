@@ -16,13 +16,7 @@ struct JoinWithCommand: Command {
         }
         let joinWithTarget = parent.children[ownIndex + direction.focusOffset]
         let prevBinding = joinWithTarget.unbindFromParent()
-        let newParent = TilingContainer(
-            parent: parent,
-            adaptiveWeight: prevBinding.adaptiveWeight,
-            parent.orientation.opposite,
-            .tiles,
-            index: prevBinding.index,
-        )
+        let newParent = TilingContainer(replacing: prevBinding, parent.orientation.opposite, .tiles)
         currentWindow.unbindFromParent()
 
         joinWithTarget.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)

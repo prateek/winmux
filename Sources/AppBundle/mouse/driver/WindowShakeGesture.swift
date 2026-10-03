@@ -4,12 +4,14 @@ final class WindowShakeTilingPlacement {
     weak var parent: TilingContainer?
     let adaptiveWeight: CGFloat
     let index: Int
+    let columnSlot: Int?
 
     init?(_ binding: BindingData) {
         guard let parent = binding.parent as? TilingContainer else { return nil }
         self.parent = parent
         adaptiveWeight = binding.adaptiveWeight
         index = binding.index
+        columnSlot = binding.columnSlot
     }
 }
 

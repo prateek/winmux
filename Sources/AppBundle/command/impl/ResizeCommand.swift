@@ -42,6 +42,16 @@ struct ResizeCommand: Command {
             case .subtract(let unit): -CGFloat(unit)
         }
 
+        if parent.isRootContainer, let workspace = node.nodeWorkspace, let columns = workspace.columns,
+           let slot = node.columnSlot {
+            if let split = node as? TilingContainer, split.layout == .tiles {
+                return io.err("No matching resize split inside the Column")
+            }
+            let width = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps.width
+            columns.setWidth(slot: slot, fraction: (columns.widths[slot - 1] * width + requestedDiff) / width, availableWidth: width)
+            workspace.enforceColumnInvariant()
+            return true
+        }
         let siblings = parent.children.filter { $0 != node }
         guard !siblings.isEmpty else { return false }
         let siblingMultiplier = -CGFloat(1).div(siblings.count).orDie()

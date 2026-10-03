@@ -2,6 +2,14 @@
   "auto-add-new-windows-to-tab-group": true,
   "automatically-tile-new-windows": true,
   "automatically-unhide-macos-hidden-apps": false,
+  "columns": {
+    "count": "off",
+    "width-presets": [
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666
+    ]
+  },
   "config-version": 2,
   "default-root-container-layout": "tiles",
   "default-root-container-orientation": "auto",

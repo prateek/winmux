@@ -4,6 +4,7 @@ import Common
 extension Workspace {
     @MainActor
     func layoutWorkspace() async throws {
+        if columns != nil { enforceColumnInvariant() }
         if isEffectivelyEmpty { return }
         let rect = workspaceMonitor.visibleRectPaddedByOuterGaps
         let context = LayoutContext(self)
@@ -157,6 +158,23 @@ extension Window {
 extension TilingContainer {
     @MainActor
     fileprivate func layoutTiles(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
+        if isRootContainer, let columns = context.workspace.columns {
+            for child in children {
+                guard let slot = child.columnSlot else { continue }
+                let offset = columns.widths.prefix(slot - 1).reduce(0, +) * width
+                let columnWidth = columns.widths[slot - 1] * width
+                let gap = context.resolvedGaps.inner.get(.h).toDouble()
+                let leftGap = slot == 1 ? 0 : gap / 2
+                let rightGap = slot == columns.count ? 0 : gap / 2
+                child.setWeight(.h, columnWidth)
+                try await child.layoutRecursive(
+                    point.addingXOffset(offset + leftGap),
+                    width: columnWidth - leftGap - rightGap, height: height,
+                    virtual: Rect(topLeftX: virtual.topLeftX + offset, topLeftY: virtual.topLeftY,
+                                  width: columnWidth, height: virtual.height), context)
+            }
+            return
+        }
         var point = point
         var virtualPoint = virtual.topLeftCorner
 
