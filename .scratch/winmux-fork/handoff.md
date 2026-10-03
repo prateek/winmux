@@ -178,6 +178,10 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
   recovered them without answering permission dialogs. Fresh park captures and advancing
   miniatures were then recorded. The initial stall is unexplained. The release-build indicator
   remains Prateek's check.
+- The fixes from the second review (gate order, a floating window's capture shape, `by-workspace`
+  arrow order, draw order of overlapping floating windows, the `'hide` opening selection, scroll
+  thresholds and the minimize command's re-check) were made after the live run and are covered
+  by tests only. `lensLog.debug` logs each capture start with the in-flight count.
 - For live runs, hiding apps before the build starts worked: Terminal and Orca stayed icon-only
   and their restored windows were preserved. Keep them hidden throughout capture and never
   select their tray entries. Save and restore frames, unhide the apps afterwards, and leave

@@ -13,8 +13,13 @@ struct MacosNativeMinimizeCommand: Command {
         guard let window = target.windowOrNil else {
             return io.err(noWindowIsFocused)
         }
-        let newState: Bool = try await !window.isMacosMinimized
-        if newState { await ThumbnailCache.shared.captureBeforeMinimize(window) }
+        var newState: Bool = try await !window.isMacosMinimized
+        if newState {
+            await ThumbnailCache.shared.captureBeforeMinimize(window)
+            // The window can close, or be minimized by hand, while the capture runs
+            guard window.isBound else { return io.err("The window was closed") }
+            newState = try await !window.isMacosMinimized
+        }
         window.asMacWindow().setNativeMinimized(newState)
         if newState { // minimize
             window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)

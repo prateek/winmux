@@ -73,7 +73,13 @@ extension LensSession {
         let target: UInt32?
         if settings.miniatures.arrowKeys == "by-workspace", let workspace = items.first(where: { $0.id == id })?.miniature?.workspace {
             let ordered = miniatureLayout.workspaces
-            let within = items.filter { $0.miniature?.workspace == workspace && matches.contains($0.id) }
+            let frames = miniatureFrames
+            let within = items.filter { $0.miniature?.workspace == workspace && matches.contains($0.id) }.sorted {
+                let lhs = frames[$0.id] ?? .zero, rhs = frames[$1.id] ?? .zero
+                // The tray comes after the windows on the workspace
+                if $0.miniature?.tray != $1.miniature?.tray { return $1.miniature?.tray == true }
+                return lhs.minX == rhs.minX ? (lhs.minY == rhs.minY ? $0.id < $1.id : lhs.minY < rhs.minY) : lhs.minX < rhs.minX
+            }
             if direction == .left || direction == .right {
                 let index = within.firstIndex { $0.id == id } ?? 0
                 let next = index + (direction == .right ? 1 : -1)
@@ -158,4 +164,13 @@ func appendingRetainedMiniatureWorkspaces(_ ordered: [MiniatureWorkspace], retai
         snapshots.append(MiniatureWorkspace(name: workspace.name, title: "Previous \(workspace.title)", source: workspace.source, current: false))
     }
     return snapshots
+}
+
+/// Items arrive in the Lens's sort order. Tiled windows are drawn first and floating ones over
+/// them; where two overlap, the one earlier in sort order is drawn last and takes the pointer.
+func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem] {
+    items.enumerated().sorted { lhs, rhs in
+        let a = lhs.element.miniature?.floating == true, b = rhs.element.miniature?.floating == true
+        return a == b ? lhs.offset > rhs.offset : !a
+    }.map(\.element)
 }

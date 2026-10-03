@@ -61,7 +61,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             }
         }
         let focusedId = focus.windowOrNil?.windowId
-        let onscreen = Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
+        let onscreen: Set<UInt32> = settings.presentation != "miniatures" ? [] : Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
         let items = entries.map { entry in
             SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
@@ -205,7 +205,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             if model.performKeyAction(event) { return }
         }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
-            if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, phase: event.phase, momentum: event.momentumPhase) { model.turnMiniaturePage(turn) }
+            if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
             return
         }
         super.sendEvent(event)

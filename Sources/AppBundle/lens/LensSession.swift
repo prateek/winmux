@@ -27,7 +27,7 @@ final class LensSession: ObservableObject {
     private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var miniatureSize = CGSize(width: 1000, height: 700)
-    var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = min(selection, max(0, results.count - 1)) } }
+    var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }
     var miniatureWorkspaces: [MiniatureWorkspace] = []
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
@@ -47,12 +47,19 @@ final class LensSession: ObservableObject {
         }
         query = search
         selection = 0
-        if settings.presentation == "miniatures", search.isEmpty {
-            let previous = results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
-                lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
-            }?.element
-            selection = previous.flatMap { previous in results.firstIndex { $0.id == previous.id } } ?? 0
-        } else { selection = results.count > 1 && results.first?.isFocused == true ? 1 : 0 }
+        selection = initialSelection()
+    }
+
+    /// The list opens on its second row when the first is the focused window. Miniatures are not
+    /// drawn in sort order, so they open on the most recently focused window that is not focused.
+    private func initialSelection() -> Int {
+        let results = results
+        guard settings.presentation == "miniatures", query.isEmpty else {
+            return results.count > 1 && results.first?.isFocused == true ? 1 : 0
+        }
+        return results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
+            lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
+        }?.offset ?? 0
     }
 
     var results: [SwitcherPaletteItem] {

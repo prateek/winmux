@@ -17,8 +17,7 @@ struct MiniaturesView: View {
             Color.black.opacity(model.settings.miniatures.darkness).allowsHitTesting(false)
             ForEach(model.miniatureCells(on: page, layout: layout), id: \.workspace) { cell in
                 workspaceCell(cell, selectedId: selectedId)
-                let entries = model.items.filter { $0.miniature?.workspace == cell.workspace }
-                    .sorted { ($0.miniature?.floating == true ? 1 : 0) < ($1.miniature?.floating == true ? 1 : 0) }
+                let entries = miniatureDrawOrder(model.items.filter { $0.miniature?.workspace == cell.workspace })
                 ForEach(entries) { item in
                     if let entry = item.miniature, let frame = frames[item.id] {
                         MiniatureEntryView(item: item, entry: entry, settings: model.settings,
@@ -40,7 +39,7 @@ struct MiniaturesView: View {
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                    TextField(model.miniatureSearchVisible ? "Search windows…" : "\(model.name) • Type to Search", text: $model.query)
+                    TextField("\(model.name) • Type to Search", text: $model.query)
                         .textFieldStyle(.plain).focused($searchFocused)
                     Spacer()
                     Text("\(page + 1) / \(layout.pageCount)").monospacedDigit()

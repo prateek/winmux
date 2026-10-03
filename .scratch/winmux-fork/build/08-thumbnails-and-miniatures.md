@@ -193,7 +193,7 @@ presentation. Frozen state follows visibility, including workspaces on another d
 inactive native fullscreen Spaces. Floating Summon previews translate into the destination
 monitor's coordinates. Column Policy should eventually supply the placement answer.
 
-`make check` passed 733 Swift tests, 46 helper tests and 6 Python tests. Regression tests cover
+`make check` passed 739 Swift tests, 46 helper tests and 6 Python tests. Regression tests cover
 in-flight list invalidation, capture priority, minimized-frame preservation and its deadline,
 current capture aspect, slow scroll starts and momentum, MRU page selection, list order,
 search-field focus, cross-monitor Frozen state and floating landing geometry. Reversing the
@@ -246,6 +246,16 @@ Evidence files `01-capture-cost`, `04-fifty-paging`, `04-open-and-gate`, `05-lay
 recordings showed a purple recording control in the menu bar, but the recorder prevents
 attributing it solely to background captures. The signed-build indicator is **not checkable:
 it needs a release build, which is Prateek's**.
+
+A last set of fixes came after the live run and was checked by tests only, not on screen.
+A queued park request keeps its place in the gate and a minimize request goes first. A floating
+window is captured at its own shape, not that of the tile it last had. `by-workspace` arrows
+follow position, and the more recently used of two overlapping floating windows is drawn on top.
+`current-workspace = 'hide` still opens on the previous window. A wheel turns one page per
+burst of events, and a trackpad gesture needs 4 points of mostly vertical travel. The minimize
+command checks again that the window is open and not minimized once its capture returns.
+A window minimized with the yellow button or cmd+M that had no earlier capture shows its app
+icon: nothing runs before the minimize, as nothing runs before a hide.
 
 ## Sources
 

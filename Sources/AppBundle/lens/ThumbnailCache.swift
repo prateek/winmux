@@ -85,6 +85,12 @@ final class ThumbnailCache {
         await withCheckedContinuation { idleWaiters.append($0) }
     }
 
+    /// The frame whose shape a capture takes. A floating window keeps the layout rect of the tile
+    /// it last had, which nothing updates while it floats.
+    nonisolated static func captureFrame(floating: Bool, layout: CGRect?, parked: CGRect?, actual: CGRect?) -> CGRect {
+        (floating ? actual ?? parked : layout ?? parked ?? actual) ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+    }
+
     static func pixelSize(frame: CGRect, scale: CGFloat) -> CGSize {
         let ratio = min(1, (560 * 1.04) / max(frame.width, 1)) * scale
         return CGSize(width: max(1, frame.width * ratio), height: max(1, frame.height * ratio))
@@ -95,14 +101,11 @@ final class ThumbnailCache {
         while !ready.isEmpty {
             for id in ready {
                 guard let window = windows[id]?.value, !isHidden(window), !isMinimized(window) else { gate.finish(id); completeWaiters(id); continue }
-                let frame = window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+                let frame = Self.captureFrame(floating: window.isFloating, layout: window.lastAppliedLayoutPhysicalRect?.cgRect,
+                                              parked: window.miniatureFrame, actual: window.lastKnownActualRect?.cgRect)
                 let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
                 let size = Self.pixelSize(frame: frame, scale: scale)
-                #if DEBUG
-                if ProcessInfo.processInfo.environment["WINMUX_THUMBNAIL_TRACE"] == "1" {
-                    print("[thumbnail] start id=\(id) in-flight=\(gate.inFlight)")
-                }
-                #endif
+                lensLog.debug("thumbnail start id=\(id) in-flight=\(self.gate.inFlight)")
                 Task { [weak self, weak window, capture] in
                     let image = try? await capture(id, size)
                     guard let self else { return }
