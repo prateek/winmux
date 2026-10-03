@@ -209,13 +209,21 @@ extension MacOsWindowLevel {
 }
 
 /// The Filter context for a Filter evaluated now.
-@MainActor func filterContextRecord(mouse: CGPoint = mouseLocation) async throws -> FilterContextRecord {
+@MainActor func filterContextRecord(mouse: CGPoint = mouseLocation, windowRecords: [UInt32: WindowRecord]? = nil) async throws -> FilterContextRecord {
     let focus = focus
     let previous = prevFocusedWindow
+    func record(_ window: Window?) async throws -> WindowRecord? {
+        guard let window else { return nil }
+        if let windowRecords {
+            if let record = windowRecords[window.windowId] { return record }
+            return try? await window.windowRecord()
+        }
+        return try await window.windowRecord()
+    }
     return FilterContextRecord(
-        focused: try await focus.windowOrNil?.windowRecord(),
-        mouse: try await windowUnderMouse(mouse)?.windowRecord(),
-        previous: try await previous?.windowRecord(),
+        focused: try await record(focus.windowOrNil),
+        mouse: try await record(windowUnderMouse(mouse)),
+        previous: try await record(previous),
         workspaceName: focus.workspace.name,
         workspaceProject: focus.workspace.projectId.rawValue,
         monitor: MonitorRecord(focus.workspace.workspaceMonitor),

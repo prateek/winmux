@@ -7,8 +7,7 @@ public struct PaletteCmdArgs: CmdArgs {
         help: """
             USAGE: palette [-h|--help]
 
-            Toggle the window switcher palette: fuzzy-search all windows across all
-            workspaces and projects, Enter to jump to the selected window.
+            Alias for lens search. Requires the search Lens in the loaded config.
             """,
         flags: [:],
         posArgs: [],

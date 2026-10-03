@@ -17,6 +17,8 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case fullscreen
     case joinWith = "join-with"
     case layout
+    case lens
+    case listLenses = "list-lenses"
     case listApps = "list-apps"
     case listExecEnvVars = "list-exec-env-vars"
     case listModes = "list-modes"
@@ -40,6 +42,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case split
     case stackWith = "stack-with"
     case subscribe
+    case summon
     case summonWorkspace = "summon-workspace"
     case swap
     case triggerBinding = "trigger-binding"
@@ -84,6 +87,9 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(JoinWithCmdArgs.init)
             case .layout:
                 result[kind.rawValue] = SubCommandParser(parseLayoutCmdArgs)
+            case .lens: result[kind.rawValue] = SubCommandParser(parseLensCmdArgs)
+            case .listLenses: result[kind.rawValue] = SubCommandParser(ListLensesCmdArgs.init)
+            case .summon: result[kind.rawValue] = SubCommandParser(SummonCmdArgs.init)
             case .listApps:
                 result[kind.rawValue] = SubCommandParser(parseListAppsCmdArgs)
             case .listExecEnvVars:

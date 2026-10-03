@@ -57,9 +57,11 @@ struct Main {
             case .help(let help):
                 exit(0, out: help)
             case .failure(let e):
-                // The config helper's commands report bad usage with 2. The rest keep 1.
+                // The config helper and Lens commands report bad usage with 2. The rest keep 1.
                 let isConfigAction = args.first == "config" && args.dropFirst().contains { ConfigAction(rawValue: $0) != nil }
-                exit(isConfigAction ? 2 : 1, err: e)
+                let isLensCommand = ["lens", "list-lenses", "summon"].contains(args.first ?? "")
+                    || (args.first == "list-windows" && args.contains { ["--lens", "--filter", "--search"].contains($0) })
+                exit(isConfigAction || isLensCommand ? 2 : 1, err: e)
         }
 
         if let configArgs = parsedArgs as? ConfigCmdArgs {
@@ -78,6 +80,10 @@ struct Main {
         }
 
         var stdin = ""
+        let filterFromStdin = (parsedArgs as? LensCmdArgs)?.filter == "-" || (parsedArgs as? ListWindowsCmdArgs)?.filter == "-"
+        if filterFromStdin {
+            while let line = readLine(strippingNewline: false) { stdin += line }
+        }
         if shouldReadRelativeWorkspaceStdin(parsedArgs), hasStdin() {
             if !hasExplicitRelativeWorkspaceStdinFlag(parsedArgs) {
                 exit(

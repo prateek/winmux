@@ -6,7 +6,9 @@ struct PaletteCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
-        await SwitcherPalettePanel.shared.toggle()
-        return true
+        if case .cmd(let command) = parseCommand(["lens", "search"]) {
+            return try await command.run(env, io)
+        }
+        return io.err("Cannot parse lens search")
     }
 }

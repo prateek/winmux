@@ -12,45 +12,24 @@ struct SwitcherPaletteItem: Identifiable {
     let appName: String
     let icon: NSImage?
     let workspaceName: String
+    var appIdentity: String = ""
+    var projectName: String = ""
+    var lastFocusedSeq: Int = 0
     let isFocused: Bool
 }
 
 // MARK: - Panel
 
 @MainActor
-final class SwitcherPaletteModel: ObservableObject {
-    @Published var query = "" {
-        didSet { if query != oldValue { selection = 0 } }
-    }
-    @Published var selection = 0
-    var items: [SwitcherPaletteItem] = []
-    var onSelect: ((UInt32) -> Void)? = nil
-
-    var results: [SwitcherPaletteItem] { filterSwitcherPaletteItems(items, query: query) }
-
-    func moveSelection(_ delta: Int) {
-        let count = results.count
-        guard count > 0 else { return }
-        selection = min(max(selection + delta, 0), count - 1)
-    }
-
-    func selectCurrent() {
-        select(at: selection)
-    }
-
-    func select(at index: Int) {
-        let results = results
-        guard results.indices.contains(index) else { return }
-        onSelect?(results[index].id)
-    }
-}
-
-@MainActor
 final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel()
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
-    private let model = SwitcherPaletteModel()
-    private(set) var isPaletteActive = false
+    private let lifecycle = LensLifecycle()
+    var session: LensSession? { lifecycle.session }
+    private let inlineSearch = LensInlineSearch { body, context, windows in
+        await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
+    }
+    var isPaletteActive: Bool { session != nil }
 
     override private init() {
         super.init()
@@ -67,77 +46,106 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func toggle() async { if isPaletteActive { dismiss() } else { await show() } }
-
-    func show() async {
-        guard !isPaletteActive else { return }
-        isPaletteActive = true
-        let items = await buildSwitcherPaletteItems()
-        // Palette construction suspends while first-sight window titles are fetched. A second
-        // toggle may have dismissed the palette in the meantime.
-        guard isPaletteActive else { return }
-        model.items = items
-        model.query = ""
-        model.selection = 0
-        model.onSelect = { [weak self] id in self?.select(id) }
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int) async {
+        let focusedId = focus.windowOrNil?.windowId
+        let items = entries.map { entry in
+            SwitcherPaletteItem(
+                id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
+                icon: (entry.window as? MacWindow)?.macApp.nsApp.icon,
+                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
+                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId
+            )
+        }
+        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search))
+        model.banner = banner
+        model.onAction = { [weak self] key in self?.performAction(key) }
+        let records = entries.map { $0.record.json }
+        let ids = entries.map { $0.window.windowId }
+        model.onSearchChanged = { [weak self, weak model] in
+            guard let self, let model else { return }
+            self.inlineSearch.update(model, context: context, windows: records, ids: ids)
+        }
+        guard lifecycle.complete(model, ticket: ticket) else { return }
         let monitorRect = focus.workspace.workspaceMonitor.visibleRect
-        // Center horizontally on the focused monitor, top edge at ~1/4 of its height
-        // (converting top-left-origin coordinates back to AppKit's bottom-left origin).
-        setFrame(
-            NSRect(
-                x: monitorRect.topLeftX + (monitorRect.width - switcherPaletteWidth) / 2,
-                y: appKitScreenMaxY() - monitorRect.topLeftY - monitorRect.height * 0.25 - switcherPaletteMaxHeight,
-                width: switcherPaletteWidth,
-                height: switcherPaletteMaxHeight,
-            ),
-            display: true,
-            animate: false,
-        )
+        // Center on the focused monitor, with the top edge at one quarter of its height;
+        // convert the top-left coordinates to AppKit's bottom-left origin.
+        setFrame(NSRect(
+            x: monitorRect.topLeftX + (monitorRect.width - switcherPaletteWidth) / 2,
+            y: appKitScreenMaxY() - monitorRect.topLeftY - monitorRect.height * 0.25 - switcherPaletteMaxHeight,
+            width: switcherPaletteWidth, height: switcherPaletteMaxHeight
+        ), display: true, animate: false)
         hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
         orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         makeKey()
+        DispatchQueue.main.async { [weak self] in
+            (self?.firstResponder as? NSTextView)?.selectAll(nil)
+        }
+        model.onSearchChanged?()
     }
 
+    func beginLens(_ name: String, toggle: Bool) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle)
+        clearPresentation()
+        return ticket
+    }
+
+    func cancelLensOpening(ticket: Int) { lifecycle.cancelOpening(ticket: ticket) }
+
     func dismiss() {
-        guard isPaletteActive else { return }
-        isPaletteActive = false
+        lifecycle.dismiss()
+        clearPresentation()
+    }
+
+    private func clearPresentation() {
+        inlineSearch.cancel()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
     }
 
-    private func select(_ windowId: UInt32) {
+    func changePresentationToList() {
+        session?.changePresentation("list")
+        orderFrontRegardless()
+        makeKey()
+    }
+
+    private func performAction(_ key: String) {
+        guard let model = session, !model.commands(for: key).isEmpty else { return }
+        let commands = model.commands(for: key)
         dismiss()
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
-                guard let window = Window.get(byId: windowId), let liveFocus = window.toLiveFocusOrNil() else { return }
-                window.markAsMostRecentChild()
-                _ = setFocus(to: liveFocus)
-                window.nativeFocus()
+                // The Lens is already closed, so a failed action has nowhere on screen to report.
+                let io = CmdIo(stdin: .emptyStdin)
+                if try await !runLensAction(commands, session: model, io: io) {
+                    lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+                }
             }
         }
     }
 
-    // Intercept navigation keys before the field editor consumes them; everything else
-    // (typing) flows to the search field as usual.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if session?.performKeyAction(event) == true { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    // Intercept navigation keys before the field editor consumes them; other typing
+    // flows to the Search field unless it matches a configured action.
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, isPaletteActive {
-            // Quick-select: cmd+1...cmd+9 jumps straight to the Nth visible result.
-            if event.modifierFlags.contains(.command),
-               let digit = event.charactersIgnoringModifiers.flatMap({ Int($0) }),
-               (1 ... 9).contains(digit)
-            {
-                model.select(at: digit - 1)
-                return
-            }
+        guard let model = session else { super.sendEvent(event); return }
+        if event.type == .flagsChanged {
+            model.summonHeld = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.option)
+        }
+        if event.type == .keyDown {
             switch event.keyCode {
                 case 53: dismiss(); return // esc
                 case 125: model.moveSelection(1); return // down arrow
                 case 126: model.moveSelection(-1); return // up arrow
-                case 36, 76: model.selectCurrent(); return // return / keypad enter
+                case 48: model.toggleMark(); return // tab
                 default: break
             }
+            if model.performKeyAction(event) { return }
         }
         super.sendEvent(event)
     }
@@ -151,98 +159,20 @@ private func appKitScreenMaxY() -> CGFloat {
     NSScreen.screens.first?.frame.maxY ?? 0
 }
 
-@MainActor
-private func buildSwitcherPaletteItems() async -> [SwitcherPaletteItem] {
-    let focusedWindowId = focus.windowOrNil?.windowId
-    let focusedWorkspace = focus.workspace
-    // Focused workspace first, then the rest — so an empty query shows nearby windows on top.
-    let workspaces = [focusedWorkspace] + Workspace.all.filter { $0 != focusedWorkspace }
-    let indexedWindows = workspaces.flatMap { workspace in
-        workspace.allLeafWindowsRecursive.filter(\.isBound).map { (window: $0, workspaceName: workspace.name) }
-    }
-    var items = [SwitcherPaletteItem?](repeating: nil, count: indexedWindows.count)
-    await withTaskGroup(of: (Int, SwitcherPaletteItem).self) { group in
-        for (index, entry) in indexedWindows.enumerated() {
-            group.addTask { @Sendable @MainActor in
-                (index, await makeSwitcherPaletteItem(
-                    window: entry.window,
-                    workspaceName: entry.workspaceName,
-                    focusedWindowId: focusedWindowId,
-                ))
-            }
-        }
-        for await (index, item) in group {
-            items[index] = item
-        }
-    }
-    return items.compactMap { $0 }
-}
-
-@MainActor
-func makeSwitcherPaletteItem(
-    window: Window,
-    workspaceName: String,
-    focusedWindowId: UInt32?,
-) async -> SwitcherPaletteItem {
-    let appName = window.app.name ?? window.app.rawAppBundleId ?? "Unknown"
-    // A cold cache previously indexed every Finder window as only "Finder" until some other
-    // UI happened to fetch its title. Fetch first-sight titles before showing the palette so
-    // folder names are searchable immediately; known stale titles still return instantly and
-    // refresh in the background.
-    let title = await getSessionWindowTitle(window) ?? appName
-    return SwitcherPaletteItem(
-        id: window.windowId,
-        title: title,
-        appName: appName,
-        icon: (window as? MacWindow)?.macApp.nsApp.icon,
-        workspaceName: workspaceName,
-        isFocused: window.windowId == focusedWindowId,
-    )
-}
-
-// MARK: - Fuzzy matching
-
-func switcherPaletteFuzzyScore(_ needle: String, in haystack: String) -> Int? {
-    var score = 0
-    var previousMatched = false
-    var previousChar: Character? = nil
-    var index = haystack.startIndex
-    for char in needle {
-        var found = false
-        while index < haystack.endIndex {
-            let candidate = haystack[index]
-            let isWordStart = previousChar == nil || previousChar == " " || previousChar == "-" || previousChar == "." || previousChar == "/"
-            previousChar = candidate
-            index = haystack.index(after: index)
-            if candidate == char {
-                score += previousMatched ? 2 : (isWordStart ? 3 : 1)
-                previousMatched = true
-                found = true
-                break
-            }
-            previousMatched = false
-        }
-        if !found { return nil }
-    }
-    return score
-}
+// MARK: - Search
 
 func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -> [SwitcherPaletteItem] {
-    let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-    guard !needle.isEmpty else { return items }
-    return items
-        .compactMap { item in
-            switcherPaletteFuzzyScore(needle, in: "\(item.appName) \(item.title) \(item.workspaceName)".lowercased())
-                .map { (item, $0) }
-        }
-        .sorted { $0.1 > $1.1 }
-        .map(\.0)
+    let ranked: [(Int, SwitcherPaletteItem, Int)] = items.enumerated().compactMap { index, item in
+        LensSearchFields(title: item.title, app: item.appName, workspace: item.workspaceName, project: item.projectName)
+            .match(query).map { (index, item, $0.score) }
+    }
+    return ranked.sorted { $0.2 == $1.2 ? $0.0 < $1.0 : $0.2 > $1.2 }.map { $0.1 }
 }
 
 // MARK: - View
 
 struct SwitcherPaletteView: View {
-    @ObservedObject var model: SwitcherPaletteModel
+    @ObservedObject var model: LensSession
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -265,6 +195,12 @@ struct SwitcherPaletteView: View {
                 .fill(Color.white.opacity(GlassToken.separatorOpacity))
                 .frame(height: StrokeToken.hairline)
 
+            if let error = model.searchError {
+                Text(error).font(.system(size: 11)).foregroundStyle(.orange).padding(.horizontal, 14).padding(.vertical, 4)
+            }
+            if let banner = model.banner {
+                Text(banner.components(separatedBy: .newlines).first ?? banner).font(.system(size: 11)).foregroundStyle(.orange).padding(8)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 1) {
@@ -272,10 +208,18 @@ struct SwitcherPaletteView: View {
                             SwitcherPaletteRow(
                                 item: item,
                                 isSelected: index == model.selection,
-                                hotkeyLabel: index < 9 ? "⌘\(index + 1)" : nil,
+                                isMarked: model.marks.contains(item.id),
+                                hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
+                                appCount: model.settings.entries == "app" ? model.items.filter { $0.appIdentity == item.appIdentity }.count : nil,
                             )
                             .id(item.id)
-                            .onTapGesture { model.onSelect?(item.id) }
+                            .onContinuousHover { phase in
+                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                            }
+                            .onTapGesture {
+                                model.hover(item.id)
+                                if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
+                            }
                         }
                     }
                     .padding(6)
@@ -297,6 +241,9 @@ struct SwitcherPaletteView: View {
                 solidColor: config.workspaceSidebar.resolvedSolidChromeColor,
             )
         }
+        .overlay {
+            if model.searchError != nil { RoundedRectangle(cornerRadius: RadiusToken.panel).stroke(.orange, lineWidth: 1) }
+        }
         .clipShape(RoundedRectangle(cornerRadius: RadiusToken.panel, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { searchFocused = true }
@@ -306,7 +253,9 @@ struct SwitcherPaletteView: View {
 private struct SwitcherPaletteRow: View {
     let item: SwitcherPaletteItem
     let isSelected: Bool
-    let hotkeyLabel: String?
+    let isMarked: Bool
+    let hint: String?
+    let appCount: Int?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -320,23 +269,15 @@ private struct SwitcherPaletteRow: View {
                     .frame(width: 18, height: 18)
                     .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
             }
-            Text(item.title)
+            Text(appCount == nil ? item.title : item.appName)
                 .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(Color.white.opacity(isSelected ? GlassToken.textPrimary : GlassToken.textSecondary))
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 8)
-            if let hotkeyLabel {
-                Text(hotkeyLabel)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(GlassToken.textQuaternary))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.white.opacity(GlassToken.fillFaint))
-                    }
-            }
+            if let hint { Text(hint).font(.system(size: 11)) }
+            if isMarked { Image(systemName: "checkmark.circle.fill") }
+            if let appCount { Text("\(appCount) windows").font(.system(size: 11)) }
         }
         .padding(.horizontal, 10)
         .frame(height: 30)

@@ -37,6 +37,7 @@ var defaultConfigUrl: URL {
 @MainActor var configUrl: URL = defaultConfigUrl
 
 struct Config: ConvenienceCopyable {
+    var lenses: [String: LensConfig] = [:]
     var configVersion: Int = 1
     var afterLoginCommand: [any Command] = []
     var afterStartupCommand: [any Command] = []

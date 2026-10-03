@@ -87,6 +87,16 @@ let list_windows_help_generated = """
                         [--count] [--json]
        OR: list-windows [-h|--help] --all [--format <output-format>] [--count] [--json]
        OR: list-windows [-h|--help] --focused [--format <output-format>] [--count] [--json]
+
+    LENS AND SEARCH:
+      --lens <name>             Match a configured Lens and use its sort order
+      --filter <name|body|->     Match a named Filter or inline Nickel body
+      --search <text>           Narrow and rank by title, app, workspace and project
+    These flags imply all workspaces when no scope flag is given. With a scope,
+    results are the intersection. Inline enum tags need double quotes, e.g.
+      --filter "w.class == 'floating"
+    --filter - reads stdin. Filter failures print no stdout and exit 2;
+    an unavailable helper or server exits 1. Search JSON adds score and matched-field.
     """
 let list_workspaces_help_generated = """
     USAGE: list-workspaces [-h|--help] --monitor <monitor>... [--visible [no]] [--empty [no]] [--format <output-format>] [--count] [--json]
@@ -173,3 +183,18 @@ let workspace_help_generated = """
     USAGE: workspace [-h|--help] [--auto-back-and-forth] [--fail-if-noop] <workspace-name>
        OR: workspace [-h|--help] [--wrap-around] [--stdin|--no-stdin] (next|prev)
     """
+
+let lens_help_generated = """
+    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures]
+           lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
+           lens --presentation list
+
+    Toggle a named Lens, open an ad-hoc Lens, or change the open Presentation.
+    Inline Filters bind w and ctx. Quote enum tags with double quotes:
+      lens --filter "w.class == 'floating"
+    --filter - reads a body from stdin.
+    """
+
+let list_lenses_help_generated = "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile."
+
+let summon_help_generated = "USAGE: summon [--window-id <id>]\nMove a window to the current workspace and focus it."

@@ -108,6 +108,6 @@ extension [Command] {
     func runCmdSeq(_ env: CmdEnv, _ stdin: consuming CmdStdin) async throws -> CmdResult {
         let io: CmdIo = CmdIo(stdin: stdin)
         let isSucc = try await runCmdSeq(env, io)
-        return CmdResult(stdout: io.stdout, stderr: io.stderr, exitCode: isSucc ? 0 : 1)
+        return CmdResult(stdout: io.stdout, stderr: io.stderr, exitCode: isSucc ? 0 : io.failureExitCode)
     }
 }
