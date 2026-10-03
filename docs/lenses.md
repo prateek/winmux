@@ -1,7 +1,8 @@
 # Lenses and Search
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
-Import `winmux/defaults.ncl` to get the unbound `search`, `floating` and `overview` Lenses. `palette` is an alias for
+Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent` and `app-windows`.
+The first three are unbound; cmd-tab and cmd-shift-tab open `recent`, and cmd-backtick opens `app-windows`. `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
@@ -22,7 +23,7 @@ let W = import "winmux/winmux.ncl" in
 Omitting `filter` matches every candidate. Candidates include minimized windows and windows
 of hidden apps. Candidate AX reads overlap and keep tree order; a window whose record cannot
 be read is omitted from that open. Popup classes are excluded unless listed in `popups`. The one active Display
-profile is `default`; other `when` records load but do not apply. `strip` currently opens as a list. `miniatures` draws workspace copies. `grid` is rejected.
+profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies. `grid` is rejected.
 
 ```sh
 winmux list-lenses --json
@@ -111,6 +112,64 @@ let W = import "winmux/winmux.ncl" in
 
 Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup window`
 and moves nothing, because a popup has no workspace.
+
+
+## Strip and the system switcher
+
+`recent` is a strip of every eligible window in Global MRU order. `app-windows` uses the same
+Presentation and sort with `filters.same-app`: the window's bundle id must equal the focused
+app's bundle id. With no focused app it matches nothing. Both omit popup classes.
+They use the same Lens session, Filter evaluation and thumbnail cache as the list and miniatures.
+
+Hold cmd and press Tab to select the second entry. Further Tab presses cycle forward;
+Shift-Tab cycles backward, and the arrows cycle with wrap. An initial cmd-shift-tab selects
+the last entry; releasing Shift alone does not commit. Cmd-backtick cycles the focused app's
+windows, with Shift reversing it. Backtick does nothing inside `recent`.
+
+The strip waits 100 ms before drawing. A faster release, or `winmux lens recent` with no
+modifiers held, focuses the previous window immediately. On a held invocation, releasing all
+invoking Command, Control and Option modifiers runs the selection's enter binding. Shift is
+never a committing modifier. Releasing cmd with Option held runs `alt-enter`, whose default
+is `summon`; Shift affects cycling and does not change that release action. Summon hints appear
+only for a selection on another workspace. Escape cancels without changing focus.
+
+Nine entries fit at most, with fewer on a narrow display. Selection scrolls the row; each end
+shows `+N` for its hidden entries. Entries show app icons and titles before capture, then reuse
+live or Frozen thumbnails and the Lens's `frozen-thumbnail` and Accessory settings. Hidden apps
+and minimized windows remain eligible. Hover selects; click runs the corresponding enter action.
+
+An unbound letter converts the same session to a list, puts the letter in Search and preserves
+the selection when it remains a match. A Lens `keys` binding wins before this hand-off: cmd-w
+closes the selected window while the strip stays open. Modifier release no longer commits after
+conversion to a list. You can also open `winmux lens recent --presentation list` explicitly.
+An ad-hoc binding can use the strip:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  mode.main.binding.alt-r = "lens --filter same-app --presentation strip",
+}) | W.Config
+```
+
+When the active mode listens to cmd-tab or cmd-shift-tab, WinMux disables the enabled matching
+native symbolic hotkeys for both directions. It reads the live table rather than assuming ids,
+and leaves native cmd-backtick enabled. Removing the bindings, changing to a mode without them,
+`enable off` and normal termination restore only ids WinMux took. A pre-existing disabled id stays
+disabled. A changed chord or an id re-enabled by another owner is left alone and removed from the
+marker. Launch, wake and unlock repair and reconcile the current registrations.
+
+`winmux doctor` prints the held symbolic-hotkey ids, recovery marker ids and reconciliation errors.
+Carbon registration failures are logged and failed registrations do not claim the native chord.
+Another cmd-tab app can receive the same chord and draw a second switcher; WinMux cannot reliably
+identify it or offer a winner-selection prompt. Disable one owner's binding if both appear.
+
+The private macOS API changes the session's live state, not System Settings. Before disabling an
+id, WinMux records its original chord in a UserDefaults recovery marker. Quit, SIGTERM, SIGINT,
+SIGHUP, an uncaught Objective-C exception and the exit hook restore owned ids. A hard kill cannot
+run these hooks: native cmd-tab remains disabled until WinMux launches again and repairs the
+marker. Quit that recovered instance to return the native chord. The debug executable uses the
+`WinMuxApp` defaults domain; an app bundle uses its own bundle domain. An unrelated installed
+upstream build cannot repair this build's marker.
 
 
 ## Overview and miniatures
