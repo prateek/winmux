@@ -34,7 +34,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
             warnings.push(format!(
                 "on-window-detected rule {number} is not converted: Policy hooks replace these rules, and it is left as a commented-out `arrive` branch"
             ));
-            rules.push_str(&format!("  # on-window-detected rule {number}, as a branch of `arrive = fun w ctx => …`:\n"));
+            rules.push_str(&format!("  # on-window-detected rule {number}, as a branch of `arrive = fun w ctx cols => …`:\n"));
             rules.push_str(&format!("  #   {}\n", arrive_branch(entry)));
         }
     }

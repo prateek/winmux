@@ -198,3 +198,11 @@ let lens_help_generated = """
 let list_lenses_help_generated = "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile."
 
 let summon_help_generated = "USAGE: summon [--window-id <id>]\nMove a window to the current workspace and focus it."
+
+let focus_column_help_generated = "USAGE: focus-column [-h|--help] <n> [--workspace <name>]"
+let move_node_to_column_help_generated = "USAGE: move-node-to-column [-h|--help] <n> [--window-id <id>]"
+let column_width_help_generated = "USAGE: column-width [-h|--help] next|prev|<fraction> [--window-id <id>]"
+let compact_help_generated = "USAGE: compact [-h|--help] [--workspace <name>]"
+let list_columns_help_generated = "USAGE: list-columns [-h|--help] [--json] [--workspace <name>]"
+let column_count_help_generated = "USAGE: column-count [-h|--help] <n>|off [--workspace <name>]"
+let place_help_generated = "USAGE: place [-h|--help] --dry-run --window-id <id> [--json]"

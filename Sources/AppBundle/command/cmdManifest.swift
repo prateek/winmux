@@ -3,6 +3,13 @@ import Common
 extension CmdArgs {
     func toCommand() -> any Command {
         let command: any Command = switch self {
+            case let args as FocusColumnCmdArgs: FocusColumnCommand(args: args)
+            case let args as MoveNodeToColumnCmdArgs: MoveNodeToColumnCommand(args: args)
+            case let args as ColumnWidthCmdArgs: ColumnWidthCommand(args: args)
+            case let args as CompactCmdArgs: CompactCommand(args: args)
+            case let args as ListColumnsCmdArgs: ListColumnsCommand(args: args)
+            case let args as ColumnCountCmdArgs: ColumnCountCommand(args: args)
+            case let args as PlaceCmdArgs: PlaceCommand(args: args)
             case let args as AgentCmdArgs: AgentCommand(args: args)
             case let args as BalanceSizesCmdArgs: BalanceSizesCommand(args: args)
             case let args as CloseCmdArgs: CloseCommand(args: args)

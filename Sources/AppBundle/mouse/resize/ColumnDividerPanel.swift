@@ -35,7 +35,7 @@ extension Workspace {
     /// The handles sit above every window, so they are left out while a fullscreen or floating
     /// window could be under one. Dragging a window's edge still resizes its Column.
     @MainActor var showsColumnDividers: Bool {
-        guard let columns, columns.count > 1 else { return false }
+        guard let columns, columns.slotCount > 1 else { return false }
         return floatingWindows.isEmpty && !rootTilingContainer.allLeafWindowsRecursive.contains(where: \.isFullscreen)
     }
 }
@@ -50,7 +50,7 @@ extension Workspace {
             for workspace in Workspace.all where workspace.isVisible {
                 guard let columns = workspace.columns, workspace.showsColumnDividers else { continue }
                 let rect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
-                for slot in 1..<columns.count {
+                for slot in 1..<columns.slotCount {
                     let key = "\(workspace.id.rawValue):\(slot)"
                     visible.insert(key)
                     let panel: NSPanelHud

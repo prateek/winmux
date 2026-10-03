@@ -24,11 +24,25 @@ final class LensSession: ObservableObject {
     @Published private(set) var searchError: String?
     @Published var banner: String?
     @Published var summonHeld = false { didSet { updateMiniatureLanding() } }
-    private(set) var miniatureLanding: CGRect?
+    @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var miniatureSize = CGSize(width: 1000, height: 700)
     var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    var landingTask: Task<Void, Never>?
+    var landingColumnsTask: Task<JSONValue, Error>?
+    weak var landingDestination: Workspace?
+    /// The selection the landing spot on screen, or being computed, belongs to.
+    var landingKey: UInt32?
+
+    func cancelLanding() {
+        landingTask?.cancel()
+        landingTask = nil
+        landingColumnsTask?.cancel()
+        landingColumnsTask = nil
+        landingKey = nil
+    }
+
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]

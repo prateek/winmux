@@ -15,6 +15,12 @@ struct ColumnsConfig: Sendable {
         self.workspaces = workspaces ?? .object([:])
     }
 
+    func hook(_ name: String, workspace: String) -> String? {
+        let local = workspaces[workspace]?["columns"]
+        return [Optional(global), global["when"]?["default"], local, local?["when"]?["default"]]
+            .compactMap { $0?[name]?.stringOrNil }.last
+    }
+
     func resolved(workspace: String) -> ColumnState? {
         let local = workspaces[workspace]?["columns"]
         var count: Int?

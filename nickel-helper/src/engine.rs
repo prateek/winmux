@@ -46,6 +46,8 @@ pub struct Engine {
     /// Nickel source that denotes the loaded config, for sources compiled after the load.
     config_expr: String,
     compiled_filters: usize,
+    hook_checks: std::collections::BTreeMap<String, Closure>,
+    hook_fields: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 impl Engine {
@@ -75,7 +77,7 @@ impl Engine {
             }
         };
         let config = Self::evaluate(&mut ctx, main)?;
-        Ok(Engine { ctx, config, main, config_expr, compiled_filters: 0 })
+        Ok(Engine { ctx, config, main, config_expr, compiled_filters: 0, hook_checks: Default::default(), hook_fields: Default::default() })
     }
 
     fn evaluate(ctx: &mut VmContext<CacheHub, CacheImpl>, file: FileId) -> Result<Closure, Diagnostic> {
@@ -111,10 +113,68 @@ impl Engine {
                         }
                     }
                 }
+                for hook in self.hook_paths()? {
+                    let fields = self.hook_fields[&hook].clone();
+                    let path: Vec<&str> = fields.iter().map(String::as_str).collect();
+                    let mut field = &mut json;
+                    for part in &path[..path.len()-1] { field = &mut field[*part]; }
+                    field[path[path.len()-1]] = hook.clone().into();
+                }
                 Ok(json)
             }
             Err(e) => Err(Self::report(&mut self.ctx, e.into())),
         }
+    }
+
+    pub fn hook_paths(&mut self) -> Result<Vec<String>, Diagnostic> {
+        let mut fields = Vec::new();
+        if self.lookup(&["arrive"])?.is_some() { fields.push(vec!["arrive".to_owned()]); }
+        let mut columns = vec![vec!["columns".to_owned()]];
+        for name in self.field_names(&["workspace"])? { columns.push(vec!["workspace".to_owned(), name, "columns".to_owned()]); }
+        for base in columns {
+            let mut records = vec![base.clone()];
+            let mut when = base.iter().map(String::as_str).collect::<Vec<_>>(); when.push("when");
+            for profile in self.field_names(&when)? {
+                let mut record = base.clone(); record.extend(["when".to_owned(), profile]); records.push(record);
+            }
+            for record in records {
+                for name in ["place", "move-boundary"] {
+                    let mut path = record.clone(); path.push(name.to_owned());
+                    if self.lookup(&path.iter().map(String::as_str).collect::<Vec<_>>())?.is_some() { fields.push(path); }
+                }
+            }
+        }
+        self.hook_fields = fields.into_iter().map(|path| {
+            let name = path.iter().map(|field| {
+                if field.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-') {
+                    field.clone()
+                } else { format!("{field:?}") }
+            }).collect::<Vec<_>>().join(".");
+            (name, path)
+        }).collect();
+        Ok(self.hook_fields.keys().cloned().collect())
+    }
+
+    pub fn lookup_hook(&mut self, hook: &str) -> Result<Option<Closure>, Diagnostic> {
+        let Some(fields) = self.hook_fields.get(hook).cloned() else { return Ok(None) };
+        self.lookup(&fields.iter().map(String::as_str).collect::<Vec<_>>())
+    }
+
+    pub fn call_hook(&mut self, function: &Closure, args: &[NickelValue], hook: &str) -> Result<NickelValue, Diagnostic> {
+        let result = self.call(function, args)?;
+        let contract = match hook.rsplit('.').next().unwrap_or(hook) {
+            "arrive" => "ArriveResult",
+            "place" => "PlaceResult",
+            _ => "MoveBoundaryResult",
+        };
+        let check = if let Some(check) = self.hook_checks.get(contract) { check.clone() } else {
+            let source = format!("fun result => result | (import \"winmux/winmux.ncl\").{contract}");
+            let file = self.ctx.import_resolver.sources.add_string(SourcePath::Generated("hook result".to_owned()), source);
+            let check = Self::evaluate(&mut self.ctx, file)?;
+            self.hook_checks.insert(contract.to_owned(), check.clone());
+            check
+        };
+        self.call(&check, &[result])
     }
 
     /// The config file and every file it imports, directly or not.

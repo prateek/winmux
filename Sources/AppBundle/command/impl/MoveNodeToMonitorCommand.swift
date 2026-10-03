@@ -5,7 +5,7 @@ struct MoveNodeToMonitorCommand: Command {
     let args: MoveNodeToMonitorCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         guard let window = target.windowOrNil else {
             return io.err(noWindowIsFocused)
@@ -20,14 +20,14 @@ struct MoveNodeToMonitorCommand: Command {
                     .map { dir in dir.isPositive && targetWs.rootTilingContainer.orientation == dir.orientation }
                     ? 0
                     : INDEX_BIND_LAST
-                return moveWindowToWorkspace(
+                return try await ColumnPolicy.afterTransfer(window, from: window.nodeWorkspace, didMove: moveWindowToWorkspace(
                     window,
                     targetWs,
                     io,
                     focusFollowsWindow: args.focusFollowsWindow,
                     failIfNoop: args.failIfNoop,
                     index: index,
-                )
+                ))
             case .failure(let msg):
                 return io.err(msg)
         }

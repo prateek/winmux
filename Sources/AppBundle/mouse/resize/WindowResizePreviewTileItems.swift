@@ -21,7 +21,7 @@ func windowResizePreviewTileItems(
             let offset = widths.prefix(slot - 1).reduce(0, +) * width
             let columnWidth = widths[slot - 1] * width
             let left = slot == 1 ? 0 : gap / 2
-            let right = slot == columns.count ? 0 : gap / 2
+            let right = slot == columns.slotCount ? 0 : gap / 2
             return windowResizePreviewItems(node: child, point: point.addingXOffset(offset + left),
                 width: max(0, columnWidth - left - right), height: height,
                 virtual: Rect(topLeftX: virtual.minX + offset, topLeftY: virtual.minY, width: columnWidth, height: virtual.height),

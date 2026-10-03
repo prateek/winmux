@@ -206,80 +206,13 @@ extension ConfigTest {
         assertEquals(parsed.modes[mainModeId]?.bindings[explicitBinding.descriptionWithKeyCode], explicitBinding)
     }
 
-    func testParseOnWindowDetected() {
-        let (parsed, errors) = parseConfig(
-            """
-            [[on-window-detected]] # 0
-                check-further-callbacks = true
-                run = ['layout floating', 'move-node-to-workspace W']
-            [[on-window-detected]] # 1
-                if.app-id = 'com.apple.systempreferences'
-                run = []
-            [[on-window-detected]] # 2
-            [[on-window-detected]] # 3
-                run = ['move-node-to-workspace S', 'layout tiling']
-            [[on-window-detected]] # 4
-                run = ['move-node-to-workspace S', 'move-node-to-workspace W']
-            [[on-window-detected]] # 5
-                run = ['move-node-to-workspace S', 'layout h_tiles']
-            """,
-        )
-        assertEquals(parsed.onWindowDetected, [
-            WindowDetectedCallback( // 0
-                matcher: WindowDetectedCallbackMatcher(
-                    appId: nil,
-                    appNameRegexSubstring: nil,
-                    windowTitleRegexSubstring: nil,
-                ),
-                checkFurtherCallbacks: true,
-                rawRun: [
-                    LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.floating])),
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W")),
-                ],
-            ),
-            WindowDetectedCallback( // 1
-                matcher: WindowDetectedCallbackMatcher(
-                    appId: "com.apple.systempreferences",
-                    appNameRegexSubstring: nil,
-                    windowTitleRegexSubstring: nil,
-                ),
-                rawRun: [],
-            ),
-            WindowDetectedCallback( // 3
-                rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
-                    LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.tiling])),
-                ],
-            ),
-            WindowDetectedCallback( // 4
-                rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "W")),
-                ],
-            ),
-            WindowDetectedCallback( // 5
-                rawRun: [
-                    MoveNodeToWorkspaceCommand(args: MoveNodeToWorkspaceCmdArgs(workspace: "S")),
-                    LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.h_tiles])),
-                ],
-            ),
-        ])
-
-        assertEquals(errors.descriptions, [
-            "on-window-detected[2]: \'run\' is mandatory key",
-        ])
-    }
-
-    func testParseOnWindowDetectedRegex() {
-        let (config, errors) = parseConfig(
-            """
-            [[on-window-detected]]
-                if.app-name-regex-substring = '^system settings$'
-                run = []
-            """,
-        )
-        XCTAssertTrue(config.onWindowDetected.singleOrNil()!.matcher.appNameRegexSubstring != nil)
-        assertEquals(errors, [])
+    func testRemovedDetectionKeyNamesArriveInMigrationError() {
+        let (_, errors) = parseConfig("[[on-window-detected]]\nrun = []")
+        XCTAssertTrue(errors.descriptions.contains { $0.contains("on-window-detected") && $0.contains("arrive") })
+        let (_, jsonErrors) = parseConfig(.object(["on-window-detected": .array([])]))
+        XCTAssertTrue(jsonErrors.descriptions.contains { $0.contains("arrive") })
+        let (_, nullErrors) = parseConfig(.object(["on-window-detected": .null]))
+        XCTAssertTrue(nullErrors.descriptions.contains { $0.contains("arrive") })
     }
 
     func testRegex() {

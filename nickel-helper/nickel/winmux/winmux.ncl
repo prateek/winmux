@@ -150,9 +150,30 @@ let Lens = std.contract.Sequence [
 ] in
 
 let PositiveFraction = std.contract.Sequence [Number, std.contract.from_predicate (fun n => n > 0)] in
+let ColumnTarget = std.contract.any_of [Choice [| 'focused, 'mru, 'nearest-empty, 'last |], std.contract.Sequence [Int, std.contract.from_predicate (fun n => n > 0)]] in
+let Overflow = Choice [| 'tab-group, 'split, 'float, 'squeeze |] in
+let PlaceResultContract = {
+  column | ColumnTarget,
+  overflow | Overflow,
+  run | Array String | optional,
+} in
+let ArriveResultContract = {
+  workspace | String | optional,
+  float | Bool | optional,
+  column | ColumnTarget | optional,
+  overflow | Overflow | optional,
+  run | Array String | optional,
+} in
+let MoveBoundaryResultContract = {
+  action | Choice [| 'join, 'swap, 'stop, 'wrap, 'next-workspace, 'next-monitor |],
+  overflow | Overflow | optional,
+  run | Array String | optional,
+} in
 let ColumnFields = {
   count | std.contract.any_of [Choice [| 'off |], std.contract.Sequence [Int, std.contract.from_predicate (fun n => n > 0)]] | optional,
   widths | Array PositiveFraction | optional,
+  place | Dyn -> Dyn -> Dyn -> PlaceResultContract | optional,
+  move-boundary | Dyn -> Dyn -> Dyn -> Bool -> MoveBoundaryResultContract | optional,
 } in
 let WorkspaceColumns = ColumnFields & { when | { _ | ColumnFields } | optional } in
 let Columns = WorkspaceColumns & {
@@ -168,8 +189,12 @@ Contract
   # checking it again on each call makes a Filter several times slower. A Filter called with the
   # wrong arguments still fails, at the field it reads.
   Filter = Dyn -> Dyn -> Bool,
+  PlaceResult = PlaceResultContract,
+  ArriveResult = ArriveResultContract,
+  MoveBoundaryResult = MoveBoundaryResultContract,
 
   Config = {
+    arrive | Dyn -> Dyn -> Dyn -> ArriveResultContract | optional,
     columns | Columns | optional,
     workspace | { _ | { columns | WorkspaceColumns | optional } } | optional,
     config-version | Int | optional,

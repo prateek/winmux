@@ -1,9 +1,23 @@
 extension Window {
     @MainActor
-    func relayoutWindow(on workspace: Workspace, forceTile: Bool = false) async throws {
-        let data = forceTile
-            ? bindingDataForNewTilingWindow(workspace, window: self)
-            : try await unbindAndGetBindingDataForNewWindow(self.asMacWindow().windowId, self.asMacWindow().macApp, workspace, window: self)
-        bind(to: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
+    func relayoutWindow(on workspace: Workspace, forceTile: Bool = false, runPlace: Bool = true) async throws {
+        let location = ColumnPolicy.Location(self)
+        let classification = forceTile ? AxUiElementWindowType.window : try await nativeWindowType
+        guard location.contains(self) else { return }
+        switch classification {
+            case .popup:
+                bind(to: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+            case .dialog:
+                bindAsFloatingWindow(to: workspace)
+            case .window:
+                if !forceTile && !config.automaticallyTileNewWindows { bindAsFloatingWindow(to: workspace) }
+                else if runPlace, workspace.columns != nil {
+                    // An abandoned Place must not strand the window in the container it is leaving.
+                    if try await !ColumnPolicy.place(self, on: workspace), location.contains(self) {
+                        bind(to: bindingDataForNewTilingWindow(workspace, window: self))
+                    }
+                }
+                else { bind(to: bindingDataForNewTilingWindow(workspace, window: self)) }
+        }
     }
 }

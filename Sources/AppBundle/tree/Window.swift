@@ -114,8 +114,10 @@ open class Window: TreeNode, Hashable {
             : MacWindow.allWindowsMap[windowId]
     }
 
-    @MainActor
-    func closeAxWindow() { die("Not implemented") }
+    @MainActor var nativeWindowType: AxUiElementWindowType { get async throws { die("Not implemented") } }
+    @MainActor func setNativeFullscreen(_ value: Bool) { die("Not implemented") }
+
+    @MainActor func closeAxWindow() { die("Not implemented") }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)

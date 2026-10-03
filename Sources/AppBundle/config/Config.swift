@@ -37,6 +37,7 @@ var defaultConfigUrl: URL {
 @MainActor var configUrl: URL = defaultConfigUrl
 
 struct Config: ConvenienceCopyable {
+    var arrive: String? = nil
     var columns = ColumnsConfig()
     var lenses: [String: LensConfig] = [:]
     var configVersion: Int = 1
@@ -70,7 +71,6 @@ struct Config: ConvenienceCopyable {
     var windowTabs = WindowTabsConfig()
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
-    var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: [any Command] = []
 }
 

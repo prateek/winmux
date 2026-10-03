@@ -83,7 +83,7 @@ extension Command {
 // There are 4 entry points for running commands:
 // 1. config keybindings
 // 2. CLI requests to server
-// 3. on-window-detected callback
+// 3. Policy run commands
 // 4. Tray icon buttons
 extension [Command] {
     var canSkipPostCommandRefresh: Bool {

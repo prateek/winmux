@@ -149,10 +149,10 @@ extension Window {
     }
 
     /// The Window record, or `nil` for a window that is in no tree or whose AX element is gone.
-    @MainActor func windowRecord() async throws -> WindowRecord? {
+    @MainActor func windowRecord(initialClass: WindowClass? = nil) async throws -> WindowRecord? {
         // Everything the tree says is read before the AX round-trip, during which the window can
         // move to another node. The record then describes one moment.
-        guard let windowClass else { return nil }
+        guard let windowClass = initialClass ?? windowClass else { return nil }
         // A minimized window sits outside every workspace and reports the one it was minimized on,
         // which WinMux may have deleted since. A popup reports none.
         let minimizedOn = windowClass == .minimized ? layoutReason.origin : nil
@@ -160,7 +160,9 @@ extension Window {
         let monitor = workspace.map { MonitorRecord($0.workspaceMonitor) } ?? .unknown
         let level = cgWindowLevel
         let appRecord = AppRecord(app)
+        try Task.checkCancellation()
         guard let ax = try await axRecordAttributes else { return nil }
+        try Task.checkCancellation()
         return WindowRecord(
             id: Int(windowId),
             title: ax.title,
@@ -215,7 +217,7 @@ extension MacOsWindowLevel {
 @MainActor func filterContextRecord(mouse: CGPoint = mouseLocation, windowRecords: [UInt32: WindowRecord]? = nil) async throws -> FilterContextRecord {
     let focus = focus
     let previous = prevFocusedWindow
-    func record(_ window: Window?) async throws -> WindowRecord? {
+    @MainActor @Sendable func record(_ window: Window?) async throws -> WindowRecord? {
         guard let window else { return nil }
         if let windowRecords {
             if let record = windowRecords[window.windowId] { return record }
@@ -223,10 +225,17 @@ extension MacOsWindowLevel {
         }
         return try await window.windowRecord()
     }
+    let windows = [focus.windowOrNil, try await windowUnderMouse(mouse), previous]
+    let records = try await withThrowingTaskGroup(of: (Int, WindowRecord?).self) { group in
+        for (index, window) in windows.enumerated() {
+            group.addTask { @MainActor @Sendable in (index, try await record(window)) }
+        }
+        var values = [WindowRecord?](repeating: nil, count: 3)
+        for try await (index, value) in group { values[index] = value }
+        return values
+    }
     return FilterContextRecord(
-        focused: try await record(focus.windowOrNil),
-        mouse: try await record(windowUnderMouse(mouse)),
-        previous: try await record(previous),
+        focused: records[0], mouse: records[1], previous: records[2],
         workspaceName: focus.workspace.name,
         workspaceProject: focus.workspace.projectId.rawValue,
         monitor: MonitorRecord(focus.workspace.workspaceMonitor),
