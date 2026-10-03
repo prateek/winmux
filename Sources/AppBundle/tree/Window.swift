@@ -2,6 +2,8 @@ import AppKit
 import Common
 
 open class Window: TreeNode, Hashable {
+    @MainActor let thumbnail = WindowThumbnail()
+    @MainActor var miniatureFrame: CGRect?
     let windowId: UInt32
     let app: any AbstractApp
     var lastFloatingSize: CGSize?

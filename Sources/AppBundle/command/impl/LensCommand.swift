@@ -43,7 +43,7 @@ struct LensCommand: Command {
         let ids = Set(resolution.ids)
         let eligible = entries.filter { ids.contains($0.window.windowId) }
         let sorted = sortLensWindows(eligible, by: settings.sort, previousId: context.previous.map { UInt32($0.id) })
-        if settings.presentation != "list" {
+        if settings.presentation != "list" && settings.presentation != "miniatures" {
             lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }

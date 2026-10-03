@@ -1,7 +1,7 @@
 # Lenses and Search
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
-Import `winmux/defaults.ncl` to get the unbound `search` and `floating` Lenses. `palette` is an alias for
+Import `winmux/defaults.ncl` to get the unbound `search`, `floating` and `overview` Lenses. `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
@@ -22,8 +22,7 @@ let W = import "winmux/winmux.ncl" in
 Omitting `filter` matches every candidate. Candidates include minimized windows and windows
 of hidden apps. Candidate AX reads overlap and keep tree order; a window whose record cannot
 be read is omitted from that open. Popup classes are excluded unless listed in `popups`. The one active Display
-profile is `default`; other `when` records load but do not apply. `strip` and `miniatures`
-currently open as lists. `grid` is rejected.
+profile is `default`; other `when` records load but do not apply. `strip` currently opens as a list. `miniatures` draws workspace copies. `grid` is rejected.
 
 ```sh
 winmux list-lenses --json
@@ -82,9 +81,10 @@ The shipped `search` Lens uses the Lens contract's defaults. Users can override 
 Presentation by merging over `winmux/defaults.ncl`, for example:
 
 ```nickel
-(import "winmux/defaults.ncl") & {
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
   lenses.search = { sort = ['title], presentation = 'strip },
-}
+}) | W.Config
 ```
 
 The shipped `floating` Lens uses `filters.floating` (`fun w ctx => w.class == 'floating`),
@@ -100,13 +100,73 @@ under accessory policy; a standard dialog under regular policy remains reachable
 To list an Accessory app's popups alongside its floating windows, configure:
 
 ```nickel
-(import "winmux/defaults.ncl") & {
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
   lenses.accessory = {
     popups = ['accessory-popup],
     filter = fun w ctx => w.app.accessory && (w.class == 'floating || w.class == 'accessory-popup),
   },
-}
+}) | W.Config
 ```
 
 Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup window`
 and moves nothing, because a popup has no workspace.
+
+
+## Overview and miniatures
+
+`winmux lens overview` opens every workspace in sidebar order, with tiled windows in their
+layout positions and floating windows above them. Minimized windows use their retained origin
+workspace's tray; hidden-app windows use their container's workspace. Popup windows are omitted,
+even when the Lens opts into their classes. A minimized window with no known origin has no tray
+and remains reachable through the list Presentation.
+
+Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
+with an 800 ms per-window throttle and at most two captures in flight. Hidden apps retain their
+last frame; a window with no frame shows its app icon. Inactive native-fullscreen windows use the
+same fallback. Opening draws the cache immediately; current-workspace windows on the visible
+page refresh every 500 ms. Closing cancels queued Lens refreshes. Capture needs an existing Screen
+Recording grant; background capture does not request one.
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  lenses.overview = {
+    frozen-thumbnail = 'dimmed,
+    accessory-window = 'enlarged,
+    summon-hints = ['label, 'landing-spot],
+    miniatures = {
+      fit = 'page,
+      current-workspace = 'highlight,
+      arrow-keys = 'nearest,
+      backdrop = { darkness = 0.6, blur = true },
+    },
+  },
+}) | W.Config
+```
+
+The settings resolve through `when.default` too. `list-lenses --json` reports the resolved
+`miniatures` record and shared look settings.
+
+| Setting | Values and behavior |
+| --- | --- |
+| `miniatures.fit` | `page` keeps a readable workspace size and scrolling turns pages; `shrink` fits all workspaces. |
+| `miniatures.current-workspace` | `plain`, `highlight` (default), `enlarge`, or `hide`. |
+| `miniatures.arrow-keys` | `nearest` (default) uses geometry; `by-workspace` uses left/right within a workspace and up/down between workspaces. |
+| `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. The panel remains non-opaque. |
+| `frozen-thumbnail` | `plain`, `dimmed` (default), `age-badge`, or `pause-badge`. Live thumbnails are unmarked. |
+| `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
+| `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the modifier of a configured Summon binding is held. |
+
+Miniatures always uses workspace sections and window entries; its contract rejects explicit
+`sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
+`landing-spot` hint. Backdrop darkness above 0.95 fails config checking.
+
+Search dims non-matches at their fixed positions and selects the best match. Arrows navigate only
+matches; Tab marks and Enter/shift-enter keep the same Focus/Summon actions as the list. Only the
+selected window's title appears, under its workspace. The landing hint uses the current tree's
+append geometry until Column Policy hooks supply placement.
+
+`winmux lens floating --presentation miniatures` ignores that Lens's list grouping and sorting.
+`winmux lens --presentation list` keeps the open session's Search, marks and selection. Overview
+ships without a key binding.

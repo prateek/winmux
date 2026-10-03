@@ -16,13 +16,19 @@ final class LensSession: ObservableObject {
             if !query.hasPrefix("=") { searchError = nil }
             selection = 0
             onSearchChanged?()
+            if settings.presentation == "miniatures" { revealMiniatureSelection() }
         }
     }
-    @Published var selection: Int
+    @Published var selection: Int { didSet { updateMiniatureLanding() } }
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
     @Published var banner: String?
-    @Published var summonHeld = false
+    @Published var summonHeld = false { didSet { updateMiniatureLanding() } }
+    private(set) var miniatureLanding: CGRect?
+    @Published var miniaturePage = 0
+    var miniatureSize = CGSize(width: 1000, height: 700)
+    var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }
+    var miniatureWorkspaces: [MiniatureWorkspace] = []
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
@@ -41,12 +47,25 @@ final class LensSession: ObservableObject {
         }
         query = search
         selection = 0
-        selection = results.count > 1 && results.first?.isFocused == true ? 1 : 0
+        selection = initialSelection()
+    }
+
+    /// The list opens on its second row when the first is the focused window. Miniatures are not
+    /// drawn in sort order, so they open on the most recently focused window that is not focused.
+    private func initialSelection() -> Int {
+        let results = results
+        guard settings.presentation == "miniatures", query.isEmpty else {
+            return results.count > 1 && results.first?.isFocused == true ? 1 : 0
+        }
+        return results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
+            lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
+        }?.offset ?? 0
     }
 
     var results: [SwitcherPaletteItem] {
-        let windows = query.hasPrefix("=") ? items.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(items, query: query)
-        guard settings.entries == "app" else { return windows }
+        let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
+        let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
+        guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
         var seen: Set<String> = []
         return windows.filter { seen.insert($0.appIdentity).inserted }.map { representative in
             windows.filter { $0.appIdentity == representative.appIdentity }.max {
@@ -55,6 +74,8 @@ final class LensSession: ObservableObject {
         }
     }
 
+    var miniatureSearchVisible: Bool { !query.isEmpty }
+
     var selectedId: UInt32? { results.indices.contains(selection) ? results[selection].id : nil }
 
     func key(for event: NSEvent, click: Bool = false) -> String? {
@@ -62,6 +83,14 @@ final class LensSession: ObservableObject {
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
         let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
+    }
+
+    func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) {
+        let held = modifiers.intersection([.control, .option, .shift, .command])
+        let shouldHold = !held.isEmpty && keyBindings.contains { binding in
+            binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
+        }
+        if shouldHold != summonHeld { summonHeld = shouldHold }
     }
 
     func performKeyAction(_ event: NSEvent) -> Bool {
@@ -94,8 +123,15 @@ final class LensSession: ObservableObject {
         inlineIds = Set(ids)
         searchError = nil
         selection = min(selection, max(results.count - 1, 0))
+        if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()
     }
     func rejectInlineResult(_ error: String) { searchError = error.components(separatedBy: .newlines).first }
-    func changePresentation(_ presentation: String) { settings.presentation = presentation; objectWillChange.send() }
+    func setMiniatureLanding(_ frame: CGRect?) { miniatureLanding = frame }
+    func changePresentation(_ presentation: String) {
+        let selected = selectedId
+        settings.presentation = presentation
+        if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+        objectWillChange.send()
+    }
 }

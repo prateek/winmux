@@ -46,8 +46,57 @@
         "enter": "focus",
         "shift-enter": "summon"
       },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
       "popups": [],
       "presentation": "list",
+      "sections": "workspace",
+      "sort": [
+        "mru"
+      ],
+      "summon-hints": [
+        "label",
+        "landing-spot"
+      ]
+    },
+    "overview": {
+      "accessory-window": "enlarged",
+      "enabled": true,
+      "entries": "window",
+      "frozen-thumbnail": "dimmed",
+      "keys": {
+        "alt-enter": "summon",
+        "cmd-1": "move-node-to-workspace 1",
+        "cmd-2": "move-node-to-workspace 2",
+        "cmd-3": "move-node-to-workspace 3",
+        "cmd-4": "move-node-to-workspace 4",
+        "cmd-5": "move-node-to-workspace 5",
+        "cmd-6": "move-node-to-workspace 6",
+        "cmd-7": "move-node-to-workspace 7",
+        "cmd-8": "move-node-to-workspace 8",
+        "cmd-9": "move-node-to-workspace 9",
+        "cmd-w": "close",
+        "enter": "focus",
+        "shift-enter": "summon"
+      },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
+      "popups": [],
+      "presentation": "miniatures",
       "sections": "workspace",
       "sort": [
         "mru"
@@ -76,6 +125,15 @@
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"
+      },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
       },
       "popups": [],
       "presentation": "list",

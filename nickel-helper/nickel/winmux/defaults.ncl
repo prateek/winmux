@@ -3,8 +3,9 @@
 #   let W = import "winmux/winmux.ncl" in
 #   ((import "winmux/defaults.ncl") & { gaps.inner.horizontal = 0 }) | W.Config
 #
-# Every value is marked `default`, so a config overrides one by setting the same field. A config
-# that does not import this file gets none of it.
+# Settings use default priority, so a config overrides them by setting the same field.
+# Overview uses priority -1 above the contract's fallback. A config that does not import this file
+# gets none of these settings.
 {
   auto-add-new-windows-to-tab-group | default = true,
   automatically-tile-new-windows | default = true,
@@ -132,6 +133,7 @@
   reload-on-save | default = true,
   shortcuts-preset | default = "none",
   filters.floating | default = fun w ctx => w.class == 'floating,
+  lenses.overview.presentation | priority -1 = 'miniatures,
   lenses.search = {},
   lenses.floating.filter | default = filters.floating,
   start-at-login | default = false,
