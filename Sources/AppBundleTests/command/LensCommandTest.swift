@@ -63,6 +63,16 @@ final class LensScriptTest: XCTestCase {
         XCTAssertEqual(scopedResult.stdout, ["1"])
     }
 
+    func testFocusedScopeWithoutAFocusedWindowFailsLikePlainListWindows() async throws {
+        _ = TestWindow.new(id: 1, parent: Workspace.get(byName: "2").rootTilingContainer)
+        XCTAssertNil(focus.windowOrNil)
+        let command = try XCTUnwrap(parseCommand("list-windows --focused --search TestWindow").cmdOrNil)
+        let result = try await command.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertEqual(result.stdout, [])
+        XCTAssertEqual(result.stderr, [noWindowIsFocused])
+    }
+
     func testFilterFailurePrintsNothingAndReturnsBadFilterCode() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("make helper first") }
         let supervisor = NickelSupervisor.shared
@@ -204,6 +214,22 @@ final class LensUnconventionalActionTest: XCTestCase {
         XCTAssertTrue(result)
         XCTAssertEqual(window.nodeWorkspace?.name, "3")
         XCTAssertEqual(focus.workspace.name, "3")
+    }
+
+    func testFocusLeavesAnOriginWorkspaceThatStillExistsInItsCurrentProject() async throws {
+        let current = Workspace.get(byName: "1")
+        _ = TestWindow.new(id: 1, parent: current.rootTilingContainer).focusWindow()
+        let origin = Workspace.get(byName: "3")
+        _ = TestWindow.new(id: 3, parent: origin.rootTilingContainer)
+        let window = TestWindow.new(id: 2, parent: origin.rootTilingContainer)
+        window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
+        window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        let moved = WorkspaceProjectId("moved")
+        origin.assignProject(moved)
+        let result = try await runLensAction(["focus"], session: session(window), io: CmdIo(stdin: .emptyStdin))
+        XCTAssertTrue(result)
+        XCTAssertEqual(window.nodeWorkspace, origin)
+        XCTAssertEqual(origin.projectId, moved)
     }
 
     func testDefaultWorkspaceMoveRestoresMinimizedWindowBeforeMoving() async throws {

@@ -116,7 +116,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
-                _ = try await runLensAction(commands, session: model, io: CmdIo(stdin: .emptyStdin))
+                // The Lens is already closed, so a failed action has nowhere on screen to report.
+                let io = CmdIo(stdin: .emptyStdin)
+                if try await !runLensAction(commands, session: model, io: io) {
+                    lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+                }
             }
         }
     }

@@ -184,15 +184,18 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Build notes
 
-Implemented on `prateek/lens-core-list`, open as pull request #26 and awaiting driver push/CI/review. The review fixes clarify Score, disabled script Lenses, unconventional row actions, reserved navigation keys and per-window AX failure handling above.
+Landed in pull request #26, which has the live run. Its review settled Score, a disabled Lens in a script, actions on minimized and popup rows, the reserved keys and a window whose record cannot be read; each is under **Defaults chosen for you** above.
 
 - A configured Lens that omits `presentation` defaults to `'list`; the original field table left that default blank.
 - Search reads the displayed workspace/project names; Filter records keep their existing workspace/project ids. When different words match different fields, JSON joins their names with commas in `matched-field`.
 - Ad-hoc and script Filter bodies use the helper’s new `check-filter` preflight. This catches an invalid body even when an explicit scope contains no windows. Runtime evaluation failures still follow the interactive/banner and script/fail-closed policies.
 - Configured key equivalents run before Search editing can consume Command shortcuts (such as Cmd+X).
 - `cmd-1` through `cmd-9` use the existing workspace-number command. Summon restores minimized/hidden windows, preserves floating layout, then uses the existing move/focus path without `arrive`. Column placement remains a later issue.
-- Popup-class inclusion is tested at the candidate seam; live Accessory classification is still issue #8. A real native fullscreen Space was not exercised.
-- `make check` and the debug live run cover the checked items below. The driver’s PR description and report list the tests and captures. CI on the latest commit remains the driver’s check after pushing the review fixes.
+- Popup-class inclusion is tested at the candidate seam; live Accessory classification belongs to "Accessory window defaults and the `floating` Lens". A real native fullscreen Space was not exercised.
+- `cmd-<n>` counts workspaces in the selected window's own project, as `move-node-to-workspace <n> --window-id` does, not in the project on screen.
+- Marks outlive a change of Search: a marked window that the Search has hidden is still acted on.
+- An action that fails after the Lens has closed is written to the unified log, category `lens`.
+- `make check` and a debug live run cover the checked items below. The 150 ms debounce, the 50 ms display deadline and popup-row actions were checked in tests only.
 
 ## Done when
 

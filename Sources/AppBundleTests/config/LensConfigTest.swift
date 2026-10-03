@@ -12,6 +12,13 @@ final class LensConfigTest: XCTestCase {
         }
     }
 
+    func testSwiftLensDefaultsMatchTheContractDefaultsOfTheShippedSearchLens() throws {
+        let builtIn = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: defaultConfigUrl))
+        let parsed = parseConfig(builtIn)
+        XCTAssertTrue(parsed.errors.isEmpty, "\(parsed.errors)")
+        XCTAssertEqual(parsed.config.lenses["search"], LensConfig())
+    }
+
     func testDefaultProfileResolvesAndOtherProfilesNeverApply() throws {
         let settings = try JSONDecoder().decode(JSONValue.self, from: Data("""
         {"lenses":{"demo":{"presentation":"list","keys":{"cmd-x":"close"},"when":{"default":{"enabled":false,"sort":["title"]},"travel":{"presentation":"strip"}}}}}

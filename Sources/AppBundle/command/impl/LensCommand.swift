@@ -44,13 +44,15 @@ struct LensCommand: Command {
         let eligible = entries.filter { ids.contains($0.window.windowId) }
         let sorted = sortLensWindows(eligible, by: settings.sort, previousId: context.previous.map { UInt32($0.id) })
         if settings.presentation != "list" {
-            Logger(subsystem: "com.winmux", category: "lens").info("Presentation \(settings.presentation) is not built yet; using list")
+            lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }
         await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket)
         return true
     }
 }
+
+let lensLog = Logger(subsystem: winMuxAppId, category: "lens")
 
 struct ListLensesCommand: Command {
     let args: ListLensesCmdArgs

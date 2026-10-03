@@ -66,8 +66,11 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
 private func lensRestoreWorkspace(_ window: Window) -> Workspace {
     if let workspace = window.nodeWorkspace { return workspace }
     guard let origin = window.layoutReason.origin else { return focus.workspace }
+    let existedBefore = Workspace.existing(byName: origin.workspaceName) != nil
     let workspace = Workspace.get(byName: origin.workspaceName)
-    workspace.assignProject(origin.projectId)
+    if !existedBefore {
+        workspace.assignProject(origin.projectId)
+    }
     workspace.seedMonitorIfNeeded(focus.workspace.workspaceMonitor)
     return workspace
 }

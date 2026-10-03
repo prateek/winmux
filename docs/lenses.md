@@ -57,7 +57,7 @@ An error keeps the last good rows and shows its first line with an amber border.
 deadline is 50 ms; the helper deadline is 100 ms.
 
 Enter focuses the selection, shift-enter and alt-enter Summon it, cmd-w closes it, and cmd-1
-through cmd-9 move it to the corresponding displayed workspace. Custom keys merge over these
+through cmd-9 move it to that workspace of the window's own project. Custom keys merge over these
 defaults and run against the selected window. Configured Command shortcuts take priority over
 Search field editing, including Cut and Close. Tab toggles marks; commands act on marked windows
 in mark order, while focus acts only on the selection. Escape, Tab and the four arrow keys,

@@ -74,7 +74,10 @@ extension ListWindowsCommand {
         } else { settings = LensConfig() }
         var entries = try await lensWindows(popups: settings.popups)
         let scope = args.filteringOptions
-        if scope.focused { entries = entries.filter { $0.window.windowId == focus.windowOrNil?.windowId } }
+        if scope.focused {
+            guard let focused = focus.windowOrNil else { return io.err(noWindowIsFocused) }
+            entries = entries.filter { $0.window.windowId == focused.windowId }
+        }
         if !scope.workspaces.isEmpty {
             let names = Set(scope.workspaces.flatMap { filter -> [String] in
                 switch filter {

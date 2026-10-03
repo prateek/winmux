@@ -170,11 +170,13 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
         for (name, lens) in parsed.config.lenses {
             for (key, commands) in lens.keys {
-                if case .success(let (_, code)) = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()),
-                   [53, 48, 123, 124, 125, 126].contains(Int(code.carbonKeyCode)) {
-                    parsed.errors.append(.syntax("lenses.\(name).keys: \(key) is reserved for Lens navigation"))
-                } else if case .failure = parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
-                    parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
+                switch parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
+                    // esc, tab and the arrow keys
+                    case .success(let (_, code)) where [53, 48, 123, 124, 125, 126].contains(Int(code.carbonKeyCode)):
+                        parsed.errors.append(.syntax("lenses.\(name).keys: \(key) is reserved for Lens navigation"))
+                    case .success: break
+                    case .failure:
+                        parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
                 }
                 for command in commands where command != "focus" {
                     if case .failure(let error) = parseCommand(command) {
