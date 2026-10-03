@@ -725,3 +725,40 @@ fn shipped_floating_lens_uses_the_named_overridable_filter() {
     let reply = request(&mut helper, json!({"op": "filter", "lens": "floating", "ctx": context(), "windows": windows}));
     assert_eq!(reply["result"], json!([false, true, false]), "the Lens must use the user's replacement of filters.floating: {reply}");
 }
+
+#[test]
+fn miniatures_contract_rejects_incompatible_settings_and_dark_backdrop() {
+    for body in [
+        "presentation = 'miniatures, sections = 'workspace",
+        "presentation = 'miniatures, entries = 'window",
+        "presentation = 'miniatures, sort = ['mru]",
+        "presentation = 'miniatures, miniatures.backdrop.darkness = 0.951",
+        "presentation = 'miniatures, miniatures.backdrop.darkness = -0.1",
+        "presentation = 'miniatures, miniatures.current-workspace = 'hide",
+        "presentation = 'miniatures, when.default.sort = ['title]",
+        "when.default = { presentation = 'miniatures, entries = 'app }",
+    ] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
+    }
+}
+
+#[test]
+fn overview_and_miniatures_profile_resolve_settings() {
+    let value = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in (import "winmux/defaults.ncl") | W.Config"#, &library()).unwrap();
+    assert_eq!(value["lenses"]["overview"]["presentation"], "miniatures");
+    assert_eq!(value["lenses"]["overview"]["miniatures"]["fit"], "page");
+    assert_eq!(value["lenses"]["overview"]["miniatures"]["backdrop"], json!({"darkness":0.6,"blur":true}));
+    let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo = { presentation = 'miniatures, summon-hints = ['label], miniatures.current-workspace = 'hide, when.default.miniatures.fit = 'shrink } } | W.Config"#;
+    let value = evaluate_to_json(source, &library()).unwrap();
+    assert_eq!(value["lenses"]["demo"]["when"]["default"]["miniatures"]["fit"], "shrink");
+}
+
+#[test]
+fn miniatures_profile_can_override_base_settings_without_merge_conflicts() {
+    let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo = { presentation = 'list, miniatures.current-workspace = 'highlight, when.default = { presentation = 'miniatures, miniatures.current-workspace = 'hide, summon-hints = ['label] } } } | W.Config"#;
+    assert!(evaluate_to_json(source, &library()).is_ok());
+    let source = r#"let W = import "winmux/winmux.ncl" in ((import "winmux/defaults.ncl") & { lenses.overview.presentation = 'list }) | W.Config"#;
+    let value = evaluate_to_json(source, &library()).unwrap();
+    assert_eq!(value["lenses"]["overview"]["presentation"], "list");
+}

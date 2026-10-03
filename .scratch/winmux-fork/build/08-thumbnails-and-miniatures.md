@@ -146,9 +146,9 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] Switching away from a workspace captures its windows; opening a Lens afterwards shows their thumbnails with no visible delay.
 - [ ] A window that has never been captured shows its app icon.
 - [ ] No more than 2 captures are in flight at any time, and opening a Lens with 50 windows does not block on capture.
-- [ ] Closing a Lens drops its queued captures, and closing a window drops its thumbnail.
-- [ ] The capture path calls `SCScreenshotManager.captureScreenshot(contentFilter:configuration:)` and nothing else. The per-capture cost is re-measured with it on a real set of about 50 windows, and the figures are in the pull request.
-- [ ] A signed WinMux build with its own Screen Recording grant is checked for a screen-recording indicator during background captures, and the result is in the pull request.
+- [x] Closing a Lens drops its queued captures, and closing a window drops its thumbnail.
+- [x] The capture path calls `SCScreenshotManager.captureScreenshot(contentFilter:configuration:)` and nothing else. The per-capture cost is re-measured with it on a real set of about 50 windows, and the figures are in the pull request.
+- [ ] A signed WinMux build with its own Screen Recording grant is checked for a screen-recording indicator during background captures, and the result is in the pull request. **Not checkable: it needs a release build, which is Prateek's.**
 - [ ] `winmux lens overview` opens the `'miniatures` Presentation: every workspace drawn to scale in sidebar order, tiled windows in their real positions, floating windows on top, minimized and hidden-app windows in a tray under their workspace. No popup-class window is drawn.
 - [ ] A window minimized on one workspace, with another workspace focused afterwards, appears in the tray of the workspace it was minimized on.
 - [ ] A hidden-app window and a native-fullscreen window on an inactive Space each show their last capture, or the app icon when they have none.
@@ -160,10 +160,71 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [ ] Typing dims non-matching windows in place, moves the selection to the best match, and limits the arrow keys to matches.
 - [ ] With more workspaces than fit at a readable size, the Lens pages and scrolling turns the page.
 - [ ] Windows on the current workspace keep painting behind the overlay while it is open (check with a terminal running a clock, and with an Electron app).
-- [ ] A config that sets `miniatures.backdrop.darkness` above 0.95 fails `winmux config check`.
-- [ ] A config with `sections`, `entries` or `sort` on a `'miniatures` Lens, or with `current-workspace = 'hide` plus `'landing-spot`, fails `winmux config check`.
+- [x] A config that sets `miniatures.backdrop.darkness` above 0.95 fails `winmux config check`.
+- [x] A config with `sections`, `entries` or `sort` on a `'miniatures` Lens, or with `current-workspace = 'hide` plus `'landing-spot`, fails `winmux config check`.
 - [ ] `winmux list-lenses --json` shows `overview` with the `'miniatures` Presentation and its resolved settings, with every key and enum value spelled with hyphens.
 - [ ] `winmux lens <name> --presentation miniatures` opens a configured Lens as miniatures, including one that sets `sections`, `entries` or `sort`, which are ignored.
+
+## Implementation and validation
+
+`make check` passes: 45 helper tests, 722 Swift tests and 6 Python tests.
+`make default-config` regenerated the fallback JSON. No record changed, so the generated
+record contract did not need regeneration.
+
+The cache and miniature Presentation are implemented. No **Default chosen for you** changed.
+The `overview` Presentation uses a shipped priority of -1 above the contract's list fallback
+at -2, so an explicit user setting still overrides it. This is merge plumbing, not a changed
+Presentation default.
+
+- `ThumbnailCaptureGate` enforces two in flight, the 800 ms event throttle, deduplication,
+  visible-refresh priority and cancellation of queued Lens work. `ThumbnailCache` stores the
+  last good image on each `Window`, rejects late results after close and keeps good frames
+  after failed captures. Hidden checks before and after capture preserve the last good frame.
+  Tests drive the real cache with controlled capture completions. Portrait captures preserve
+  aspect ratio and cover the enlarged workspace width at the highest attached display scale.
+- `WindowScreenshot` performs capture on `ScreenshotWorker`. Registration and destruction
+  refresh the shareable-window list. Cache requests use cached windows only; no content-list
+  request or capture is awaited on the Lens-open path.
+- `MiniatureLayout` and `MiniatureSession` own scale, sidebar order, trays, pages, directional
+  selection, Search dimming and landing geometry. The existing Lens candidate, Filter, Search,
+  mark and action pipeline supplies the entries. Current-page live entries refresh every
+  500 ms after presentation. The panel is non-opaque and uses behind-window HUD blur.
+- Landing hints read the append geometry without calling `workspaceAppendBindingData`, which
+  may mutate a tab-group tree. The hint is computed while the configured Summon modifier is
+  held and updated on selection changes. Column Policy hooks should replace this seam with
+  their placement answer.
+- Contracts reject explicit list grouping/sort fields, invalid backdrop darkness and hidden
+  current-workspace landing hints, including profile combinations. `docs/lenses.md` documents
+  the settings; all four Nickel examples passed `winmux-nickel check`.
+
+The desktop-wide debug Lens acceptance run remains outstanding. Restored Terminal sessions
+contained identifying prompts; the preparation instructions required closing private windows
+and preserving windows not opened by this builder. The build did not start capturing them.
+The screenshot/video acceptance checks therefore remain unticked even where pure tests pass.
+The clock, Focus/Summon outcomes, scrolling, Accessory looks, app-icon fallback, trays, Electron
+liveness, actual `list-lenses` output and Presentation overrides still need the debug run.
+Visual readability at the 110-point floor remains unassessed. Unknown-origin minimized
+windows have no workspace cell and remain reachable through list conversion; this limitation
+is not specified by the issue.
+
+A separate safe run used 50 distinct owned AppKit windows and captured only those windows.
+`captureScreenshot` at 320 px measured 36.9 ms for the first capture after process launch,
+24.6–24.9 ms serial medians and 1.268–1.282 s serial totals. Two in flight measured 34.8–35.6 ms
+individual-request medians, 0.889–0.908 s totals and 17.8–18.2 ms/window throughput. Three repeats
+per size/concurrency had no failures. Native-sized captures were similar. Evidence:
+`01-capture-cost.txt` and `01-capture-cost.png`.
+
+An owned native-fullscreen window was tried. Capture succeeded while its Space was active
+(40.0 ms), and succeeded with a nonblank image after the owned report app activated on the
+desktop Space (`isOnScreen = false`, 38.7 and 36.5 ms). This differs from the earlier findings;
+the last-frame/icon fallback remains unchanged. It does not verify opening the Lens over that
+Space. Evidence: `03-native-fullscreen.txt` and `03-native-fullscreen.png`.
+
+The real `winmux config check` rejected darkness 0.96, `sections`, `entries`, `sort` and
+`current-workspace = 'hide` with the default landing hint (exit 2); a valid miniature config
+exited 0. `02-config-check.txt` and `02-config-check.png` show those results in an owned neutral
+output window. No debug WinMux background-capture indicator check was performed. The signed-build
+indicator remains **not checkable: it needs a release build, which is Prateek's**.
 
 ## Sources
 

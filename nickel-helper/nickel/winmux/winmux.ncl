@@ -59,6 +59,33 @@ let LensKeys = std.contract.Sequence [
     then 'Ok
     else 'Error { message = "Escape, Tab and arrow keys (including modifier variants) are reserved for Lens navigation" }),
 ] in
+let MiniatureFields = {
+  fit | Choice [| 'page, 'shrink |] | optional,
+  current-workspace | Choice [| 'plain, 'highlight, 'enlarge, 'hide |] | optional,
+  arrow-keys | Choice [| 'nearest, 'by-workspace |] | optional,
+  backdrop | {
+    darkness | std.contract.Sequence [Number, std.contract.from_predicate (fun n => n >= 0 && n <= 0.95)] | optional,
+    blur | Bool | optional,
+  } | optional,
+} in
+let Miniatures = MiniatureFields & {
+  fit | default = 'page,
+  current-workspace | default = 'highlight,
+  arrow-keys | default = 'nearest,
+  backdrop = { darkness | default = 0.6, blur | default = true },
+} in
+let MiniatureRules = std.contract.from_validator (fun lens =>
+  let presentation = std.record.get_or "presentation" 'list lens in
+  if presentation == 'miniatures || presentation == "miniatures" then
+    if std.array.any (fun field => std.record.has_field field lens) ["sections", "entries", "sort"] then
+      'Error { message = "miniatures rejects sections, entries and sort" }
+    else if (std.record.get_or "current-workspace" 'highlight (std.record.get_or "miniatures" {} lens)) == 'hide || (std.record.get_or "current-workspace" "highlight" (std.record.get_or "miniatures" {} lens)) == "hide" then
+      if std.array.any (fun hint => hint == 'landing-spot || hint == "landing-spot") (std.record.get_or "summon-hints" ['label, 'landing-spot] lens) then
+        'Error { message = "current-workspace hide cannot show landing-spot" }
+      else 'Ok
+    else 'Ok
+  else 'Ok
+) in
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
@@ -71,9 +98,10 @@ let LensFields = {
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
   summon-hints | Array (Choice [| 'label, 'landing-spot, 'target-workspace |]) | optional,
   enabled | Bool | optional,
+  miniatures | MiniatureFields | optional,
 } in
-let Lens = LensFields & {
-  presentation | default = 'list,
+let LensDefaults = LensFields & {
+  presentation | priority -2 = 'list,
   entries | default = 'window,
   sections | default = 'workspace,
   sort | default = ['mru],
@@ -97,8 +125,29 @@ let Lens = LensFields & {
   accessory-window | default = 'enlarged,
   summon-hints | default = ['label, 'landing-spot],
   enabled | default = true,
+  miniatures | Miniatures | default = {},
   when | { _ | LensFields } | optional,
 } in
+let Lens = std.contract.Sequence [
+  std.contract.from_validator (fun lens =>
+    let profiles = std.record.get_or "when" {} lens in
+    if std.array.all (fun name =>
+      let profile = std.record.get name profiles in
+      let base = if std.record.has_field "when" lens then std.record.remove "when" lens else lens in
+      let resolved = std.array.fold_left (fun acc field =>
+        let value = if field == "miniatures" then
+          std.array.fold_left (fun settings key => std.record.update key (std.record.get key profile.miniatures) settings)
+            (std.record.get_or "miniatures" {} acc) (std.record.fields profile.miniatures)
+        else std.record.get field profile in
+        std.record.update field value acc
+      ) base (std.record.fields profile) in
+      let checked = resolved | MiniatureRules in
+      std.is_record checked
+    ) (std.record.fields profiles) then 'Ok else 'Error { message = "invalid profile" }
+  ),
+  MiniatureRules,
+  LensDefaults,
+] in
 
 # The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
