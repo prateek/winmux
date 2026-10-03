@@ -46,6 +46,82 @@ final class StripSessionTest: XCTestCase {
             SwitcherPaletteItem(id: UInt32(i + 1), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: i == 0)
         }, search: "")
     }
+    func testUnrelatedGlobalBindingClosesStripBeforeYielding() async {
+        _ = NSApplication.shared
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        let ticket = panel.beginLens("global-handoff", toggle: false)!
+        await panel.openLens(name: "global-handoff", settings: LensConfig(), entries: [], search: nil, banner: nil, context: .null, ticket: ticket)
+        panel.session?.changePresentation("strip")
+        panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
+        XCTAssertNil(panel.session)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testReleaseWithoutEnterClosesEvenBeforePresentation() async {
+        _ = NSApplication.shared
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"; settings.keys = [:]
+        let ticket = panel.beginLens("empty-action", toggle: false)!
+        await panel.openLens(name: "empty-action", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: StripGesture(keyCode: nil, invoking: [], openedAt: 0))
+        XCTAssertNil(panel.session)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testNoFocusedCandidateStartsAtPreviousWindow() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false) }
+        let model = LensSession(name: "recent", settings: settings, items: items, search: "")
+        model.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        XCTAssertEqual(model.selectedId, 1)
+        model.beginStrip(StripGesture(keyCode: 48, invoking: [.command, .shift], openedAt: 0))
+        XCTAssertEqual(model.selectedId, 3)
+    }
+
+    func testRemovingEarlierWindowsKeepsSelectedWindow() {
+        let model = model(count: 5)
+        model.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        model.hover(4)
+        model.removeStripItems([2])
+        XCTAssertEqual(model.selectedId, 4)
+        model.removeStripItems([4])
+        XCTAssertEqual(model.selectedId, 5)
+        model.removeStripItems([5])
+        XCTAssertEqual(model.selectedId, 3)
+        let batch = self.model(count: 6)
+        batch.hover(4)
+        batch.removeStripItems([2, 4])
+        XCTAssertEqual(batch.selectedId, 5)
+    }
+
+    func testOtherGlobalLetterChordsAreNotSearchButLensKeysStillWin() throws {
+        let model = model()
+        model.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        func key(_ flags: NSEvent.ModifierFlags) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: "h", charactersIgnoringModifiers: "h", isARepeat: false, keyCode: 4))
+        }
+        for flags: NSEvent.ModifierFlags in [[.command, .control], .option] {
+            XCTAssertEqual(model.stripInput(try key(flags)), .ignored)
+            XCTAssertEqual(model.settings.presentation, "strip")
+            XCTAssertEqual(model.query, "")
+        }
+        XCTAssertEqual(model.stripInput(try key([.command, .shift])), .list)
+        let plain = self.model()
+        plain.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        XCTAssertEqual(plain.stripInput(try key([])), .list)
+    }
+
+    func testClickUsesReleaseBindingWhileInvokingModifiersAreHeld() throws {
+        let model = model()
+        model.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+        for (flags, expected): (NSEvent.ModifierFlags, String) in [(.command, "enter"), ([.command, .option], "alt-enter")] {
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+            XCTAssertEqual(model.key(for: event, click: true), expected)
+        }
+    }
+
     func testInitialSelectionForwardReverseWrapAndOnlyInvokingKeyCycles() {
         let model = model()
         model.beginStrip(StripGesture(keyCode: 48, invoking: [.command], openedAt: 0))

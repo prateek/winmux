@@ -39,7 +39,7 @@ enum StripInput { case ignored, consumed, cancel, list }
 extension LensSession {
     func beginStrip(_ gesture: StripGesture) {
         stripGesture = gesture
-        selection = results.count > 1 ? (gesture.invoking.contains(.shift) ? results.count - 1 : 1) : 0
+        selection = gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()
     }
 
     @discardableResult
@@ -79,6 +79,8 @@ extension LensSession {
         guard settings.presentation == "strip" else { return false }
         if performKeyAction(event) { return true }
         guard let text = event.charactersIgnoringModifiers, !text.isEmpty, text.unicodeScalars.allSatisfy({ CharacterSet.letters.contains($0) }) else { return false }
+        let held = event.modifierFlags.intersection([.command, .control, .option])
+        guard held.isEmpty || held == stripGesture?.committingModifiers else { return false }
         let selected = selectedId
         changePresentation("list")
         query = text
@@ -87,8 +89,10 @@ extension LensSession {
     }
 
     func removeStripItems(_ ids: Set<UInt32>) {
+        let selected = selectedId
+        let replacement = results.prefix(selection).filter { !ids.contains($0.id) }.count
         removedIds.formUnion(ids)
-        selection = min(selection, max(0, results.count - 1))
+        selection = selected.flatMap { id in results.firstIndex { $0.id == id } } ?? min(replacement, max(0, results.count - 1))
         objectWillChange.send()
     }
 

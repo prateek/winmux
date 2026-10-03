@@ -54,7 +54,7 @@ final class LensSession: ObservableObject {
 
     /// The list opens on its second row when the first is the focused window. Miniatures are not
     /// drawn in sort order, so they open on the most recently focused window that is not focused.
-    private func initialSelection() -> Int {
+    func initialSelection() -> Int {
         let results = results
         guard settings.presentation == "miniatures", query.isEmpty else {
             return results.count > 1 && results.first?.isFocused == true ? 1 : 0
@@ -84,7 +84,9 @@ final class LensSession: ObservableObject {
     func key(for event: NSEvent, click: Bool = false) -> String? {
         // Return / keypad enter share a binding; a click runs that Enter action too.
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
-        let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        let modifiers = click && settings.presentation == "strip"
+            ? stripGesture?.releaseModifiers(event.modifierFlags) ?? []
+            : event.modifierFlags.intersection([.control, .option, .shift, .command])
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 

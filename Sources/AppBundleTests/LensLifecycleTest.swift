@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import Common
 import XCTest
 
@@ -6,6 +7,34 @@ import XCTest
 final class LensLifecycleTest: XCTestCase {
     private func session(_ name: String, search: String = "") -> LensSession {
         LensSession(name: name, settings: LensConfig(), items: [], search: search)
+    }
+
+    func testOpeningStripAccumulatesForwardAndReverseTriggerSteps() {
+        for (flags, expected): (NSEvent.ModifierFlags, UInt32) in [(.command, 3), ([.command, .shift], 1)] {
+            let store = LensLifecycle()
+            let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
+            let ticket = store.begin("recent", toggle: true, strip: gesture)!
+            XCTAssertFalse(store.cycleStrip(name: "other", keyCode: 48, flags: .command))
+            XCTAssertFalse(store.cycleStrip(keyCode: 50, flags: .command))
+            XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: flags))
+            var settings = LensConfig(); settings.presentation = "strip"
+            let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+            let model = LensSession(name: "recent", settings: settings, items: items, search: "")
+            XCTAssertTrue(store.complete(model, ticket: ticket))
+            XCTAssertEqual(model.selectedId, expected)
+            XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: .command))
+            XCTAssertNotNil(store.session)
+        }
+    }
+
+    func testCancelledOpeningDoesNotTransferPendingSteps() {
+        let store = LensLifecycle()
+        let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
+        let ticket = store.begin("recent", toggle: true, strip: gesture)!
+        XCTAssertTrue(store.cycleStrip(keyCode: 48, flags: .command))
+        store.cancelOpening(ticket: ticket)
+        XCTAssertFalse(store.cycleStrip(keyCode: 48, flags: .command))
+        XCTAssertFalse(store.complete(session("recent"), ticket: ticket))
     }
 
     func testFailedOpenCanRetryOnceAndOldCleanupCannotCancelNewerOpen() {

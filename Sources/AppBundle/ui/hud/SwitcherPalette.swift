@@ -87,8 +87,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
         if settings.presentation == "strip", let invocation {
-            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip ready elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)") }
-            model.beginStrip(invocation)
+            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)") }
+            if model.stripGesture == nil { model.beginStrip(invocation) }
             let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
             if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
             model.updateSummonModifiers(flags)
@@ -133,8 +133,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func cycleStrip(name: String, invocation: StripGesture) -> Bool {
-        guard let session, session.name == name, let code = invocation.keyCode else { return false }
-        return session.cycleStrip(keyCode: code, flags: invocation.invoking)
+        guard let code = invocation.keyCode else { return false }
+        return lifecycle.cycleStrip(name: name, keyCode: code, flags: invocation.invoking)
     }
 
     func stripWindowClosed(_ id: UInt32) {
@@ -170,8 +170,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
-    func beginLens(_ name: String, toggle: Bool) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle)
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
         clearPresentation()
         return ticket
     }
@@ -206,10 +206,11 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func performAction(_ key: String) {
-        guard let model = session, !model.commands(for: key).isEmpty else { return }
+        guard let model = session else { return }
         let commands = model.commands(for: key)
         let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
         if !keepStrip { dismiss() }
+        guard !commands.isEmpty else { return }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
@@ -238,11 +239,17 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String) -> Bool {
+        if session == nil, lifecycle.cycleStrip(keyCode: keyCode, flags: modifiers) {
+            if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog("strip queued cycle uptime=\(ProcessInfo.processInfo.systemUptime) key=\(keyCode) modifiers=\(modifiers.rawValue)") }
+            return true
+        }
         guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
                                           timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,
                                           context: nil, characters: characters, charactersIgnoringModifiers: characters,
                                           isARepeat: false, keyCode: keyCode) else { return false }
-        return handleStripKey(event)
+        let handled = handleStripKey(event)
+        if !handled, session?.settings.presentation == "strip" { dismiss() }
+        return handled
     }
 
     // Intercept navigation keys before the field editor consumes them; other typing

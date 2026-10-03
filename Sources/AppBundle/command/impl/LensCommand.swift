@@ -34,7 +34,7 @@ struct LensCommand: Command {
         }
         let panel = SwitcherPalettePanel.shared
         if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation) { return true }
-        guard let ticket = panel.beginLens(name, toggle: args.name != nil) else { return true }
+        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil) else { return true }
         defer { panel.cancelLensOpening(ticket: ticket) }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
