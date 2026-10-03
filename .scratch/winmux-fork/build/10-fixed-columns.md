@@ -103,22 +103,22 @@ No ticket settled these. Each is a starting default: change one if the code argu
 ## Done when
 
 - [x] With `count` off, the existing layout tests pass unchanged and layout is the same as upstream's.
-- [ ] `winmux config check` accepts a config that sets `columns.count`, `columns.widths` and `columns.width-presets`, and a `workspace.<name>.columns` record overrides `count` and `widths` field by field for that workspace only.
-- [ ] `width-presets` set under `workspace.<name>.columns` or under a `when` record fails `winmux config check`. With `columns.width-presets` left out, the Width presets are 1/3, 1/2 and 2/3.
-- [ ] A `columns.when.default` record overrides `columns`, and a `when` record under any other profile name loads and never applies.
-- [ ] `widths` that do not sum to 1 load with a warning and are normalized proportionally.
-- [ ] On a three-Column workspace with one window, the window occupies only its Column's x-range and the other two Columns are empty.
-- [ ] Opening a second and a third window fills the empty Columns. A fourth joins the focused Column as a tab group, and the root still has three children.
-- [ ] Closing the only window in a Column leaves that Column empty, and no other window moves or changes width.
-- [ ] With every window but one closed, and that one in a tab group or a split, the root is still `h` and `tiles` after a refresh.
-- [ ] `move right` into an empty Column moves the window there. Into an occupied Column it joins a tab group. At the workspace edge it does nothing and the root is not wrapped.
-- [ ] `move-node-to-workspace`, drag and drop, `flatten-workspace-tree` and closed-window-cache restore each leave the target workspace with no more root children than the count.
-- [ ] `focus left` and `focus right` skip empty Columns.
-- [ ] A focused empty Column shows a faint outline, and the next new window lands in it. Until `focus-column` exists, a test sets the focused Column directly.
+- [x] `winmux config check` accepts a config that sets `columns.count`, `columns.widths` and `columns.width-presets`, and a `workspace.<name>.columns` record overrides `count` and `widths` field by field for that workspace only.
+- [x] `width-presets` set under `workspace.<name>.columns` or under a `when` record fails `winmux config check`. With `columns.width-presets` left out, the Width presets are 1/3, 1/2 and 2/3.
+- [x] A `columns.when.default` record overrides `columns`, and a `when` record under any other profile name loads and never applies.
+- [x] `widths` that do not sum to 1 load with a warning and are normalized proportionally.
+- [x] On a three-Column workspace with one window, the window occupies only its Column's x-range and the other two Columns are empty.
+- [x] Opening a second and a third window fills the empty Columns. A fourth joins the focused Column as a tab group, and the root still has three children.
+- [x] Closing the only window in a Column leaves that Column empty, and no other window moves or changes width.
+- [x] With every window but one closed, and that one in a tab group or a split, the root is still `h` and `tiles` after a refresh.
+- [x] `move right` into an empty Column moves the window there. Into an occupied Column it joins a tab group. At the workspace edge it does nothing and the root is not wrapped.
+- [x] `move-node-to-workspace`, drag and drop, `flatten-workspace-tree` and closed-window-cache restore each leave the target workspace with no more root children than the count.
+- [x] `focus left` and `focus right` skip empty Columns.
+- [x] A focused empty Column shows a faint outline, and the next new window lands in it. Until `focus-column` exists, a test sets the focused Column directly.
 - [ ] After the monitor's size changes, every Column has the same fraction of the width as before.
-- [ ] Setting a Column to a Width preset changes its width to that fraction and the widths still sum to 1. Until `column-width` exists, a test calls the operation directly.
-- [ ] `resize` on a window alone in its Column changes the Column's width and stops when the Column is 80 points wide. `resize` on a window inside a split leaves the Column's width alone.
-- [ ] `balance-sizes` returns the Column widths to the declared `widths`.
+- [x] Setting a Column to a Width preset changes its width to that fraction and the widths still sum to 1. Until `column-width` exists, a test calls the operation directly.
+- [x] `resize` on a window alone in its Column changes the Column's width and stops when the Column is 80 points wide. `resize` on a window inside a split leaves the Column's width alone.
+- [x] `balance-sizes` returns the Column widths to the declared `widths`.
 - [x] Unit tests in `Sources/AppBundleTests` cover the invariant pass, including the flatten-replaces-root case with several windows, which upstream's tests do not cover.
 ## Sources
 
@@ -130,18 +130,16 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [Config language prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/27-config-language.html)
 - [CONTEXT.md](https://github.com/prateek/winmux/blob/fork/CONTEXT.md)
 
-## Implementation status: model slice
+## Build notes
 
-The slot index, invariant pass, fractional slot layout and built-in placement are implemented in `Sources/AppBundle/tree/Columns.swift`, with 20 tests in `Sources/AppBundleTests/FixedColumnsTest.swift`. Columns remain disabled in user configs: `Workspace.columns` is only populated directly by tests in this slice. No chosen default changed.
+Fixed Columns includes workspace activation from Nickel, field-by-field profile resolution, slot layout, placement, proportional widths, free resize, divider preview/commit, balance and focused-empty outlines. The root stays horizontal tiles. Empty positions reserve their width and gaps. Occupied positions carry one-based slots through `BindingData`; replacement containers inherit the destination slot. Swaps exchange slots, and ordinary refresh sorting leaves MRU untouched, including floating focus and old-root recovery.
 
-Tests cover sparse slot geometry and gaps, closing without shifting neighbours, focused-empty placement, nearest-empty ties, focused and MRU overflow, forced root orientation/layout, single-occupied-Column flatten protection with several windows, slot transfer on flatten, idempotence, lowered counts, root wrapping, directional move edges and within-Column moves, focus skipping empties, workspace moves, Summon, floating-to-tiling arrival, drag tab-group creation, frozen-tree restore and monitor-size changes. Frozen records keep optional slots and still decode old records without them.
+Moving between Columns takes the focused window out of a tab group. Folding containers into an occupied Column merges their windows in order, without nested tab groups. Boundary options retain stop/fail and cross-monitor behavior; implicit root wrapping stops. Optimistic layout enforces the invariant before indexing widths. Drag split and agent pane insertion stay inside the destination Column.
 
-The unchecked visible items have model coverage where listed above, but no live evidence. No debug build was launched. No captures were made, and no release was run. The existing tests are unchanged.
+No chosen default changed. `count` defaults to `'off`; omitted widths are equal; Width presets default to `[1/3, 1/2, 2/3]`. The count contract accepts positive integers, and widths/presets must be positive (presets below 1). Free sizing reuses the 80-point floor. If the monitor cannot fit that floor for every Column, the sizing operation uses equal fractions. There is no public empty-Column focus or preset command in this issue; those belong to **Column Policy hooks and Column commands**.
 
-Remaining, in build order:
+`make check` passes with 820 Swift tests, 50 real-helper tests and 6 appcast tests. Existing tests are unchanged. The Columns suite has 44 model/command/drag/resize/focus tests and 2 config tests; the helper adds acceptance, rejection and warning cases. Both config examples in `docs/columns.md` pass `winmux-nickel check`. Defaults were regenerated with `make default-config`; the generated record contract has no source change.
 
-1. Width preset operation and stepping, free resize with the 80-point floor, internal-split resize, `balance-sizes`, proportional divider drag and their tests.
-2. Nickel shape and real-helper acceptance/rejection/warnings; Swift JSON parsing at top level and under workspaces; field-by-field precedence for all four paths; reset-on-reload and lowered-count reload tests. Regenerate defaults/contract outputs when their source changes.
-3. Focused-empty outline, focus observation wiring and outline tests.
-4. Full isolated live run and captures, including CLI output in owned windows, frame restoration and symbolic-hotkey before/during/after verification. Monitor-size changes and two-display checks remain tests only on this machine; release checks belong to Prateek.
-5. Complete the config examples in `docs/columns.md`, validate each with the helper, and update this checklist and the handoff as each item is fulfilled.
+The debug live run uses neutral owned windows and Columns on one dedicated workspace only. Recordings cover sparse arrival, overflow tab groups, close/focus/move, an empty-focus outline reached through a debug-only file, column and internal resize, divider preview/commit, full drag-and-drop, balance, width/count reload, workspace moves, Summon, minimized return, flatten and actual CLI validation output. Private dialogs are masked and have clean edge crops alongside the full views. System symbolic hotkeys remain enabled before, during and after the run.
+
+The monitor-size item stays unchecked for a physical display check: this machine has one virtual display whose resolution and arrangement were kept unchanged. Fraction preservation and next-monitor movement pass synthetic monitor tests. Native-fullscreen exit and closed-cache restoration have dedicated tests; the live run never locks the screen. No release was run.

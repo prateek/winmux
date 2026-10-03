@@ -1,15 +1,60 @@
-# Columns
+# Fixed Columns
 
-The fixed Columns model is implemented, but Columns cannot yet be enabled in a user config. The remaining work in **Fixed Columns: slots, the count invariant, Width presets** adds the Nickel config, width editing and the focused-empty outline. Ordinary workspaces continue to use plain tree tiling.
+A workspace with Columns has a fixed number of positions across its monitor. Each position keeps its width when empty. A Column can hold one window, a tab group, or splits. Columns are off by default.
 
-A Column has a one-based slot and a fraction of the workspace width. It can hold a window, a tab group or splits in either direction. Empty Columns reserve their space and inner gaps. Closing their last window leaves the other Columns in place.
+## Enable Columns on a workspace
 
-In the model, arriving tiling windows fill the nearest empty Column, measured from the focused Column, with ties going left. If every Column is occupied, an arrival joins the focused Column as a tab group. When focus is elsewhere, placement uses the most recently used tiling Column. The automatic tab-insertion setting does not override Columns placement.
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  columns.count = 'off,
+  workspace.Demo.columns = {
+    count = 3,
+    widths = [1/4, 1/2, 1/4],
+  },
+}) | W.Config
+```
 
-At a Column edge, `move left` and `move right` move into the adjacent Column, joining a tab group if it is occupied. Moves stop at the workspace's edges; `move up` and `move down` also stop at a Column's top or bottom. Within a Column, existing movement applies. Directional focus skips empty Columns.
+This enables Columns only on the workspace named `Demo`. Workspace names refer to existing or subsequently created workspaces; the record does not create a workspace. Omitting `widths` gives equal widths. Widths must be positive, and their length must equal the resolved count. Values that do not sum to 1 are normalized proportionally, with a warning from `winmux config check` and when loading the config.
 
-The root remains horizontal with tiles layout. A pass after flatten normalization assigns slots to unindexed arrivals, folds excess children and reapplies fractional widths. Layout uses slot positions even when the root's children list has gaps. Closed-window-cache records retain slots.
+## Defaults and overrides
 
-Width presets, free Column resizing, divider drag, resetting widths with `balance-sizes`, config precedence and reload are not implemented yet. The model stores declared and current width fractions; tests exercise unequal fractions and a monitor-size change. There is no user-facing Column-width operation or empty-Column focus command in this slice.
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  columns = {
+    count = 3,
+    widths = [1/3, 1/3, 1/3],
+    width-presets = [1/3, 1/2, 2/3],
+    when.default.widths = [1/4, 1/2, 1/4],
+    when.travel.count = 4,
+  },
+  workspace.Demo.columns = {
+    count = 2,
+    widths = [1/2, 1/2],
+    when.default.widths = [1/3, 2/3],
+  },
+}) | W.Config
+```
 
-See [the build issue](https://github.com/prateek/winmux/issues/11) for the complete config contract and acceptance criteria. Config examples will be added with the config implementation and checked against the real helper.
+Settings resolve field by field, in this order: `columns`, `columns.when.default`, `workspace.<name>.columns`, then `workspace.<name>.columns.when.default`. Only the `default` profile matches. Other profile records load but do not apply. `width-presets` belongs only to top-level `columns`; putting it under a workspace or any `when` record is an error. The default presets are 1/3, 1/2 and 2/3.
+
+A reload resets current widths to the declared widths. Lowering the count folds the extra Columns' windows into the retained Columns' tab groups. Setting `count = 'off` restores ordinary tree tiling.
+
+## Placement, movement and focus
+
+New tiling windows use the nearest empty Column from the focused one, with ties going left. When all Columns are occupied, arrivals join the focused Column as a tab group. When focus is elsewhere, placement uses the most recently used Column. The ordinary automatic tab-group arrival setting does not override this behavior.
+
+Closing a window leaves a gap rather than shifting its neighbours. `focus left` and `focus right` skip empty Columns. A focused empty Column has a faint outline and receives the next arrival. The user command for selecting an empty Column belongs to **Column Policy hooks and Column commands**.
+
+`move left` and `move right` move the focused window across a Column boundary. An empty neighbour takes it alone; an occupied neighbour takes it into a tab group. Movement within a split keeps the ordinary tree behavior. Swapping Columns exchanges their positions; swapping within a Column keeps its position.
+
+At workspace edges, the default move stops. `--boundaries-action fail` returns failure for command fall-through; `create-implicit-container` stops because Columns keep the root horizontal. `--boundaries all-monitors-outer-frame` can move to the next monitor. The same boundary actions apply at a Column's top and bottom.
+
+## Widths
+
+`resize width +40` on a window alone in its Column changes that Column's width. Its other Columns absorb the change in proportion to their widths, including empty Columns. Drag the faint divider at a Column boundary to use the same proportional operation and preview, including beside an empty Column. Resizing a split uses the ordinary sizing inside that Column. The minimum Column width is 80 points; on a monitor too narrow for all minimum widths, equal fractions are the feasible floor.
+
+`balance-sizes` returns Columns to their declared widths and balances splits inside them. Width fractions survive a monitor size change, and gaps remain reserved beside empty Columns.
+
+Width presets and explicit fractions use the same proportional operation. Stepping forward selects the smallest preset above the current width; stepping backward selects the largest below it. Both wrap. The `column-width` command that exposes preset stepping belongs to **Column Policy hooks and Column commands**.
