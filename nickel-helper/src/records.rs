@@ -78,7 +78,7 @@ host_record! {
         "project" => project: String,
         /// The monitor showing the window's workspace. Every field is at its unknown value when the window has no workspace on a monitor.
         "monitor" => monitor: Monitor,
-        /// The window's place in focus order: higher is more recent, and 0 is never focused. Always 0 for now.
+        /// The window's place in focus order: higher is more recent, and 0 is not focused since WinMux started.
         "lastFocusedSeq" => last_focused_seq: i64,
         /// The app that owns the window.
         "app" => app: App,

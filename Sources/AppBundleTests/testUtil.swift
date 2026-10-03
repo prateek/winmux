@@ -44,6 +44,10 @@ func setUpWorkspacesForTests() {
             child.unbindFromParent()
         }
     }
+    for child in macosMinimizedWindowsContainer.children + macosPopupWindowsContainer.children {
+        child.unbindFromParent()
+    }
+    Window.resetLastFocusedSeqsForTests()
     resetWinMuxWorkspaceStateForTests()
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     Workspace.reconcileWorkspaceState()
@@ -59,6 +63,16 @@ func setUpWorkspacesForTests() {
     clearPendingWindowDragIntent()
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
+}
+
+/// A refresh that finds `window` focused in macOS: what a click on it, or macOS honouring a
+/// request to focus it, leads to.
+@MainActor
+func refreshWithMacOsFocus(on window: Window) async throws {
+    TrayMenuModel.shared.isEnabled = true
+    appForTests = TestApp.shared
+    TestApp.shared.focusedWindow = window
+    try await runRefreshSessionBlocking(.ax(kAXFocusedWindowChangedNotification as String))
 }
 
 extension ParsedCmd {

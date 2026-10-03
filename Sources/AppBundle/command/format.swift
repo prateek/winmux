@@ -140,6 +140,7 @@ extension String {
                 return switch f {
                     case .windowId: .success(.uint32(w.windowId))
                     case .windowIsFullscreen: .success(.bool(w.isFullscreen))
+                    case .windowLastFocusedSeq: .success(.int(w.lastFocusedSeq))
                     case .windowTitle: .success(.string(title))
                     case .windowLayout, .windowParentContainerLayout: toLayoutResult(w: w)
                 }

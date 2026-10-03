@@ -46,7 +46,7 @@ A Lens is the record `lenses.<name>` in the Nickel config. Its fields:
 | `workspace` | sidebar order |
 | `app` | by app |
 | `title` | by title |
-| `created` | registration order |
+| `created` | creation order: window id, which macOS gives out from one counter in creation order |
 
 - Keys apply in the order listed: each later key breaks ties left by the earlier ones.
 - All keys are ascending. There are no descending variants.

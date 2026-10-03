@@ -144,10 +144,8 @@ final class ContractRecordsTest: XCTestCase {
         let first = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let second = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         let floating = TestWindow.new(id: 3, parent: workspace, rect: Rect(topLeftX: 100, topLeftY: 100, width: 50, height: 50))
-        check(first.focusWindow())
-        checkOnFocusChangedCallbacks()
-        check(second.focusWindow())
-        checkOnFocusChangedCallbacks()
+        try await refreshWithMacOsFocus(on: first)
+        try await refreshWithMacOsFocus(on: second)
 
         let context = try await filterContextRecord(mouse: CGPoint(x: 120, y: 120))
         let overNothing = try await filterContextRecord(mouse: CGPoint(x: 10, y: 10))
@@ -199,10 +197,8 @@ final class ContractRecordsTest: XCTestCase {
         let previous = TestWindow.new(id: 1, parent: first.rootTilingContainer)
         TestWindow.new(id: 2, parent: first.rootTilingContainer)
         let current = TestWindow.new(id: 3, parent: second.rootTilingContainer)
-        check(previous.focusWindow())
-        checkOnFocusChangedCallbacks()
-        check(current.focusWindow())
-        checkOnFocusChangedCallbacks()
+        try await refreshWithMacOsFocus(on: previous)
+        try await refreshWithMacOsFocus(on: current)
         let before = try await filterContextRecord(mouse: .zero)
 
         previous.unbindFromParent()
@@ -210,6 +206,72 @@ final class ContractRecordsTest: XCTestCase {
 
         assertEquals(before.previous?.id, 1)
         XCTAssertNil(after.previous, "the never-focused window 2 must not stand in")
+    }
+
+    func testPreviousIsTheNextMostRecentWindowOnceThePreviouslyFocusedOneIsGone() async throws {
+        let workspace = focus.workspace
+        let earliest = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let previous = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        let current = TestWindow.new(id: 3, parent: workspace.rootTilingContainer)
+        for window in [earliest, previous, current] {
+            try await refreshWithMacOsFocus(on: window)
+        }
+
+        previous.unbindFromParent()
+        let context = try await filterContextRecord(mouse: .zero)
+
+        assertEquals(context.focused?.id, 3)
+        assertEquals(context.previous?.id, 1)
+    }
+
+    func testPreviousMayBeAWindowThatWasMinimizedSinceItHeldFocus() async throws {
+        let workspace = focus.workspace
+        let minimized = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let current = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: minimized)
+        try await refreshWithMacOsFocus(on: current)
+
+        minimized.nativeIsMacosMinimized = true
+        try await normalizeLayoutReason()
+        let context = try await filterContextRecord(mouse: .zero)
+
+        XCTAssertTrue(minimized.parent is MacosMinimizedWindowsContainer)
+        assertEquals(context.focused?.id, 2)
+        assertEquals(context.previous?.id, 1)
+        assertEquals(context.previous?.windowClass, .minimized)
+    }
+
+    func testPreviousIsTheNativeFullscreenWindowWhileAndAfterMacOsHasItFocused() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        try await refreshWithMacOsFocus(on: tiled)
+
+        try await refreshWithMacOsFocus(on: fullscreen)
+        let whileInFullscreen = try await filterContextRecord(mouse: .zero)
+        try await refreshWithMacOsFocus(on: tiled)
+        let afterLeavingIt = try await filterContextRecord(mouse: .zero)
+
+        // WinMux's focus never points at a window in native fullscreen, so `focused` is the tiled
+        // window throughout.
+        assertEquals(whileInFullscreen.focused?.id, 1)
+        assertEquals(whileInFullscreen.previous?.id, 2)
+        assertEquals(afterLeavingIt.focused?.id, 1)
+        assertEquals(afterLeavingIt.previous?.id, 2)
+    }
+
+    func testRecordCarriesTheWindowsPlaceInFocusOrder() async throws {
+        let workspace = focus.workspace
+        let focused = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let neverFocused = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: focused)
+
+        let focusedRecord = try await focused.windowRecord()
+        let neverFocusedRecord = try await neverFocused.windowRecord()
+
+        assertEquals(focusedRecord?.lastFocusedSeq, focused.lastFocusedSeq)
+        XCTAssertGreaterThan(focused.lastFocusedSeq, 0)
+        assertEquals(neverFocusedRecord?.lastFocusedSeq, 0)
     }
 
     func testMouseOverATabGroupIsItsActiveTabOnlyInsideTheLayout() async throws {
@@ -271,10 +333,8 @@ final class ContractRecordsTest: XCTestCase {
         let workspace = focus.workspace
         let first = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let second = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
-        check(first.focusWindow())
-        checkOnFocusChangedCallbacks()
-        check(second.focusWindow())
-        checkOnFocusChangedCallbacks()
+        try await refreshWithMacOsFocus(on: first)
+        try await refreshWithMacOsFocus(on: second)
 
         second.bind(to: Workspace.get(byName: "elsewhere").rootTilingContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
         check(second.focusWindow())

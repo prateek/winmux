@@ -60,12 +60,50 @@ open class Window: TreeNode, Hashable {
         lastKnownActualRect = rect
     }
 
+    /// Kept by window id, not on the window: when the screen locks WinMux drops every window, and
+    /// it registers them again as new objects on unlock.
+    @MainActor private static var lastFocusedSeqs: [UInt32: Int] = [:]
+    @MainActor private static var highestLastFocusedSeq = 0
+
+    /// The window's place in focus order across all workspaces: higher was focused more recently,
+    /// and 0 is never focused. Kept in memory only, so every window starts at 0 after a restart.
+    @MainActor var lastFocusedSeq: Int { Window.lastFocusedSeqs[windowId] ?? 0 }
+
+    /// Records that macOS has the window focused. `setFocus` is only a request, which macOS may
+    /// not honour, so this is called once a refresh has read the focused window back.
+    @MainActor
+    func recordConfirmedFocus() {
+        if lastFocusedSeq != 0 && lastFocusedSeq == Window.highestLastFocusedSeq { return }
+        Window.highestLastFocusedSeq += 1
+        Window.lastFocusedSeqs[windowId] = Window.highestLastFocusedSeq
+    }
+
+    /// Forgets the numbers of every window but `windowIds`: the ones that exist, and the ones
+    /// that may yet be registered again.
+    @MainActor
+    static func forgetLastFocusedSeqs(except windowIds: Set<UInt32>) {
+        lastFocusedSeqs = lastFocusedSeqs.filter { windowIds.contains($0.key) }
+    }
+
+    @MainActor
+    static func resetLastFocusedSeqsForTests() {
+        lastFocusedSeqs = [:]
+        highestLastFocusedSeq = 0
+    }
+
     @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
         self.windowId = id
         self.app = app
         self.lastFloatingSize = lastFloatingSize
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+    }
+
+    @MainActor static var all: [Window] {
+        isUnitTest
+            ? Workspace.all.flatMap { $0.allLeafWindowsRecursive }
+                + (macosMinimizedWindowsContainer.children + macosPopupWindowsContainer.children).filterIsInstance(of: Window.self)
+            : MacWindow.allWindows
     }
 
     @MainActor static func get(byId windowId: UInt32) -> Window? { // todo make non optional
@@ -211,4 +249,15 @@ extension Window {
     }
 
     func asMacWindow() -> MacWindow { self as! MacWindow }
+}
+
+extension Sequence<Window> {
+    /// Most recently focused first. Windows never focused come last, in the order they were
+    /// created: macOS numbers windows from one counter, in creation order, and does not reuse a
+    /// number.
+    @MainActor func sortedByMostRecentUse() -> [Window] {
+        sorted { a, b in
+            a.lastFocusedSeq != b.lastFocusedSeq ? a.lastFocusedSeq > b.lastFocusedSeq : a.windowId < b.windowId
+        }
+    }
 }
