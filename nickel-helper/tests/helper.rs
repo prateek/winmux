@@ -86,8 +86,9 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
     assert_eq!(reply["ok"], true, "{}", reply["error"]);
     assert!(reply["rss"].as_u64().unwrap() > 0);
     let config = &reply["result"]["config"];
-    assert_eq!(config["lenses"]["everything"], json!({}));
-    assert_eq!(config["lenses"]["mail"], json!({}), "a Lens record comes back minus its function");
+    assert_eq!(config["lenses"]["everything"]["presentation"], "list");
+    assert_eq!(config["lenses"]["mail"]["sort"], json!(["mru"]));
+    assert!(config["lenses"]["mail"].get("filter").is_none(), "functions stay in the helper");
     assert!(config.get("arrive").is_none());
     let imports: Vec<&str> = reply["result"]["imports"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert!(imports.contains(&fixture("config.ncl").as_str()), "{imports:?}");
@@ -644,4 +645,38 @@ fn shipped_library_declares_contract_version_one() {
     let version = evaluate_to_json(r#"(import "winmux/winmux.ncl").contract-version"#, &library()).unwrap();
 
     assert_eq!(version, json!(1));
+}
+
+#[test]
+fn lens_contract_rejects_unknown_fields_sort_and_grid() {
+    for body in ["presentation = 'grid", "frozen_thumbnail = 'dimmed", "sort = ['mystery]"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
+    }
+}
+
+#[test]
+fn lens_contract_resolves_defaults_and_key_merge() {
+    let source = "let W = import \"winmux/winmux.ncl\" in { lenses.demo = { keys.\"cmd-x\" = \"close\", when.default.enabled = false, when.travel.sort = ['title] } } | W.Config";
+    let value = evaluate_to_json(source, &library()).unwrap();
+    let lens = &value["lenses"]["demo"];
+    assert_eq!(lens["presentation"], "list");
+    assert_eq!(lens["sort"], json!(["mru"]));
+    assert_eq!(lens["popups"], json!([]));
+    assert_eq!(lens["keys"]["enter"], "focus");
+    assert_eq!(lens["keys"]["cmd-1"], "move-node-to-workspace 1");
+    assert_eq!(lens["keys"]["cmd-x"], "close");
+    assert_eq!(lens["when"]["default"]["enabled"], false);
+    assert!(lens["when"]["default"].get("sort").is_none());
+}
+
+#[test]
+fn named_filter_and_default_profile_filter_are_evaluated() {
+    let mut helper = loaded("lens-profile.ncl");
+    let windows = json!([window("mail", "floating"), window("mail", "tiled")]);
+    for (op, field, value) in [("filter", "lens", "demo"), ("eval-filter", "filter", "floating")] {
+        let reply = request(&mut helper, json!({"op": op, field: value, "ctx": context(), "windows": windows}));
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["result"], json!([true, false]));
+    }
 }

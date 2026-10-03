@@ -50,6 +50,47 @@ let WorkspaceSidebar = {
   project-colors | { _ | String } | optional,
 } in
 
+let LensFields = {
+  filter | Dyn -> Dyn -> Bool | optional,
+  presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
+  entries | Choice [| 'window, 'app |] | optional,
+  sections | Choice [| 'none, 'workspace, 'project, 'monitor, 'app |] | optional,
+  sort | Array (Choice [| 'mru, 'previous, 'spatial, 'workspace, 'app, 'title, 'created |]) | optional,
+  keys | { _ | Commands } | optional,
+  popups | Array (Choice [| 'accessory-popup, 'app-popup |]) | optional,
+  frozen-thumbnail | Choice [| 'plain, 'age-badge, 'pause-badge, 'dimmed |] | optional,
+  accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
+  summon-hints | Array (Choice [| 'label, 'landing-spot, 'target-workspace |]) | optional,
+  enabled | Bool | optional,
+} in
+let Lens = LensFields & {
+  presentation | default = 'list,
+  entries | default = 'window,
+  sections | default = 'workspace,
+  sort | default = ['mru],
+  keys = {
+    enter | default = "focus",
+    shift-enter | default = "summon",
+    alt-enter | default = "summon",
+    cmd-w | default = "close",
+    cmd-1 | default = "move-node-to-workspace 1",
+    cmd-2 | default = "move-node-to-workspace 2",
+    cmd-3 | default = "move-node-to-workspace 3",
+    cmd-4 | default = "move-node-to-workspace 4",
+    cmd-5 | default = "move-node-to-workspace 5",
+    cmd-6 | default = "move-node-to-workspace 6",
+    cmd-7 | default = "move-node-to-workspace 7",
+    cmd-8 | default = "move-node-to-workspace 8",
+    cmd-9 | default = "move-node-to-workspace 9",
+  },
+  popups | default = [],
+  frozen-thumbnail | default = 'dimmed,
+  accessory-window | default = 'enlarged,
+  summon-hints | default = ['label, 'landing-spot],
+  enabled | default = true,
+  when | { _ | LensFields } | optional,
+} in
+
 # The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
 Contract
@@ -119,6 +160,6 @@ Contract
 
     # Named Filters, and the Lenses that use them.
     filters | { _ | Filter } | optional,
-    lenses | { _ | { filter | Filter | optional, .. } } | optional,
+    lenses | { _ | Lens } | optional,
   },
 }

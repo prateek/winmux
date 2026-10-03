@@ -131,6 +131,7 @@
   persistent-workspaces | default = [],
   reload-on-save | default = true,
   shortcuts-preset | default = "none",
+  lenses.search = { presentation = 'list, sort = ['mru] },
   start-at-login | default = false,
   tab-group-padding | default = 30,
   window-tabs = {

@@ -169,6 +169,11 @@ impl Engine {
     /// Compiles a Filter given as the text of a function body, with `w` and `ctx` bound and the
     /// config's named Filters bound as `filters`.
     pub fn compile_filter(&mut self, body: &str) -> Result<Closure, Diagnostic> {
+        if body.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            if let Some(filter) = self.lookup(&["filters", body])? {
+                return Ok(filter);
+            }
+        }
         self.compiled_filters += 1;
         let source = format!(
             "let filters = ({}).filters in\nfun w ctx =>\n{body}\n",

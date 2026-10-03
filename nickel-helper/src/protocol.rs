@@ -18,6 +18,7 @@ enum Request {
     /// Evaluates a config file, or the shipped defaults when `path` is null.
     Load { path: Option<PathBuf> },
     Filter { lens: String, ctx: FilterContext, windows: Vec<Window> },
+    CheckFilter { filter: String },
     Hook { hook: String, args: Vec<Value> },
     EvalFilter { filter: String, ctx: FilterContext, windows: Vec<Window> },
 }
@@ -56,7 +57,8 @@ impl Helper {
             }
             Request::Filter { lens, ctx, windows } => {
                 let engine = self.engine()?;
-                let filter = engine.lookup(&["lenses", &lens, "filter"])?;
+                let filter = engine.lookup(&["lenses", &lens, "when", "default", "filter"])?
+                    .or(engine.lookup(&["lenses", &lens, "filter"])?);
                 if filter.is_none() && engine.lookup(&["lenses", &lens])?.is_none() {
                     return Err(format!("no Lens named `{lens}`"));
                 }
@@ -66,6 +68,14 @@ impl Helper {
                 let engine = self.engine()?;
                 let filter = engine.compile_filter(&filter)?;
                 match_bits(engine, Some(&filter), &ctx, &windows)
+            }
+            Request::CheckFilter { filter } => {
+                let engine = self.engine()?;
+                let filter = engine.compile_filter(&filter)?;
+                for pass in records::smoke_passes() {
+                    call_filter(engine, &filter, pass.window, pass.context)?;
+                }
+                Ok(Value::Null)
             }
             Request::Hook { hook, args } => {
                 let types = records::hook_args(&hook).ok_or_else(|| format!("no Policy hook named `{hook}`"))?;
@@ -140,6 +150,13 @@ fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
     for name in engine.field_names(&["lenses"])? {
         if let Some(filter) = engine.lookup(&["lenses", &name, "filter"])?.filter(|f| is_function(&f.value)) {
             filters.push((format!("lenses.{name}.filter"), filter));
+        }
+    }
+    for name in engine.field_names(&["lenses"])? {
+        for profile in engine.field_names(&["lenses", &name, "when"])? {
+            if let Some(filter) = engine.lookup(&["lenses", &name, "when", &profile, "filter"])? {
+                filters.push((format!("lenses.{name}.when.{profile}.filter"), filter));
+            }
         }
     }
     for pass in records::smoke_passes() {
