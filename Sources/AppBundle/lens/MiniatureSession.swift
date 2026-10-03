@@ -123,10 +123,10 @@ extension LensSession {
     }
 
     func updateMiniatureLanding() {
-        guard summonHeld, settings.presentation == "miniatures", settings.summonHints.contains("landing-spot"),
+        guard summonHeld, (settings.presentation == "miniatures" || settings.presentation == "strip"), settings.summonHints.contains("landing-spot"),
               let id = selectedId, let entry = items.first(where: { $0.id == id })?.miniature,
               let workspace = miniatureWorkspaces.first(where: { $0.current }) else { setMiniatureLanding(nil); return }
-        if entry.workspace == workspace.name { setMiniatureLanding(entry.frame); return }
+        if entry.workspace == workspace.name { setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame); return }
         if entry.floating {
             let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
             setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))

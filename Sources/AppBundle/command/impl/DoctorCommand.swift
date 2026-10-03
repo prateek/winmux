@@ -9,6 +9,8 @@ struct DoctorCommand: Command {
         io.out("WinMux doctor — git \(gitShortHash)")
         io.out("")
 
+        io.out("Symbolic hotkeys: held=\(systemSymbolicHotkeys.heldIds) marker=\(systemSymbolicHotkeys.markerIds)")
+        for error in systemSymbolicHotkeys.failures { io.out("  \(error)") }
         io.out("Permissions:")
         io.out("  accessibility: \(AXIsProcessTrusted() ? "granted" : "MISSING (required)")")
         io.out("  screen capture: \(CGPreflightScreenCaptureAccess() ? "granted" : "missing (tab previews / radius estimation degraded)")")

@@ -32,6 +32,10 @@ final class LensSession: ObservableObject {
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
+    var stripGesture: StripGesture?
+    /// The modifiers held when the invoking ones were released before the session was ready.
+    var stripReleasedWhileOpening: NSEvent.ModifierFlags?
+    var removedIds: Set<UInt32> = []
     var onSearchChanged: (() -> Void)?
     var onAction: ((String) -> Void)?
 
@@ -52,7 +56,7 @@ final class LensSession: ObservableObject {
 
     /// The list opens on its second row when the first is the focused window. Miniatures are not
     /// drawn in sort order, so they open on the most recently focused window that is not focused.
-    private func initialSelection() -> Int {
+    func initialSelection() -> Int {
         let results = results
         guard settings.presentation == "miniatures", query.isEmpty else {
             return results.count > 1 && results.first?.isFocused == true ? 1 : 0
@@ -63,6 +67,7 @@ final class LensSession: ObservableObject {
     }
 
     var results: [SwitcherPaletteItem] {
+        let items = items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
         let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
@@ -81,12 +86,18 @@ final class LensSession: ObservableObject {
     func key(for event: NSEvent, click: Bool = false) -> String? {
         // Return / keypad enter share a binding; a click runs that Enter action too.
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
-        let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        let modifiers = click && settings.presentation == "strip"
+            ? stripGesture?.releaseModifiers(event.modifierFlags) ?? []
+            : event.modifierFlags.intersection([.control, .option, .shift, .command])
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
+    func enterKey(modifiers: NSEvent.ModifierFlags) -> String? {
+        keyBindings.first { $0.code == 36 && $0.modifiers == modifiers }?.name
+    }
+
     func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) {
-        let held = modifiers.intersection([.control, .option, .shift, .command])
+        let held = settings.presentation == "strip" ? (stripGesture?.releaseModifiers(modifiers) ?? []) : modifiers.intersection([.control, .option, .shift, .command])
         let shouldHold = !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }

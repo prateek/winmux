@@ -5,13 +5,12 @@ import Foundation
 @MainActor public func initAppBundle() {
     Task {
         initTerminationHandler()
+        armSymbolicHotkeyRestoration()
         isCli = false
         initServerArgs()
         var bootstrappedConfigUrl: URL? = nil
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
-            interceptTermination(SIGINT)
-            interceptTermination(SIGKILL)
         }
         do {
             bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded()
