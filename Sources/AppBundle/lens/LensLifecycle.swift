@@ -69,6 +69,7 @@ final class LensLifecycle {
 
     func dismiss() {
         if let session { remembered[session.name] = session.query }
+        session?.cancelLanding()
         session = nil
         opening = nil
         openingGesture = nil

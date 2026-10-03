@@ -145,7 +145,7 @@ func restoreFrozenWorldIfNeeded(_ frozenWorld: FrozenWorld, newlyDetectedWindow:
         _ = targetMonitor.setActiveWorkspace(targetWorkspace)
     }
     if newlyDetectedWindow.windowClass == .tiled, let workspace = newlyDetectedWindow.nodeWorkspace,
-       config.columns.hook("place", workspace: workspace.name) != nil {
+       ColumnPolicy.hook("place", on: workspace) != nil {
         try await ColumnPolicy.place(newlyDetectedWindow, on: workspace)
     }
     return true

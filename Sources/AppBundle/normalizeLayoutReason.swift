@@ -9,14 +9,13 @@ func normalizeLayoutReason() async throws {
 }
 
 @MainActor
-private func validateStillPopups() async throws {
+func validateStillPopups() async throws {
     for node in macosPopupWindowsContainer.children {
-        guard let popup = node as? MacWindow else { continue }
-        let windowLevel = getWindowLevel(for: popup.windowId)
-        if try await popup.isWindowHeuristic(windowLevel) {
-            try await popup.relayoutWindow(on: focus.workspace)
-            try await tryOnWindowDetected(popup)
-        }
+        guard let popup = node as? Window else { continue }
+        let location = ColumnPolicy.Location(popup)
+        let classification = try await popup.nativeWindowType
+        guard location.contains(popup), classification != .popup else { continue }
+        try await promotePopup(popup, on: focus.workspace, classification: classification)
     }
 }
 
@@ -109,4 +108,14 @@ func exitMacOsNativeUnconventionalState(
         case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer: // wtf case, should never be possible. But If encounter it, let's just re-layout window
             try await window.relayoutWindow(on: workspace, runPlace: runPlace)
     }
+}
+
+@MainActor
+func promotePopup(_ window: Window, on workspace: Workspace, classification: AxUiElementWindowType) async throws {
+    guard window.parent === macosPopupWindowsContainer, classification != .popup else { return }
+    window.bind(to: workspace, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+    try await ColumnPolicy.arrive(window, on: workspace,
+        floatingDefault: classification == .dialog || !config.automaticallyTileNewWindows)
+    broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
+        appBundleId: window.app.rawAppBundleId, appName: window.app.name))
 }

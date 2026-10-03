@@ -18,7 +18,7 @@ struct ShortcutConfigurationReferenceView: View {
                 ReferenceSection("Rules and integrations") {
                     ReferenceRow("[exec]", "Inherited environment and explicit environment variables for commands.")
                     ReferenceRow("[workspace-to-monitor-force-assignment]", "Workspace-to-display assignments.")
-                    ReferenceRow("on-window-detected", "Window matching rules and commands to run.")
+                    ReferenceRow("arrive", "Policy hook for newly detected windows and commands to run after placement.")
                     ReferenceRow("on-focus-changed", "Commands that run after the focused window changes.")
                     ReferenceRow("on-focused-monitor-changed", "Commands that run after the active display changes.")
                     ReferenceRow("on-mode-changed", "Commands that run after switching modes.")

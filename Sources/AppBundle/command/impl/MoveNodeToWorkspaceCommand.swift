@@ -1,17 +1,10 @@
 import Common
 
-struct MoveNodeToWorkspaceCommand: PolicyCommand {
+struct MoveNodeToWorkspaceCommand: Command {
     let args: MoveNodeToWorkspaceCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache: Bool = true
 
-    func runWithPolicy(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
-        guard let target = args.resolveTargetOrReportError(env, io), let window = target.windowOrNil else { return false }
-        let previous = window.nodeWorkspace
-        return try await ColumnPolicy.afterTransfer(window, from: previous, didMove: runBuiltIn(env, io))
-    }
-    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool { runBuiltIn(env, io) }
-
-    @MainActor private func runBuiltIn(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         guard let window = target.windowOrNil else { return io.err(noWindowIsFocused) }
         let subjectWs = window.nodeWorkspace
@@ -43,7 +36,7 @@ struct MoveNodeToWorkspaceCommand: PolicyCommand {
                 }
                 targetWorkspace = ws
         }
-        return moveWindowToWorkspace(window, targetWorkspace, io, focusFollowsWindow: args.focusFollowsWindow, failIfNoop: args.failIfNoop)
+        return try await ColumnPolicy.afterTransfer(window, from: subjectWs, didMove: moveWindowToWorkspace(window, targetWorkspace, io, focusFollowsWindow: args.focusFollowsWindow, failIfNoop: args.failIfNoop))
     }
 }
 

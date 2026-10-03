@@ -49,6 +49,10 @@ final class TestWindow: Window, CustomStringConvertible {
         }
     }
 
+    @MainActor var testNativeWindowType: AxUiElementWindowType?
+    @MainActor override var nativeWindowType: AxUiElementWindowType { get async { testNativeWindowType ?? (parent === macosPopupWindowsContainer ? .popup : .window) } }
+    @MainActor override func setNativeFullscreen(_ value: Bool) { nativeIsMacosFullscreen = value }
+
     @MainActor var testCgWindowLevel = 0
     @MainActor override var cgWindowLevel: Int { testCgWindowLevel }
 

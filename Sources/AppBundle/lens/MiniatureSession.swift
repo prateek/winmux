@@ -123,16 +123,40 @@ extension LensSession {
     }
 
     func updateMiniatureLanding() {
+        landingTask?.cancel()
+        landingTask = nil
+        setMiniatureLanding(nil)
         guard summonHeld, (settings.presentation == "miniatures" || settings.presentation == "strip"), settings.summonHints.contains("landing-spot"),
               let id = selectedId, let entry = items.first(where: { $0.id == id })?.miniature,
               let workspace = miniatureWorkspaces.first(where: { $0.current }) else { setMiniatureLanding(nil); return }
-        if focus.workspace.columns == nil, entry.workspace == workspace.name { setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame); return }
+        if entry.workspace == workspace.name {
+            setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame)
+            return
+        }
+        if entry.floating {
+            let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
+            setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))
+            return
+        }
         if let columns = focus.workspace.columns {
             let destination = focus.workspace
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination)
-                guard self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
+            if landingDestination !== destination || landingColumnsTask == nil {
+                landingColumnsTask?.cancel()
+                landingDestination = destination
+                landingColumnsTask = Task { @MainActor in try await destination.columnRecords() }
+            }
+            let snapshotTask = landingColumnsTask!
+            landingTask = Task { @MainActor [weak self] in
+                guard let snapshot = try? await snapshotTask.value, !Task.isCancelled else { return }
+                let records = snapshot.arrayOrNil?.map { column -> JSONValue in
+                    guard case .object(var fields) = column else { return column }
+                    let windows = fields["windows"]?.arrayOrNil?.filter { $0["id"] != .int(Int(id)) } ?? []
+                    fields["windows"] = .array(windows)
+                    fields["empty"] = .bool(windows.isEmpty)
+                    return .object(fields)
+                } ?? []
+                let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
+                guard !Task.isCancelled, let self, self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
                 let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
                 let occupied = destination.rootTilingContainer.children.contains {
                     $0.columnSlot == decision.slot && $0.allLeafWindowsRecursive.contains { $0 !== entry.window }

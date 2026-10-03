@@ -9,7 +9,6 @@ open class Window: TreeNode, Hashable {
     var lastFloatingSize: CGSize?
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
-    var arriveHandled = false
     var layoutReason: LayoutReason = .standard
     /// Event-invalidated caches of the native window state (frame, fullscreen, minimized),
     /// read on hot paths instead of polling every window over AX. Entering/exiting native
@@ -115,8 +114,10 @@ open class Window: TreeNode, Hashable {
             : MacWindow.allWindowsMap[windowId]
     }
 
-    @MainActor
-    func closeAxWindow() { die("Not implemented") }
+    @MainActor var nativeWindowType: AxUiElementWindowType { get async throws { die("Not implemented") } }
+    @MainActor func setNativeFullscreen(_ value: Bool) { die("Not implemented") }
+
+    @MainActor func closeAxWindow() { die("Not implemented") }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)

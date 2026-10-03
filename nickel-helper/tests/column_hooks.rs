@@ -47,3 +47,9 @@ fn hook_result_shapes_and_removed_detection_key_are_checked() {
         "on-window-detected = []",
     ] { assert!(check(body).is_err(), "accepted {body}"); }
 }
+
+#[test]
+fn removed_detection_key_explains_arrive_migration() {
+    let error = check("on-window-detected = []").unwrap_err();
+    assert!(error.contains("on-window-detected") && error.contains("arrive"), "{error}");
+}

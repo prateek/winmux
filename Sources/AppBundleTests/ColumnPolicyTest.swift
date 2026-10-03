@@ -288,7 +288,7 @@ final class ColumnPolicyTest: XCTestCase {
         _ = try await load("columns.place = fun w ctx cols => { column = 'last, overflow = 'tab-group }", shared: true)
         let source = demo("Source"), destination = demo("Destination")
         let floating = TestWindow.new(id: 40, parent: source)
-        try await WindowMouseInteractionDriver.shared.toggleFloatingForShakeWithPolicy(floating)
+        try await WindowMouseInteractionDriver.shared.toggleFloatingForShakeWithPolicy(floating, on: source)
         XCTAssertEqual(source.columnSlot(containing: floating), 3)
         let a = TestWindow.new(id: 41, parent: source)
         let b = TestWindow.new(id: 42, parent: source)
@@ -323,7 +323,13 @@ final class ColumnPolicyTest: XCTestCase {
         }
         _ = try await load("columns.place = fun w ctx cols => if w.id == 42 then std.array.at 99 [] else { column = 1, overflow = 'tab-group }", shared: true)
         let result = try await command("place --dry-run --window-id 42")
-        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.stdout.joined().contains("built-in"))
+        XCTAssertTrue(result.stdout.joined().contains("hook failed"))
+        let json = try await command("place --dry-run --json --window-id 42")
+        XCTAssertEqual(json.exitCode, 0)
+        XCTAssertTrue(json.stdout.joined().contains("failure"))
+        XCTAssertTrue(json.stdout.joined().contains("nearest-empty"))
         XCTAssertTrue(window.parent === parent)
     }
 
@@ -386,38 +392,26 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertEqual(ws.columnSlot(containing: b), 2)
     }
 
-    func testMiniatureLandingUsesReadOnlyPlaceForFloatingAndSameWorkspaceWindows() async throws {
-        _ = try await load("columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"layout floating\"] }", shared: true)
+    func testMiniatureLandingPreservesFloatingAndSameWorkspaceGeometry() async throws {
+        _ = try await load("columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }", shared: true)
         let destination = demo("Destination"), source = demo("Source")
         XCTAssertTrue(destination.focusWorkspace())
-        config.gaps.inner.horizontal = .constant(20)
         let rect = CGRect(x: 0, y: 0, width: 900, height: 600)
-        destination.rootTilingContainer.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 0, topLeftY: 0, width: 900, height: 600)
         for floating in [true, false] {
             let window = TestWindow.new(id: 42, parent: floating ? source : destination.rootTilingContainer)
             destination.enforceColumnInvariant()
-            let parent = window.parent
-            var settings = LensConfig(); settings.presentation = "miniatures"
+            let frame = CGRect(x: 10, y: 10, width: 200, height: 200)
             let item = SwitcherPaletteItem(id: 42, title: "Guest", appName: "Demo", icon: nil,
                 workspaceName: floating ? source.name : destination.name, isFocused: false,
                 miniature: MiniatureWindow(workspace: floating ? source.name : destination.name,
-                    frame: CGRect(x: 10, y: 10, width: 200, height: 200), tray: false, frozen: false,
-                    accessory: false, floating: floating, window: window))
+                    frame: frame, tray: false, frozen: false, accessory: false, floating: floating, window: window))
+            var settings = LensConfig(); settings.presentation = "miniatures"
             let session = LensSession(name: "demo", settings: settings, items: [item], search: "")
             session.miniatureWorkspaces = [MiniatureWorkspace(name: destination.name, title: "Destination", source: rect, current: true)]
             session.summonHeld = true
-            var updates = 0
-            let observation = session.objectWillChange.sink { updates += 1 }
-            let deadline = ContinuousClock.now + .seconds(2)
-            while session.miniatureLanding != CGRect(x: 610, y: 0, width: 290, height: 600), ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(10))
-            }
-            XCTAssertEqual(session.miniatureLanding, CGRect(x: 610, y: 0, width: 290, height: 600))
-            XCTAssertGreaterThan(updates, 0, "An asynchronous landing answer must redraw the Lens")
-            withExtendedLifetime(observation) {}
-            XCTAssertTrue(window.parent === parent)
+            XCTAssertEqual(session.miniatureLanding, frame)
+            XCTAssertNil(session.landingTask)
             XCTAssertEqual(window.isFloating, floating)
-            session.summonHeld = false
             window.unbindFromParent()
         }
     }
@@ -466,6 +460,343 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertEqual(ws.columns!.widths[1], 0.7, accuracy: 0.000001)
         XCTAssertTrue(focus.windowOrNil === anchor)
         XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testPopupPlacementFieldsAreIgnoredButRunExecutes() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { workspace = \"Other\", float = true, column = 2, run = [\"column-count 2 --workspace Demo\"] }")
+        let ws = demo()
+        XCTAssertTrue(ws.focusWorkspace())
+        let popup = TestWindow.new(id: 42, parent: macosPopupWindowsContainer)
+        try await ColumnPolicy.arrive(popup, on: ws, floatingDefault: false, supervisor: supervisor)
+        XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
+        XCTAssertEqual(ws.columns?.count, 2)
+        XCTAssertNil(Workspace.existing(byName: "Other"))
+    }
+
+    func testPlaceAcceptsAnUnboundArrivalWithoutEmptyWrappers() async throws {
+        for hooked in [false, true] {
+            let supervisor = try await load(hooked ? "columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }" : "")
+            let ws = demo()
+            let window = TestWindow.new(id: 42, parent: macosPopupWindowsContainer)
+            window.unbindFromParent()
+            try await ColumnPolicy.place(window, on: ws, supervisor: supervisor)
+            XCTAssertEqual(ws.columnSlot(containing: window), hooked ? 3 : 1)
+            XCTAssertEqual(ws.rootTilingContainer.children.count, 1)
+            if window.isBound { window.unbindFromParent() }; ws.normalizeContainers()
+        }
+    }
+
+    func testGlobalPlaceLeavesColumnsOffTransferAtRootAppend() async throws {
+        _ = try await load("columns.place = fun w ctx cols => { column = 1, overflow = 'float }", shared: true)
+        let ws = Workspace.get(byName: "Plain")
+        let first = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
+        _ = TestWindow.new(id: 2, parent: ws.rootTilingContainer)
+        XCTAssertTrue(first.focusWindow())
+        let source = demo("Source")
+        _ = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        let result = try await command("move-node-to-workspace Plain --window-id 42")
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(ws.rootTilingContainer.children.map { ($0 as? Window)?.windowId }, [1, 2, 42])
+        XCTAssertNil(NickelSupervisor.shared.status.lastError)
+    }
+
+    func testUnboundDuringRecordAwaitDoesNotMutatePlaceArriveOrMove() async throws {
+        for action in ["place", "arrive", "move"] {
+            let supervisor = try await load("arrive = fun w ctx cols => { float = true }, columns = { place = fun w ctx cols => { column = 2, overflow = 'tab-group }, move-boundary = fun w ctx cols edge => { action = 'join } }", shared: true)
+            let ws = demo()
+            let window = TestWindow.new(id: 42, parent: ws.rootTilingContainer)
+            _ = TestWindow.new(id: 43, parent: ws.rootTilingContainer)
+            ws.enforceColumnInvariant(); XCTAssertTrue(window.focusWindow())
+            window.beforeAxRecord = { window.beforeAxRecord = nil; if window.isBound { window.unbindFromParent() } }
+            switch action {
+                case "place": try await ColumnPolicy.place(window, on: ws, supervisor: supervisor)
+                case "arrive": try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false, supervisor: supervisor)
+                default:
+                    let move = MoveCommand(args: MoveCmdArgs(rawArgs: [], .right))
+                    _ = try await move.run(.defaultEnv.copy(\.windowId, 42), CmdIo(stdin: .emptyStdin))
+            }
+            XCTAssertFalse(window.isBound, action)
+        }
+    }
+
+    func testDirectMoveRunConsultsBoundaryHook() async throws {
+        _ = try await load("columns.move-boundary = fun w ctx cols edge => { action = 'swap }", shared: true)
+        let ws = demo()
+        let a = TestWindow.new(id: 42, parent: ws.rootTilingContainer)
+        let b = TestWindow.new(id: 43, parent: ws.rootTilingContainer)
+        ws.enforceColumnInvariant(); XCTAssertTrue(a.focusWindow())
+        _ = try await MoveCommand(args: MoveCmdArgs(rawArgs: [], .right)).run(.defaultEnv, CmdIo(stdin: .emptyStdin))
+        XCTAssertEqual(ws.columnSlot(containing: a), 2)
+        XCTAssertEqual(ws.columnSlot(containing: b), 1)
+    }
+
+    func testSummonPreservesFloatingAndDoesNotReplaceSameWorkspaceWindow() async throws {
+        _ = try await load("columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }", shared: true)
+        let target = demo("Target"), source = demo("Source")
+        let anchor = TestWindow.new(id: 1, parent: target.rootTilingContainer)
+        target.enforceColumnInvariant(); XCTAssertTrue(anchor.focusWindow())
+        let floating = TestWindow.new(id: 42, parent: source)
+        _ = try await command("summon --window-id 42")
+        XCTAssertTrue(floating.isFloating); XCTAssertTrue(floating.nodeWorkspace === target)
+        _ = try await command("summon --window-id 1")
+        XCTAssertEqual(target.columnSlot(containing: anchor), 1)
+    }
+
+    func testLastTargetsConfiguredCountWithSqueezePresent() async throws {
+        let supervisor = try await load("columns.place = fun w ctx cols => { column = 'last, overflow = 'tab-group }")
+        let ws = demo()
+        let anchor = TestWindow.new(id: 1, parent: ws)
+        ws.bindToColumn(anchor, slot: 1)
+        let squeezed = TestWindow.new(id: 2, parent: ws)
+        ws.bindToColumn(squeezed, slot: 1, overflow: "squeeze")
+        let window = TestWindow.new(id: 42, parent: ws)
+        let result = await ColumnPolicy.decision(window: window, workspace: ws, supervisor: supervisor)
+        XCTAssertEqual(ws.columns?.slotCount, 4)
+        XCTAssertEqual(result.slot, 3)
+    }
+
+    func testPopupPromotionRunsArriveAgainWithRealClassBeforePlace() async throws {
+        _ = try await load("arrive = fun w ctx cols => if w.class == 'tiled then { workspace = \"Promoted\" } else { workspace = \"Wrong\", float = true, column = 2 }, workspace.Promoted.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }", shared: true)
+        let detected = demo(), destination = demo("Promoted")
+        XCTAssertTrue(detected.focusWorkspace())
+        let popup = TestWindow.new(id: 42, parent: macosPopupWindowsContainer)
+        popup.testNativeWindowType = .popup
+        try await ColumnPolicy.arrive(popup, on: detected, floatingDefault: false)
+        XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
+        popup.testNativeWindowType = .window
+        try await validateStillPopups()
+        XCTAssertTrue(popup.nodeWorkspace === destination)
+        XCTAssertEqual(destination.columnSlot(containing: popup), 3)
+        let parent = popup.parent
+        try await validateStillPopups()
+        XCTAssertTrue(popup.parent === parent)
+    }
+
+    func testRelayoutClassificationOnAllThreeRestorationPaths() async throws {
+        for hooked in [false, true] {
+            _ = try await load(hooked ? "columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }" : "", shared: true)
+            let ws = demo()
+            XCTAssertTrue(ws.focusWorkspace())
+            for path in ["promotion", "fullscreen-command", "native-state"] {
+                let window = TestWindow.new(id: 42, parent: macosPopupWindowsContainer)
+                window.testNativeWindowType = .window
+                if path == "promotion" {
+                    try await validateStillPopups()
+                } else {
+                    window.bind(to: ws.macOsNativeFullscreenWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+                    if path == "fullscreen-command" {
+                        window.nativeIsMacosFullscreen = true
+                        _ = try await command("macos-native-fullscreen off --window-id 42")
+                    } else {
+                        try await exitMacOsNativeUnconventionalState(window: window, prevParentKind: .macosPopupWindowsContainer, prevWorkspaceName: nil, workspace: ws)
+                    }
+                }
+                XCTAssertEqual(ws.columnSlot(containing: window), hooked ? 3 : 1, path)
+                XCTAssertEqual(ws.rootTilingContainer.children.count, 1, path)
+                window.unbindFromParent(); ws.normalizeContainers()
+            }
+        }
+    }
+
+    func testNestedRunPlacesWindowButTerminatesPingPong() async throws {
+        _ = try await load("workspace.Ping.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group, run = [\"move-node-to-workspace Pong\"] }, workspace.Pong.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"move-node-to-workspace Ping\"] }", shared: true)
+        let ping = demo("Ping"), pong = demo("Pong")
+        let window = TestWindow.new(id: 42, parent: ping)
+        try await ColumnPolicy.place(window, on: ping)
+        XCTAssertTrue(window.nodeWorkspace === pong)
+        XCTAssertEqual(pong.columnSlot(containing: window), 3)
+        XCTAssertTrue(NickelSupervisor.shared.status.lastError?.contains("nested run list suppressed") == true)
+    }
+
+    func testGlobalPlacePreservesColumnsOffDropAndFrozenRestore() async throws {
+        _ = try await load("columns.place = fun w ctx cols => { column = 1, overflow = 'float }", shared: true)
+        let ws = Workspace.get(byName: "Plain")
+        let a = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
+        let b = TestWindow.new(id: 2, parent: ws.rootTilingContainer)
+        let source = demo("Source")
+        let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        let rect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
+        MousePointerTracker.shared.note(point: rect.center)
+        defer { clearPendingWindowDragIntent(); MousePointerTracker.shared.reset() }
+        XCTAssertTrue(setPendingWindowDragIntent(sourceWindowId: 42, sourceSubject: .window, detachOrigin: .window,
+            destination: WindowDragIntentDestination(kind: .tabStack(targetWindowId: b.windowId), previewRect: rect, interactionRect: rect, title: "Target", subtitle: "", previewStyle: .tabInsert, previewGeometry: .rounded, isGroup: false)))
+        let applied = try await applyPendingWindowDragIntentWithPolicy()
+        XCTAssertTrue(applied)
+        XCTAssertTrue(window.parent === b.parent)
+        XCTAssertFalse(window.parent === a.parent)
+        XCTAssertFalse(window.isFloating)
+        syncClosedWindowsCacheToCurrentWorld()
+        window.unbindFromParent()
+        // Unit-test lookup walks live trees; keep the other windows discoverable while the frozen root is rebuilt.
+        a.bindAsFloatingWindow(to: source); b.bindAsFloatingWindow(to: source)
+        let restored = TestWindow.new(id: 42, parent: source)
+        let didRestore = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: restored)
+        XCTAssertTrue(didRestore)
+        XCTAssertTrue(restored.parent === b.parent)
+        XCTAssertFalse(restored.parent === a.parent)
+        XCTAssertFalse(restored.isFloating)
+        XCTAssertNil(NickelSupervisor.shared.status.lastError)
+    }
+
+    func testStackWithMovePathConsultsBoundaryHook() async throws {
+        _ = try await load("columns.move-boundary = fun w ctx cols edge => { action = 'swap }", shared: true)
+        let ws = demo()
+        let a = TestWindow.new(id: 42, parent: ws)
+        let b = TestWindow.new(id: 43, parent: ws)
+        let c = TestWindow.new(id: 44, parent: ws)
+        ws.bindToColumn(a, slot: 1); ws.bindToColumn(b, slot: 1); ws.bindToColumn(c, slot: 2)
+        XCTAssertTrue(b.focusWindow())
+        let result = try await command("stack-with left")
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(ws.columnSlot(containing: c), 3)
+        XCTAssertEqual(ws.columnSlot(containing: b), 2)
+    }
+
+    func testColumnRecordsOverlapAccessibilityReads() async throws {
+        let ws = demo()
+        let allStarted = expectation(description: "Ten overlapping native record reads")
+        allStarted.expectedFulfillmentCount = 10
+        var continuations: [CheckedContinuation<Void, Never>] = []
+        var released = false
+        for id in 1...10 {
+            let window = TestWindow.new(id: UInt32(id), parent: ws.rootTilingContainer)
+            window.beforeAxRecord = {
+                window.beforeAxRecord = nil
+                allStarted.fulfill()
+                if !released { await withCheckedContinuation { continuations.append($0) } }
+            }
+        }
+        ws.normalizeContainers()
+        let read = Task { @MainActor in try await ws.columnRecords() }
+        await fulfillment(of: [allStarted], timeout: 2)
+        released = true
+        for continuation in continuations { continuation.resume() }
+        let records = try await read.value
+        XCTAssertEqual(records.arrayOrNil?.flatMap { $0["windows"]?.arrayOrNil ?? [] }.count, 10)
+    }
+
+    func testLandingCancelsOldSelectionAndReadsColumnsOncePerSession() async throws {
+        _ = try await load("columns.place = fun w ctx cols => { column = if w.id == 42 then 2 else 3, overflow = 'tab-group }", shared: true)
+        let destination = demo("Destination"), source = demo("Source")
+        XCTAssertTrue(destination.focusWorkspace())
+        var columnReads = 0
+        let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer)
+        let unrelated = TestWindow.new(id: 2, parent: destination.rootTilingContainer)
+        unrelated.beforeAxRecord = { columnReads += 1 }
+        destination.enforceColumnInvariant()
+        XCTAssertTrue(anchor.focusWindow())
+        let a = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        let b = TestWindow.new(id: 43, parent: source.rootTilingContainer)
+        source.enforceColumnInvariant()
+        let started = expectation(description: "First selection record pending")
+        var pending: CheckedContinuation<Void, Never>?
+        a.beforeAxRecord = {
+            a.beforeAxRecord = nil
+            started.fulfill()
+            await withCheckedContinuation { pending = $0 }
+        }
+        var settings = LensConfig(); settings.presentation = "miniatures"
+        let rect = CGRect(x: 0, y: 0, width: 900, height: 600)
+        let items = [a,b].map { window in
+            SwitcherPaletteItem(id: window.windowId, title: "Guest", appName: "Demo", icon: nil, workspaceName: source.name, isFocused: false,
+                miniature: MiniatureWindow(workspace: source.name, frame: rect, tray: false, frozen: false, accessory: false, floating: false, window: window))
+        }
+        let session = LensSession(name: "demo", settings: settings, items: items, search: "")
+        session.miniatureWorkspaces = [MiniatureWorkspace(name: destination.name, title: "Destination", source: rect, current: true)]
+        session.selection = 0; session.summonHeld = true
+        await fulfillment(of: [started], timeout: 2)
+        let oldTask = session.landingTask
+        session.selection = 1
+        XCTAssertTrue(oldTask?.isCancelled == true)
+        XCTAssertNil(session.miniatureLanding)
+        pending?.resume()
+        await oldTask?.value
+        await session.landingTask?.value
+        XCTAssertEqual(session.miniatureLanding?.maxX, 900)
+        session.selection = 0
+        await session.landingTask?.value
+        XCTAssertEqual(columnReads, 1)
+        session.cancelLanding()
+    }
+
+    func testMouseUpWaitsForPendingShakePlacement() async throws {
+        let driver = WindowMouseInteractionDriver.shared
+        let started = expectation(description: "Shake placement pending")
+        var resume: CheckedContinuation<Void, Never>?
+        driver.shakePlacementTask = Task { @MainActor in
+            started.fulfill()
+            await withCheckedContinuation { resume = $0 }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        var flushed = false
+        let flush = Task { @MainActor in await driver.flushBeforeMouseUp(); flushed = true }
+        await Task.yield()
+        XCTAssertFalse(flushed)
+        resume?.resume()
+        await flush.value
+        XCTAssertTrue(flushed)
+        driver.shakePlacementTask = nil
+    }
+
+    func testWindowUnboundWhileHelperReplyIsSuspended() async throws {
+        for action in ["place", "arrive", "move-join", "move-wrap"] {
+            let directory = FileManager.default.temporaryDirectory.appending(path: "policy-reply-\(UUID())")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let marker = directory.appending(path: "requested"), release = directory.appending(path: "release")
+            try Data().write(to: marker)
+            let hookBody = """
+                elif op == "hook":
+                    open("\(marker.path)", "w").write("requested")
+                    while not os.path.exists("\(release.path)"):
+                        time.sleep(0.001)
+                    if request["hook"] == "arrive":
+                        result = {"float": True}
+                    elif request["hook"].endswith("move-boundary"):
+                        result = {"action": "\(action == "move-wrap" ? "wrap" : "join")"}
+                    else:
+                        result = {"column": 2, "overflow": "split"}
+                """
+            let helper = directory.appending(path: "helper")
+            let start = stubHelperScript.range(of: "elif op == \"hook\":")!.lowerBound
+            let end = stubHelperScript.range(of: "    reply =")!.lowerBound
+            let script = String(stubHelperScript[..<start]) + hookBody.replacingOccurrences(of: "\n", with: "\n    ") + "\n" + String(stubHelperScript[end...])
+            try script.write(to: helper, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+            var settings = NickelSupervisor.Settings(); settings.executable = { helper }
+            let supervisor = action.hasPrefix("move") ? NickelSupervisor.shared : NickelSupervisor(settings: settings)
+            if action.hasPrefix("move") {
+                let loader = NickelSupervisor(settings: settings)
+                supervisor.adopt(try await loader.load(URL(filePath: "/config/good.ncl")).get())
+            } else { supervisor.adopt(try await supervisor.load(URL(filePath: "/config/good.ncl")).get()) }
+            config.arrive = "arrive"
+            config.columns = ColumnsConfig(.object(["place": .string("columns.place"), "move-boundary": .string("columns.move-boundary")]), workspaces: nil)
+            let ws = demo()
+            let window = TestWindow.new(id: 42, parent: ws.rootTilingContainer)
+            window.columnSlot = action == "move-wrap" ? 3 : 1
+            _ = TestWindow.new(id: 43, parent: ws.rootTilingContainer)
+            ws.enforceColumnInvariant(); XCTAssertTrue(window.focusWindow())
+            let requested = expectation(description: "Helper is awaiting its reply release")
+            let descriptor = open(marker.path, O_EVTONLY)
+            XCTAssertGreaterThanOrEqual(descriptor, 0)
+            let watcher = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: .write, queue: .main)
+            watcher.setEventHandler { requested.fulfill(); watcher.cancel() }
+            watcher.setCancelHandler { close(descriptor) }
+            watcher.resume()
+            let task = Task { @MainActor in
+                switch action {
+                    case "place": try await ColumnPolicy.place(window, on: ws, supervisor: supervisor)
+                    case "arrive": try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false, supervisor: supervisor)
+                    default: _ = try await MoveCommand(args: MoveCmdArgs(rawArgs: [], .right)).run(.defaultEnv, CmdIo(stdin: .emptyStdin))
+                }
+            }
+            await fulfillment(of: [requested], timeout: 2)
+            if window.isBound { window.unbindFromParent() }
+            try Data().write(to: release)
+            try await task.value
+            XCTAssertFalse(window.isBound, action)
+            watcher.cancel()
+        }
     }
 
 }

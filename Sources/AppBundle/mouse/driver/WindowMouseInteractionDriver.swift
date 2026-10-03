@@ -45,6 +45,7 @@ final class WindowMouseInteractionDriver {
     var lastRenderedResizePreviewRect: Rect?
     var shakeGesture: WindowShakeGestureRecognizer?
     var didToggleLayoutWithShake = false
+    var shakePlacementTask: Task<Void, Never>?
 
     private init() {}
 }
@@ -94,9 +95,11 @@ extension WindowMouseInteractionDriver {
     }
 
     func flushBeforeMouseUp() async {
+        await shakePlacementTask?.value
         if moveSession != nil {
             renderMoveFrame(force: true)
         }
+        await shakePlacementTask?.value
         guard let resizeSession else { return }
         defer { finishResizeFlush(session: resizeSession) }
         guard let window = Window.get(byId: resizeSession.windowId) else { return }
@@ -181,7 +184,7 @@ extension WindowMouseInteractionDriver {
 
 extension WindowMouseInteractionDriver {
     func renderMoveFrame(force: Bool) {
-        guard let session = moveSession else { return }
+        guard shakePlacementTask == nil, let session = moveSession else { return }
         guard (isLeftMouseButtonDown || force), getCurrentMouseManipulationKind() == .move else { return }
         guard currentlyManipulatedWithMouseWindowId == session.windowId,
               let sourceWindow = Window.get(byId: session.windowId)
@@ -193,6 +196,7 @@ extension WindowMouseInteractionDriver {
 
         let mouse = MousePointerTracker.shared.currentSample.point
         detectShakeIfNeeded(sourceWindow: sourceWindow, session: session)
+        guard shakePlacementTask == nil else { return }
         updateCompositedMovePreview(sourceWindow: sourceWindow, mouseLocation: mouse)
         let isPointerInsideSidebar = WorkspaceSidebarPanel.panel(containing: mouse) != nil
         let shouldProcess = session.startedInSidebar || isPointerInsideSidebar || WindowDragFrameGate.shared.shouldProcess(
@@ -320,7 +324,7 @@ extension WindowMouseInteractionDriver {
 
 extension WindowMouseInteractionDriver {
     func detectShakeIfNeeded(sourceWindow: Window, session: MoveSession) {
-        guard config.enableShakeToToggleTiling,
+        guard shakePlacementTask == nil, config.enableShakeToToggleTiling,
               !didToggleLayoutWithShake,
               shouldRecognizeWindowShake(
                   kind: getCurrentMouseManipulationKind(),
@@ -344,11 +348,15 @@ extension WindowMouseInteractionDriver {
 
         clearPendingWindowDragIntent()
         if sourceWindow.isFloating, let workspace = sourceWindow.nodeWorkspace,
-           workspace.columns != nil, config.columns.hook("place", workspace: workspace.name) != nil {
-            Task { @MainActor in
-                do { try await toggleFloatingForShakeWithPolicy(sourceWindow) }
+           ColumnPolicy.hook("place", on: workspace) != nil {
+            shakePlacementTask = Task { @MainActor in
+                defer { shakePlacementTask = nil }
+                do { try await toggleFloatingForShakeWithPolicy(sourceWindow, on: workspace) }
                 catch { NickelSupervisor.shared.recordHookFailure("Shake placement: \(error.localizedDescription)") }
+                state.lastToggleTimestamp = sample.timestamp
+                didToggleLayoutWithShake = true
             }
+            return
         } else {
             toggleFloatingForShake(sourceWindow)
         }
@@ -356,15 +364,10 @@ extension WindowMouseInteractionDriver {
         didToggleLayoutWithShake = true
     }
 
-    func toggleFloatingForShakeWithPolicy(_ window: Window) async throws {
-        if window.isFloating, let workspace = window.nodeWorkspace,
-           workspace.columns != nil, config.columns.hook("place", workspace: workspace.name) != nil {
-            try await ColumnPolicy.place(window, on: workspace)
-            window.shakeWindowState.tilingPlacement = nil
-            window.lastAppliedLayoutPhysicalRect = nil
-        } else {
-            toggleFloatingForShake(window)
-        }
+    func toggleFloatingForShakeWithPolicy(_ window: Window, on workspace: Workspace) async throws {
+        try await ColumnPolicy.place(window, on: workspace)
+        window.shakeWindowState.tilingPlacement = nil
+        window.lastAppliedLayoutPhysicalRect = nil
     }
 
     func toggleFloatingForShake(_ window: Window) {

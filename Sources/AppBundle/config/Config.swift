@@ -71,7 +71,6 @@ struct Config: ConvenienceCopyable {
     var windowTabs = WindowTabsConfig()
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
-    var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: [any Command] = []
 }
 

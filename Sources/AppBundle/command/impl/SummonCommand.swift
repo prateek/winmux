@@ -9,8 +9,9 @@ struct SummonCommand: Command {
         let window = (args.windowId ?? env.windowId).flatMap { Window.get(byId: $0) } ?? ((args.windowId ?? env.windowId) == nil ? focus.windowOrNil : nil)
         guard let window else { return io.err("Can't find the window to Summon") }
         guard ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) else { return io.err("Cannot Summon a popup window") }
+        if window.nodeWorkspace === destination { return window.focusWindow() }
         try await restoreLensWindow(window, on: destination, runPlace: false)
-        if destination.columns != nil {
+        if destination.columns != nil, !window.isFloating {
             try await ColumnPolicy.place(window, on: destination)
         }
         if window.nodeWorkspace != destination {

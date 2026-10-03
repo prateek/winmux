@@ -194,7 +194,7 @@ func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
         for (window, oldWorkspace, wasFloating, oldSlot) in previous {
             if let workspace = window.nodeWorkspace, !window.isFloating,
                (workspace !== oldWorkspace || wasFloating || oldSlot != workspace.columnSlot(containing: window)),
-               config.columns.hook("place", workspace: workspace.name) != nil {
+               ColumnPolicy.hook("place", on: workspace) != nil {
                 try await ColumnPolicy.place(window, on: workspace)
             }
         }

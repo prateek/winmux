@@ -99,7 +99,6 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "workspace-sidebar": Parser(\.workspaceSidebar, parseWorkspaceSidebar),
     "window-tabs": Parser(\.windowTabs, parseWindowTabs),
     "workspace-to-monitor-force-assignment": Parser(\.workspaceToMonitorForceAssignment, parseWorkspaceToMonitorAssignment),
-    "on-window-detected": Parser(\.onWindowDetected, parseOnWindowDetectedArray),
 
     // Deprecated
     "non-empty-workspaces-root-containers-layout-on-startup": Parser(\._nonEmptyWorkspacesRootContainersLayoutOnStartup, parseStartupRootContainerLayout),
@@ -166,6 +165,9 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
         return (Config(), [.syntax("The config must be a record")])
     }
     var parsed = parseConfig(tomlTable(fields.filter { !nonTomlRootKeys.contains($0.key) }))
+    if fields.keys.contains("on-window-detected"), !parsed.errors.contains(where: { $0.description.contains("arrive") }) {
+        parsed.errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
+    }
     if case .object(let lenses) = fields["lenses"] {
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
         for (name, lens) in parsed.config.lenses {
@@ -212,6 +214,9 @@ private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
 
 @MainActor private func parseConfig(_ rawTable: TOMLTable) -> (config: Config, errors: [TomlParseError]) {
     var errors: [TomlParseError] = []
+    if rawTable.contains(key: "on-window-detected") {
+        errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
+    }
 
     var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &errors)
 

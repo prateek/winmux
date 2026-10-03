@@ -238,20 +238,6 @@ final class ConfigTest: XCTestCase {
         XCTAssertNotEqual(shortTap, longTap)
     }
 
-    func testWindowDetectedCallbackEqualityChecksCommandCount() {
-        let matcher = WindowDetectedCallbackMatcher(appId: "com.example.app")
-        let short = WindowDetectedCallback(
-            matcher: matcher,
-            rawRun: [FocusCommand.new(direction: .left)],
-        )
-        let long = WindowDetectedCallback(
-            matcher: matcher,
-            rawRun: [FocusCommand.new(direction: .left), FocusCommand.new(direction: .right)],
-        )
-
-        XCTAssertNotEqual(short, long)
-    }
-
     func testModesMustContainDefaultModeError() {
         let (config, errors) = parseConfig(
             """

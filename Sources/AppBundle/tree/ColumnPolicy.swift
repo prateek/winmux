@@ -11,24 +11,73 @@ struct PlacementDecision: Equatable {
 
     var json: JSONValue {
         .object(["column": .int(slot), "target": .string(target), "overflow": .string(overflow),
-                 "hook": hook.map(JSONValue.string) ?? .null, "run": .array(run.map(JSONValue.string))])
+                 "hook": hook.map(JSONValue.string) ?? .null, "run": .array(run.map(JSONValue.string)), "failure": failure.map(JSONValue.string) ?? .null])
     }
 }
 
 @MainActor
 enum ColumnPolicy {
+    static func hook(_ name: String, on workspace: Workspace) -> String? {
+        guard workspace.columns != nil else { return nil }
+        return config.columns.hook(name, workspace: workspace.name)
+    }
+
+    @MainActor struct Location {
+        let ancestors: [(TreeNode, UInt64)]
+        let workspace: Workspace?
+        let slot: Int?
+        init(_ window: Window) {
+            ancestors = window.parentsWithSelf.map { ($0, $0.bindingRevision) }
+            workspace = window.nodeWorkspace
+            slot = workspace?.columnSlot(containing: window)
+        }
+        func contains(_ window: Window) -> Bool {
+            let current = window.parentsWithSelf
+            return current.count == ancestors.count && zip(current, ancestors).allSatisfy { $0 === $1.0 && $0.bindingRevision == $1.1 }
+                && window.nodeWorkspace === workspace && workspace?.columnSlot(containing: window) == slot
+        }
+    }
+
+    @TaskLocal static var executingRun = false
+    @TaskLocal static var runFailure: RunFailure?
+    @MainActor final class RunFailure: Sendable { var logged = false }
+
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
-                     supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil) async -> JSONValue? {
+                     supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
         guard let path else { return nil }
+        let started = ContinuousClock.now
+        var argumentDuration: Duration?
+        defer {
+            if isDebug, ProcessInfo.processInfo.environment["WINMUX_DEBUG_POLICY_TIMING"] == "1", let argumentDuration {
+                func milliseconds(_ duration: Duration) -> Double {
+                    Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
+                }
+                debugFocusLog("policy-timing arguments-ms=\(milliseconds(argumentDuration)) total-ms=\(milliseconds(started.duration(to: .now)))")
+            }
+        }
         do {
-            guard var record = try await window.windowRecord() else { return nil }
-            if let initialClass { record.windowClass = initialClass }
-            record.workspace = workspace.name
-            record.project = workspace.projectId.rawValue
-            record.monitor = MonitorRecord(workspace.workspaceMonitor)
-            var args = [record.json, try await filterContextRecord().json,
-                        try await workspace.columnRecords(excluding: edge == nil ? window : nil)]
+            let argsWithoutEdge = try await withThrowingTaskGroup(of: (Int, JSONValue?).self) { group in
+                group.addTask { @MainActor @Sendable in
+                    guard var record = try await window.windowRecord(initialClass: initialClass) else { return (0, nil) }
+                    record.workspace = workspace.name
+                    record.project = workspace.projectId.rawValue
+                    record.monitor = MonitorRecord(workspace.workspaceMonitor)
+                    return (0, record.json)
+                }
+                group.addTask { @MainActor @Sendable in (1, try await filterContextRecord().json) }
+                group.addTask { @MainActor @Sendable in
+                    if let columnsSnapshot { return (2, columnsSnapshot) }
+                    return (2, try await workspace.columnRecords(excluding: edge == nil ? window : nil))
+                }
+                var values = [JSONValue?](repeating: nil, count: 3)
+                for try await (index, value) in group { values[index] = value }
+                return values
+            }
+            guard argsWithoutEdge.allSatisfy({ $0 != nil }) else { return nil }
+            var args = argsWithoutEdge.compactMap { $0 }
+            try Task.checkCancellation()
             if let edge { args.append(.bool(edge)) }
+            argumentDuration = started.duration(to: .now)
             switch await supervisor.hook(path, args: args) {
                 case .success(let result):
                     guard accepts(result, hook: path.split(separator: ".").last.map(String.init) ?? path) else {
@@ -40,6 +89,8 @@ enum ColumnPolicy {
                     supervisor.recordHookFailure("\(path): \(failure.message)")
                     return nil
             }
+        } catch is CancellationError {
+            return nil
         } catch {
             supervisor.recordHookFailure("\(path): \(error.localizedDescription)")
             return nil
@@ -82,12 +133,13 @@ enum ColumnPolicy {
     }
 
     static func decision(window: Window, workspace: Workspace, answer: JSONValue? = nil,
-                         supervisor: NickelSupervisor = .shared) async -> PlacementDecision {
+                         supervisor: NickelSupervisor = .shared, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
         var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: "tab-group", hook: nil)
         guard let columns = workspace.columns else { return builtIn }
-        let path = config.columns.hook("place", workspace: workspace.name)
+        let path = hook("place", on: workspace)
         let result: JSONValue?
-        if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor) }
+        if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: window.isBound ? nil : .tiled, columnsSnapshot: columnsSnapshot) }
+        builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: "tab-group", hook: nil)
         guard let result else {
             if path != nil { builtIn.failure = supervisor.status.lastError ?? "Hook unavailable" }
             return builtIn
@@ -100,7 +152,7 @@ enum ColumnPolicy {
                 case "focused": slot = columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: window)
                 case "mru": slot = workspace.mruColumnSlot(excluding: window)
                 case "nearest-empty": slot = builtIn.slot
-                case "last": slot = columns.slotCount
+                case "last": slot = columns.count
                 default:
                     supervisor.recordHookFailure("\(path ?? "arrive"): invalid Column target")
                     builtIn.failure = supervisor.status.lastError
@@ -130,14 +182,12 @@ enum ColumnPolicy {
 
     static func place(_ window: Window, on workspace: Workspace, answer: JSONValue? = nil,
                       supervisor: NickelSupervisor = .shared) async throws {
-        guard workspace.columns != nil else {
-            let binding = bindingDataForNewTilingWindow(workspace, window: window)
-            window.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
-            return
-        }
+        guard workspace.columns != nil else { return }
+        let location = Location(window)
+        let columns = workspace.columns
         let decision = await decision(window: window, workspace: workspace, answer: answer, supervisor: supervisor)
-        guard window.isBound else { return }
-        window.unbindFromParent()
+        guard location.contains(window), workspace.columns === columns else { return }
+        if window.isBound { window.unbindFromParent() }
         workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
         workspace.normalizeContainers()
         try await run(decision.run, window: window)
@@ -145,7 +195,7 @@ enum ColumnPolicy {
 
     static func afterTransfer(_ window: Window, from previous: Workspace?, didMove: Bool) async throws -> Bool {
         if didMove, !window.isFloating, let workspace = window.nodeWorkspace, workspace !== previous,
-           config.columns.hook("place", workspace: workspace.name) != nil {
+           hook("place", on: workspace) != nil {
             try await place(window, on: workspace)
         }
         return didMove
@@ -153,10 +203,11 @@ enum ColumnPolicy {
 
     static func arrive(_ window: Window, on detected: Workspace, floatingDefault: Bool,
                        supervisor: NickelSupervisor = .shared) async throws {
+        let location = Location(window)
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
         let result = await call(config.arrive, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass)
-        if window.parent === macosPopupWindowsContainer,
-           result?["workspace"] == nil, result?["float"] == nil, result?["column"] == nil {
+        guard location.contains(window) else { return }
+        if window.parent === macosPopupWindowsContainer {
             try await run(commands(result), window: window)
             return
         }
@@ -165,13 +216,17 @@ enum ColumnPolicy {
         let floating: Bool
         if case .bool(let value) = result?["float"] { floating = value } else { floating = floatingDefault }
         if floating {
-            window.unbindFromParent()
+            if window.isBound { window.unbindFromParent() }
             window.bindAsFloatingWindow(to: destination)
         } else {
             let explicit = result?["column"] == nil ? nil : result
             var placement = explicit
             if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
-            try await place(window, on: destination, answer: placement, supervisor: supervisor)
+            if destination.columns != nil {
+                try await place(window, on: destination, answer: placement, supervisor: supervisor)
+            } else {
+                window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+            }
         }
         try await run(commands(result), window: window)
     }
@@ -181,10 +236,27 @@ enum ColumnPolicy {
     }
 
     static func run(_ commands: [String], window: Window) async throws {
+        guard !commands.isEmpty, window.isBound else { return }
+        if executingRun {
+            if runFailure?.logged != true {
+                runFailure?.logged = true
+                NickelSupervisor.shared.recordHookFailure("Policy run: nested run list suppressed")
+            }
+            return
+        }
+        try await $executingRun.withValue(true) {
+            try await $runFailure.withValue(RunFailure()) {
+                try await execute(commands, window: window)
+            }
+        }
+    }
+
+    private static func execute(_ commands: [String], window: Window) async throws {
         for raw in commands {
+            guard window.isBound else { return }
             switch parseCommand(raw) {
                 case .cmd(let command) where command.info.allowInConfig:
-                    _ = try await [command].runCmdSeq(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
+                    _ = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: window.nodeWorkspace?.name ?? focus.workspace.name, windowId: window.windowId), .emptyStdin)
                 case .failure(let error): NickelSupervisor.shared.recordHookFailure("Policy run: \(error)")
                 default: NickelSupervisor.shared.recordHookFailure("Policy run: command is not allowed: \(raw)")
             }
@@ -201,13 +273,21 @@ extension Workspace {
 
     @MainActor func columnRecords(excluding window: Window? = nil) async throws -> JSONValue {
         guard let columns else { return .array([]) }
-        var records: [JSONValue] = []
-        for slot in 1...columns.slotCount {
-            let windows = rootTilingContainer.children.first { $0.columnSlot == slot }?.allLeafWindowsRecursive.filter { $0 !== window } ?? []
-            var values: [JSONValue] = []
-            for window in windows { if let record = try await window.windowRecord() { values.append(record.json) } }
-            records.append(.object(["index": .int(slot), "width": .double(Double(columns.widths[slot - 1])),
-                                    "empty": .bool(windows.isEmpty), "windows": .array(values)]))
+        let slots = (1...columns.slotCount).map { slot in
+            rootTilingContainer.children.first { $0.columnSlot == slot }?.allLeafWindowsRecursive.filter { $0 !== window } ?? []
+        }
+        let widths = columns.widths
+        let windows = slots.flatMap { $0 }
+        var values: [UInt32: JSONValue] = [:]
+        try await withThrowingTaskGroup(of: (UInt32, WindowRecord?).self) { group in
+            for window in windows {
+                group.addTask { @MainActor @Sendable in (window.windowId, try await window.windowRecord()) }
+            }
+            for try await (id, record) in group { if let record { values[id] = record.json } }
+        }
+        let records = slots.enumerated().map { index, windows in
+            JSONValue.object(["index": .int(index + 1), "width": .double(Double(widths[index])),
+                              "empty": .bool(windows.isEmpty), "windows": .array(windows.compactMap { values[$0.windowId] })])
         }
         return .array(records)
     }

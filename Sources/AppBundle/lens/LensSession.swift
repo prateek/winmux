@@ -1,6 +1,7 @@
 import AppKit
 import Common
 import HotKey
+import Common
 
 @MainActor
 final class LensSession: ObservableObject {
@@ -29,6 +30,17 @@ final class LensSession: ObservableObject {
     var miniatureSize = CGSize(width: 1000, height: 700)
     var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    var landingTask: Task<Void, Never>?
+    var landingColumnsTask: Task<JSONValue, Error>?
+    weak var landingDestination: Workspace?
+
+    func cancelLanding() {
+        landingTask?.cancel()
+        landingTask = nil
+        landingColumnsTask?.cancel()
+        landingColumnsTask = nil
+    }
+
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]

@@ -15,10 +15,6 @@ protocol Command: WinMuxAny, Equatable, Sendable {
     var canSkipPostCommandRefresh: Bool { get }
 }
 
-protocol PolicyCommand: Command {
-    @MainActor func runWithPolicy(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool
-}
-
 extension Command {
     static func == (lhs: Self, rhs: Self) -> Bool {
         return lhs.args.equals(rhs.args)
@@ -98,12 +94,7 @@ extension [Command] {
     func runCmdSeq(_ env: CmdEnv, _ io: sending CmdIo) async throws -> Bool {
         var isSucc = true
         for command in self {
-            let commandSucc: Bool
-            if let policy = command as? any PolicyCommand {
-                commandSucc = try await policy.runWithPolicy(env, io)
-            } else {
-                commandSucc = try await command.run(env, io)
-            }
+            let commandSucc = try await command.run(env, io)
             isSucc = commandSucc && isSucc
             refreshModel()
             if commandSucc && command.shouldResetClosedWindowsCache {

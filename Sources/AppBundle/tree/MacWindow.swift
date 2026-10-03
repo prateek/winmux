@@ -49,14 +49,12 @@ final class MacWindow: Window {
         let didRestorePersistedFrozenWorld = try await restorePersistedFrozenWorldIfNeeded(newlyDetectedWindow: window)
         let didRestoreClosedWindowsCache = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window)
         if !didRestorePersistedFrozenWorld && !didRestoreClosedWindowsCache {
-            window.arriveHandled = true
             try await ColumnPolicy.arrive(window, on: detectedWorkspace,
                 floatingDefault: windowType == .dialog || !config.automaticallyTileNewWindows)
             broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
                 appBundleId: window.app.rawAppBundleId, appName: window.app.name))
         }
 
-        if didRestorePersistedFrozenWorld || didRestoreClosedWindowsCache { window.arriveHandled = true }
         return window
     }
 
@@ -72,6 +70,10 @@ final class MacWindow: Window {
     //     return "Window(\(description))"
     // }
 
+    @MainActor override var nativeWindowType: AxUiElementWindowType {
+        get async throws { try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId)) }
+    }
+
     func isWindowHeuristic(_ windowLevel: MacOsWindowLevel?) async throws -> Bool { // todo cache
         try await macApp.isWindowHeuristic(windowId, windowLevel)
     }
@@ -84,7 +86,7 @@ final class MacWindow: Window {
         try await macApp.dumpWindowAxInfo(windowId: windowId)
     }
 
-    func setNativeFullscreen(_ value: Bool) {
+    override func setNativeFullscreen(_ value: Bool) {
         macApp.setNativeFullscreen(windowId, value)
     }
 

@@ -6,6 +6,7 @@ open class TreeNode: Equatable, WinMuxAny {
     var children: [TreeNode] { _children }
     fileprivate final weak var _parent: NonLeafTreeNodeObject? = nil
     final var parent: NonLeafTreeNodeObject? { _parent }
+    private(set) var bindingRevision: UInt64 = 0
     var columnSlot: Int?
     private weak var columnParent: NonLeafTreeNodeObject?
     private var adaptiveWeight: CGFloat
@@ -88,6 +89,7 @@ open class TreeNode: Equatable, WinMuxAny {
             self.adaptiveWeight = adaptiveWeight
         }
         newParent._children.insert(self, at: index != INDEX_BIND_LAST ? index : newParent._children.count)
+        bindingRevision &+= 1
         _parent = newParent
         if columnSlot != nil { columnParent = newParent }
         unboundStacktrace = nil
@@ -108,6 +110,7 @@ open class TreeNode: Equatable, WinMuxAny {
         let index = _parent._children.remove(element: self) ?? dieT("Can't find child in its parent")
         check(_parent._mruChildren.remove(self))
         if columnSlot != nil { columnParent = _parent }
+        bindingRevision &+= 1
         self._parent = nil
         unboundStacktrace = getStringStacktrace()
 
