@@ -7,8 +7,9 @@ Import `winmux/defaults.ncl` to get the unbound `search` and `floating` Lenses. 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
+  filters.tiled = fun w ctx => w.class == 'tiled,
   lenses.work = {
-    filter = filters.floating,
+    filter = filters.tiled,
     presentation = 'list,
     sort = ['mru, 'title],
     keys.cmd-x = "close",
@@ -38,7 +39,8 @@ winmux summon --window-id 42
 explicit scope the result is the intersection. They include minimized windows that bare
 `list-windows --all` does not. Search JSON includes `score` and `matched-field`; multiple matched
 fields are comma-separated. Filters stay in the helper. `list-lenses --json` identifies a Filter
-by its callable config path, such as `lenses.floating.filter`, or `null` when absent.
+by the config path it is set at, such as `lenses.floating.filter`, or `null` when absent.
+The path is a label, not something a `--filter` expression can call.
 A `when.default.filter` takes precedence and reports that path.
 A disabled Lens makes both `lens <name>` and `list-windows --lens <name>` exit 2 with the
 same diagnostic and no stdout. A failed script Filter prints no stdout. New commands return 0 for success, 1 for an unavailable
@@ -95,13 +97,13 @@ policy is regular. Filters read that stable identity as `w.app.accessory` and th
 as `w.app.activationPolicy`. Popup-classified windows use `accessory-popup` while the live
 policy is accessory, and `app-popup` otherwise. A window with no close button is a popup
 under accessory policy; a standard dialog under regular policy remains reachable as floating.
-To list Accessory popups alongside floating windows, configure:
+To list an Accessory app's popups alongside its floating windows, configure:
 
 ```nickel
 (import "winmux/defaults.ncl") & {
   lenses.accessory = {
     popups = ['accessory-popup],
-    filter = fun w ctx => w.app.accessory,
+    filter = fun w ctx => w.app.accessory && (w.class == 'floating || w.class == 'accessory-popup),
   },
 }
 ```

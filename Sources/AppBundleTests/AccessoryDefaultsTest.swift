@@ -39,7 +39,7 @@ final class AccessoryDefaultsTest: XCTestCase {
         let app = AccessoryAxElement()
         for policy: NSApplication.ActivationPolicy in [.regular, .accessory] {
             XCTAssertEqual(window.getWindowType(axApp: app, nil, policy, .normalWindow, accessory: true), .dialog)
-            XCTAssertEqual(window.getWindowType(axApp: app, nil, policy, .normalWindow), .window)
+            XCTAssertEqual(window.getWindowType(axApp: app, nil, policy, .normalWindow, accessory: false), .window)
         }
     }
 
@@ -53,13 +53,13 @@ final class AccessoryDefaultsTest: XCTestCase {
     func testDockAppHeuristicsKeepTheirExceptions() {
         let app = AccessoryAxElement()
         let standard = AccessoryAxElement.standard()
-        XCTAssertEqual(standard.getWindowType(axApp: app, nil, .regular, .normalWindow), .window)
+        XCTAssertEqual(standard.getWindowType(axApp: app, nil, .regular, .normalWindow, accessory: false), .window)
         standard.values[Ax.fullscreenButtonAttr.key] = nil
-        XCTAssertEqual(standard.getWindowType(axApp: app, nil, .regular, .normalWindow), .dialog)
-        XCTAssertEqual(standard.getWindowType(axApp: app, .chrome, .regular, .normalWindow), .window)
+        XCTAssertEqual(standard.getWindowType(axApp: app, nil, .regular, .normalWindow, accessory: false), .dialog)
+        XCTAssertEqual(standard.getWindowType(axApp: app, .chrome, .regular, .normalWindow, accessory: false), .window)
         let popup = AccessoryAxElement()
         popup.values[Ax.subroleAttr.key] = "AXUnknown"
-        XCTAssertEqual(popup.getWindowType(axApp: app, nil, .regular, .normalWindow), .popup)
+        XCTAssertEqual(popup.getWindowType(axApp: app, nil, .regular, .normalWindow, accessory: false), .popup)
         let withClose = AccessoryAxElement.standard()
         withClose.values[Ax.subroleAttr.key] = "AXUnknown"
         XCTAssertEqual(withClose.getWindowType(axApp: app, nil, .accessory, .normalWindow, accessory: true), .popup)
