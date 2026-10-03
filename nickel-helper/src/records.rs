@@ -49,9 +49,9 @@ host_record! {
         "name" => name: String,
         /// The app's process id.
         "pid" => pid: i64,
-        /// Whether the app's bundle declares it an Accessory app (LSUIElement). Fixed while the app runs. Always false for now.
+        /// Whether the app's bundle declares it an Accessory app (LSUIElement). Fixed while the app runs.
         "accessory" => accessory: bool,
-        /// The app's activation policy right now. It can change while the app runs. Always 'regular for now.
+        /// The app's activation policy right now. It can change while the app runs.
         "activationPolicy" => activation_policy: ActivationPolicy,
     }
 }
@@ -62,7 +62,7 @@ host_record! {
         "id" => id: i64,
         /// The window's title, or "" when it has none.
         "title" => title: String,
-        /// Where the window sits in WinMux's layout. Every window has exactly one class. For now every popup is 'app-popup.
+        /// Where the window sits in WinMux's layout. Every window has exactly one class.
         "class" => class: WindowClass,
         /// The window's accessibility subrole, such as "AXStandardWindow", or "" when unknown.
         "subrole" => subrole: String,

@@ -14,19 +14,19 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     @MainActor
-    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?) {
+    private init(_ id: UInt32, _ parent: NonLeafTreeNodeObject, _ adaptiveWeight: CGFloat, _ rect: Rect?, app: TestApp) {
         _rect = rect
-        super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
+        super.init(id: id, app, lastFloatingSize: nil, parent: parent, adaptiveWeight: adaptiveWeight, index: INDEX_BIND_LAST)
         recordAuthoritativeActualRect(rect)
     }
 
     @discardableResult
     @MainActor
-    static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil) -> TestWindow {
-        let wi = TestWindow(id, parent, adaptiveWeight, rect)
+    static func new(id: UInt32, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat = 1, rect: Rect? = nil, app: TestApp = .shared) -> TestWindow {
+        let wi = TestWindow(id, parent, adaptiveWeight, rect, app: app)
         // A test's window stands for one WinMux already manages, not one it has just found.
         wi.wasSeenUnminimized = true
-        TestApp.shared._windows.append(wi)
+        app._windows.append(wi)
         return wi
     }
 
@@ -34,8 +34,9 @@ final class TestWindow: Window, CustomStringConvertible {
 
     @MainActor
     override func nativeFocus() {
-        appForTests = TestApp.shared
-        TestApp.shared.focusedWindow = self
+        let app = self.app as! TestApp
+        appForTests = app
+        app.focusedWindow = self
     }
 
     override func closeAxWindow() {

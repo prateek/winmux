@@ -88,7 +88,7 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
     let config = &reply["result"]["config"];
     assert_eq!(config["lenses"]["everything"]["presentation"], "list");
     assert_eq!(config["lenses"]["mail"]["sort"], json!(["mru"]));
-    assert!(config["lenses"]["mail"].get("filter").is_none(), "functions stay in the helper");
+    assert_eq!(config["lenses"]["mail"]["filter"], "lenses.mail.filter", "only the callable path leaves the helper");
     assert!(config.get("arrive").is_none());
     let imports: Vec<&str> = reply["result"]["imports"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert!(imports.contains(&fixture("config.ncl").as_str()), "{imports:?}");
@@ -697,4 +697,31 @@ fn lens_keys_reject_reserved_navigation_keys_in_base_and_profile() {
             assert!(error.contains("reserved"), "{field}.{key}: {error}");
         }
     }
+}
+
+#[test]
+fn lens_settings_identify_callable_filters_including_profile_overrides() {
+    let mut helper = loaded("lens-profile.ncl");
+    let reply = request(&mut helper, json!({"op": "load", "path": fixture("lens-profile.ncl")}));
+    let demo = &reply["result"]["config"]["lenses"]["demo"];
+    assert_eq!(demo["filter"], "lenses.demo.filter");
+    assert_eq!(demo["when"]["default"]["filter"], "lenses.demo.when.default.filter");
+    let defaults = request(&mut helper, json!({"op": "load"}));
+    assert_eq!(defaults["result"]["config"]["lenses"]["floating"]["filter"], "lenses.floating.filter");
+    assert!(defaults["result"]["config"]["lenses"]["search"].get("filter").is_none());
+}
+
+#[test]
+fn shipped_floating_lens_uses_the_named_overridable_filter() {
+    let mut helper = Helper::new(library());
+    assert_eq!(request(&mut helper, json!({"op": "load"}))["ok"], true);
+    let windows = json!([window("demo", "floating"), window("demo", "tiled"), window("demo", "accessory-popup")]);
+    for (op, field) in [("filter", "lens"), ("eval-filter", "filter")] {
+        let reply = request(&mut helper, json!({"op": op, field: "floating", "ctx": context(), "windows": windows}));
+        assert_eq!(reply["result"], json!([true, false, false]), "{reply}");
+    }
+    let reply = request(&mut helper, json!({"op": "load", "path": fixture("floating-over-defaults.ncl")}));
+    assert_eq!(reply["ok"], true, "{reply}");
+    let reply = request(&mut helper, json!({"op": "filter", "lens": "floating", "ctx": context(), "windows": windows}));
+    assert_eq!(reply["result"], json!([false, true, false]), "the Lens must use the user's replacement of filters.floating: {reply}");
 }

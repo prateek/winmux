@@ -1,15 +1,15 @@
 # Lenses and Search
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
-Import `winmux/defaults.ncl` to get the unbound `search` Lens. `palette` is an alias for
+Import `winmux/defaults.ncl` to get the unbound `search` and `floating` Lenses. `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
-  filters.floating = fun w ctx => w.class == 'floating,
+  filters.tiled = fun w ctx => w.class == 'tiled,
   lenses.work = {
-    filter = filters.floating,
+    filter = filters.tiled,
     presentation = 'list,
     sort = ['mru, 'title],
     keys.cmd-x = "close",
@@ -38,7 +38,10 @@ winmux summon --window-id 42
 `--lens`, `--filter` and `--search` imply all workspaces if no scope flag is present; with an
 explicit scope the result is the intersection. They include minimized windows that bare
 `list-windows --all` does not. Search JSON includes `score` and `matched-field`; multiple matched
-fields are comma-separated. Filters stay in the helper and are omitted from settings JSON.
+fields are comma-separated. Filters stay in the helper. `list-lenses --json` identifies a Filter
+by the config path it is set at, such as `lenses.floating.filter`, or `null` when absent.
+The path is a label, not something a `--filter` expression can call.
+A `when.default.filter` takes precedence and reports that path.
 A disabled Lens makes both `lens <name>` and `list-windows --lens <name>` exit 2 with the
 same diagnostic and no stdout. A failed script Filter prints no stdout. New commands return 0 for success, 1 for an unavailable
 server/helper, and 2 for bad usage or a bad Filter.
@@ -83,3 +86,27 @@ Presentation by merging over `winmux/defaults.ncl`, for example:
   lenses.search = { sort = ['title], presentation = 'strip },
 }
 ```
+
+The shipped `floating` Lens uses `filters.floating` (`fun w ctx => w.class == 'floating`),
+with the list Presentation, MRU sort and empty `popups`. It finds floating windows on every
+workspace; Enter focuses one there and shift-enter Summons it to the current workspace.
+It adds no key binding. Both the named Filter and Lens settings can be overridden by a config.
+
+An app whose bundle declares `LSUIElement` floats by default, even when its live activation
+policy is regular. Filters read that stable identity as `w.app.accessory` and the live policy
+as `w.app.activationPolicy`. Popup-classified windows use `accessory-popup` while the live
+policy is accessory, and `app-popup` otherwise. A window with no close button is a popup
+under accessory policy; a standard dialog under regular policy remains reachable as floating.
+To list an Accessory app's popups alongside its floating windows, configure:
+
+```nickel
+(import "winmux/defaults.ncl") & {
+  lenses.accessory = {
+    popups = ['accessory-popup],
+    filter = fun w ctx => w.app.accessory && (w.class == 'floating || w.class == 'accessory-popup),
+  },
+}
+```
+
+Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup window`
+and moves nothing, because a popup has no workspace.

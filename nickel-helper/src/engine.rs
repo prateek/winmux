@@ -93,11 +93,26 @@ impl Engine {
     }
 
     /// The whole config, fully evaluated, without its functions. Evaluating it applies every
-    /// contract, so a wrong type or an unknown key fails here.
+    /// contract, so a wrong type or an unknown key fails here. Lens Filters carry their config
+    /// path for introspection; the functions themselves stay in this engine.
     pub fn static_json(&mut self) -> Result<serde_json::Value, Diagnostic> {
         let result = VirtualMachine::new(&mut self.ctx).eval_full_closure(self.config.clone());
         match result {
-            Ok(closure) => Ok(to_json(&closure.value).unwrap_or(serde_json::Value::Null)),
+            Ok(closure) => {
+                let mut json = to_json(&closure.value).unwrap_or(serde_json::Value::Null);
+                for name in self.field_names(&["lenses"])? {
+                    if self.lookup(&["lenses", &name, "filter"])?.is_some() {
+                        json["lenses"][&name]["filter"] = format!("lenses.{name}.filter").into();
+                    }
+                    for profile in self.field_names(&["lenses", &name, "when"])? {
+                        if self.lookup(&["lenses", &name, "when", &profile, "filter"])?.is_some() {
+                            json["lenses"][&name]["when"][&profile]["filter"] =
+                                format!("lenses.{name}.when.{profile}.filter").into();
+                        }
+                    }
+                }
+                Ok(json)
+            }
             Err(e) => Err(Self::report(&mut self.ctx, e.into())),
         }
     }
