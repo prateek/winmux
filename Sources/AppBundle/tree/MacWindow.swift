@@ -95,6 +95,7 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        SwitcherPalettePanel.shared.stripWindowClosed(windowId)
         ThumbnailCache.shared.closeWindow(self)
         WindowScreenshot.invalidateWindowList()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }

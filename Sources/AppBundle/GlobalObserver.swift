@@ -15,6 +15,11 @@ enum GlobalObserver {
         }
         let notifName = notification.name.rawValue
         Task { @MainActor in
+            if notifName == NSWorkspace.didWakeNotification.rawValue || notifName == NSWorkspace.screensDidWakeNotification.rawValue {
+                reconcileSystemSymbolicHotkeys(repair: .wake)
+            } else if notifName == "com.apple.screenIsUnlocked" {
+                reconcileSystemSymbolicHotkeys(repair: .unlock)
+            }
             if !TrayMenuModel.shared.isEnabled { return }
             if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {
                 scheduleRefreshSession(.globalObserver(notifName), optimisticallyPreLayoutWorkspaces: true)
@@ -65,7 +70,10 @@ enum GlobalObserver {
         }
     }
 
-    private static func onFlagsChanged(_ event: NSEvent) {
+    private static func onFlagsChanged(_ event: NSEvent, source: String) {
+        if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" {
+            debugFocusLog("strip flags source=\(source) modifiers=\(event.modifierFlags.rawValue)")
+        }
         let keyCode = event.keyCode
         let modifierFlags = event.modifierFlags
         runOnMainActor {
@@ -97,6 +105,7 @@ enum GlobalObserver {
         isInitialized = true
         DoubleSidedWindowGesture.shared.install()
 
+        notificationObserverTokens.append(DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main, using: onNotif))
         let nc = NSWorkspace.shared.notificationCenter
         notificationObserverTokens.append(nc.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main, using: onNotif))
         notificationObserverTokens.append(nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main, using: onNotif))
@@ -156,9 +165,9 @@ enum GlobalObserver {
             return event
         })
 
-        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: onFlagsChanged))
+        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { onFlagsChanged($0, source: "global") })
         retainEventMonitor(NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            onFlagsChanged(event)
+            onFlagsChanged(event, source: "local")
             return event
         })
 

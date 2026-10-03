@@ -774,3 +774,24 @@ fn miniatures_rejections_include_actionable_message() {
         assert!(error.contains(message), "{error}");
     }
 }
+
+#[test]
+fn strip_defaults_and_same_app_filter_handle_missing_focus() {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": null}));
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    let config = &reply["result"]["config"];
+    for name in ["recent", "app-windows"] {
+        assert_eq!(config["lenses"][name]["presentation"], "strip");
+        assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
+        assert_eq!(config["lenses"][name]["popups"], json!([]));
+    }
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-tab"], "lens recent");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-shift-tab"], "lens recent");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-backtick"], "lens app-windows");
+    for (ctx, expected) in [(context(), json!([false, false])), (context_focused_on("demo"), json!([true, false]))] {
+        let filtered = request(&mut helper, json!({"id": 2, "op": "filter", "lens": "app-windows", "ctx": ctx, "windows": [window("demo", "tiled"), window("other", "floating")]}));
+        assert_eq!(filtered["ok"], true, "{}", filtered["error"]);
+        assert_eq!(filtered["result"], expected);
+    }
+}

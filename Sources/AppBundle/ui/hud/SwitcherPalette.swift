@@ -26,6 +26,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel()
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle = LensLifecycle()
+    private var stripDisplay: Task<Void, Never>?
     private var thumbnailRefresh: Task<Void, Never>?
     private var thumbnailSession = 0
     private var scrollPaging = MiniatureScrollPaging()
@@ -50,7 +51,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int) async {
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil) async {
         if settings.presentation == "miniatures" {
             await withTaskGroup(of: Void.self) { group in
                 for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
@@ -71,7 +72,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 miniature: miniatureEntry(entry, onscreen: onscreen)
             )
         }
-        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search))
+        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search))
         model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
         if settings.miniatures.currentWorkspace == "hide" {
             model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))
@@ -85,6 +86,24 @@ final class SwitcherPalettePanel: NSPanelHud {
             self.inlineSearch.update(model, context: context, windows: records, ids: ids)
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
+        if settings.presentation == "strip", let invocation {
+            model.beginStrip(invocation)
+            let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+            if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
+            model.updateSummonModifiers(flags)
+            stripDisplay = Task { @MainActor [weak self, weak model] in
+                let remaining = max(0, 0.1 - (ProcessInfo.processInfo.systemUptime - invocation.openedAt))
+                try? await Task.sleep(for: .seconds(remaining))
+                guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
+                let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+                if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
+                self.present(model)
+                self.orderFrontRegardless()
+                self.makeKey()
+                self.startThumbnailRefresh(model)
+            }
+            return
+        }
         present(model)
         orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
@@ -95,17 +114,36 @@ final class SwitcherPalettePanel: NSPanelHud {
             (self.firstResponder as? NSTextView)?.selectAll(nil)
         }
         model.onSearchChanged?()
-        if settings.presentation == "miniatures" {
-            thumbnailSession += 1
-            let token = thumbnailSession
-            thumbnailRefresh = Task { @MainActor [weak model] in
-                await Task.yield()
-                while !Task.isCancelled, let model {
-                    model.refreshVisibleThumbnails(lens: token)
-                    try? await Task.sleep(for: .milliseconds(500))
-                }
+        if settings.presentation == "miniatures" { startThumbnailRefresh(model) }
+    }
+
+    private func startThumbnailRefresh(_ model: LensSession) {
+        thumbnailSession += 1
+        let token = thumbnailSession
+        thumbnailRefresh = Task { @MainActor [weak model] in
+            await Task.yield()
+            while !Task.isCancelled, let model {
+                if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token) }
+                else { model.refreshVisibleThumbnails(lens: token) }
+                try? await Task.sleep(for: .milliseconds(500))
             }
         }
+    }
+
+    func cycleStrip(name: String, invocation: StripGesture) -> Bool {
+        guard let session, session.name == name, let code = invocation.keyCode else { return false }
+        return session.cycleStrip(keyCode: code, flags: invocation.invoking)
+    }
+
+    func stripWindowClosed(_ id: UInt32) {
+        guard let session, session.settings.presentation == "strip" else { return }
+        session.removeStripItems([id])
+    }
+
+    func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        guard let model = session, model.settings.presentation == "strip" else { return }
+        model.updateSummonModifiers(flags)
+        if let key = model.stripReleaseKey(flags: flags) { performAction(key) }
     }
 
     private func present(_ model: LensSession) {
@@ -115,11 +153,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
         let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
         isOpaque = false
-        if model.settings.presentation == "miniatures" {
+        if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
             model.miniatureSize = rect.size
             model.revealMiniatureSelection()
             setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: true)
-            hostingView.rootView = AnyView(MiniaturesView(model: model))
+            hostingView.rootView = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
         } else {
             // Center on the focused monitor, with the top edge at one quarter of its height;
             // convert the top-left coordinates to AppKit's bottom-left origin.
@@ -144,6 +182,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func clearPresentation() {
+        stripDisplay?.cancel()
+        stripDisplay = nil
         thumbnailRefresh?.cancel()
         thumbnailRefresh = nil
         ThumbnailCache.shared.closeLens(thumbnailSession)
@@ -154,6 +194,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func changePresentationToList() {
         guard let session else { return }
+        stripDisplay?.cancel()
         thumbnailRefresh?.cancel()
         ThumbnailCache.shared.closeLens(thumbnailSession)
         session.changePresentation("list")
@@ -165,11 +206,11 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func performAction(_ key: String) {
         guard let model = session, !model.commands(for: key).isEmpty else { return }
         let commands = model.commands(for: key)
-        dismiss()
+        let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
+        if !keepStrip { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
-                // The Lens is already closed, so a failed action has nowhere on screen to report.
                 let io = CmdIo(stdin: .emptyStdin)
                 if try await !runLensAction(commands, session: model, io: io) {
                     lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
@@ -179,8 +220,26 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if session?.settings.presentation == "strip", handleStripKey(event) { return true }
         if session?.performKeyAction(event) == true { return true }
         return super.performKeyEquivalent(with: event)
+    }
+
+    private func handleStripKey(_ event: NSEvent) -> Bool {
+        guard let model = session, model.settings.presentation == "strip" else { return false }
+        if model.cycleStrip(keyCode: event.keyCode, flags: event.modifierFlags) { return true }
+        switch event.keyCode {
+            case 53: dismiss(); return true
+            case 123: model.cycleStripSelection(-1); return true
+            case 124: model.cycleStripSelection(1); return true
+            case 48, 50: return true
+            default: break
+        }
+        if model.handleStripLetter(event) {
+            if model.settings.presentation == "list" { changePresentationToList() }
+            return true
+        }
+        return false
     }
 
     // Intercept navigation keys before the field editor consumes them; other typing
@@ -191,6 +250,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             model.updateSummonModifiers(event.modifierFlags)
         }
         if event.type == .keyDown {
+            if model.settings.presentation == "strip", handleStripKey(event) { return }
             if model.settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][event.keyCode] {
                 model.moveMiniatureSelection(direction)
                 return

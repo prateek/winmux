@@ -87,7 +87,7 @@ struct MiniaturesView: View {
     }
 }
 
-private struct MiniatureEntryView: View {
+struct MiniatureEntryView: View {
     let item: SwitcherPaletteItem
     let entry: MiniatureWindow
     let settings: LensConfig

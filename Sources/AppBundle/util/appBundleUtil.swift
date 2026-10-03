@@ -8,16 +8,6 @@ let signposter = OSSignposter(subsystem: winMuxAppId, category: .pointsOfInteres
 let myPid = NSRunningApplication.current.processIdentifier
 let lockScreenAppBundleId = "com.apple.loginwindow"
 
-func interceptTermination(_ _signal: Int32) {
-    signal(_signal, { signal in
-        check(Thread.current.isMainThread)
-        Task {
-            defer { exit(signal) }
-            try await terminationHandler.beforeTermination()
-        }
-    } as sig_t)
-}
-
 @MainActor
 func initTerminationHandler() {
     terminationHandler = AppServerTerminationHandler()
@@ -25,6 +15,7 @@ func initTerminationHandler() {
 
 private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
+        systemSymbolicHotkeys.restore()
         persistFrozenWorldForRestartIfPossible()
         try await makeAllWindowsVisibleAndRestoreSize()
         await toggleReleaseServerIfDebug(.on)
