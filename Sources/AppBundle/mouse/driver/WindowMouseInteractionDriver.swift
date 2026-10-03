@@ -117,6 +117,8 @@ extension WindowMouseInteractionDriver {
         dragSourcePreviewState = nil
         pendingResizeCandidate = nil
         shakeGesture = nil
+        shakePlacementTask?.cancel()
+        shakePlacementTask = nil
         didToggleLayoutWithShake = false
         resetResizeTrackingState()
         WindowResizePreviewPanel.shared.endStableFrame()
@@ -350,9 +352,13 @@ extension WindowMouseInteractionDriver {
         if sourceWindow.isFloating, let workspace = sourceWindow.nodeWorkspace,
            ColumnPolicy.hook("place", on: workspace) != nil {
             shakePlacementTask = Task { @MainActor in
-                defer { shakePlacementTask = nil }
-                do { try await toggleFloatingForShakeWithPolicy(sourceWindow, on: workspace) }
+                var placed = false
+                do { placed = try await toggleFloatingForShakeWithPolicy(sourceWindow, on: workspace) }
                 catch { NickelSupervisor.shared.recordHookFailure("Shake placement: \(error.localizedDescription)") }
+                // `stop()` cancels a placement its drag did not wait for; the next drag's state is not ours.
+                guard !Task.isCancelled else { return }
+                shakePlacementTask = nil
+                guard placed else { return }
                 state.lastToggleTimestamp = sample.timestamp
                 didToggleLayoutWithShake = true
             }
@@ -364,10 +370,11 @@ extension WindowMouseInteractionDriver {
         didToggleLayoutWithShake = true
     }
 
-    func toggleFloatingForShakeWithPolicy(_ window: Window, on workspace: Workspace) async throws {
-        try await ColumnPolicy.place(window, on: workspace)
+    func toggleFloatingForShakeWithPolicy(_ window: Window, on workspace: Workspace) async throws -> Bool {
+        guard try await ColumnPolicy.place(window, on: workspace) else { return false }
         window.shakeWindowState.tilingPlacement = nil
         window.lastAppliedLayoutPhysicalRect = nil
+        return true
     }
 
     func toggleFloatingForShake(_ window: Window) {

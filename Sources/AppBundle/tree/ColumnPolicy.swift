@@ -38,9 +38,9 @@ enum ColumnPolicy {
         }
     }
 
-    @TaskLocal static var executingRun = false
-    @TaskLocal static var runFailure: RunFailure?
-    @MainActor final class RunFailure: Sendable { var logged = false }
+    /// Windows whose `run` list is executing. Keyed by window, not by task: an unstructured
+    /// `Task` inherits task-locals, so a task-local guard would leak into later refresh sessions.
+    private static var runningWindows: Set<UInt32> = []
 
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
                      supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
@@ -138,7 +138,7 @@ enum ColumnPolicy {
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
         let result: JSONValue?
-        if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: window.isBound ? nil : .tiled, columnsSnapshot: columnsSnapshot) }
+        if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
         builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: "tab-group", hook: nil)
         guard let result else {
             if path != nil { builtIn.failure = supervisor.status.lastError ?? "Hook unavailable" }
@@ -225,7 +225,12 @@ enum ColumnPolicy {
             var placement = explicit
             if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
             if destination.columns != nil {
-                guard try await place(window, on: destination, answer: placement, supervisor: supervisor) else { return }
+                if try await !place(window, on: destination, answer: placement, supervisor: supervisor) {
+                    // Abandoned: the window moved, or the workspace's Columns were replaced, during
+                    // the call. Only the second leaves it in the binding it was registered with.
+                    guard location.contains(window) else { return }
+                    window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+                }
             } else {
                 window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
             }
@@ -239,18 +244,12 @@ enum ColumnPolicy {
 
     static func run(_ commands: [String], window: Window) async throws {
         guard !commands.isEmpty, window.isBound else { return }
-        if executingRun {
-            if runFailure?.logged != true {
-                runFailure?.logged = true
-                NickelSupervisor.shared.recordHookFailure("Policy run: nested run list suppressed")
-            }
+        guard runningWindows.insert(window.windowId).inserted else {
+            NickelSupervisor.shared.recordHookFailure("Policy run: nested run list suppressed")
             return
         }
-        try await $executingRun.withValue(true) {
-            try await $runFailure.withValue(RunFailure()) {
-                try await execute(commands, window: window)
-            }
-        }
+        defer { runningWindows.remove(window.windowId) }
+        try await execute(commands, window: window)
     }
 
     private static func execute(_ commands: [String], window: Window) async throws {

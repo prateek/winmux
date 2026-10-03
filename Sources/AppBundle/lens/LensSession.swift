@@ -1,7 +1,6 @@
 import AppKit
 import Common
 import HotKey
-import Common
 
 @MainActor
 final class LensSession: ObservableObject {
@@ -33,12 +32,15 @@ final class LensSession: ObservableObject {
     var landingTask: Task<Void, Never>?
     var landingColumnsTask: Task<JSONValue, Error>?
     weak var landingDestination: Workspace?
+    /// The selection the landing spot on screen, or being computed, belongs to.
+    var landingKey: UInt32?
 
     func cancelLanding() {
         landingTask?.cancel()
         landingTask = nil
         landingColumnsTask?.cancel()
         landingColumnsTask = nil
+        landingKey = nil
     }
 
     private var lastPointerLocation = NSEvent.mouseLocation

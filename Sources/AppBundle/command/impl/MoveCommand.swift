@@ -27,10 +27,10 @@ struct MoveCommand: Command {
         if path == nil && (edge || ColumnPolicy.hook("place", on: workspace) == nil) { return try await runBuiltIn(env, io) }
         let location = ColumnPolicy.Location(window)
         let result = await ColumnPolicy.call(path, window: window, workspace: workspace, edge: edge)
-        guard location.contains(window), workspace.columns === columns else { return true }
+        let abandoned = "The window moved before the move could finish"
+        guard location.contains(window), workspace.columns === columns else { return io.err(abandoned) }
         if path != nil && result == nil { return try await runBuiltIn(env, io) }
         let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")
-        if result == nil && edge { return try await runBuiltIn(env, io) }
         guard (edge ? ["stop", "wrap", "next-workspace", "next-monitor"] : ["join", "swap"]).contains(action) else {
             NickelSupervisor.shared.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
             return try await runBuiltIn(env, io)
@@ -41,11 +41,9 @@ struct MoveCommand: Command {
                 let overflow: String
                 if let selected = result?["overflow"]?.stringOrNil { overflow = selected }
                 else { overflow = await ColumnPolicy.decision(window: window, workspace: workspace).overflow }
-                guard location.contains(window), workspace.columns === columns else { return true }
-                let resolvedDestination = workspace.columnSlot(containing: window).map { $0 + direction.focusOffset }
-                guard let resolvedDestination, (1...columns.slotCount).contains(resolvedDestination) else { return true }
+                guard location.contains(window), workspace.columns === columns else { return io.err(abandoned) }
                 window.unbindFromParent()
-                workspace.bindToColumn(window, slot: resolvedDestination, overflow: overflow)
+                workspace.bindToColumn(window, slot: destination, overflow: overflow)
             case "swap":
                 if let neighbour = workspace.rootTilingContainer.children.first(where: { $0.columnSlot == destination }) {
                     let moving = workspace.rootTilingContainer.children.first { $0.columnSlot == slot }.orDie()

@@ -11,7 +11,12 @@ extension Window {
                 bindAsFloatingWindow(to: workspace)
             case .window:
                 if !forceTile && !config.automaticallyTileNewWindows { bindAsFloatingWindow(to: workspace) }
-                else if runPlace, workspace.columns != nil { try await ColumnPolicy.place(self, on: workspace) }
+                else if runPlace, workspace.columns != nil {
+                    // An abandoned Place must not strand the window in the container it is leaving.
+                    if try await !ColumnPolicy.place(self, on: workspace), location.contains(self) {
+                        bind(to: bindingDataForNewTilingWindow(workspace, window: self))
+                    }
+                }
                 else { bind(to: bindingDataForNewTilingWindow(workspace, window: self)) }
         }
     }

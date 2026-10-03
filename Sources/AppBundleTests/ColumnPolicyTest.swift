@@ -598,6 +598,42 @@ final class ColumnPolicyTest: XCTestCase {
         }
     }
 
+    func testFallThroughPlaceSeesATilingWindow() async throws {
+        let supervisor = try await load("columns.place = fun w ctx cols => if w.class == 'tiled then { column = 3, overflow = 'tab-group } else { column = 1, overflow = 'tab-group }")
+        let ws = demo()
+        // A new window is registered floating on its workspace until Arrive has answered.
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false, supervisor: supervisor)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+    }
+
+    func testAbandonedBoundaryMoveFails() async throws {
+        _ = try await load("columns.move-boundary = fun w ctx cols edge => { action = 'join }", shared: true)
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws.rootTilingContainer)
+        _ = TestWindow.new(id: 43, parent: ws.rootTilingContainer)
+        ws.enforceColumnInvariant(); XCTAssertTrue(window.focusWindow())
+        window.beforeAxRecord = { window.beforeAxRecord = nil; if window.isBound { window.unbindFromParent() } }
+        let moved = try await MoveCommand(args: MoveCmdArgs(rawArgs: [], .right)).run(.defaultEnv.copy(\.windowId, 42), CmdIo(stdin: .emptyStdin))
+        XCTAssertFalse(moved)
+    }
+
+    func testColumnsReplacedDuringPlaceStillTilesTheArrival() async throws {
+        let supervisor = try await load("columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group }", shared: true)
+        let ws = demo()
+        let arriving = TestWindow.new(id: 42, parent: ws)
+        arriving.beforeAxRecord = { arriving.beforeAxRecord = nil; ws.columns = ColumnState(count: 3) }
+        try await ColumnPolicy.arrive(arriving, on: ws, floatingDefault: false, supervisor: supervisor)
+        XCTAssertFalse(arriving.isFloating)
+        XCTAssertTrue(arriving.nodeWorkspace === ws)
+
+        let restored = TestWindow.new(id: 43, parent: macosMinimizedWindowsContainer)
+        restored.beforeAxRecord = { restored.beforeAxRecord = nil; ws.columns = ColumnState(count: 3) }
+        try await restored.relayoutWindow(on: ws, forceTile: true)
+        XCTAssertTrue(restored.nodeWorkspace === ws)
+        XCTAssertFalse(restored.isFloating)
+    }
+
     func testNestedRunPlacesWindowButTerminatesPingPong() async throws {
         _ = try await load("workspace.Ping.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group, run = [\"move-node-to-workspace Pong\"] }, workspace.Pong.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"move-node-to-workspace Ping\"] }", shared: true)
         let ping = demo("Ping"), pong = demo("Pong")

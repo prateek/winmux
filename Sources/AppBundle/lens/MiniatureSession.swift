@@ -123,6 +123,10 @@ extension LensSession {
     }
 
     func updateMiniatureLanding() {
+        // The pointer moving inside one miniature re-assigns the same selection.
+        let key = summonHeld ? selectedId : nil
+        if key != nil, key == landingKey, landingTask != nil || miniatureLanding != nil { return }
+        landingKey = key
         landingTask?.cancel()
         landingTask = nil
         setMiniatureLanding(nil)
@@ -147,7 +151,12 @@ extension LensSession {
             }
             let snapshotTask = landingColumnsTask!
             landingTask = Task { @MainActor [weak self] in
-                guard let snapshot = try? await snapshotTask.value, !Task.isCancelled else { return }
+                guard let snapshot = try? await snapshotTask.value else {
+                    // A failed read is not kept for the session.
+                    if !Task.isCancelled, let self, self.landingColumnsTask == snapshotTask { self.landingColumnsTask = nil }
+                    return
+                }
+                guard !Task.isCancelled else { return }
                 let records = snapshot.arrayOrNil?.map { column -> JSONValue in
                     guard case .object(var fields) = column else { return column }
                     let windows = fields["windows"]?.arrayOrNil?.filter { $0["id"] != .int(Int(id)) } ?? []
@@ -183,11 +192,6 @@ extension LensSession {
                 }
                 self.setMiniatureLanding(frame)
             }
-            return
-        }
-        if entry.floating {
-            let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
-            setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))
             return
         }
         let root = focus.workspace.rootTilingContainer

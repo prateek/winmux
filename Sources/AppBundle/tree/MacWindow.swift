@@ -51,8 +51,11 @@ final class MacWindow: Window {
         if !didRestorePersistedFrozenWorld && !didRestoreClosedWindowsCache {
             try await ColumnPolicy.arrive(window, on: detectedWorkspace,
                 floatingDefault: windowType == .dialog || !config.automaticallyTileNewWindows)
-            broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
-                appBundleId: window.app.rawAppBundleId, appName: window.app.name))
+            // A popup is announced when it is promoted to a window, as upstream announced it.
+            if windowType != .popup {
+                broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
+                    appBundleId: window.app.rawAppBundleId, appName: window.app.name))
+            }
         }
 
         return window
