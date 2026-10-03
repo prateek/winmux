@@ -12,7 +12,7 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 
 - The strip is not a second system. It uses the Lens's Filter, sort order, selection, `keys` actions, Summon, thumbnail cache and overlay panel, and adds only a one-row layout and hold-to-cycle.
 - The strip has no settings record of its own. It reads the Lens-level fields `frozen-thumbnail`, `accessory-window` and `summon-hints`, which every Presentation reads.
-- A strip ignores `sections`. `entries` defaults to one entry per window. `sort` defaults to MRU order with the current window first, and the selection starts on the second entry.
+- A strip ignores `sections`. `entries` defaults to one entry per window. `sort` defaults to MRU order. Selection starts on the second entry only when the first is the focused window; otherwise it starts on the first. Reverse-first selects the last entry.
 - The strip has no Search box, because letters typed while cmd is held are chords.
 - The panel is non-activating, and WinMux never becomes the active app while a strip is open. The strip must not call `NSApp.activate` the way `SwitcherPalette` does today (`Sources/AppBundle/ui/hud/SwitcherPalette.swift`); the app that had focus keeps it until the strip commits. How the panel receives keys without activating is under Open details.
 - Committing a selection asks the OS to focus the window and does not write MRU itself. MRU moves only when the OS confirms the focus, which is what `lastFocusedSeq` already guarantees.
@@ -32,7 +32,7 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 **Hold and release**
 
 - When the `lens` command opens a strip, it records which modifiers were held at that moment. Releasing those modifiers commits.
-- Committing runs the command bound to `enter` in the Lens's `keys` map (focus by default), unless a modifier held at release selects another binding.
+- Committing runs the command bound to `enter` in the Lens's `keys` map (focus by default), unless a modifier held at release selects another binding. Release always closes the strip, even when that binding has no commands.
 - Summon at release is Option: holding Option when the invoking modifiers are released runs `summon` on the selection. Shift held at release never selects a binding in a strip, because Shift reverses the cycle. `shift-enter` stays Summon in `'list` and `'miniatures`.
 - There is a 100 ms display delay. If the invoking modifiers are released within it, the strip never draws and the commit lands on the initial selection, which swaps to the previous window.
 - When `lens` runs, it first samples the live modifier state (`CGEventSource.flagsState(.combinedSessionState)`). If the invoking modifiers are already up, it commits at once without drawing. This covers the quick tap and guards against the Carbon event arriving after the release.
@@ -41,15 +41,16 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 
 **Keys while the strip is open**
 
-- Pressing the invoking key again moves the selection forward and wraps at the end.
+- Pressing the invoking key again moves the selection forward and wraps at the end. A Trigger arriving during opening queues a step for the ready session; it never toggles its strip closed.
 - Reverse is Shift plus the invoking key: `shift-tab` in `recent`, `shift-backtick` in `app-windows`. The backtick key does not reverse `recent`, which differs from the native cmd+tab.
 - `esc` closes the strip and leaves focus unchanged.
 - The Lens's other `keys` bindings apply in a strip as in any Presentation. The Lens defaults are `cmd-w` for `close` and `cmd-<n>` for `move-node-to-workspace <n>`.
-- With the mouse, hovering moves the selection, a click runs `enter`'s command, and a modifier-click runs the matching modifier binding.
+- With the mouse, hovering moves the selection, a click runs `enter`'s command, and a modifier-click runs the matching modifier binding. Clicks subtract the invoking modifiers, as release does: cmd-click focuses immediately and cmd-Option-click Summons. Removing an earlier entry preserves the selected window; removing the selection chooses its surviving successor, or the last entry.
 
 **Hand-off to Search**
 
-- Typing a letter turns the strip into the `'list` Presentation of the same Lens, through `lens --presentation list`. The typed letter goes into the Search box, and the Filter, sort and selection carry over.
+- Typing an unbound letter with exactly the invoking modifiers apart from Shift, or with none, turns the strip into the `'list` Presentation of the same Lens, through `lens --presentation list`. The typed letter goes into the Search box, and the Filter, sort and selection carry over.
+- A Lens `keys` binding wins first. An unrelated global binding closes the strip and runs normally; later modifier release cannot undo its result.
 - After the hand-off the Lens behaves as any `'list` Lens: it stays open when the modifiers are released.
 
 **The two default Lenses**
@@ -72,13 +73,14 @@ Build the `'strip` Presentation: a single centred row of a Lens's matches that i
 - It matches those chords, by keycode and modifiers, against the live symbolic-hotkey table (`CGSGetSymbolicHotKeyValue`, `CGSIsSymbolicHotKeyEnabled`). It does not hardcode ids and does not read `com.apple.symbolichotkeys.plist`, which lists only customised entries. Matching the live table also keeps ISO keyboards correct, where the key above Tab has a different keycode.
 - Only ids that are enabled at that moment are candidates for disabling. An id the user had already turned off is never touched.
 - Before disabling anything, the reconciler records a marker listing the ids it is about to disable. It restores only ids in the marker, and removes an id from the marker once it is restored.
+- An idle reconcile with nothing wanted and an empty marker does no table work. Candidate ids are cached after the first active scan and rescanned on repair; marker writes happen only when ownership changes. Failures from both restore and retake remain visible until a later successful operation.
 - When a chord is no longer wanted (the binding was removed, the mode changed, WinMux was disabled), the reconciler restores the matching ids.
 
 **Restoring and repairing**
 
-- A disabled symbolic hotkey outlives the process, and release builds catch no termination signals today. Signal handlers and an uncaught-exception handler that restore the marker's ids are armed before the first disable.
+- A disabled symbolic hotkey outlives the process. Signal sources and an uncaught-exception handler that restore the marker's ids are armed before the first disable in every build. TERM, INT and HUP use no-op dispositions that reset on exec. Their dispatch source restores off the main queue before requesting normal cleanup, with a two-second deadline for process exit even when main-thread cleanup stalls.
 - The reconciler repairs from the marker and re-applies on launch, on wake and on screen unlock. This also covers macOS turning the system chord back on by itself after a reboot.
-- The wake observers exist: `NSWorkspace.didWakeNotification` and `NSWorkspace.screensDidWakeNotification` in `Sources/AppBundle/GlobalObserver.swift`. WinMux has no unlock observer. This issue adds one, for `com.apple.screenIsUnlocked` on `DistributedNotificationCenter`.
+- The wake observers are `NSWorkspace.didWakeNotification` and `NSWorkspace.screensDidWakeNotification` in `Sources/AppBundle/GlobalObserver.swift`. The unlock observer listens for `com.apple.screenIsUnlocked` on `DistributedNotificationCenter`.
 - A hard kill (`kill -9`, a kernel panic, power loss) leaves cmd+tab dead until WinMux next launches, when the marker repair runs. This is accepted.
 
 **Known failure behaviour**
@@ -115,7 +117,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **Summon hints for a window already on the current workspace.** The label and landing spot show only when the selected window is on another workspace. Summoning a window that is already on the current workspace does nothing.
 - **How many entries fit before the row scrolls.** As many as fit the screen width, capped at 9. Tune the cap on the real build.
 - **Marker storage and visibility.** The marker lives in `UserDefaults`. The reconciler checks the `CGError` from `CGSSetSymbolicHotKeyEnabled` and reads the result back with `CGSIsSymbolicHotKeyEnabled`. `HotKey` registration failures are logged, since the package swallows them. `winmux doctor` gains a line with the symbolic hotkey ids WinMux holds and the marker's contents.
-- **Restoring an id the user changed meanwhile.** The reconciler restores an id only if it is still in the state WinMux left it in: still disabled, with the same key and modifiers. Otherwise it leaves the id alone and drops it from the marker.
+- **Restoring an id the user changed meanwhile.** The reconciler restores an id only if it is still in the state WinMux left it in: still disabled, with the same key and modifiers. A changed chord, or an enabled id whose chord is no longer wanted, is left alone and dropped from the marker. An id re-enabled while its chord remains wanted is retaken in the same pass, with the marker persisted first.
 
 ## Open details
 
@@ -143,8 +145,7 @@ exit restoration are armed before disabling in all build configurations. The old
 handler was removed. Live signal checks used only the debug executable; release-build behavior
 remains a check for Prateek, and no release build was run.
 
-`make check` passed 751 Swift tests and 47 helper integration tests, plus its lint, script and
-format checks. Tests were written and failed before their seams/defaults were implemented.
+`make check` passed 766 Swift tests and 47 helper integration tests, plus six Python tests and package resolution. Tests were written and failed before their seams/defaults were implemented.
 `make default-config` was run; no contract record changed. All five Nickel examples in
 `docs/lenses.md` passed `winmux-nickel check`.
 
@@ -153,7 +154,7 @@ Search hand-off, Close staying a strip, cross-workspace Focus and Option Summon,
 one/no match, icon fallback, ad-hoc invocation and explicit list override. Captures use owned
 windows and redact protected dialogs and unrelated desktop content. The native table was read
 before launch, while held, after config removal, mode change and disable, and after normal quit,
-SIGTERM, SIGINT, SIGHUP, hard kill, recovery and final normal quit. All candidates were initially
+SIGTERM, SIGINT, SIGHUP, hard kill, recovery and final normal quit. The final builder pass also checked rapid opening cycles, cmd-held click, cross-workspace Option-click, unrelated global bindings and child signal dispositions. A blocked-main harness exercised the two-second exit deadline. The final live run showed the whole row in front of the untouched dialog, captured as a crop. All candidates were initially
 on, so preservation of a user-disabled id was checked only with the fake table. Real wake and
 unlock remain unchecked below; a synthetic distributed unlock notification was tested live after
 manually re-enabling id 1, and the reconciler took it again. Two-display geometry is tests only.
