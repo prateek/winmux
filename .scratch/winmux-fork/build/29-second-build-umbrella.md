@@ -17,7 +17,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 
 {{CHILDREN}}
 
-- **The release issue is first** so that each later issue reaches an installed build as it lands. It waits on a decision of Prateek's. Until he decides, the relay starts at the `close` bug.
+- **The release issue is first** so that each later issue reaches an installed build as it lands. The release runs on the build machine as the last step of landing; GitHub CI stays the gate.
 - **Then the two issues split from the architecture review that touch Lens code.** The Lens work rewrites the same files, so they go first, and the Tile is built on the session they produce.
 - **Then the Lens look**, in dependency order: the Tile, the grid, sections, the strip, the Search highlight and window controls, hints, peek, release behaviour and appearance, `'miniatures`, and last the shipped Lenses and the docs.
 - **The follow-ups are independent of the Lens work** and of each other, except where a draft names a dependency. They can be built at any point. The `close` bug is still the best first issue for a relay that has never run end to end in a guest.
@@ -25,7 +25,6 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 
 ## Blocked on Prateek
 
-- **The release issue**: where the job runs, and whether keys leave the build machine.
 - **Deferred features.** Designed in part during #1 and put off. None is specified, and no child issue builds toward them beyond what it states.
   - #47 Display profiles
   - #48 Tabs. The Tile draws an entry, not a window, so that a Tab can be an entry later.
@@ -47,7 +46,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - A child that says **Blocked on Prateek** is not buildable. The driver skips it and takes the next child whose dependencies are closed.
 - **Before the builder pass of the first-run screens issue**, the driver checks two things. That issue has the builder rebuild the golden image, while the relay's own guest for it is a clone of the old image and the builder runs on the host. So: the builder's environment has `TART_HOME` set, and renaming `winmux-golden` aside does not disturb the running clone. If either fails, that is a gap in the skill to fix and report.
 - A stopped guest named `demo-set` holds the desk as it was dressed by hand, with the first-run screens already clicked and AltTab installed for the prototype's captures. It is for looking at the set, and proves nothing about a fresh clone. Delete it once the first-run screens issue has landed.
-- No child issue runs `script/dogfood-release` by hand. After the release issue lands, landing is what releases.
+- Until the release issue lands, no child issue runs `script/dogfood-release`. After it, the driver's Land step does.
 
 ## How the children are written
 
