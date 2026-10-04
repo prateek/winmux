@@ -149,7 +149,6 @@ final class LensEffectLifetimeTest: XCTestCase {
             requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { .command })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         owner.complete(model("old", presentation: "miniatures"), ticket: owner.begin("old", toggle: false)!)
-        // Miniatures need a cell on the current page.
         owner.session?.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "Demo", source: CGRect(x: 0, y: 0, width: 1000, height: 700), current: true)]
         await base.advance()
         XCTAssertEqual(requests, [1])

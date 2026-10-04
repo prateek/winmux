@@ -103,7 +103,7 @@ final class LensLifecycle {
         return true
     }
 
-    func presented(_ model: LensSession) {
+    func presented(_ model: LensSession, restartEffects: Bool = false) {
         if case .opening(let opening) = state {
             guard opening.name == model.name else { return }
         } else { guard session === model else { return } }
@@ -113,8 +113,8 @@ final class LensLifecycle {
         state = .presented(model)
         if !wasPresented {
             emit(.lensEvent(opened: true, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter))
-            startPresentationEffects(model)
         }
+        if !wasPresented || restartEffects { startPresentationEffects(model) }
     }
 
     func send(_ event: LensSession.Event, from model: LensSession) {
@@ -130,9 +130,7 @@ final class LensLifecycle {
             case .presentationChanged:
                 guard oldPresentation != model.settings.presentation else { return }
                 cancelPresentationEffects()
-                presented(model)
-                // Presentation changes retain the event pair, but replace its effects.
-                startPresentationEffects(model)
+                presented(model, restartEffects: true)
             case .modifiersChanged(let flags):
                 if let key = model.stripReleaseKey(flags: flags) {
                     if let action = model.onAction { action(key) } else { dismiss() }
@@ -166,8 +164,10 @@ final class LensLifecycle {
     }
 
     private func cancelPresentationEffects() {
-        stripDisplay?.cancel(); stripDisplay = nil
-        thumbnailRefresh?.cancel(); thumbnailRefresh = nil
+        stripDisplay?.cancel()
+        stripDisplay = nil
+        thumbnailRefresh?.cancel()
+        thumbnailRefresh = nil
         if let token = thumbnailToken { dependencies.closeThumbnails(token) }
         thumbnailToken = nil
         inlineSearch.cancel()
@@ -200,22 +200,20 @@ final class LensLifecycle {
     }
 
     func dismiss() {
-        guard case .closed = state else {
-            let model = session
-            let wasPresented: Bool
-            if case .presented = state { wasPresented = true } else { wasPresented = false }
-            state = .closed
-            generation += 1
-            cancelPresentationEffects()
-            if let model {
-                model.setMiniatureLanding(nil)
-                remembered[model.name] = model.query
-                // Keep its weak owner so a late event cannot revive dismissed effects.
-                if wasPresented { emit(.lensEvent(opened: false, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter)) }
-            }
-            hide()
-            return
+        if case .closed = state { return }
+        let model = session
+        let wasPresented: Bool
+        if case .presented = state { wasPresented = true } else { wasPresented = false }
+        state = .closed
+        generation += 1
+        cancelPresentationEffects()
+        if let model {
+            model.setMiniatureLanding(nil)
+            remembered[model.name] = model.query
+            // Keep its weak owner so late events cannot revive dismissed effects.
+            if wasPresented { emit(.lensEvent(opened: false, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter)) }
         }
+        hide()
     }
 
     func search(for name: String, override: String?) -> String { override ?? remembered[name] ?? "" }
@@ -229,8 +227,10 @@ final class LensLifecycle {
 
     func cancelLanding() {
         landingRequest += 1
-        landingTask?.cancel(); landingTask = nil
-        landingColumnsTask?.cancel(); landingColumnsTask = nil
+        landingTask?.cancel()
+        landingTask = nil
+        landingColumnsTask?.cancel()
+        landingColumnsTask = nil
         landingDestination = nil
         landingColumns = nil
         landingKey = nil
@@ -287,7 +287,6 @@ final class LensLifecycle {
                     let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
                     guard !Task.isCancelled, request == self.landingRequest, self.session === model,
                           model.summonHeld, model.selectedId == id, focus.workspace === destination else { return }
-                    // A replaced Column state needs new records, under the same selection task.
                     guard destination.columns === columns else { continue }
                     let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
                     let placement = ColumnPlacement.resolve(decision, columns: columns,
