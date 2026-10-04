@@ -30,9 +30,11 @@ Done when they have accepted it or you have applied their changes.
 
 ## 3. Stage and film each take
 
-Stage only what the claim needs: two or three owned windows with distinct colours and readable labels, on a plain dark wallpaper, so "the blue window moved" is checkable at a glance. Use the build of the commit the pull request will merge.
+Film in a guest from the `vm` skill, on the build of the commit the pull request will merge.
 
-Film at 30 fps. Shape every take as **before, action, after**: hold the starting state for one second, perform the action, hold the result for two seconds. Write the take's event log beside it as you send each chord: `[{"t": <seconds from the start of the take>, "keys": "cmd tab"}]`.
+Stage the desk like a flat being shown: real apps doing plausible work, each different enough in look that "the terminal landed in Column 3" reads at a glance. The apps are real and every word on screen is ours. Jokes live in that content (a window title, a to-do list, a commit message) and never in what WinMux is shown doing. `stage.swift` puts up plain coloured windows for the claims that need many identical ones.
+
+Film at 30 fps. Park the pointer bottom-right. Shape every take as **before, action, after**: hold the starting state for one second, perform the action, hold the result for two seconds. Write the take's event log beside it as you send each chord: `[{"t": <seconds from the start of the take>, "keys": "cmd tab"}]`.
 
 Done when every demo in the storyboard has a take whose last frame shows the result its claim names, and an event log.
 
