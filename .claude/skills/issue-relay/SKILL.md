@@ -1,13 +1,13 @@
 ---
 name: issue-relay
-description: Run the issue relay on prateek/winmux, where Codex builds the next child issue of #1, an Opus driver reviews, fixes and merges it, then hands off to the next driver. Use when a handoff brief or Prateek says to run or continue the relay.
+description: Run the issue relay on prateek/winmux, where Codex builds the next child issue of the umbrella issue the brief names, an Opus driver reviews, fixes and merges it, then hands off to the next driver. Use when a handoff brief or Prateek says to run or continue the relay.
 ---
 
 # Issue relay
 
-You are the **driver**. Each driver lands exactly one child issue of [#1](https://github.com/prateek/winmux/issues/1), then passes the baton. Codex is the **builder**: it writes the code and the tests, checks its work in a live run, and films the demos. You judge, fix and land. `AGENTS.md` at the repo root is the landing process; this skill adds who does each step and when the relay stops.
+You are the **driver**. Each driver lands exactly one child issue of the **umbrella**, the issue on prateek/winmux that the brief names as the relay's umbrella, then passes the baton. Codex is the **builder**: it writes the code and the tests, checks its work in a live run, and films the demos. You judge, fix and land. `AGENTS.md` at the repo root is the landing process; this skill adds who does each step and when the relay stops.
 
-Run from the trunk checkout, the worktree on `fork`. The issue's worktree is removed when the issue lands, and the next driver starts beside you.
+Run from the worktree the brief started you in. Trunk is `fork/fork` after a `git fetch fork`: read it with `git show`, since another session may hold the worktree that has `fork` checked out. The issue's worktree is removed when the issue lands, and the next driver starts beside you.
 
 Every debug build runs in a **guest**, a Tart VM from the `vm` skill, named `relay-<issue number>`. The host's desktop is never part of a run.
 
@@ -17,13 +17,13 @@ Paths below: `$SKILL` is this skill's directory, `$VM` is `.claude/skills/vm/vm`
 
 Read the brief named in your prompt, `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, and the `vm` and `demo` skills end to end. Confirm the relay can finish: the installed `ho` skill (`~/.agents/plugins/plugins/utils-agent/skills/ho/SKILL.md`) must lack `disable-model-invocation`, or step 11 cannot run, and `tart list` must show `winmux-golden`.
 
-Done when you can name the issue the brief points to, or the brief points to none, `ho` is invocable, and the golden image exists.
+Done when you can name the umbrella, and the issue the brief points to or that it points to none, `ho` is invocable, and the golden image exists.
 
 ## 2. Pick the issue
 
-Take the brief's next issue. When it names none, take the open child of #1 whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining checks are Prateek's, as are releases. Read the issue and its draft in `.scratch/winmux-fork/build/`.
+Take the brief's next issue. When it names none, take the open child of the umbrella whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining checks are Prateek's, as are releases. Read the issue and its draft in `.scratch/winmux-fork/build/`.
 
-Done when you have one issue number and its draft. When no buildable child of #1 is open, the relay is over: stop and tell Prateek.
+Done when you have one issue number and its draft. When no buildable child of the umbrella is open, the relay is over: stop and tell Prateek.
 
 ## 3. Cut the worktree and bring up the guest
 
@@ -85,19 +85,20 @@ A question no issue settles does not stop the relay. Take the recommended answer
 
 ## 10. Land
 
-Do `AGENTS.md` step 8, and `$VM down relay-<issue number>`. An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by `#1`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Close the issue, then `git pull --ff-only` the trunk checkout.
+Do `AGENTS.md` step 8, and `$VM down relay-<issue number>`. An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Close the issue, then `git fetch fork`, and `git pull --ff-only` when your own worktree is on `fork`.
 
-Done when the issue is closed, its body matches its draft, the worktree, both branches and the guest are gone, and the trunk checkout is at the merge commit.
+Done when the issue is closed, its body matches its draft, the worktree, both branches and the guest are gone, and `fork/fork` is at the merge commit.
 
 ## 11. Hand off
 
-Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the next issue, what this issue left open, and anything Prateek should look at.
+Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left open, and anything Prateek should look at.
 
 ## Stops
 
 Stop the relay, leave everything where it is, and tell Prateek what is blocked and what you recommend, when:
 
-- No buildable child of #1 is open, or the brief names an issue that is closed or still blocked.
+- The brief names no umbrella.
+- No buildable child of the umbrella is open, or the brief names an issue that is closed or still blocked.
 - `ho` is not invocable.
 - The golden image is missing, or a fresh guest's preflight fails.
 - Something is still pending after the second builder pass and your own fixes.
