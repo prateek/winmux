@@ -12,7 +12,7 @@ final class LensLifecycleTest: XCTestCase {
     func testOpeningStripAccumulatesForwardAndReverseTriggerSteps() {
         for (flags, expected): (NSEvent.ModifierFlags, UInt32) in [(.command, 3), ([.command, .shift], 1)] {
             let store = testLensLifecycle()
-            let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
+            let gesture = StripGesture(keyCode: 48, invoking: .command)
             let ticket = store.begin("recent", toggle: true, strip: gesture)!
             XCTAssertFalse(store.cycleStrip(name: "other", keyCode: 48, flags: .command))
             XCTAssertFalse(store.cycleStrip(name: "recent", keyCode: 50, flags: .command))
@@ -36,7 +36,7 @@ final class LensLifecycleTest: XCTestCase {
     func testOpeningStripSortsKeysIntoStepsIgnoredKeysAndOtherBindings() {
         let store = testLensLifecycle()
         XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
-        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
         // Another binding on the invoking key is not a step.
         XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .option), .ignored)
         XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: [.command, .control]), .ignored)
@@ -51,7 +51,7 @@ final class LensLifecycleTest: XCTestCase {
 
     func testReleaseWhileOpeningSettlesTheSelectionAndIsHandedToTheSession() {
         let store = testLensLifecycle()
-        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
         store.openingFlagsChanged([.command, .shift])
         store.openingFlagsChanged([.option])
         store.openingFlagsChanged([])
@@ -63,7 +63,7 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertEqual(model.stripReleasedWhileOpening, [.option])
         XCTAssertEqual(model.stripReleaseKey(flags: [.option]), "alt-enter")
 
-        let held = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
+        let held = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
         store.openingFlagsChanged([.command, .option])
         let second = stripSession()
         XCTAssertTrue(store.complete(second, ticket: held))
@@ -72,7 +72,7 @@ final class LensLifecycleTest: XCTestCase {
 
     func testCancelledOpeningDoesNotTransferPendingSteps() {
         let store = testLensLifecycle()
-        let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
         let ticket = store.begin("recent", toggle: true, strip: gesture)!
         XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
         store.cancelOpening(ticket: ticket)

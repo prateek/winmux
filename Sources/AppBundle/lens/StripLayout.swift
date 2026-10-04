@@ -23,9 +23,26 @@ struct StripLayout {
 struct StripGesture {
     let keyCode: UInt16?
     let invoking: NSEvent.ModifierFlags
-    let openedAt: TimeInterval
+    private let elapsed: @Sendable () -> Duration
+    let waitForDisplay: @Sendable () async throws -> Void
+
+    init(keyCode: UInt16?, invoking: NSEvent.ModifierFlags, clock: any Clock<Duration> = ContinuousClock()) {
+        self.keyCode = keyCode
+        self.invoking = invoking
+        (elapsed, waitForDisplay) = Self.start(on: clock)
+    }
+
+    private static func start<C: Clock>(on clock: C) -> (@Sendable () -> Duration, @Sendable () async throws -> Void) where C.Duration == Duration {
+        let started = clock.now
+        return ({ started.duration(to: clock.now) }, { try await clock.sleep(until: started.advanced(by: .milliseconds(100)), tolerance: nil) })
+    }
+
+    var elapsedSeconds: Double {
+        let parts = elapsed().components
+        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+    }
+    var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
-    func shouldDisplay(now: TimeInterval) -> Bool { now >= openedAt + 0.1 }
     func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(committingModifiers).isEmpty }
     func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .control, .option]).subtracting(committingModifiers)

@@ -29,6 +29,7 @@ final class LensLifecycle {
             default: return nil
         }
     }
+    private let clock: any Clock<Duration>
     private let emit: (ServerEvent) -> Void
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
@@ -42,14 +43,26 @@ final class LensLifecycle {
     private var generation = 0
     private var remembered: [String: String] = [:]
 
-    init(dependencies: Dependencies, emit: @escaping (ServerEvent) -> Void,
+    init(clock: any Clock<Duration> = ContinuousClock(), dependencies: Dependencies, emit: @escaping (ServerEvent) -> Void,
          show: @escaping (LensSession) -> Void, hide: @escaping () -> Void) {
+        self.clock = clock
         self.dependencies = dependencies
         self.emit = emit
         self.show = show
         self.hide = hide
-        inlineSearch = LensInlineSearch(evaluate: dependencies.evaluate)
+        inlineSearch = LensInlineSearch(clock: clock, evaluate: dependencies.evaluate)
     }
+
+    enum Effect: Hashable { case search, landing, stripDisplay, thumbnails }
+    var ownedEffects: Set<Effect> {
+        var effects: Set<Effect> = []
+        if inlineSearch.current != nil { effects.insert(.search) }
+        if landingTask != nil { effects.insert(.landing) }
+        if stripDisplay != nil { effects.insert(.stripDisplay) }
+        if thumbnailRefresh != nil { effects.insert(.thumbnails) }
+        return effects
+    }
+    var searchTask: Task<Void, Never>? { inlineSearch.current }
 
     func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
         let previous: String?
@@ -70,21 +83,20 @@ final class LensLifecycle {
         }
         model.owner = self
         searchInput = (context, windows, ids)
-        state = .ready(model)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
-            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - gesture.openedAt)")
+            state = .ready(model)
+            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(gesture.elapsedSeconds)")
             let flags = opening.release ?? dependencies.flags()
             send(.modifiersChanged(flags), from: model)
             guard session === model else { return true }
             stripDisplay = Task { @MainActor [weak self, weak model] in
-                let remaining = max(0, 0.1 - (ProcessInfo.processInfo.systemUptime - gesture.openedAt))
-                do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
+                do { try await gesture.waitForDisplay() } catch { return }
                 guard let self, let model, ticket == self.generation, self.session === model, !Task.isCancelled else { return }
                 self.stripDisplay = nil
                 let flags = self.dependencies.flags()
                 self.send(.modifiersChanged(flags), from: model)
                 guard self.session === model else { return }
-                stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - gesture.openedAt) flags=\(flags.rawValue)")
+                stripDebugLog("strip draw elapsed=\(gesture.elapsedSeconds) flags=\(flags.rawValue)")
                 self.presented(model)
             }
         } else { presented(model) }
@@ -92,7 +104,9 @@ final class LensLifecycle {
     }
 
     func presented(_ model: LensSession) {
-        guard session === model else { return }
+        if case .opening(let opening) = state {
+            guard opening.name == model.name else { return }
+        } else { guard session === model else { return } }
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         show(model)
@@ -146,7 +160,7 @@ final class LensLifecycle {
             while let self, let model, !Task.isCancelled, ticket == self.generation, self.session === model, self.thumbnailToken == token {
                 if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
                 else { model.refreshVisibleThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
-                do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+                do { try await self.clock.sleep(for: .milliseconds(500)) } catch { return }
             }
         }
     }
