@@ -33,7 +33,7 @@ Done when `$WT` is on a fresh branch at `fork/fork` and the guest's preflight pa
 
 ## 4. Builder pass
 
-Fill [codex-brief.md](codex-brief.md)'s **First pass** into `$STATE/pass1.prompt.md`. Launch it in the background (`run_in_background`) through the shared ACPX view, and wait for the notification:
+Fill [codex-brief.md](codex-brief.md)'s **First pass** into `$STATE/pass1.prompt.md`. Its `<hours>` is the launch's `--timeout` in hours, four as written below; change both together. Launch it in the background (`run_in_background`) through the shared ACPX view, and wait for the notification:
 
 ```sh
 ~/.agents/plugins/plugins/utils-agent/skills/acpx/scripts/acpx-pane --log "$STATE/pass1.log" --label sol -- \
@@ -45,7 +45,7 @@ Done when the log ends on the builder's report, and `$WT` has its commits and `$
 
 ## 5. Verify and open the pull request
 
-Read the whole diff. Run `make check` yourself, on the host and in the guest (`$VM sync relay-<n> $WT`, then `$VM check relay-<n>`). Then follow `AGENTS.md` steps 3, 4 and 6: push, open the pull request as a draft from `$STATE/pr.md`, and wait for CI. The demos come in step 8.
+Read the whole diff. Read the builder's report against `$STATE/captures/`: each visible Done-when item it marks met has a capture that shows it. Run `make check` yourself, on the host and in the guest (`$VM sync relay-<n> $WT`, then `$VM check relay-<n>`). Then follow `AGENTS.md` steps 3, 4 and 6: push, open the pull request as a draft from `$STATE/pr.md`, and wait for CI. The demos come in step 8.
 
 Done when the draft pull request is open and `Build and test` has a result.
 
@@ -57,7 +57,7 @@ Done when every finding is fixed or declined with a reason, and CI is green on t
 
 ## 7. Second builder pass, at most one
 
-Something is **pending** when a Done-when item is unmet, a CI failure is the change's own, or a finding is too large to fix inline. With anything pending, fill **Follow-up pass** into `$STATE/pass2.prompt.md` with the list and a ruling on each item, launch it as in step 4 with `pass2` names, then repeat steps 5 and 6 on the new commits.
+Something is **pending** when a Done-when item is unmet, a visible one has no live-run evidence, a CI failure is the change's own, or a finding is too large to fix inline. With anything pending, fill **Follow-up pass** into `$STATE/pass2.prompt.md` with the list and a ruling on each item, launch it as in step 4 with `pass2` names, then repeat steps 5 and 6 on the new commits.
 
 Done when nothing is pending. Anything still pending after the second pass and your own fixes is a stop.
 
@@ -67,7 +67,11 @@ The demos are filmed once, from the commit that will merge, so they show the fix
 
 Write `$STATE/storyboard.md` yourself, as the `demo` skill's step 1 says: you have read the issue, the diff and the review, and the storyboard is where you decide what a reviewer needs to see. Then fill **Demo pass** into `$STATE/demo.prompt.md` and launch it as in step 4 with `demo` names.
 
-Check every demo the builder made as the `demo` skill's step 5 says, and each take's reported ending against its **Watch**. Attach the GIFs with `gh attach --repo prateek/winmux`, put the captions from `$STATE/demos.md` into the description, and `gh pr ready`.
+Check every demo the builder made as the `demo` skill's step 5 says, and each take's reported ending against its **Watch**. Attach the GIFs with `gh attach --repo prateek/winmux <pull request number> <files>` and put the captions from `$STATE/demos.md` into the description.
+
+- A demo that cannot be filmed stays in the Done-when table with its reason.
+- A take that misses its **Watch** because of the filming is filmed again: launch the demo pass once more, with the list.
+- A take that shows the change is wrong is a finding. Fix it as step 6 says, then film every demo again from the new head. If the second filming still shows it wrong, that is a stop.
 
 A change with nothing to see or operate skips the builder: the description says there is nothing to show.
 
@@ -75,7 +79,7 @@ Done when the description has the demos under their captions with the Done-when 
 
 ## 9. Merge
 
-The merge gate holds when `Build and test` is green on the head, every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
+The merge gate holds when `Build and test` is green on the head, every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
 
 A question no issue settles does not stop the relay. Take the recommended answer, and list it in the description under **Decisions the relay made** so Prateek can reverse it.
 
@@ -97,5 +101,6 @@ Stop the relay, leave everything where it is, and tell Prateek what is blocked a
 - `ho` is not invocable.
 - The golden image is missing, or a fresh guest's preflight fails.
 - Something is still pending after the second builder pass and your own fixes.
+- A demo still shows the change wrong after a fix and a second filming.
 - CI stays red: for a reason in the change after the second pass, or for a reason outside it after one re-run, such as the runner failing to resolve a registry.
 - An issue body was edited on GitHub and differs from its rendered draft.

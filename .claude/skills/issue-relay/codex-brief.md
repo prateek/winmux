@@ -16,12 +16,12 @@ Build it:
 
 1. Test first, at the seams the issue's **Done when** list names. Every behaviour change gets a test that fails without it.
 2. `make check` passes on the host and in the guest. The guest's Swift is the version CI pins, so a failure there is a failure in CI.
-3. Do a live run of anything a person can see or operate, CLI output included, in the guest `<guest>`: bring it up, sync `<WT>`, build, and run the debug build there, as the `vm` skill says. The live run is how you check your own work; the pull request's demos are filmed later, from the final commit. Save a recording or screenshot of each thing you checked in `<STATE>/captures/`, as evidence for the driver, and read back from WinMux what each run ended on.
+3. Do a live run of anything a person can see or operate, CLI output included, in the guest `<guest>`, which the driver has already brought up: sync `<WT>`, build, and run the debug build there, as the `vm` skill's steps 2 and 3 say. The live run is how you check your own work; the pull request's demos are filmed later, from the final commit. Save a recording or screenshot of each thing you checked in `<STATE>/captures/`, as evidence for the driver, and read back from WinMux what each run ended on.
    <what this issue's live run must cover, and what earlier issues left unverified that it makes reachable>
-   A permission prompt or a window you did not open in the guest is a defect in its image: stop the live run and report it.
+   A permission prompt or a window you did not open in the guest is a defect in its image: stop the live run and report it. When the live run ends, quit the debug build and close what you opened, so the next pass starts on a clean desktop.
    Releases are Prateek's: do not run `script/dogfood-release`, not even with `--dry-run`. A Done-when item that needs a release build, a second display, or a real sleep, wake or unlock is not checkable: leave it unticked in the draft, and record it as a check left for Prateek in the handoff's status line and in the pull request description.
 4. Update the issue's draft wherever the build departs from it, and the handoff wherever this issue changes what the next builder needs to know, including its status lines. Write both as they should read after this issue has landed: no transient status such as "awaiting the driver's push". Name other issues by title, not by number; the numbers of the others are easy to get wrong. Tick a Done-when item in the draft only when it is met. Change nothing in the draft's first three lines, and leave `{{UMBRELLA}}` as it is: the issue body is rendered from them.
-5. Commit on `<branch>` in commits a reviewer can follow. Leave pushing, the pull request and merging to the driver, and leave the guest running for the next pass.
+5. Commit on `<branch>` in commits a reviewer can follow. Leave pushing, the pull request and merging to the driver. Leave the guest up: the driver deletes it when the issue lands.
 6. Write `<STATE>/pr.md`, the pull request description, as `AGENTS.md` step 4 asks: what changes and why, where it departs from the issue, what was checked and what was not. Leave the demos to the demo pass. The repository is public: keep home paths, usernames and machine names out of the description.
 
 Finish with a report, written to `<STATE>/report.md` and repeated in your last message: each Done-when item marked met, unmet or not checkable, with its evidence; each default you changed and each "Decided:"; the commits; what the live run showed; and anything you were unsure of.
@@ -40,11 +40,11 @@ Update `<STATE>/pr.md` for what changed. Finish with a report, written to `<STAT
 
 ## Demo pass
 
-You are filming the demos for pull request #<pr> of prateek/winmux, issue #<number>, from the commit it will merge: `<sha>` on `<branch>` in `<WT>`. The code is finished and reviewed; change none of it.
+You are filming the demos for pull request #<pr> of prateek/winmux, issue #<number>, from the commit it will merge: `<sha>` on `<branch>` in `<WT>`. The code is finished and reviewed; change none of it. The pass has <hours> hours.
 
 Read `.claude/skills/demo/SKILL.md` and `.claude/skills/vm/SKILL.md` end to end. The storyboard is written and checked: `<STATE>/storyboard.md`. Film it, starting at the demo skill's step 3, in the guest `<guest>`, with `$OUT` as `<STATE>`.
 
-- Sync `<WT>` into the guest and build it before the first take, so the demos show `<sha>`.
+- The guest is already up. Sync `<WT>` into it and build it before the first take, so the demos show `<sha>`. Pull the takes out when you finish and leave the guest up: the driver deletes it.
 - Film every demo and still in the storyboard and collect every transcript. After each take, read back where WinMux ended and compare it with the storyboard's **Watch**.
 - A demo you cannot film is reported with its reason, not replaced by a different claim.
 - Render every demo, check every one as the skill's step 5 says, and write the captions into `<STATE>/demos.md`, in the storyboard's order with its headings and its Done-when table.

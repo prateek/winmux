@@ -98,7 +98,7 @@ cmd_sync() {
   # guest's copy gets a repository of its own: `make check` ends on a `git diff`.
   retry_auth rsync -a --delete --exclude .git --exclude .build --exclude target --exclude .deps \
     -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
-  guest "$vm" 'cd ~/winmux && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
+  guest "$vm" 'cd ~/winmux && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
 }
 
 cmd_build() {
@@ -132,6 +132,7 @@ cmd_push() {
 cmd_down() {
   local vm=${1:?usage: vm down <name>}
   [ "$vm" = "$golden" ] && die "refusing to delete the golden image"
+  exists "$vm" || return 0
   running "$vm" && tart stop "$vm"
   tart delete "$vm"
 }

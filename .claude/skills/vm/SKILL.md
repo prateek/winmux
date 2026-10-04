@@ -13,7 +13,7 @@ A debug WinMux re-tiles whatever desktop it runs on. The **guest** is that deskt
 $SKILL/vm up <name> [WxH]      # default 1280x720
 ```
 
-The name is yours; use the issue or the demo it is for. `up` clones the golden image, boots it with no window, sets the display, and runs the preflight.
+`TART_HOME` must be set, to a directory off the boot disk; `vm` refuses to run without it. The name is yours; use the issue or the demo it is for. `up` clones the golden image, boots it with no window, sets the display, and runs the preflight.
 
 Done when the preflight prints `ok` for unlocked, accessibility, screen recording and clean desktop, and Swift 6.2.4. A `FAIL` is a defect in the golden image: stop and report it. A missing golden image is built once with `$SKILL/vm build-image`, which takes about fifteen minutes.
 
