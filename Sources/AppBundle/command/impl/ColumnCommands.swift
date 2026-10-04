@@ -117,6 +117,6 @@ struct PlaceCommand: Command {
         guard ws.columns != nil else { return io.out(args.json ? "{\"column\":null,\"hook\":null}" : "Columns off; ordinary tree placement") }
         let decision = await ColumnPolicy.decision(window: window, workspace: ws)
         if args.json { return io.out(decision.json.prettyPrinted) }
-        return io.out("column \(decision.slot) (\(decision.target)), overflow \(decision.overflow), hook \(decision.hook ?? "built-in")" + (decision.failure.map { "; hook failed: \($0)" } ?? ""))
+        return io.out("column \(decision.slot) (\(decision.target)), overflow \(decision.overflow.rawValue), hook \(decision.hook ?? "built-in")" + (decision.failure.map { "; hook failed: \($0)" } ?? ""))
     }
 }

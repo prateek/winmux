@@ -166,30 +166,18 @@ extension LensSession {
                 } ?? []
                 let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
                 guard !Task.isCancelled, let self, self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
-                let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
-                let occupied = destination.rootTilingContainer.children.contains {
-                    $0.columnSlot == decision.slot && $0.allLeafWindowsRecursive.contains { $0 !== entry.window }
-                }
-                if occupied && decision.overflow == "float" {
-                    self.setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: workspace.source, to: rect))
+                guard destination.columns === columns else {
+                    // The cached records describe the Column state that was replaced.
+                    self.cancelLanding()
+                    self.updateMiniatureLanding()
                     return
                 }
-                var widths = columns.widths
-                var slot = decision.slot
-                if occupied && decision.overflow == "squeeze" {
-                    if widths.count == columns.count {
-                        let fraction = 1.0 / CGFloat(columns.count + 1)
-                        widths = widths.map { $0 * (1 - fraction) } + [fraction]
-                    }
-                    slot = widths.count
-                }
+                let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
+                let placement = ColumnPlacement.resolve(decision, columns: columns,
+                                                        children: destination.rootTilingContainer.children, incoming: entry.window)
                 let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
-                var frame = ColumnState.frame(slot: slot, widths: widths, in: rect, gap: gaps.inner.get(.h).toDouble())
-                if occupied && decision.overflow == "split" {
-                    let gap = gaps.inner.get(.v).toDouble() / 2
-                    frame.origin.y += frame.height / 2 + gap
-                    frame.size.height = frame.height / 2 - gap
-                }
+                let frame = miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
+                                                   verticalGap: gaps.inner.get(.v).toDouble(), floatingFrame: entry.frame, source: workspace.source)
                 self.setMiniatureLanding(frame)
             }
             return
@@ -235,4 +223,16 @@ func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem]
         let a = lhs.element.miniature?.floating == true, b = rhs.element.miniature?.floating == true
         return a == b ? lhs.offset > rhs.offset : !a
     }.map(\.element)
+}
+
+@MainActor
+func miniatureColumnLanding(_ placement: ResolvedColumnPlacement, in rect: CGRect, horizontalGap: CGFloat,
+                            verticalGap: CGFloat, floatingFrame: CGRect, source: CGRect) -> CGRect {
+    guard let range = placement.verticalRange else { return miniatureFloatingLanding(floatingFrame, from: source, to: rect) }
+    var frame = ColumnState.frame(slot: placement.slot, widths: placement.widths, in: rect, gap: horizontalGap)
+    let topGap = range.lowerBound > 0 ? verticalGap / 2 : 0
+    let bottomGap = range.upperBound < 1 ? verticalGap / 2 : 0
+    frame.origin.y += rect.height * range.lowerBound + topGap
+    frame.size.height = rect.height * (range.upperBound - range.lowerBound) - topGap - bottomGap
+    return frame
 }
