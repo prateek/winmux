@@ -86,7 +86,7 @@ def gradient(width: int, height: int) -> Image.Image:
 
 
 def layout(style: str, src_w: int, src_h: int) -> dict:
-    """Canvas geometry. 'claim' is a tight crop over a strip; 'card' floats the crop on a gradient."""
+    """Canvas geometry. 'card' floats the take on a gradient; 'claim' is the take over a plain strip."""
     if style == "claim":
         inner_w, strip = WIDTH, 44
         inner_h = round(inner_w * src_h / src_w / 2) * 2
@@ -146,7 +146,7 @@ def main() -> None:
     parser.add_argument("video", type=Path, help="the take: a 30 fps screen recording")
     parser.add_argument("-o", "--out", type=Path, required=True)
     parser.add_argument("--title", required=True, help="the title chip: the claim in a few words")
-    parser.add_argument("--style", choices=["claim", "card"], default="claim")
+    parser.add_argument("--style", choices=["card", "claim"], default="card")
     parser.add_argument("--crop", help="x:y:w:h in the take's pixels; default is the whole frame")
     parser.add_argument("--start", type=float, default=0.0)
     parser.add_argument("--end", type=float)

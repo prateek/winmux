@@ -32,9 +32,9 @@ Done when they have accepted it or you have applied their changes.
 
 Film in a guest from the `vm` skill, on the build of the commit the pull request will merge.
 
-Stage the desk like a flat being shown: real apps doing plausible work, each different enough in look that "the terminal landed in Column 3" reads at a glance. The apps are real and every word on screen is ours. Jokes live in that content (a window title, a to-do list, a commit message) and never in what WinMux is shown doing. `stage.swift` puts up plain coloured windows for the claims that need many identical ones.
+Stage the desk like a flat being shown: real apps doing plausible work, each different enough in look that "the terminal landed in Column 3" reads at a glance. The apps are real and every word on screen is ours. Jokes live in that content (a window title, a to-do list, a commit message) and never in what WinMux is shown doing. `desk/stage-desk.sh` dresses the standing set (Zed, Ghostty, Safari and Notes on two workspaces, with `desk/Updater` as the dialog that is not yours); push `desk/` into the guest with `vm push` and run it there. `stage.swift` puts up plain coloured windows for the claims that need many identical ones.
 
-Film at 30 fps. Park the pointer bottom-right. Shape every take as **before, action, after**: hold the starting state for one second, perform the action, hold the result for two seconds. Write the take's event log beside it as you send each chord: `[{"t": <seconds from the start of the take>, "keys": "cmd tab"}]`.
+Film on a 16:9 guest display, 1280 × 720, at 30 fps. Park the pointer at the right edge, mid-height. Shape every take as **before, action, after**: hold the starting state for one second, perform the action, hold the result for two seconds. Write the take's event log beside it as you send each chord: `[{"t": <seconds from the start of the take>, "keys": "cmd tab"}]`.
 
 Done when every demo in the storyboard has a take whose last frame shows the result its claim names, and an event log.
 
@@ -45,7 +45,7 @@ $SKILL/render <take> -o $OUT/demos/<id>.gif --title "<the claim in a few words>"
   --crop <x:y:w:h> --start <s> --end <s> --events <take>.events.json
 ```
 
-Crop to the region the claim is about. The hero takes `--style card`; every other demo keeps the default tight crop over a title strip. `render` refuses a demo over 8 seconds or 3 MB: a claim that needs longer is two claims, and one that needs more pixels wants a tighter crop.
+Every demo is a card: the take with rounded corners on a dark gradient, the claim above it and the keys below. Crop when the subject is small in the frame. `render` refuses a demo over 8 seconds or 3 MB: a claim that needs longer is two claims, and one that needs more pixels wants a tighter crop.
 
 Done when every demo renders inside the budget.
 

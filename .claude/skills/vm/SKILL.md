@@ -10,7 +10,7 @@ A debug WinMux re-tiles whatever desktop it runs on. The **guest** is that deskt
 ## 1. Bring a guest up
 
 ```sh
-$SKILL/vm up <name> [WxH]      # default 1680x720
+$SKILL/vm up <name> [WxH]      # default 1280x720
 ```
 
 The name is yours; use the issue or the demo it is for. `up` clones the golden image, boots it with no window, sets the display, and runs the preflight.
@@ -55,6 +55,6 @@ A second display, real sleep, wake and unlock, fast user switching, and a signed
 
 ## The golden image
 
-`vm build-image` builds `winmux-golden` from `ghcr.io/cirruslabs/macos-tahoe-xcode:26.3`, whose Xcode 26.3 carries Swift 6.2.4, the version CI pins. `guest/provision.sh` is the whole recipe: tools, the grants in `guest/grant.sh`, OpenScreen, and a bare desktop. Rebuild it when `.swift-version` changes or when the preflight starts failing in fresh clones.
+`vm build-image` builds `winmux-golden` from `ghcr.io/cirruslabs/macos-tahoe-xcode:26.3`, whose Xcode 26.3 carries Swift 6.2.4, the version CI pins. `guest/provision.sh` is the whole recipe: tools, the grants in `guest/grant.sh`, the set's apps, and a bare desktop. Rebuild it when `.swift-version` changes or when the preflight starts failing in fresh clones.
 
 A newer Cirrus image is a trap: Xcode 27 cannot build WinMux, even with the 6.2.4 toolchain installed over it.
