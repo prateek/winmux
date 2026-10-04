@@ -4,7 +4,7 @@ import AppKit
 final class Delegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     func applicationDidFinishLaunching(_: Notification) {
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 170), styleMask: [.titled], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 170), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "A dialog that is not yours"
         let view = NSView(frame: window.contentView!.bounds)
         let text = NSTextField(wrappingLabelWithString: "Something wants to update.\nIt always wants something.")
@@ -18,7 +18,8 @@ final class Delegate: NSObject, NSApplicationDelegate {
             view.addSubview(button)
         }
         window.contentView = view
-        window.center()
+        window.level = .floating
+        window.setFrameTopLeftPoint(NSPoint(x: 420, y: (NSScreen.main?.frame.height ?? 720) - 150))
         window.orderFront(nil)
     }
 }

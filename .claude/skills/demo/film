@@ -1,0 +1,13 @@
+#!/bin/bash
+# film <take> <seconds> <step>…   (in the guest) record a take while `keys` plays the steps.
+# Writes ~/takes/<take>.mov and ~/takes/<take>.events.json. The steps start 1.5 s in, so every
+# take opens on a held starting state.
+set -euo pipefail
+take=$1; seconds=$2; shift 2
+mkdir -p ~/takes; out=~/takes/$take.mov; rm -f "$out"
+screencapture -x -v -V "$seconds" "$out" &
+recorder=$!
+t0=$(python3 -c 'import time; print(time.time())')
+sleep 1.5
+~/desk/keys "$t0" ~/takes/"$take".events.json "$@"
+wait $recorder

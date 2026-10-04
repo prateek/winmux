@@ -7,11 +7,11 @@ One file per pull request. A heading per group, a block per demo, the table last
 
 ## Hero
 
-### strip-cycle (demo, card)
+### strip-cycle (demo)
 - **Claim:** Holding cmd and tapping tab cycles the strip; releasing cmd focuses the selection.
-- **Setup:** Four owned windows on one workspace: red, blue, green, yellow. Red is focused.
+- **Setup:** Ghostty and Zed on workspace 1, Safari and Notes on workspace 2. Zed is focused.
 - **Action:** hold cmd; tab; tab; release cmd.
-- **Watch:** The highlight steps blue, then green. On release the strip closes and green is focused.
+- **Watch:** The row opens on Ghostty and steps to Safari. On release workspace 2 is on screen with Safari focused.
 - **Crop:** the strip and the windows under it.
 
 ## Everyday use
@@ -36,6 +36,6 @@ Reaching a window on another workspace without leaving this one.
 ```
 
 - The id is the demo's file name: `demos/strip-cycle.gif`.
-- The kind in parentheses is `demo`, `still` or `transcript`; `card` marks the hero.
-- **Action** lists the chords and commands in order, as they will go into the take's event log.
+- The kind in parentheses is `demo`, `still` or `transcript`.
+- **Action** lists the chords and commands in order, as they will go to `film` as steps.
 - **Watch** names the last frame: what is on screen when the take ends.

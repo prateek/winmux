@@ -34,7 +34,15 @@ Film in a guest from the `vm` skill, on the build of the commit the pull request
 
 Stage the desk like a flat being shown: real apps doing plausible work, each different enough in look that "the terminal landed in Column 3" reads at a glance. The apps are real and every word on screen is ours. Jokes live in that content (a window title, a to-do list, a commit message) and never in what WinMux is shown doing. `desk/stage-desk.sh` dresses the standing set (Zed, Ghostty, Safari and Notes on two workspaces, with `desk/Updater` as the dialog that is not yours); push `desk/` into the guest with `vm push` and run it there. `stage.swift` puts up plain coloured windows for the claims that need many identical ones.
 
-Film on a 16:9 guest display, 1280 × 720, at 30 fps. Park the pointer at the right edge, mid-height. Shape every take as **before, action, after**: hold the starting state for one second, perform the action, hold the result for two seconds. Write the take's event log beside it as you send each chord: `[{"t": <seconds from the start of the take>, "keys": "cmd tab"}]`.
+Film on a 16:9 guest display, 1280 × 720. Push `keys.swift` and `film` into the guest beside the desk, compile `keys`, and film each take there:
+
+```sh
+~/desk/film <id> <seconds> down:cmd tap:tab wait:1.0 tap:tab wait:1.3 up:cmd
+```
+
+`film` records the screen while `keys` presses the steps, starting 1.5 seconds in and logging each chord's time to `<id>.events.json`, so every take opens on a held starting state and the key chips land where the keys did. Leave two seconds of recording after the last step for the result. Park the pointer in the bottom-right corner first.
+
+After each take, read back where WinMux ended (`winmux list-workspaces --focused`, `list-windows --focused`, `list-windows --all`) and compare it with the storyboard's **Watch**. A take can look right and be wrong: a window that slid behind another looks closed.
 
 Done when every demo in the storyboard has a take whose last frame shows the result its claim names, and an event log.
 
