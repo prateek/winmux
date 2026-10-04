@@ -9,7 +9,7 @@ You are the **driver**. Each driver lands exactly one child issue of the **umbre
 
 Run from the worktree the brief started you in. Trunk is `fork/fork` after a `git fetch fork`: read it with `git show`, since another session may hold the worktree that has `fork` checked out. The issue's worktree is removed when the issue lands, and the next driver starts beside you.
 
-Every debug build runs in a **guest**, a Tart VM from the `vm` skill, named `relay-<issue number>`. The host's desktop is never part of a run.
+Every debug build runs in a **guest**, a Tart VM from the `vm` skill, named `relay-<issue number>`. The host's desktop is never part of a run. A driver holds one guest: two relays can run side by side; a third waits.
 
 Paths below: `$SKILL` is this skill's directory, `$VM` is `.claude/skills/vm/vm`, `$WT` the issue worktree, and `$STATE` is `${XDG_STATE_HOME:-$HOME/.local/state}/issue-relay/<issue number>`, which holds the builder's prompts, logs, captures, storyboard, demos and description draft.
 
@@ -27,7 +27,7 @@ Done when you have one issue number and its draft. When no buildable child of th
 
 ## 3. Cut the worktree and bring up the guest
 
-`git fetch fork`, then `orca worktree create --repo id:b2cfff9e-e8d3-4db1-9795-83a57e421be8 --name <slug> --no-parent`, then `make helper` in it. Then `$VM up relay-<issue number>`.
+`git fetch fork`, then `orca worktree create --repo id:b2cfff9e-e8d3-4db1-9795-83a57e421be8 --name <slug> --no-parent`, then `make helper` in it. Then `$VM up relay-<issue number>`. Export `TART_HOME` in every shell and fill its value into every builder brief. If `up` refuses the two-guest limit or resource cap, say you are waiting and retry every few minutes until room is free; this is a wait, not a stop. A fresh guest failing preflight is still a stop.
 
 Done when `$WT` is on a fresh branch at `fork/fork` and the guest's preflight passes.
 
@@ -63,7 +63,7 @@ Done when nothing is pending. Anything still pending after the second pass and y
 
 ## 8. Demos
 
-The demos are filmed once, from the commit that will merge, so they show the fixes too.
+The demos are filmed once, from the commit that will merge, so they show the fixes too. Start at 3 cores and 5120 MB. If filming stutters, stop the guest and bring it up with `VM_CPU=4 VM_MEMORY=6144`; beside one default guest this is exactly the cap. Report the smoothness and size.
 
 Write `$STATE/storyboard.md` yourself, as the `demo` skill's step 1 says: you have read the issue, the diff and the review, and the storyboard is where you decide what a reviewer needs to see. Then fill **Demo pass** into `$STATE/demo.prompt.md` and launch it as in step 4 with `demo` names.
 
