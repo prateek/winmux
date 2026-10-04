@@ -155,14 +155,14 @@ func swapNodes(_ node1: TreeNode, _ node2: TreeNode) {
         let binding2 = node2.unbindFromParent()
         let binding1 = node1.unbindFromParent()
 
-        node2.bind(to: binding1.parent, adaptiveWeight: binding1.adaptiveWeight, index: binding1.index)
-        node1.bind(to: binding2.parent, adaptiveWeight: binding2.adaptiveWeight, index: binding2.index)
+        node2.bind(to: binding1)
+        node1.bind(to: binding2)
     } else {
         let binding1 = node1.unbindFromParent()
         let binding2 = node2.unbindFromParent()
 
-        node1.bind(to: binding2.parent, adaptiveWeight: binding2.adaptiveWeight, index: binding2.index)
-        node2.bind(to: binding1.parent, adaptiveWeight: binding1.adaptiveWeight, index: binding1.index)
+        node1.bind(to: binding2)
+        node2.bind(to: binding1)
     }
     node1.markAsMostRecentChild()
 }

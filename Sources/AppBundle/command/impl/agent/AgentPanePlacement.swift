@@ -16,7 +16,7 @@ func placeAgentPane(_ source: TreeNode, relation: AgentPaneRelationKind, target:
     _ = source.unbindFromParent()
     guard target.parent != nil else { return }
     let targetBinding = target.unbindFromParent()
-    let newParent = TilingContainer(parent: targetBinding.parent, adaptiveWeight: targetBinding.adaptiveWeight, relation.orientation, .tiles, index: targetBinding.index)
+    let newParent = TilingContainer(replacing: targetBinding, relation.orientation, .tiles)
     if relation.sourceIsAfterTarget {
         target.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
         source.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)

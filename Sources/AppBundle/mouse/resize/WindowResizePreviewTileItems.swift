@@ -13,6 +13,21 @@ func windowResizePreviewTileItems(
 ) -> [WindowResizePreviewItem] {
     guard !container.children.isEmpty else { return [] }
 
+    if container.isRootContainer, let columns = context.workspace.columns {
+        let widths = context.weightMap.columnWidths ?? columns.widths
+        let gap = CGFloat(context.resolvedGaps.inner.horizontal)
+        return container.children.flatMap { child -> [WindowResizePreviewItem] in
+            guard let slot = child.columnSlot, widths.indices.contains(slot - 1) else { return [] }
+            let offset = widths.prefix(slot - 1).reduce(0, +) * width
+            let columnWidth = widths[slot - 1] * width
+            let left = slot == 1 ? 0 : gap / 2
+            let right = slot == columns.slotCount ? 0 : gap / 2
+            return windowResizePreviewItems(node: child, point: point.addingXOffset(offset + left),
+                width: max(0, columnWidth - left - right), height: height,
+                virtual: Rect(topLeftX: virtual.minX + offset, topLeftY: virtual.minY, width: columnWidth, height: virtual.height),
+                context: context, activeWindowId: activeWindowId)
+        }
+    }
     var items: [WindowResizePreviewItem] = []
     var point = point
     var virtualPoint = virtual.topLeftCorner

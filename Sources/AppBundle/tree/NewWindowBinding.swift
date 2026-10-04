@@ -2,16 +2,6 @@ import AppKit
 import Common
 
 @MainActor
-func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: MacApp, _ workspace: Workspace, window: Window?) async throws -> BindingData {
-    let windowLevel = getWindowLevel(for: windowId)
-    return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel) {
-        case .popup: BindingData(parent: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .dialog: BindingData(parent: workspace, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .window: bindingDataForNewRegularWindow(workspace, window: window)
-    }
-}
-
-@MainActor
 func bindingDataForNewRegularWindow(_ workspace: Workspace, window: Window?) -> BindingData {
     guard config.automaticallyTileNewWindows else {
         window?.unbindFromParent()
@@ -23,6 +13,10 @@ func bindingDataForNewRegularWindow(_ workspace: Workspace, window: Window?) -> 
 @MainActor
 func bindingDataForNewTilingWindow(_ workspace: Workspace, window: Window?) -> BindingData {
     window?.unbindFromParent()
+    if workspace.columns != nil {
+        workspace.enforceColumnInvariant()
+        return workspace.columnBinding(slot: workspace.columnPlacementSlot())
+    }
     if let tabGroupBinding = autoAddNewWindowToFocusedTabGroupBinding(workspace) {
         return tabGroupBinding
     }

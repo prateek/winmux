@@ -18,8 +18,8 @@ let W = import "winmux/winmux.ncl" in
     everything = {},
   },
 } | W.Config)
-# `W.Config` does not know the Policy hooks yet, so the stand-in hook is merged in after it.
+# The hook is merged after Config to exercise runtime result validation too.
 & {
-  arrive = fun w ctx =>
+  arrive = fun w ctx cols =>
     if w.class == 'accessory-popup then { float = true } else { workspace = w.title, column = 2 },
 }

@@ -2,7 +2,14 @@
   "auto-add-new-windows-to-tab-group": true,
   "automatically-tile-new-windows": true,
   "automatically-unhide-macos-hidden-apps": false,
-  "config-version": 2,
+  "columns": {
+    "count": "off",
+    "width-presets": [
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666
+    ]
+  },
   "default-root-container-layout": "tiles",
   "default-root-container-orientation": "auto",
   "enable-normalization-flatten-containers": true,
@@ -25,6 +32,47 @@
     "preset": "qwerty"
   },
   "lenses": {
+    "app-windows": {
+      "accessory-window": "enlarged",
+      "enabled": true,
+      "entries": "window",
+      "filter": "lenses.app-windows.filter",
+      "frozen-thumbnail": "dimmed",
+      "keys": {
+        "alt-enter": "summon",
+        "cmd-1": "move-node-to-workspace 1",
+        "cmd-2": "move-node-to-workspace 2",
+        "cmd-3": "move-node-to-workspace 3",
+        "cmd-4": "move-node-to-workspace 4",
+        "cmd-5": "move-node-to-workspace 5",
+        "cmd-6": "move-node-to-workspace 6",
+        "cmd-7": "move-node-to-workspace 7",
+        "cmd-8": "move-node-to-workspace 8",
+        "cmd-9": "move-node-to-workspace 9",
+        "cmd-w": "close",
+        "enter": "focus",
+        "shift-enter": "summon"
+      },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
+      "popups": [],
+      "presentation": "strip",
+      "sections": "workspace",
+      "sort": [
+        "mru"
+      ],
+      "summon-hints": [
+        "label",
+        "landing-spot"
+      ]
+    },
     "floating": {
       "accessory-window": "enlarged",
       "enabled": true,
@@ -46,8 +94,97 @@
         "enter": "focus",
         "shift-enter": "summon"
       },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
       "popups": [],
       "presentation": "list",
+      "sections": "workspace",
+      "sort": [
+        "mru"
+      ],
+      "summon-hints": [
+        "label",
+        "landing-spot"
+      ]
+    },
+    "overview": {
+      "accessory-window": "enlarged",
+      "enabled": true,
+      "entries": "window",
+      "frozen-thumbnail": "dimmed",
+      "keys": {
+        "alt-enter": "summon",
+        "cmd-1": "move-node-to-workspace 1",
+        "cmd-2": "move-node-to-workspace 2",
+        "cmd-3": "move-node-to-workspace 3",
+        "cmd-4": "move-node-to-workspace 4",
+        "cmd-5": "move-node-to-workspace 5",
+        "cmd-6": "move-node-to-workspace 6",
+        "cmd-7": "move-node-to-workspace 7",
+        "cmd-8": "move-node-to-workspace 8",
+        "cmd-9": "move-node-to-workspace 9",
+        "cmd-w": "close",
+        "enter": "focus",
+        "shift-enter": "summon"
+      },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
+      "popups": [],
+      "presentation": "miniatures",
+      "sections": "workspace",
+      "sort": [
+        "mru"
+      ],
+      "summon-hints": [
+        "label",
+        "landing-spot"
+      ]
+    },
+    "recent": {
+      "accessory-window": "enlarged",
+      "enabled": true,
+      "entries": "window",
+      "frozen-thumbnail": "dimmed",
+      "keys": {
+        "alt-enter": "summon",
+        "cmd-1": "move-node-to-workspace 1",
+        "cmd-2": "move-node-to-workspace 2",
+        "cmd-3": "move-node-to-workspace 3",
+        "cmd-4": "move-node-to-workspace 4",
+        "cmd-5": "move-node-to-workspace 5",
+        "cmd-6": "move-node-to-workspace 6",
+        "cmd-7": "move-node-to-workspace 7",
+        "cmd-8": "move-node-to-workspace 8",
+        "cmd-9": "move-node-to-workspace 9",
+        "cmd-w": "close",
+        "enter": "focus",
+        "shift-enter": "summon"
+      },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
+      "popups": [],
+      "presentation": "strip",
       "sections": "workspace",
       "sort": [
         "mru"
@@ -77,6 +214,15 @@
         "enter": "focus",
         "shift-enter": "summon"
       },
+      "miniatures": {
+        "arrow-keys": "nearest",
+        "backdrop": {
+          "blur": true,
+          "darkness": 0.6
+        },
+        "current-workspace": "highlight",
+        "fit": "page"
+      },
       "popups": [],
       "presentation": "list",
       "sections": "workspace",
@@ -90,6 +236,27 @@
     }
   },
   "mode": {
+    "lens": {
+      "binding": {
+        "esc": "mode main",
+        "f": [
+          "mode main",
+          "lens floating"
+        ],
+        "o": [
+          "mode main",
+          "lens overview"
+        ],
+        "r": [
+          "mode main",
+          "lens recent --presentation list"
+        ],
+        "s": [
+          "mode main",
+          "lens search"
+        ]
+      }
+    },
     "main": {
       "binding": {
         "alt-0": "focus --tab-index 10",
@@ -132,6 +299,7 @@
         "alt-l": "focus right",
         "alt-n": "focus dfs-next",
         "alt-p": "focus dfs-prev",
+        "alt-semicolon": "mode lens",
         "alt-shift-1": "move-node-to-workspace 1",
         "alt-shift-2": "move-node-to-workspace 2",
         "alt-shift-3": "move-node-to-workspace 3",
@@ -148,8 +316,10 @@
         "alt-shift-m": "fullscreen",
         "alt-shift-t": "layout floating tiling",
         "alt-shift-tab": "focus tab-prev",
+        "alt-slash": "lens search",
         "alt-space": "layout horizontal vertical",
         "alt-tab": "focus tab-next",
+        "cmd-backtick": "lens app-windows",
         "cmd-ctrl-h": "workspace prev",
         "cmd-ctrl-l": "workspace next",
         "cmd-shift-h": "join-with left",
@@ -157,6 +327,8 @@
         "cmd-shift-j": "join-with down",
         "cmd-shift-k": "join-with up",
         "cmd-shift-l": "join-with right",
+        "cmd-shift-tab": "lens recent",
+        "cmd-tab": "lens recent",
         "ctrl-0": "workspace 10",
         "ctrl-1": "workspace 1",
         "ctrl-2": "workspace 2",

@@ -8,7 +8,6 @@ final class ConfigTest: XCTestCase {
     func testParseI3Config() {
         let toml =
             """
-            config-version = 2
             persistent-workspaces = []
             enable-normalization-flatten-containers = false
             enable-normalization-opposite-orientation-for-nested-containers = false
@@ -34,7 +33,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testReloadOnSaveIsOnUnlessTheConfigTurnsItOff() {
-        let (unset, unsetErrors) = parseConfig("config-version = 2")
+        let (unset, unsetErrors) = parseConfig("")
         let (off, offErrors) = parseConfig("reload-on-save = false")
         let (replaced, replacedErrors) = parseConfig("auto-reload-config = false")
 
@@ -76,7 +75,7 @@ final class ConfigTest: XCTestCase {
             config-version = 0
             """,
         )
-        assertEquals(errors.descriptions, ["config-version: Must be in [1, 2] range"])
+        assertEquals(errors.descriptions, ["config-version: Unknown top-level key"])
     }
 
     func testExecOnWorkspaceChangeDifferentTypesError() {
@@ -91,20 +90,19 @@ final class ConfigTest: XCTestCase {
     func testDuplicatedPersistentWorkspaces() {
         let (_, errors) = parseConfig(
             """
-            config-version = 2
             persistent-workspaces = ['a', 'a']
             """,
         )
         assertEquals(errors.descriptions, ["persistent-workspaces: Contains duplicated workspace names"])
     }
 
-    func testPersistentWorkspacesAreAvailableOnlySinceVersion2() {
+    func testPersistentWorkspacesNeedNoVersionGate() {
         let (_, errors) = parseConfig(
             """
             persistent-workspaces = ['a']
             """,
         )
-        assertEquals(errors.descriptions, ["persistent-workspaces: This config option is only available since \'config-version = 2\'"])
+        assertEquals(errors.descriptions, [])
     }
 
     func testQueryCantBeUsedInConfig() {
@@ -238,20 +236,6 @@ final class ConfigTest: XCTestCase {
         XCTAssertNotEqual(shortTap, longTap)
     }
 
-    func testWindowDetectedCallbackEqualityChecksCommandCount() {
-        let matcher = WindowDetectedCallbackMatcher(appId: "com.example.app")
-        let short = WindowDetectedCallback(
-            matcher: matcher,
-            rawRun: [FocusCommand.new(direction: .left)],
-        )
-        let long = WindowDetectedCallback(
-            matcher: matcher,
-            rawRun: [FocusCommand.new(direction: .left), FocusCommand.new(direction: .right)],
-        )
-
-        XCTAssertNotEqual(short, long)
-    }
-
     func testModesMustContainDefaultModeError() {
         let (config, errors) = parseConfig(
             """
@@ -322,7 +306,7 @@ final class ConfigTest: XCTestCase {
         XCTAssertTrue(TapModifierKey.leftAlt.isPressed(in: .option))
     }
 
-    func testPermanentWorkspaceNames() {
+    func testWorkspaceBindingsDoNotImplicitlyDeclarePersistentWorkspaces() {
         let (config, errors) = parseConfig(
             """
             [mode.main.binding]
@@ -333,7 +317,7 @@ final class ConfigTest: XCTestCase {
             """,
         )
         assertEquals(errors.descriptions, [])
-        assertEquals(config.persistentWorkspaces.sorted(), ["1", "2", "3", "4"])
+        assertEquals(config.persistentWorkspaces, [])
     }
 
     func testUnknownTopLevelKeyParseError() {

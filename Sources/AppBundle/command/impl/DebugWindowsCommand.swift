@@ -111,11 +111,8 @@ private func dumpWindowDebugInfo(_ window: Window, withFilterContext: Bool = fal
         result["WinMux.filterContext"] = Json(try await filterContextRecord().json)
     }
 
-    var matchingCallbacks: [Json] = []
-    for callback in config.onWindowDetected where try await callback.matches(window) {
-        matchingCallbacks.append(callback.debugJson)
-    }
-    result["WinMux.on-window-detected"] = .array(matchingCallbacks)
+    result["WinMux.arrive"] = .stringOrNull(config.arrive)
+    result["WinMux.columns.place"] = .stringOrNull(window.nodeWorkspace.flatMap { config.columns.hook("place", workspace: $0.name) })
 
     return JSONEncoder.winMuxDefault.encodeToString(result).prettyDescription
         .prefixLines(with: "\(window.app.rawAppBundleId ?? "nil-bundle-id").\(window.windowId) ||| ")

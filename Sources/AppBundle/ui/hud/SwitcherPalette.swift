@@ -16,22 +16,28 @@ struct SwitcherPaletteItem: Identifiable {
     var projectName: String = ""
     var lastFocusedSeq: Int = 0
     let isFocused: Bool
+    var miniature: MiniatureWindow? = nil
 }
 
 // MARK: - Panel
 
 @MainActor
 final class SwitcherPalettePanel: NSPanelHud {
-    static let shared = SwitcherPalettePanel()
+    static let shared = SwitcherPalettePanel(emit: broadcastEvent)
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
-    private let lifecycle = LensLifecycle()
+    private let lifecycle: LensLifecycle
+    private var stripDisplay: Task<Void, Never>?
+    private var thumbnailRefresh: Task<Void, Never>?
+    private var thumbnailSession = 0
+    private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
     private let inlineSearch = LensInlineSearch { body, context, windows in
         await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
     }
     var isPaletteActive: Bool { session != nil }
 
-    override private init() {
+    init(emit: @escaping (ServerEvent) -> Void) {
+        lifecycle = LensLifecycle(emit: emit)
         super.init()
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -46,17 +52,32 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int) async {
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
+        if settings.presentation == "miniatures" {
+            await withTaskGroup(of: Void.self) { group in
+                for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
+                    group.addTask { @MainActor @Sendable in
+                        if let rect = try? await entry.window.getAxRect() { entry.window.miniatureFrame = rect.cgRect }
+                    }
+                }
+            }
+        }
         let focusedId = focus.windowOrNil?.windowId
+        let onscreen = lensOnscreenWindows(presentation: settings.presentation) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
             SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
                 icon: (entry.window as? MacWindow)?.macApp.nsApp.icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
-                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId
+                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
+                miniature: miniatureEntry(entry, onscreen: onscreen)
             )
         }
-        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search))
+        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
+        model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
+        if settings.miniatures.currentWorkspace == "hide" {
+            model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))
+        }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
         let records = entries.map { $0.record.json }
@@ -66,26 +87,95 @@ final class SwitcherPalettePanel: NSPanelHud {
             self.inlineSearch.update(model, context: context, windows: records, ids: ids)
         }
         guard lifecycle.complete(model, ticket: ticket) else { return }
-        let monitorRect = focus.workspace.workspaceMonitor.visibleRect
-        // Center on the focused monitor, with the top edge at one quarter of its height;
-        // convert the top-left coordinates to AppKit's bottom-left origin.
-        setFrame(NSRect(
-            x: monitorRect.topLeftX + (monitorRect.width - switcherPaletteWidth) / 2,
-            y: appKitScreenMaxY() - monitorRect.topLeftY - monitorRect.height * 0.25 - switcherPaletteMaxHeight,
-            width: switcherPaletteWidth, height: switcherPaletteMaxHeight
-        ), display: true, animate: false)
-        hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
+        if settings.presentation == "strip", let invocation {
+            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)")
+            if model.stripGesture == nil { model.beginStrip(invocation) }
+            let flags = model.stripReleasedWhileOpening ?? NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+            if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
+            model.updateSummonModifiers(flags)
+            stripDisplay = Task { @MainActor [weak self, weak model] in
+                let remaining = max(0, 0.1 - (ProcessInfo.processInfo.systemUptime - invocation.openedAt))
+                try? await Task.sleep(for: .seconds(remaining))
+                guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
+                let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+                if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
+                stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
+                self.present(model)
+                self.orderFrontRegardless()
+                self.lifecycle.presented(model)
+                self.makeKey()
+                self.startThumbnailRefresh(model)
+            }
+            return
+        }
+        present(model)
         orderFrontRegardless()
+        lifecycle.presented(model)
         NSApp.activate(ignoringOtherApps: true)
         makeKey()
         DispatchQueue.main.async { [weak self] in
-            (self?.firstResponder as? NSTextView)?.selectAll(nil)
+            guard let self else { return }
+            if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
+            (self.firstResponder as? NSTextView)?.selectAll(nil)
         }
         model.onSearchChanged?()
+        if settings.presentation == "miniatures" { startThumbnailRefresh(model) }
     }
 
-    func beginLens(_ name: String, toggle: Bool) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle)
+    private func startThumbnailRefresh(_ model: LensSession) {
+        thumbnailSession += 1
+        let token = thumbnailSession
+        thumbnailRefresh = Task { @MainActor [weak model] in
+            await Task.yield()
+            while !Task.isCancelled, let model {
+                if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token) }
+                else { model.refreshVisibleThumbnails(lens: token) }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+
+    func cycleStrip(name: String, invocation: StripGesture) -> Bool {
+        guard let code = invocation.keyCode else { return false }
+        return lifecycle.cycleStrip(name: name, keyCode: code, flags: invocation.invoking)
+    }
+
+    func stripWindowClosed(_ id: UInt32) {
+        guard let session, session.settings.presentation == "strip" else { return }
+        session.removeStripItems([id])
+    }
+
+    func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
+        guard model.settings.presentation == "strip" else { return }
+        model.updateSummonModifiers(flags)
+        if let key = model.stripReleaseKey(flags: flags) { performAction(key) }
+    }
+
+    private func present(_ model: LensSession) {
+        scrollPaging = MiniatureScrollPaging()
+        let monitor = focus.workspace.workspaceMonitor
+        let visible = monitor.visibleRect
+        let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
+        let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
+        isOpaque = false
+        if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
+            model.miniatureSize = rect.size
+            model.revealMiniatureSelection()
+            setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: true)
+            hostingView.rootView = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
+        } else {
+            // Center on the focused monitor, with the top edge at one quarter of its height;
+            // convert the top-left coordinates to AppKit's bottom-left origin.
+            setFrame(NSRect(x: rect.minX + (rect.width - switcherPaletteWidth) / 2,
+                            y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - switcherPaletteMaxHeight,
+                            width: switcherPaletteWidth, height: switcherPaletteMaxHeight), display: true)
+            hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
+        }
+    }
+
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
         clearPresentation()
         return ticket
     }
@@ -98,25 +188,41 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func clearPresentation() {
+        stripDisplay?.cancel()
+        stripDisplay = nil
+        thumbnailRefresh?.cancel()
+        thumbnailRefresh = nil
+        ThumbnailCache.shared.closeLens(thumbnailSession)
         inlineSearch.cancel()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
     }
 
     func changePresentationToList() {
-        session?.changePresentation("list")
+        guard let session else { return }
+        stripDisplay?.cancel()
+        thumbnailRefresh?.cancel()
+        ThumbnailCache.shared.closeLens(thumbnailSession)
+        session.changePresentation("list")
+        present(session)
         orderFrontRegardless()
+        lifecycle.presented(session)
         makeKey()
     }
 
     private func performAction(_ key: String) {
-        guard let model = session, !model.commands(for: key).isEmpty else { return }
+        guard let model = session else { return }
         let commands = model.commands(for: key)
-        dismiss()
+        guard !commands.isEmpty else {
+            // A release always closes the strip, even when its binding runs nothing.
+            if model.settings.presentation == "strip", key.hasSuffix("enter") { dismiss() }
+            return
+        }
+        let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
+        if !keepStrip { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
-                // The Lens is already closed, so a failed action has nowhere on screen to report.
                 let io = CmdIo(stdin: .emptyStdin)
                 if try await !runLensAction(commands, session: model, io: io) {
                     lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
@@ -126,8 +232,38 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if session?.settings.presentation == "strip", handleStripKey(event) { return true }
         if session?.performKeyAction(event) == true { return true }
         return super.performKeyEquivalent(with: event)
+    }
+
+    private func handleStripKey(_ event: NSEvent) -> Bool {
+        guard let model = session, model.settings.presentation == "strip" else { return false }
+        switch model.stripInput(event) {
+            case .ignored: return false
+            case .consumed: return true
+            case .cancel: dismiss(); return true
+            case .list: changePresentationToList(); return true
+        }
+    }
+
+    func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String) -> Bool {
+        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers) {
+            if input == .consumed {
+                stripDebugLog("strip queued key uptime=\(ProcessInfo.processInfo.systemUptime) key=\(keyCode) modifiers=\(modifiers.rawValue)")
+                return true
+            }
+            // Not the strip's: drop the opening strip so its release cannot undo the binding that runs now.
+            dismiss()
+            return false
+        }
+        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                                          timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,
+                                          context: nil, characters: characters, charactersIgnoringModifiers: characters,
+                                          isARepeat: false, keyCode: keyCode) else { return false }
+        let handled = handleStripKey(event)
+        if !handled, session?.settings.presentation == "strip" { dismiss() }
+        return handled
     }
 
     // Intercept navigation keys before the field editor consumes them; other typing
@@ -135,9 +271,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged {
-            model.summonHeld = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.option)
+            model.updateSummonModifiers(event.modifierFlags)
         }
         if event.type == .keyDown {
+            if model.settings.presentation == "strip", handleStripKey(event) { return }
+            if model.settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][event.keyCode] {
+                model.moveMiniatureSelection(direction)
+                return
+            }
             switch event.keyCode {
                 case 53: dismiss(); return // esc
                 case 125: model.moveSelection(1); return // down arrow
@@ -146,6 +287,10 @@ final class SwitcherPalettePanel: NSPanelHud {
                 default: break
             }
             if model.performKeyAction(event) { return }
+        }
+        if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
+            if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
+            return
         }
         super.sendEvent(event)
     }
@@ -287,4 +432,38 @@ private struct SwitcherPaletteRow: View {
         }
         .contentShape(Rectangle())
     }
+}
+
+
+@MainActor
+func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace] {
+    let ordered = userFacingWorkspaces(orderedWorkspacesForPresentation(), focusedWorkspace: focus.workspace).map {
+        MiniatureWorkspace(name: $0.name, title: workspaceDisplayName($0.name), source: $0.workspaceMonitor.visibleRect.cgRect, current: $0 == focus.workspace)
+    }
+    let retained = entries.compactMap { entry -> MiniatureWorkspace? in
+        guard !entry.record.workspace.isEmpty else { return nil }
+        let workspace = Workspace.existing(byName: entry.record.workspace)
+        return MiniatureWorkspace(name: entry.record.workspace, title: workspaceDisplayName(entry.record.workspace),
+                                  source: (workspace?.workspaceMonitor ?? focus.workspace.workspaceMonitor).visibleRect.cgRect, current: false)
+    }
+    return appendingRetainedMiniatureWorkspaces(ordered, retained: retained)
+}
+
+@MainActor
+private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> MiniatureWindow {
+    let window = entry.window
+    let tray = window.parent is MacosMinimizedWindowsContainer || window.parent is MacosHiddenAppsWindowsContainer
+    let source = window.nodeWorkspace?.workspaceMonitor.visibleRect.cgRect ?? focus.workspace.workspaceMonitor.visibleRect.cgRect
+    let frame = window.isFloating ? (window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source) : (window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source)
+    let nativeFullscreen = window.parent is MacosFullscreenWindowsContainer
+    let frozen = miniatureIsFrozen(tray: tray, fullscreen: nativeFullscreen && !onscreen.contains(window.windowId),
+                                   workspaceVisible: nativeFullscreen ? onscreen.contains(window.windowId) : window.nodeWorkspace?.isVisible == true, parked: (window as? MacWindow)?.isHiddenInCorner == true)
+    return MiniatureWindow(workspace: entry.record.workspace, frame: frame, tray: tray, frozen: frozen,
+                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window)
+}
+
+@MainActor
+func lensSearchField(in view: NSView) -> NSTextField? {
+    if let field = view as? NSTextField, field.isEditable { return field }
+    return view.subviews.lazy.compactMap { lensSearchField(in: $0) }.first
 }

@@ -11,6 +11,7 @@ struct FrozenContainer: Codable, Sendable {
     let layout: Layout
     let orientation: Orientation
     let weight: CGFloat
+    let columnSlot: Int?
 
     @MainActor init(_ container: TilingContainer) {
         children = container.children.map {
@@ -28,12 +29,14 @@ struct FrozenContainer: Codable, Sendable {
         layout = container.layout
         orientation = container.orientation
         weight = getWeightOrNil(container) ?? 1
+        columnSlot = container.columnSlot
     }
 }
 
 struct FrozenWindow: Codable, Sendable {
     let id: UInt32
     let weight: CGFloat
+    let columnSlot: Int?
     let isFullscreen: Bool
     let noOuterGapsInFullscreen: Bool
     let layoutReason: LayoutReason
@@ -41,6 +44,7 @@ struct FrozenWindow: Codable, Sendable {
     @MainActor init(_ window: Window) {
         id = window.windowId
         weight = getWeightOrNil(window) ?? 1
+        columnSlot = window.columnSlot
         isFullscreen = window.isFullscreen
         noOuterGapsInFullscreen = window.noOuterGapsInFullscreen
         layoutReason = window.layoutReason
@@ -49,6 +53,7 @@ struct FrozenWindow: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id
         case weight
+        case columnSlot
         case isFullscreen
         case noOuterGapsInFullscreen
         case layoutReason
@@ -58,6 +63,7 @@ struct FrozenWindow: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UInt32.self, forKey: .id)
         weight = try container.decode(CGFloat.self, forKey: .weight)
+        columnSlot = try container.decodeIfPresent(Int.self, forKey: .columnSlot)
         isFullscreen = try container.decode(Bool.self, forKey: .isFullscreen)
         noOuterGapsInFullscreen = try container.decode(Bool.self, forKey: .noOuterGapsInFullscreen)
         layoutReason = try container.decodeIfPresent(LayoutReason.self, forKey: .layoutReason) ?? .standard

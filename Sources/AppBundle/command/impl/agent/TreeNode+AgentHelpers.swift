@@ -21,6 +21,7 @@ extension TreeNode {
             guard let parent = node.parent as? TilingContainer,
                   parent.layout == .tiles,
                   parent.orientation == orientation,
+                  !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil),
                   let anchor = node.directChild(in: parent)
             else { continue }
             return (parent, anchor)

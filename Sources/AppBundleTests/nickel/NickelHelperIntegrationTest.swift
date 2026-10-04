@@ -182,7 +182,7 @@ final class NickelHelperIntegrationTest: XCTestCase {
         var bits: Result<[Bool], NickelFailure> = .success([])
         let filterTime = await median { bits = await supervisor.filter(lens: "mail", context: context, windows: windows) }
         var hook: Result<JSONValue, NickelFailure> = .success(.null)
-        let hookTime = await median { hook = await supervisor.hook("arrive", args: [windows[0], context]) }
+        let hookTime = await median { hook = await supervisor.hook("arrive", args: [windows[0], context, .array([])]) }
 
         assertEquals(try bits.get().filter { $0 }.count, 10)
         assertEquals(hook, .success(.object(["workspace": .string("Inbox"), "column": .int(2)])))

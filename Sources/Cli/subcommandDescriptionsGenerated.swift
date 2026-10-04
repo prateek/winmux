@@ -2,6 +2,13 @@
 // TO REGENERATE THE FILE RUN generate.sh
 
 let subcommandDescriptions = [
+    ["  focus-column", "Focus a Column, including an empty one"],
+    ["  move-node-to-column", "Move a window into a Column"],
+    ["  column-width", "Step Width presets or set a fraction"],
+    ["  compact", "Pack occupied Columns toward Column 1"],
+    ["  list-columns", "Print Column positions, widths and window ids"],
+    ["  column-count", "Override the current workspace count until reload"],
+    ["  place", "Explain placement without moving a window"],
     ["  agent", "Query, validate, and apply agent-oriented window layout JSON"],
     ["  balance-sizes", "Balance sizes of all windows in the current workspace"],
     ["  close-all-windows-but-current", "On the focused workspace, close all windows but current"],
@@ -41,7 +48,7 @@ let subcommandDescriptions = [
     ["  resize", "Resize the focused window"],
     ["  split", "Split focused window"],
     ["  stack-with", "Put the focused window into the same tab group as the nearest window in the specified direction."],
-    ["  subscribe", "Subscribe to WinMux events and receive notifications via socket"],
+    ["  subscribe", "Subscribe to focus, mode, window, binding, config, Lens and Column events"],
     ["  summon-workspace", "Move the requested workspace to the focused monitor."],
     ["  swap", "Swaps the focused window with another window."],
     ["  trigger-binding", "Trigger WinMux binding as if it was pressed by user"],

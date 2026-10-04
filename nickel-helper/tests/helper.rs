@@ -89,7 +89,7 @@ fn load_returns_static_settings_without_functions_and_the_files_read() {
     assert_eq!(config["lenses"]["everything"]["presentation"], "list");
     assert_eq!(config["lenses"]["mail"]["sort"], json!(["mru"]));
     assert_eq!(config["lenses"]["mail"]["filter"], "lenses.mail.filter", "only the callable path leaves the helper");
-    assert!(config.get("arrive").is_none());
+    assert_eq!(config["arrive"], "arrive");
     let imports: Vec<&str> = reply["result"]["imports"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert!(imports.contains(&fixture("config.ncl").as_str()), "{imports:?}");
     assert!(imports.iter().any(|p| p.ends_with("nickel/winmux/winmux.ncl")), "{imports:?}");
@@ -278,11 +278,11 @@ fn hook_returns_its_result_as_json() {
 
     let tiled = request(
         &mut helper,
-        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [window("a", "tiled"), context()] }),
+        json!({ "id": 2, "op": "hook", "hook": "arrive", "args": [window("a", "tiled"), context(), []] }),
     );
     let popup = request(
         &mut helper,
-        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "accessory-popup"), context()] }),
+        json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "accessory-popup"), context(), []] }),
     );
 
     assert_eq!(tiled["result"], json!({ "workspace": "Inbox", "column": 2 }), "{}", tiled["error"]);
@@ -297,11 +297,11 @@ fn hook_requests_are_checked_against_the_hooks_arguments() {
     let too_few = request(&mut helper, json!({ "id": 3, "op": "hook", "hook": "arrive", "args": [window("a", "tiled")] }));
     let undefined = request(
         &mut helper,
-        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [window("a", "tiled"), context()] }),
+        json!({ "id": 4, "op": "hook", "hook": "columns.place", "args": [window("a", "tiled"), context(), []] }),
     );
 
     assert!(unknown["error"].as_str().unwrap().contains("no Policy hook named `depart`"));
-    assert!(too_few["error"].as_str().unwrap().contains("takes 2 arguments, got 1"));
+    assert!(too_few["error"].as_str().unwrap().contains("takes 3 arguments, got 1"));
     assert!(undefined["error"].as_str().unwrap().contains("does not define `columns.place`"));
 }
 
@@ -373,11 +373,9 @@ fn convert_writes_a_config_over_the_defaults_that_passes_check() {
     let config = &reply["result"]["config"];
     assert_eq!(config["start-at-login"], true);
     assert_eq!(config["gaps"]["inner"], json!({ "horizontal": 4, "vertical": 8 }), "unset settings come from the defaults");
-    assert_eq!(
-        config["mode"]["main"]["binding"],
-        json!({ "alt-h": "focus left", "cmd-1": ["workspace 1", "mode main"] }),
-        "the converted bindings replace the default ones, as they did in TOML"
-    );
+    assert_eq!(config["mode"]["main"]["binding"]["alt-h"], "focus left");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-1"], json!(["workspace 1", "mode main"]));
+    assert_eq!(config["mode"]["lens"]["binding"]["esc"], "mode main");
     assert_eq!(config["workspace-sidebar"]["project-labels"]["my project"], "Work %{x}");
 }
 
@@ -724,4 +722,325 @@ fn shipped_floating_lens_uses_the_named_overridable_filter() {
     assert_eq!(reply["ok"], true, "{reply}");
     let reply = request(&mut helper, json!({"op": "filter", "lens": "floating", "ctx": context(), "windows": windows}));
     assert_eq!(reply["result"], json!([false, true, false]), "the Lens must use the user's replacement of filters.floating: {reply}");
+}
+
+#[test]
+fn miniatures_contract_rejects_incompatible_settings_and_dark_backdrop() {
+    for body in [
+        "presentation = 'miniatures, sections = 'workspace",
+        "presentation = 'miniatures, entries = 'window",
+        "presentation = 'miniatures, sort = ['mru]",
+        "presentation = 'miniatures, miniatures.backdrop.darkness = 0.951",
+        "presentation = 'miniatures, miniatures.backdrop.darkness = -0.1",
+        "presentation = 'miniatures, miniatures.current-workspace = 'hide",
+        "presentation = 'miniatures, when.default.sort = ['title]",
+        "when.default = { presentation = 'miniatures, entries = 'app }",
+    ] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
+    }
+}
+
+#[test]
+fn overview_and_miniatures_profile_resolve_settings() {
+    let value = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in (import "winmux/defaults.ncl") | W.Config"#, &library()).unwrap();
+    assert_eq!(value["lenses"]["overview"]["presentation"], "miniatures");
+    assert_eq!(value["lenses"]["overview"]["miniatures"]["fit"], "page");
+    assert_eq!(value["lenses"]["overview"]["miniatures"]["backdrop"], json!({"darkness":0.6,"blur":true}));
+    let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo = { presentation = 'miniatures, summon-hints = ['label], miniatures.current-workspace = 'hide, when.default.miniatures.fit = 'shrink } } | W.Config"#;
+    let value = evaluate_to_json(source, &library()).unwrap();
+    assert_eq!(value["lenses"]["demo"]["when"]["default"]["miniatures"]["fit"], "shrink");
+}
+
+#[test]
+fn miniatures_profile_can_override_base_settings_without_merge_conflicts() {
+    let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo = { presentation = 'list, miniatures.current-workspace = 'highlight, when.default = { presentation = 'miniatures, miniatures.current-workspace = 'hide, summon-hints = ['label] } } } | W.Config"#;
+    assert!(evaluate_to_json(source, &library()).is_ok());
+    let source = r#"let W = import "winmux/winmux.ncl" in ((import "winmux/defaults.ncl") & { lenses.overview.presentation = 'list }) | W.Config"#;
+    let value = evaluate_to_json(source, &library()).unwrap();
+    assert_eq!(value["lenses"]["overview"]["presentation"], "list");
+}
+
+#[test]
+fn miniatures_rejections_include_actionable_message() {
+    for (body, message) in [
+        ("presentation = 'miniatures, sections = 'workspace", "miniatures rejects sections, entries and sort"),
+        ("presentation = 'miniatures, miniatures.current-workspace = 'hide", "current-workspace hide cannot show landing-spot"),
+    ] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let error = evaluate_to_json(&source, &library()).unwrap_err();
+        assert!(error.contains(message), "{error}");
+    }
+}
+
+#[test]
+fn strip_defaults_and_same_app_filter_handle_missing_focus() {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": null}));
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    let config = &reply["result"]["config"];
+    for name in ["recent", "app-windows"] {
+        assert_eq!(config["lenses"][name]["presentation"], "strip");
+        assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
+        assert_eq!(config["lenses"][name]["popups"], json!([]));
+    }
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-tab"], "lens recent");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-shift-tab"], "lens recent");
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-backtick"], "lens app-windows");
+    for (ctx, expected) in [(context(), json!([false, false])), (context_focused_on("demo"), json!([true, false]))] {
+        let filtered = request(&mut helper, json!({"id": 2, "op": "filter", "lens": "app-windows", "ctx": ctx, "windows": [window("demo", "tiled"), window("other", "floating")]}));
+        assert_eq!(filtered["ok"], true, "{}", filtered["error"]);
+        assert_eq!(filtered["result"], expected);
+    }
+}
+
+fn columns_load(body: &str) -> Value {
+    let dir = std::env::temp_dir().join(format!("winmux-columns-{}-{}", std::process::id(), std::thread::current().name().unwrap_or("test")));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("config.ncl");
+    std::fs::write(&file, format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ {body} }}) | W.Config")).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op":"load", "path":file}));
+    std::fs::remove_dir_all(dir).unwrap();
+    reply
+}
+
+#[test]
+fn columns_acceptance_defaults_profiles_and_normalization_warning() {
+    let reply = columns_load("columns = { count = 3, widths = [2, 3, 5], when.default.count = 3, when.travel.count = 7 }, workspace.Demo.columns = { count = 2, widths = [1, 1], when.default.widths = [1, 3] }");
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    assert_eq!(reply["result"]["config"]["columns"]["widths"], json!([0.2, 0.3, 0.5]));
+    let presets = reply["result"]["config"]["columns"]["width-presets"].as_array().unwrap();
+    assert!((presets[0].as_f64().unwrap() - 1.0/3.0).abs() < 1e-8);
+    assert_eq!(reply["result"]["warnings"].as_array().unwrap().len(), 3);
+}
+
+#[test]
+fn columns_reject_presets_at_all_other_paths_and_bad_resolved_lengths() {
+    for body in ["workspace.Demo.columns.width-presets = [1/2]", "columns.when.default.width-presets = [1/2]", "workspace.Demo.columns.when.default.width-presets = [1/2]"] {
+        let reply = columns_load(body);
+        assert_eq!(reply["ok"], false, "{body}");
+        assert!(reply["error"].as_str().unwrap().contains("width-presets"));
+    }
+    for body in ["columns = { count = 3, widths = [1, 1] }", "columns.count = 3, workspace.Demo.columns.widths = [1, 1]"] {
+        let reply = columns_load(body);
+        assert_eq!(reply["ok"], false, "{body}");
+        assert!(reply["error"].as_str().unwrap().contains("length"));
+    }
+    let reply = columns_load("columns = { count = 2, widths = [1, 1, 1], when.default.count = 3 }");
+    assert_eq!(reply["ok"], true, "length is checked after resolution: {}", reply["error"]);
+}
+
+#[test]
+fn columns_reject_invalid_numbers() {
+    for body in ["columns.count = 0", "columns.count = 1.5", "columns.widths = [0, 1]", "columns.width-presets = [1]", "columns.width-presets = []"] {
+        assert_eq!(columns_load(body)["ok"], false, "{body}");
+    }
+}
+
+#[test]
+fn columns_normalization_adds_no_keys_to_the_config() {
+    let reply = columns_load("workspace.Demo = {}");
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["result"]["config"]["workspace"]["Demo"], json!({}));
+}
+
+
+#[test]
+fn default_triggers_import_overrides_and_upstream_conversion() {
+    let mut helper = Helper::new(library());
+    let defaults = request(&mut helper, json!({"op": "load"}));
+    let config = &defaults["result"]["config"];
+    assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
+    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
+    assert_eq!(config["mode"]["lens"]["binding"], json!({
+        "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
+        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"], "esc": "mode main"
+    }));
+    assert_eq!(config["columns"]["count"], "off");
+    assert!(config.get("config-version").is_none());
+    assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search"]);
+    let imported = loaded_source("import-only", r#"(import "winmux/defaults.ncl") | (import "winmux/winmux.ncl").Config"#);
+    assert_eq!(imported, *config);
+    let changed = loaded_source("binding-override", r#"((import "winmux/defaults.ncl") & { mode.main.binding.alt-slash = "focus left" }) | (import "winmux/winmux.ncl").Config"#);
+    let mut expected = config.clone();
+    expected["mode"]["main"]["binding"]["alt-slash"] = json!("focus left");
+    assert_eq!(changed, expected);
+    let removed = loaded_source("binding-remove", r#"let d = import "winmux/defaults.ncl" in (d & { mode.main.binding | force = std.record.remove "alt-slash" d.mode.main.binding }) | (import "winmux/winmux.ncl").Config"#);
+    expected["mode"]["main"]["binding"].as_object_mut().unwrap().remove("alt-slash");
+    assert_eq!(removed, expected);
+
+    let converted = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
+    assert_eq!(converted.status.code(), Some(0));
+    let converted = loaded_source("converted-defaults", &String::from_utf8(converted.stdout).unwrap());
+    assert_eq!(converted, *config);
+    let upstream = evaluate_to_json(&format!("import {} as 'Toml", winmux_nickel::engine::nickel_string(&fixture("upstream-default-config.toml"))), &library()).unwrap();
+    for (key, command) in upstream["mode"]["main"]["binding"].as_object().unwrap() {
+        assert_eq!(config["mode"]["main"]["binding"][key], *command, "upstream chord {key}");
+    }
+    assert_eq!(run_helper(&["check", &library().join("winmux/defaults.ncl").to_string_lossy()]).status.code(), Some(0));
+}
+
+fn loaded_source(label: &str, source: &str) -> Value {
+    let file = std::env::temp_dir().join(format!("winmux-default-{label}-{}.ncl", std::process::id()));
+    std::fs::write(&file, source).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"op": "load", "path": file}));
+    std::fs::remove_file(file).unwrap();
+    assert_eq!(reply["ok"], true, "{}", reply["error"]);
+    reply["result"]["config"].clone()
+}
+
+#[test]
+fn config_version_is_accepted_and_converted_away() {
+    let source = r#"let W = import "winmux/winmux.ncl" in { config-version = 2 } | W.Config"#;
+    assert_eq!(loaded_source("old-version", source)["config-version"], 2);
+    let output = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
+    assert!(!String::from_utf8(output.stdout).unwrap().contains("config-version"));
+}
+
+#[test]
+fn conversion_infers_legacy_persistent_workspaces_in_source_order_with_warning() {
+    for version in ["", "config-version = 1\n"] {
+        let file = std::env::temp_dir().join(format!("winmux-infer-{}.toml", std::process::id()));
+        std::fs::write(
+            &file,
+            format!(
+                r#"{version}
+[mode.main.binding]
+z = ["workspace Z", "move-node-to-workspace --focus-follows-window B", "workspace Z"]
+a = "workspace A"
+[mode.other.binding]
+f = "move-node-to-workspace F"
+[workspace-to-monitor-force-assignment]
+Q = 1
+B = 1
+"#
+            ),
+        )
+        .unwrap();
+        let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+        assert_eq!(
+            loaded_source("inferred", &converted.nickel)["persistent-workspaces"],
+            json!(["Z", "B", "A", "F", "Q"])
+        );
+        assert!(
+            converted
+                .warnings
+                .iter()
+                .any(|w| w.contains("Inferred persistent-workspaces")
+                    && w.contains("Z")
+                    && w.contains("Q")),
+            "{:?}",
+            converted.warnings
+        );
+        for explicit in ["config-version = 2\n", "persistent-workspaces = []\n"] {
+            let input = std::fs::read_to_string(&file).unwrap();
+            std::fs::write(
+                &file,
+                format!("{explicit}{}", input.replace("config-version = 1\n", "")),
+            )
+            .unwrap();
+            let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+            assert!(converted.warnings.is_empty());
+            assert_eq!(
+                loaded_source("not-inferred", &converted.nickel)["persistent-workspaces"],
+                json!([])
+            );
+            std::fs::write(&file, input).unwrap();
+        }
+        std::fs::remove_file(file).unwrap();
+    }
+}
+
+#[test]
+fn conversion_keeps_only_fork_triggers_and_normalizes_aliases() {
+    let file = std::env::temp_dir().join(format!("winmux-modes-{}.toml", std::process::id()));
+    std::fs::write(
+        &file,
+        r#"config-version = 2
+[key-mapping.key-notation-to-key-code]
+mytab = "tab"
+[mode.main.binding]
+shift-alt-h = "move left"
+shift-cmd-mytab = "focus right"
+cmd-tab = "focus left"
+"#,
+    )
+    .unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    let config = loaded_source("only-fork", &converted.nickel);
+    let bindings = config["mode"]["main"]["binding"].as_object().unwrap();
+    assert!(!bindings.contains_key("alt-tab"));
+    assert!(!bindings.contains_key("alt-shift-h"));
+    assert!(!bindings.contains_key("cmd-shift-tab"));
+    assert_eq!(bindings["cmd-tab"], "focus left");
+    assert_eq!(bindings.len(), 6);
+    assert!(converted.nickel.contains("# Kept from defaults:"));
+    std::fs::write(&file, "config-version = 2").unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    assert_eq!(
+        loaded_source("no-modes", &converted.nickel)["mode"],
+        loaded_source("whole-defaults", "import \"winmux/defaults.ncl\"")["mode"]
+    );
+    std::fs::remove_file(file).unwrap();
+}
+
+
+#[test]
+fn conversion_deduplicates_remapped_defaults_and_rejects_duplicate_user_chords() {
+    let file = std::env::temp_dir().join(format!("winmux-aliases-{}.toml", std::process::id()));
+    std::fs::write(&file, r#"config-version = 2
+[key-mapping.key-notation-to-key-code]
+tab = "backtick"
+[mode.main.binding]
+"#).unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    let config = loaded_source("alias-defaults", &converted.nickel);
+    let bindings = config["mode"]["main"]["binding"].as_object().unwrap();
+    assert!(bindings.contains_key("cmd-tab"));
+    assert!(!bindings.contains_key("cmd-backtick"));
+    std::fs::write(&file, r#"[mode.main.binding]
+shift-alt-h = "move left"
+alt-shift-h = "move right"
+"#).unwrap();
+    assert!(winmux_nickel::convert::convert(&file, &library()).err().unwrap().contains("Binding redeclaration"));
+    std::fs::remove_file(file).unwrap();
+}
+
+fn converted_toml(label: &str, toml: &str) -> Result<winmux_nickel::convert::Converted, String> {
+    let file = std::env::temp_dir().join(format!("winmux-{label}-{}.toml", std::process::id()));
+    std::fs::write(&file, toml).unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library());
+    std::fs::remove_file(file).unwrap();
+    converted
+}
+
+#[test]
+fn conversion_infers_quoted_names_and_version_zero_and_stays_quiet_when_nothing_is_inferred() {
+    let quoted = converted_toml("quoted", "[mode.main.binding]\nm = \"workspace 'My Space'\"\nn = 'move-node-to-workspace \"Two Words\"'\n").unwrap();
+    assert_eq!(loaded_source("quoted", &quoted.nickel)["persistent-workspaces"], json!(["My Space", "Two Words"]));
+
+    let zero = converted_toml("zero", "config-version = 0\n[mode.main.binding]\na = \"workspace A\"\n").unwrap();
+    assert_eq!(loaded_source("zero", &zero.nickel)["persistent-workspaces"], json!(["A"]));
+
+    let nothing = converted_toml("nothing", "[gaps]\ninner.horizontal = 3\n").unwrap();
+    assert!(nothing.warnings.is_empty(), "{:?}", nothing.warnings);
+    assert!(!nothing.nickel.contains("persistent-workspaces"), "{}", nothing.nickel);
+}
+
+#[test]
+fn conversion_requires_a_main_mode_and_leaves_modes_open_to_later_merges() {
+    let error = converted_toml("no-main", "[mode.resize.binding]\nh = \"resize width -50\"\n").err().unwrap();
+    assert!(error.contains("Please specify 'main' mode"), "{error}");
+
+    let converted = converted_toml("merge", "config-version = 2\n[mode.main.binding]\nalt-h = \"focus left\"\n").unwrap();
+    assert!(!converted.nickel.contains("force"), "{}", converted.nickel);
+    let extended = converted.nickel.replace("}) | W.Config", "} & { mode.main.binding.alt-x = \"lens search\" }) | W.Config");
+    assert_ne!(extended, converted.nickel);
+    let bindings = loaded_source("merge", &extended)["mode"]["main"]["binding"].clone();
+    assert_eq!(bindings["alt-x"], json!("lens search"));
+    assert_eq!(bindings["alt-h"], json!("focus left"));
+    assert_eq!(bindings["cmd-tab"], json!("lens recent"));
+    assert!(bindings.get("alt-tab").is_none());
 }

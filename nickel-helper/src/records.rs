@@ -137,6 +137,8 @@ fn smoke_contexts() -> [FilterContext; 2] {
 pub enum HookArg {
     Window,
     FilterContext,
+    Columns,
+    Edge,
 }
 
 impl HookArg {
@@ -144,6 +146,8 @@ impl HookArg {
         Ok(match self {
             HookArg::Window => serde_json::from_value::<Window>(json)?.to_nickel(),
             HookArg::FilterContext => serde_json::from_value::<FilterContext>(json)?.to_nickel(),
+            HookArg::Columns => serde_json::from_value::<Vec<Column>>(json)?.to_nickel(),
+            HookArg::Edge => serde_json::from_value::<bool>(json)?.to_nickel(),
         })
     }
 
@@ -151,20 +155,21 @@ impl HookArg {
         match self {
             HookArg::Window => Window::synthetic().to_nickel(),
             HookArg::FilterContext => context.to_nickel(),
+            HookArg::Columns => vec![Column::synthetic()].to_nickel(),
+            HookArg::Edge => context.focused.0.is_some().to_nickel(),
         }
     }
 }
 
-/// Every Policy hook, by its path in the config, with the arguments WinMux passes it. "Column
-/// Policy hooks and Column commands" gives each hook its real arguments.
+/// Each Policy hook and the arguments WinMux passes it.
 pub const HOOKS: &[(&str, &[HookArg])] = &[
-    ("arrive", &[HookArg::Window, HookArg::FilterContext]),
-    ("columns.place", &[HookArg::Window, HookArg::FilterContext]),
-    ("columns.move-boundary", &[HookArg::Window, HookArg::FilterContext]),
+    ("arrive", &[HookArg::Window, HookArg::FilterContext, HookArg::Columns]),
+    ("columns.place", &[HookArg::Window, HookArg::FilterContext, HookArg::Columns]),
+    ("columns.move-boundary", &[HookArg::Window, HookArg::FilterContext, HookArg::Columns, HookArg::Edge]),
 ];
 
 pub fn hook_args(hook: &str) -> Option<&'static [HookArg]> {
-    HOOKS.iter().find(|(path, _)| *path == hook).map(|(_, args)| *args)
+    HOOKS.iter().find(|(path, _)| path.rsplit('.').next() == hook.rsplit('.').next()).map(|(_, args)| *args)
 }
 
 /// One pass of the smoke run: the arguments every Filter is called with.

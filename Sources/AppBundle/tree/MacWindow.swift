@@ -29,20 +29,19 @@ final class MacWindow: Window {
             return existing
         }
         let rect = try await macApp.getAxRect(windowId)
-        let data = try await unbindAndGetBindingDataForNewWindow(
-            windowId,
-            macApp,
-            isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
-                : focus.workspace,
-            window: nil,
-        )
+        let detectedWorkspace = isStartup
+            ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
+            : focus.workspace
+        let windowType = try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId))
+        let data = BindingData(parent: windowType == .popup ? macosPopupWindowsContainer : detectedWorkspace,
+                               adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.recordAuthoritativeActualRect(rect)
         allWindowsMap[windowId] = window
+        WindowScreenshot.invalidateWindowList()
         // A window that is gone can come back only while the closed-windows cache remembers it.
         Window.forgetLastFocusedSeqs(except: closedWindowsCacheWindowIds.union(allWindowsMap.keys))
 
@@ -50,8 +49,15 @@ final class MacWindow: Window {
         let didRestorePersistedFrozenWorld = try await restorePersistedFrozenWorldIfNeeded(newlyDetectedWindow: window)
         let didRestoreClosedWindowsCache = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window)
         if !didRestorePersistedFrozenWorld && !didRestoreClosedWindowsCache {
-            try await tryOnWindowDetected(window)
+            try await ColumnPolicy.arrive(window, on: detectedWorkspace,
+                floatingDefault: windowType == .dialog || !config.automaticallyTileNewWindows)
+            // A popup is announced when it is promoted to a window, as upstream announced it.
+            if windowType != .popup {
+                broadcastEvent(.windowDetected(windowId: window.windowId, workspace: window.nodeWorkspace?.name,
+                    appBundleId: window.app.rawAppBundleId, appName: window.app.name))
+            }
         }
+
         return window
     }
 
@@ -67,6 +73,10 @@ final class MacWindow: Window {
     //     return "Window(\(description))"
     // }
 
+    @MainActor override var nativeWindowType: AxUiElementWindowType {
+        get async throws { try await macApp.getAxUiElementWindowType(windowId, getWindowLevel(for: windowId)) }
+    }
+
     func isWindowHeuristic(_ windowLevel: MacOsWindowLevel?) async throws -> Bool { // todo cache
         try await macApp.isWindowHeuristic(windowId, windowLevel)
     }
@@ -79,7 +89,7 @@ final class MacWindow: Window {
         try await macApp.dumpWindowAxInfo(windowId: windowId)
     }
 
-    func setNativeFullscreen(_ value: Bool) {
+    override func setNativeFullscreen(_ value: Bool) {
         macApp.setNativeFullscreen(windowId, value)
     }
 
@@ -94,6 +104,9 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        SwitcherPalettePanel.shared.stripWindowClosed(windowId)
+        ThumbnailCache.shared.closeWindow(self)
+        WindowScreenshot.invalidateWindowList()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
         let parent = unbindFromParent().parent
         let deadWindowWorkspace = parent.nodeWorkspace
@@ -178,6 +191,8 @@ final class MacWindow: Window {
             guard let windowRect = try await getAxRect() else { return }
             // Check for isHiddenInCorner for the second time because of the suspension point above
             if !isHiddenInCorner {
+                miniatureFrame = windowRect.cgRect
+                ThumbnailCache.shared.request(self)
                 let topLeftCorner = windowRect.topLeftCorner
                 let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindow. Non idempotent
                 let absolutePoint = topLeftCorner - monitorRect.topLeftCorner

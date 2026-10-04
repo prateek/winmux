@@ -3,13 +3,14 @@
 #   let W = import "winmux/winmux.ncl" in
 #   ((import "winmux/defaults.ncl") & { gaps.inner.horizontal = 0 }) | W.Config
 #
-# Every value is marked `default`, so a config overrides one by setting the same field. A config
-# that does not import this file gets none of it.
+# Settings use default priority, so a config overrides them by setting the same field.
+# Overview uses priority -1 above the contract's fallback. A config that does not import this file
+# gets none of these settings.
 {
+  columns = { count | default = 'off, width-presets | default = [1/3, 1/2, 2/3] },
   auto-add-new-windows-to-tab-group | default = true,
   automatically-tile-new-windows | default = true,
   automatically-unhide-macos-hidden-apps | default = false,
-  config-version | default = 2,
   default-root-container-layout | default = "tiles",
   default-root-container-orientation | default = "auto",
   enable-normalization-flatten-containers | default = true,
@@ -89,8 +90,13 @@
         alt-shift-m | default = "fullscreen",
         alt-shift-t | default = "layout floating tiling",
         alt-shift-tab | default = "focus tab-prev",
+        alt-slash | default = "lens search",
+        alt-semicolon | default = "mode lens",
         alt-space | default = "layout horizontal vertical",
         alt-tab | default = "focus tab-next",
+        cmd-tab | default = "lens recent",
+        cmd-shift-tab | default = "lens recent",
+        cmd-backtick | default = "lens app-windows",
         cmd-ctrl-h | default = "workspace prev",
         cmd-ctrl-l | default = "workspace next",
         cmd-shift-h | default = "join-with left",
@@ -126,12 +132,24 @@
       },
     },
   },
+  mode.lens.binding = {
+    o | default = ["mode main", "lens overview"],
+    f | default = ["mode main", "lens floating"],
+    s | default = ["mode main", "lens search"],
+    r | default = ["mode main", "lens recent --presentation list"],
+    esc | default = "mode main",
+  },
   on-focused-monitor-changed | default = ["move-mouse monitor-lazy-center"],
   on-mode-changed | default = [],
   persistent-workspaces | default = [],
   reload-on-save | default = true,
   shortcuts-preset | default = "none",
   filters.floating | default = fun w ctx => w.class == 'floating,
+  filters.same-app | default = fun w ctx => ctx.focused != null && ctx.focused.app.bundleId == w.app.bundleId,
+  lenses.recent.presentation | priority -1 = 'strip,
+  lenses.app-windows.presentation | priority -1 = 'strip,
+  lenses.app-windows.filter | default = filters.same-app,
+  lenses.overview.presentation | priority -1 = 'miniatures,
   lenses.search = {},
   lenses.floating.filter | default = filters.floating,
   start-at-login | default = false,

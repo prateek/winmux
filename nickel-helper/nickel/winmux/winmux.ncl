@@ -59,6 +59,33 @@ let LensKeys = std.contract.Sequence [
     then 'Ok
     else 'Error { message = "Escape, Tab and arrow keys (including modifier variants) are reserved for Lens navigation" }),
 ] in
+let MiniatureFields = {
+  fit | Choice [| 'page, 'shrink |] | optional,
+  current-workspace | Choice [| 'plain, 'highlight, 'enlarge, 'hide |] | optional,
+  arrow-keys | Choice [| 'nearest, 'by-workspace |] | optional,
+  backdrop | {
+    darkness | std.contract.Sequence [Number, std.contract.from_predicate (fun n => n >= 0 && n <= 0.95)] | optional,
+    blur | Bool | optional,
+  } | optional,
+} in
+let Miniatures = MiniatureFields & {
+  fit | default = 'page,
+  current-workspace | default = 'highlight,
+  arrow-keys | default = 'nearest,
+  backdrop = { darkness | default = 0.6, blur | default = true },
+} in
+let MiniatureRules = std.contract.from_validator (fun lens =>
+  let presentation = std.record.get_or "presentation" 'list lens in
+  if presentation == 'miniatures || presentation == "miniatures" then
+    if std.array.any (fun field => std.record.has_field field lens) ["sections", "entries", "sort"] then
+      'Error { message = "miniatures rejects sections, entries and sort" }
+    else if (std.record.get_or "current-workspace" 'highlight (std.record.get_or "miniatures" {} lens)) == 'hide || (std.record.get_or "current-workspace" "highlight" (std.record.get_or "miniatures" {} lens)) == "hide" then
+      if std.array.any (fun hint => hint == 'landing-spot || hint == "landing-spot") (std.record.get_or "summon-hints" ['label, 'landing-spot] lens) then
+        'Error { message = "current-workspace hide cannot show landing-spot" }
+      else 'Ok
+    else 'Ok
+  else 'Ok
+) in
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
@@ -71,9 +98,10 @@ let LensFields = {
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
   summon-hints | Array (Choice [| 'label, 'landing-spot, 'target-workspace |]) | optional,
   enabled | Bool | optional,
+  miniatures | MiniatureFields | optional,
 } in
-let Lens = LensFields & {
-  presentation | default = 'list,
+let LensDefaults = LensFields & {
+  presentation | priority -2 = 'list,
   entries | default = 'window,
   sections | default = 'workspace,
   sort | default = ['mru],
@@ -97,7 +125,59 @@ let Lens = LensFields & {
   accessory-window | default = 'enlarged,
   summon-hints | default = ['label, 'landing-spot],
   enabled | default = true,
+  miniatures | Miniatures | default = {},
   when | { _ | LensFields } | optional,
+} in
+let Lens = std.contract.Sequence [
+  std.contract.from_validator (fun lens =>
+    let profiles = std.record.get_or "when" {} lens in
+    if std.array.all (fun name =>
+      let profile = std.record.get name profiles in
+      let base = if std.record.has_field "when" lens then std.record.remove "when" lens else lens in
+      let resolved = std.array.fold_left (fun acc field =>
+        let value = if field == "miniatures" then
+          std.array.fold_left (fun settings key => std.record.update key (std.record.get key profile.miniatures) settings)
+            (std.record.get_or "miniatures" {} acc) (std.record.fields profile.miniatures)
+        else std.record.get field profile in
+        std.record.update field value acc
+      ) base (std.record.fields profile) in
+      let checked = resolved | MiniatureRules in
+      std.is_record checked
+    ) (std.record.fields profiles) then 'Ok else 'Error { message = "invalid profile" }
+  ),
+  MiniatureRules,
+  LensDefaults,
+] in
+
+let PositiveFraction = std.contract.Sequence [Number, std.contract.from_predicate (fun n => n > 0)] in
+let ColumnTarget = std.contract.any_of [Choice [| 'focused, 'mru, 'nearest-empty, 'last |], std.contract.Sequence [Int, std.contract.from_predicate (fun n => n > 0)]] in
+let Overflow = Choice [| 'tab-group, 'split, 'float, 'squeeze |] in
+let PlaceResultContract = {
+  column | ColumnTarget,
+  overflow | Overflow,
+  run | Array String | optional,
+} in
+let ArriveResultContract = {
+  workspace | String | optional,
+  float | Bool | optional,
+  column | ColumnTarget | optional,
+  overflow | Overflow | optional,
+  run | Array String | optional,
+} in
+let MoveBoundaryResultContract = {
+  action | Choice [| 'join, 'swap, 'stop, 'wrap, 'next-workspace, 'next-monitor |],
+  overflow | Overflow | optional,
+  run | Array String | optional,
+} in
+let ColumnFields = {
+  count | std.contract.any_of [Choice [| 'off |], std.contract.Sequence [Int, std.contract.from_predicate (fun n => n > 0)]] | optional,
+  widths | Array PositiveFraction | optional,
+  place | Dyn -> Dyn -> Dyn -> PlaceResultContract | optional,
+  move-boundary | Dyn -> Dyn -> Dyn -> Bool -> MoveBoundaryResultContract | optional,
+} in
+let WorkspaceColumns = ColumnFields & { when | { _ | ColumnFields } | optional } in
+let Columns = WorkspaceColumns & {
+  width-presets | std.contract.Sequence [Array (std.contract.Sequence [Number, std.contract.from_predicate (fun n => n > 0 && n < 1)]), std.contract.from_predicate (fun xs => std.array.length xs > 0)] | optional,
 } in
 
 # The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
@@ -109,12 +189,19 @@ Contract
   # checking it again on each call makes a Filter several times slower. A Filter called with the
   # wrong arguments still fails, at the field it reads.
   Filter = Dyn -> Dyn -> Bool,
+  PlaceResult = PlaceResultContract,
+  ArriveResult = ArriveResultContract,
+  MoveBoundaryResult = MoveBoundaryResultContract,
 
   Config = {
-    config-version | Int | optional,
+    arrive | Dyn -> Dyn -> Dyn -> ArriveResultContract | optional,
+    columns | Columns | optional,
+    workspace | { _ | { columns | WorkspaceColumns | optional } } | optional,
     # The version of the Filter contract the config was written for. Accepted and ignored: at
     # version 1 no config can lag behind.
     contract-version | Int | optional,
+    # Accepted and ignored for files written by earlier TOML conversions.
+    config-version | Int | optional,
 
     start-at-login | Bool | optional,
     reload-on-save | Bool | optional,

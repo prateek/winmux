@@ -61,4 +61,8 @@ public enum ServerEventType: String, Codable, CaseIterable, Sendable {
     case modeChanged = "mode-changed"
     case windowDetected = "window-detected"
     case bindingTriggered = "binding-triggered"
+    case configReloaded = "config-reloaded"
+    case lensOpened = "lens-opened"
+    case lensClosed = "lens-closed"
+    case columnsChanged = "columns-changed"
 }

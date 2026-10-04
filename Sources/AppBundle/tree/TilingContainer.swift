@@ -14,6 +14,12 @@ final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider 
     }
 
     @MainActor
+    convenience init(replacing binding: BindingData, _ orientation: Orientation, _ layout: Layout) {
+        self.init(parent: binding.parent, adaptiveWeight: binding.adaptiveWeight, orientation, layout, index: binding.index)
+        columnSlot = binding.columnSlot
+    }
+
+    @MainActor
     static func newHTiles(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> TilingContainer {
         TilingContainer(parent: parent, adaptiveWeight: adaptiveWeight, .h, .tiles, index: index)
     }
@@ -46,7 +52,8 @@ extension TilingContainer {
     }
 
     func normalizeOppositeOrientationForNestedContainers() {
-        if orientation == (parent as? TilingContainer)?.orientation {
+        if orientation == (parent as? TilingContainer)?.orientation &&
+            !(columnSlot != nil && nodeWorkspace?.columns != nil) {
             _orientation = orientation.opposite
         }
         for child in children {

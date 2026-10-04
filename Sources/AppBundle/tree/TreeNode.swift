@@ -6,6 +6,9 @@ open class TreeNode: Equatable, WinMuxAny {
     var children: [TreeNode] { _children }
     fileprivate final weak var _parent: NonLeafTreeNodeObject? = nil
     final var parent: NonLeafTreeNodeObject? { _parent }
+    private(set) var bindingRevision: UInt64 = 0
+    var columnSlot: Int?
+    private weak var columnParent: NonLeafTreeNodeObject?
     private var adaptiveWeight: CGFloat
     private let _mruChildren: MruStack<TreeNode> = MruStack()
     // Usages:
@@ -67,6 +70,7 @@ open class TreeNode: Equatable, WinMuxAny {
     @discardableResult
     func bind(to newParent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) -> BindingData? {
         let result = unbindIfBound()
+        if columnSlot != nil, columnParent !== newParent { columnSlot = nil }
 
         if newParent === NilTreeNode.instance {
             return result
@@ -85,7 +89,9 @@ open class TreeNode: Equatable, WinMuxAny {
             self.adaptiveWeight = adaptiveWeight
         }
         newParent._children.insert(self, at: index != INDEX_BIND_LAST ? index : newParent._children.count)
+        bindingRevision &+= 1
         _parent = newParent
+        if columnSlot != nil { columnParent = newParent }
         unboundStacktrace = nil
         // todo consider disabling automatic mru propogation
         // 1. "floating windows" in FocusCommand break the MRU because of that :(
@@ -103,10 +109,40 @@ open class TreeNode: Equatable, WinMuxAny {
 
         let index = _parent._children.remove(element: self) ?? dieT("Can't find child in its parent")
         check(_parent._mruChildren.remove(self))
+        if columnSlot != nil { columnParent = _parent }
+        bindingRevision &+= 1
         self._parent = nil
         unboundStacktrace = getStringStacktrace()
 
-        return BindingData(parent: _parent, adaptiveWeight: adaptiveWeight, index: index)
+        return BindingData(parent: _parent, adaptiveWeight: adaptiveWeight, index: index, columnSlot: columnSlot)
+    }
+
+    @MainActor
+    @discardableResult
+    func bind(to binding: BindingData) -> BindingData? {
+        let previous = bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
+        columnSlot = binding.columnSlot
+        columnParent = binding.parent
+        return previous
+    }
+
+    func sortChildrenByColumnSlot() {
+        if zip(_children, _children.dropFirst()).allSatisfy({ $0.columnSlot.orDie() < $1.columnSlot.orDie() }) { return }
+        let ordered = _children.sorted { $0.columnSlot.orDie() < $1.columnSlot.orDie() }
+        if ordered != _children { _children = ordered }
+    }
+
+    @MainActor
+    func restoreChildMru(_ previous: [TreeNode]) {
+        var order: [TreeNode] = []
+        for node in previous {
+            if let child = node.parentsWithSelf.first(where: { $0.parent === self }), !order.contains(child) {
+                order.append(child)
+            }
+        }
+        order += childrenByMostRecentUse.filter { !order.contains($0) }
+        for child in children { _mruChildren.remove(child) }
+        for child in order.reversed() { _mruChildren.pushOrRaise(child) }
     }
 
     func markAsMostRecentChild() {
@@ -160,6 +196,7 @@ struct BindingData {
     let parent: NonLeafTreeNodeObject
     let adaptiveWeight: CGFloat
     let index: Int
+    var columnSlot: Int? = nil
 }
 
 final class NilTreeNode: TreeNode, NonLeafTreeNodeObject {

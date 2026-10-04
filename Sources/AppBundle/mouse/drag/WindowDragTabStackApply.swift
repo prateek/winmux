@@ -18,13 +18,7 @@ func createOrAppendWindowTabStack(sourceWindow: Window, onto targetWindow: Windo
 
     let targetBinding = targetWindow.unbindFromParent()
     let newOrientation = (targetBinding.parent as? TilingContainer)?.orientation.opposite ?? .h
-    let newParent = TilingContainer(
-        parent: targetBinding.parent,
-        adaptiveWeight: targetBinding.adaptiveWeight,
-        newOrientation,
-        .tabGroup,
-        index: targetBinding.index,
-    )
+    let newParent = TilingContainer(replacing: targetBinding, newOrientation, .tabGroup)
     sourceWindow.unbindFromParent()
     targetWindow.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: 0)
     sourceWindow.bind(to: newParent, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)

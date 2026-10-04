@@ -1,4 +1,11 @@
 public enum CmdKind: String, CaseIterable, Equatable, Sendable {
+    case focusColumn = "focus-column"
+    case moveNodeToColumn = "move-node-to-column"
+    case columnWidth = "column-width"
+    case compact = "compact"
+    case listColumns = "list-columns"
+    case columnCount = "column-count"
+    case place = "place"
     // Sorted
 
     case agent
@@ -55,6 +62,13 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
     var result: [String: any SubCommandParserProtocol] = [:]
     for kind in CmdKind.allCases {
         switch kind {
+            case .focusColumn: result[kind.rawValue] = SubCommandParser(FocusColumnCmdArgs.init)
+            case .moveNodeToColumn: result[kind.rawValue] = SubCommandParser(MoveNodeToColumnCmdArgs.init)
+            case .columnWidth: result[kind.rawValue] = SubCommandParser(ColumnWidthCmdArgs.init)
+            case .compact: result[kind.rawValue] = SubCommandParser(CompactCmdArgs.init)
+            case .listColumns: result[kind.rawValue] = SubCommandParser(ListColumnsCmdArgs.init)
+            case .columnCount: result[kind.rawValue] = SubCommandParser(ColumnCountCmdArgs.init)
+            case .place: result[kind.rawValue] = SubCommandParser(parsePlaceCmdArgs)
             case .agent:
                 result[kind.rawValue] = SubCommandParser(parseAgentCmdArgs)
             case .balanceSizes:

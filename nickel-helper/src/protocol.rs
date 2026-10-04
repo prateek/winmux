@@ -91,9 +91,8 @@ impl Helper {
                     .map(|(index, (ty, arg))| ty.to_nickel(arg).map_err(|e| format!("`{hook}` argument {index}: {e}")))
                     .collect::<Result<Vec<_>, _>>()?;
                 let engine = self.engine()?;
-                let path: Vec<&str> = hook.split('.').collect();
-                let function = engine.lookup(&path)?.ok_or_else(|| format!("the config does not define `{hook}`"))?;
-                let result = engine.call(&function, &args)?;
+                let function = engine.lookup_hook(&hook)?.ok_or_else(|| format!("the config does not define `{hook}`"))?;
+                let result = engine.call_hook(&function, &args, &hook)?;
                 Ok(to_json(&result).unwrap_or(Value::Null))
             }
         }
@@ -108,11 +107,19 @@ impl Helper {
 /// static settings, every file the config was read from, and the directory of the shipped library.
 pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diagnostic> {
     let source = path.map_or(Source::Defaults, Source::File);
-    let mut engine = Engine::load(source, library)?;
-    let config = engine.static_json()?;
+    let mut engine = Engine::load(source, library).map_err(|error| {
+        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
+    })?;
+    let mut config = engine.static_json().map_err(|error| {
+        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
+    })?;
+    if config.get("on-window-detected").is_some() {
+        return Err("on-window-detected was removed; rewrite it using arrive".to_owned());
+    }
+    let warnings = normalize_columns(&mut config)?;
     smoke_run(&mut engine)?;
     let imports: Vec<String> = engine.imports().iter().map(|p| p.to_string_lossy().into_owned()).collect();
-    Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy() })))
+    Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy(), "warnings": warnings })))
 }
 
 fn match_bits(
@@ -167,12 +174,60 @@ fn smoke_run(engine: &mut Engine) -> Result<(), Diagnostic> {
                 .map_err(|e| format!("smoke run of `{name}` failed:\n{e}"))?;
         }
     }
-    for (hook, types) in records::HOOKS {
-        let path: Vec<&str> = hook.split('.').collect();
-        let Some(function) = engine.lookup(&path)?.filter(|f| is_function(&f.value)) else { continue };
+    for hook in engine.hook_paths()? {
+        let types = records::hook_args(&hook).unwrap();
+        let Some(function) = engine.lookup_hook(&hook)?.filter(|f| is_function(&f.value)) else { continue };
         for args in records::hook_smoke_passes(types) {
-            engine.call(&function, &args).map_err(|e| format!("smoke run of `{hook}` failed:\n{e}"))?;
+            engine.call_hook(&function, &args, &hook).map_err(|e| format!("smoke run of `{hook}` failed:\n{e}"))?;
         }
     }
     Ok(())
+}
+
+fn normalize_columns(config: &mut Value) -> Result<Vec<String>, Diagnostic> {
+    // `value["key"]` on a `&mut Value` inserts a null for a missing key, so absent records are skipped.
+    fn normalize(record: Option<&mut Value>, path: &str, warnings: &mut Vec<String>) {
+        let Some(record) = record else { return };
+        if let Some(widths) = record.get_mut("widths").and_then(Value::as_array_mut) {
+            let total: f64 = widths.iter().filter_map(Value::as_f64).sum();
+            if total > 0.0 && (total - 1.0).abs() > 1e-8 {
+                warnings.push(format!("{path}.widths sum to {total}; normalized proportionally to 1"));
+                for width in widths { *width = json!(width.as_f64().unwrap() / total); }
+            }
+        }
+        if let Some(profiles) = record.get_mut("when").and_then(Value::as_object_mut) {
+            for (name, profile) in profiles { normalize(Some(profile), &format!("{path}.when.{name}"), warnings); }
+        }
+    }
+    fn overlay(base: &mut Value, value: &Value) {
+        for key in ["count", "widths"] {
+            if let Some(field) = value.get(key) { base[key] = field.clone(); }
+        }
+    }
+    fn validate(value: &Value, path: &str) -> Result<(), Diagnostic> {
+        if let Some(count) = value["count"].as_u64() {
+            if let Some(widths) = value["widths"].as_array() {
+                if widths.len() != count as usize {
+                    return Err(format!("{path}.columns.widths length {} differs from resolved count {count}", widths.len()));
+                }
+            }
+        }
+        Ok(())
+    }
+    let mut warnings = Vec::new();
+    normalize(config.get_mut("columns"), "columns", &mut warnings);
+    let mut base = json!({"count": "off"});
+    overlay(&mut base, &config["columns"]);
+    overlay(&mut base, &config["columns"]["when"]["default"]);
+    validate(&base, "default")?;
+    if let Some(workspaces) = config.get_mut("workspace").and_then(Value::as_object_mut) {
+        for (name, workspace) in workspaces {
+            normalize(workspace.get_mut("columns"), &format!("workspace.{name}.columns"), &mut warnings);
+            let mut resolved = base.clone();
+            overlay(&mut resolved, &workspace["columns"]);
+            overlay(&mut resolved, &workspace["columns"]["when"]["default"]);
+            validate(&resolved, &format!("workspace.{name}"))?;
+        }
+    }
+    Ok(warnings)
 }

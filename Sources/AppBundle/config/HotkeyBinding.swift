@@ -78,7 +78,10 @@ extension HotKey {
             Task { @MainActor in
                 if hotkeysSuspended { return }
                 noteTapBindingKeyDown()
-                triggerBinding(binding.descriptionWithKeyNotation, binding.commands)
+                let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers, openedAt: ProcessInfo.processInfo.systemUptime)
+                let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
+                if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text) { return }
+                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture)
             }
         })
     }
@@ -107,7 +110,7 @@ extension HotKey {
     }
 }
 
-@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command]) {
+@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil) {
     if hotkeysSuspended { return }
     Task {
         if let activeMode {
@@ -120,7 +123,7 @@ extension HotKey {
                 .checkServerIsEnabledOrDie(),
                 shouldSchedulePostRefresh: !commands.canSkipPostCommandRefresh
             ) { () throws in
-                _ = try await commands.runCmdSeq(.defaultEnv, .emptyStdin)
+                _ = try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
             }
         }
     }
@@ -174,6 +177,7 @@ extension HotKey {
 }
 
 @MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) {
+    SwitcherPalettePanel.shared.stripFlagsChanged(modifierFlags)
     if hotkeysSuspended { return }
     if activeTapBindings.isEmpty && pendingTapBindings.isEmpty && pendingTapTriggerTasks.isEmpty { return }
     guard let tapModifier = TapModifierKey(keyCode: keyCode) else { return }
@@ -231,7 +235,19 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
     let targetBindings = activeMode.flatMap { config.modes[$0] }?.bindings ?? [:]
     for (binding, key) in hotkeys {
         key.isEnabled = !hotkeysSuspended && targetBindings.keys.contains(binding)
+        if key.isEnabled && key.registrationError != 0 {
+            lensLog.error("Carbon registration failed for \(binding, privacy: .public): \(key.registrationError)")
+        }
     }
+    reconcileSystemSymbolicHotkeys()
+}
+
+@MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {
+    guard !hotkeysSuspended, let mode = activeMode.flatMap({ config.modes[$0] }) else { return [] }
+    return Set(hotkeys.compactMap { name, key in
+        guard mode.bindings[name] != nil, key.isEnabled, key.registrationError == 0 else { return nil }
+        return SymbolicHotkeyChord(keyCode: UInt16(key.keyCombo.carbonKeyCode), modifiers: UInt64(key.keyCombo.modifiers.rawValue))
+    })
 }
 
 @MainActor func tapBindingPressedModifiersForTests() -> Set<TapModifierKey> {

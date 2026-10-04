@@ -10,6 +10,7 @@ struct LensConfig: Equatable, Sendable {
     var frozenThumbnail = "dimmed"
     var accessoryWindow = "enlarged"
     var summonHints = ["label", "landing-spot"]
+    var miniatures = MiniaturesConfig()
     var enabled = true
     var keys: [String: [String]] = {
         var keys = ["enter": ["focus"], "shift-enter": ["summon"], "alt-enter": ["summon"], "cmd-w": ["close"]]
@@ -35,6 +36,7 @@ struct LensConfig: Equatable, Sendable {
         frozenThumbnail = value["frozen-thumbnail"]?.stringOrNil ?? frozenThumbnail
         accessoryWindow = value["accessory-window"]?.stringOrNil ?? accessoryWindow
         summonHints = value["summon-hints"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? summonHints
+        if let miniatureSettings = value["miniatures"] { miniatures.apply(miniatureSettings) }
         if case .bool(let enabled) = value["enabled"] { self.enabled = enabled }
         if case .object(let keys) = value["keys"] {
             for (key, command) in keys {
@@ -50,7 +52,35 @@ struct LensConfig: Equatable, Sendable {
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),
             "summon-hints": .array(summonHints.map(JSONValue.string)), "enabled": .bool(enabled),
+            "miniatures": miniatures.json,
             "keys": .object(keys.mapValues { $0.count == 1 ? .string($0[0]) : .array($0.map(JSONValue.string)) }),
         ])
+    }
+}
+
+
+struct MiniaturesConfig: Equatable, Sendable {
+    var fit = "page"
+    var currentWorkspace = "highlight"
+    var arrowKeys = "nearest"
+    var darkness = 0.6
+    var blur = true
+
+    mutating func apply(_ value: JSONValue) {
+        fit = value["fit"]?.stringOrNil ?? fit
+        currentWorkspace = value["current-workspace"]?.stringOrNil ?? currentWorkspace
+        arrowKeys = value["arrow-keys"]?.stringOrNil ?? arrowKeys
+        if let backdrop = value["backdrop"] {
+            switch backdrop["darkness"] {
+                case .double(let number): darkness = number
+                case .int(let number): darkness = Double(number)
+                default: break
+            }
+            if case .bool(let value) = backdrop["blur"] { blur = value }
+        }
+    }
+    var json: JSONValue {
+        .object(["fit": .string(fit), "current-workspace": .string(currentWorkspace), "arrow-keys": .string(arrowKeys),
+                 "backdrop": .object(["darkness": .double(darkness), "blur": .bool(blur)])])
     }
 }

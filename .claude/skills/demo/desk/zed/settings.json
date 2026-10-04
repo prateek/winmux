@@ -1,0 +1,9 @@
+{
+  "theme": "One Dark",
+  "buffer_font_size": 16,
+  "ui_font_size": 15,
+  "telemetry": { "diagnostics": false, "metrics": false },
+  "title_bar": { "show_sign_in": false, "show_onboarding_banner": false },
+  "auto_update": false,
+  "restore_on_startup": "none"
+}

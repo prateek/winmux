@@ -152,6 +152,8 @@ end tell
 
 ```
 
+Documentation: [Lenses](docs/lenses.md) and [Columns](docs/columns.md).
+
 ## Installation
 Install WinMux with Homebrew:
 

@@ -41,3 +41,32 @@ final class LensConfigTest: XCTestCase {
         XCTAssertEqual(parsed.config.lenses["demo"]?.keys["cmd-x"], ["close"])
     }
 }
+
+@MainActor
+final class MiniaturesConfigTest: XCTestCase {
+    func testProfileMergesPartialMiniatureSettingsAndIntrospectionUsesHyphens() throws {
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"presentation":"miniatures","miniatures":{"fit":"page","backdrop":{"darkness":0.8,"blur":false}},"when":{"default":{"miniatures":{"arrow-keys":"by-workspace","backdrop":{"darkness":0.4}}},"travel":{"miniatures":{"fit":"shrink"}}}}
+        """.utf8))
+        let settings = LensConfig(value)
+        XCTAssertEqual(settings.miniatures.fit, "page")
+        XCTAssertEqual(settings.miniatures.arrowKeys, "by-workspace")
+        XCTAssertEqual(settings.miniatures.darkness, 0.4)
+        XCTAssertFalse(settings.miniatures.blur)
+        XCTAssertEqual(settings.json["miniatures"]?["current-workspace"], .string("highlight"))
+        XCTAssertEqual(settings.json["miniatures"]?["arrow-keys"], .string("by-workspace"))
+        XCTAssertEqual(settings.json["frozen-thumbnail"], .string("dimmed"))
+        XCTAssertEqual(settings.json["accessory-window"], .string("enlarged"))
+    }
+
+    func testShippedOverviewParsesIntoResolvedMiniatureDefaults() throws {
+        let builtIn = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: defaultConfigUrl))
+        let parsed = parseConfig(builtIn)
+        XCTAssertTrue(parsed.errors.isEmpty)
+        let overview = try XCTUnwrap(parsed.config.lenses["overview"])
+        XCTAssertEqual(overview.presentation, "miniatures")
+        XCTAssertEqual(overview.miniatures, MiniaturesConfig())
+        XCTAssertEqual(overview.popups, [])
+        XCTAssertEqual(overview.summonHints, ["label", "landing-spot"])
+    }
+}

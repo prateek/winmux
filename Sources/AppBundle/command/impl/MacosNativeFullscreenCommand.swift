@@ -28,7 +28,7 @@ struct MacosNativeFullscreenCommand: Command {
             }
             return !args.failIfNoop
         }
-        window.asMacWindow().setNativeFullscreen(newState)
+        window.setNativeFullscreen(newState)
         guard let workspace = window.visualWorkspace else {
             return io.err(windowIsntPartOfTree(window))
         }

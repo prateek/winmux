@@ -1,3 +1,4 @@
+import AppKit
 import Common
 import Foundation
 import os
@@ -13,6 +14,8 @@ struct LensCommand: Command {
             panel.changePresentationToList()
             return true
         }
+        let live = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
+        let invocation = lensInvocation ?? StripGesture(keyCode: nil, invoking: live, openedAt: ProcessInfo.processInfo.systemUptime)
         let name = args.name ?? "<ad-hoc>"
         var settings: LensConfig
         if let configured = args.name {
@@ -30,7 +33,8 @@ struct LensCommand: Command {
             }
         }
         let panel = SwitcherPalettePanel.shared
-        guard let ticket = panel.beginLens(name, toggle: args.name != nil) else { return true }
+        if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation) { return true }
+        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil) else { return true }
         defer { panel.cancelLensOpening(ticket: ticket) }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
@@ -43,11 +47,11 @@ struct LensCommand: Command {
         let ids = Set(resolution.ids)
         let eligible = entries.filter { ids.contains($0.window.windowId) }
         let sorted = sortLensWindows(eligible, by: settings.sort, previousId: context.previous.map { UInt32($0.id) })
-        if settings.presentation != "list" {
+        if settings.presentation != "list" && settings.presentation != "miniatures" && settings.presentation != "strip" {
             lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }
-        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket)
+        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation, eventFilter: args.name == nil ? filter : nil)
         return true
     }
 }
