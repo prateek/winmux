@@ -1,0 +1,130 @@
+#!/bin/bash
+# vm: a Tart guest as WinMux's desktop. See SKILL.md.
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+golden=${VM_GOLDEN:-winmux-golden}
+base=${VM_BASE_IMAGE:-ghcr.io/cirruslabs/macos-tahoe-xcode:26.3}
+openscreen_version=${OPENSCREEN_VERSION:-2.0.0}
+# `admin`/`admin` is the Cirrus images' published login; the guest holds nothing of ours.
+ssh_opts=(-o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10)
+
+die() { echo "vm: $*" >&2; exit 1; }
+# sshpass now and then fails to answer the password prompt; ssh then exits 255 before running
+# anything, so trying again is safe.
+retry_auth() {
+  local status=0
+  for _ in 1 2 3; do
+    "$@" && return 0 || status=$?
+    [ "$status" -eq 255 ] || return "$status"
+    sleep 2
+  done
+  return "$status"
+}
+guest() { local vm=$1; shift; retry_auth sshpass -p admin ssh "${ssh_opts[@]}" "admin@$(tart ip "$vm")" "$@"; }
+exists() { tart list --format json | jq -e --arg n "$1" 'any(.[]; .Name == $n)' >/dev/null; }
+running() { tart list --format json | jq -e --arg n "$1" 'any(.[]; .Name == $n and .State == "running")' >/dev/null; }
+
+check_host() {
+  case "${TART_HOME:-}" in
+    "") die "TART_HOME is unset; guests must not land on the boot disk" ;;
+    /Users/*/Library/*|/System/*) die "TART_HOME is on the boot disk: $TART_HOME" ;;
+  esac
+  for tool in tart sshpass jq rsync; do command -v "$tool" >/dev/null || die "missing on the host: $tool"; done
+}
+
+boot() {
+  local vm=$1 log
+  log=$(mktemp -t "vm-$vm")
+  # softnet sometimes fails to create its vmnet network right after a stop: wait, and retry.
+  for _ in 1 2 3; do
+    sleep 10
+    nohup tart run --no-graphics --no-audio --no-clipboard "$vm" >"$log" 2>&1 &
+    disown
+    for _ in $(seq 1 40); do
+      if tart exec "$vm" true 2>/dev/null; then
+        for _ in $(seq 1 20); do guest "$vm" true 2>/dev/null && return 0; sleep 3; done
+      fi
+      grep -q RuntimeFailed "$log" && break
+      sleep 5
+    done
+  done
+  die "$vm did not boot; see $log"
+}
+
+# `tart stop` cuts the guest off before its preference writes reach the disk.
+shut_down() {
+  local vm=$1
+  guest "$vm" 'sync; sudo shutdown -h now' || true
+  for _ in $(seq 1 30); do running "$vm" || return 0; sleep 2; done
+  tart stop "$vm"
+}
+
+cmd_build_image() {
+  check_host
+  exists "$golden" && die "$golden exists; delete it first: tart delete $golden"
+  local build=$golden-build
+  exists "$build" && tart delete "$build"
+  tart clone "$base" "$build"
+  tart set "$build" --cpu 4 --memory 8192 --display 1680x720
+  boot "$build"
+  guest "$build" 'mkdir -p ~/vm ~/takes'
+  retry_auth sshpass -p admin scp "${ssh_opts[@]}" "$here"/guest/* "admin@$(tart ip "$build"):vm/"
+  guest "$build" "OPENSCREEN_VERSION=$openscreen_version bash ~/vm/provision.sh"
+  shut_down "$build"
+  tart rename "$build" "$golden"
+  echo "built $golden from $base"
+}
+
+cmd_up() {
+  check_host
+  local vm=${1:?usage: vm up <name> [WxH]} size=${2:-1680x720}
+  exists "$golden" || die "$golden is missing; run: vm build-image"
+  exists "$vm" || tart clone "$golden" "$vm"
+  running "$vm" && die "$vm is already running"
+  tart set "$vm" --cpu 4 --memory 8192 --display "$size"
+  boot "$vm"
+  # The image opens Terminal at login.
+  guest "$vm" "pkill -x Terminal; sleep 1; ~/vm/display ${size%x*} ${size#*x} 1"
+  cmd_preflight "$vm"
+}
+
+cmd_sync() {
+  local vm=${1:?usage: vm sync <name> <worktree>} worktree=${2:?usage: vm sync <name> <worktree>}
+  retry_auth rsync -a --delete --exclude .build --exclude target --exclude .deps \
+    -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
+}
+
+cmd_build() {
+  local vm=${1:?usage: vm build <name>}
+  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make helper && source ./script/setup.sh && swift build'
+}
+
+cmd_ssh() { local vm=${1:?usage: vm ssh <name> <command>}; shift; guest "$vm" "$@"; }
+
+cmd_preflight() {
+  local vm=${1:?usage: vm preflight <name>}
+  guest "$vm" '~/vm/preflight && swift --version 2>&1 | head -1'
+}
+
+cmd_pull() {
+  local vm=${1:?usage: vm pull <name> <guest-dir> <host-dir>} from=${2:?} to=${3:?}
+  mkdir -p "$to"
+  retry_auth rsync -a -e "sshpass -p admin ssh ${ssh_opts[*]}" "admin@$(tart ip "$vm"):$from/" "$to/"
+}
+
+cmd_down() {
+  local vm=${1:?usage: vm down <name>}
+  [ "$vm" = "$golden" ] && die "refusing to delete the golden image"
+  running "$vm" && tart stop "$vm"
+  tart delete "$vm"
+}
+
+verb=${1:-}; [ -n "$verb" ] || die "usage: vm <build-image|up|sync|build|ssh|preflight|pull|down> …"
+shift
+case "$verb" in
+  build-image) cmd_build_image "$@" ;;
+  up|sync|build|ssh|preflight|pull|down) "cmd_$verb" "$@" ;;
+  *) die "unknown verb: $verb" ;;
+esac
