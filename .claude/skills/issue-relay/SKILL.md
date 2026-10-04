@@ -21,7 +21,7 @@ Done when you can name the umbrella, and the issue the brief points to or that i
 
 ## 2. Pick the issue
 
-Take the brief's next issue. When it names none, take the open child of the umbrella whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining checks are Prateek's, as are releases. Read the issue and its draft in `.scratch/winmux-fork/build/`.
+Take the brief's next issue. When it names none, take the open child of the umbrella whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining installed-build and hardware checks are Prateek's. Read the issue and its draft in `.scratch/winmux-fork/build/`.
 
 Done when you have one issue number and its draft. When no buildable child of the umbrella is open, the relay is over: stop and tell Prateek.
 
@@ -79,19 +79,25 @@ Done when the description has the demos under their captions with the Done-when 
 
 ## 9. Merge
 
-The merge gate holds when `Build and test` is green on the head, every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
+The merge gate holds when `Build and test` is green on the head, the head contains the tip of `fork/fork` (`git merge-base --is-ancestor fork/fork HEAD` after a fetch; otherwise merge `fork/fork` in, push and wait for CI), every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
 
 A question no issue settles does not stop the relay. Take the recommended answer, and list it in the description under **Decisions the relay made** so Prateek can reverse it.
 
 ## 10. Land
 
-Do `AGENTS.md` step 8, and `$VM down relay-<issue number>`. An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Close the issue, then `git fetch fork`, and `git pull --ff-only` when your own worktree is on `fork`.
+An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Update the body and close the issue, then `git fetch fork`.
 
-Done when the issue is closed, its body matches its draft, the worktree, both branches and the guest are gone, and `fork/fork` is at the merge commit.
+Then cut the release as `AGENTS.md`'s Releases section says, after the squash merge and before removing the issue worktree: in the checkout that has `fork` checked out, or a temporary one, `git pull --ff-only` and then `script/dogfood-release --next`, **on the host**, with the full output saved to `$STATE/release.log`. Read the worktree list from `git worktree list --porcelain`, since a path can contain spaces. Remove a temporary release worktree after the run, including on failure.
+
+Record the outcome in the description's `Released as:` line: the version cut, or that it was skipped and why. A skip exits 0. A failed pull or release does not undo the merge or stop the relay: report the failure to Prateek with the script's output, record it in the description, and continue. The next land's release includes the change. Do not release from the driver's branch, and do not name a version by hand to get past a skip.
+
+Finish the rest of `AGENTS.md` step 8: retarget any stacked pull request after merging `fork` into it, remove the issue worktree and both branches, and `$VM down relay-<issue number>`.
+
+Done when the issue is closed, its body matches its draft, the release is recorded as cut, skipped or failed, the issue worktree, both branches, any temporary release worktree and the guest are gone, and `fork/fork` is at the merge commit.
 
 ## 11. Hand off
 
-Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left open, and anything Prateek should look at.
+Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left open, the release version cut (or that it was skipped or failed, with the reason), and anything Prateek should look at.
 
 ## Stops
 
