@@ -51,7 +51,7 @@ struct LensCommand: Command {
             lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }
-        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation)
+        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation, eventFilter: args.name == nil ? filter : nil)
         return true
     }
 }

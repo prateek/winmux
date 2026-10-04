@@ -40,7 +40,6 @@ struct Config: ConvenienceCopyable {
     var arrive: String? = nil
     var columns = ColumnsConfig()
     var lenses: [String: LensConfig] = [:]
-    var configVersion: Int = 1
     var afterLoginCommand: [any Command] = []
     var afterStartupCommand: [any Command] = []
     var _indentForNestedContainersWithTheSameOrientation: Void = ()

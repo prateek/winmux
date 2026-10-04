@@ -2,7 +2,7 @@
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
 Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent` and `app-windows`.
-The first three are unbound; cmd-tab and cmd-shift-tab open `recent`, and cmd-backtick opens `app-windows`. `palette` is an alias for
+Alt-slash opens `search`; alt-semicolon enters the `lens` binding mode for `overview`, `floating`, `search` and the list Presentation of `recent`. Cmd-tab and cmd-shift-tab open `recent`, and cmd-backtick opens `app-windows`. See [default Triggers](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
@@ -91,7 +91,7 @@ let W = import "winmux/winmux.ncl" in
 The shipped `floating` Lens uses `filters.floating` (`fun w ctx => w.class == 'floating`),
 with the list Presentation, MRU sort and empty `popups`. It finds floating windows on every
 workspace; Enter focuses one there and shift-enter Summons it to the current workspace.
-It adds no key binding. Both the named Filter and Lens settings can be overridden by a config.
+The `lens` binding mode reaches it with `f`. Both the named Filter and Lens settings can be overridden by a config.
 
 An app whose bundle declares `LSUIElement` floats by default, even when its live activation
 policy is regular. Filters read that stable identity as `w.app.accessory` and the live policy
@@ -244,9 +244,14 @@ Miniatures always uses workspace sections and window entries; its contract rejec
 
 Search dims non-matches at their fixed positions and selects the best match. Arrows navigate only
 matches; Tab marks and Enter/shift-enter keep the same Focus/Summon actions as the list. Only the
-selected window's title appears, under its workspace. The landing hint uses the current tree's
-append geometry until Column Policy hooks supply placement.
+selected window's title appears, under its workspace. The landing hint uses Column Policy's
+placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 `winmux lens floating --presentation miniatures` ignores that Lens's list grouping and sorting.
-`winmux lens --presentation list` keeps the open session's Search, marks and selection. Overview
-ships without a key binding.
+`winmux lens --presentation list` keeps the open session's Search, marks and selection. The `lens` binding mode reaches `overview` with `o`.
+
+## Leaving the `lens` mode
+
+The shipped leader bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, and `r` opens `recent --presentation list`. Escape runs only `mode main`. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
+
+Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List and miniatures panels appear immediately. See [subscription events](events.md).

@@ -5,6 +5,7 @@ import HotKey
 @MainActor
 final class LensSession: ObservableObject {
     let name: String
+    let eventFilter: String?
     private(set) var settings: LensConfig
     let items: [SwitcherPaletteItem]
     @Published var query: String {
@@ -53,8 +54,9 @@ final class LensSession: ObservableObject {
     var onSearchChanged: (() -> Void)?
     var onAction: ((String) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil) {
         self.name = name
+        self.eventFilter = eventFilter
         self.settings = settings
         self.items = items
         keyBindings = settings.keys.keys.sorted().compactMap { name in

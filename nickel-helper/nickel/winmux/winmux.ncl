@@ -197,10 +197,11 @@ Contract
     arrive | Dyn -> Dyn -> Dyn -> ArriveResultContract | optional,
     columns | Columns | optional,
     workspace | { _ | { columns | WorkspaceColumns | optional } } | optional,
-    config-version | Int | optional,
     # The version of the Filter contract the config was written for. Accepted and ignored: at
     # version 1 no config can lag behind.
     contract-version | Int | optional,
+    # Accepted and ignored for files written by earlier TOML conversions.
+    config-version | Int | optional,
 
     start-at-login | Bool | optional,
     reload-on-save | Bool | optional,

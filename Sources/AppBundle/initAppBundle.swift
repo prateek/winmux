@@ -13,7 +13,7 @@ import Foundation
             await toggleReleaseServerIfDebug(.off)
         }
         do {
-            bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded()
+            bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded(createStarter: false)
         } catch {
             MessageModel.shared.message = Message(
                 description: "Config Bootstrap Error",

@@ -10,7 +10,6 @@
       0.6666666666666666
     ]
   },
-  "config-version": 2,
   "default-root-container-layout": "tiles",
   "default-root-container-orientation": "auto",
   "enable-normalization-flatten-containers": true,
@@ -237,6 +236,27 @@
     }
   },
   "mode": {
+    "lens": {
+      "binding": {
+        "esc": "mode main",
+        "f": [
+          "mode main",
+          "lens floating"
+        ],
+        "o": [
+          "mode main",
+          "lens overview"
+        ],
+        "r": [
+          "mode main",
+          "lens recent --presentation list"
+        ],
+        "s": [
+          "mode main",
+          "lens search"
+        ]
+      }
+    },
     "main": {
       "binding": {
         "alt-0": "focus --tab-index 10",
@@ -279,6 +299,7 @@
         "alt-l": "focus right",
         "alt-n": "focus dfs-next",
         "alt-p": "focus dfs-prev",
+        "alt-semicolon": "mode lens",
         "alt-shift-1": "move-node-to-workspace 1",
         "alt-shift-2": "move-node-to-workspace 2",
         "alt-shift-3": "move-node-to-workspace 3",
@@ -295,6 +316,7 @@
         "alt-shift-m": "fullscreen",
         "alt-shift-t": "layout floating tiling",
         "alt-shift-tab": "focus tab-prev",
+        "alt-slash": "lens search",
         "alt-space": "layout horizontal vertical",
         "alt-tab": "focus tab-next",
         "cmd-backtick": "lens app-windows",

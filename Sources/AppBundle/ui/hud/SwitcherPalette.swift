@@ -23,9 +23,9 @@ struct SwitcherPaletteItem: Identifiable {
 
 @MainActor
 final class SwitcherPalettePanel: NSPanelHud {
-    static let shared = SwitcherPalettePanel()
+    static let shared = SwitcherPalettePanel(emit: broadcastEvent)
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
-    private let lifecycle = LensLifecycle()
+    private let lifecycle: LensLifecycle
     private var stripDisplay: Task<Void, Never>?
     private var thumbnailRefresh: Task<Void, Never>?
     private var thumbnailSession = 0
@@ -36,7 +36,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
     var isPaletteActive: Bool { session != nil }
 
-    override private init() {
+    init(emit: @escaping (ServerEvent) -> Void) {
+        lifecycle = LensLifecycle(emit: emit)
         super.init()
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -51,7 +52,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil) async {
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
         if settings.presentation == "miniatures" {
             await withTaskGroup(of: Void.self) { group in
                 for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
@@ -72,7 +73,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 miniature: miniatureEntry(entry, onscreen: onscreen)
             )
         }
-        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search))
+        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
         model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
         if settings.miniatures.currentWorkspace == "hide" {
             model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))
@@ -101,6 +102,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
                 self.present(model)
                 self.orderFrontRegardless()
+                self.lifecycle.presented(model)
                 self.makeKey()
                 self.startThumbnailRefresh(model)
             }
@@ -108,6 +110,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         present(model)
         orderFrontRegardless()
+        lifecycle.presented(model)
         NSApp.activate(ignoringOtherApps: true)
         makeKey()
         DispatchQueue.main.async { [weak self] in
@@ -203,6 +206,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         session.changePresentation("list")
         present(session)
         orderFrontRegardless()
+        lifecycle.presented(session)
         makeKey()
     }
 
