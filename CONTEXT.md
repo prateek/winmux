@@ -24,6 +24,10 @@ _Avoid_: environment, state
 How a Lens lays out its matches: **grid** (every match at once, as thumbnails packed into sections), **miniatures** (every workspace drawn as a small copy of itself, with each window where it actually sits) **strip** (a single row cycled while a modifier is held) or **list** (a Search box above ranked rows of windows).
 _Avoid_: view, mode, style
 
+**Tile**:
+The drawing of one Lens entry: its picture, icon, title and badges. Every **Presentation** lays out Tiles and draws nothing of its own inside them, so a change to the Tile shows in all of them.
+_Avoid_: cell, card, thumbnail, row
+
 **Search**:
 The text typed into an open Lens. It narrows the Lens's matches and ranks them by how well they match; the Filter decides which windows are eligible, and the Search picks among them.
 _Avoid_: query, filter text
