@@ -251,14 +251,27 @@ final class ColumnPlacementTest: XCTestCase {
             if change == "destination" { XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace()) }
             else { workspace.columns = ColumnState(count: 2) }
             let stale = owner.landingTask
+            let freshRead = LensEffectSignal()
+            var finishFreshRead: CheckedContinuation<Void, Never>?
+            if change == "columns" {
+                window.beforeAxRecord = {
+                    window.beforeAxRecord = nil
+                    await withCheckedContinuation { finishFreshRead = $0; freshRead.send() }
+                }
+            }
             release?.resume()
+            if change == "columns" {
+                await freshRead.wait()
+                XCTAssertEqual(owner.landingTask, stale, "Column replacement re-evaluates inside the same task")
+                finishFreshRead?.resume()
+            }
             await stale?.value
             XCTAssertTrue(window.nodeWorkspace?.name == "Source")
             if change == "destination" {
                 XCTAssertNil(model.miniatureLanding, change)
             } else {
                 // The hint is computed again for the Column state that replaced the old one.
-                XCTAssertNil(owner.landingTask, "The same task completed the fresh evaluation")
+                XCTAssertNil(owner.landingTask)
                 await owner.landingTask?.value
                 let hint = try XCTUnwrap(model.miniatureLanding)
                 XCTAssertEqual(hint.minX, 1000 * 2 / 3 + 10, accuracy: 0.001)

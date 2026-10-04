@@ -140,6 +140,30 @@ final class LensEffectLifetimeTest: XCTestCase {
         try await clock.checkSuspension()
     }
 
+    func testPresentationChangeKeepsSuspendedSessionSearchAndOneEventPair() async throws {
+        let clock = TestClock()
+        let reached = LensEffectSignal()
+        var finish: CheckedContinuation<Result<[Bool], NickelFailure>, Never>?
+        var events: [ServerEvent] = []
+        let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in
+            await withCheckedContinuation { finish = $0; reached.send() }
+        }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { [] })
+        let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { events.append($0) }, show: { _ in }, hide: {})
+        let session = model("overview", presentation: "miniatures", search: "= true")
+        owner.complete(session, ticket: owner.begin("overview", toggle: false)!, ids: [1])
+        await clock.advance(by: .milliseconds(150))
+        await reached.wait()
+        let search = owner.searchTask
+        session.send(.presentationChanged("list"))
+        XCTAssertEqual(owner.searchTask, search)
+        finish?.resume(returning: .success([true]))
+        await search?.value
+        XCTAssertEqual(session.results.map(\.id), [1])
+        owner.dismiss()
+        XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
+        try await clock.checkSuspension()
+    }
+
     func testPollingStopsAfterReplacementAndRepeatedDismissalCancelsOnlyOwnedToken() async throws {
         let base = TestClock()
         let clock = CancellationInsensitiveClock(base: base)

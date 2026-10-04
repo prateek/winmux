@@ -109,11 +109,15 @@ final class LensLifecycle {
         } else { guard session === model else { return } }
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
+        let ticket = generation
         show(model)
+        guard ticket == generation else { return }
         state = .presented(model)
         if !wasPresented {
             emit(.lensEvent(opened: true, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter))
         }
+        guard session === model, ticket == generation else { return }
+        if !wasPresented { startSearch(model) }
         if !wasPresented || restartEffects { startPresentationEffects(model) }
     }
 
@@ -146,7 +150,6 @@ final class LensLifecycle {
     }
 
     private func startPresentationEffects(_ model: LensSession) {
-        startSearch(model)
         updateMiniatureLanding()
         guard model.settings.presentation == "strip" || model.settings.presentation == "miniatures", thumbnailRefresh == nil else { return }
         nextThumbnailToken += 1
@@ -170,7 +173,6 @@ final class LensLifecycle {
         thumbnailRefresh = nil
         if let token = thumbnailToken { dependencies.closeThumbnails(token) }
         thumbnailToken = nil
-        inlineSearch.cancel()
         cancelLanding()
     }
 
@@ -206,6 +208,7 @@ final class LensLifecycle {
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         state = .closed
         generation += 1
+        inlineSearch.cancel()
         cancelPresentationEffects()
         if let model {
             model.setMiniatureLanding(nil)

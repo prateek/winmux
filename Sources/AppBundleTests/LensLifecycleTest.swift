@@ -128,6 +128,23 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertEqual(shown, ["second"], "An overtaken opening starts no presentation effects")
     }
 
+    func testPresentationCallbackCannotReviveAReplacedSession() {
+        var events: [ServerEvent] = []
+        var owner: LensLifecycle!
+        owner = testLensLifecycle(emit: { events.append($0) }, show: { [self] model in
+            if model.name == "old" {
+                let ticket = owner.begin("new", toggle: false)!
+                owner.complete(session("new"), ticket: ticket)
+            }
+        })
+        let old = owner.begin("old", toggle: false)!
+        owner.complete(session("old"), ticket: old)
+        XCTAssertEqual(owner.session?.name, "new")
+        XCTAssertEqual(events.map(\.eventType), [.lensOpened])
+        XCTAssertTrue(owner.ownedEffects.isEmpty)
+        owner.dismiss()
+    }
+
     func testConfigReloadDoesNotChangeOpenEntriesOrKeyActions() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         let store = testLensLifecycle()
