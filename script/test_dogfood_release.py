@@ -1,3 +1,4 @@
+import fcntl
 import importlib.util
 import os
 import shutil
@@ -44,6 +45,16 @@ class DogfoodReleaseTest(unittest.TestCase):
         return release.run(args, self.repo, tags=lambda: tags or '',
                            build=build or (lambda version, dry: self.built.append((version, dry))),
                            lock_path=self.lock)
+
+    def assert_lock_free(self, *paths):
+        for path in paths or (self.lock,):
+            with open(path, 'w') as handle:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def bare_remote(self):
+        remote = Path(self.temp.name) / 'remote.git'
+        subprocess.check_call(['git', 'clone', '--bare', str(self.repo), str(remote)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.git('remote', 'add', 'fork', str(remote))
 
     def tags(self, *names):
         return ''.join(f'{self.base}\trefs/tags/{name}\n' for name in names)
@@ -144,7 +155,7 @@ class DogfoodReleaseTest(unittest.TestCase):
         self.assertTrue(entered.wait(5))
         def second():
             try:
-                with release.ReleaseLock(self.lock, log=lambda message: waiting.set(), interval=0.01):
+                with release.ReleaseLock(self.lock, log=lambda message: waiting.set()):
                     self.assertTrue(finish.is_set())
             except BaseException as error:
                 errors.append(str(error))
@@ -156,18 +167,7 @@ class DogfoodReleaseTest(unittest.TestCase):
         waiter.join(5)
         self.assertFalse(thread.is_alive() or waiter.is_alive())
         self.assertEqual(errors, ['build failed'])
-        self.assertFalse(self.lock.exists())
-
-    def test_dead_owner_is_not_silently_stolen(self):
-        self.lock.mkdir()
-        # A child that has exited gives us a known dead PID.
-        child = subprocess.Popen(['true'])
-        child.wait()
-        (self.lock / 'pid').write_text(str(child.pid))
-        with self.assertRaisesRegex(release.ReleaseError, 'stale lock'):
-            with release.ReleaseLock(self.lock):
-                self.fail('stale lock acquired')
-        self.assertTrue(self.lock.exists())
+        self.assert_lock_free()
 
     def test_remote_tags_win_over_stale_local_tags(self):
         self.git('tag', 'v0.5.6-dogfood.99')
@@ -181,12 +181,6 @@ class DogfoodReleaseTest(unittest.TestCase):
         release.run(('--next', '--dry-run'), self.repo,
                     build=lambda version, dry: self.built.append((version, dry)), lock_path=self.lock)
         self.assertEqual(self.built, [('0.5.6-dogfood.10', True)])
-
-    def test_missing_lock_owner_requires_operator_recovery(self):
-        self.lock.mkdir()
-        with self.assertRaisesRegex(release.ReleaseError, 'no valid owner'):
-            with release.ReleaseLock(self.lock, owner_grace=0):
-                self.fail('unowned lock acquired')
 
     def test_lock_rechecks_tags_and_cleanliness_after_wait(self):
         entered, finish, waiting = threading.Event(), threading.Event(), threading.Event()
@@ -224,7 +218,7 @@ class DogfoodReleaseTest(unittest.TestCase):
         self.assertFalse(first.is_alive() or second.is_alive())
         self.assertEqual(errors, [])
         self.assertEqual(self.built, [])
-        self.assertFalse(self.lock.exists())
+        self.assert_lock_free()
 
     def test_cli_sigterm_releases_lock_and_stops_worker(self):
         scripts = self.repo / 'script'
@@ -246,7 +240,7 @@ class DogfoodReleaseTest(unittest.TestCase):
             process.terminate()
             process.communicate(timeout=5)
             self.assertEqual(process.returncode, 143)
-            self.assertEqual(list((state / 'winmux-release').glob('*.lock')), [])
+            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
         finally:
             if process.poll() is None:
                 process.kill()
@@ -317,18 +311,7 @@ class DogfoodReleaseTest(unittest.TestCase):
             self.commit('docs/concurrent.md', 'another land')
         with self.assertRaisesRegex(release.ReleaseError, 'HEAD changed'):
             self.run_release(build=concurrent_land)
-        self.assertFalse(self.lock.exists())
-
-    def test_finished_long_running_lock_owner_is_not_stale(self):
-        self.lock.mkdir()
-        (self.lock / 'pid').write_text(str(os.getpid()))
-        def owner_finished(message):
-            (self.lock / 'pid').unlink()
-            self.lock.rmdir()
-        with patch.object(release.time, 'monotonic', side_effect=[0, 31, 31]):
-            with release.ReleaseLock(self.lock, log=owner_finished):
-                self.assertTrue(self.lock.exists())
-        self.assertFalse(self.lock.exists())
+        self.assert_lock_free()
 
     def test_empty_environment_overrides_keep_default_remote_and_state(self):
         remote = Path(self.temp.name) / 'remote.git'
@@ -383,7 +366,7 @@ sys.exit(release.main())
         try:
             process.communicate(timeout=5)
             self.assertEqual(process.returncode, 143)
-            self.assertEqual(list((state / 'winmux-release').glob('*.lock')), [])
+            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
         finally:
             if process.poll() is None:
                 process.kill()
@@ -404,6 +387,91 @@ sys.exit(release.main())
                 release.run(('--next', '--dry-run'), self.repo, tags=lambda: '', build=build)
         self.assertEqual(len(locks[0]), 1)
         self.assertEqual(locks[0], locks[1])
+
+    def test_lock_of_a_killed_release_is_free(self):
+        holder = subprocess.Popen(['python3', '-c', 'import fcntl, sys, time\n'
+                                   'handle = open(sys.argv[1], "w")\n'
+                                   'fcntl.flock(handle, fcntl.LOCK_EX)\n'
+                                   'print("LOCKED", flush=True)\n'
+                                   'time.sleep(30)', str(self.lock)], stdout=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), 'LOCKED')
+            with self.assertRaises(BlockingIOError):
+                self.assert_lock_free()
+        finally:
+            holder.kill()
+            holder.communicate()
+        self.run_release()
+        self.assertEqual(self.built, [('0.5.6-dogfood.1', True)])
+
+    def test_worker_that_ignores_cancellation_is_killed(self):
+        scripts = self.repo / 'script'
+        scripts.mkdir()
+        shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
+        (scripts / 'dogfood-release-build').write_text("#!/bin/bash\ntrap '' TERM\necho READY\nsleep 30\n")
+        self.git('add', 'script')
+        self.git('commit', '-m', 'scripts')
+        state = Path(self.temp.name) / 'state'
+        code = ('import sys\n'
+                'sys.path.insert(0, sys.argv[1])\n'
+                'import dogfood_release as release\n'
+                'release.WORKER_GRACE = 0.2\n'
+                "sys.argv = ['script/dogfood-release', '0.5.6-dogfood.1', '--dry-run']\n"
+                'sys.exit(release.main())\n')
+        process = subprocess.Popen(['python3', '-c', code, str(scripts)],
+                                   env={**os.environ, 'XDG_STATE_HOME': str(state), 'PYTHONDONTWRITEBYTECODE': '1'},
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(process.stdout.readline().strip(), 'READY')
+            process.terminate()
+            process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 143)
+            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate()
+
+    def test_generated_files_left_by_an_interrupted_build_do_not_refuse(self):
+        for path in release.GENERATED:
+            self.commit(path, 'generated')
+        (self.repo / release.GENERATED[0]).write_text('left by a killed build')
+        self.run_release()
+        self.assertEqual(self.built, [('0.5.6-dogfood.1', True)])
+
+    def test_nothing_new_since_the_last_release_is_skipped_as_no_changes(self):
+        messages = []
+        release.run(('--next', '--dry-run'), self.repo, tags=lambda: self.tags('v0.5.6-dogfood.1'),
+                    build=lambda *args: self.built.append(args), lock_path=self.lock, log=messages.append)
+        self.assertEqual(self.built, [])
+        self.assertIn('skipped: no changes since v0.5.6-dogfood.1; nothing published', messages)
+
+    def test_release_that_failed_after_its_tag_is_finished_under_the_same_version(self):
+        self.bare_remote()
+        self.commit('Sources/product.swift', 'product')
+        self.git('push', 'fork', 'fork')
+        head = self.git('rev-parse', 'HEAD').strip()
+        def fails_after_tag(version, dry):
+            raise RuntimeError('feed upload failed after version tag was created')
+        with self.assertRaisesRegex(RuntimeError, 'feed upload'):
+            self.run_release(('--next',), tags=self.tags('v0.5.6-dogfood.1'), build=fails_after_tag)
+        created = self.tags('v0.5.6-dogfood.1') + f'{head}\trefs/tags/v0.5.6-dogfood.2\n'
+        self.run_release(('--next',), tags=created)
+        self.assertEqual(self.built, [('0.5.6-dogfood.2', False)])
+        self.assertFalse(Path(str(self.lock) + '.pending').exists())
+
+    def test_checkout_moved_after_publishing_is_not_a_failed_release(self):
+        self.bare_remote()
+        def another_lander_pulls(version, dry):
+            self.commit('docs/concurrent.md', 'another land')
+        self.run_release(('--next',), build=another_lander_pulls)
+        self.assertFalse(Path(str(self.lock) + '.pending').exists())
+
+    def test_version_git_rejects_as_a_tag_refuses_before_building(self):
+        for version in ('0.5.6..1', '0.5.6-dogfood.1.lock', '0.5.6.'):
+            with self.subTest(version=version), self.assertRaisesRegex(release.ReleaseError, 'invalid version'):
+                self.run_release((version, '--dry-run'))
+        self.assertEqual(self.built, [])
 
     def test_invalid_arguments_and_help_do_not_build(self):
         for args in ((), ('--next', '1.0'), ('--unknown',)):

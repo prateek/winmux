@@ -79,7 +79,7 @@ Done when the description has the demos under their captions with the Done-when 
 
 ## 9. Merge
 
-The merge gate holds when `Build and test` is green on the head, every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
+The merge gate holds when `Build and test` is green on the head, the head contains the tip of `fork/fork` (`git merge-base --is-ancestor fork/fork HEAD` after a fetch; otherwise merge `fork/fork` in, push and wait for CI), every finding is fixed or declined with a reason, and the description has the demos or says there is nothing to show. Then `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says, with `--match-head-commit`. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
 
 A question no issue settles does not stop the relay. Take the recommended answer, and list it in the description under **Decisions the relay made** so Prateek can reverse it.
 
@@ -87,9 +87,9 @@ A question no issue settles does not stop the relay. Take the recommended answer
 
 An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Update the body and close the issue, then `git fetch fork`.
 
-After the squash merge, before removing the issue worktree, find the worktree whose branch is `refs/heads/fork` with `git worktree list --porcelain`. Paths can contain spaces: use the porcelain records, not columns split on whitespace. Run `git pull --ff-only` in that checkout. If none has `fork` checked out, add a temporary worktree on `fork`, creating the local branch from `fork/fork` if absent, and pull there. Run `script/dogfood-release --next` from that checkout **on the host**, saving the full output to `$STATE/release.log`. Remove a temporary release worktree after the run, including on failure.
+Then cut the release as `AGENTS.md`'s Releases section says, after the squash merge and before removing the issue worktree: in the checkout that has `fork` checked out, or a temporary one, `git pull --ff-only` and then `script/dogfood-release --next`, **on the host**, with the full output saved to `$STATE/release.log`. Read the worktree list from `git worktree list --porcelain`, since a path can contain spaces. Remove a temporary release worktree after the run, including on failure.
 
-Record the version cut in the description's `Released as:` line. A docs-only skip exits 0: record that it was skipped and the reason. A failed pull or release does not undo the merge or stop the relay: report the failure to Prateek with the script's output, record it in the description, and continue. The next land's release includes the change. Do not run a release from the driver's branch or retry by naming a version to bypass a skip.
+Record the outcome in the description's `Released as:` line: the version cut, or that it was skipped and why. A skip exits 0. A failed pull or release does not undo the merge or stop the relay: report the failure to Prateek with the script's output, record it in the description, and continue. The next land's release includes the change. Do not release from the driver's branch, and do not name a version by hand to get past a skip.
 
 Finish the rest of `AGENTS.md` step 8: retarget any stacked pull request after merging `fork` into it, remove the issue worktree and both branches, and `$VM down relay-<issue number>`.
 

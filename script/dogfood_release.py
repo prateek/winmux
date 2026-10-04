@@ -2,6 +2,7 @@
 
 import argparse
 from contextlib import AbstractContextManager
+import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -9,7 +10,11 @@ import re
 import signal
 import subprocess
 import sys
-import time
+
+# The build rewrites these, and the worker restores them when it exits.
+GENERATED = ('Sources/Common/versionGenerated.swift', 'Sources/Common/gitHashGenerated.swift')
+# How long a cancelled worker gets to stop before it is killed.
+WORKER_GRACE = 10
 
 
 class ReleaseError(Exception):
@@ -27,62 +32,38 @@ def git(repo, *args):
     return result.stdout.rstrip('\n')
 
 
-class ReleaseLock(AbstractContextManager):
-    """A host-wide mkdir lock. Dead owners require explicit operator recovery."""
+def has_commit(repo, commit):
+    return not subprocess.run(['git', '-C', str(repo), 'cat-file', '-e', f'{commit}^{{commit}}'], capture_output=True).returncode
 
-    def __init__(self, path, log=log, interval=1, owner_grace=30):
+
+class ReleaseLock(AbstractContextManager):
+    """A host-wide lock on a file. The kernel drops it when its holder dies, so a crash leaves nothing to clean up."""
+
+    def __init__(self, path, log=log):
         self.path = Path(path)
         self.log = log
-        self.interval = interval
-        self.owner_grace = owner_grace
-        self.owned = False
+        self.file = None
 
     def __enter__(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        waiting = False
-        owner_missing_since = None
-        while True:
+        self.file = open(self.path, 'w')
+        try:
             try:
-                self.path.mkdir(mode=0o700)
-                self.owned = True
-                try:
-                    (self.path / 'pid').write_text(str(os.getpid()))
-                except BaseException:
-                    self.__exit__(None, None, None)
-                    raise
-                return self
-            except FileExistsError:
-                if not waiting:
-                    self.log('waiting for release lock')
-                    waiting = True
-                try:
-                    pid = int((self.path / 'pid').read_text())
-                    if pid <= 0:
-                        raise ValueError('invalid PID')
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    raise ReleaseError(f'stale lock at {self.path}; confirm no release is running, then remove that directory')
-                except (FileNotFoundError, ValueError):
-                    if not self.path.exists():
-                        continue
-                    if owner_missing_since is None:
-                        owner_missing_since = time.monotonic()
-                    if time.monotonic() - owner_missing_since >= self.owner_grace:
-                        raise ReleaseError(f'lock at {self.path} has no valid owner; confirm no release is running, then remove that directory')
-                except PermissionError:
-                    owner_missing_since = None
-                else:
-                    owner_missing_since = None
-                time.sleep(self.interval)
+                fcntl.flock(self.file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                self.log('waiting for release lock')
+                fcntl.flock(self.file, fcntl.LOCK_EX)
+        except BaseException:
+            self.file.close()
+            raise
+        return self
 
     def __exit__(self, *exc):
-        if self.owned:
-            (self.path / 'pid').unlink(missing_ok=True)
-            self.path.rmdir()
-            self.owned = False
+        self.file.close()
 
 
-def latest_tag(base, listing):
+def dogfood_tags(base, listing):
+    """Maps N to the commit of v<base>-dogfood.N for each such tag in `git ls-remote` output."""
     pattern = re.compile(r'^refs/tags/v' + re.escape(base) + r'-dogfood\.([0-9]+)(\^\{\})?$')
     found = {}
     for line in listing.splitlines():
@@ -91,37 +72,37 @@ def latest_tag(base, listing):
             continue
         sha, ref = parts
         match = pattern.fullmatch(ref)
-        if match:
-            number = int(match[1])
-            # Annotated tags identify the release commit with their peeled entry.
-            if number not in found or match[2]:
-                found[number] = (ref.removesuffix('^{}'), sha)
-    if not found:
-        return 0, None, None
-    number = max(found)
-    ref, sha = found[number]
-    return number, ref, sha
+        # Annotated tags identify the release commit with their peeled entry.
+        if match and (int(match[1]) not in found or match[2]):
+            found[int(match[1])] = sha
+    return found
 
 
-def docs_only(repo, commit):
+def skip_reason(repo, commit):
+    """Why nothing since `commit` needs a release, or None when something does."""
     if not commit:
-        return False
-    exists = subprocess.run(['git', '-C', str(repo), 'cat-file', '-e', f'{commit}^{{commit}}'], capture_output=True)
-    if exists.returncode:
+        return None
+    if not has_commit(repo, commit):
         log('last release commit is unavailable; releasing')
-        return False
-    paths = git(repo, 'diff', '--no-renames', '--name-only', '-z', commit, 'HEAD').split('\0')
-    return all(not path or path.startswith(('.scratch/', '.claude/', 'docs/')) or path.lower().endswith(('.md', '.markdown')) for path in paths)
+        return None
+    paths = [path for path in git(repo, 'diff', '--no-renames', '--name-only', '-z', commit, 'HEAD').split('\0') if path]
+    if not paths:
+        return 'no changes'
+    if all(path.startswith(('.scratch/', '.claude/', 'docs/')) or path.lower().endswith(('.md', '.markdown')) for path in paths):
+        return 'docs-only diff'
+    return None
+
+
+def tree_changes(repo):
+    return git(repo, 'status', '--porcelain', '--untracked-files=all', '--', '.',
+               *(f':(exclude){path}' for path in GENERATED))
 
 
 def verify_tree(repo, head_sha):
     if git(repo, 'rev-parse', 'HEAD') != head_sha:
-        raise ReleaseError('HEAD changed during the release; refusing to publish; run again from the pulled fork')
-    changes = git(repo, 'status', '--porcelain', '--untracked-files=all', '--', '.',
-                  ':(exclude)Sources/Common/versionGenerated.swift',
-                  ':(exclude)Sources/Common/gitHashGenerated.swift')
-    if changes:
-        raise ReleaseError('working tree changed during the release; refusing to publish; commit or stash first')
+        raise ReleaseError('HEAD changed during the release; run again from the pulled fork')
+    if tree_changes(repo):
+        raise ReleaseError('working tree changed during the release; commit or stash first')
 
 
 def build_release(repo, version, dry_run, head_sha):
@@ -153,11 +134,15 @@ def build_release(repo, version, dry_run, head_sha):
                 os.killpg(process.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-            process.wait()
+            try:
+                process.wait(timeout=WORKER_GRACE)
+            except subprocess.TimeoutExpired:
+                pass
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            process.wait()
         raise
     finally:
         for signum, handler in original.items():
@@ -170,12 +155,17 @@ def run(args, repo, tags=None, build=None, lock_path=None, log=log):
     parser = argparse.ArgumentParser(prog='script/dogfood-release', description='Build, sign and publish a WinMux dogfood release. Publishing requires a clean, up-to-date fork checkout.',
         epilog='Overrides: WINMUX_RELEASE_REPO (prateek/winmux), WINMUX_RELEASE_REMOTE (fork), WINMUX_TAP_REPO (prateek/homebrew-tap), WINMUX_SIGN_IDENTITY (WinMux Dogfood Signing).')
     parser.add_argument('version', nargs='?', help='explicit version (never skipped)')
-    parser.add_argument('--next', action='store_true', help='choose VERSION-dogfood.N from release-remote tags; skip docs-only changes since the last release')
+    parser.add_argument('--next', action='store_true', help='choose VERSION-dogfood.N from release-remote tags; skip when nothing but docs changed since the last release')
     parser.add_argument('--dry-run', action='store_true', help='build, sign and verify; publish nothing; allowed off fork')
     options = parser.parse_args(args)
     if bool(options.version) == options.next:
         parser.error('choose exactly one of --next or a version')
     repo = Path(repo)
+    version = options.version
+    # The version becomes a tag, so git has to accept it as one.
+    if version and (not re.fullmatch(r'[0-9][0-9A-Za-z.+-]*', version)
+                    or subprocess.run(['git', 'check-ref-format', f'refs/tags/v{version}']).returncode):
+        raise ReleaseError('invalid version: use numbers, letters, dots, plus or hyphens, in a form git accepts as a tag')
     branch_result = subprocess.run(['git', '-C', str(repo), 'symbolic-ref', '--quiet', '--short', 'HEAD'], text=True, capture_output=True)
     branch = branch_result.stdout.strip() or 'detached'
     if branch != 'fork' and not options.dry_run:
@@ -188,40 +178,50 @@ def run(args, repo, tags=None, build=None, lock_path=None, log=log):
         lock_path = state / 'winmux-release' / f'{key}.lock'
     pending = Path(str(lock_path) + '.pending')
     with ReleaseLock(lock_path, log=log):
-        if git(repo, 'status', '--porcelain'):
+        # An interrupted build can leave the generated files rewritten; the next build rewrites them anyway.
+        if tree_changes(repo):
             raise ReleaseError('working tree is dirty; commit or stash first (including untracked files)')
-        if not options.dry_run:
-            git(repo, 'fetch', '--no-tags', remote, 'refs/heads/fork')
-            if git(repo, 'rev-parse', 'HEAD') != git(repo, 'rev-parse', 'FETCH_HEAD'):
-                raise ReleaseError(f'local fork is not at {remote}/fork; pull --ff-only before releasing')
         head_sha = git(repo, 'rev-parse', 'HEAD')
-        version = options.version
-        if version and not re.fullmatch(r'[0-9][0-9A-Za-z.+-]*', version):
-            raise ReleaseError('invalid version: use numbers, letters, dots, plus or hyphens')
+        listing = None
+        if not options.dry_run or (options.next and tags is None):
+            # One answer from the remote for both the trunk's head and the tags.
+            listing = git(repo, 'ls-remote', remote, 'refs/heads/fork', 'refs/tags/*')
+        if not options.dry_run and f'{head_sha}\trefs/heads/fork' not in listing.splitlines():
+            raise ReleaseError(f'local fork is not at {remote}/fork; pull --ff-only before releasing')
         if options.next:
             base = (repo / 'VERSION').read_text().strip()
             if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', base):
                 raise ReleaseError('VERSION must contain a three-part numeric base')
-            listing = tags() if tags else git(repo, 'ls-remote', '--tags', remote)
-            number, ref, commit = latest_tag(base, listing)
+            released = dogfood_tags(base, tags() if tags else listing)
+            number = max(released, default=0)
+            commit = released.get(number)
             version = f'{base}-dogfood.{number + 1}'
-            log(f'next version: {version}')
-            if commit and tags is None:
-                exists = subprocess.run(['git', '-C', str(repo), 'cat-file', '-e', f'{commit}^{{commit}}'], capture_output=True)
-                if exists.returncode:
-                    subprocess.run(['git', '-C', str(repo), 'fetch', '--no-tags', remote, ref], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if pending.exists():
-                log('previous publishing run did not finish; releasing even if the diff is docs-only')
-            if docs_only(repo, commit) and not pending.exists():
-                verify_tree(repo, head_sha)
-                log(f'skipped: docs-only diff since v{base}-dogfood.{number}; nothing published')
-                return 0
+            if commit and tags is None and not has_commit(repo, commit):
+                subprocess.run(['git', '-C', str(repo), 'fetch', '--no-tags', remote, f'refs/tags/v{base}-dogfood.{number}'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            unfinished = pending.read_text().strip() if pending.exists() else None
+            if unfinished == f'{base}-dogfood.{number}' and commit == head_sha:
+                # Its tag is on this commit, so the worker finishes that release instead of abandoning it.
+                version = unfinished
+                log(f'finishing {version}: an earlier run created it and did not complete')
+            elif unfinished:
+                log(f'next version: {version}')
+                log(f'an earlier run of {unfinished} did not finish publishing; releasing whatever changed')
+            else:
+                log(f'next version: {version}')
+                reason = skip_reason(repo, commit)
+                if reason:
+                    verify_tree(repo, head_sha)
+                    log(f'skipped: {reason} since v{base}-dogfood.{number}; nothing published')
+                    return 0
         if not options.dry_run:
             pending.write_text(version + '\n')
         verify_tree(repo, head_sha)
         (build or (lambda version, dry: build_release(repo, version, dry, head_sha)))(version, options.dry_run)
-        verify_tree(repo, head_sha)
-        if not options.dry_run:
+        if options.dry_run:
+            verify_tree(repo, head_sha)
+        else:
+            # The worker checked the tree before it published; a change after that is not a failed release.
             pending.unlink(missing_ok=True)
     return 0
 

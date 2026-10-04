@@ -8,7 +8,6 @@ set -euo pipefail
 
 RELEASE_REPO="${WINMUX_RELEASE_REPO:-prateek/winmux}"
 TAP_REPO="${WINMUX_TAP_REPO:-prateek/homebrew-tap}"
-RELEASE_REMOTE="${WINMUX_RELEASE_REMOTE:-fork}"
 SIGN_IDENTITY="${WINMUX_SIGN_IDENTITY:-WinMux Dogfood Signing}"
 SIGN_KEYCHAIN="$HOME/Library/Keychains/winmux-signing.keychain-db"
 SIGN_PASS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/winmux-signing/keychain-pass"
@@ -35,18 +34,13 @@ die() { printf '[dogfood-release] error: %s\n' "$*" >&2; exit 1; }
 command -v gh >/dev/null || die "gh CLI is required"
 
 head_sha="${WINMUX_RELEASE_HEAD:?internal worker needs the pinned commit}"
+# The same check as verify_tree in dogfood_release.py: the commit and tree the run started on.
 verify_tree() {
-    python3 - "$head_sha" <<'PYVERIFY'
-import sys
-from pathlib import Path
-sys.path.insert(0, 'script')
-from dogfood_release import ReleaseError, verify_tree
-try:
-    verify_tree(Path.cwd(), sys.argv[1])
-except ReleaseError as error:
-    print(f'[dogfood-release] error: {error}', file=sys.stderr)
-    sys.exit(1)
-PYVERIFY
+    [ "$(git rev-parse HEAD)" = "$head_sha" ] \
+        || die "HEAD changed during the release; run again from the pulled fork"
+    [ -z "$(git status --porcelain --untracked-files=all -- . \
+        ':(exclude)Sources/Common/versionGenerated.swift' ':(exclude)Sources/Common/gitHashGenerated.swift')" ] \
+        || die "working tree changed during the release; commit or stash first"
 }
 verify_tree
 # Not `rev-parse --abbrev-ref`: with a remote that is also named fork, it prints heads/fork.
@@ -60,8 +54,9 @@ build_number="$(git rev-list --count HEAD)"
 feed_url="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/appcast.xml"
 feed_download_prefix="https://github.com/$RELEASE_REPO/releases/download/$SPARKLE_FEED_TAG/"
 
-# A run that failed after creating the release can be run again from the same commit: it
-# replaces the package and finishes the feed and the cask. Any other answer from GitHub than
+# A run that failed after creating the release is finished by the next run from the same
+# commit, which `--next` sends here with the same version: it replaces the package and
+# finishes the feed and the cask. Any other answer from GitHub than
 # "found" or "not found" stops the run before it builds anything.
 release_exists=0
 if [ "$DRY_RUN" != 1 ]; then
@@ -147,9 +142,6 @@ if [ "$DRY_RUN" = 1 ]; then
     log "update archive: $sparkle_zip, feed: $appcast"
     exit 0
 fi
-
-log "pushing $branch to $RELEASE_REMOTE"
-git push "$RELEASE_REMOTE" "$branch"
 
 log "publishing prerelease $tag on $RELEASE_REPO"
 notes="$(cat <<EOF
