@@ -854,8 +854,8 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
     assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
     assert_eq!(config["mode"]["lens"]["binding"], json!({
-        "o": ["lens overview", "mode main"], "f": ["lens floating", "mode main"],
-        "s": ["lens search", "mode main"], "r": ["lens recent --presentation list", "mode main"], "esc": "mode main"
+        "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
+        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"], "esc": "mode main"
     }));
     assert_eq!(config["columns"]["count"], "off");
     assert!(config.get("config-version").is_none());
@@ -892,10 +892,118 @@ fn loaded_source(label: &str, source: &str) -> Value {
 }
 
 #[test]
-fn config_version_is_rejected_and_converted_away() {
+fn config_version_is_accepted_and_converted_away() {
     let source = r#"let W = import "winmux/winmux.ncl" in { config-version = 2 } | W.Config"#;
-    let error = evaluate_to_json(source, &library()).unwrap_err();
-    assert!(error.contains("config-version"), "{error}");
+    assert_eq!(loaded_source("old-version", source)["config-version"], 2);
     let output = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
     assert!(!String::from_utf8(output.stdout).unwrap().contains("config-version"));
+}
+
+#[test]
+fn conversion_infers_legacy_persistent_workspaces_in_source_order_with_warning() {
+    for version in ["", "config-version = 1\n"] {
+        let file = std::env::temp_dir().join(format!("winmux-infer-{}.toml", std::process::id()));
+        std::fs::write(
+            &file,
+            format!(
+                r#"{version}
+[mode.main.binding]
+z = ["workspace Z", "move-node-to-workspace --focus-follows-window B", "workspace Z"]
+a = "workspace A"
+[mode.other.binding]
+f = "move-node-to-workspace F"
+[workspace-to-monitor-force-assignment]
+Q = 1
+B = 1
+"#
+            ),
+        )
+        .unwrap();
+        let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+        assert_eq!(
+            loaded_source("inferred", &converted.nickel)["persistent-workspaces"],
+            json!(["Z", "B", "A", "F", "Q"])
+        );
+        assert!(
+            converted
+                .warnings
+                .iter()
+                .any(|w| w.contains("Inferred persistent-workspaces")
+                    && w.contains("Z")
+                    && w.contains("Q")),
+            "{:?}",
+            converted.warnings
+        );
+        for explicit in ["config-version = 2\n", "persistent-workspaces = []\n"] {
+            let input = std::fs::read_to_string(&file).unwrap();
+            std::fs::write(
+                &file,
+                format!("{explicit}{}", input.replace("config-version = 1\n", "")),
+            )
+            .unwrap();
+            let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+            assert!(converted.warnings.is_empty());
+            assert_eq!(
+                loaded_source("not-inferred", &converted.nickel)["persistent-workspaces"],
+                json!([])
+            );
+            std::fs::write(&file, input).unwrap();
+        }
+        std::fs::remove_file(file).unwrap();
+    }
+}
+
+#[test]
+fn conversion_keeps_only_fork_triggers_and_normalizes_aliases() {
+    let file = std::env::temp_dir().join(format!("winmux-modes-{}.toml", std::process::id()));
+    std::fs::write(
+        &file,
+        r#"config-version = 2
+[key-mapping.key-notation-to-key-code]
+mytab = "tab"
+[mode.main.binding]
+shift-alt-h = "move left"
+shift-cmd-mytab = "focus right"
+cmd-tab = "focus left"
+"#,
+    )
+    .unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    let config = loaded_source("only-fork", &converted.nickel);
+    let bindings = config["mode"]["main"]["binding"].as_object().unwrap();
+    assert!(!bindings.contains_key("alt-tab"));
+    assert!(!bindings.contains_key("alt-shift-h"));
+    assert!(!bindings.contains_key("cmd-shift-tab"));
+    assert_eq!(bindings["cmd-tab"], "focus left");
+    assert_eq!(bindings.len(), 6);
+    assert!(converted.nickel.contains("# Kept from defaults:"));
+    std::fs::write(&file, "config-version = 2").unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    assert_eq!(
+        loaded_source("no-modes", &converted.nickel)["mode"],
+        loaded_source("whole-defaults", "import \"winmux/defaults.ncl\"")["mode"]
+    );
+    std::fs::remove_file(file).unwrap();
+}
+
+
+#[test]
+fn conversion_deduplicates_remapped_defaults_and_rejects_duplicate_user_chords() {
+    let file = std::env::temp_dir().join(format!("winmux-aliases-{}.toml", std::process::id()));
+    std::fs::write(&file, r#"config-version = 2
+[key-mapping.key-notation-to-key-code]
+tab = "backtick"
+[mode.main.binding]
+"#).unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
+    let config = loaded_source("alias-defaults", &converted.nickel);
+    let bindings = config["mode"]["main"]["binding"].as_object().unwrap();
+    assert!(bindings.contains_key("cmd-tab"));
+    assert!(!bindings.contains_key("cmd-backtick"));
+    std::fs::write(&file, r#"[mode.main.binding]
+shift-alt-h = "move left"
+alt-shift-h = "move right"
+"#).unwrap();
+    assert!(winmux_nickel::convert::convert(&file, &library()).err().unwrap().contains("Binding redeclaration"));
+    std::fs::remove_file(file).unwrap();
 }

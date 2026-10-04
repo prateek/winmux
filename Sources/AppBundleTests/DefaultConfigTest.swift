@@ -39,8 +39,8 @@ final class DefaultConfigTest: XCTestCase {
         for (key, name) in ["o": "overview", "f": "floating", "s": "search", "r": "recent"] {
             let commands = try XCTUnwrap(leader.bindings[key]?.commands)
             XCTAssertEqual(commands.count, 2)
-            XCTAssertTrue(commands[0].equals(parseCommand("lens \(name)" + (key == "r" ? " --presentation list" : "")).cmdOrDie))
-            XCTAssertTrue(commands[1].equals(parseCommand("mode main").cmdOrDie))
+            XCTAssertTrue(commands[1].equals(parseCommand("lens \(name)" + (key == "r" ? " --presentation list" : "")).cmdOrDie))
+            XCTAssertTrue(commands[0].equals(parseCommand("mode main").cmdOrDie))
             var disabled = LensConfig(); disabled.enabled = false
             config.lenses = [name: disabled]
             try await activateMode("lens")
@@ -54,6 +54,74 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertEqual(escaped.exitCode, 0)
         XCTAssertEqual(activeMode, "main")
         XCTAssertFalse(SwitcherPalettePanel.shared.isPaletteActive)
+    }
+
+    func testLensCommandKeepsUsersStickyModeEvenWhenNamedLens() async throws {
+        config.modes = ["main": .zero, "lens": .zero, "custom": .zero]
+        config.lenses = ["search": LensConfig()]
+        defer {
+            SwitcherPalettePanel.shared.dismiss()
+            activeMode = mainModeId
+        }
+        for mode in ["lens", "custom"] {
+            try await activateMode(mode)
+            let result = try await parseCommand("lens search").cmdOrDie.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(result.exitCode, 0)
+            XCTAssertEqual(activeMode, mode)
+            SwitcherPalettePanel.shared.dismiss()
+        }
+    }
+
+    func testEarlierNickelConfigVersionLoadsThroughHelperAndSwift() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "winmux.ncl")
+        try "((import \"winmux/defaults.ncl\") & { config-version = 2 }) | (import \"winmux/winmux.ncl\").Config".write(to: file, atomically: true, encoding: .utf8)
+        let supervisor = NickelSupervisor()
+        let loaded = try await supervisor.load(file).get()
+        defer { supervisor.discard(loaded) }
+        XCTAssertTrue(parseConfig(loaded.settings).errors.isEmpty)
+    }
+
+    func testConvertedModesKeepTomlMeaningAndLoadThroughSwiftParser() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "legacy.toml")
+        try """
+        config-version = 2
+        [key-mapping.key-notation-to-key-code]
+        mytab = 'tab'
+        [mode.main.binding]
+        shift-alt-h = 'move left'
+        cmd-mytab = 'focus right'
+        [mode.custom.binding]
+        esc = 'mode main'
+        """.write(to: file, atomically: true, encoding: .utf8)
+        let process = Process()
+        process.executableURL = try XCTUnwrap(nickelHelperUrl())
+        process.arguments = ["convert", file.path]
+        let pipe = Pipe(); process.standardOutput = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        let converted = dir.appending(path: "converted.ncl")
+        try data.write(to: converted)
+        let supervisor = NickelSupervisor()
+        let loaded = try await supervisor.load(converted).get()
+        defer { supervisor.discard(loaded) }
+        let parsed = parseConfig(loaded.settings)
+        XCTAssertTrue(parsed.errors.isEmpty, parsed.errors.descriptions.joined(separator: "\n"))
+        let main = try XCTUnwrap(parsed.config.modes["main"])
+        XCTAssertNil(main.bindings["alt-tab"])
+        XCTAssertEqual(main.bindings["alt-shift-h"]?.descriptionWithKeyNotation, "shift-alt-h")
+        XCTAssertTrue(main.bindings["alt-shift-h"]?.commands.singleOrNil()?.equals(parseCommand("move left").cmdOrDie) == true)
+        XCTAssertEqual(main.bindings["cmd-tab"]?.descriptionWithKeyNotation, "cmd-mytab")
+        XCTAssertTrue(main.bindings["cmd-tab"]?.commands.singleOrNil()?.equals(parseCommand("focus right").cmdOrDie) == true)
+        XCTAssertEqual(Set(parsed.config.modes.keys), ["main", "lens", "custom"])
+        XCTAssertEqual(Set(parsed.config.lenses.keys), Set(defaultConfig.lenses.keys))
     }
 
     func testListsPrintValidJSONAndRuntimeFailuresExitOne() async throws {

@@ -192,7 +192,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
 }
 
 /// Root keys handled outside the TOML bridge.
-private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version", "arrive"]
+private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version", "config-version", "arrive"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))
@@ -212,9 +212,6 @@ private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
 
 @MainActor private func parseConfig(_ rawTable: TOMLTable) -> (config: Config, errors: [TomlParseError]) {
     var errors: [TomlParseError] = []
-    if rawTable.contains(key: "config-version") {
-        errors.append(.semantic(.rootKey("config-version"), "Removed; Nickel contracts replace config-version; use config convert for TOML"))
-    }
     if rawTable.contains(key: "on-window-detected") {
         errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
     }

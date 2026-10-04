@@ -32,7 +32,6 @@ struct LensCommand: Command {
                 return io.err(failure.message)
             }
         }
-        if activeMode == "lens" { try await activateMode(mainModeId) }
         let panel = SwitcherPalettePanel.shared
         if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation) { return true }
         guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil) else { return true }

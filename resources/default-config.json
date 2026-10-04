@@ -240,20 +240,20 @@
       "binding": {
         "esc": "mode main",
         "f": [
-          "lens floating",
-          "mode main"
+          "mode main",
+          "lens floating"
         ],
         "o": [
-          "lens overview",
-          "mode main"
+          "mode main",
+          "lens overview"
         ],
         "r": [
-          "lens recent --presentation list",
-          "mode main"
+          "mode main",
+          "lens recent --presentation list"
         ],
         "s": [
-          "lens search",
-          "mode main"
+          "mode main",
+          "lens search"
         ]
       }
     },

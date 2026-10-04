@@ -142,7 +142,7 @@ final class ConfigBootstrapTest: XCTestCase {
         assertEquals(try String(contentsOf: targetUrl, encoding: .utf8), starterConfigText())
     }
 
-    func testConvertedTomlConfigMergesItsBindingsAndKeepsDefaultTriggers() async throws {
+    func testConvertedTomlConfigPreservesBindingsAndKeepsOnlyForkDefaults() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("winmux-nickel is not built") }
         let tomlUrl = try write(
             """
@@ -165,7 +165,12 @@ final class ConfigBootstrapTest: XCTestCase {
         assertEquals(errors, [])
         assertEquals(config.gaps.inner.horizontal, .constant(3))
         assertEquals(config.gaps.inner.vertical, .constant(8))
-        assertEquals(config.modes, defaultConfig.modes)
+        var expectedModes = defaultConfig.modes
+        expectedModes["main"]?.bindings = defaultConfig.modes["main"]!.bindings.filter {
+            ["alt-h", "cmd-tab", "cmd-shift-tab", "cmd-backtick", "alt-slash", "alt-semicolon"].contains($0.key)
+        }
+        assertEquals(config.modes, expectedModes)
+        XCTAssertNil(config.modes["main"]?.bindings["alt-tab"])
         assertEquals(config.lenses, defaultConfig.lenses)
     }
 }

@@ -75,7 +75,7 @@ final class ConfigTest: XCTestCase {
             config-version = 0
             """,
         )
-        assertEquals(errors.descriptions, ["config-version: Removed; Nickel contracts replace config-version; use config convert for TOML", "config-version: Unknown top-level key"])
+        assertEquals(errors.descriptions, ["config-version: Unknown top-level key"])
     }
 
     func testExecOnWorkspaceChangeDifferentTypesError() {
