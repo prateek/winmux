@@ -70,6 +70,9 @@ _Avoid_: size, ratio
 The action taken when a window's target Column is already occupied: join its tab group, split it, float the window, or squeeze in an extra Column.
 _Avoid_: fallback
 
+**Resolved placement**:
+Where an incoming window or group would land, including its Column, the action to take there and the resulting widths. A landing hint uses a resolved placement; moving the window resolves again against the current workspace.
+
 **Policy hook**:
 A decision point where WinMux asks the config what to do, given the window and its context, and gets back one of a fixed set of actions, optionally followed by commands to run once the action has settled. For example, where an arriving window goes (workspace, floating, Column), or what a move does at a Column edge.
 _Avoid_: rule, callback

@@ -48,12 +48,29 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] The duplicated Overflow policy interpretation is gone from Lens code, and squeeze arithmetic has one owner.
-- [ ] A table of empty and occupied targets against every Overflow policy compares the landing region with independently observed actual placement and layout, using the real in-memory tree implementation.
-- [ ] The cases include nonuniform widths, an existing squeeze Column, a tab-group target, and moving a group. Expected values include concrete examples; comparing two calls to the same planner is not enough.
-- [ ] A preview leaves tree state, widths, focus and `run` execution unchanged, and emits no Column events.
-- [ ] A changed selection, destination or Column state cannot publish or commit an obsolete result. Floating and same-workspace Summon behave as before.
-- [ ] `make check` passes, and the pull request records any externally observable refinement separately from the structural change.
+- [x] The duplicated Overflow policy interpretation is gone from Lens code, and squeeze arithmetic has one owner.
+- [x] A table of empty and occupied targets against every Overflow policy compares the landing region with independently observed actual placement and layout, using the real in-memory tree implementation.
+- [x] The cases include nonuniform widths, an existing squeeze Column, a tab-group target, and moving a group. Expected values include concrete examples; comparing two calls to the same planner is not enough.
+- [x] A preview leaves tree state, widths, focus and `run` execution unchanged, and emits no Column events.
+- [x] A changed selection, destination or Column state cannot publish or commit an obsolete result. Floating and same-workspace Summon behave as before.
+- [x] `make check` passes, and the pull request records any externally observable refinement separately from the structural change.
+
+## Built
+
+`tree/ColumnPlacement.swift` is the pure owner of occupancy, Overflow effects and squeeze widths. `OverflowPolicy` has the four existing wire values. `bindToColumn` resolves current state and applies its answer; `updateMiniatureLanding` converts the same answer into a frame with `ColumnState.frame`, gaps and the existing scaling. Preview values are never committed. Hook evaluation and command lifetimes keep their existing owners; no dependency was added.
+
+`ColumnPlacementTest` has nineteen concrete table rows through real binding, normalization and layout, including groups, nonuniform widths, tab-group targets, an existing squeeze Column and incoming windows already in the destination. Preview snapshots cover tree revisions/order/weights, widths, focus, the event tracker and a detectable `run` list. Continuation-controlled tests cover changed destination and Column state; the existing selection-cancellation test remains. `ColumnPlacementWireTest` pins exact text and JSON for all four policies with empty and occupied targets, also run against the baseline source.
+
+Two externally observable refinements are explicit: a replaced Column state cannot publish a late hint, and a sole incoming window nested in a destination container follows commit occupancy when flattening is off. Original Lens code fails the corresponding regressions. Split placement geometry is unchanged; window, container and group rows independently confirm its bottom-half region, or the whole Column after an empty existing tile is normalized away.
+
+Host and CI-toolchain guest `make check` pass. Fourteen owned-window live hint/Summon cases cover miniatures and strip, including an already occupied squeeze Column in both. Dismissal preserves Column output and emits no Column events; unchanged pointer selection adds zero policy calls. Floating/same-workspace Summon and fall-through Place were also checked live. An unrequested macOS Tips notification stopped the live baseline-output comparison under the image-defect rule; exact output was compared against the same command path in memory instead. This is a limit of live verification, not an unchecked Done-when item. The builder published no release.
+
+Decided: Keep a normalized vertical range in the resolved value so the Lens only converts a region to coordinates.
+Decided: Add “Resolved placement” to the glossary for the advisory result shared by placement and its hint.
+Decided: Use explicit reloads with reload-on-save disabled in the scratch live config to keep the comparison state stable.
+Decided: After the image-defect stop, compare baseline output through the same in-memory command seam.
+
+Defaults changed: none. The shape and actor isolation follow the issue; the relay's no-dependency ruling selects no optional library.
 
 ## Sources
 
