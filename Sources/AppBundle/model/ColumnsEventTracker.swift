@@ -3,24 +3,26 @@ import Foundation
 @MainActor
 struct ColumnsEventTracker {
     private struct Snapshot: Equatable {
-        let identity: ObjectIdentifier
         let count: Int
         let widths: [Double]
         let occupied: [Int]
-    }
-    private var previous: Snapshot?
 
-    mutating func event(for workspace: Workspace) -> ServerEvent? {
-        let columns = workspace.columns
-        let current = Snapshot(
-            identity: ObjectIdentifier(workspace), count: columns?.slotCount ?? 0,
-            widths: columns?.widths.map(Double.init) ?? [],
-            occupied: columns == nil ? [] : workspace.rootTilingContainer.children
-                .filter { !$0.allLeafWindowsRecursive.isEmpty }.compactMap(\.columnSlot).sorted()
-        )
+        init(_ workspace: Workspace) {
+            let columns = workspace.columns
+            count = columns?.slotCount ?? 0
+            widths = columns?.widths.map(Double.init) ?? []
+            occupied = columns == nil ? [] : workspace.existingRootTilingContainer?.children
+                .filter(\.containsLeafWindow).compactMap(\.columnSlot).sorted() ?? []
+        }
+    }
+    private var previous: [String: Snapshot] = [:]
+
+    mutating func event(for focused: Workspace, workspaces: [Workspace]? = nil) -> ServerEvent? {
+        let workspaces = workspaces ?? Workspace.all
+        let current = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.name, Snapshot($0)) })
         defer { previous = current }
-        guard let previous, previous.identity == current.identity, previous != current else { return nil }
-        return .columnsChanged(workspace: workspace.name, count: current.count, widths: current.widths, occupied: current.occupied)
+        guard let before = previous[focused.name], let after = current[focused.name], before != after else { return nil }
+        return .columnsChanged(workspace: focused.name, count: after.count, widths: after.widths, occupied: after.occupied)
     }
 }
 

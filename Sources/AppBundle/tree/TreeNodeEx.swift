@@ -16,6 +16,8 @@ extension TreeNode {
         return result
     }
 
+    var containsLeafWindow: Bool { self is Window || children.contains(where: \.containsLeafWindow) }
+
     func containsLeafWindow(withId windowId: UInt32) -> Bool {
         if let window = self as? Window {
             return window.windowId == windowId

@@ -5,6 +5,10 @@ import XCTest
 
 @MainActor
 final class DefaultEventsTest: XCTestCase {
+    override func setUp() async throws {
+        setUpWorkspacesForTests()
+        appForTests = TestApp.shared
+    }
     private func json(_ event: ServerEvent) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(event)) as? [String: Any])
     }
@@ -60,6 +64,7 @@ final class DefaultEventsTest: XCTestCase {
             let ticket = try XCTUnwrap(lifecycle.begin("recent", toggle: true))
             let session = LensSession(name: "recent", settings: settings, items: [], search: "")
             XCTAssertTrue(lifecycle.complete(session, ticket: ticket))
+            lifecycle.presented(session)
             session.query = "Demo"
             session.changePresentation("list")
             XCTAssertEqual(events.count, 1)
@@ -77,6 +82,7 @@ final class DefaultEventsTest: XCTestCase {
         let adhocTicket = try XCTUnwrap(lifecycle.begin("<ad-hoc>", toggle: false))
         let adhoc = LensSession(name: "<ad-hoc>", settings: LensConfig(), items: [], search: "", eventFilter: "same-app")
         XCTAssertTrue(lifecycle.complete(adhoc, ticket: adhocTicket))
+        lifecycle.presented(adhoc)
         lifecycle.dismiss()
         for event in events { XCTAssertEqual(try json(event)["filter"] as? String, "same-app") }
     }
@@ -153,21 +159,82 @@ final class DefaultEventsTest: XCTestCase {
         XCTAssertNil(tracker.event(for: ws))
     }
 
-    func testReloadResultsEmitOnlyForCompletedAttempts() throws {
+    func testColumnFillAndFocusFollowUsesDestinationBaseline() async throws {
+        setUpWorkspacesForTests()
+        let source = focus.workspace
+        let destination = Workspace.get(byName: "Destination")
+        source.columns = ColumnState(count: 3)
+        destination.columns = ColumnState(count: 3)
+        let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        source.normalizeContainers()
+        _ = setFocus(to: window.toLiveFocusOrNil()!)
+        var tracker = ColumnsEventTracker()
+        XCTAssertNil(tracker.event(for: source))
+        let result = try await parseCommand("move-node-to-workspace --focus-follows-window Destination --window-id 42").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        source.normalizeContainers(); destination.normalizeContainers()
+        XCTAssertEqual(focus.workspace.name, "Destination")
+        let event = try json(XCTUnwrap(tracker.event(for: destination)))
+        XCTAssertEqual(event["workspace"] as? String, "Destination")
+        XCTAssertEqual(event["occupied"] as? [Int], [1])
+        XCTAssertNil(tracker.event(for: source))
+        XCTAssertNil(tracker.event(for: destination))
+    }
+
+    func testNewWindowTakingFocusAndRemovedWorkspaceBaselines() throws {
+        setUpWorkspacesForTests()
+        let first = focus.workspace
+        let other = Workspace.get(byName: "Other")
+        other.columns = ColumnState(count: 2)
+        var tracker = ColumnsEventTracker()
+        XCTAssertNil(tracker.event(for: first))
+        let window = TestWindow.new(id: 77, parent: other.rootTilingContainer)
+        other.normalizeContainers()
+        _ = setFocus(to: window.toLiveFocusOrNil()!)
+        XCTAssertEqual(try json(XCTUnwrap(tracker.event(for: other)))["occupied"] as? [Int], [1])
+        XCTAssertNil(tracker.event(for: first))
+        XCTAssertNil(tracker.event(for: first, workspaces: [first]))
+        other.columns?.widths = [0.75, 0.25]
+        XCTAssertNil(tracker.event(for: other))
+    }
+
+    func testTrackingEmptyColumnsDoesNotCreateATilingRoot() {
+        setUpWorkspacesForTests()
+        let empty = Workspace.get(byName: "Empty")
+        empty.columns = ColumnState(count: 3)
+        XCTAssertTrue(empty.children.isEmpty)
+        var tracker = ColumnsEventTracker()
+        XCTAssertNil(tracker.event(for: empty))
+        XCTAssertTrue(empty.children.isEmpty)
+    }
+
+    func testReloadResultFunctionSuccessFailureAndDryRun() throws {
+        let success = try json(XCTUnwrap(configReloadEvent(dryRun: false, error: nil, configPath: "/demo/good.ncl")))
+        XCTAssertEqual(success["ok"] as? Bool, true)
+        XCTAssertTrue(success["error"] is NSNull)
+        XCTAssertEqual(success["configPath"] as? String, "/demo/good.ncl")
+        let failure = try json(XCTUnwrap(configReloadEvent(dryRun: false, error: "bad config", configPath: "/demo/bad.ncl")))
+        XCTAssertEqual(failure["ok"] as? Bool, false)
+        XCTAssertEqual(failure["error"] as? String, "bad config")
+        XCTAssertEqual(failure["configPath"] as? String, "/demo/bad.ncl")
+        XCTAssertNil(configReloadEvent(dryRun: true, error: nil, configPath: "/demo/dry.ncl"))
+        XCTAssertNil(configReloadEvent(dryRun: true, error: "bad", configPath: "/demo/dry.ncl"))
+    }
+
+    func testStripReleasedBeforeDelayEmitsNeitherEvent() async throws {
+        setUpWorkspacesForTests()
+        _ = NSApplication.shared
         var events: [ServerEvent] = []
-        let emit: (ServerEvent) -> Void = { events.append($0) }
-        for trigger in [ConfigReloadTrigger.command, .fileChange] {
-            var result = ConfigReloadEvent(configPath: "/demo/config.ncl", emit: emit)
-            result.finish(error: nil, dryRun: false, superseded: false)
-            result.finish(error: "ignored duplicate", dryRun: false, superseded: false)
-            var failed = ConfigReloadEvent(configPath: "/demo/config.ncl", emit: emit)
-            failed.finish(error: "bad config", dryRun: false, superseded: false)
-            XCTAssertEqual(events.count, trigger == .command ? 2 : 4)
-        }
-        for (dry, superseded) in [(true, false), (false, true)] {
-            var result = ConfigReloadEvent(configPath: "/demo/config.ncl", emit: emit)
-            result.finish(error: nil, dryRun: dry, superseded: superseded)
-        }
-        XCTAssertEqual(events.count, 4)
+        let panel = SwitcherPalettePanel(emit: { events.append($0) })
+        var settings = LensConfig(); settings.presentation = "strip"
+        let invocation = StripGesture(keyCode: 48, invoking: .command, openedAt: ProcessInfo.processInfo.systemUptime)
+        let ticket = try XCTUnwrap(panel.beginLens("recent", toggle: false, strip: invocation))
+        panel.stripFlagsChanged([])
+        await panel.openLens(name: "recent", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: invocation)
+        XCTAssertNil(panel.session)
+        XCTAssertFalse(panel.isVisible)
+        XCTAssertTrue(events.isEmpty)
+        panel.dismiss()
+        XCTAssertTrue(events.isEmpty)
     }
 }

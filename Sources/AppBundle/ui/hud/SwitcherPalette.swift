@@ -102,6 +102,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
                 self.present(model)
                 self.orderFrontRegardless()
+                self.lifecycle.presented(model)
                 self.makeKey()
                 self.startThumbnailRefresh(model)
             }
@@ -109,6 +110,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         present(model)
         orderFrontRegardless()
+        lifecycle.presented(model)
         NSApp.activate(ignoringOtherApps: true)
         makeKey()
         DispatchQueue.main.async { [weak self] in
@@ -204,6 +206,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         session.changePresentation("list")
         present(session)
         orderFrontRegardless()
+        lifecycle.presented(session)
         makeKey()
     }
 

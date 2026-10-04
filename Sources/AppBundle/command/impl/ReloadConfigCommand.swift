@@ -104,13 +104,12 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     // A dry run changes nothing, so it neither overtakes a reload nor is overtaken.
     if !args.dryRun { lastReloadStarted += 1 }
     let thisReload = lastReloadStarted
-    var event = ConfigReloadEvent(configPath: (forceConfigUrl ?? preferredEditableConfigUrl()).path)
+    var eventPath = (forceConfigUrl ?? preferredEditableConfigUrl()).path
     var eventError: String?
     let read = await readConfig(forceConfigUrl: forceConfigUrl)
     if thisReload != lastReloadStarted && !args.dryRun {
         // A later reload started while this one was loading, and its result is the newer one.
         if case .success(let loaded) = read { NickelSupervisor.shared.discard(loaded.helper) }
-        event.finish(error: nil, dryRun: args.dryRun, superseded: true)
         stdout.append("A later reload replaced this one")
         return false
     }
@@ -119,7 +118,7 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     // watch.
     defer {
         if !args.dryRun { syncConfigFileWatcher(after: outcome) }
-        event.finish(error: eventError, dryRun: args.dryRun, superseded: false)
+        if let event = configReloadEvent(dryRun: args.dryRun, error: eventError, configPath: eventPath) { broadcastEvent(event) }
     }
     func reportFailure(_ msg: String) {
         stdout.append(msg)
@@ -136,7 +135,7 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     }
     switch read {
         case .success(let loaded):
-            event.configPath = loaded.url.path
+            eventPath = loaded.url.path
             for warning in loaded.helper.warnings {
                 stdout.append("warning: \(warning)\n")
                 configLog.warning("\(warning, privacy: .public)")
