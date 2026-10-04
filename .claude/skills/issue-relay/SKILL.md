@@ -21,7 +21,7 @@ Done when you can name the umbrella, and the issue the brief points to or that i
 
 ## 2. Pick the issue
 
-Take the brief's next issue. When it names none, take the open child of the umbrella whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining checks are Prateek's, as are releases. Read the issue and its draft in `.scratch/winmux-fork/build/`.
+Take the brief's next issue. When it names none, take the open child of the umbrella whose blockers are all closed, preferring the one the handoff's **Next** line names. A child the handoff lists as **Done, with checks left** is not buildable: its remaining installed-build and hardware checks are Prateek's. Read the issue and its draft in `.scratch/winmux-fork/build/`.
 
 Done when you have one issue number and its draft. When no buildable child of the umbrella is open, the relay is over: stop and tell Prateek.
 
@@ -85,13 +85,19 @@ A question no issue settles does not stop the relay. Take the recommended answer
 
 ## 10. Land
 
-Do `AGENTS.md` step 8, and `$VM down relay-<issue number>`. An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Close the issue, then `git fetch fork`, and `git pull --ff-only` when your own worktree is on `fork`.
+An issue body is its draft **rendered**: without the draft's first two lines (the title heading and the blank after it), with `{{UMBRELLA}}` replaced by the umbrella's number, as `#<number>`. Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline; any other difference is an edit made only on GitHub, and a stop. Update the body and close the issue, then `git fetch fork`.
 
-Done when the issue is closed, its body matches its draft, the worktree, both branches and the guest are gone, and `fork/fork` is at the merge commit.
+After the squash merge, before removing the issue worktree, find the worktree whose branch is `refs/heads/fork` with `git worktree list --porcelain`. Paths can contain spaces: use the porcelain records, not columns split on whitespace. Run `git pull --ff-only` in that checkout. If none has `fork` checked out, add a temporary worktree on `fork`, creating the local branch from `fork/fork` if absent, and pull there. Run `script/dogfood-release --next` from that checkout **on the host**, saving the full output to `$STATE/release.log`. Remove a temporary release worktree after the run, including on failure.
+
+Record the version cut in the description's `Released as:` line. A docs-only skip exits 0: record that it was skipped and the reason. A failed pull or release does not undo the merge or stop the relay: report the failure to Prateek with the script's output, record it in the description, and continue. The next land's release includes the change. Do not run a release from the driver's branch or retry by naming a version to bypass a skip.
+
+Finish the rest of `AGENTS.md` step 8: retarget any stacked pull request after merging `fork` into it, remove the issue worktree and both branches, and `$VM down relay-<issue number>`.
+
+Done when the issue is closed, its body matches its draft, the release is recorded as cut, skipped or failed, the issue worktree, both branches, any temporary release worktree and the guest are gone, and `fork/fork` is at the merge commit.
 
 ## 11. Hand off
 
-Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left open, and anything Prateek should look at.
+Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left open, the release version cut (or that it was skipped or failed, with the reason), and anything Prateek should look at.
 
 ## Stops
 
