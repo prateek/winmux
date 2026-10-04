@@ -26,7 +26,6 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 ## Blocked on Prateek
 
 - **The release issue**: where the job runs, and whether keys leave the build machine.
-- **Hints shown while a key is held** and **Peek**: each is designed in the prototype and waits for him to confirm the design.
 - **Deferred features.** Designed in part during #1 and put off. None is specified, and no child issue builds toward them beyond what it states.
   - #47 Display profiles
   - #48 Tabs. The Tile draws an entry, not a window, so that a Tab can be an entry later.

@@ -6,7 +6,7 @@ Part of {{UMBRELLA}}.
 
 A Lens draws its Summon hints all the time: a label on the selected entry and a dashed landing spot. They are noise when the person only wants to switch, and the other keys a Lens has (close, send to a workspace, change the grouping) are shown nowhere. This issue shows all of it while one key is held, and none of it otherwise.
 
-**Blocked on Prateek.** He proposed holding a key for hints. The design below is the prototype's and he has not confirmed it. Do not build until this issue says he has.
+Prateek confirmed this design from the prototype on 2026-10-04.
 
 ## Decisions
 
@@ -39,7 +39,6 @@ A Lens draws its Summon hints all the time: a label on the selected entry and a 
 
 ## Done when
 
-- [ ] Prateek has confirmed the design, and this issue says so.
 - [ ] With the default config, an open Lens shows no Summon label and no landing spot until Option is held.
 - [ ] Holding Option shows the label, the landing spot, the workspace keys and the legend; releasing hides them.
 - [ ] `hints = 'always` restores hints that never hide.

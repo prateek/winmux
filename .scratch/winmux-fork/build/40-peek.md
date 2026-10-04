@@ -6,7 +6,7 @@ Part of {{UMBRELLA}}.
 
 A thumbnail answers "which window is this" most of the time. When two windows look alike at thumbnail size, the person has to switch to find out. Peek shows the selected window at its real size, in its real place, without switching to it. It is Quick Look for windows.
 
-**Blocked on Prateek.** He asked for a Quick Look style animation and to understand the design before agreeing to it. The design below is the prototype's and he has not confirmed it. Do not build until this issue says he has.
+Prateek confirmed this design from the prototype on 2026-10-04.
 
 ## Decisions
 
@@ -42,7 +42,6 @@ A thumbnail answers "which window is this" most of the time. When two windows lo
 
 ## Done when
 
-- [ ] Prateek has confirmed the design, and this issue says so.
 - [ ] The peek key grows the selected Tile's picture to the window's frame, and the same key shrinks it back.
 - [ ] Arrow keys change the peeked window while peek is up.
 - [ ] Enter during peek focuses the window; Escape during peek returns to the Lens.

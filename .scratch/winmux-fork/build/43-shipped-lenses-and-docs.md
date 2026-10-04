@@ -24,7 +24,7 @@ The grid exists after the issues before this one, and no shipped Lens uses it. T
 
 - **Sections, and a control to change the grouping**.
 - **Staying open on release, and light and dark**.
-- **Hints shown while a key is held** and **Peek: see the selected window at full size before switching**, for their docs. If either is still blocked, this issue ships without it and says so.
+- **Hints shown while a key is held** and **Peek: see the selected window at full size before switching**, for their docs.
 
 ## Defaults chosen for you
 
