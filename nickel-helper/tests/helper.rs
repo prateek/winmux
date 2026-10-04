@@ -1007,3 +1007,40 @@ alt-shift-h = "move right"
     assert!(winmux_nickel::convert::convert(&file, &library()).err().unwrap().contains("Binding redeclaration"));
     std::fs::remove_file(file).unwrap();
 }
+
+fn converted_toml(label: &str, toml: &str) -> Result<winmux_nickel::convert::Converted, String> {
+    let file = std::env::temp_dir().join(format!("winmux-{label}-{}.toml", std::process::id()));
+    std::fs::write(&file, toml).unwrap();
+    let converted = winmux_nickel::convert::convert(&file, &library());
+    std::fs::remove_file(file).unwrap();
+    converted
+}
+
+#[test]
+fn conversion_infers_quoted_names_and_version_zero_and_stays_quiet_when_nothing_is_inferred() {
+    let quoted = converted_toml("quoted", "[mode.main.binding]\nm = \"workspace 'My Space'\"\nn = 'move-node-to-workspace \"Two Words\"'\n").unwrap();
+    assert_eq!(loaded_source("quoted", &quoted.nickel)["persistent-workspaces"], json!(["My Space", "Two Words"]));
+
+    let zero = converted_toml("zero", "config-version = 0\n[mode.main.binding]\na = \"workspace A\"\n").unwrap();
+    assert_eq!(loaded_source("zero", &zero.nickel)["persistent-workspaces"], json!(["A"]));
+
+    let nothing = converted_toml("nothing", "[gaps]\ninner.horizontal = 3\n").unwrap();
+    assert!(nothing.warnings.is_empty(), "{:?}", nothing.warnings);
+    assert!(!nothing.nickel.contains("persistent-workspaces"), "{}", nothing.nickel);
+}
+
+#[test]
+fn conversion_requires_a_main_mode_and_leaves_modes_open_to_later_merges() {
+    let error = converted_toml("no-main", "[mode.resize.binding]\nh = \"resize width -50\"\n").err().unwrap();
+    assert!(error.contains("Please specify 'main' mode"), "{error}");
+
+    let converted = converted_toml("merge", "config-version = 2\n[mode.main.binding]\nalt-h = \"focus left\"\n").unwrap();
+    assert!(!converted.nickel.contains("force"), "{}", converted.nickel);
+    let extended = converted.nickel.replace("}) | W.Config", "} & { mode.main.binding.alt-x = \"lens search\" }) | W.Config");
+    assert_ne!(extended, converted.nickel);
+    let bindings = loaded_source("merge", &extended)["mode"]["main"]["binding"].clone();
+    assert_eq!(bindings["alt-x"], json!("lens search"));
+    assert_eq!(bindings["alt-h"], json!("focus left"));
+    assert_eq!(bindings["cmd-tab"], json!("lens recent"));
+    assert!(bindings.get("alt-tab").is_none());
+}

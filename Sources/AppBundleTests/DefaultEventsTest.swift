@@ -195,7 +195,24 @@ final class DefaultEventsTest: XCTestCase {
         XCTAssertNil(tracker.event(for: first))
         XCTAssertNil(tracker.event(for: first, workspaces: [first]))
         other.columns?.widths = [0.75, 0.25]
-        XCTAssertNil(tracker.event(for: other))
+        XCTAssertEqual(try json(XCTUnwrap(tracker.event(for: other)))["occupied"] as? [Int], [1])
+    }
+
+    func testWorkspaceCreatedByAFocusFollowingMoveEmitsItsFilledColumn() throws {
+        setUpWorkspacesForTests()
+        let source = focus.workspace
+        var tracker = ColumnsEventTracker()
+        XCTAssertNil(tracker.event(for: source, workspaces: [source]))
+        let created = Workspace.get(byName: "Created")
+        created.columns = ColumnState(count: 3)
+        XCTAssertNil(tracker.event(for: created, workspaces: [source, created]))
+        let filled = Workspace.get(byName: "Filled")
+        filled.columns = ColumnState(count: 3)
+        TestWindow.new(id: 91, parent: filled.rootTilingContainer)
+        filled.normalizeContainers()
+        let event = try json(XCTUnwrap(tracker.event(for: filled, workspaces: [source, created, filled])))
+        XCTAssertEqual(event["workspace"] as? String, "Filled")
+        XCTAssertEqual(event["occupied"] as? [Int], [1])
     }
 
     func testTrackingEmptyColumnsDoesNotCreateATilingRoot() {

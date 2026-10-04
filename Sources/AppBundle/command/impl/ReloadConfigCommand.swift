@@ -109,6 +109,7 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     let read = await readConfig(forceConfigUrl: forceConfigUrl)
     if thisReload != lastReloadStarted && !args.dryRun {
         // A later reload started while this one was loading, and its result is the newer one.
+        // Returning before the `defer` below is what keeps this attempt from emitting `config-reloaded`.
         if case .success(let loaded) = read { NickelSupervisor.shared.discard(loaded.helper) }
         stdout.append("A later reload replaced this one")
         return false

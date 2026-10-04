@@ -28,17 +28,21 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     }
 
     let mut warnings = Vec::new();
-    if settings.get("config-version").is_none_or(|v| v == 1)
+    if settings.get("config-version").is_none_or(|v| v.as_i64().is_some_and(|n| n <= 1))
         && !settings.contains_key("persistent-workspaces")
     {
+        // Nickel's import loses the order the TOML was written in, and that order is the
+        // order the workspaces are listed in.
         let input = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let ordered: toml::Value = toml::from_str(&input).map_err(|e| e.to_string())?;
         let workspaces = inferred_workspaces(&ordered);
-        warnings.push(format!(
-            "Inferred persistent-workspaces from legacy bindings and force assignments: {}",
-            value_inline(&workspaces)
-        ));
-        settings.insert("persistent-workspaces".to_owned(), workspaces);
+        if workspaces.as_array().is_some_and(|names| !names.is_empty()) {
+            warnings.push(format!(
+                "Inferred persistent-workspaces from legacy bindings and force assignments: {}",
+                value_inline(&workspaces)
+            ));
+            settings.insert("persistent-workspaces".to_owned(), workspaces);
+        }
     }
     settings.remove("config-version");
 
@@ -71,7 +75,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
         write_fields(modes.as_object().unwrap(), 1, &mut nickel);
-        nickel.push_str("} in\n(defaults & {\n  mode | force = converted-modes,\n");
+        nickel.push_str("} in\n((std.record.remove \"mode\" defaults) & {\n  mode = converted-modes,\n");
     } else {
         nickel
             .push_str("# No TOML mode table: kept all default modes, bindings and five Lenses.\n");
@@ -102,6 +106,9 @@ fn converted_modes(
     let Some(table) = modes.as_object_mut() else {
         return Err("mode must be a table".to_owned());
     };
+    if !table.contains_key("main") {
+        return Err("mode: Please specify 'main' mode".to_owned());
+    }
     for (name, mode) in table.iter() {
         let mut seen = BTreeSet::new();
         if let Some(bindings) = mode.get("binding").and_then(Value::as_object) {
@@ -293,21 +300,20 @@ fn inferred_workspaces(settings: &toml::Value) -> Value {
                         _ => vec![],
                     };
                     for command in commands {
-                        let parts = command.split_whitespace().collect::<Vec<_>>();
+                        let parts = split_args(command);
                         if matches!(
-                            parts.first(),
-                            Some(&"workspace" | &"move-node-to-workspace")
+                            parts.first().map(String::as_str),
+                            Some("workspace" | "move-node-to-workspace")
                         ) {
                             let mut args = parts.iter().skip(1);
                             while let Some(part) = args.next() {
-                                if *part == "--window-id" {
+                                if part == "--window-id" {
                                     args.next();
                                     continue;
                                 }
                                 if !part.starts_with("--") {
-                                    let name = part.trim_matches(['\'', '"']);
-                                    if !["next", "prev"].contains(&name) {
-                                        add(name);
+                                    if !["next", "prev"].contains(&part.as_str()) {
+                                        add(part);
                                     }
                                     break;
                                 }
@@ -327,6 +333,39 @@ fn inferred_workspaces(settings: &toml::Value) -> Value {
         }
     }
     serde_json::json!(names)
+}
+
+/// Splits a command the way the Swift parser's `splitArgs` does: on whitespace, with a quoted
+/// run kept as one argument.
+fn split_args(command: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut started = false;
+    for ch in command.chars() {
+        match quote {
+            Some(open) if ch == open => quote = None,
+            Some(_) => current.push(ch),
+            None if ch == '\'' || ch == '"' => {
+                quote = Some(ch);
+                started = true;
+            }
+            None if ch.is_whitespace() => {
+                if started {
+                    args.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            None => {
+                current.push(ch);
+                started = true;
+            }
+        }
+    }
+    if started {
+        args.push(current);
+    }
+    args
 }
 
 fn arrive_branch(entry: &Value) -> String {
