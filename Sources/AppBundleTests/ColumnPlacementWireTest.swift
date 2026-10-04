@@ -6,9 +6,8 @@ import XCTest
 final class ColumnPlacementWireTest: XCTestCase {
     func testDryRunWireContractForEveryOverflowAndOccupancy() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Run make helper") }
-        var transcript: [JSONValue] = []
         for occupied in [false, true] {
-            for overflow in ["tab-group", "split", "float", "squeeze"] {
+            for overflow in OverflowPolicy.allCases.map(\.rawValue) {
                 setUpWorkspacesForTests()
                 let path = FileManager.default.temporaryDirectory.appending(path: "placement-wire-\(UUID()).ncl")
                 defer { try? FileManager.default.removeItem(at: path) }
@@ -41,13 +40,7 @@ final class ColumnPlacementWireTest: XCTestCase {
                 XCTAssertEqual(json.stdout, [expected.prettyPrinted])
                 XCTAssertTrue(window.parent === parent)
                 XCTAssertEqual(destination.columns!.widths, [0.2, 0.3, 0.5])
-                transcript.append(.object(["occupied": .bool(occupied), "overflow": .string(overflow),
-                                           "text": .string(text.stdout.joined(separator: "\n") + "\n"),
-                                           "json": .string(json.stdout.joined(separator: "\n") + "\n")]))
             }
-        }
-        if let path = ProcessInfo.processInfo.environment["WINMUX_WIRE_TRANSCRIPT"] {
-            try JSONValue.array(transcript).prettyPrinted.write(toFile: path, atomically: true, encoding: .utf8)
         }
     }
 }

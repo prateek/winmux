@@ -230,7 +230,7 @@ extension Workspace {
                 node.columnSlot = nil
                 node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
                 return
-            case .attach, .tabGroup: break
+            case .attach: break
         }
         if let group = node as? TilingContainer,
            rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {

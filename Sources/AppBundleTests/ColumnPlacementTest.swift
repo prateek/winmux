@@ -19,7 +19,7 @@ final class ColumnPlacementTest: XCTestCase {
 
     private var cases: [Case] {
         [false, true].flatMap { occupied in
-            ["tab-group", "split", "float", "squeeze"].map { Case(occupied: occupied, overflow: $0) }
+            OverflowPolicy.allCases.map { Case(occupied: occupied, overflow: $0.rawValue) }
         } + [Case(occupied: true, overflow: "squeeze", squeezed: true),
              Case(occupied: true, overflow: "tab-group", tabTarget: true),
              Case(occupied: true, overflow: "split", tabTarget: true),
@@ -222,10 +222,20 @@ final class ColumnPlacementTest: XCTestCase {
             await fulfillment(of: [started], timeout: 2)
             if change == "destination" { XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace()) }
             else { workspace.columns = ColumnState(count: 2) }
+            let stale = model.landingTask
             release?.resume()
-            await model.landingTask?.value
-            XCTAssertNil(model.miniatureLanding, change)
+            await stale?.value
             XCTAssertTrue(window.nodeWorkspace?.name == "Source")
+            if change == "destination" {
+                XCTAssertNil(model.miniatureLanding, change)
+            } else {
+                // The hint is computed again for the Column state that replaced the old one.
+                XCTAssertFalse(model.landingTask == stale)
+                await model.landingTask?.value
+                let hint = try XCTUnwrap(model.miniatureLanding)
+                XCTAssertEqual(hint.minX, 1000 * 2 / 3 + 10, accuracy: 0.001)
+                XCTAssertEqual(hint.width, 1000 / 3 - 10, accuracy: 0.001)
+            }
             model.cancelLanding()
         }
     }

@@ -11,8 +11,8 @@ enum OverflowPolicy: String, CaseIterable {
 @MainActor
 struct ResolvedColumnPlacement {
     enum Effect {
+        /// Bind into the Column, joining its tab group when it is occupied.
         case attach
-        case tabGroup
         case split(TreeNode)
         case float
     }
@@ -52,7 +52,6 @@ enum ColumnPlacement {
                 case .tabGroup: break
             }
         }
-        let occupied = children.contains { $0.columnSlot == slot && $0 !== incoming }
-        return ResolvedColumnPlacement(slot: slot, effect: occupied ? .tabGroup : .attach, widths: widths, verticalRange: 0...1)
+        return ResolvedColumnPlacement(slot: slot, effect: .attach, widths: widths, verticalRange: 0...1)
     }
 }

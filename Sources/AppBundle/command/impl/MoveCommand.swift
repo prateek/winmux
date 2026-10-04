@@ -39,7 +39,7 @@ struct MoveCommand: Command {
         switch action {
             case "join":
                 let overflow: OverflowPolicy
-                if let selected = result?["overflow"]?.stringOrNil { overflow = OverflowPolicy(rawValue: selected).orDie() }
+                if let selected = result?["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) { overflow = selected }
                 else { overflow = await ColumnPolicy.decision(window: window, workspace: workspace).overflow }
                 guard location.contains(window), workspace.columns === columns else { return io.err(abandoned) }
                 window.unbindFromParent()
