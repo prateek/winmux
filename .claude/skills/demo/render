@@ -1,0 +1,208 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["pillow>=11"]
+# ///
+"""Render one take into a demo GIF. See SKILL.md for the spec this implements."""
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+WIDTH = 960
+FPS = 15
+MAX_SECONDS = 8.0
+MAX_BYTES = 3_000_000
+KEY_SECONDS = 1.2
+
+INK = (236, 238, 242, 255)
+MUTED = (150, 156, 168, 255)
+STRIP = (22, 24, 29, 255)
+CHIP = (52, 56, 66, 255)
+CHIP_EDGE = (92, 98, 112, 255)
+
+FONT_PATHS = [
+    "/System/Library/Fonts/SFNS.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+]
+
+
+def font(size: int) -> ImageFont.FreeTypeFont:
+    for path in FONT_PATHS:
+        if Path(path).exists():
+            return ImageFont.truetype(path, size)
+    sys.exit("render: no usable font found")
+
+
+def probe(video: Path) -> tuple[int, int, float]:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=width,height:format=duration", "-of", "json", str(video)],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    data = json.loads(out)
+    stream = data["streams"][0]
+    return stream["width"], stream["height"], float(data["format"]["duration"])
+
+
+def text_image(text: str, size: int, fill: tuple[int, int, int, int]) -> Image.Image:
+    face = font(size)
+    left, top, right, bottom = face.getbbox(text)
+    image = Image.new("RGBA", (right - left + 2, size + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(image).text((1 - left, 2), text, font=face, fill=fill)
+    return image
+
+
+def key_chip(label: str, height: int) -> Image.Image:
+    """One chip per key in a chord: 'cmd tab' draws two chips."""
+    face = font(int(height * 0.5))
+    pad, gap = int(height * 0.38), int(height * 0.22)
+    widths = [int(face.getlength(key)) + 2 * pad for key in label.split()]
+    image = Image.new("RGBA", (sum(widths) + gap * (len(widths) - 1), height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    x = 0
+    for key, width in zip(label.split(), widths):
+        draw.rounded_rectangle((x, 0, x + width - 1, height - 1), radius=height // 4,
+                               fill=CHIP, outline=CHIP_EDGE, width=2)
+        draw.text((x + width / 2, height / 2), key, font=face, fill=INK, anchor="mm")
+        x += width + gap
+    return image
+
+
+def gradient(width: int, height: int) -> Image.Image:
+    top, bottom = (38, 42, 58), (16, 17, 24)
+    column = Image.new("RGB", (1, height))
+    for y in range(height):
+        mix = y / max(height - 1, 1)
+        column.putpixel((0, y), tuple(round(a + (b - a) * mix) for a, b in zip(top, bottom)))
+    return column.resize((width, height)).convert("RGBA")
+
+
+def layout(style: str, src_w: int, src_h: int) -> dict:
+    """Canvas geometry. 'claim' is a tight crop over a strip; 'card' floats the crop on a gradient."""
+    if style == "claim":
+        inner_w, strip = WIDTH, 44
+        inner_h = round(inner_w * src_h / src_w / 2) * 2
+        return dict(canvas=(WIDTH, inner_h + strip), inner=(inner_w, inner_h), at=(0, 0),
+                    radius=0, title_at=(14, inner_h + 10), title_size=20,
+                    keys_right=WIDTH - 12, keys_y=inner_h + 7, key_h=30)
+    pad, head, foot = 56, 64, 64
+    inner_w = WIDTH - 2 * pad
+    inner_h = round(inner_w * src_h / src_w / 2) * 2
+    canvas_h = head + inner_h + foot
+    return dict(canvas=(WIDTH, canvas_h), inner=(inner_w, inner_h), at=(pad, head),
+                radius=14, title_at=(pad, 22), title_size=22,
+                keys_right=WIDTH - pad, keys_y=head + inner_h + 15, key_h=34)
+
+
+def background(style: str, geo: dict, title: str) -> Image.Image:
+    width, height = geo["canvas"]
+    if style == "claim":
+        image = Image.new("RGBA", (width, height), STRIP)
+    else:
+        image = gradient(width, height)
+        x, y = geo["at"]
+        w, h = geo["inner"]
+        shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).rounded_rectangle(
+            (x, y + 10, x + w, y + h + 10), radius=geo["radius"], fill=(0, 0, 0, 170))
+        image = Image.alpha_composite(image, shadow.filter(ImageFilter.GaussianBlur(18)))
+    label = text_image(title, geo["title_size"], INK if style == "card" else MUTED)
+    image.alpha_composite(label, geo["title_at"])
+    return image
+
+
+def corner_mask(geo: dict) -> Image.Image:
+    mask = Image.new("L", geo["inner"], 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, geo["inner"][0] - 1, geo["inner"][1] - 1), radius=geo["radius"], fill=255)
+    return mask
+
+
+def encode(frames_dir: Path, out: Path) -> None:
+    frames = sorted(str(p) for p in frames_dir.glob("f*.png"))
+    if shutil.which("gifski"):
+        subprocess.run(["gifski", "--fps", str(FPS), "--quality", "85", "--quiet",
+                        "-o", str(out), *frames], check=True)
+    else:
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-framerate", str(FPS), "-i", str(frames_dir / "f%04d.png"),
+             "-filter_complex",
+             "split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
+             "-loop", "0", str(out)], check=True)
+    if shutil.which("gifsicle"):
+        subprocess.run(["gifsicle", "-O3", "--lossy=40", "-b", str(out)], check=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("video", type=Path, help="the take: a 30 fps screen recording")
+    parser.add_argument("-o", "--out", type=Path, required=True)
+    parser.add_argument("--title", required=True, help="the title chip: the claim in a few words")
+    parser.add_argument("--style", choices=["claim", "card"], default="claim")
+    parser.add_argument("--crop", help="x:y:w:h in the take's pixels; default is the whole frame")
+    parser.add_argument("--start", type=float, default=0.0)
+    parser.add_argument("--end", type=float)
+    parser.add_argument("--events", type=Path,
+                        help='the take\'s event log: [{"t": seconds, "keys": "cmd tab"}, ...]')
+    args = parser.parse_args()
+
+    src_w, src_h, duration = probe(args.video)
+    crop = [int(n) for n in args.crop.split(":")] if args.crop else [0, 0, src_w, src_h]
+    end = args.end if args.end is not None else duration
+    length = end - args.start
+    if length > MAX_SECONDS:
+        sys.exit(f"render: {length:.1f}s is over the {MAX_SECONDS:.0f}s cap; cut the claim in two or trim")
+
+    geo = layout(args.style, crop[2], crop[3])
+    events = json.loads(args.events.read_text()) if args.events else []
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        background(args.style, geo, args.title).save(tmp / "bg.png")
+        inputs = ["-ss", str(args.start), "-t", str(length), "-i", str(args.video),
+                  "-framerate", str(FPS), "-loop", "1", "-t", str(length), "-i", str(tmp / "bg.png")]
+        x, y, w, h = crop
+        iw, ih = geo["inner"]
+        graph = [f"[0:v]fps={FPS},crop={w}:{h}:{x}:{y},scale={iw}:{ih}:flags=lanczos,format=rgba[v]"]
+        last = "v"
+        if geo["radius"]:
+            corner_mask(geo).save(tmp / "mask.png")
+            inputs += ["-framerate", str(FPS), "-loop", "1", "-t", str(length), "-i", str(tmp / "mask.png")]
+            graph.append("[2:v]format=gray[m];[v][m]alphamerge[vr]")
+            last = "vr"
+        graph.append(f"[1:v][{last}]overlay={geo['at'][0]}:{geo['at'][1]}:shortest=1[c0]")
+        last = "c0"
+        next_input = 3 if geo["radius"] else 2
+        for index, event in enumerate(e for e in events if args.start <= e["t"] < end):
+            chip = key_chip(event["keys"], geo["key_h"])
+            chip.save(tmp / f"k{index}.png")
+            inputs += ["-framerate", str(FPS), "-loop", "1", "-t", str(length), "-i", str(tmp / f"k{index}.png")]
+            t0 = event["t"] - args.start
+            graph.append(
+                f"[{last}][{next_input}:v]overlay={geo['keys_right'] - chip.width}:{geo['keys_y']}"
+                f":enable='between(t,{t0:.3f},{t0 + KEY_SECONDS:.3f})'[c{index + 1}]")
+            last = f"c{index + 1}"
+            next_input += 1
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(graph),
+             "-map", f"[{last}]", "-t", str(length), str(tmp / "f%04d.png")], check=True)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        encode(tmp, args.out)
+
+    size = args.out.stat().st_size
+    width, height = geo["canvas"]
+    print(f"{args.out.name}: {width}x{height}, {length:.1f}s, {FPS} fps, {size / 1e6:.2f} MB")
+    if size > MAX_BYTES:
+        sys.exit(f"render: {size / 1e6:.2f} MB is over the {MAX_BYTES / 1e6:.0f} MB budget; tighten the crop or trim")
+
+
+if __name__ == "__main__":
+    main()
