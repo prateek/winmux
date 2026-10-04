@@ -14,6 +14,7 @@ final class ColumnPlacementTest: XCTestCase {
         var group = false
         var squeezed = false
         var alreadyHere = false
+        var soleNested = false
     }
 
     private var cases: [Case] {
@@ -26,7 +27,10 @@ final class ColumnPlacementTest: XCTestCase {
              Case(occupied: true, overflow: "tab-group", group: true),
              Case(occupied: true, overflow: "split", group: true),
              Case(occupied: true, overflow: "squeeze", group: true),
-             Case(occupied: true, overflow: "split", alreadyHere: true)]
+             Case(occupied: true, overflow: "split", alreadyHere: true),
+             Case(occupied: true, overflow: "float", alreadyHere: true, soleNested: true),
+             Case(occupied: true, overflow: "squeeze", alreadyHere: true, soleNested: true),
+             Case(occupied: true, overflow: "split", alreadyHere: true, soleNested: true)]
     }
 
     private func fixture(_ row: Case) async throws -> (Workspace, TreeNode, CGRect) {
@@ -49,7 +53,7 @@ final class ColumnPlacementTest: XCTestCase {
         let root = destination.rootTilingContainer
         let anchor = TestWindow.new(id: 1, parent: root)
         anchor.columnSlot = 1
-        if row.occupied {
+        if row.occupied && !row.soleNested {
             if row.tabTarget {
                 let group = TilingContainer(parent: root, adaptiveWeight: 1, .v, .tabGroup, index: INDEX_BIND_LAST)
                 group.columnSlot = 2
@@ -67,7 +71,12 @@ final class ColumnPlacementTest: XCTestCase {
         }
         let source = Workspace.get(byName: "Source")
         let incoming: TreeNode
-        if row.group {
+        if row.soleNested {
+            config.enableNormalizationFlattenContainers = false
+            let column = TilingContainer(parent: root, adaptiveWeight: 1, .v, .tiles, index: INDEX_BIND_LAST)
+            column.columnSlot = 2
+            incoming = TestWindow.new(id: 42, parent: column)
+        } else if row.group {
             let group = TilingContainer(parent: source.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: 0)
             TestWindow.new(id: 42, parent: group)
             TestWindow.new(id: 43, parent: group)
@@ -85,7 +94,7 @@ final class ColumnPlacementTest: XCTestCase {
     private func expected(_ row: Case) -> CGRect? {
         if row.occupied && row.overflow == "float" { return nil }
         if row.occupied && row.overflow == "squeeze" { return CGRect(x: 760, y: 0, width: 240, height: 799) }
-        if row.occupied && row.overflow == "split" { return CGRect(x: 210, y: 405.5, width: 280, height: 393.5) }
+        if row.occupied && !row.soleNested && row.overflow == "split" { return CGRect(x: 210, y: 405.5, width: 280, height: 393.5) }
         return CGRect(x: 210, y: 0, width: 280, height: 799)
     }
 
@@ -106,7 +115,7 @@ final class ColumnPlacementTest: XCTestCase {
             try await workspace.layoutWorkspace()
             XCTAssertEqual(region(row, workspace, incoming, window: window), expected(row), String(describing: row))
             XCTAssertEqual(workspace.rootTilingContainer.allLeafWindowsRecursive.count + workspace.children.filterIsInstance(of: Window.self).count,
-                           (row.occupied ? (row.tabTarget ? 3 : 2) : 1) + (row.group ? 2 : 1) + (row.squeezed ? 1 : 0))
+                           (row.occupied && !row.soleNested ? (row.tabTarget ? 3 : 2) : 1) + (row.group ? 2 : 1) + (row.squeezed ? 1 : 0))
         }
     }
     private func load(_ overflow: String) async throws {
@@ -132,7 +141,8 @@ final class ColumnPlacementTest: XCTestCase {
     }
 
     private func treeSnapshot(_ node: TreeNode) -> [String] {
-        ["\(ObjectIdentifier(node)) revision \(node.bindingRevision) slot \(String(describing: node.columnSlot)) weights \(node.hWeight),\(node.vWeight)",
+        let weights = node is Window && node.parent is Workspace ? "floating" : "\(node.hWeight),\(node.vWeight)"
+        return ["\(ObjectIdentifier(node)) revision \(node.bindingRevision) slot \(String(describing: node.columnSlot)) weights \(weights)",
          "children \(node.children.map(ObjectIdentifier.init)) mru \(node.childrenByMostRecentUse.map(ObjectIdentifier.init))"]
             + node.children.flatMap(treeSnapshot)
     }
@@ -196,6 +206,30 @@ final class ColumnPlacementTest: XCTestCase {
         }
     }
 
+    func testPendingPreviewRejectsChangedDestinationAndColumnState() async throws {
+        for change in ["destination", "columns"] {
+            let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+            try await load("squeeze")
+            let window = incoming as! TestWindow
+            let started = expectation(description: "Preview collecting selected record")
+            var release: CheckedContinuation<Void, Never>?
+            window.beforeAxRecord = {
+                window.beforeAxRecord = nil
+                await withCheckedContinuation { release = $0; started.fulfill() }
+            }
+            let model = session(workspace, window: window, rect: rect)
+            model.summonHeld = true
+            await fulfillment(of: [started], timeout: 2)
+            if change == "destination" { XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace()) }
+            else { workspace.columns = ColumnState(count: 2) }
+            release?.resume()
+            await model.landingTask?.value
+            XCTAssertNil(model.miniatureLanding, change)
+            XCTAssertTrue(window.nodeWorkspace?.name == "Source")
+            model.cancelLanding()
+        }
+    }
+
     func testCommitResolvesCurrentWidthsAndOccupancyAfterPreview() async throws {
         let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
         try await load("squeeze")
@@ -213,6 +247,33 @@ final class ColumnPlacementTest: XCTestCase {
         XCTAssertEqual(workspace.columnSlot(containing: window), 4)
         XCTAssertTrue(window.parent === extra.parent)
         model.cancelLanding()
+    }
+
+    func testPendingCommitRejectsMovedWindowAndReplacedColumns() async throws {
+        for change in ["window", "columns"] {
+            let (workspace, incoming, _) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+            try await load("squeeze")
+            let window = incoming as! TestWindow
+            let started = expectation(description: "Commit collecting selected record")
+            var release: CheckedContinuation<Void, Never>?
+            window.beforeAxRecord = {
+                window.beforeAxRecord = nil
+                await withCheckedContinuation { release = $0; started.fulfill() }
+            }
+            let commit = Task { @MainActor in try await ColumnPolicy.place(window, on: workspace) }
+            await fulfillment(of: [started], timeout: 2)
+            if change == "window" { window.bindAsFloatingWindow(to: Workspace.get(byName: "Elsewhere")) }
+            else { workspace.columns = ColumnState(count: 2) }
+            let before = Workspace.all.flatMap(treeSnapshot)
+            let widths = workspace.columns!.widths
+            let focusedSlot = workspace.columns!.focusedSlot
+            release?.resume()
+            let applied = try await commit.value
+            XCTAssertFalse(applied, change)
+            XCTAssertEqual(Workspace.all.flatMap(treeSnapshot), before, change)
+            XCTAssertEqual(workspace.columns!.widths, widths, change)
+            XCTAssertEqual(workspace.columns!.focusedSlot, focusedSlot, "No run commands after abandonment")
+        }
     }
 
 }

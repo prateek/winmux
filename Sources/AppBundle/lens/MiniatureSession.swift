@@ -165,7 +165,7 @@ extension LensSession {
                     return .object(fields)
                 } ?? []
                 let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
-                guard !Task.isCancelled, let self, self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
+                guard !Task.isCancelled, let self, self.summonHeld, self.selectedId == id, focus.workspace === destination, destination.columns === columns else { return }
                 let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
                 let placement = ColumnPlacement.resolve(decision, columns: columns,
                                                         children: destination.rootTilingContainer.children, incoming: entry.window)
