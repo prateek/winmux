@@ -11,7 +11,7 @@ final class LensLifecycleTest: XCTestCase {
 
     func testOpeningStripAccumulatesForwardAndReverseTriggerSteps() {
         for (flags, expected): (NSEvent.ModifierFlags, UInt32) in [(.command, 3), ([.command, .shift], 1)] {
-            let store = LensLifecycle()
+            let store = testLensLifecycle()
             let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
             let ticket = store.begin("recent", toggle: true, strip: gesture)!
             XCTAssertFalse(store.cycleStrip(name: "other", keyCode: 48, flags: .command))
@@ -34,7 +34,7 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testOpeningStripSortsKeysIntoStepsIgnoredKeysAndOtherBindings() {
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
         let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
         // Another binding on the invoking key is not a step.
@@ -50,7 +50,7 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testReleaseWhileOpeningSettlesTheSelectionAndIsHandedToTheSession() {
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command, openedAt: 0))!
         store.openingFlagsChanged([.command, .shift])
         store.openingFlagsChanged([.option])
@@ -71,7 +71,7 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testCancelledOpeningDoesNotTransferPendingSteps() {
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         let gesture = StripGesture(keyCode: 48, invoking: .command, openedAt: 0)
         let ticket = store.begin("recent", toggle: true, strip: gesture)!
         XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
@@ -81,7 +81,7 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testFailedOpenCanRetryOnceAndOldCleanupCannotCancelNewerOpen() {
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         let failed = store.begin("search", toggle: true)!
         store.cancelOpening(ticket: failed)
         XCTAssertNotNil(store.begin("search", toggle: true))
@@ -98,7 +98,7 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testSameLensTogglesAndAnotherReplacesRememberingSearch() {
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         let first = store.begin("search", toggle: true)!
         store.complete(session("search", search: "notes"), ticket: first)
         XCTAssertNil(store.begin("search", toggle: true))
@@ -113,7 +113,8 @@ final class LensLifecycleTest: XCTestCase {
     }
 
     func testOvertakenOpenAndDismissedOpenCannotAppearLater() {
-        let store = LensLifecycle()
+        var shown: [String] = []
+        let store = testLensLifecycle(show: { shown.append($0.name) })
         let old = store.begin("first", toggle: true)!
         let newer = store.begin("second", toggle: true)!
         store.complete(session("first"), ticket: old)
@@ -124,11 +125,12 @@ final class LensLifecycleTest: XCTestCase {
         store.dismiss()
         store.complete(session("third"), ticket: last)
         XCTAssertNil(store.session)
+        XCTAssertEqual(shown, ["second"], "An overtaken opening starts no presentation effects")
     }
 
     func testConfigReloadDoesNotChangeOpenEntriesOrKeyActions() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
-        let store = LensLifecycle()
+        let store = testLensLifecycle()
         let ticket = store.begin("demo", toggle: true)!
         var settings = LensConfig()
         settings.keys["cmd-x"] = ["close"]

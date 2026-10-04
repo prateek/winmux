@@ -59,13 +59,13 @@ final class DefaultEventsTest: XCTestCase {
     func testOneLensPairAcrossSearchAndPresentationChangesAndRepeatedDismissal() throws {
         for presentation in ["list", "strip", "miniatures"] {
             var events: [ServerEvent] = []
-            let lifecycle = LensLifecycle(emit: { events.append($0) })
+            let lifecycle = testLensLifecycle(emit: { events.append($0) })
             var settings = LensConfig(); settings.presentation = presentation
             let ticket = try XCTUnwrap(lifecycle.begin("recent", toggle: true))
             let session = LensSession(name: "recent", settings: settings, items: [], search: "")
             XCTAssertTrue(lifecycle.complete(session, ticket: ticket))
             lifecycle.presented(session)
-            session.query = "Demo"
+            session.send(.searchChanged("Demo"))
             session.changePresentation("list")
             XCTAssertEqual(events.count, 1)
             lifecycle.dismiss()
@@ -73,7 +73,7 @@ final class DefaultEventsTest: XCTestCase {
             XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
         }
         var events: [ServerEvent] = []
-        let lifecycle = LensLifecycle(emit: { events.append($0) })
+        let lifecycle = testLensLifecycle(emit: { events.append($0) })
         let ticket = try XCTUnwrap(lifecycle.begin("bad", toggle: false))
         lifecycle.cancelOpening(ticket: ticket)
         let late = LensSession(name: "bad", settings: LensConfig(), items: [], search: "")
@@ -116,7 +116,7 @@ final class DefaultEventsTest: XCTestCase {
                     XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
                 case "handoff":
                     panel.changePresentationToList()
-                    panel.session?.query = "Demo"
+                    panel.session?.send(.searchChanged("Demo"))
                     XCTAssertEqual(events.map(\.eventType), [.lensOpened])
                     panel.dismiss()
                 default: panel.dismiss()

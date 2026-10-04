@@ -52,7 +52,7 @@ enum StripInput { case ignored, consumed, cancel, list }
 extension LensSession {
     func beginStrip(_ gesture: StripGesture) {
         stripGesture = gesture
-        selection = gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()
+        send(.selectionChanged(gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()))
     }
 
     @discardableResult
@@ -80,7 +80,7 @@ extension LensSession {
 
     func cycleStripSelection(_ delta: Int) {
         let count = results.count
-        selection = count == 0 ? 0 : (selection + delta % count + count) % count
+        send(.selectionChanged(count == 0 ? 0 : (selection + delta % count + count) % count))
     }
 
     func stripReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
@@ -97,7 +97,7 @@ extension LensSession {
         guard held.isEmpty || held == stripGesture?.committingModifiers else { return false }
         let selected = selectedId
         changePresentation("list")
-        query = text
+        send(.searchChanged(text))
         if let selected { hover(selected) }
         return true
     }
@@ -108,7 +108,7 @@ extension LensSession {
         let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
         removedIds.formUnion(ids)
         let after = results
-        selection = after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))
+        send(.selectionChanged(after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))))
         objectWillChange.send()
     }
 
@@ -118,10 +118,10 @@ extension LensSession {
         return item.miniature?.workspace != current.name
     }
 
-    func refreshStripThumbnails(lens: Int) {
+    func refreshStripThumbnails(lens: Int, request: (Window, Int) -> Void) {
         let results = results
         for index in stripLayout.range {
-            if let entry = results[index].miniature, !entry.frozen { ThumbnailCache.shared.request(entry.window, lens: lens) }
+            if let entry = results[index].miniature, !entry.frozen { request(entry.window, lens) }
         }
     }
 }

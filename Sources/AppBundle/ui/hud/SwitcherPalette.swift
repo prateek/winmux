@@ -26,19 +26,27 @@ final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel(emit: broadcastEvent)
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle: LensLifecycle
-    private var stripDisplay: Task<Void, Never>?
-    private var thumbnailRefresh: Task<Void, Never>?
-    private var thumbnailSession = 0
     private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
-    private let inlineSearch = LensInlineSearch { body, context, windows in
-        await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
-    }
     var isPaletteActive: Bool { session != nil }
 
     init(emit: @escaping (ServerEvent) -> Void) {
-        lifecycle = LensLifecycle(emit: emit)
+        lifecycle = LensLifecycle(
+            dependencies: .init(
+                evaluate: { body, context, windows in
+                    precondition(!isUnitTest, "Unconfigured Lens dependency: NickelSupervisor.evalFilter")
+                    return await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
+                },
+                requestThumbnail: { window, token in
+                    precondition(!isUnitTest, "Unconfigured Lens dependency: ThumbnailCache.request")
+                    ThumbnailCache.shared.request(window, lens: token)
+                },
+                closeThumbnails: { token in ThumbnailCache.shared.closeLens(token) },
+                flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) }
+            ), emit: emit, show: { _ in }, hide: {})
         super.init()
+        lifecycle.show = { [weak self] model in self?.show(model) }
+        lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
         isFloatingPanel = true
@@ -76,61 +84,26 @@ final class SwitcherPalettePanel: NSPanelHud {
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
         model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
         if settings.miniatures.currentWorkspace == "hide" {
-            model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))
+            model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
-        model.onSearchChanged = { [weak self, weak model] in
-            guard let self, let model else { return }
-            self.inlineSearch.update(model, context: context, windows: records, ids: ids)
-        }
-        guard lifecycle.complete(model, ticket: ticket) else { return }
-        if settings.presentation == "strip", let invocation {
-            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)")
-            if model.stripGesture == nil { model.beginStrip(invocation) }
-            let flags = model.stripReleasedWhileOpening ?? NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-            if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
-            model.updateSummonModifiers(flags)
-            stripDisplay = Task { @MainActor [weak self, weak model] in
-                let remaining = max(0, 0.1 - (ProcessInfo.processInfo.systemUptime - invocation.openedAt))
-                try? await Task.sleep(for: .seconds(remaining))
-                guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
-                let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-                if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
-                stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
-                self.present(model)
-                self.orderFrontRegardless()
-                self.lifecycle.presented(model)
-                self.makeKey()
-                self.startThumbnailRefresh(model)
-            }
-            return
-        }
-        present(model)
-        orderFrontRegardless()
-        lifecycle.presented(model)
-        NSApp.activate(ignoringOtherApps: true)
-        makeKey()
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
-            (self.firstResponder as? NSTextView)?.selectAll(nil)
-        }
-        model.onSearchChanged?()
-        if settings.presentation == "miniatures" { startThumbnailRefresh(model) }
+        if settings.presentation == "strip", model.stripGesture == nil, let invocation { model.beginStrip(invocation) }
+        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids)
     }
 
-    private func startThumbnailRefresh(_ model: LensSession) {
-        thumbnailSession += 1
-        let token = thumbnailSession
-        thumbnailRefresh = Task { @MainActor [weak model] in
-            await Task.yield()
-            while !Task.isCancelled, let model {
-                if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token) }
-                else { model.refreshVisibleThumbnails(lens: token) }
-                try? await Task.sleep(for: .milliseconds(500))
+    private func show(_ model: LensSession) {
+        present(model)
+        orderFrontRegardless()
+        if model.settings.presentation != "strip" { NSApp.activate(ignoringOtherApps: true) }
+        makeKey()
+        if model.settings.presentation == "list" {
+            DispatchQueue.main.async { [weak self, weak model] in
+                guard let self, let model, self.session === model else { return }
+                if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
+                (self.firstResponder as? NSTextView)?.selectAll(nil)
             }
         }
     }
@@ -148,8 +121,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
         guard model.settings.presentation == "strip" else { return }
-        model.updateSummonModifiers(flags)
-        if let key = model.stripReleaseKey(flags: flags) { performAction(key) }
+        lifecycle.send(.modifiersChanged(flags), from: model)
     }
 
     private func present(_ model: LensSession) {
@@ -176,7 +148,6 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
         let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
-        clearPresentation()
         return ticket
     }
 
@@ -184,30 +155,16 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func dismiss() {
         lifecycle.dismiss()
-        clearPresentation()
     }
 
     private func clearPresentation() {
-        stripDisplay?.cancel()
-        stripDisplay = nil
-        thumbnailRefresh?.cancel()
-        thumbnailRefresh = nil
-        ThumbnailCache.shared.closeLens(thumbnailSession)
-        inlineSearch.cancel()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
     }
 
     func changePresentationToList() {
         guard let session else { return }
-        stripDisplay?.cancel()
-        thumbnailRefresh?.cancel()
-        ThumbnailCache.shared.closeLens(thumbnailSession)
-        session.changePresentation("list")
-        present(session)
-        orderFrontRegardless()
-        lifecycle.presented(session)
-        makeKey()
+        lifecycle.send(.presentationChanged("list"), from: session)
     }
 
     private func performAction(_ key: String) {
@@ -243,7 +200,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             case .ignored: return false
             case .consumed: return true
             case .cancel: dismiss(); return true
-            case .list: changePresentationToList(); return true
+            case .list: return true
         }
     }
 
@@ -327,7 +284,7 @@ struct SwitcherPaletteView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
-                TextField("Search windows…", text: $model.query)
+                TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
                     .textFieldStyle(.plain)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textPrimary))

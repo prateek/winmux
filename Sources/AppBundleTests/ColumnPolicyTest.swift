@@ -408,9 +408,11 @@ final class ColumnPolicyTest: XCTestCase {
             var settings = LensConfig(); settings.presentation = "miniatures"
             let session = LensSession(name: "demo", settings: settings, items: [item], search: "")
             session.miniatureWorkspaces = [MiniatureWorkspace(name: destination.name, title: "Destination", source: rect, current: true)]
-            session.summonHeld = true
+            let owner = ownLens(session)
+            defer { owner.dismiss() }
+            session.send(.summonChanged(true))
             XCTAssertEqual(session.miniatureLanding, frame)
-            XCTAssertNil(session.landingTask)
+            XCTAssertNil(owner.landingTask)
             XCTAssertEqual(window.isFloating, floating)
             window.unbindFromParent()
         }
@@ -739,20 +741,23 @@ final class ColumnPolicyTest: XCTestCase {
         }
         let session = LensSession(name: "demo", settings: settings, items: items, search: "")
         session.miniatureWorkspaces = [MiniatureWorkspace(name: destination.name, title: "Destination", source: rect, current: true)]
-        session.selection = 0; session.summonHeld = true
+        session.send(.selectionChanged(0))
+        let owner = ownLens(session)
+        defer { owner.dismiss() }
+        session.send(.summonChanged(true))
         await fulfillment(of: [started], timeout: 2)
-        let oldTask = session.landingTask
-        session.selection = 1
+        let oldTask = owner.landingTask
+        session.send(.selectionChanged(1))
         XCTAssertTrue(oldTask?.isCancelled == true)
         XCTAssertNil(session.miniatureLanding)
         pending?.resume()
         await oldTask?.value
-        await session.landingTask?.value
+        await owner.landingTask?.value
         XCTAssertEqual(session.miniatureLanding?.maxX, 900)
-        session.selection = 0
-        await session.landingTask?.value
+        session.send(.selectionChanged(0))
+        await owner.landingTask?.value
         XCTAssertEqual(columnReads, 1)
-        session.cancelLanding()
+        owner.cancelLanding()
     }
 
     func testMouseUpWaitsForPendingShakePlacement() async throws {

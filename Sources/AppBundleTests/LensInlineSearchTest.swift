@@ -38,7 +38,7 @@ final class LensInlineSearchTest: XCTestCase {
         }
         let old = scheduler.update(model, context: .null, windows: [], ids: [])!
         await reached.wait()
-        model.query = "= new"
+        model.send(.searchChanged("= new"))
         let newer = scheduler.update(model, context: .null, windows: [], ids: [])!
         await newer.value
         finish?.resume(returning: .failure(.diagnostic("old error")))
@@ -54,7 +54,7 @@ final class LensInlineSearchTest: XCTestCase {
             return .success([])
         }
         let old = scheduler.update(model, context: .object([:]), windows: [], ids: [])!
-        model.query = "= true"
+        model.send(.searchChanged("= true"))
         let current = scheduler.update(model, context: .object([:]), windows: [], ids: [])!
         await current.value
         await old.value
