@@ -22,6 +22,7 @@ Done when the preflight prints `ok` for unlocked, accessibility, screen recordin
 ```sh
 $SKILL/vm sync <name> <worktree>   # copies the worktree to ~/winmux in the guest
 $SKILL/vm build <name>             # make helper, then swift build
+$SKILL/vm check <name>             # make check, on the Swift version CI pins
 ```
 
 Edit on the host, then `sync` and `build` again; the build is incremental.

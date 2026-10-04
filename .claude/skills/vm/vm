@@ -94,13 +94,21 @@ cmd_up() {
 
 cmd_sync() {
   local vm=${1:?usage: vm sync <name> <worktree>} worktree=${2:?usage: vm sync <name> <worktree>}
-  retry_auth rsync -a --delete --exclude .build --exclude target --exclude .deps \
+  # A worktree's `.git` is a file that points at a path on the host, so it stays behind. The
+  # guest's copy gets a repository of its own: `make check` ends on a `git diff`.
+  retry_auth rsync -a --delete --exclude .git --exclude .build --exclude target --exclude .deps \
     -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
+  guest "$vm" 'cd ~/winmux && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
 }
 
 cmd_build() {
   local vm=${1:?usage: vm build <name>}
   guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make helper && source ./script/setup.sh && swift build'
+}
+
+cmd_check() {
+  local vm=${1:?usage: vm check <name>}
+  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make check'
 }
 
 cmd_ssh() { local vm=${1:?usage: vm ssh <name> <command>}; shift; guest "$vm" "$@"; }
@@ -128,10 +136,10 @@ cmd_down() {
   tart delete "$vm"
 }
 
-verb=${1:-}; [ -n "$verb" ] || die "usage: vm <build-image|up|sync|build|ssh|preflight|push|pull|down> …"
+verb=${1:-}; [ -n "$verb" ] || die "usage: vm <build-image|up|sync|build|check|ssh|preflight|push|pull|down> …"
 shift
 case "$verb" in
   build-image) cmd_build_image "$@" ;;
-  up|sync|build|ssh|preflight|push|pull|down) "cmd_$verb" "$@" ;;
+  up|sync|build|check|ssh|preflight|push|pull|down) "cmd_$verb" "$@" ;;
   *) die "unknown verb: $verb" ;;
 esac
