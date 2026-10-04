@@ -4,13 +4,13 @@ import Common
 struct PlacementDecision: Equatable {
     let slot: Int
     let target: String
-    let overflow: String
+    let overflow: OverflowPolicy
     let hook: String?
     var run: [String] = []
     var failure: String?
 
     var json: JSONValue {
-        .object(["column": .int(slot), "target": .string(target), "overflow": .string(overflow),
+        .object(["column": .int(slot), "target": .string(target), "overflow": .string(overflow.rawValue),
                  "hook": hook.map(JSONValue.string) ?? .null, "run": .array(run.map(JSONValue.string)), "failure": failure.map(JSONValue.string) ?? .null])
     }
 }
@@ -118,7 +118,7 @@ enum ColumnPolicy {
             }
         } else if hook == "place" { return false }
         if let overflow = fields["overflow"] {
-            guard let action = overflow.stringOrNil, ["tab-group", "split", "float", "squeeze"].contains(action) else { return false }
+            guard let action = overflow.stringOrNil, OverflowPolicy(rawValue: action) != nil else { return false }
         } else if hook == "place" { return false }
         if hook == "arrive" {
             if let workspace = fields["workspace"], workspace.stringOrNil == nil { return false }
@@ -134,12 +134,12 @@ enum ColumnPolicy {
 
     static func decision(window: Window, workspace: Workspace, answer: JSONValue? = nil,
                          supervisor: NickelSupervisor = .shared, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
-        var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: "tab-group", hook: nil)
+        var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
         let result: JSONValue?
         if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
-        builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: "tab-group", hook: nil)
+        builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let result else {
             if path != nil { builtIn.failure = supervisor.status.lastError ?? "Hook unavailable" }
             return builtIn
@@ -176,7 +176,7 @@ enum ColumnPolicy {
             builtIn.failure = supervisor.status.lastError
             return builtIn
         }
-        return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil ?? "tab-group",
+        return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
                                  hook: answer == nil ? path : "arrive", run: commands(result))
     }
 

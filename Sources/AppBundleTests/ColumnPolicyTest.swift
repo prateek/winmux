@@ -131,7 +131,7 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertEqual(config.columns.hook("place", workspace: ws.name), "workspace.Demo.columns.when.default.place")
         let new = TestWindow.new(id: 2, parent: ws)
         let decision = await ColumnPolicy.decision(window: new, workspace: ws, supervisor: supervisor)
-        XCTAssertEqual(decision.slot, 3); XCTAssertEqual(decision.overflow, "tab-group")
+        XCTAssertEqual(decision.slot, 3); XCTAssertEqual(decision.overflow.rawValue, "tab-group")
         let plain = Workspace.get(byName: "Plain")
         try await ColumnPolicy.arrive(new, on: plain, floatingDefault: false, supervisor: supervisor)
         XCTAssertTrue(new.isFloating); XCTAssertTrue(new.nodeWorkspace === plain)
@@ -444,7 +444,7 @@ final class ColumnPolicyTest: XCTestCase {
             let window = TestWindow.new(id: 42, parent: ws)
             let result = await ColumnPolicy.decision(window: window, workspace: ws, supervisor: supervisor)
             XCTAssertEqual(result.slot, [1, 2, 3, 2][index])
-            XCTAssertEqual(result.overflow, ["float", "split", "squeeze", "tab-group"][index])
+            XCTAssertEqual(result.overflow.rawValue, ["float", "split", "squeeze", "tab-group"][index])
             window.unbindFromParent()
         }
     }
@@ -548,7 +548,7 @@ final class ColumnPolicyTest: XCTestCase {
         let anchor = TestWindow.new(id: 1, parent: ws)
         ws.bindToColumn(anchor, slot: 1)
         let squeezed = TestWindow.new(id: 2, parent: ws)
-        ws.bindToColumn(squeezed, slot: 1, overflow: "squeeze")
+        ws.bindToColumn(squeezed, slot: 1, overflow: .squeeze)
         let window = TestWindow.new(id: 42, parent: ws)
         let result = await ColumnPolicy.decision(window: window, workspace: ws, supervisor: supervisor)
         XCTAssertEqual(ws.columns?.slotCount, 4)

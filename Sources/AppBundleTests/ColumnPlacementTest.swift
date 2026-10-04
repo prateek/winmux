@@ -101,7 +101,7 @@ final class ColumnPlacementTest: XCTestCase {
             let (workspace, incoming, _) = try await fixture(row)
             let window = incoming as? Window ?? incoming.allLeafWindowsRecursive.first!
             incoming.unbindFromParent()
-            workspace.bindToColumn(incoming, slot: 2, overflow: row.overflow)
+            workspace.bindToColumn(incoming, slot: 2, overflow: OverflowPolicy(rawValue: row.overflow)!)
             workspace.normalizeContainers()
             try await workspace.layoutWorkspace()
             XCTAssertEqual(region(row, workspace, incoming, window: window), expected(row), String(describing: row))
@@ -109,4 +109,110 @@ final class ColumnPlacementTest: XCTestCase {
                            (row.occupied ? (row.tabTarget ? 3 : 2) : 1) + (row.group ? 2 : 1) + (row.squeezed ? 1 : 0))
         }
     }
+    private func load(_ overflow: String) async throws {
+        guard nickelHelperUrl() != nil else { throw XCTSkip("Run make helper") }
+        let path = FileManager.default.temporaryDirectory.appending(path: "placement-\(UUID()).ncl")
+        try ("let W = import \"winmux/winmux.ncl\" in { columns.place = fun w ctx cols => { column = 2, overflow = '\(overflow), run = [\"focus-column 3 --workspace Destination\"] } } | W.Config")
+            .write(to: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: path) }
+        let loaded = try await NickelSupervisor.shared.load(path).get()
+        NickelSupervisor.shared.adopt(loaded)
+        config.columns = ColumnsConfig(loaded.settings["columns"], workspaces: nil)
+    }
+
+    private func session(_ workspace: Workspace, window: Window, rect: CGRect) -> LensSession {
+        var settings = LensConfig(); settings.presentation = "miniatures"
+        let item = SwitcherPaletteItem(id: window.windowId, title: "Incoming", appName: "Test", icon: nil,
+            workspaceName: "Source", isFocused: false,
+            miniature: MiniatureWindow(workspace: "Source", frame: CGRect(x: 10, y: 10, width: 200, height: 200),
+                                       tray: false, frozen: false, accessory: false, floating: false, window: window))
+        let session = LensSession(name: "test", settings: settings, items: [item], search: "")
+        session.miniatureWorkspaces = [MiniatureWorkspace(name: workspace.name, title: workspace.name, source: rect, current: true)]
+        return session
+    }
+
+    private func treeSnapshot(_ node: TreeNode) -> [String] {
+        ["\(ObjectIdentifier(node)) revision \(node.bindingRevision) slot \(String(describing: node.columnSlot)) weights \(node.hWeight),\(node.vWeight)",
+         "children \(node.children.map(ObjectIdentifier.init)) mru \(node.childrenByMostRecentUse.map(ObjectIdentifier.init))"]
+            + node.children.flatMap(treeSnapshot)
+    }
+
+    func testResolvedHintMatchesActualLayoutIncludingGroups() async throws {
+        for row in cases {
+            let (workspace, incoming, rect) = try await fixture(row)
+            let window = incoming as? Window ?? incoming.allLeafWindowsRecursive.first!
+            let decision = PlacementDecision(slot: 2, target: "2", overflow: OverflowPolicy(rawValue: row.overflow)!, hook: nil)
+            let placement = ColumnPlacement.resolve(decision, columns: workspace.columns!, children: workspace.rootTilingContainer.children, incoming: incoming)
+            let hint = miniatureColumnLanding(placement, in: rect, horizontalGap: 20, verticalGap: 12,
+                                              floatingFrame: CGRect(x: 10, y: 10, width: 200, height: 200), source: rect)
+            incoming.unbindFromParent()
+            workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
+            workspace.normalizeContainers()
+            try await workspace.layoutWorkspace()
+            let actual = region(row, workspace, incoming, window: window)
+            XCTAssertEqual(actual, expected(row), String(describing: row))
+            XCTAssertEqual(hint, actual ?? CGRect(x: 10, y: 10, width: 200, height: 200), String(describing: row))
+        }
+    }
+
+    func testLensPreviewIsReadOnlyAndUnchangedSelectionDoesNoWork() async throws {
+        for row in cases where !row.group {
+            let (workspace, incoming, rect) = try await fixture(row)
+            let window = incoming as! TestWindow
+            try await load(row.overflow)
+            let model = session(workspace, window: window, rect: rect)
+            let before = Workspace.all.flatMap(treeSnapshot)
+            let widths = workspace.columns!.widths
+            let focusedSlot = workspace.columns!.focusedSlot
+            let focusedWindow = focus.windowOrNil
+            let focusedWorkspace = focus.workspace
+            _ = columnsEventTracker.event(for: workspace)
+            XCTAssertNil(columnsEventTracker.event(for: workspace))
+            let tracker = String(reflecting: columnsEventTracker)
+            var reads = 0
+            window.beforeAxRecord = { reads += 1 }
+            model.summonHeld = true
+            await model.landingTask?.value
+            let hint = model.miniatureLanding
+            let initialReads = reads
+            XCTAssertGreaterThan(initialReads, 0)
+            for _ in 0..<10 { model.hover(window.windowId); model.updateMiniatureLanding() }
+            await model.landingTask?.value
+            XCTAssertEqual(reads, initialReads)
+            XCTAssertEqual(model.miniatureLanding, hint)
+            XCTAssertEqual(Workspace.all.flatMap(treeSnapshot), before)
+            XCTAssertEqual(workspace.columns!.widths, widths)
+            XCTAssertEqual(workspace.columns!.focusedSlot, focusedSlot, "The run list must not execute")
+            XCTAssertTrue(focus.windowOrNil === focusedWindow)
+            XCTAssertTrue(focus.workspace === focusedWorkspace)
+            XCTAssertEqual(String(reflecting: columnsEventTracker), tracker)
+            XCTAssertNil(columnsEventTracker.event(for: workspace), "No columns-changed event")
+            model.cancelLanding()
+            window.unbindFromParent()
+            workspace.bindToColumn(window, slot: 2, overflow: OverflowPolicy(rawValue: row.overflow)!)
+            workspace.normalizeContainers()
+            try await workspace.layoutWorkspace()
+            XCTAssertEqual(hint, region(row, workspace, window, window: window) ?? CGRect(x: 10, y: 10, width: 200, height: 200))
+        }
+    }
+
+    func testCommitResolvesCurrentWidthsAndOccupancyAfterPreview() async throws {
+        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+        try await load("squeeze")
+        let window = incoming as! TestWindow
+        let model = session(workspace, window: window, rect: rect)
+        model.summonHeld = true
+        await model.landingTask?.value
+        XCTAssertEqual(model.miniatureLanding, CGRect(x: 760, y: 0, width: 240, height: 799))
+        workspace.columns!.widths = [0.4, 0.2, 0.4]
+        let extra = TestWindow.new(id: 5, parent: workspace)
+        workspace.bindToColumn(extra, slot: 2, overflow: .squeeze)
+        let result = try await parseCommand("summon --window-id 42").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        for (actual, expected) in zip(workspace.columns!.widths, [0.3, 0.15, 0.3, 0.25]) { XCTAssertEqual(actual, expected, accuracy: 0.000001) }
+        XCTAssertEqual(workspace.columnSlot(containing: window), 4)
+        XCTAssertTrue(window.parent === extra.parent)
+        model.cancelLanding()
+    }
+
 }
