@@ -26,6 +26,7 @@ The README shows upstream's screenshots and says nothing a reader can watch abou
 
 - A fresh guest stages the desk with no first-run screens
 - Calendar and Music on the set, a grievance struck out, and a `render` width
+- Shipped Lenses for the grid, and the docs. The demos are filmed once, of the Lenses as they look after the Lens look issues, and include the grid.
 
 ## Defaults chosen for you
 

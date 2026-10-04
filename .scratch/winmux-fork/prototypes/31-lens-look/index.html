@@ -1,0 +1,542 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lens Look</title>
+<style>
+/* Layout: a reading column of notes around one wide working stage; the stage is a 1920x1080 desk scaled to fit. */
+:root {
+  --bg: #f3f4f7; --surface: #ffffff; --fg: #15171c; --muted: #5d6470; --line: #d9dce3;
+  --accent: #2f6fed; --accent-soft: #e3ecff; --good: #1d7a4d; --lack: #a2441b;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14161b; --surface: #1d2027; --fg: #eceef2; --muted: #9aa1ad; --line: #30343e;
+  --accent: #6f9dff; --accent-soft: #1f2c4a; --good: #63c796; --lack: #f0a070; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14161b; --surface: #1d2027; --fg: #eceef2; --muted: #9aa1ad; --line: #30343e;
+  --accent: #6f9dff; --accent-soft: #1f2c4a; --good: #63c796; --lack: #f0a070; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); padding-inline: 20px; padding-block: 32px 80px }
+.wrap { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px }
+.read { max-width: 68ch }
+h1 { font-size: 34px; line-height: 1.1; margin: 0 0 10px; letter-spacing: -0.02em; text-wrap: balance }
+h2 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.01em; text-wrap: balance }
+h3 { font-size: 14px; margin: 0; }
+p { margin: 0 0 10px }
+.lede { color: var(--muted); font-size: 17px }
+.eyebrow { font: 600 11px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px }
+section { display: flex; flex-direction: column; gap: 16px }
+.refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+figure img { width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; cursor: zoom-in }
+figcaption { display: flex; flex-direction: column; gap: 4px }
+.src { font: 11px var(--mono); color: var(--muted) }
+ul.pm { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px }
+ul.pm li { padding-left: 18px; position: relative }
+ul.pm li::before { position: absolute; left: 0; font-weight: 700 }
+ul.pm li.p::before { content: "+"; color: var(--good) }
+ul.pm li.m::before { content: "\2212"; color: var(--lack) }
+.tablebox { overflow-x: auto }
+table { border-collapse: collapse; font-size: 13.5px; width: 100% }
+th, td { text-align: left; vertical-align: top; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line) }
+th { font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+td:first-child { font-weight: 600; white-space: nowrap }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 14px 26px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px }
+.grp { display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.grp > b { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center }
+.ctl { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--bg) }
+.seg button { font: 13px var(--sans); color: var(--fg); background: none; border: 0; padding: 5px 10px; cursor: pointer; border-right: 1px solid var(--line) }
+.seg button:last-child { border-right: 0 }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff }
+.seg button:focus-visible, #q:focus-visible, #stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.seg button:disabled { opacity: .4; cursor: default }
+#q { font: 13px var(--sans); padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); width: 150px }
+.hint { font-size: 12.5px; color: var(--muted) }
+
+/* the stage: a 1920x1080 desk, scaled */
+#stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; border: 1px solid var(--line); background: #0d1018 }
+#desk { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --pn: rgba(30,32,38,.62); --pn-line: rgba(255,255,255,.16); --tx: #fff; --tx2: rgba(255,255,255,.62); --sel: #2f7bf6; --plate: rgba(47,123,246,.26); --chip: rgba(255,255,255,.16) }
+#desk.t-light { --pn: rgba(236,238,243,.74); --pn-line: rgba(0,0,0,.12); --tx: #16181d; --tx2: rgba(0,0,0,.55); --plate: rgba(47,123,246,.2); --chip: rgba(0,0,0,.1) }
+#deskbg { position: absolute; inset: 0; width: 1920px; height: 1080px; max-width: none }
+#peek { position: absolute; border-radius: 12px; box-shadow: 0 0 0 4px var(--sel), 0 40px 110px rgba(0,0,0,.6); background: #222; z-index: 30;
+  transition: left .26s cubic-bezier(.2,.9,.25,1.04), top .26s cubic-bezier(.2,.9,.25,1.04), width .26s cubic-bezier(.2,.9,.25,1.04), height .26s cubic-bezier(.2,.9,.25,1.04), opacity .18s }
+#peek.under { z-index: 0; transition: all .2s ease }
+#peek.snap { transition: none }
+#peek img { width: 100%; height: 100%; display: block; max-width: none; border-radius: 12px }
+#peeklabel { position: absolute; left: 50%; bottom: -44px; transform: translateX(-50%); white-space: nowrap; background: rgba(20,22,28,.86); color: #fff; font-size: 16px; padding: 6px 14px; border-radius: 9px }
+#peek.under #peeklabel, #peek.small #peeklabel { display: none }
+#desk.zoomed #panel, #desk.zoomed #layer, #desk.zoomed #groupctl, #desk.zoomed #foot { opacity: .28 }
+#layer, #foot, #groupctl { transition: opacity .2s }
+#landing { position: absolute; border: 3px dashed #ff9f0a; border-radius: 12px; background: rgba(255,159,10,.12); z-index: 1 }
+#landing span { position: absolute; left: 12px; top: 10px; font-size: 15px; font-weight: 600; color: #ffb340; background: rgba(0,0,0,.6); padding: 3px 9px; border-radius: 6px }
+#desk.hinting #panel { opacity: .55 }
+#legend { position: absolute; transform: translateX(-50%); white-space: nowrap; display: flex; gap: 18px; font-size: 15px; color: var(--tx); background: rgba(10,12,16,.82); padding: 9px 18px; border-radius: 12px; z-index: 12 }
+#desk.t-light #legend { color: #fff }
+#legend kbd { font: 600 13px -apple-system, sans-serif; background: rgba(255,255,255,.18); border-radius: 5px; padding: 2px 7px; margin-right: 6px }
+.pseg { position: absolute; display: flex; align-items: center; gap: 2px; font-size: 14px; color: var(--tx2); z-index: 8 }
+.pseg span { padding: 4px 11px; border-radius: 8px; cursor: pointer }
+.pseg span.on { background: var(--chip); color: var(--tx); font-weight: 600 }
+.pseg em { font-style: normal; margin-right: 8px }
+.pseg kbd { font: 600 12px -apple-system, sans-serif; background: var(--chip); border-radius: 5px; padding: 1px 6px; margin-left: 8px; color: var(--tx2) }
+#panel { position: absolute; background: var(--pn); border: 1px solid var(--pn-line); backdrop-filter: blur(44px) saturate(1.7); -webkit-backdrop-filter: blur(44px) saturate(1.7); box-shadow: 0 30px 90px rgba(0,0,0,.45); transition: all .28s cubic-bezier(.2,.8,.2,1); border-radius: 30px }
+#desk.f-alttab #panel { border-radius: 44px }
+#desk.f-native #panel { border-radius: 38px; --pn: rgba(120,124,134,.5) }
+#desk.f-native.t-light #panel { --pn: rgba(225,227,232,.7) }
+#desk.l-mini #panel { border-radius: 0; border: 0; --pn: rgba(22,24,30,.72) }
+#desk.l-mini.t-light #panel { --pn: rgba(232,234,240,.78) }
+.hd { position: absolute; color: var(--tx2); font-size: 15px; font-weight: 600; letter-spacing: .02em; transition: all .28s; white-space: nowrap }
+.hd.cur { color: var(--tx) }
+.wsframe { position: absolute; border-radius: 12px; background: rgba(0,0,0,.28); border: 1px solid var(--pn-line); transition: all .28s }
+.wsframe.cur { border: 2px solid var(--tx2) }
+#foot { position: absolute; color: var(--tx2); font-size: 15px; text-align: center; white-space: nowrap; transform: translateX(-50%) }
+#foot b { color: var(--tx); font-weight: 600 }
+#query { position: absolute; transform: translateX(-50%); color: var(--tx); background: var(--chip); border-radius: 9px; padding: 5px 14px; font-size: 17px }
+
+.tile { position: absolute; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; cursor: pointer; color: var(--tx);
+  transition: left .28s cubic-bezier(.2,.8,.2,1), top .28s cubic-bezier(.2,.8,.2,1), width .28s, height .28s, opacity .2s, transform .16s, box-shadow .16s, background .12s }
+.tile .bar { display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; flex: none }
+.tile .ico { width: 26px; height: 26px; flex: none }
+.tile .ttl { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; color: var(--tx2) }
+.tile .app { font-size: 14px; color: var(--tx2); display: none; white-space: nowrap }
+.tile mark { background: #ffd54a; color: #111; border-radius: 4px; padding: 0 1px }
+.chips { display: flex; gap: 5px; flex: none }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: var(--tx); white-space: nowrap }
+#desk.nobadge .chips { display: none }
+.tile .pic { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center }
+.tile .pic img.shot { max-width: 100%; max-height: 100%; width: auto; height: auto; border-radius: 7px; box-shadow: 0 6px 18px rgba(0,0,0,.35); display: block }
+.tile .pic .ico2 { position: absolute; left: 6px; bottom: 6px; width: 30px; height: 30px; display: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)) }
+.tile .wctl { position: absolute; left: 8px; top: 8px; display: flex; gap: 6px; opacity: 0; transition: opacity .12s }
+.tile:hover .wctl { opacity: 1 }
+.wctl i { width: 16px; height: 16px; border-radius: 50%; display: block; box-shadow: 0 1px 3px rgba(0,0,0,.4) }
+.wctl i:nth-child(1) { background: #ff5f57 } .wctl i:nth-child(2) { background: #febc2e } .wctl i:nth-child(3) { background: #28c840 }
+.tile .lbl { position: absolute; top: 8px; right: 8px; font-size: 12px; background: rgba(0,0,0,.72); color: #fff; padding: 3px 8px; border-radius: 6px; display: none }
+.tile.dim { opacity: .22 }
+.tile.gone { opacity: 0; pointer-events: none }
+.tile.sel .ttl { color: var(--tx); font-weight: 600 }
+/* finishes: how the selected tile is marked */
+#desk.f-winmux .tile.sel { background: var(--chip); transform: scale(1.045); box-shadow: 0 0 0 2.5px var(--sel), 0 18px 40px rgba(0,0,0,.4); z-index: 5 }
+#desk.f-alttab .tile.sel { background: var(--plate); box-shadow: 0 0 0 3px var(--sel) }
+#desk.f-native .tile.sel { background: rgba(0,0,0,.3) }
+#desk.f-native.t-light .tile.sel { background: rgba(0,0,0,.14) }
+.tile:hover:not(.sel) { background: var(--chip) }
+/* tile kinds */
+.tile.k-picture .bar { display: none }
+.tile.k-picture .ico2 { display: block }
+.tile.k-text { flex-direction: row; align-items: center; padding: 0 12px; border-radius: 10px }
+.tile.k-text .pic { display: none }
+.tile.k-text .bar { flex: 1; height: auto }
+.tile.k-text .app, .tile.row .app { display: inline }
+/* list rows that keep a picture */
+.tile.row { flex-direction: row; align-items: center; padding: 6px 12px; gap: 14px; border-radius: 10px }
+.tile.row .pic { flex: none; width: 96px; height: 100%; order: -1 }
+.tile.row .bar { flex: 1; display: flex }
+.tile.row .ico2 { display: none }
+.tile.row .wctl { display: none }
+#desk.f-winmux .tile.row.sel, #desk.f-winmux .tile.k-text.sel { transform: none; box-shadow: none; background: var(--plate) }
+/* miniatures: windows where they are */
+.tile.mini { padding: 0; border-radius: 5px; gap: 0 }
+.tile.mini .bar { display: none }
+.tile.mini .pic img.shot { width: 100%; height: 100%; max-height: none; border-radius: 4px; box-shadow: 0 0 0 1px rgba(255,255,255,.35) }
+.tile.mini .ico2 { display: block; width: 22px; height: 22px; left: 4px; bottom: 4px }
+.tile.mini .wctl { display: none }
+#desk .tile.mini.sel { transform: none; background: none; box-shadow: 0 0 0 4px var(--sel), 0 10px 30px rgba(0,0,0,.5); z-index: 5 }
+#desk.hinting .tile.sel.away .lbl { display: block }
+.tile .num { position: absolute; right: 8px; bottom: 8px; font-size: 13px; font-weight: 700; background: rgba(0,0,0,.72); color: #fff; padding: 2px 8px; border-radius: 6px; display: none }
+#desk.hinting .tile .num { display: block }
+.tile.mini .num, .tile.row .num { display: none !important }
+@media (prefers-reduced-motion: reduce) { .tile, #panel, #peek, #layer, .hd, .wsframe { transition: none } }
+
+.qs { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px }
+.qcard { border-top: 2px solid var(--fg); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 14px }
+.qcard .rec { color: var(--good); font-weight: 600 }
+dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh }
+dialog::backdrop { background: rgba(0,0,0,.8) }
+dialog img { max-width: 96vw; max-height: 92vh; display: block; border-radius: 8px }
+</style>
+
+<div class="wrap">
+  <header class="read">
+    <div class="eyebrow">WinMux · Lens look · round 2</div>
+    <h1>One tile, four layouts</h1>
+    <p class="lede">The same fourteen-window desk, shown by the three switchers you already know and by WinMux today. Below them is a working prototype of the proposed look. Its switches set the tile once and every layout follows.</p>
+  </header>
+
+  <section>
+    <div class="read">
+      <h2>The same desk in each switcher</h2>
+      <p>Every picture here is a real capture from one guest at 1920 × 1080, with the same windows open. Click a picture to enlarge it. App Exposé would not open from a script in the guest, so it is missing.</p>
+    </div>
+    <div class="refs">
+      <figure><img src="img/cap-cmdtab.jpg" alt="Native Cmd-Tab: a row of ten large app icons in a rounded bar">
+        <figcaption><h3>Native Cmd-Tab</h3><span class="src">macOS 26, held open</span>
+          <ul class="pm"><li class="p">Instant to read. Ten icons at one size, one label, under the selected icon only.</li><li class="p">The bar is as wide as its contents and no wider.</li><li class="m">Apps, not windows. Three Safari windows are one icon, two TextEdit drafts are one icon.</li><li class="m">Nothing says where anything is.</li></ul></figcaption></figure>
+      <figure><img src="img/cap-mission.jpg" alt="Mission Control: every window spread across the screen without chrome">
+        <figcaption><h3>Mission Control</h3><span class="src">macOS 26, without WinMux running</span>
+          <ul class="pm"><li class="p">No panel at all. The windows are the interface, at their real shapes, as large as the screen allows.</li><li class="p">Roughly keeps left things left and right things right.</li><li class="m">No titles until you hover, so two terminals or two drafts are a guess.</li><li class="m">No keyboard selection, no search, no grouping. Mouse only.</li></ul></figcaption></figure>
+      <figure><img src="img/cap-alttab.jpg" alt="AltTab: three rows of window thumbnails with icon and title above each">
+        <figcaption><h3>AltTab</h3><span class="src">current release, default settings, its own welcome window included</span>
+          <ul class="pm"><li class="p">Icon and title above every picture, so nothing is a guess.</li><li class="p">One height per row and each window's real shape. No dead space in a tile.</li><li class="p">Rows centre, the panel fills most of the screen, the selection is a ring on a tinted plate.</li><li class="m">One flat list. No grouping by workspace or app, and no sense of place.</li><li class="m">A small window is drawn at full size beside shrunken large ones: the dialog is wider than Zed.</li></ul></figcaption></figure>
+      <figure><img src="img/cap-wm-strip.jpg" alt="WinMux strip today: a row of nine small fixed cells, each half empty">
+        <figcaption><h3>WinMux today: the strip</h3><span class="src">fork at f438e690</span>
+          <ul class="pm"><li class="p">Windows, in recency order, with titles.</li><li class="m">Every cell is one fixed box, so narrow windows leave half of it empty.</li><li class="m">Never grows. Nine cells at most, then "+5".</li><li class="m">Titles in 11-point text, pictures too small to read.</li></ul></figcaption></figure>
+      <figure><img src="img/cap-wm-overview.jpg" alt="WinMux overview today: four small workspace miniatures across the top of an empty screen">
+        <figcaption><h3>WinMux today: overview</h3><span class="src">fork at f438e690</span>
+          <ul class="pm"><li class="p">The only one of the five that shows where a window lives: workspace, Column, position.</li><li class="m">Four workspaces use the top sixth of the screen. The rest is empty.</li><li class="m">A tab group draws as one window.</li></ul></figcaption></figure>
+      <figure><img src="img/cap-wm-list.jpg" alt="WinMux search list today: a small text list in the middle of the screen">
+        <figcaption><h3>WinMux today: the list</h3><span class="src">fork at f438e690</span>
+          <ul class="pm"><li class="p">Fast to type into, and every window is there.</li><li class="m">Text only, one size, no workspace, no grouping. Two rows both say "desk".</li></ul></figcaption></figure>
+    </div>
+    <div class="read">
+      <h3>Others, from memory and not captured</h3>
+    </div>
+    <div class="tablebox"><table>
+      <tr><th>App</th><th>What it shows</th><th>Worth taking</th></tr>
+      <tr><td>Windows 11 Alt-Tab</td><td>Same-height thumbnails in rows, icon and title above each.</td><td>It is where AltTab's tile comes from. Confirms the card.</td></tr>
+      <tr><td>Contexts</td><td>A text list of windows grouped by app, with search and a number per row.</td><td>Grouped text rows, and a digit that jumps straight to a row.</td></tr>
+      <tr><td>Witch</td><td>Text menus: windows under their apps, tabs under their windows.</td><td>Tabs as entries. That is issue #48, and the tile should have room for it.</td></tr>
+      <tr><td>Raycast Switch Windows</td><td>A search list with app icon, title and app name.</td><td>The matched text highlighted as you type.</td></tr>
+      <tr><td>GNOME Activities</td><td>Windows spread out as in Mission Control, with a workspace strip and search in one screen.</td><td>Spread, workspaces and search composed in one view, which is what Lenses already model.</td></tr>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="read">
+      <h2>The proposal, working</h2>
+      <p>Tile settings apply to every layout. Change the layout and the same tiles move. Hover a tile for its window controls.</p>
+      <p>Click the desk first, then: <b>arrow keys</b> move the selection, <b>Space</b> zooms the selected window to its real size and place and Space again puts it back, <b>hold Option</b> shows the hints, and <b>G</b> changes the grouping.</p>
+    </div>
+    <div class="controls">
+      <div class="grp"><b>Tile, shared by every layout</b><div class="row">
+        <div class="ctl">Kind<div class="seg" data-k="kind"><button data-v="card">Card</button><button data-v="picture">Picture</button><button data-v="text">Text</button></div></div>
+        <div class="ctl">Badges<div class="seg" data-k="badges"><button data-v="on">On</button><button data-v="off">Off</button></div></div>
+        <div class="ctl">Selection<div class="seg" data-k="finish"><button data-v="winmux">Lift</button><button data-v="alttab">Ring and plate</button><button data-v="native">Plate</button></div></div>
+        <div class="ctl">Theme<div class="seg" data-k="theme"><button data-v="dark">Dark</button><button data-v="light">Light</button></div></div>
+      </div></div>
+      <div class="grp"><b>Layout</b><div class="row">
+        <div class="ctl">Presentation<div class="seg" data-k="layout"><button data-v="grid">Grid</button><button data-v="strip">Strip</button><button data-v="list">List</button><button data-v="mini">Miniatures</button></div></div>
+        <div class="ctl">Tile size<div class="seg" data-k="size"><button data-v="height">Same height</button><button data-v="real">Real size</button><button data-v="box">Equal boxes</button></div></div>
+        <div class="ctl">Windows<div class="seg" data-k="count"><button data-v="3">3</button><button data-v="6">6</button><button data-v="14">14</button><button data-v="28">28</button><button data-v="42">42</button></div></div>
+      </div></div>
+      <div class="grp"><b>Sections</b><div class="row">
+        <div class="ctl">Group by<div class="seg" data-k="sections"><button data-v="none">None</button><button data-v="workspace">Workspace</button><button data-v="app">App</button></div></div>
+        <div class="ctl">Arranged<div class="seg" data-k="arrange"><button data-v="flow">Flow</button><button data-v="rows">Stacked rows</button><button data-v="cols">Side by side</button></div></div>
+      </div></div>
+      <div class="grp"><b>Behaviour</b><div class="row">
+        <div class="ctl">Peek<div class="seg" data-k="peek"><button data-v="zoom">Space to zoom</button><button data-v="follow">Follows selection</button><button data-v="off">Off</button></div></div>
+        <div class="ctl">Hints<div class="seg" data-k="hints"><button data-v="held">While Option is held</button><button data-v="always">Always</button></div></div>
+        <div class="ctl">For a mouse<div class="seg"><button id="holdbtn" type="button">Hold for hints</button><button id="zoombtn" type="button">Zoom</button></div></div>
+        <div class="ctl"><label for="q">Search</label><input id="q" type="text" placeholder="try: desk" autocomplete="off"></div>
+      </div></div>
+    </div>
+    <div id="stage" tabindex="0" aria-label="Prototype desk. Arrow keys move the selection.">
+      <div id="desk">
+        <img id="deskbg" src="img/ws1.jpg" alt="">
+        <div id="panel"></div>
+        <div id="landing" hidden><span>lands here</span></div>
+        <div id="layer"></div>
+        <div id="groupctl" class="pseg"></div>
+        <div id="legend" hidden></div>
+        <div id="peek" hidden><img alt=""><span id="peeklabel"></span></div>
+        <div id="query" hidden></div>
+        <div id="foot"></div>
+      </div>
+    </div>
+    <p class="hint" id="readout"></p>
+  </section>
+
+  <section>
+    <div class="read">
+      <h2>Settled in round 1</h2>
+      <p>Lift for the selection. The card as the default tile. Real size in the grid. Sections flow by default, and each Presentation takes its own arrangement in the config. Tiles shrink to fit; paging comes later. Grouping is by workspace by default, set in the config, and changed while the Lens is open from the control above the panel.</p>
+      <h2>What I need you to pick now</h2>
+    </div>
+    <div class="qs">
+      <div class="qcard"><h3>1. Peek</h3><span><b>Space to zoom</b> is Quick Look for windows: the picture grows out of its tile to the window's real size and place, over the dimmed grid. Arrows move to the next window while it stays up. Space or Esc puts it back. <b>Follows selection</b> is AltTab's: the window sits under the panel, which only works when the panel is small.</span><span class="rec">Recommended: Space to zoom everywhere, with follows-selection as an option for the strip</span></div>
+      <div class="qcard"><h3>2. Hints</h3><span>While Option is held: the Summon label on the selected tile, where it would land, the workspace a number key sends each tile to, and a legend of the Lens's keys. The panel thins so the landing spot shows through.</span><span class="rec">Recommended: held, with Option as the default key</span></div>
+      <div class="qcard"><h3>3. With no paging, when tiles get very small</h3><span>Try 42 windows. They keep shrinking and nothing is cut off. The other choice is a floor, with the rest counted as "+N" and out of reach until paging exists.</span><span class="rec">Recommended: keep shrinking</span></div>
+      <div class="qcard"><h3>4. The grouping key</h3><span>The control above the panel is clickable, and one key cycles it. I used cmd-G, which also works while cmd is held in a cmd-tab strip.</span><span class="rec">Recommended: cmd-G, changeable in the Lens's keys</span></div>
+    </div>
+  </section>
+</div>
+<dialog id="zoom"><img alt=""></dialog>
+
+<script>
+(function () {
+  var ICON = { Zed: 'zed', Ghostty: 'ghostty', Safari: 'safari', Notes: 'notes', TextEdit: 'textedit', Finder: 'finder', Preview: 'preview', Calculator: 'calculator', Updater: 'updater' };
+  // id, app, title, workspace, real frame on its workspace, in most-recently-used order
+  var BASE = [
+    { id: 93, app: 'Zed', title: 'winmux.ncl', ws: 1, x: 62, y: 42, w: 919, h: 1025 },
+    { id: 99, app: 'Ghostty', title: 'desk', ws: 1, x: 989, y: 42, w: 919, h: 509 },
+    { id: 117, app: 'Safari', title: 'Lenses and Search', ws: 2, x: 587, y: 81, w: 798, h: 986, tab: 0 },
+    { id: 126, app: 'Notes', title: 'Notes – 2 notes', ws: 2, x: 62, y: 42, w: 709, h: 1025, under: true },
+    { id: 141, app: 'TextEdit', title: 'Grievances.rtf', ws: 3, x: 62, y: 81, w: 1221, h: 986, tab: 0 },
+    { id: 24, app: 'Finder', title: 'desk', ws: 3, x: 1297, y: 42, w: 611, h: 1025 },
+    { id: 122, app: 'Safari', title: 'Fixed Columns', ws: 2, x: 587, y: 81, w: 798, h: 986, tab: 1 },
+    { id: 192, app: 'Updater', title: 'A dialog that is not yours', ws: 1, x: 421, y: 147, w: 440, h: 202, float: true },
+    { id: 106, app: 'Ghostty', title: 'desk', ws: 1, x: 989, y: 558, w: 919, h: 509 },
+    { id: 140, app: 'TextEdit', title: 'Things I will get to.rtf', ws: 2, x: 1395, y: 42, w: 513, h: 1025 },
+    { id: 124, app: 'Safari', title: 'Subscription events', ws: 2, x: 587, y: 81, w: 798, h: 986, tab: 2 },
+    { id: 139, app: 'TextEdit', title: 'Soft language.rtf', ws: 3, x: 62, y: 81, w: 1221, h: 986, tab: 1 },
+    { id: 151, app: 'Preview', title: 'wallpaper.jpg', ws: 4, x: 62, y: 42, w: 1846, h: 1025 },
+    { id: 155, app: 'Calculator', title: 'Calculator', ws: 4, x: 190, y: 359, w: 230, h: 408, float: true }
+  ];
+  function copies(tag, n) { return BASE.map(function (w) { var c = Object.assign({}, w); c.key = w.id + tag; c.title = w.title + ' (' + n + ')'; c.copy = n; return c; }); }
+  var COPIES = copies('b', 2).concat(copies('c', 3));
+  BASE.forEach(function (w) { w.key = String(w.id); });
+  var ALL = BASE.concat(COPIES);
+  var S = { kind: 'card', badges: 'on', finish: 'winmux', theme: 'dark', layout: 'grid', size: 'real', count: '14', sections: 'workspace', arrange: 'flow', peek: 'zoom', hints: 'held' };
+  var sel = BASE[0].key, query = '', placed = [], zoomed = false, held = false, lastL = null;
+  var desk = document.getElementById('desk'), layer = document.getElementById('layer'), panel = document.getElementById('panel');
+  var foot = document.getElementById('foot'), peek = document.getElementById('peek'), qpill = document.getElementById('query');
+  var W = 1920, H = 1080, PAD = 10, BAR = 36;
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function mark(s) {
+    if (!query) return esc(s);
+    var i = s.toLowerCase().indexOf(query);
+    return i < 0 ? esc(s) : esc(s.slice(0, i)) + '<mark>' + esc(s.slice(i, i + query.length)) + '</mark>' + esc(s.slice(i + query.length));
+  }
+  function matches(w) { return !query || (w.title + ' ' + w.app).toLowerCase().indexOf(query) >= 0; }
+
+  var els = {};
+  ALL.forEach(function (w) {
+    var t = document.createElement('div'); t.className = 'tile gone'; t.dataset.key = w.key;
+    var chips = (w.ws !== 1 ? '<span class="chip">' + w.ws + '</span>' : '') + (w.float ? '<span class="chip">floating</span>' : '');
+    t.innerHTML = '<div class="bar"><img class="ico" src="img/icon-' + ICON[w.app] + '.png" alt=""><span class="ttl"></span><span class="app">' + w.app + '</span><span class="chips">' + chips + '</span></div>' +
+      '<div class="pic"><img class="shot" src="img/w' + w.id + '.jpg" alt=""><img class="ico2" src="img/icon-' + ICON[w.app] + '.png" alt=""><span class="wctl"><i></i><i></i><i></i></span><span class="lbl">\u2325\u21a9 Summon to 1</span><span class="num"></span></div>';
+    t.addEventListener('click', function () { sel = w.key; paint(); });
+    layer.appendChild(t); els[w.key] = t;
+  });
+
+  function visible() {
+    var n = +S.count, list = n > 14 ? ALL.slice(0, n) : BASE.slice(0, n);
+    return S.layout === 'mini' ? list : list.filter(matches);
+  }
+  function groups(list) {
+    if (S.sections === 'none') return [{ name: null, items: list }];
+    var map = {}, order = [];
+    list.forEach(function (w) { var k = S.sections === 'app' ? w.app : 'Workspace ' + w.ws; if (!map[k]) { map[k] = []; order.push(k); } map[k].push(w); });
+    if (S.sections === 'workspace') order.sort();
+    return order.map(function (k) { return { name: k, items: map[k], cur: k === 'Workspace 1' }; });
+  }
+  // picture size for one window at row height h
+  function picSize(w, h) {
+    if (S.size === 'box') return { w: h * 1.5, h: h };
+    if (S.size === 'real') { var k = h / 1025; return { w: Math.max(w.w * k, 70), h: h, pw: w.w * k, ph: w.h * k }; }
+    return { w: Math.min(Math.max(w.w / w.h, 0.6), 2.1) * h, h: h };
+  }
+  function tileW(w, h) { return S.kind === 'text' ? 330 : Math.max(picSize(w, h).w, S.kind === 'card' ? Math.min(200, Math.max(h * 1.2, 110)) : 0) + 2 * PAD; }
+  function tileH(h) { return S.kind === 'text' ? 46 : h + 2 * PAD + (S.kind === 'card' ? BAR : 0); }
+  // greedy wrap of one group into rows no wider than maxW
+  function wrap(items, h, maxW, gap) {
+    var rows = [[]], x = 0;
+    items.forEach(function (w) { var tw = tileW(w, h); if (x > 0 && x + tw > maxW) { rows.push([]); x = 0; } rows[rows.length - 1].push({ w: w, tw: tw }); x += tw + gap; });
+    return rows;
+  }
+  function gridPlan(gs, h, maxW) {
+    var gap = 14, HD = gs[0].name ? 34 : 0, out = { tiles: [], heads: [], w: 0, h: 0 }, th = tileH(h);
+    if (S.arrange === 'cols' && gs.length > 1 && gs[0].name) {
+      var cw = (maxW - 30 * (gs.length - 1)) / gs.length, x0 = 0, maxh = 0;
+      gs.forEach(function (g) {
+        var rows = wrap(g.items, h, cw, gap), y = HD, colw = 0;
+        rows.forEach(function (r) { var x = 0; r.forEach(function (c) { out.tiles.push({ w: c.w, x: x0 + x, y: y, tw: c.tw, th: th }); x += c.tw + gap; }); colw = Math.max(colw, x - gap); y += th + gap; });
+        out.heads.push({ text: g.name, x: x0 + PAD, y: 4, cur: g.cur });
+        maxh = Math.max(maxh, y - gap); x0 += Math.max(colw, 170) + 30;
+      });
+      out.w = x0 - 30; out.h = maxh; return out;
+    }
+    if (S.arrange === 'flow' && gs[0].name) { // sections run on in the same rows, each labelled where it starts
+      var fx = 0, fy = 0, rowsF = [{ items: [], w: 0 }];
+      gs.forEach(function (g) {
+        var first = true;
+        g.items.forEach(function (w) {
+          var tw = tileW(w, h), extra = first && fx > 0 ? 30 : 0;
+          if (fx > 0 && fx + extra + tw > maxW) { fx = 0; fy += HD + th + gap; extra = 0; rowsF.push({ items: [], w: 0 }); }
+          fx += extra; var row = rowsF[rowsF.length - 1];
+          if (first) { row.items.push({ head: { text: g.name, x: fx + PAD, y: fy + 4, cur: g.cur } }); first = false; }
+          row.items.push({ tile: { w: w, x: fx, y: fy + HD, tw: tw, th: th } });
+          fx += tw + gap; row.w = fx - gap; out.w = Math.max(out.w, row.w);
+        });
+      });
+      rowsF.forEach(function (r) { var dx = (out.w - r.w) / 2; r.items.forEach(function (it) { if (it.head) { it.head.x += dx; out.heads.push(it.head); } else { it.tile.x += dx; out.tiles.push(it.tile); } }); });
+      out.h = fy + HD + th; return out;
+    }
+    var y = 0, lines = [];
+    gs.forEach(function (g) {
+      if (g.name) { lines.push({ head: g, y: y }); y += HD; }
+      wrap(g.items, h, maxW, gap).forEach(function (r) { var rw = r.reduce(function (a, c) { return a + c.tw + gap; }, -gap); lines.push({ row: r, y: y, rw: rw }); out.w = Math.max(out.w, rw); y += th + gap; });
+      if (g.name) y += 6;
+    });
+    out.h = y - gap - (gs[0].name ? 6 : 0);
+    lines.forEach(function (l) {
+      if (l.head) { out.heads.push({ text: l.head.name, x: PAD, y: l.y + 4, cur: l.head.cur, full: true }); return; }
+      var x = gs[0].name ? 0 : (out.w - l.rw) / 2;
+      l.row.forEach(function (c) { out.tiles.push({ w: c.w, x: x, y: l.y, tw: c.tw, th: th }); x += c.tw + gap; });
+    });
+    return out;
+  }
+  function layoutGrid(list, oneRow) {
+    var maxW = W * 0.9 - 56, maxH = H * 0.88 - 90, gs = oneRow ? [{ name: null, items: list }] : groups(list), floor = 36, best = null, paged = 0;
+    for (var h = oneRow ? 190 : 330; h >= floor; h -= 6) {
+      var p = gridPlan(gs, h, oneRow ? 1e6 : maxW);
+      if (p.w <= maxW && p.h <= maxH) { best = p; break; }
+    }
+    if (!best) { // at the floor: keep what fits, the rest goes to the next page
+      best = gridPlan(gs, floor, oneRow ? 1e6 : maxW);
+      var limW = maxW, limH = maxH;
+      var keep = best.tiles.filter(function (t) { return t.x + t.tw <= limW + 1 && t.y + t.th <= limH + 1; });
+      paged = best.tiles.length - keep.length; best.tiles = keep;
+      best.heads = best.heads.filter(function (hd) { return keep.some(function (t) { return t.y > hd.y && t.y - hd.y < 60; }); });
+      best.w = Math.min(best.w, limW); best.h = Math.min(best.h, keep.reduce(function (a, t) { return Math.max(a, t.y + t.th); }, 0));
+    }
+    var pw = best.w + 56, ph = best.h + 90, px = (W - pw) / 2, py = (H - ph) / 2;
+    return { panel: { x: px, y: py, w: pw, h: ph }, ox: px + 28, oy: py + 26, tiles: best.tiles, heads: best.heads, paged: paged, footY: py + ph - 40 };
+  }
+  function layoutList(list) {
+    var rowH = S.kind === 'text' ? 44 : 74, pw = 760, gs = groups(list), y = 0, tiles = [], heads = [], maxH = H * 0.82 - 90, paged = 0;
+    gs.forEach(function (g) {
+      if (g.name) { if (y + 30 <= maxH) heads.push({ text: g.name, x: 12, y: y + 6, cur: g.cur }); y += 32; }
+      g.items.forEach(function (w) { if (y + rowH <= maxH) tiles.push({ w: w, x: 0, y: y, tw: pw - 40, th: rowH, row: true }); else paged++; y += rowH + 4; });
+      if (g.name) y += 6;
+    });
+    var hh = Math.min(y, maxH), ph = hh + 90, px = (W - pw) / 2, py = (H - ph) / 2;
+    return { panel: { x: px, y: py, w: pw, h: ph }, ox: px + 20, oy: py + 26, tiles: tiles, heads: heads, paged: paged, footY: py + ph - 40 };
+  }
+  function layoutMini(list) {
+    var names = [1, 2, 3, 4], cols = 2, fw = 820, fh = fw * 9 / 16, gapx = 50, gapy = 62;
+    var tw = cols * fw + gapx, th = 2 * fh + gapy, ox = (W - tw) / 2, oy = (H - th) / 2 + 14, k = fw / W, tiles = [], heads = [], frames = [];
+    names.forEach(function (n, i) {
+      var fx = (i % cols) * (fw + gapx), fy = Math.floor(i / cols) * (fh + gapy);
+      frames.push({ x: ox + fx, y: oy + fy, w: fw, h: fh, cur: n === 1 });
+      heads.push({ text: 'Workspace ' + n, x: fx + 4, y: fy - 28, cur: n === 1 });
+      list.filter(function (w) { return w.ws === n; }).forEach(function (w) {
+        var fan = (w.tab || 0) * 16 + (w.copy ? 30 * (w.copy - 1) : 0);
+        tiles.push({ w: w, x: fx + w.x * k + fan, y: fy + w.y * k + fan, tw: w.w * k - (w.tab !== undefined ? 32 : 0), th: w.h * k - (w.tab !== undefined ? 32 : 0), mini: true, z: w.float ? 3 : (w.under ? 0 : (w.tab !== undefined ? 2 - w.tab : 1)) });
+      });
+    });
+    return { panel: { x: 0, y: 0, w: W, h: H }, ox: ox, oy: oy, tiles: tiles, heads: heads, frames: frames, paged: 0, footY: H - 46 };
+  }
+
+  function paint() {
+    var hinting = held || S.hints === 'always';
+    if (S.peek !== 'zoom') zoomed = false;
+    desk.className = 'f-' + S.finish + ' t-' + S.theme + ' l-' + S.layout + (S.badges === 'off' ? ' nobadge' : '') + (hinting ? ' hinting' : '') + (zoomed ? ' zoomed' : '');
+    var list = visible();
+    var L = S.layout === 'grid' ? layoutGrid(list, false) : S.layout === 'strip' ? layoutGrid(list, true) : S.layout === 'list' ? layoutList(list) : layoutMini(list);
+    panel.style.cssText = 'left:' + L.panel.x + 'px;top:' + L.panel.y + 'px;width:' + L.panel.w + 'px;height:' + L.panel.h + 'px';
+    layer.querySelectorAll('.hd,.wsframe').forEach(function (n) { n.remove(); });
+    (L.frames || []).forEach(function (f) { var d = document.createElement('div'); d.className = 'wsframe' + (f.cur ? ' cur' : ''); d.style.cssText = 'left:' + f.x + 'px;top:' + f.y + 'px;width:' + f.w + 'px;height:' + f.h + 'px'; layer.insertBefore(d, layer.firstChild); });
+    L.heads.forEach(function (hd) { var d = document.createElement('div'); d.className = 'hd' + (hd.cur ? ' cur' : ''); d.textContent = hd.text + (hd.cur && S.layout !== 'mini' ? '  · here' : ''); d.style.cssText = 'left:' + (L.ox + hd.x) + 'px;top:' + (L.oy + hd.y) + 'px'; layer.appendChild(d); });
+    placed = L.tiles; lastL = L;
+    if (!placed.some(function (t) { return t.w.key === sel && (S.layout !== 'mini' || matches(t.w)); })) {
+      var first = placed.filter(function (t) { return matches(t.w); })[0]; if (first) sel = first.w.key;
+    }
+    var shown = {};
+    placed.forEach(function (t) {
+      var e = els[t.w.key]; shown[t.w.key] = 1;
+      var kind = t.mini ? 'mini' : S.kind;
+      e.querySelector('.num').textContent = '\u2318' + t.w.ws;
+      e.className = 'tile ' + (t.w.ws !== 1 ? 'away ' : '') + (t.mini ? 'mini' : (t.row && S.kind !== 'text' ? 'row k-' + S.kind : 'k-' + kind)) + (t.w.key === sel ? ' sel' : '') + (S.layout === 'mini' && !matches(t.w) ? ' dim' : '');
+      e.style.left = (L.ox + t.x) + 'px'; e.style.top = (L.oy + t.y) + 'px'; e.style.width = t.tw + 'px'; e.style.height = t.th + 'px'; e.style.zIndex = t.w.key === sel ? 6 : (t.z || 1);
+      e.querySelector('.ttl').innerHTML = mark(t.w.title);
+      var shot = e.querySelector('.shot');
+      if (!t.mini && !t.row && S.size === 'real' && S.kind !== 'text') { var ps = picSize(t.w, t.th - 2 * PAD - (S.kind === 'card' ? BAR : 0)); shot.style.width = ps.pw + 'px'; shot.style.height = ps.ph + 'px'; }
+      else { shot.style.width = ''; shot.style.height = ''; }
+    });
+    ALL.forEach(function (w) { if (!shown[w.key]) els[w.key].className = 'tile gone'; });
+    var cur = ALL.filter(function (w) { return w.key === sel; })[0], idx = placed.map(function (t) { return t.w.key; }).indexOf(sel);
+    foot.style.left = (W / 2) + 'px'; foot.style.top = L.footY + 'px';
+    foot.innerHTML = placed.length ? '<b>' + esc(cur.title) + '</b> · ' + cur.app + ' · ' + (idx + 1) + ' of ' + placed.length + (L.paged ? ' · page 1 of 2, ' + L.paged + ' more' : '') : 'No windows match';
+    qpill.hidden = !query; qpill.textContent = query; qpill.style.left = (W / 2) + 'px'; qpill.style.top = (S.layout === 'mini' ? 14 : L.panel.y - 46) + 'px';
+    drawPeek(L, cur);
+    // the grouping control, in the panel's own header
+    var gc = document.getElementById('groupctl');
+    gc.hidden = !(S.layout === 'grid' || S.layout === 'list');
+    gc.innerHTML = '<em>Group</em>' + ['none', 'workspace', 'app'].map(function (v) { return '<span data-v="' + v + '" class="' + (S.sections === v ? 'on' : '') + '">' + v + '</span>'; }).join('') + '<kbd>\u2318G</kbd>';
+    gc.style.left = (L.panel.x + L.panel.w - 330) + 'px'; gc.style.top = (L.panel.y - 40) + 'px';
+    // hints: what the keys do, and where a Summon would land
+    var lg = document.getElementById('legend'), land = document.getElementById('landing');
+    lg.hidden = !hinting; lg.style.left = (W / 2) + 'px'; lg.style.top = Math.min(L.panel.y + L.panel.h + 14, H - 52) + 'px';
+    lg.innerHTML = '<span><kbd>\u21a9</kbd>focus</span><span><kbd>\u2325\u21a9</kbd>summon here</span><span><kbd>\u23181\u20139</kbd>send to workspace</span><span><kbd>\u2318W</kbd>close</span><span><kbd>space</kbd>peek</span><span><kbd>\u2318G</kbd>group</span>';
+    land.hidden = !(hinting && cur && cur.ws !== 1 && S.layout !== 'mini');
+    land.style.cssText = 'left:989px;top:42px;width:919px;height:1025px';
+    document.getElementById('readout').textContent = readout(L);
+    document.querySelectorAll('.seg[data-k]').forEach(function (seg) {
+      var k = seg.dataset.k; seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(S[k] === b.dataset.v)); });
+    });
+    dis('size', S.layout === 'list' || S.layout === 'mini' || S.kind === 'text'); dis('arrange', S.layout !== 'grid' || S.sections === 'none');
+    dis('sections', S.layout === 'strip' || S.layout === 'mini'); dis('kind', S.layout === 'mini');
+  }
+  function tileRect(L, w) {
+    var t = placed.filter(function (p) { return p.w.key === w.key; })[0]; if (!t) return null;
+    var bar = (!t.mini && !t.row && S.kind === 'card') ? BAR + PAD : (t.mini ? 0 : PAD);
+    return { x: L.ox + t.x + (t.mini ? 0 : PAD), y: L.oy + t.y + bar, w: t.tw - (t.mini ? 0 : 2 * PAD), h: t.th - bar - (t.mini ? 0 : PAD) };
+  }
+  function put(r) { peek.style.left = r.x + 'px'; peek.style.top = r.y + 'px'; peek.style.width = r.w + 'px'; peek.style.height = r.h + 'px'; }
+  var peekShown = false, hideTimer = 0;
+  function drawPeek(L, cur) {
+    if (!cur || !placed.length) { peek.hidden = true; peekShown = false; return; }
+    var real = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+    document.getElementById('peeklabel').textContent = cur.title + ' \u00b7 ' + cur.app + ' \u00b7 Workspace ' + cur.ws;
+    if (S.peek === 'follow' && S.layout !== 'mini') { clearTimeout(hideTimer); peek.className = 'under'; peek.hidden = false; peek.style.opacity = 1; peek.firstChild.src = 'img/w' + cur.id + '.jpg'; put(real); peekShown = false; return; }
+    if (S.peek === 'zoom' && zoomed) {
+      clearTimeout(hideTimer); peek.firstChild.src = 'img/w' + cur.id + '.jpg';
+      if (!peekShown) { var from = tileRect(L, cur) || real; peek.className = 'snap'; peek.hidden = false; peek.style.opacity = 1; put(from); void peek.offsetWidth; peek.className = ''; }
+      put(real); peekShown = true; return;
+    }
+    if (peekShown) { var back = tileRect(L, cur); peek.className = 'small'; if (back) put(back); peekShown = false; hideTimer = setTimeout(function () { peek.hidden = true; }, 250); return; }
+    if (!hideTimer || S.peek !== 'zoom') peek.hidden = true;
+  }
+  function dis(k, off) { document.querySelectorAll('.seg[data-k="' + k + '"] button').forEach(function (b) { b.disabled = off; }); }
+  function readout(L) {
+    var cfg = "presentation = '" + ({ grid: 'grid', strip: 'strip', list: 'list', mini: 'miniatures' })[S.layout] + ", tile = '" + (S.layout === 'mini' ? 'picture' : S.kind);
+    if (S.layout === 'grid' || S.layout === 'list') cfg += ", sections = '" + S.sections;
+    if (S.layout === 'grid') cfg += ", grid = { sections-arrangement = '" + ({ flow: 'flow', rows: 'rows', cols: 'columns' })[S.arrange] + ", tile-size = '" + ({ real: 'real', height: 'same-height', box: 'equal' })[S.size] + ' }';
+    if (S.peek === 'zoom') cfg += ', keys.space = "peek"'; if (S.peek === 'follow' && S.layout !== 'mini') cfg += ", peek = 'follow";
+    cfg += ", hints = '" + S.hints;
+    var note = S.layout === 'mini' ? ' Miniatures fixes its sections on workspaces and its tile on pictures. Peek by zooming works here too; peek that follows the selection has no room.' : S.layout === 'strip' ? ' The strip is the grid held to one row.' : '';
+    return 'As a Lens: ' + cfg + '.' + note;
+  }
+
+  document.querySelectorAll('.seg[data-k]').forEach(function (seg) {
+    seg.addEventListener('click', function (ev) { var b = ev.target.closest('button'); if (!b || b.disabled) return; S[seg.dataset.k] = b.dataset.v; paint(); });
+  });
+  document.getElementById('q').addEventListener('input', function (ev) { query = ev.target.value.trim().toLowerCase(); paint(); });
+  var stage = document.getElementById('stage');
+  stage.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Alt') { if (!held) { held = true; paint(); } ev.preventDefault(); return; }
+    if (ev.key === ' ') { ev.preventDefault(); if (S.peek === 'zoom') { zoomed = !zoomed; paint(); } return; }
+    if (ev.key === 'Escape' && zoomed) { zoomed = false; paint(); return; }
+    if ((ev.key === 'g' || ev.key === 'G' || ev.key === '\u00a9') && (S.layout === 'grid' || S.layout === 'list')) { var o = ['none', 'workspace', 'app']; S.sections = o[(o.indexOf(S.sections) + 1) % 3]; paint(); return; }
+    var d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key]; if (!d) return;
+    ev.preventDefault();
+    var live = placed.filter(function (t) { return S.layout !== 'mini' || matches(t.w); }), me = live.filter(function (t) { return t.w.key === sel; })[0]; if (!me) return;
+    var cx = me.x + me.tw / 2, cy = me.y + me.th / 2, best = null, bs = 1e9;
+    live.forEach(function (t) {
+      if (t === me) return; var dx = t.x + t.tw / 2 - cx, dy = t.y + t.th / 2 - cy, along = dx * d[0] + dy * d[1], across = Math.abs(dx * d[1]) + Math.abs(dy * d[0]);
+      if (along <= 4) return; var s = along + across * 2.2; if (s < bs) { bs = s; best = t; }
+    });
+    if (best) { sel = best.w.key; paint(); }
+  });
+  stage.addEventListener('keyup', function (ev) { if (ev.key === 'Alt') { held = false; paint(); } });
+  stage.addEventListener('blur', function () { if (held) { held = false; paint(); } });
+  document.getElementById('groupctl').addEventListener('click', function (ev) { var v = ev.target.dataset && ev.target.dataset.v; if (v) { S.sections = v; paint(); } });
+  var hb = document.getElementById('holdbtn');
+  hb.addEventListener('pointerdown', function () { held = true; paint(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (n) { hb.addEventListener(n, function () { if (held) { held = false; paint(); } }); });
+  document.getElementById('zoombtn').addEventListener('click', function () { if (S.peek !== 'zoom') S.peek = 'zoom'; zoomed = !zoomed; paint(); });
+  function fit() { desk.style.transform = 'scale(' + (stage.clientWidth / W) + ')'; }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(stage); window.addEventListener('resize', fit); fit();
+  var zoom = document.getElementById('zoom');
+  document.querySelectorAll('figure img').forEach(function (im) { im.addEventListener('click', function () { zoom.firstChild.src = im.src; zoom.showModal(); }); });
+  zoom.addEventListener('click', function () { zoom.close(); });
+  paint();
+})();
+</script>
