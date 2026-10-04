@@ -65,10 +65,13 @@ cmd_build_image() {
   check_host
   exists "$golden" && die "$golden exists; delete it first: tart delete $golden"
   local build=$golden-build
-  exists "$build" && tart delete "$build"
-  tart clone "$base" "$build"
-  tart set "$build" --cpu 4 --memory 8192 --display 1680x720
-  boot "$build"
+  # A build guest left running by a failed provision is picked up where it stopped.
+  if ! running "$build"; then
+    exists "$build" && tart delete "$build"
+    tart clone "$base" "$build"
+    tart set "$build" --cpu 4 --memory 8192 --display 1680x720
+    boot "$build"
+  fi
   guest "$build" 'mkdir -p ~/vm ~/takes'
   retry_auth sshpass -p admin scp "${ssh_opts[@]}" "$here"/guest/* "admin@$(tart ip "$build"):vm/"
   guest "$build" "OPENSCREEN_VERSION=$openscreen_version bash ~/vm/provision.sh"

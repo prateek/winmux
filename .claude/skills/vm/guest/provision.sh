@@ -5,6 +5,10 @@ export PATH=/opt/homebrew/bin:$PATH HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ENV_HI
 cd ~/vm
 
 brew install ffmpeg cliclick gifski gifsicle uv rsync
+# The set: real tools that look good small and need no sign-in.
+# Cask downloads go stale: refresh the definitions the image shipped with.
+HOMEBREW_NO_AUTO_UPDATE= brew update --quiet
+brew install --cask ghostty zed
 command -v cargo >/dev/null || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 swiftc -O display.swift -o display
 swiftc -O preflight.swift -o preflight
