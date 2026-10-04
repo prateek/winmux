@@ -30,7 +30,42 @@ check_host() {
     "") die "TART_HOME is unset; guests must not land on the boot disk" ;;
     /Users/*/Library/*|/System/*) die "TART_HOME is on the boot disk: $TART_HOME" ;;
   esac
-  for tool in tart sshpass jq rsync; do command -v "$tool" >/dev/null || die "missing on the host: $tool"; done
+  for tool in tart sshpass jq rsync nc python3; do command -v "$tool" >/dev/null || die "missing on the host: $tool"; done
+}
+
+requested_size() {
+  cpu=${VM_CPU:-3}
+  memory=${VM_MEMORY:-5120}
+  [[ "$cpu" =~ ^[1-9][0-9]*$ && "$memory" =~ ^[1-9][0-9]*$ ]] || die "VM_CPU and VM_MEMORY must be positive integers (cores and MB)"
+  # Bound the inputs before bash arithmetic to avoid overflow.
+  [ "${#cpu}" -le 9 ] && [ "${#memory}" -le 9 ] || die "VM_CPU and VM_MEMORY are too large"
+}
+
+admit() {
+  local names name config cores mb count=0 used_cpu=0 used_memory=0 sizes=""
+  local host_cpu host_memory cap_cpu cap_memory
+  host_cpu=$(sysctl -n hw.ncpu)
+  host_memory=$(sysctl -n hw.memsize)
+  [[ "$host_cpu" =~ ^[1-9][0-9]*$ && "$host_memory" =~ ^[1-9][0-9]*$ ]] || die "cannot read host size"
+  cap_cpu=$((host_cpu * 70 / 100))
+  cap_memory=$((host_memory * 70 / 100 / 1073741824 * 1024))
+  names=$(tart list --format json | jq -er '[.[] | select(.State == "running") | .Name] | join("\n")') || die "cannot list running guests"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    config=$(tart get "$name" --format json) || die "cannot read size of $name"
+    cores=$(jq -er '.CPU | select(type == "number" and . > 0 and . == floor)' <<<"$config") || die "cannot read cores of $name"
+    mb=$(jq -er '.Memory | select(type == "number" and . > 0 and . == floor)' <<<"$config") || die "cannot read memory of $name"
+    count=$((count + 1))
+    used_cpu=$((used_cpu + cores))
+    used_memory=$((used_memory + mb))
+    sizes="$sizes\n  $name: $cores cores, $mb MB"
+  done <<<"$names"
+  local detail="cap: $cap_cpu cores, $cap_memory MB (70% of host); requested: $cpu cores, $memory MB; running:$sizes"
+  [ "$count" -lt 2 ] || { printf 'vm: two-guest limit; %b\n' "$detail" >&2; exit 1; }
+  if [ "$((used_cpu + cpu))" -gt "$cap_cpu" ] || [ "$((used_memory + memory))" -gt "$cap_memory" ]; then
+    printf 'vm: resource cap exceeded; %b\n' "$detail" >&2
+    exit 1
+  fi
 }
 
 boot() {
@@ -39,15 +74,30 @@ boot() {
   # softnet sometimes fails to create its vmnet network right after a stop: wait, and retry.
   for _ in 1 2 3; do
     sleep 10
-    nohup tart run --no-graphics --no-audio --no-clipboard "$vm" >"$log" 2>&1 &
+    nohup tart run --no-graphics --no-audio --no-clipboard "$vm" 9>&- >"$log" 2>&1 &
     disown
     for _ in $(seq 1 40); do
       if tart exec "$vm" true 2>/dev/null; then
-        for _ in $(seq 1 20); do guest "$vm" true 2>/dev/null && return 0; sleep 3; done
+        # Resolve again on each probe: softnet can report an old address during boot.
+        local deadline=$((SECONDS + 60))
+        for _ in $(seq 1 20); do
+          [ "$SECONDS" -lt "$deadline" ] || break
+          local ip
+          ip=$(tart ip "$vm" 2>/dev/null) || ip=""
+          if [ -n "$ip" ] && nc -z -G 1 -w 1 "$ip" 22 2>/dev/null && sshpass -p admin ssh -o ConnectTimeout=5 "${ssh_opts[@]}" "admin@$ip" true 2>/dev/null; then
+            rm -f "$log"
+            return 0
+          fi
+          sleep 2
+        done
+        echo "vm: rebooting unreachable guest $vm (ssh did not answer)" >&2
+        break
       fi
       grep -q RuntimeFailed "$log" && break
       sleep 5
     done
+    # A guest whose `tart run` failed is not running, and `tart stop` fails on it.
+    tart stop "$vm" 2>/dev/null || true
   done
   die "$vm did not boot; see $log"
 }
@@ -57,20 +107,22 @@ shut_down() {
   local vm=$1
   guest "$vm" 'sync; sudo shutdown -h now' || true
   for _ in $(seq 1 30); do running "$vm" || return 0; sleep 2; done
-  tart stop "$vm"
+  tart stop "$vm" 2>/dev/null || true
 }
 
 cmd_build_image() {
-  check_host
+  requested_size
   exists "$golden" && die "$golden exists; delete it first: tart delete $golden"
   local build=$golden-build
   # A build guest left running by a failed provision is picked up where it stopped.
   if ! running "$build"; then
+    admit
     exists "$build" && tart delete "$build"
     tart clone "$base" "$build"
-    tart set "$build" --cpu 4 --memory 8192 --display 1280x720
+    tart set "$build" --cpu "$cpu" --memory "$memory" --display 1280x720
     boot "$build"
   fi
+  exec 9>&-
   guest "$build" 'mkdir -p ~/vm ~/takes'
   retry_auth sshpass -p admin scp "${ssh_opts[@]}" "$here"/guest/* "admin@$(tart ip "$build"):vm/"
   guest "$build" "bash ~/vm/provision.sh"
@@ -80,13 +132,15 @@ cmd_build_image() {
 }
 
 cmd_up() {
-  check_host
+  requested_size
   local vm=${1:?usage: vm up <name> [WxH]} size=${2:-1280x720}
   exists "$golden" || die "$golden is missing; run: vm build-image"
-  exists "$vm" || tart clone "$golden" "$vm"
   running "$vm" && die "$vm is already running"
-  tart set "$vm" --cpu 4 --memory 8192 --display "$size"
+  admit
+  exists "$vm" || tart clone "$golden" "$vm"
+  tart set "$vm" --cpu "$cpu" --memory "$memory" --display "$size"
   boot "$vm"
+  exec 9>&-
   # The image opens Terminal at login.
   guest "$vm" "pkill -x Terminal; sleep 1; ~/vm/display ${size%x*} ${size#*x} 1"
   cmd_preflight "$vm"
@@ -129,6 +183,12 @@ cmd_push() {
   retry_auth rsync -a -e "sshpass -p admin ssh ${ssh_opts[*]}" "$from/" "admin@$(tart ip "$vm"):$to/"
 }
 
+cmd_stop() {
+  local vm=${1:?usage: vm stop <name>}
+  running "$vm" || return 0
+  shut_down "$vm"
+}
+
 cmd_down() {
   local vm=${1:?usage: vm down <name>}
   [ "$vm" = "$golden" ] && die "refusing to delete the golden image"
@@ -137,10 +197,20 @@ cmd_down() {
   tart delete "$vm"
 }
 
-verb=${1:-}; [ -n "$verb" ] || die "usage: vm <build-image|up|sync|build|check|ssh|preflight|push|pull|down> …"
+[ -n "${1:-}" ] || die "usage: vm <build-image|up|stop|sync|build|check|ssh|preflight|push|pull|down> …"
+check_host
+if [ "$1" = --start-locked ]; then
+  shift
+else
+  case "$1" in
+    up|build-image) exec python3 "$here/start_locked.py" "$here/vm" "$@" ;;
+  esac
+fi
+
+verb=$1
 shift
 case "$verb" in
   build-image) cmd_build_image "$@" ;;
-  up|sync|build|check|ssh|preflight|push|pull|down) "cmd_$verb" "$@" ;;
+  up|stop|sync|build|check|ssh|preflight|push|pull|down) "cmd_$verb" "$@" ;;
   *) die "unknown verb: $verb" ;;
 esac

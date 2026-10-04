@@ -13,7 +13,9 @@ A debug WinMux re-tiles whatever desktop it runs on. The **guest** is that deskt
 $SKILL/vm up <name> [WxH]      # default 1280x720
 ```
 
-`TART_HOME` must be set, to a directory off the boot disk; `vm` refuses to run without it. The name is yours; use the issue or the demo it is for. `up` clones the golden image, boots it with no window, sets the display, and runs the preflight.
+`TART_HOME` must be set, to a directory off the boot disk; `vm` refuses to run without it. The name is yours; use the issue or the demo it is for. `up` clones the golden image, boots it with no window, sets the display, and runs the preflight. `boot` reboots a guest whose ssh port does not answer within about a minute, up to three tries.
+
+`up` and `build-image` start at 3 cores and 5120 MB. `VM_CPU` (cores) and `VM_MEMORY` (MB) override both. At most two guests may run: every running guest in `tart list` counts, including Tartelet, sized by `tart get`; stopped guests do not. `vm stop <name>` shuts a guest down and keeps it, and `up` on a stopped guest boots it at the size asked for. Starts are serialized: a second `up` says it is waiting while another guest boots. A start is refused before cloning if it would exceed two guests or 70% of host cores and memory, rounded down (memory to whole GB). On a 10-core, 16-GB host that is 7 cores and 11264 MB. The refusal names the running sizes, request and cap.
 
 Done when the preflight prints `ok` for unlocked, accessibility, screen recording and clean desktop, and Swift 6.2.4. A `FAIL` is a defect in the golden image: stop and report it. A missing golden image is built once with `$SKILL/vm build-image`, which takes about fifteen minutes.
 

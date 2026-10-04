@@ -4,6 +4,8 @@ The driver copies one section into a prompt file and fills each `<…>`.
 
 ## First pass
 
+Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it.
+
 You are building issue #<number> of prateek/winmux, "<title>", in the worktree `<WT>` on branch `<branch>`. You have full write access and the network. The host's desktop is not yours: every debug build runs in a guest.
 
 Read first, end to end: `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, `.claude/skills/vm/SKILL.md`, the issue (`gh issue view <number> -R prateek/winmux --json title,body,comments`) and its draft `.scratch/winmux-fork/build/<draft>.md`. Pass `-R prateek/winmux` to every `gh` command: without it `gh` resolves to upstream, where the same number is a different issue. A `gh` call that fails once is tried again. The issue is authoritative. Its **Decisions** are settled; a **Default chosen for you** may change when the code argues for it, and you say so.
@@ -28,6 +30,8 @@ Finish with a report, written to `<STATE>/report.md` and repeated in your last m
 
 ## Follow-up pass
 
+Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it.
+
 You are continuing issue #<number> of prateek/winmux in `<WT>` on `<branch>`, now open as pull request #<pr>. Read its description first (`gh pr view <pr> -R prateek/winmux --json title,body`), and your first pass's prompt, `<STATE>/pass1.prompt.md`, whose rules still hold: `AGENTS.md`, the handoff, tests first, `make check` on the host and in the guest `<guest>`, the live run in the guest, and commits on `<branch>`.
 
 **This is the last builder pass, and it has <hours> hours.** Each item below carries the driver's ruling. A ruling is settled: build it as written, and record under "Decided:" only what it leaves open.
@@ -40,10 +44,13 @@ Update `<STATE>/pr.md` for what changed. Finish with a report, written to `<STAT
 
 ## Demo pass
 
+Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it.
+
 You are filming the demos for pull request #<pr> of prateek/winmux, issue #<number>, from the commit it will merge: `<sha>` on `<branch>` in `<WT>`. The code is finished and reviewed; change none of it. The pass has <hours> hours.
 
 Read `.claude/skills/demo/SKILL.md` and `.claude/skills/vm/SKILL.md` end to end. The storyboard is written and checked: `<STATE>/storyboard.md`. Film it, starting at the demo skill's step 3, in the guest `<guest>`, with `$OUT` as `<STATE>`.
 
+- Start filming at 3 cores and 5120 MB. If it stutters, `vm stop <guest>` and then `VM_CPU=4 VM_MEMORY=6144 vm up <guest>` (4 cores and 6 GB), which keeps the guest's disk and its build; beside one default guest this is exactly the cap. Report what you saw and the size used.
 - The guest is already up. Sync `<WT>` into it and build it before the first take, so the demos show `<sha>`. Pull the takes out when you finish and leave the guest up: the driver deletes it.
 - Film every demo and still in the storyboard and collect every transcript. After each take, read back where WinMux ended and compare it with the storyboard's **Watch**.
 - A demo you cannot film is reported with its reason, not replaced by a different claim.
