@@ -42,12 +42,14 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] `script/dogfood-release --next` on `fork` cuts the next dogfood version with no version argument, and `--next --dry-run` names it without publishing.
-- [ ] The script refuses to publish from a branch other than `fork`, and refuses any run with local changes (the dry run keeps its branch exemption).
-- [ ] A land whose diff is only drafts and docs is skipped with a message.
-- [ ] `AGENTS.md` and the `issue-relay` skill's Land step include the release.
+- [x] `script/dogfood-release --next` on `fork` cuts the next dogfood version with no version argument, and `--next --dry-run` names it without publishing.
+- [x] The script refuses to publish from a branch other than `fork`, and refuses any run with local changes (the dry run keeps its branch exemption).
+- [x] A land whose diff is only drafts and docs is skipped with a message.
+- [x] `AGENTS.md` and the `issue-relay` skill's Land step include the release.
 - [ ] One release was cut this way, and `brew upgrade --cask winmux` on a machine with existing grants kept them.
-- [ ] A test covers picking the next version from existing tags, and the skip rule.
+- [x] A test covers picking the next version from existing tags, and the skip rule.
+
+The version-selection and publishing path are built and covered by offline tests; two host `--next --dry-run` runs built, signed and verified `0.5.6-dogfood.2`. Actual publication is the driver's check at Land, and grant-preserving upgrade is Prateek's daily-machine check; the combined item above remains open. Host and CI-version guest `make check` passed: 62 Rust, 890 Swift and 36 Python tests, including 30 release tests.
 
 ## Sources
 
