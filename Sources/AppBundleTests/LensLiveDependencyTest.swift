@@ -11,7 +11,6 @@ final class LensLiveDependencyTest: XCTestCase {
             let panel = SwitcherPalettePanel(emit: { _ in })
             let ticket = panel.beginLens("unconfigured", toggle: false)!
             await panel.openLens(name: "unconfigured", settings: LensConfig(), entries: [], search: "= true", banner: nil, context: .null, ticket: ticket)
-            // Reaching the real helper must terminate this subprocess, not silently pass.
             let signal = LensEffectSignal()
             await signal.wait()
             return

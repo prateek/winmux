@@ -4,7 +4,6 @@ import Clocks
 import Common
 import XCTest
 
-// A sleeper that deliberately outlives cancellation of the caller.
 private struct CancellationInsensitiveClock: Clock {
     let base: TestClock<Duration>
     var now: TestClock<Duration>.Instant { base.now }

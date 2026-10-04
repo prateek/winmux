@@ -30,8 +30,8 @@ This is a demonstrated ownership and testability problem, not a claim that a vis
 **What is preserved**
 
 - Search memory, selection and marks, actions over the selected window versus the marked windows, inline-Filter failure behaviour, the opening strip's steps, release before ready, and Presentation conversion.
-- The event semantics from #33: one opening and closing pair only for a presented session, no events for a quick strip tap that never draws, and no new pair when the Search or the Presentation changes. Named and ad-hoc payload identity is kept.
-- The fix and regression coverage from #35, if it has landed.
+- The documented subscription event semantics: one opening and closing pair only for a presented session, no events for a quick strip tap that never draws, and no new pair when the Search or the Presentation changes. Named and ad-hoc payload identity is kept.
+- The existing strip-close behaviour and regressions; **`close` reports success on a window with no close button, and the strip drops its entry** is independent and has not landed.
 
 **Time**
 
@@ -67,13 +67,25 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] The owner of every session effect and its cancellation trigger is explicit. Dismissal or replacement leaves no session-owned polling and no late publication.
-- [ ] Tests cover an overtaken opening, release before readiness, dismissal while Search or landing evaluation is suspended, strip-to-list conversion, and repeated dismissal.
-- [ ] Event tests distinguish ready from presented, verify that a quick tap is silent, and verify one pair across Presentation changes.
-- [ ] Existing behaviour tests survive or are replaced by equivalent tests through the new interface. No test is removed only because the implementation moved.
-- [ ] The Lens timing tests use controlled time and finish without wall-clock sleeps.
-- [ ] Deadline tests prove there is no result just before a deadline, a result at it, and that a late response is rejected, including from a dependency that does not promptly honour cancellation.
+- [x] The owner of every session effect and its cancellation trigger is explicit. Dismissal or replacement leaves no session-owned polling and no late publication.
+- [x] Tests cover an overtaken opening, release before readiness, dismissal while Search or landing evaluation is suspended, strip-to-list conversion, and repeated dismissal.
+- [x] Event tests distinguish ready from presented, verify that a quick tap is silent, and verify one pair across Presentation changes.
+- [x] Existing behaviour tests survive or are replaced by equivalent tests through the new interface. No test is removed only because the implementation moved.
+- [x] The Lens timing tests use controlled time and finish without wall-clock sleeps.
+- [x] Deadline tests prove there is no result just before a deadline, a result at it, and that a late response is rejected, including from a dependency that does not promptly honour cancellation.
 - [ ] A live run in a guest shows the strip, the list and `overview` behaving as before, and the pull request says what was not checked.
+
+## Build result
+
+`LensLifecycle` is the effect owner. Its state is closed, opening (name, gesture, accumulated steps and recorded release), strip-ready or presented. `LensSession` holds observable data and applies explicit events; the panel holds AppKit presentation/input work. Landing uses the existing resolver and caches destination records; Column-state replacement re-evaluates inside the same task. Every late effect reply and task cleanup checks its request/session identity.
+
+Decided: **Where the owner lives** changes to the existing `LensLifecycle`, grown into the owner, rather than a new adjacent type or `LensSession`.
+
+Decided: **A library** uses exact Swift Clocks 1.1.1 in the test target only; production uses standard-library clocks and initializer dependencies. Swift Dependencies and TCA are not added. The test dependency resolves/builds on the guest's pinned Swift toolchain and through the release project's package resolution.
+
+Decided: **How many pull requests** is one, as ruled by the relay. State, ownership and clocks are built together, with separate reviewable commits.
+
+The first six Done-when items pass host/guest checks and controlled-time tests. The guest live item remains unchecked: while enabling Do Not Disturb, macOS showed an unsolicited “Click Wallpaper to Show Desktop Items” onboarding banner. The builder stopped the live run as required, before launching WinMux or owned demo windows. A cleanup capture also showed the macOS Tips card “See what’s new in macOS Tahoe”. Strip/list/overview equivalence, subscription/live focus readbacks and five-open timings on this branch versus the baseline therefore have no live result. The image must be clean before those checks can run. No release or physical-device checks were performed.
 
 ## Sources
 
