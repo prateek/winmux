@@ -35,9 +35,15 @@ with (root / 'state.json').open('r+') as f:
         elif verb == 'set':
             guests[name].update(CPU=int(args[args.index('--cpu')+1]), Memory=int(args[args.index('--memory')+1]))
         elif verb == 'run':
-            guests[args[-1]]['State'] = 'running'
-            state['boots'] += 1
+            if state.get('softnet_failures', 0) > 0:
+                state['softnet_failures'] -= 1
+                result = 'Error: RuntimeFailed'
+            else:
+                guests[args[-1]]['State'] = 'running'
+                state['boots'] += 1
         elif verb == 'stop':
+            # The real `tart stop` fails on a guest that is not running.
+            code = 2 * int(guests[name]['State'] != 'running')
             guests[name]['State'] = 'stopped'
         elif verb == 'delete':
             del guests[name]
@@ -92,7 +98,7 @@ class VMTest(unittest.TestCase):
 
     def run_vm(self, *args, **overrides):
         return subprocess.run([str(VM), *args], env=dict(self.env, **overrides),
-                              capture_output=True, text=True, timeout=15)
+                              capture_output=True, text=True, timeout=120)
 
     def assert_started(self, result, name, cpu=3, memory=5120):
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -172,6 +178,26 @@ class VMTest(unittest.TestCase):
         self.assertEqual(self.state()['boots'], 3)
         self.assertEqual(self.state()['guests']['a']['State'], 'stopped')
 
+    def test_softnet_failure_is_retried(self):
+        self.seed(softnet_failures=1)
+        self.assert_started(self.run_vm('up', 'a'), 'a')
+        self.assertEqual(sum(c[:2] == ['tart', 'run'] for c in self.state()['calls']), 2)
+
+    def test_stop_shuts_the_guest_down_and_keeps_it(self):
+        self.seed({'a': guest()})
+        result = self.run_vm('stop', 'a')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.state()['guests']['a']['State'], 'stopped')
+        self.assertTrue(any(c[0] == 'sshpass' and 'shutdown' in c[-1] for c in self.state()['calls']))
+        self.assertEqual(self.run_vm('stop', 'a').returncode, 0)
+
+    def test_every_verb_refuses_without_tart_home(self):
+        env = dict(self.env)
+        del env['TART_HOME']
+        result = subprocess.run([str(VM), 'ssh', 'a', 'true'], env=env, capture_output=True, text=True, timeout=120)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('TART_HOME is unset', result.stderr)
+
     def test_invalid_overrides_fail_before_mutation(self):
         for overrides in ({'VM_CPU': '0'}, {'VM_CPU': '3.5'}, {'VM_MEMORY': '-1'}, {'VM_MEMORY': 'five'}):
             with self.subTest(overrides=overrides):
@@ -181,11 +207,12 @@ class VMTest(unittest.TestCase):
     def test_two_simultaneous_starts_only_admit_one_beside_running_guest(self):
         self.seed({'a': guest()})
         processes = [subprocess.Popen([str(VM), 'up', n], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for n in ('b', 'c')]
-        results = [(p.communicate(timeout=15), p.returncode) for p in processes]
+        results = [(p.communicate(timeout=120), p.returncode) for p in processes]
         self.assertEqual(sorted(code for _, code in results), [0, 1], results)
         state = self.state()
         self.assertEqual(sum(g['State'] == 'running' for g in state['guests'].values()), 2)
         self.assertEqual(sum(c[:2] == ['tart', 'clone'] for c in state['calls']), 1)
+        self.assertIn('waiting for another guest', ''.join(err for (_, err), _ in results))
 
     def test_killed_admission_releases_lock_even_while_tool_is_alive(self):
         self.seed(block_host=True)

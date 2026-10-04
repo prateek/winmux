@@ -63,7 +63,7 @@ Done when nothing is pending. Anything still pending after the second pass and y
 
 ## 8. Demos
 
-The demos are filmed once, from the commit that will merge, so they show the fixes too. Start at 3 cores and 5120 MB. If filming stutters, stop the guest and bring it up with `VM_CPU=4 VM_MEMORY=6144`; beside one default guest this is exactly the cap. Report the smoothness and size.
+The demos are filmed once, from the commit that will merge, so they show the fixes too. Start at 3 cores and 5120 MB. If filming stutters, `$VM stop` the guest and bring it up again with `VM_CPU=4 VM_MEMORY=6144 $VM up`; beside one default guest this is exactly the cap. Report the smoothness and size.
 
 Write `$STATE/storyboard.md` yourself, as the `demo` skill's step 1 says: you have read the issue, the diff and the review, and the storyboard is where you decide what a reviewer needs to see. Then fill **Demo pass** into `$STATE/demo.prompt.md` and launch it as in step 4 with `demo` names.
 

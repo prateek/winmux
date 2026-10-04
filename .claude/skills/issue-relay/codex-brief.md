@@ -50,7 +50,7 @@ You are filming the demos for pull request #<pr> of prateek/winmux, issue #<numb
 
 Read `.claude/skills/demo/SKILL.md` and `.claude/skills/vm/SKILL.md` end to end. The storyboard is written and checked: `<STATE>/storyboard.md`. Film it, starting at the demo skill's step 3, in the guest `<guest>`, with `$OUT` as `<STATE>`.
 
-- Start filming at 3 cores and 5120 MB. If it stutters, stop this guest and bring it up with `VM_CPU=4 VM_MEMORY=6144` (4 cores and 6 GB); beside one default guest this is exactly the cap. Report what you saw and the size used.
+- Start filming at 3 cores and 5120 MB. If it stutters, `vm stop <guest>` and then `VM_CPU=4 VM_MEMORY=6144 vm up <guest>` (4 cores and 6 GB), which keeps the guest's disk and its build; beside one default guest this is exactly the cap. Report what you saw and the size used.
 - The guest is already up. Sync `<WT>` into it and build it before the first take, so the demos show `<sha>`. Pull the takes out when you finish and leave the guest up: the driver deletes it.
 - Film every demo and still in the storyboard and collect every transcript. After each take, read back where WinMux ended and compare it with the storyboard's **Watch**.
 - A demo you cannot film is reported with its reason, not replaced by a different claim.
