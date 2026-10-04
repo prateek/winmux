@@ -9,6 +9,8 @@ brew install ffmpeg cliclick gifski gifsicle uv rsync
 # Cask downloads go stale: refresh the definitions the image shipped with.
 HOMEBREW_NO_AUTO_UPDATE= brew update --quiet
 brew install --cask ghostty zed
+# Gatekeeper asks before the first launch of a quarantined app, and the question blocks `open`.
+sudo xattr -dr com.apple.quarantine /Applications/Ghostty.app /Applications/Zed.app
 command -v cargo >/dev/null || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 swiftc -O display.swift -o display
 swiftc -O preflight.swift -o preflight
@@ -16,6 +18,7 @@ bash grant.sh
 
 curl -sL -o /tmp/openscreen.zip "https://github.com/getopenscreen/openscreen/releases/download/v${OPENSCREEN_VERSION}/Openscreen-Mac-arm64-${OPENSCREEN_VERSION}.zip"
 sudo ditto -x -k /tmp/openscreen.zip /Applications/ && rm /tmp/openscreen.zip
+sudo xattr -dr com.apple.quarantine /Applications/Openscreen.app
 
 sudo scutil --set HostName winmux-vm; sudo scutil --set LocalHostName winmux-vm; sudo scutil --set ComputerName winmux-vm
 pkill -x Terminal || true
