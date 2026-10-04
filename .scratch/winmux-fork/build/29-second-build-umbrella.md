@@ -47,6 +47,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - A child that says **Blocked on Prateek** is not buildable. The driver skips it and takes the next child whose dependencies are closed.
 - **Before the builder pass of the first-run screens issue**, the driver checks two things. That issue has the builder rebuild the golden image, while the relay's own guest for it is a clone of the old image and the builder runs on the host. So: the builder's environment has `TART_HOME` set, and renaming `winmux-golden` aside does not disturb the running clone. If either fails, that is a gap in the skill to fix and report.
 - A stopped guest named `demo-set` holds the desk as it was dressed by hand, with the first-run screens already clicked and AltTab installed for the prototype's captures. It is for looking at the set, and proves nothing about a fresh clone. Delete it once the first-run screens issue has landed.
+- **The staged desk** the Lens issues name is the fourteen-window one in the prototype's captures. Its staging script is in [`prototypes/31-lens-look/desk`](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/31-lens-look/README.md), not yet in the `demo` skill. The first Lens issue that films moves it there.
 - Until the release issue lands, no child issue runs `script/dogfood-release`. After it, the driver's Land step does.
 
 ## How the children are written
