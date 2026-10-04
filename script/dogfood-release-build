@@ -34,7 +34,21 @@ log() { printf '[dogfood-release] %s\n' "$*"; }
 die() { printf '[dogfood-release] error: %s\n' "$*" >&2; exit 1; }
 command -v gh >/dev/null || die "gh CLI is required"
 
-head_sha="$(git rev-parse HEAD)"
+head_sha="${WINMUX_RELEASE_HEAD:?internal worker needs the pinned commit}"
+verify_tree() {
+    python3 - "$head_sha" <<'PYVERIFY'
+import sys
+from pathlib import Path
+sys.path.insert(0, 'script')
+from dogfood_release import ReleaseError, verify_tree
+try:
+    verify_tree(Path.cwd(), sys.argv[1])
+except ReleaseError as error:
+    print(f'[dogfood-release] error: {error}', file=sys.stderr)
+    sys.exit(1)
+PYVERIFY
+}
+verify_tree
 # Not `rev-parse --abbrev-ref`: with a remote that is also named fork, it prints heads/fork.
 branch="$(git symbolic-ref --quiet --short HEAD || echo detached)"
 # The build number is the commit count, which only means something on one branch.
@@ -124,6 +138,8 @@ log "artifacts signed by '$SIGN_IDENTITY'"
 
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$staging_dir" "$zip_path"
 zip_sha256="$(/usr/bin/shasum -a 256 "$zip_path" | /usr/bin/awk '{ print $1 }')"
+
+verify_tree
 
 if [ "$DRY_RUN" = 1 ]; then
     log "dry run: built and verified, nothing published"

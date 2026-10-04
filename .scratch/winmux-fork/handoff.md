@@ -1,6 +1,6 @@
 # Handoff: building the WinMux fork foundation
 
-The fork foundation is built on top of upstream `v0.5.6`: the deployment target, Nickel config, dogfood release, Filter contract, Global MRU, config hot reload, Lenses, thumbnail cache, miniatures, Accessory defaults, strip and cmd-tab ownership, fixed Columns and Column Policy hooks are implemented. The shipped defaults now provide all five Lenses, their Triggers and the `lens` binding mode, with Columns off; subscriptions include config, Lens and Column events. `0.5.6-dogfood.1` is published. Every child of the umbrella issue is built; the installed/release and physical-device checks below remain Prateek's. Releases now follow every land to `fork`. Last updated 2026-10-04.
+The fork foundation is built on top of upstream `v0.5.6`: the deployment target, Nickel config, dogfood release, Filter contract, Global MRU, config hot reload, Lenses, thumbnail cache, miniatures, Accessory defaults, strip and cmd-tab ownership, fixed Columns and Column Policy hooks are implemented. The shipped defaults now provide all five Lenses, their Triggers and the `lens` binding mode, with Columns off; subscriptions include config, Lens and Column events. `0.5.6-dogfood.1` is published. Every child of the foundation umbrella issue is built; the installed/release and physical-device checks below remain Prateek's. Releases now follow every land to `fork`. Last updated 2026-10-04.
 
 ## Start here
 
@@ -55,7 +55,7 @@ Tabs, trackpad gestures, Display profiles, the `'grid` Presentation and proactiv
 ## Repo setup
 
 - **The build lands on the `fork` branch.** It is the default branch of `prateek/winmux` and Orca's default worktree base (`fork/fork`). It holds the planning files, `CONTEXT.md` and the ADR. `main` only mirrors upstream `main`; don't build on it. The branch was called `wayfind-fork` until 2026-10-01, and GitHub redirects the old name.
-- This checkout is a worktree on the local branch `fork`, tracking `fork/fork` (the remote is also named `fork`). The worktree directory is still named `wayfind-fork`. Its base is upstream `main` at `470eedb`, which is tag `v0.5.6`.
+- Use `git worktree list --porcelain` to locate the checkout that holds `fork`; its directory is not fixed. The fork is based on upstream `main` at `470eedb`, tag `v0.5.6`. Release from the pulled trunk checkout or a temporary worktree, as `AGENTS.md` says.
 - Remotes: `origin` is upstream `ZimengXiong/winmux` (HTTPS), `fork` is `prateek/winmux` (SSH), `aerospace` is AeroSpace.
 - Push over SSH. The `gh` HTTPS token lacks `workflow` scope, and GitHub rejects any push that brings upstream `.github/workflows/*` changes into the fork.
 - `prateek/winmux` is public, so keep usernames, home paths, hardware serials and machine names out of issues and committed files.

@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('dogfood_release', Path(__file__).with_name('dogfood_release.py'))
 release = importlib.util.module_from_spec(SPEC)
@@ -14,6 +15,9 @@ SPEC.loader.exec_module(release)
 
 class DogfoodReleaseTest(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, {'WINMUX_RELEASE_REMOTE': 'fork', 'WINMUX_RELEASE_REPO': 'offline/test'})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name) / 'repo'
@@ -283,6 +287,123 @@ class DogfoodReleaseTest(unittest.TestCase):
         self.run_release(('--next',), tags=self.tags('v0.5.6-dogfood.1'))
         self.assertEqual(self.built[-1], ('0.5.6-dogfood.2', False))
         self.assertFalse(pending.exists())
+
+    def test_source_renamed_into_docs_is_not_skipped(self):
+        self.commit('Sources/product.swift', 'product')
+        released = self.git('rev-parse', 'HEAD').strip()
+        (self.repo / 'docs').mkdir()
+        self.git('mv', 'Sources/product.swift', 'docs/product.swift')
+        self.git('commit', '-m', 'Move source into docs')
+        self.run_release(tags=released + '\trefs/tags/v0.5.6-dogfood.1\n')
+        self.assertEqual(self.built, [('0.5.6-dogfood.2', True)])
+
+    def test_build_snapshot_refuses_head_or_non_generated_changes(self):
+        self.commit('Sources/Common/versionGenerated.swift', 'generated version')
+        self.commit('Sources/Common/gitHashGenerated.swift', 'generated hash')
+        head = self.git('rev-parse', 'HEAD').strip()
+        (self.repo / 'Sources/Common/versionGenerated.swift').write_text('build version')
+        release.verify_tree(self.repo, head)
+        (self.repo / 'scratch.txt').write_text('unexpected change')
+        with self.assertRaisesRegex(release.ReleaseError, 'changed during'):
+            release.verify_tree(self.repo, head)
+        (self.repo / 'scratch.txt').unlink()
+        self.git('checkout', '--', 'Sources/Common/versionGenerated.swift')
+        self.commit('docs/next.md', 'another land')
+        with self.assertRaisesRegex(release.ReleaseError, 'HEAD changed'):
+            release.verify_tree(self.repo, head)
+
+    def test_checkout_changed_by_build_is_refused(self):
+        def concurrent_land(version, dry):
+            self.commit('docs/concurrent.md', 'another land')
+        with self.assertRaisesRegex(release.ReleaseError, 'HEAD changed'):
+            self.run_release(build=concurrent_land)
+        self.assertFalse(self.lock.exists())
+
+    def test_finished_long_running_lock_owner_is_not_stale(self):
+        self.lock.mkdir()
+        (self.lock / 'pid').write_text(str(os.getpid()))
+        def owner_finished(message):
+            (self.lock / 'pid').unlink()
+            self.lock.rmdir()
+        with patch.object(release.time, 'monotonic', side_effect=[0, 31, 31]):
+            with release.ReleaseLock(self.lock, log=owner_finished):
+                self.assertTrue(self.lock.exists())
+        self.assertFalse(self.lock.exists())
+
+    def test_empty_environment_overrides_keep_default_remote_and_state(self):
+        remote = Path(self.temp.name) / 'remote.git'
+        subprocess.check_call(['git', 'clone', '--bare', str(self.repo), str(remote)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.git('remote', 'add', 'fork', str(remote))
+        home = Path(self.temp.name) / 'home'
+        previous = Path.cwd()
+        try:
+            os.chdir(self.repo)
+            with patch.dict(os.environ, {'WINMUX_RELEASE_REMOTE': '', 'WINMUX_RELEASE_REPO': '', 'XDG_STATE_HOME': ''}), patch.object(release.Path, 'home', return_value=home):
+                release.run(('--next',), self.repo, tags=lambda: '',
+                            build=lambda version, dry: self.built.append((version, dry)))
+        finally:
+            os.chdir(previous)
+        self.assertEqual(self.built, [('0.5.6-dogfood.1', False)])
+        self.assertTrue((home / '.local/state/winmux-release').is_dir())
+        self.assertFalse((self.repo / 'winmux-release').exists())
+
+    def test_signal_during_worker_spawn_stops_worker_before_unlocking(self):
+        scripts = self.repo / 'script'
+        scripts.mkdir()
+        shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
+        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho READY\nsleep 30\n')
+        self.git('add', 'script')
+        self.git('commit', '-m', 'scripts')
+        remote = Path(self.temp.name) / 'remote.git'
+        subprocess.check_call(['git', 'init', '--bare', str(remote)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.git('remote', 'add', 'fork', str(remote))
+        state = Path(self.temp.name) / 'state'
+        state.mkdir()
+        pid_file = state / 'worker.pid'
+        code = r"""
+import os, signal, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import dogfood_release as release
+original = subprocess.Popen
+pid_file = Path(sys.argv[2])
+def interrupted_spawn(command, *args, **kwargs):
+    process = original(command, *args, **kwargs)
+    if command[0] == 'bash' and command[1].endswith('dogfood-release-build'):
+        pid_file.write_text(str(process.pid))
+        os.kill(os.getpid(), signal.SIGTERM)
+    return process
+subprocess.Popen = interrupted_spawn
+sys.argv = ['script/dogfood-release', '--next', '--dry-run']
+sys.exit(release.main())
+"""
+        process = subprocess.Popen(['python3', '-c', code, str(scripts), str(pid_file)],
+                                   env={**os.environ, 'XDG_STATE_HOME': str(state), 'PYTHONDONTWRITEBYTECODE': '1'},
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 143)
+            self.assertEqual(list((state / 'winmux-release').glob('*.lock')), [])
+        finally:
+            if process.poll() is None:
+                process.kill()
+            if pid_file.exists():
+                try:
+                    os.killpg(int(pid_file.read_text()), 9)
+                except ProcessLookupError:
+                    pass
+            process.communicate()
+
+    def test_empty_repo_override_shares_the_default_release_lock(self):
+        state = Path(self.temp.name) / 'state'
+        locks = []
+        def build(version, dry):
+            locks.append([path.name for path in (state / 'winmux-release').glob('*.lock')])
+        for repo in ('prateek/winmux', ''):
+            with patch.dict(os.environ, {'WINMUX_RELEASE_REPO': repo, 'XDG_STATE_HOME': str(state)}):
+                release.run(('--next', '--dry-run'), self.repo, tags=lambda: '', build=build)
+        self.assertEqual(len(locks[0]), 1)
+        self.assertEqual(locks[0], locks[1])
 
     def test_invalid_arguments_and_help_do_not_build(self):
         for args in ((), ('--next', '1.0'), ('--unknown',)):
