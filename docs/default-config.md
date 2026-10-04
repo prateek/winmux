@@ -29,7 +29,9 @@ let without-search = defaults & {
 (without-search & { gaps.inner.horizontal = 4 }) | W.Config
 ```
 
-Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports defaults and merges converted TOML settings over them, including individual bindings; it keeps the five Lenses and the `lens` binding mode. `config-version` is removed by conversion and rejected in Nickel. `persistent-workspaces` needs no version gate and defaults to an empty list. Workspace bindings do not implicitly declare persistent workspaces.
+Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports the five default Lenses. If the TOML has a `mode` table, conversion replaces the default modes with the TOML's modes and adds the fork's `lens` mode keys and five `main` Triggers, only where the TOML has no binding for those keys. Modifier order, keyboard presets and key aliases are resolved as in the Swift loader. Omitted upstream bindings stay omitted, and a user's `cmd-tab` command wins. Duplicate user spellings of the same chord fail conversion with a binding redeclaration diagnostic. With no `mode` table, conversion keeps all default modes and bindings. A comment in the converted file describes the retained defaults and how to remove them.
+
+`config-version` is optional, accepted and ignored for compatibility with earlier Nickel conversions, like `contract-version`. It is absent from shipped defaults and new conversions; both version keys are removed before the Swift settings parser runs. Nickel uses an explicit `persistent-workspaces` list, defaulting to empty. For TOML version 1 or an absent version, conversion preserves the old inferred persistence when the file sets no list: it writes workspace targets from every mode's `workspace` and `move-node-to-workspace` bindings, followed by force-assignment keys, in first-seen order, and prints a warning. Relative `next` and `prev` targets declare no workspace. Version 2 and an explicit list suppress inference.
 
 The upstream bindings keep their commands. The fork adds these Triggers:
 
@@ -44,12 +46,12 @@ The upstream bindings keep their commands. The fork adds these Triggers:
 
 | Key | Commands |
 | --- | --- |
-| `o` | `lens overview`, `mode main` |
-| `f` | `lens floating`, `mode main` |
-| `s` | `lens search`, `mode main` |
-| `r` | `lens recent --presentation list`, `mode main` |
+| `o` | `mode main`, `lens overview` |
+| `f` | `mode main`, `lens floating` |
+| `s` | `mode main`, `lens search` |
+| `r` | `mode main`, `lens recent --presentation list` |
 | `esc` | `mode main` |
 
-The first four values are ordered command lists. A rejected Lens still runs the second command, returning to `main`. A successful Lens returns from the leader before presenting its panel, so Escape cancels the Lens rather than invoking the leader's binding. `winmux list-modes --current` reports `main` while the Lens is open.
+The first four values are ordered command lists: `mode main` runs before the Lens starts opening. This **Leaving the `lens` mode** default makes panel Escape available whether the Lens opens or fails. `winmux list-modes --current` reports `main` while it is open. A `lens` command by itself leaves the active binding mode alone, including a user's sticky mode named `lens`.
 
 `winmux list-lenses --json` lists resolved Lens settings and Filter paths. It does not list Triggers; those belong to `mode.<name>.binding` in the loaded config. `winmux list-columns --json` prints `[]` when Columns are off. Both commands print valid JSON and exit 0 on success, 1 on runtime failure and 2 on bad usage. See [Lenses](lenses.md), [Columns](columns.md) and [subscription events](events.md).

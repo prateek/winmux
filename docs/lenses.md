@@ -249,3 +249,9 @@ placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 `winmux lens floating --presentation miniatures` ignores that Lens's list grouping and sorting.
 `winmux lens --presentation list` keeps the open session's Search, marks and selection. The `lens` binding mode reaches `overview` with `o`.
+
+## Leaving the `lens` mode
+
+The shipped leader bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, and `r` opens `recent --presentation list`. Escape runs only `mode main`. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
+
+Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List and miniatures panels appear immediately. See [subscription events](events.md).

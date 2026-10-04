@@ -16,7 +16,7 @@ This issue completes `defaults.ncl`, the config WinMux ships. When this issue st
 - Nothing is merged implicitly. A config that does not import `defaults.ncl` has no default Lens and no default binding.
 - Any default can be dropped. A user removes a field from the imported record before merging, or leaves the import out.
 - Every value in `defaults.ncl` is written at Nickel's `default` priority, so a user's value for the same field wins the merge. Nickel refuses to merge two different values of equal priority.
-- `winmux config convert` writes the import line, so a converted TOML config keeps the default Lenses, the Triggers and the `lens` mode.
+- `winmux config convert` keeps all five default Lenses. A TOML `mode` table replaces upstream modes and bindings: conversion adds only the fork's `lens` keys and the five `main` Triggers where their normalized chords are unbound. Without a `mode` table it imports defaults whole. The converted file explains what was retained and how to remove it.
 - With no config file, WinMux loads `defaults.ncl` as the config. When the first load fails, it runs on the static settings of `defaults.ncl`.
 - TOML is gone. The upstream TOML survives only as `nickel-helper/tests/fixtures/upstream-default-config.toml`, the conversion fixture; it is not a runtime default. **Nickel config: the `winmux-nickel` helper, config load, and `config check`, `convert`, `status`** seeds `defaults.ncl` by converting that file, and this issue owns the contents from there. Upstream's settings and bindings keep the same values, at the same record paths (`mode.main.binding`, `gaps`, `workspace-sidebar` and so on), except where another issue renames a key: `auto-reload-config` becomes `reload-on-save` in **Config hot reload**.
 - Every name the fork adds to the config is spelled with hyphens, like the keys carried over from upstream: `app-windows`, `reload-on-save`.
@@ -39,7 +39,7 @@ This issue completes `defaults.ncl`, the config WinMux ships. When this issue st
 - `cmd-tab` runs `lens recent` and `cmd-backtick` runs `lens app-windows`. **Strip Presentation and the cmd+tab takeover** adds both bindings, and any reverse chord that goes with them; this issue checks they are there.
 - This issue adds two bindings to `mode.main.binding`: `alt-slash` runs `lens search`, and `alt-semicolon` runs `mode lens`, which enters the `lens` mode.
 - This issue adds `mode.lens.binding`. Each key opens a Lens and returns to `main`: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, and `r` opens `recent` in the `'list` Presentation (`lens recent --presentation list`). `esc` leaves the mode without opening anything.
-- A binding's value is one command or a list of commands run in order. Upstream's binding parser accepts both (`parseCommandOrCommands` in `Sources/AppBundle/config/parseConfig.swift`), and the Nickel contract keeps both. Each Lens key in the `lens` mode is a list of two commands: the `lens` command and `mode main`.
+- A binding's value is one command or a list of commands run in order. Upstream's binding parser accepts both (`parseCommandOrCommands` in `Sources/AppBundle/config/parseConfig.swift`), and the Nickel contract keeps both. Each Lens key in the `lens` mode is a list of two commands: `mode main` followed by the `lens` command.
 - The fork claims no other global chord. Later fork commands, such as Column widths or `compact`, can join the `lens` mode without claiming one.
 
 **Upstream chords the defaults must not collide with**
@@ -64,8 +64,8 @@ None of `cmd-tab`, `cmd-backtick`, `alt-slash` or `alt-semicolon` is bound upstr
 
 - Four events join the existing six (`focus-changed`, `focused-monitor-changed`, `focused-workspace-changed`, `mode-changed`, `window-detected`, `binding-triggered`).
 - `config-reloaded` fires after every reload attempt, whether `winmux reload-config` or a file save started it. It says the reload succeeded, or carries the error.
-- `lens-opened` and `lens-closed` carry the Lens name.
-- `columns-changed` fires when the Column count, the Column widths or which Columns are occupied changes on the focused workspace.
+- `lens-opened` and `lens-closed` carry the Lens name. Opening fires on presentation; only presented sessions close. An undrawn quick strip tap emits neither event; list and miniatures appear at once. Handoff and Presentation changes keep the same pair.
+- `columns-changed` compares every workspace against its retained baseline by name on each refresh, emitting only for the focused workspace. Focus alone emits nothing, but a Column filled in the same refresh as focus arrives emits. First-seen workspaces are silent and removed workspaces lose their baseline. Reads create no tiling root or leaf arrays.
 - The event names are added to `ServerEventType` in `Sources/Common/cmdArgs/impl/SubscribeCmdArgs.swift`, so `subscribe --all` includes them. Their payloads go on `ServerEvent` in `Sources/AppBundle/model/ServerEvent.swift`.
 - Payload keys are camelCase, like the existing ones (`windowId`, `appBundleId`). `ServerEvent` is a plain `Codable` struct with no key mapping, and the hyphen rule for config names does not apply to event JSON.
 
@@ -101,9 +101,9 @@ None of `cmd-tab`, `cmd-backtick`, `alt-slash` or `alt-semicolon` is bound upstr
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **`config-version`.** Dropped. The Nickel contract replaces it, and the one thing it gates upstream, `persistent-workspaces` in `Sources/AppBundle/config/parseConfig.swift`, needs no gate in a new format.
+- **`config-version`.** Absent from defaults and new conversions. Older Nickel files may set it: the contract accepts and ignores it, and the Swift bridge drops it like `contract-version`. Conversion of version-1 or unversioned TOML without an explicit persistence list writes the formerly inferred workspace names in first-seen order and warns.
 - **Checking the carried-over settings.** A test runs `winmux config convert` on `nickel-helper/tests/fixtures/upstream-default-config.toml`, the existing upstream input, and checks that the result evaluates to the same static config as `defaults.ncl` alone.
-- **Leaving the `lens` mode.** In each list the `lens` command comes first and `mode main` second: `o = ["lens overview", "mode main"]`.
+- **Leaving the `lens` mode.** In each list `mode main` comes first: `o = ["mode main", "lens overview"]`. This returns before opening or failure and leaves standalone Lens commands neutral about user modes.
 - **Event payload keys.** `config-reloaded` carries `ok`, `error` and `configPath`. `lens-opened` and `lens-closed` carry `lens`. `columns-changed` carries `workspace`, `count`, `widths` and `occupied`.
 - **Ad-hoc Lenses in events.** For a Lens opened with `lens --filter`, `lens` is `null` and a `filter` key carries the Filter's name or body.
 - **`lens-closed` and re-presenting.** Handing a strip off to `'list` emits nothing. One Lens gets one `lens-opened` and one `lens-closed`.
@@ -132,25 +132,21 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 Decided: Checking the carried-over settings uses the existing upstream fixture in `nickel-helper/tests/fixtures/`; no `resources/default-config.toml` is recreated. This changes the chosen input location, not the comparison: converted upstream settings equal the shipped static defaults and every upstream binding is compared against the fixture.
 
-Decided: `config-version` remains dropped as chosen. Both Nickel and Swift reject it with a diagnostic, and conversion removes it. Persistent workspaces have no version gate or binding-derived inference.
-
 Decided: With neither a config file nor a legacy config, startup loads defaults without creating a starter. Explicit “Open config” still writes the import-only starter; legacy bootstrap conversion remains available.
-
-Decided: Conversion merges individual user bindings over imported defaults instead of removing the entire mode table, keeping the default Triggers and `lens` mode.
 
 Decided: An import-only example still applies the usual `W.Config` contract. It adds no user override and equals the no-file static config.
 
-Decided: The chosen Lens-command-first lists are retained. A successful Lens returns from `lens` to `main` before drawing its panel. A rejected Lens returns failure, and the command list still runs `mode main`.
-
 Decided: `list-lenses --json` keeps settings introspection; it does not report Triggers. Trigger assertions read the loaded config bindings.
-
-Decided: Superseded reloads and dry runs emit no reload event. Every attempt that reaches a load/apply result emits once; errors include apply failures. Successful `error` is explicit null.
-
-Decided: First refresh and switching focused workspace establish silent Column baselines. Turning Columns off emits count 0, widths [] and occupied []. Count means physical slots, including squeeze. Divider previews emit nothing; a commit emits once.
 
 Decided: Ad-hoc opening and closing events carry `lens: null` and the Filter name/body retained on the session. A handoff, Presentation conversion or Search change keeps the same event pair.
 
 Decided: Live user examples and converted output are imported unchanged by a capture wrapper that removes the three native chords and restricts Lens pixels to owned apps. Fresh-default captures use unmodified shipped defaults.
+
+## Review rulings
+
+Conversion keeps TOML modes and omitted upstream bindings, adding unbound fork Triggers and `lens` keys. Chord identities resolve modifier order, presets and aliases. Earlier Nickel `config-version` fields load and are ignored; conversion leaves them out. Legacy inferred persistence is materialized with a warning. **Leaving the `lens` mode** now puts `mode main` first. Column baselines are refreshed for every workspace by name, so focus-following changes emit; names replace freed-object identities. Snapshot reads create no roots or leaf arrays. Reload results use the small function called by the existing defer. Lens events start when the panel is presented, so undrawn quick taps emit nothing; immediate list and miniatures behavior and handoff pairing stay the same.
+
+Decided: If the TOML itself redeclares one chord through two spellings, conversion fails with a binding redeclaration diagnostic rather than choosing between conflicting commands. Aliased default additions are deduplicated too, in Trigger order.
 
 ## Validation boundaries
 
