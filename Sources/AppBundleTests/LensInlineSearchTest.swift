@@ -26,6 +26,26 @@ final class LensInlineSearchTest: XCTestCase {
         withExtendedLifetime(observation) {}
     }
 
+    func testCancelledEvaluationCannotPublishOverNewerSearch() async {
+        let model = LensSession(name: "demo", settings: LensConfig(), items: [], search: "= old")
+        let reached = LensEffectSignal()
+        var finish: CheckedContinuation<Result<[Bool], NickelFailure>, Never>?
+        let scheduler = LensInlineSearch(debounce: .zero, deadline: .seconds(60)) { body, _, _ in
+            if body == " old" {
+                return await withCheckedContinuation { finish = $0; reached.send() }
+            }
+            return .failure(.diagnostic("new error"))
+        }
+        let old = scheduler.update(model, context: .null, windows: [], ids: [])!
+        await reached.wait()
+        model.query = "= new"
+        let newer = scheduler.update(model, context: .null, windows: [], ids: [])!
+        await newer.value
+        finish?.resume(returning: .failure(.diagnostic("old error")))
+        await old.value
+        XCTAssertEqual(model.searchError, "new error")
+    }
+
     func testTypingCancelsDebounceAndOnlyLatestSearchEvaluates() async {
         let model = LensSession(name: "demo", settings: LensConfig(), items: [], search: "= false")
         var bodies: [String] = []
