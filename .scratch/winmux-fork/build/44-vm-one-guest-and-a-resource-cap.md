@@ -9,8 +9,8 @@ The `vm` skill gives every guest 4 cores and 8 GB, and will start as many guests
 ## Decisions
 
 - **One guest at a time.** `vm up` refuses to start a guest while another guest the skill started is running, and names the running one. `vm build-image` counts as a guest.
-- **A guest is 2 cores and 4 GB.** Prateek proposed the size; it was measured on 2026-10-04 and is enough for `make check`.
-- **The cap.** The skill's guest and a Tartelet runner guest together use at most 70% of the build machine: 7 of 10 cores and 11 of 16 GB. One guest of each kind at 2 cores and 4 GB is 4 cores and 8 GB, inside the cap.
+- **A guest is 3 cores and 5 GB.** Prateek chose the size on 2026-10-04. It was not measured itself; the sizes on either side of it were, and both pass `make check`.
+- **The cap.** The skill's guest and a Tartelet runner guest together use at most 70% of the build machine: 7 of 10 cores and 11 of 16 GB. One guest of each kind at 3 cores and 5 GB is 6 cores and 10 GB, inside the cap.
 - **Tartelet stays at one runner guest**, sized the same way. It is off today, because GitHub's hosted runners are the gate for this repository and are free for it. Nothing in this issue turns it on.
 - **The size can be raised for one guest** with `VM_CPU` and `VM_MEMORY`, and `vm up` refuses a size that would break the cap.
 
@@ -26,7 +26,7 @@ On the build machine, a clean `make check` in fresh clones of the golden image:
 
 With two guests building, the host's load average peaked at 6 on 10 cores, and its free memory stayed above 60%.
 
-Not measured: filming at this size. A live run and a screen recording run WinMux, several apps and `screencapture` in the guest at once.
+Not measured: 3 cores and 5 GB itself, and filming at any size below 4 cores and 8 GB. A live run and a screen recording run WinMux, several apps and `screencapture` in the guest at once.
 
 ## Not in this issue
 
@@ -42,13 +42,13 @@ Nothing.
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
 - **How the skill knows its own guests.** By name: the golden image's build guest, and the names `vm up` was given, recorded under the skill's state directory. A guest Tartelet started is not counted against the one-guest rule, only against the cap.
-- **If filming stutters at 2 cores and 4 GB**, the demo pass raises its guest to 4 cores and 6 GB, which is still inside the cap beside a Tartelet guest. Say what was seen.
+- **If filming stutters at 3 cores and 5 GB**, the demo pass raises its guest to 4 cores and 6 GB, which with a Tartelet guest is exactly the cap. Say what was seen.
 - **A guest the host cannot reach.** During the measurement, three boots out of nine came up healthy and unreachable from the host over the network; a reboot fixed each. `boot` already retries when softnet fails to start. It gains a check that the ssh port answers, and reboots the guest when it does not, up to its existing three tries.
 
 ## Done when
 
 - [ ] `vm up b` while guest `a` is running fails with a message naming `a`.
-- [ ] A guest started by `vm up` has 2 cores and 4 GB, and `make check` passes in it.
+- [ ] A guest started by `vm up` has 3 cores and 5 GB, and `make check` passes in it; the pull request gives the time.
 - [ ] `VM_CPU=8 vm up a` fails with a message naming the cap.
 - [ ] A guest that boots without a reachable ssh port is rebooted, not waited on.
 - [ ] One demo was filmed at the default size, and the pull request says whether it was smooth.
