@@ -113,7 +113,7 @@ check:
 	(cd nickel-helper && cargo build --release && cargo test) && \
 	source ./script/setup.sh && \
 	swift test && \
-	python3 -m unittest script/test_validate_appcast.py script/test_dogfood_release.py && \
+	python3 -m unittest script/test_validate_appcast.py script/test_dogfood_release.py script/test_vm.py && \
 	swift package resolve && \
 	git diff --exit-code -- Package.resolved'
 
