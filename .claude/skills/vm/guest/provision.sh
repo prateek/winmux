@@ -29,4 +29,5 @@ defaults write com.apple.screensaver idleTime -int 0
 sudo pmset -a displaysleep 0 sleep 0
 sudo softwareupdate --schedule off >/dev/null
 killall Dock
+bash first-run.sh
 echo PROVISIONED
