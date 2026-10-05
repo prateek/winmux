@@ -153,6 +153,17 @@ final class SwitcherPalettePanel: NSPanelHud {
         session.removeStripItems([id])
     }
 
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        let result = super.makeFirstResponder(responder)
+        if result, let model = session {
+            lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(),
+                presentation: model.settings.presentation, hold: model.stripGesture != nil,
+                path: "focus", destination: firstResponder is NSTextView ? "Search first responder" : "other responder",
+                search: model.query, selectedId: model.selectedId, fieldEditor: firstResponder is NSTextView)
+        }
+        return result
+    }
+
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
         guard model.settings.presentation == "strip" else { return }
