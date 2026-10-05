@@ -15,6 +15,7 @@ struct TileView: View {
     private var miniature: Bool { presentation == "miniatures" }
     private var row: Bool { presentation == "list" }
     private var line: Bool { kind == .text || row }
+    private var selectionRing: CGFloat { miniature ? metrics.miniatureRing : metrics.selectionRing }
     private var radius: CGFloat { miniature ? metrics.miniatureRadius : line ? metrics.textRadius : metrics.radius }
     private var chips: [String] {
         entry.badges.chips(enabled: settings.badges) + ((!miniature ? entry.appCount : nil).map { ["\($0) windows"] } ?? [])
@@ -29,13 +30,13 @@ struct TileView: View {
                     .background(selected && !miniature ? (line ? Color.accentColor.opacity(0.26) : Color.white.opacity(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
                     .overlay {
                         if selected && !line {
-                            RoundedRectangle(cornerRadius: radius).stroke(Color.accentColor, lineWidth: miniature ? metrics.miniatureRing : metrics.selectionRing)
+                            RoundedRectangle(cornerRadius: radius).inset(by: -selectionRing / 2).stroke(Color.accentColor, lineWidth: selectionRing)
                         }
                         if entry.accessory {
                             RoundedRectangle(cornerRadius: radius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
                         }
                     }
-                    .shadow(color: .black.opacity(selected && !line ? 0.4 : 0), radius: miniature ? metrics.miniatureShadowRadius : metrics.selectionShadowRadius, y: miniature ? metrics.miniatureShadowY : metrics.selectionShadowY)
+                    .shadow(color: .black.opacity(selected && !line ? (miniature ? 0.5 : 0.4) : 0), radius: miniature ? metrics.miniatureShadowRadius : metrics.selectionShadowRadius, y: miniature ? metrics.miniatureShadowY : metrics.selectionShadowY)
                     .scaleEffect(selected && !line && !miniature ? metrics.selectionScale : 1)
                     .animation(.easeOut(duration: 0.16), value: selected)
                     .allowsHitTesting(false)
@@ -136,7 +137,10 @@ struct TileView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 3 * metrics.scale) {
-                    if miniature || kind == .picture && !row { icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon) }
+                    if miniature || kind == .picture && !row {
+                        icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon)
+                            .shadow(color: .black.opacity(0.5), radius: metrics.iconShadowRadius, y: metrics.iconShadowY)
+                    }
                     if entry.accessory { label("menu-bar app") }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
             }

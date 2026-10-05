@@ -35,6 +35,7 @@ final class TileTest: XCTestCase {
             (\.pictureIcon, 30), (\.pictureIconInset, 6), (\.miniatureIconInset, 4),
             (\.miniaturePictureRadius, 4), (\.adornmentGap, 4),
             (\.pictureShadowRadius, 9), (\.pictureShadowY, 6),
+            (\.iconShadowRadius, 2), (\.iconShadowY, 2),
             (\.selectionShadowRadius, 20), (\.selectionShadowY, 18),
             (\.miniatureShadowRadius, 15), (\.miniatureShadowY, 10), (\.accessoryPictureFloor, 28),
         ]

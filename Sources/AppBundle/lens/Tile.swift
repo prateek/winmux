@@ -62,6 +62,8 @@ struct TileMetrics {
     var adornmentGap: CGFloat { 4 * scale }
     var pictureShadowRadius: CGFloat { 9 * scale }
     var pictureShadowY: CGFloat { 6 * scale }
+    var iconShadowRadius: CGFloat { 2 * scale }
+    var iconShadowY: CGFloat { 2 * scale }
     var selectionShadowRadius: CGFloat { 20 * scale }
     var selectionShadowY: CGFloat { 18 * scale }
     var miniatureShadowRadius: CGFloat { 15 * scale }
