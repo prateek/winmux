@@ -145,7 +145,9 @@ struct TileView: View {
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
             }
             .overlay(alignment: .topLeading) {
-                if miniature || kind == .picture && !row { chipLine.padding(4 * metrics.scale) }
+                if miniature || kind == .picture && !row {
+                    chipLine.padding(.horizontal, 4 * metrics.scale).padding(.top, metrics.pictureBadgeTop(hasHint: hint != nil))
+                }
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {

@@ -71,6 +71,9 @@ Decided: pause and age overlays occupy the picture's bottom-right, leaving the
 Summon label at top-right. Their meaning and `ThumbnailAppearance` rules are
 unchanged.
 
+Decided: picture chips move below a visible Summon label, preserving its
+top-right position without overlapping it on narrow miniatures.
+
 Decided: the allowed neutral Accessory fixture checks Accessory styling because
 the standing desk's Updater fixture registers as a regular app.
 

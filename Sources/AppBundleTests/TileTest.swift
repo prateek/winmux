@@ -47,6 +47,14 @@ final class TileTest: XCTestCase {
         XCTAssertEqual(half.selectionScale, full.selectionScale)
     }
 
+    func testPictureBadgesClearTheSummonLabelAtEveryScale() {
+        for height in [CGFloat(1080), 540] {
+            let metrics = TileMetrics(visibleHeight: height)
+            XCTAssertEqual(metrics.pictureBadgeTop(hasHint: false), 4 * metrics.scale)
+            XCTAssertEqual(metrics.pictureBadgeTop(hasHint: true), 30 * metrics.scale)
+        }
+    }
+
     func testAccessoryActualSizeUsesRealHeightShareAndKeepsAHittableFloor() {
         let metrics = TileMetrics(visibleHeight: 1080)
         XCTAssertEqual(metrics.pictureHeight(rowHeight: 190, accessory: true, actualSize: true, monitorHeightFraction: 0.5), 95)

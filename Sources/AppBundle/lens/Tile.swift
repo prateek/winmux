@@ -70,6 +70,10 @@ struct TileMetrics {
     var miniatureShadowY: CGFloat { 10 * scale }
     var accessoryPictureFloor: CGFloat { 28 * scale }
 
+    func pictureBadgeTop(hasHint: Bool) -> CGFloat {
+        4 * scale + (hasHint ? gap + chipFont + 2 * labelVerticalPadding : 0)
+    }
+
     func pictureHeight(rowHeight: CGFloat, accessory: Bool, actualSize: Bool, monitorHeightFraction: CGFloat) -> CGFloat {
         accessory && actualSize ? min(rowHeight, max(accessoryPictureFloor, rowHeight * monitorHeightFraction)) : rowHeight
     }
