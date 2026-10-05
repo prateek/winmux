@@ -80,7 +80,9 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: second.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: true, window: window)
-        let tile = tileEntry(source, miniature: miniature, icon: nil)
+        let numbers = tileWorkspaceNumbers([first.name, second.name, second.name])
+        XCTAssertEqual(numbers, [first.name: 1, second.name: 2])
+        let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceNumbers: numbers)
         XCTAssertEqual(tile.badges.chips(enabled: true), ["2", "floating"])
         XCTAssertEqual(second.name, "7")
     }

@@ -61,6 +61,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             }
         }
         let focusedId = focus.windowOrNil?.windowId
+        let workspaceNumbers = tileWorkspaceNumbers(entries.map { $0.record.workspace })
         let onscreen = lensOnscreenWindows(presentation: settings.presentation, tile: TileKind.resolve(configured: settings.tile, override: nil, presentation: settings.presentation)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
             let miniature = miniatureEntry(entry, onscreen: onscreen)
@@ -70,7 +71,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 icon: icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
                 projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon)
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceNumbers: workspaceNumbers)
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
@@ -378,14 +379,21 @@ func lensSearchField(in view: NSView) -> NSTextField? {
 }
 
 @MainActor
-func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?) -> TileEntry {
-    let workspace = Workspace.existing(byName: entry.record.workspace)
-    let number = workspace.flatMap {
-        automaticWorkspaceDisplayIndex($0, focusedWorkspace: focus.workspace) ?? parsePositiveWorkspaceDisplayIndex($0.name)
-    }
+func tileWorkspaceNumbers(_ names: [String]) -> [String: Int] {
+    Dictionary(uniqueKeysWithValues: Set(names).compactMap { name in
+        guard let workspace = Workspace.existing(byName: name),
+              let number = automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace) ?? parsePositiveWorkspaceDisplayIndex(name)
+        else { return nil }
+        return (name, number)
+    })
+}
+
+@MainActor
+func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceNumbers: [String: Int]? = nil) -> TileEntry {
+    let numbers = workspaceNumbers ?? tileWorkspaceNumbers([entry.record.workspace])
     return TileEntry(icon: icon, title: entry.record.title, appName: entry.record.app.name, picture: entry.window.thumbnail,
                      aspect: miniature.frame.width / max(1, miniature.frame.height),
-                     badges: TileBadges(workspaceNumber: number, onFocusedWorkspace: entry.record.workspace == focus.workspace.name,
+                     badges: TileBadges(workspaceNumber: numbers[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == focus.workspace.name,
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
