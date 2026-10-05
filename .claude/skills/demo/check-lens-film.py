@@ -39,6 +39,12 @@ def validate_sample_times(encoded, metadata):
         raise ValueError('encoded timestamps differ from measured receipt times')
 
 
+def strip_edge_present(edge, outside, inside):
+    if not edge or not len(edge) == len(outside) == len(inside):
+        return False
+    return sum(value > max(out, inner) + 40 for value, out, inner in zip(edge, outside, inside)) / len(edge) >= .75
+
+
 def main():
     from PIL import Image, ImageChops
     parser = argparse.ArgumentParser(description=__doc__)
@@ -46,6 +52,7 @@ def main():
     parser.add_argument('traces', type=pathlib.Path)
     parser.add_argument('--probe', required=True, help='x,y,width,height')
     parser.add_argument('--threshold', type=float, default=0.25, help='fraction of pixels changed by >20 levels')
+    parser.add_argument('--strip-edge', help='x,y,width of the straight top border; reject background motion')
     args = parser.parse_args()
     movie = args.movie
     metadata = json.loads(pathlib.Path(str(movie)+'.clock.json').read_text())
@@ -83,6 +90,12 @@ def main():
             pixels = list(difference.get_flattened_data())
             changed = sum(max(pixel)>20 for pixel in pixels)/len(pixels)
             if changed >= args.threshold:
+                if args.strip_edge:
+                    ex, ey, ew = map(int, args.strip_edge.split(','))
+                    gray = Image.open(images[index]).convert('L')
+                    lines = [list(gray.crop((ex, row, ex+ew, row+1)).get_flattened_data()) for row in (ey, ey-1, ey+3)]
+                    if not strip_edge_present(*lines):
+                        continue
                 found = index; break
         if found is None: raise ValueError('no Presentation found within 1.5 s')
         visible.append(found)

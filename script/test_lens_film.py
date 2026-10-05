@@ -34,3 +34,9 @@ class LensFilmTest(unittest.TestCase):
     def testDroppedFirstSampleCannotShiftTheRecordingOrigin(self):
         with self.assertRaises(ValueError):
             module.validate_sample_times([.01, .025], {'firstPTS': 100, 'framePTS': [100.01, 100.025]})
+
+    def testStripEdgeRejectsBackgroundMotionAndAcceptsTheSurface(self):
+        self.assertFalse(module.strip_edge_present([100] * 10, [100] * 10, [100] * 10))
+        self.assertFalse(module.strip_edge_present([240] * 10, [240] * 10, [40] * 10))
+        self.assertFalse(module.strip_edge_present([240] * 2 + [40] * 8, [40] * 10, [40] * 10))
+        self.assertTrue(module.strip_edge_present([200] * 10, [40] * 10, [100] * 10))
