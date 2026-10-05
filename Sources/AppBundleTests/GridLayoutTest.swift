@@ -92,7 +92,6 @@ final class GridLayoutTest: XCTestCase {
     func testFloorRelaxationThreshold() {
         let input = GridLayout.Entry(aspect: 4 / 3, realSize: CGSize(width: 1200, height: 900), kind: .card)
         let threshold = (1...300).first { GridLayout(entries: Array(repeating: input, count: $0), visibleSize: monitor, tileSize: "real").relaxedTitleFloor }!
-        print("GRID title floor gives way at \(threshold) editor-sized Tiles on 1920x1080")
         XCTAssertGreaterThan(threshold, 80)
         XCTAssertFalse(GridLayout(entries: Array(repeating: input, count: threshold - 1), visibleSize: monitor, tileSize: "real").relaxedTitleFloor)
     }

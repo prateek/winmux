@@ -32,23 +32,19 @@ struct GridLayout {
             var size = CGSize.zero
         }
         func plan(height: CGFloat, chrome: CGFloat, titleFloor: Bool) -> Plan {
-            let metrics = TileMetrics(visibleSize: CGSize(width: 1920 * chrome, height: 1080 * chrome))
+            let metrics = TileMetrics(scale: chrome)
             let gap = 14 * chrome
             var rows: [[Tile]] = [[]]
             var rowWidths: [CGFloat] = [0]
             for entry in entries {
                 let box: CGSize
-                if tileSize == "real" {
-                    let factor = min(1, height / max(1, visibleSize.height))
-                    box = CGSize(width: max(70 * chrome, entry.realSize.width * factor), height: max(height, entry.realSize.height * factor))
-                } else {
-                    box = CGSize(width: height * (tileSize == "equal" ? 1.5 : min(2.1, max(0.6, entry.aspect))), height: height)
-                }
                 let picture: CGSize
                 if tileSize == "real" {
                     let factor = min(1, height / max(1, visibleSize.height))
                     picture = CGSize(width: entry.realSize.width * factor, height: entry.realSize.height * factor)
+                    box = CGSize(width: max(70 * chrome, picture.width), height: max(height, picture.height))
                 } else {
+                    box = CGSize(width: height * (tileSize == "equal" ? 1.5 : min(2.1, max(0.6, entry.aspect))), height: height)
                     let fitted = metrics.fittedPicture(aspect: entry.aspect, in: box)
                     let factor = min(1, entry.realSize.width / max(1, fitted.width), entry.realSize.height / max(1, fitted.height))
                     picture = CGSize(width: fitted.width * factor, height: fitted.height * factor)

@@ -88,7 +88,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
-        if settings.presentation == "miniatures" {
+        // The grid's 'real size needs a floating window's frame as it is now, as miniatures does.
+        if settings.presentation == "miniatures" || settings.presentation == "grid" {
             await withTaskGroup(of: Void.self) { group in
                 for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
                     group.addTask { @MainActor @Sendable in
@@ -140,9 +141,14 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.observeFirstFrame()
         if model.settings.presentation == "grid" {
             gridLandingPanel.order(.below, relativeTo: windowNumber)
-            for (key, from) in [("opacity", 0.0), ("transform.scale", 0.97)] {
-                let animation = CABasicAnimation(keyPath: key)
-                animation.fromValue = from; animation.toValue = 1
+            // A view's layer is anchored at its corner, so the scale is about the centre by hand.
+            let centre = CGPoint(x: hostingView.bounds.midX, y: hostingView.bounds.midY)
+            let shrunk = CGAffineTransform(translationX: centre.x, y: centre.y).scaledBy(x: 0.97, y: 0.97).translatedBy(x: -centre.x, y: -centre.y)
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.0; fade.toValue = 1.0
+            let scale = CABasicAnimation(keyPath: "transform")
+            scale.fromValue = CATransform3DMakeAffineTransform(shrunk); scale.toValue = CATransform3DIdentity
+            for (key, animation) in [("opacity", fade), ("transform", scale)] {
                 animation.duration = 0.1
                 hostingView.layer?.add(animation, forKey: key)
             }
@@ -226,7 +232,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             gridMonitorRect = rect.cgRect
             let layout = model.gridLayout
             let size = layout.panelSize
-            lensLog.notice("Grid layout row height \(layout.rowHeight, privacy: .public), \(layout.tiles.count) Tiles, panel \(size.width, privacy: .public) × \(size.height, privacy: .public), widest picture \(layout.tiles.map { $0.pictureSize.width }.max() ?? 0, privacy: .public)")
+            lensLog.debug("Grid layout row height \(layout.rowHeight, privacy: .public), \(layout.tiles.count) Tiles, panel \(size.width, privacy: .public) × \(size.height, privacy: .public), widest picture \(layout.tiles.map { $0.pictureSize.width }.max() ?? 0, privacy: .public)")
             frame = NSRect(x: rect.minX + (rect.width - size.width) / 2,
                            y: appKitScreenMaxY() - rect.minY - (rect.height + size.height) / 2,
                            width: size.width, height: size.height)
@@ -272,12 +278,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func updateGridFrame(_ model: LensSession) {
-        guard model.settings.presentation == "grid" else { return }
+        // Only a drawn grid follows its results; an opening one is framed by `prepare`.
+        guard model.settings.presentation == "grid", isVisible else { return }
         let size = model.gridLayout.panelSize
         let rect = gridMonitorRect
-        setFrame(NSRect(x: rect.minX + (rect.width - size.width) / 2,
-                        y: appKitScreenMaxY() - rect.minY - (rect.height + size.height) / 2,
-                        width: size.width, height: size.height), display: true)
+        let frame = NSRect(x: rect.minX + (rect.width - size.width) / 2,
+                           y: appKitScreenMaxY() - rect.minY - (rect.height + size.height) / 2,
+                           width: size.width, height: size.height)
+        if frame != self.frame { setFrame(frame, display: true) }
     }
 
     private func clearPresentation() {

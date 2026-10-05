@@ -311,7 +311,7 @@ selection lifts. A narrow picture is centred inside the Tile's width allocation.
 floor yields when needed to fit all Tiles. Text Tiles use the same packed rows without pictures;
 picture Tiles put the selected title and chips in the footer. The footer also shows app and count.
 
-Search shows only matches in the session's order and re-packs them, resizing the panel and Tiles.
+Search shows only matches, best match first as in the list, and re-packs them, resizing the panel and Tiles.
 Left and right move along the row; up and down go to the Tile in the next row whose centre is
 nearest. Arrows work with no Hold too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
 Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9

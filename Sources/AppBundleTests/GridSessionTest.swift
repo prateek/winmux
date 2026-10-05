@@ -24,11 +24,12 @@ final class GridSessionTest: XCTestCase {
         model.miniatureWorkspaces = ["1", "2"].map { MiniatureWorkspace(name: $0, title: $0, source: CGRect(x: 0, y: 0, width: 1920, height: 1080), current: $0 == "1") }
         return model
     }
-    func testSearchKeepsSessionOrderAndResizesToOnlyMatches() {
+    func testSearchRanksMatchesAsTheListDoesAndResizesToOnlyMatches() {
         let session = model(count: 40)
         let before = session.gridLayout
         session.send(.searchChanged("Alpha"))
-        XCTAssertEqual(session.results.map(\.id), Array(1...40).map(UInt32.init), "Grid matches stay in session order, regardless of Search score")
+        XCTAssertEqual(session.results.map(\.id), filterSwitcherPaletteItems(session.items, query: "Alpha").map(\.id))
+        XCTAssertEqual(session.selectedId, 2, "The best match is the one Enter acts on")
         session.send(.searchChanged("document"))
         XCTAssertEqual(session.results.count, 39)
         session.send(.searchChanged("2"))

@@ -9,7 +9,7 @@ struct GridView: View {
         let layout = model.gridLayout
         let items = model.results
         let scale = model.tileMetrics.scale
-        let metrics = TileMetrics(visibleSize: CGSize(width: 1920 * layout.tileScale, height: 1080 * layout.tileScale))
+        let metrics = TileMetrics(scale: layout.tileScale)
         let summonAvailable = model.stripSummonAvailable(items: items)
         ZStack(alignment: .topLeading) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in

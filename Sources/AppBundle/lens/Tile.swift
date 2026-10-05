@@ -26,6 +26,7 @@ struct TileBadges: Equatable {
 struct TileMetrics {
     let scale: CGFloat
     init(visibleSize: CGSize) { scale = min(max(1, visibleSize.width) / 1920, max(1, visibleSize.height) / 1080) }
+    init(scale: CGFloat) { self.scale = scale }
     var padding: CGFloat { 10 * scale }
     var gap: CGFloat { 8 * scale }
     var radius: CGFloat { 14 * scale }
