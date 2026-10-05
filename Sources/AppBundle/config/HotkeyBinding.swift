@@ -74,14 +74,15 @@ extension HotKey {
     pressedTapModifiers = []
     cancelPendingTapTriggers()
     for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
-        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
+        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
+            let origin = LensTraceOrigin(start: LensTimebase.eventSeconds(eventTime), received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
                 if hotkeysSuspended { return }
                 noteTapBindingKeyDown()
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
                 let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
                 if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text) { return }
-                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture)
+                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture, origin: origin)
             }
         })
     }
@@ -110,7 +111,7 @@ extension HotKey {
     }
 }
 
-@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil) {
+@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
     if hotkeysSuspended { return }
     Task {
         if let activeMode {
@@ -123,7 +124,9 @@ extension HotKey {
                 .checkServerIsEnabledOrDie(),
                 shouldSchedulePostRefresh: !commands.canSkipPostCommandRefresh
             ) { () throws in
-                _ = try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
+                _ = try await $lensTraceOrigin.withValue(origin) {
+                    try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
+                }
             }
         }
     }

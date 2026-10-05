@@ -211,3 +211,14 @@ let compact_help_generated = "USAGE: compact [-h|--help] [--workspace <name>]"
 let list_columns_help_generated = "USAGE: list-columns [-h|--help] [--json] [--workspace <name>]"
 let column_count_help_generated = "USAGE: column-count [-h|--help] <n>|off [--workspace <name>]"
 let place_help_generated = "USAGE: place [-h|--help] --dry-run --window-id <id> [--json]"
+
+public let debug_lens_trace_help_generated = """
+USAGE: debug-lens-trace [-h|--help] [--json] [--last <n>]
+
+Print recent Lens openings, from the event timestamp to the first frame.
+
+OPTIONS:
+  --json       Print machine-readable traces, with millisecond stage times
+  --last <n>   Print the last n openings (default 5; up to 20 retained)
+  -h, --help   Show this help
+"""

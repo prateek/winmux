@@ -1,6 +1,7 @@
 import AppKit
 import Common
 import SwiftUI
+import QuartzCore
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
 
@@ -23,7 +24,7 @@ struct SwitcherPaletteItem: Identifiable {
 @MainActor
 final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel(emit: broadcastEvent)
-    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+    private let hostingView = LensHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle: LensLifecycle
     private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
@@ -43,6 +44,12 @@ final class SwitcherPalettePanel: NSPanelHud {
         backgroundColor = .clear
         applyWinMuxLayer(.overlay)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hostingView.onFirstLayout = { [weak self] in
+            self?.lifecycle.trace?.advance("first layout")
+            self?.lifecycle.trace?.advance("first-frame thumbnails ready")
+            self?.lifecycle.trace?.startInterval("first frame presented")
+        }
+        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "hosting draw / CATransaction completion") }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -88,8 +95,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func show(_ model: LensSession) {
+        lifecycle.trace?.startInterval("view built")
         present(model)
+        hostingView.arm()
+        lifecycle.trace?.advance("view built")
+        lifecycle.trace?.startInterval("panel ordered front")
         orderFrontRegardless()
+        lifecycle.trace?.advance("panel ordered front")
+        lifecycle.trace?.startInterval("first layout")
     }
 
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
@@ -144,8 +157,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace)
         return ticket
     }
 
@@ -416,4 +429,32 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
                      monitorHeightFraction: frame.height / max(1, monitorHeight))
+}
+
+@MainActor
+private final class LensHostingView: NSHostingView<AnyView> {
+    var onFirstLayout: (() -> Void)?
+    var onFirstDraw: (() -> Void)?
+    private var firstLayout = false
+    private var firstDraw = false
+    private var generation = 0
+    func arm() { generation += 1; firstLayout = true; firstDraw = true }
+    override func layout() {
+        super.layout()
+        if firstLayout { firstLayout = false; onFirstLayout?() }
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard firstDraw else { return }
+        firstDraw = false
+        let ticket = generation
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.generation == ticket else { return }
+                self.onFirstDraw?()
+            }
+        }
+        CATransaction.commit()
+    }
 }

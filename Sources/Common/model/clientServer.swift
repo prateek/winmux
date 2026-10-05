@@ -31,6 +31,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
 
     public let args: [String]
     public let stdin: String
+    public var sentAt: Double?
 
     // Double Optional to encode explicit null into JSON
     public var windowId: UInt32??  // Please forward WINMUX_WINDOW_ID env variable here
@@ -41,7 +42,9 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
         stdin: String,
         windowId: UInt32?,
         workspace: String?,
+        sentAt: Double? = nil,
     ) {
+        self.sentAt = sentAt
         self.args = args
         self.stdin = stdin
         self.windowId = .some(windowId)
@@ -54,6 +57,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case args
+        case sentAt
         case stdin
         case windowId
         case workspace
@@ -66,6 +70,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
             stdin: data.stdin,
             windowId: data.windowId.flatMap { $0 },
             workspace: data.workspace.flatMap { $0 },
+            sentAt: data.sentAt,
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if !container.contains(.windowId) { raw.windowId = nil }
@@ -75,6 +80,7 @@ public struct ClientRequest: Codable, Sendable, ConvenienceCopyable, Equatable {
 }
 
 private struct ClientRequestData: Codable, Sendable {
+    var sentAt: Double?
     var args: [String]
     var stdin: String
     var windowId: UInt32??

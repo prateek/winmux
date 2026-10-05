@@ -35,6 +35,7 @@ extension Command {
             case is BalanceSizesCommand,
                  is ConfigCommand,
                  is DebugWindowsCommand,
+                 is DebugLensTraceCommand,
                  is FlattenWorkspaceTreeCommand,
                  is FocusBackAndForthCommand,
                  is FocusCommand,

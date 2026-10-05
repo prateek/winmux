@@ -1,0 +1,92 @@
+@testable import AppBundle
+import AppKit
+import Clocks
+import Common
+import XCTest
+
+@MainActor
+final class LensTraceTest: XCTestCase {
+    func testStagesUseInjectedClockAndExposeGapsAndBoundedHistory() throws {
+        var now = 10.0
+        let store = LensTraceStore(capacity: 2, stamp: { now })
+        let trace = store.begin(presentation: "strip", origin: .init(start: 9.998, received: 10, source: "Carbon"))
+        now = 10.003; trace.advance("binding resolved")
+        now = 10.010; trace.advance("windows collected")
+        now = 10.012; trace.advance("Filter evaluated")
+        now = 10.015; trace.advance("session ready")
+        now = 10.100; trace.advance("display delay")
+        now = 10.102; trace.advance("view built")
+        now = 10.104; trace.advance("panel ordered front")
+        now = 10.110; trace.advance("first layout")
+        now = 10.111; trace.advance("first-frame thumbnails ready")
+        now = 10.125; trace.finish(signal: "test")
+        let rows = store.snapshots(last: 1)
+        XCTAssertEqual(rows[0].stages.map(\.name), ["event reaching WinMux", "binding resolved", "windows collected", "Filter evaluated", "session ready", "display delay", "view built", "panel ordered front", "first layout", "first-frame thumbnails ready", "first frame presented"])
+        XCTAssertEqual(rows[0].totalMs, 127, accuracy: 0.0001)
+        XCTAssertEqual(rows[0].stages[2].durationMs, 7, accuracy: 0.0001)
+        XCTAssertTrue(store.text(last: 1).contains("127.000"))
+        XCTAssertEqual(try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8)), rows)
+        for name in ["list", "miniatures"] { store.begin(presentation: name, origin: .init(start: now, received: now, source: "CLI")).finish(signal: "test") }
+        XCTAssertEqual(store.snapshots(last: 10).map(\.presentation), ["list", "miniatures"])
+        XCTAssertFalse(store.snapshots(last: 2).flatMap(\.stages).contains { $0.name == "display delay" })
+    }
+
+    func testLifecycleTracesAllPresentationsOnControlledClock() async throws {
+        for presentation in ["strip", "list", "miniatures"] {
+            let clock = TestClock<Duration>()
+            let epoch = clock.now
+            let store = LensTraceStore(stamp: {
+                let duration = epoch.duration(to: clock.now).components
+                return Double(duration.seconds) + Double(duration.attoseconds) / 1e18
+            })
+            let trace = store.begin(presentation: presentation, origin: .init(start: 0, received: 0, source: "test"))
+            await clock.advance(by: .milliseconds(2)); trace.advance("binding resolved")
+            await clock.advance(by: .milliseconds(3)); trace.advance("windows collected")
+            await clock.advance(by: .milliseconds(4)); trace.advance("Filter evaluated")
+            let owner = testLensLifecycle(clock: clock, show: { _ in
+                trace.advance("view built")
+                trace.advance("panel ordered front")
+                trace.advance("first layout")
+                trace.advance("first-frame thumbnails ready")
+            })
+            let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
+            let ticket = owner.begin("demo", toggle: false, strip: presentation == "strip" ? gesture : nil, trace: trace)!
+            var settings = LensConfig(); settings.presentation = presentation
+            let model = LensSession(name: "demo", settings: settings, items: [], search: "")
+            await clock.advance(by: .milliseconds(1))
+            XCTAssertTrue(owner.complete(model, ticket: ticket))
+            if presentation == "strip" { await clock.advance(by: .milliseconds(99)) }
+            await clock.advance(by: .milliseconds(16))
+            trace.finish(signal: "controlled presentation")
+            let snapshot = store.snapshots(last: 1)[0]
+            XCTAssertEqual(snapshot.totalMs, presentation == "strip" ? 125 : 26, accuracy: 0.00001)
+            XCTAssertEqual(snapshot.stages.contains { $0.name == "display delay" }, presentation == "strip")
+            var end = 0.0
+            for stage in snapshot.stages {
+                XCTAssertLessThanOrEqual(stage.startMs - end, 5)
+                end = stage.startMs + stage.durationMs
+            }
+            XCTAssertEqual(snapshot.stages.last?.name, "first frame presented")
+            owner.dismiss()
+            try await clock.checkSuspension()
+        }
+    }
+
+    func testTimebaseConversionsAndRequestRoundTrip() throws {
+        let timebase = LensTimebase(numerator: 125, denominator: 3)
+        XCTAssertEqual(timebase.seconds(ticks: 24_000_000), 1, accuracy: 0.00001)
+        XCTAssertEqual(LensTimebase.eventSeconds(42.125), 42.125)
+        XCTAssertEqual(LensTimebase.cgSeconds(nanoseconds: 42_125_000_000), 42.125)
+        let request = ClientRequest(args: ["lens", "recent"], stdin: "", windowId: nil, workspace: nil, sentAt: 42.125)
+        XCTAssertEqual(try JSONDecoder().decode(ClientRequest.self, from: JSONEncoder().encode(request)).sentAt, 42.125)
+    }
+
+    func testCommandArguments() {
+        let args = parseCmdArgs(["debug-lens-trace", "--json", "--last", "5"].slice).cmdOrNil as? DebugLensTraceCmdArgs
+        XCTAssertEqual(args?.last, 5)
+        XCTAssertEqual(args?.json, true)
+        XCTAssertNil(parseCmdArgs(["debug-lens-trace", "--last", "0"].slice).cmdOrNil)
+        XCTAssertNil(parseCmdArgs(["debug-lens-trace", "--last", "-1"].slice).cmdOrNil)
+        XCTAssertNil(parseCmdArgs(["debug-lens-trace", "--last", "no"].slice).cmdOrNil)
+    }
+}

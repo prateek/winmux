@@ -15,6 +15,7 @@ extension CmdArgs {
             case let args as CloseCmdArgs: CloseCommand(args: args)
             case let args as CloseAllWindowsButCurrentCmdArgs: CloseAllWindowsButCurrentCommand(args: args)
             case let args as ConfigCmdArgs: ConfigCommand(args: args)
+            case let args as DebugLensTraceCmdArgs: DebugLensTraceCommand(args: args)
             case let args as DebugWindowsCmdArgs: DebugWindowsCommand(args: args)
             case let args as DoctorCmdArgs: DoctorCommand(args: args)
             case let args as EnableCmdArgs: EnableCommand(args: args)
