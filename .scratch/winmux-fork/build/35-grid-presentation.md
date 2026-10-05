@@ -50,7 +50,7 @@ Before this issue, a config with `presentation = 'grid` was rejected at load. Th
 - [x] Search narrows the grid and it re-sizes to the matches; marks, `close`, `focus`, Summon and the workspace keys act on the selection.
 - [x] Arrow keys reach every Tile.
 - [x] Layout tests cover one Tile, a full row, a wrap, and forty Tiles.
-- [ ] The pull request shows the grid on the staged desk beside the prototype at the same settings.
+- [x] The pull request shows the grid on the staged desk beside the prototype at the same settings.
 
 ## Build notes
 
