@@ -19,6 +19,9 @@ for page in lenses columns events; do
   title=$(head -1 ~/winmux/docs/$page.md | sed 's/^# //')
   { echo "<!doctype html><meta charset=utf-8><title>$title</title>$style"; uv run --quiet --with markdown python -m markdown -x tables -x fenced_code ~/winmux/docs/$page.md; } > ~/desk/docs/$page.html
 done
+[ -f ~/desk/docs/server.pid ] && kill $(cat ~/desk/docs/server.pid) 2>/dev/null
+nohup python3 -m http.server 8765 --bind 127.0.0.1 --directory ~/desk/docs >~/desk/docs/server.log 2>&1 &
+echo $! >~/desk/docs/server.pid
 for doc in "Soft language" "Things I will get to"; do textutil -convert rtf -font Helvetica -fontsize 17 ~/desk/rich/"$doc".txt -output ~/desk/"$doc".rtf; done
 [ -f ~/desk/Grievances.rtf ] || textutil -convert rtf -font Helvetica -fontsize 17 ~/desk/Grievances.txt -output ~/desk/Grievances.rtf
 
@@ -36,11 +39,11 @@ put() {
 (open -a Zed ~/.config/winmux/winmux.ncl &); sleep 6
 (open -a Ghostty --args -e ~/desk/term.sh &); sleep 3
 (open -na Ghostty --args -e ~/desk/term.sh &); sleep 3
-(open -a Safari ~/desk/docs/lenses.html &); sleep 5
+(open -a Safari http://localhost:8765/lenses.html &); sleep 5
 ~/desk/keys 0 /tmp/new-window.json down:cmd tap:n up:cmd wait:0.5
-open -a Safari ~/desk/docs/columns.html; sleep 2
+open -a Safari http://localhost:8765/columns.html; sleep 2
 ~/desk/keys 0 /tmp/new-window.json down:cmd tap:n up:cmd wait:0.5
-open -a Safari ~/desk/docs/events.html; sleep 2
+open -a Safari http://localhost:8765/events.html; sleep 2
 open -a Notes; sleep 3
 (open -a TextEdit ~/desk/Grievances.rtf ~/desk/"Soft language".rtf ~/desk/"Things I will get to".rtf &); sleep 4
 open ~/desk; sleep 2
