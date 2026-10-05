@@ -61,7 +61,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let focused = focus
         let focusedId = focused.windowOrNil?.windowId
         let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
-        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace })
+        let workspaces = miniatureWorkspaceSnapshot(entries)
+        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
         let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
             let miniature = miniatureEntry(entry, onscreen: onscreen)
@@ -75,7 +76,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
-        model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
+        model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
             model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))
         }
@@ -386,14 +387,18 @@ func lensSearchField(in view: NSView) -> NSTextField? {
 }
 
 @MainActor
-func tileWorkspaceLabels(_ names: [String]) -> [String: String] {
-    Dictionary(uniqueKeysWithValues: Set(names).filter { !$0.isEmpty }.map { name in
+func tileWorkspaceLabels(_ names: [String], workspaces: [MiniatureWorkspace]) -> [String: String] {
+    let titles = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.name, $0.title) })
+    return Dictionary(uniqueKeysWithValues: Set(names).filter { !$0.isEmpty }.map { name in
         if let label = config.workspaceSidebar.workspaceLabels[name]?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
             return (name, tileWorkspaceLabel(label))
         }
         let workspace = Workspace.existing(byName: name)
-        let number = workspace.map { $0.usesAutomaticDisplayName ? automaticWorkspaceDisplayIndex($0, focusedWorkspace: focus.workspace) : parsePositiveWorkspaceDisplayIndex(name) } ?? nil
-        return (name, number.map(String.init) ?? tileWorkspaceLabel(workspaceDisplayName(name)))
+        let title = titles[name] ?? name
+        if workspace?.usesAutomaticDisplayName == true, title.hasPrefix("Workspace ") {
+            return (name, String(title.dropFirst("Workspace ".count)))
+        }
+        return (name, parsePositiveWorkspaceDisplayIndex(name).map(String.init) ?? tileWorkspaceLabel(title))
     })
 }
 

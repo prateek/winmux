@@ -105,9 +105,16 @@ final class TileReviewRegressionTest: XCTestCase {
         workspace.markAsAutomaticallyNamed()
         _ = TestWindow.new(id: 92, parent: workspace.rootTilingContainer)
         try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "mail")
-        XCTAssertEqual(tileWorkspaceLabels([workspace.name])[workspace.name], "mail")
+        XCTAssertEqual(tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([]))[workspace.name], "mail")
         try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "correspondence")
-        XCTAssertEqual(tileWorkspaceLabels([workspace.name])[workspace.name], "corresponden…")
+        XCTAssertEqual(tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([]))[workspace.name], "corresponden…")
+    }
+
+    func testWorkspaceChipKeepsTheOpeningSnapshotLabel() {
+        let workspace = Workspace.get(byName: "2")
+        workspace.markAsAutomaticallyNamed()
+        let snapshot = [MiniatureWorkspace(name: workspace.name, title: "Workspace 7", source: .zero, current: false)]
+        XCTAssertEqual(tileWorkspaceLabels([workspace.name], workspaces: snapshot)[workspace.name], "7")
     }
 
     func testNamedWorkspaceHasItsSidebarLabel() async throws {
@@ -115,7 +122,7 @@ final class TileReviewRegressionTest: XCTestCase {
         let window = TestWindow.new(id: 91, parent: workspace.rootTilingContainer)
         let source = LensWindow(record: try await window.windowRecord().orDie(), window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: true, accessory: false, floating: false, window: window)
-        let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name]), monitorHeight: 1080, focusedWorkspaceName: "1")
+        let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([])), monitorHeight: 1080, focusedWorkspaceName: "1")
         XCTAssertEqual(tile.badges.chips(enabled: true), ["mail"])
     }
 
@@ -192,6 +199,9 @@ final class TileDrawingArchitectureTest: XCTestCase {
         let layout = try source("Sources/AppBundle/lens/StripLayout.swift")
         XCTAssertFalse(layout.contains("var stripWidths:"))
         XCTAssertFalse(layout.contains("var stripRowHeight:"))
+        let palette = try source("Sources/AppBundle/ui/hud/SwitcherPalette.swift")
+        XCTAssertTrue(palette.contains("tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)"))
+        XCTAssertTrue(palette.contains("model.miniatureWorkspaces = workspaces"))
     }
 
     func testLifecycleUsesOnePicturePolicyAndRefreshDispatch() throws {
