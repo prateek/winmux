@@ -28,6 +28,7 @@ struct LensKeyRecord: Codable, Equatable {
     let modifiers: UInt
     let timestamp: Double
     let receivedAt: Double
+    let recordedAt: Double
     let presentation: String
     let hold: Bool
     let path: String
@@ -89,11 +90,11 @@ final class LensTraceStore {
                 stage.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", stage.startMs, stage.durationMs)
             }.joined(separator: "\n")
             let keys = trace.keys.map { key -> String in
-                "\(key.keyCode) \(key.characters.debugDescription) \(key.modifiers) \(key.timestamp) \(key.receivedAt) \(key.presentation) \(key.hold) \(key.path) \(key.destination) \(key.search.debugDescription) \(String(describing: key.selectedId)) \(key.fieldEditor)"
+                "\(key.keyCode) \(key.characters.debugDescription) \(key.modifiers) \(key.timestamp) \(key.receivedAt) \(key.recordedAt) \(key.presentation) \(key.hold) \(key.path) \(key.destination) \(key.search.debugDescription) \(String(describing: key.selectedId)) \(key.fieldEditor)"
             }.joined(separator: "\n")
             let opening = "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")"
             var lines = [opening, "Stage                                Start ms  Duration ms", stages,
-                         "Keys: code text flags boot-seconds received-seconds Presentation Hold path destination Search selection field-editor", keys]
+                         "Keys: code text flags boot-seconds received-seconds recorded-seconds Presentation Hold path destination Search selection field-editor", keys]
             if let session = trace.session {
                 lines.append("Session: \(session.presentation) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) active=\(session.active)")
             }
@@ -174,9 +175,10 @@ final class LensOpeningTrace {
     }
     func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
              presentation: String, hold: Bool, path: String, destination: String,
-             search: String, selectedId: UInt32?, fieldEditor: Bool) {
+             search: String, selectedId: UInt32?, fieldEditor: Bool, receivedAt: Double? = nil) {
+        let recordedAt = stamp()
         keys.append(LensKeyRecord(keyCode: code, characters: characters, modifiers: flags.rawValue,
-                                 timestamp: timestamp, receivedAt: stamp(), presentation: presentation,
+                                 timestamp: timestamp, receivedAt: receivedAt ?? recordedAt, recordedAt: recordedAt, presentation: presentation,
                                  hold: hold, path: path, destination: destination, search: search,
                                  selectedId: selectedId, fieldEditor: fieldEditor))
         if keys.count > 256 { keys.removeFirst(keys.count - 256) }

@@ -275,6 +275,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func routeKey(_ event: NSEvent, path: String, carbon: Bool = false) -> Bool {
         guard let model = session else { return false }
+        let receivedAt = LensTimebase.now()
         let trace = lifecycle.trace
         let presentation = model.settings.presentation
         let held = model.hold != nil
@@ -300,7 +301,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
                    timestamp: event.timestamp, presentation: presentation, hold: held, path: path,
-                   destination: destination, search: model.query, selectedId: model.selectedId, fieldEditor: editor)
+                   destination: destination, search: model.query, selectedId: model.selectedId, fieldEditor: editor, receivedAt: receivedAt)
         return handled
     }
 
