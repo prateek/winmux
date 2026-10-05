@@ -48,6 +48,16 @@ final class TileReviewRegressionTest: XCTestCase {
         XCTAssertEqual(portrait.width, 760 * 1080 / 1920)
     }
 
+    func testEmptyStripReservesReadableFooterWidth() {
+        for size in [CGSize(width: 1920, height: 1080), CGSize(width: 960, height: 540)] {
+            let metrics = TileMetrics(visibleSize: size)
+            let empty = StripSnapshot(items: [], selection: 0, size: size, kind: .picture, settings: LensConfig())
+            let caption = ("No windows" as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 15 * metrics.scale)]).width
+            XCTAssertGreaterThanOrEqual(empty.layout.rowWidth - 88 * metrics.scale, caption)
+            XCTAssertTrue(empty.layout.range.isEmpty)
+        }
+    }
+
     func testFooterOmitsAppNameWhenItIsAlreadyTheTitle() {
         XCTAssertNil(TileEntry(title: "Safari", appName: "Safari").footerAppName)
         XCTAssertNil(TileEntry(title: "", appName: "Safari").footerAppName)

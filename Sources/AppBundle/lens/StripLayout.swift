@@ -7,10 +7,10 @@ struct StripLayout {
     let after: Int
     let rowWidth: CGFloat
 
-    init(widths: [CGFloat], selection: Int, width: CGFloat, gap: CGFloat = Self.gap, overhead: CGFloat = 88) {
+    init(widths: [CGFloat], selection: Int, width: CGFloat, gap: CGFloat = Self.gap, overhead: CGFloat = 88, emptyWidth: CGFloat = 0) {
         let count = widths.count
         guard count > 0 else {
-            range = 0 ..< 0; before = 0; after = 0; rowWidth = min(width, overhead)
+            range = 0 ..< 0; before = 0; after = 0; rowWidth = min(width, max(overhead, emptyWidth))
             return
         }
         let selected = min(max(0, selection), count - 1)
@@ -202,7 +202,7 @@ struct StripSnapshot {
             let height = metrics.pictureHeight(rowHeight: rowHeight, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
             return min(max(1, size.width * 0.9 - 88 * metrics.scale), metrics.width(kind: kind, aspect: item.tile.aspect, rowHeight: height))
         }
-        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale)
+        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale, emptyWidth: metrics.textWidth + 88 * metrics.scale)
     }
 }
 
