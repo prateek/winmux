@@ -1083,3 +1083,18 @@ fn grid_contract_loads_modes_profiles_and_ignored_settings() {
         assert!(error.contains("tile-size") || error.contains("sections-arrangement"), "{error}");
     }
 }
+
+#[test]
+fn grid_load_and_check_use_the_real_helper_contract() {
+    let mut helper = loaded("grid.ncl");
+    let reply = request(&mut helper, json!({"op": "load", "path": fixture("grid.ncl")}));
+    assert_eq!(reply["ok"], true, "{reply}");
+    let lens = &reply["result"]["config"]["lenses"]["grid"];
+    assert_eq!(lens["presentation"], "grid");
+    assert_eq!(lens["grid"]["tile-size"], "real");
+    assert_eq!(lens["when"]["default"]["grid"]["tile-size"], "equal");
+    assert_eq!(run_helper(&["check", &fixture("grid.ncl")]).status.code(), Some(0));
+    let invalid = run_helper(&["check", &fixture("grid-invalid.ncl")]);
+    assert_eq!(invalid.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("tile-size"));
+}
