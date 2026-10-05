@@ -11,6 +11,12 @@ zsh ~/desk/make-repo.sh
 cp ~/desk/zed/settings.json ~/.config/zed/settings.json
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
 ~/winmux/nickel-helper/target/release/winmux-nickel check ~/.config/winmux/winmux.ncl || exit 1
+python3 - <<'BOOT'
+from pathlib import Path
+import re
+p = Path.home() / '.config/winmux/winmux.ncl'
+p.write_text(re.sub(r'  workspace\."[23]"\.columns = \{.*?\n  \},\n', '', p.read_text(), flags=re.S))
+BOOT
 rm -f ~/Library/Containers/com.apple.Safari/Data/Library/Safari/SafariTabs.db*(N)
 rm -rf ~/Library/Saved\ Application\ State/com.apple.Safari.savedState ~/Library/Saved\ Application\ State/com.apple.TextEdit.savedState ~/Library/Saved\ Application\ State/com.apple.Preview.savedState
 ~/desk/wallpaper ~/desk/wallpaper.jpg
@@ -19,9 +25,9 @@ for page in lenses columns events; do
   title=$(head -1 ~/winmux/docs/$page.md | sed 's/^# //')
   { echo "<!doctype html><meta charset=utf-8><title>$title</title>$style"; uv run --quiet --with markdown python -m markdown -x tables -x fenced_code ~/winmux/docs/$page.md; } > ~/desk/docs/$page.html
 done
-[ -f ~/desk/docs/server.pid ] && kill $(cat ~/desk/docs/server.pid) 2>/dev/null
+[ -f ~/desk/docs-server.pid ] && kill $(cat ~/desk/docs-server.pid) 2>/dev/null
 nohup python3 -m http.server 8765 --bind 127.0.0.1 --directory ~/desk/docs >~/desk/docs/server.log 2>&1 &
-echo $! >~/desk/docs/server.pid
+echo $! >~/desk/docs-server.pid
 for doc in "Soft language" "Things I will get to"; do textutil -convert rtf -font Helvetica -fontsize 17 ~/desk/rich/"$doc".txt -output ~/desk/"$doc".rtf; done
 [ -f ~/desk/Grievances.rtf ] || textutil -convert rtf -font Helvetica -fontsize 17 ~/desk/Grievances.txt -output ~/desk/Grievances.rtf
 
@@ -51,6 +57,14 @@ open ~/desk; sleep 2
 (open -a Calculator &); sleep 2
 killall NotificationCenter 2>/dev/null
 
+# Seed the numeric workspace order before loading the per-workspace Column rules.
+# Configured workspace records otherwise create 2 and 3 in dictionary iteration order.
+put $(id Notes "") "2"
+put $(id Finder "desk") "3"
+put $(id Preview "") "4"
+cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
+$W reload-config >/dev/null
+sleep 1
 for stray in $($W list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' | awk -F'|' '$2=="Safari" && ($3=="Untitled" || $3=="Start Page") {print $1}'); do $W close --window-id $stray; done
 ghostty=($($W list-windows --all --format '%{window-id}|%{app-name}' | awk -F'|' '$2=="Ghostty" {print $1}'))
 col() { $W move-node-to-workspace --window-id "$1" "$2" >/dev/null 2>&1; $W workspace "$2" >/dev/null 2>&1; $W layout tiling --window-id "$1" >/dev/null 2>&1; $W move-node-to-column "$3" --window-id "$1"; }
@@ -61,7 +75,7 @@ col $(id Safari "Lenses") "2" 2; col $(id Safari "Fixed Columns") "2" 2; col $(i
 col $(id TextEdit "Things") "2" 3
 # Workspace 3, two Columns: two drafts in a tab group, and the folder of stuff.
 col $(id TextEdit "Grievances") "3" 1; col $(id TextEdit "Soft language") "3" 1
-col $(id Finder "") "3" 2
+col $(id Finder "desk") "3" 2
 # Workspace 4, no Columns: a picture, and a calculator floating over it.
 put $(id Preview "") "4"; put $(id Calculator "") "4"
 $W workspace "4" >/dev/null; $W layout tiles horizontal >/dev/null 2>&1
