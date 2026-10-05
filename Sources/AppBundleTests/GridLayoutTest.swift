@@ -96,6 +96,29 @@ final class GridLayoutTest: XCTestCase {
         XCTAssertGreaterThan(threshold, 80)
         XCTAssertFalse(GridLayout(entries: Array(repeating: input, count: threshold - 1), visibleSize: monitor, tileSize: "real").relaxedTitleFloor)
     }
+    func testLeftAndRightStayInTheRowAndUpAndDownChangeRows() {
+        for mode in ["real", "same-height", "equal"] {
+            for count in [5, 7, 14, 40] {
+                // Wide Tiles put the Tile below closer than the next one along.
+                let input = (0..<count).map { GridLayout.Entry(aspect: 2.4, realSize: CGSize(width: [1920, 1500, 1700][$0 % 3], height: 760), kind: .card) }
+                let layout = GridLayout(entries: input, visibleSize: monitor, tileSize: mode)
+                let rows = layout.tiles.map { $0.frame.minY }
+                XCTAssertGreaterThan(Set(rows).count, 1)
+                for index in layout.tiles.indices {
+                    let sameRowNext = index + 1 < count && rows[index + 1] == rows[index]
+                    XCTAssertEqual(layout.nearest(from: index, direction: .right), sameRowNext ? index + 1 : nil, "\(mode) \(count) right of \(index)")
+                    let sameRowPrevious = index > 0 && rows[index - 1] == rows[index]
+                    XCTAssertEqual(layout.nearest(from: index, direction: .left), sameRowPrevious ? index - 1 : nil, "\(mode) \(count) left of \(index)")
+                    if let down = layout.nearest(from: index, direction: .down) {
+                        XCTAssertEqual(rows[down], rows.first { $0 > rows[index] })
+                    } else { XCTAssertEqual(rows[index], rows.max()) }
+                    if let up = layout.nearest(from: index, direction: .up) {
+                        XCTAssertEqual(rows[up], rows.last { $0 < rows[index] })
+                    } else { XCTAssertEqual(rows[index], rows.min()) }
+                }
+            }
+        }
+    }
     func testArrowsReachEveryTileFromEveryTileAndStopAtEdges() {
         for count in [3, 7, 14, 40, 80] {
             let layout = check(count, mode: "same-height")

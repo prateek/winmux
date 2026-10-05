@@ -312,8 +312,8 @@ floor yields when needed to fit all Tiles. Text Tiles use the same packed rows w
 picture Tiles put the selected title and chips in the footer. The footer also shows app and count.
 
 Search shows only matches in the session's order and re-packs them, resizing the panel and Tiles.
-All four arrows select the nearest Tile in that direction, including with no Hold; an edge press
-keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
+Left and right move along the row; up and down go to the Tile in the next row whose centre is
+nearest. Arrows work with no Hold too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
 Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9
 move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
 `badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label

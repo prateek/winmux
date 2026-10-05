@@ -101,22 +101,18 @@ struct GridLayout {
     func nearest(from index: Int, direction: Direction) -> Int? {
         guard tiles.indices.contains(index) else { return nil }
         let source = tiles[index].frame
-        return tiles.indices.filter { candidate in
-            guard candidate != index else { return false }
-            let rect = tiles[candidate].frame
-            switch direction {
-                case .left: return rect.midX < source.midX
-                case .right: return rect.midX > source.midX
-                case .up: return rect.midY < source.midY
-                case .down: return rect.midY > source.midY
-            }
-        }.min { lhs, rhs in
-            func distance(_ index: Int) -> CGFloat {
-                let frame = tiles[index].frame
-                return hypot(frame.midX - source.midX, frame.midY - source.midY)
-            }
-            let a = distance(lhs), b = distance(rhs)
-            return a == b ? lhs < rhs : a < b
+        // Tiles are in row order, and every Tile of a row has the same top. Left and right stay in
+        // the row: the Euclidean-nearest Tile to the right of a wide one is often in the row below.
+        func sameRow(_ candidate: Int) -> Bool { tiles.indices.contains(candidate) && tiles[candidate].frame.minY == source.minY }
+        switch direction {
+            case .left: return sameRow(index - 1) ? index - 1 : nil
+            case .right: return sameRow(index + 1) ? index + 1 : nil
+            case .up, .down:
+                let tops = tiles.map { $0.frame.minY }
+                guard let row = direction == .up ? tops.last(where: { $0 < source.minY }) : tops.first(where: { $0 > source.minY }) else { return nil }
+                return tiles.indices.filter { tops[$0] == row }.min {
+                    abs(tiles[$0].frame.midX - source.midX) < abs(tiles[$1].frame.midX - source.midX)
+                }
         }
     }
 }
