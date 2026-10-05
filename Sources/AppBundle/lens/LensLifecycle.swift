@@ -50,6 +50,7 @@ final class LensLifecycle {
     private let emit: (ServerEvent) -> Void
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
+    var prepare: (LensSession) -> Void = { _ in }
     var show: (LensSession) -> Void
     struct ShowInstruction: Equatable {
         let activate: Bool
@@ -91,7 +92,7 @@ final class LensLifecycle {
         let previous: String?
         if case .opening(let opening) = state { previous = opening.name } else { previous = session?.name }
         dismiss()
-        if previous == name && toggle && strip == nil { return nil }
+        if previous == name && toggle && strip == nil { trace?.cancel(); return nil }
         self.trace = trace
         state = .opening(Opening(name: name, gesture: strip))
         return generation
@@ -106,7 +107,6 @@ final class LensLifecycle {
             model.stripReleasedWhileOpening = opening.release
         }
         trace?.advance("session ready")
-        if model.settings.presentation == "strip" { trace?.startInterval("display delay") }
         model.owner = self
         searchInput = (context, windows, ids)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
@@ -114,6 +114,9 @@ final class LensLifecycle {
             let flags = opening.release ?? dependencies.flags()
             // A release that came before readiness runs its action once; the strip is never drawn.
             if commitStripRelease(flags, model: model) { return true }
+            prepare(model)
+            guard session === model, ticket == generation else { return true }
+            trace?.startInterval("display delay")
             send(.modifiersChanged(flags), from: model)
             guard session === model else { return true }
             stripDisplay = Task { @MainActor [weak self, weak model] in
@@ -124,7 +127,6 @@ final class LensLifecycle {
                 if self.commitStripRelease(flags, model: model) { return }
                 guard self.session === model else { return }
                 self.trace?.advance("display delay")
-                self.trace?.startInterval("view built")
                 self.presented(model)
             }
         } else {
@@ -269,6 +271,7 @@ final class LensLifecycle {
 
     func dismiss() {
         if case .closed = state { return }
+        trace?.cancel()
         trace = nil
         let model = session
         let wasPresented: Bool

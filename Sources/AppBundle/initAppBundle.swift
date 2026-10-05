@@ -47,6 +47,7 @@ import Foundation
             }
             _ = try await config.afterStartupCommand.runCmdSeq(.defaultEnv, .emptyStdin)
         }
+        SwitcherPalettePanel.shared.prepareAtStartup()
         isWinMuxRuntimeReady = true
         await reloadConfigIfSavedDuringStartup()
         if bootstrappedConfigUrl != nil {
