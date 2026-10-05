@@ -2,19 +2,26 @@ import AppKit
 
 @MainActor
 enum LensPresentationPreparation {
-    static func run(content: () -> Void, frame: () -> Void, layout: () -> Void) {
+    static func run(content: () -> Void, frame: () -> Void, layout: () -> Void, draw: () -> Void = {}) {
         content()
         frame()
         layout()
+        draw()
     }
 }
 
 @MainActor
 final class LensStartupPreparation {
     private var prepared = false
-    static func model(presentation: String, size: CGSize) -> LensSession {
+    static func model(presentation: String, size: CGSize, icons: [NSImage] = [], existingItems: [SwitcherPaletteItem]? = nil, workspaces: [MiniatureWorkspace]? = nil) -> LensSession {
         var settings = LensConfig()
         settings.presentation = presentation
+        if let existingItems, !existingItems.isEmpty {
+            let model = LensSession(name: "<startup>", settings: settings, items: existingItems, search: "")
+            model.miniatureSize = size
+            model.miniatureWorkspaces = workspaces ?? []
+            return model
+        }
         let thumbnail = WindowThumbnail()
         if let context = CGContext(data: nil, width: 160, height: 120, bitsPerComponent: 8, bytesPerRow: 0,
                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
@@ -22,9 +29,12 @@ final class LensStartupPreparation {
             context.fill(CGRect(x: 0, y: 0, width: 160, height: 120))
             if let image = context.makeImage() { thumbnail.accept(image) }
         }
-        let icon = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
+        let fallback = thumbnail.image.map { NSImage(cgImage: $0, size: NSSize(width: 128, height: 128)) }
+        let emptyThumbnail = WindowThumbnail()
         let items = (1...4).map { index in
-            var tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: index.isMultiple(of: 2) ? thumbnail : nil)
+            let icon = icons.isEmpty ? fallback : icons[(index - 1) % icons.count]
+            let picture = index == 1 ? nil : index == 2 ? emptyThumbnail : thumbnail
+            var tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: picture)
             if index.isMultiple(of: 2) {
                 tile.badges = TileBadges(workspaceLabel: "2", onFocusedWorkspace: false)
             }

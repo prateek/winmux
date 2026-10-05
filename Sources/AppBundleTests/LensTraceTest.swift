@@ -43,12 +43,16 @@ final class LensTraceTest: XCTestCase {
             await clock.advance(by: .milliseconds(2)); trace.advance("binding resolved")
             await clock.advance(by: .milliseconds(3)); trace.advance("windows collected")
             await clock.advance(by: .milliseconds(4)); trace.advance("Filter evaluated")
-            let owner = testLensLifecycle(clock: clock, show: { _ in
+            let prepareView = { (_: LensSession) in
                 trace.advance("view built")
-                trace.advance("panel ordered front")
                 trace.advance("first layout")
                 trace.advance("first-frame thumbnails ready")
+            }
+            let owner = testLensLifecycle(clock: clock, show: { model in
+                if presentation != "strip" { prepareView(model) }
+                trace.advance("panel ordered front")
             })
+            owner.prepare = prepareView
             let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
             let ticket = owner.begin("demo", toggle: false, strip: presentation == "strip" ? gesture : nil, trace: trace)!
             var settings = LensConfig(); settings.presentation = presentation
@@ -64,9 +68,12 @@ final class LensTraceTest: XCTestCase {
             var end = 0.0
             for stage in snapshot.stages {
                 XCTAssertLessThanOrEqual(stage.startMs - end, 5)
+                if stage.name == "gap" { XCTAssertLessThanOrEqual(stage.durationMs, 5) }
                 end = stage.startMs + stage.durationMs
             }
-            XCTAssertEqual(snapshot.stages.last?.name, "first frame presented")
+            XCTAssertEqual(snapshot.stages.map(\.name), ["event reaching WinMux", "binding resolved", "windows collected", "Filter evaluated", "session ready", "view built", "first layout", "first-frame thumbnails ready"] + (presentation == "strip" ? ["display delay"] : []) + ["panel ordered front", "first frame presented"])
+            XCTAssertEqual(try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8)), [snapshot])
+            XCTAssertTrue(store.text(last: 1).contains("first frame presented"))
             owner.dismiss()
             try await clock.checkSuspension()
         }

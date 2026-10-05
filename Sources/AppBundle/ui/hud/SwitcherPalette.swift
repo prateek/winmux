@@ -49,7 +49,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hostingView.onFirstLayout = { [weak self] in
             self?.lifecycle.trace?.advance("first layout")
-            self?.lifecycle.trace?.advance("first-frame thumbnails ready")
         }
         hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link after two compositor cycles") }
         contentView = hostingView
@@ -57,13 +56,16 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func prepareAtStartup() {
+    func prepareAtStartup() async {
+        let entries = (try? await lensWindows(popups: [])) ?? []
+        let workspaces = miniatureWorkspaceSnapshot(entries)
         startupPreparation.run { presentation in
-            let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size)
+            var settings = LensConfig()
+            settings.presentation = presentation
+            let items = presentationItems(entries, settings: settings, workspaces: workspaces)
+            let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size,
+                                                     existingItems: items, workspaces: workspaces)
             prepare(model)
-            if let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
-                hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
-            }
         }
         clearPresentation()
     }
@@ -78,23 +80,8 @@ final class SwitcherPalettePanel: NSPanelHud {
                 }
             }
         }
-        let focused = focus
-        let focusedId = focused.windowOrNil?.windowId
-        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
         let workspaces = miniatureWorkspaceSnapshot(entries)
-        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
-        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
-        let items = entries.map { entry in
-            let miniature = miniatureEntry(entry, onscreen: onscreen)
-            let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
-            return SwitcherPaletteItem(
-                id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
-                icon: icon,
-                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
-                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
-            )
-        }
+        let items = presentationItems(entries, settings: settings, workspaces: workspaces)
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
         model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
@@ -105,6 +92,25 @@ final class SwitcherPalettePanel: NSPanelHud {
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
+    }
+
+    private func presentationItems(_ entries: [LensWindow], settings: LensConfig, workspaces: [MiniatureWorkspace]) -> [SwitcherPaletteItem] {
+        let focused = focus
+        let focusedId = focused.windowOrNil?.windowId
+        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
+        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
+        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
+        return entries.map { entry in
+            let miniature = miniatureEntry(entry, onscreen: onscreen)
+            let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
+            return SwitcherPaletteItem(
+                id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
+                icon: icon,
+                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
+                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
+            )
+        }
     }
 
     private func show(_ model: LensSession) {
@@ -178,6 +184,12 @@ final class SwitcherPalettePanel: NSPanelHud {
             lifecycle.trace?.startInterval("first layout")
             hostingView.needsLayout = true
             hostingView.layoutSubtreeIfNeeded()
+        }, draw: {
+            lifecycle.trace?.startInterval("first-frame thumbnails ready")
+            if let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
+                hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+            }
+            lifecycle.trace?.advance("first-frame thumbnails ready")
         })
         preparedSession = model
     }
