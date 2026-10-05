@@ -189,7 +189,7 @@ let workspace_help_generated = """
     """
 
 let lens_help_generated = """
-    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures] [--tile card|picture|text]
+    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures|grid] [--tile card|picture|text]
            lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
            lens --presentation list
 
