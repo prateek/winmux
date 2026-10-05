@@ -11,11 +11,17 @@ defaults write com.apple.notificationcenterui widgets '<dict><key>vers</key><int
 defaults write com.apple.tips TipsEnabled -bool false
 mkdir -p ~/.config/ghostty
 printf 'auto-update = off\nwindow-save-state = never\n' > ~/.config/ghostty/config
-defaults write com.apple.Notes hasShownWelcomeScreen -bool true
-defaults write com.apple.Notes bypassICloudAlert -bool true
 open -a Notes
 sleep 5
 osascript -e 'tell application "Notes" to quit'
+sleep 2
+notes="$HOME/Library/Containers/com.apple.Notes/Data/Library/Preferences/com.apple.Notes"
+defaults write "$notes" hasShownWelcomeScreen -bool true
+defaults write "$notes" bypassICloudAlert -bool true
+# The welcome is also gated by the last displayed OS version, not just hasShownWelcomeScreen.
+startup_version=$(python3 -c 'import platform; v=platform.mac_ver()[0].split("."); v += ["0"] * (3-len(v)); print("<array>" + "".join("<integer>" + n + "</integer>" for n in v) + "</array>")')
+defaults write "$notes" lastShownStartupVersion-1 "$startup_version"
+killall cfprefsd 2>/dev/null || true
 # Register the Dock tile once in the image, so clones do not offer it on first launch.
 swiftc -O dismiss-registration.swift -o dismiss-registration
 open /Applications/Ghostty.app
