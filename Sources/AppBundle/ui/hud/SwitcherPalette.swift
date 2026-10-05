@@ -49,7 +49,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             self?.lifecycle.trace?.advance("first-frame thumbnails ready")
             self?.lifecycle.trace?.startInterval("first frame presented")
         }
-        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link following first render cycle") }
+        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link after two compositor cycles") }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -453,7 +453,7 @@ private final class LensHostingView: NSHostingView<AnyView> {
     }
     @objc private func displayTick(_ link: CADisplayLink) {
         displayTicks += 1
-        guard displayTicks == 2 else { return }
+        guard displayTicks == 3 else { return }
         link.invalidate()
         firstFrameLink = nil
         onFirstDraw?()
