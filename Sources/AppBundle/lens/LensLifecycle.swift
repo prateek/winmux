@@ -34,6 +34,11 @@ final class LensLifecycle {
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
     var show: (LensSession) -> Void
+    struct ShowInstruction: Equatable {
+        let activate: Bool
+        let focusSearch: Bool
+    }
+    var finishShow: (LensSession, ShowInstruction) -> Void = { _, _ in }
     var hide: () -> Void
     private var stripDisplay: Task<Void, Never>?
     private var thumbnailRefresh: Task<Void, Never>?
@@ -99,11 +104,14 @@ final class LensLifecycle {
                 stripDebugLog("strip draw elapsed=\(gesture.elapsedSeconds) flags=\(flags.rawValue)")
                 self.presented(model)
             }
-        } else { presented(model) }
+        } else {
+            state = .ready(model)
+            presented(model)
+        }
         return true
     }
 
-    func presented(_ model: LensSession, restartEffects: Bool = false) {
+    func presented(_ model: LensSession, restartEffects: Bool = false, conversion: Bool = false) {
         if case .opening(let opening) = state {
             guard opening.name == model.name else { return }
         } else { guard session === model else { return } }
@@ -116,6 +124,9 @@ final class LensLifecycle {
         if !wasPresented {
             emit(.lensEvent(opened: true, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter))
         }
+        guard session === model, ticket == generation else { return }
+        let firstNonStrip = !conversion && model.settings.presentation != "strip"
+        finishShow(model, ShowInstruction(activate: firstNonStrip, focusSearch: firstNonStrip))
         guard session === model, ticket == generation else { return }
         if !wasPresented { startSearch(model) }
         if !wasPresented || restartEffects { startPresentationEffects(model) }
@@ -134,7 +145,7 @@ final class LensLifecycle {
             case .presentationChanged:
                 guard oldPresentation != model.settings.presentation else { return }
                 cancelPresentationEffects()
-                presented(model, restartEffects: true)
+                presented(model, restartEffects: true, conversion: true)
             case .modifiersChanged(let flags):
                 if let key = model.stripReleaseKey(flags: flags) {
                     if let action = model.onAction { action(key) } else { dismiss() }

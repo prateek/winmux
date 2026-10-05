@@ -46,6 +46,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             ), emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.show = { [weak self] model in self?.show(model) }
+        lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -97,9 +98,12 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func show(_ model: LensSession) {
         present(model)
         orderFrontRegardless()
-        if model.settings.presentation != "strip" { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
+        if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
         makeKey()
-        if model.settings.presentation == "list" {
+        if instruction.focusSearch {
             DispatchQueue.main.async { [weak self, weak model] in
                 guard let self, let model, self.session === model else { return }
                 if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }

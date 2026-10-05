@@ -145,6 +145,42 @@ final class LensLifecycleTest: XCTestCase {
         owner.dismiss()
     }
 
+    func testFirstOpenAndConversionUseBasePresentationInstructions() {
+        for presentation in ["list", "miniatures", "strip"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            let model = LensSession(name: "demo", settings: settings, items: [], search: "remembered")
+            var instructions: [LensLifecycle.ShowInstruction] = []
+            let owner = testLensLifecycle()
+            owner.finishShow = { _, instruction in instructions.append(instruction) }
+            owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
+            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation != "strip")])
+            model.send(.presentationChanged("list"))
+            if presentation != "list" {
+                XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
+            }
+            owner.dismiss()
+        }
+    }
+
+    func testSessionIsCurrentDuringShowAndOpenedPrecedesActivation() {
+        var order: [String] = []
+        var owner: LensLifecycle!
+        owner = testLensLifecycle(emit: { _ in order.append("opened") }, show: { model in
+            XCTAssertTrue(owner.session === model)
+            model.send(.searchChanged("during show"))
+            order.append("present and order front")
+        })
+        owner.finishShow = { model, _ in
+            XCTAssertTrue(owner.session === model)
+            order.append("activate and make key")
+        }
+        let model = session("demo")
+        owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
+        XCTAssertEqual(model.query, "during show")
+        XCTAssertEqual(order, ["present and order front", "opened", "activate and make key"])
+        owner.dismiss()
+    }
+
     func testConfigReloadDoesNotChangeOpenEntriesOrKeyActions() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         let store = testLensLifecycle()
