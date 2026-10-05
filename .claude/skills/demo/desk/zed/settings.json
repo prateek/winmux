@@ -5,5 +5,8 @@
   "telemetry": { "diagnostics": false, "metrics": false },
   "title_bar": { "show_sign_in": false, "show_onboarding_banner": false },
   "auto_update": false,
-  "restore_on_startup": "none"
+  "restore_on_startup": "none",
+  "session": {
+    "trust_all_worktrees": true
+  }
 }

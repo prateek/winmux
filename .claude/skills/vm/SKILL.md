@@ -39,7 +39,7 @@ Done when `~/winmux/.build/debug/WinMuxApp` and `~/winmux/.build/debug/winmux` e
 - **Keys and pointer:** `cliclick`, with a whole chord sequence in one invocation: `cliclick kd:cmd kp:tab w:1000 kp:tab ku:cmd`. A key sent by a second invocation arrives without the held modifier.
 - **Recording:** `screencapture -x -v -V <seconds> ~/takes/<take>.mov`.
 - **Park the pointer bottom-right.** WinMux's sidebar expands under a pointer at the left edge.
-- Use `cliclick`, Swift and the `winmux` CLI for automation. `osascript` waits forever on an Automation prompt here.
+- Use `cliclick`, Swift and the `winmux` CLI for automation. AppleScript Automation is granted only for Notes, Finder and System Events; other targets wait on a permission prompt. To post a test notification without a new grant, use `osascript -e 'tell application "System Events" to display notification "Desk check" with title "WinMux"'`.
 
 Done when the takes are in `~/takes` in the guest.
 
@@ -58,6 +58,8 @@ A second display, real sleep, wake and unlock, fast user switching, and a signed
 
 ## The golden image
 
-`vm build-image` builds `winmux-golden` from `ghcr.io/cirruslabs/macos-tahoe-xcode:26.3`, whose Xcode 26.3 carries Swift 6.2.4, the version CI pins. `guest/provision.sh` is the whole recipe: tools, the grants in `guest/grant.sh`, the set's apps, and a bare desktop. Rebuild it when `.swift-version` changes or when the preflight starts failing in fresh clones.
+`vm build-image` builds `winmux-golden` from `ghcr.io/cirruslabs/macos-tahoe-xcode:26.3`, whose Xcode 26.3 carries Swift 6.2.4, the version CI pins. `guest/provision.sh` is the entry point: tools, the grants in `guest/grant.sh`, the set's apps, and `guest/first-run.sh` for a quiet desktop. The image initializes local Notes without welcome or iCloud alerts, disables Ghostty updates and window restoration, registers and dismisses its Dock tile notice by the accessible Close label, clears saved desktop widgets, disables wallpaper reveal, and persists Do Not Disturb through 2099. No credential or account is added. Zed trust is set by the desk's copied settings file. Rebuild it when `.swift-version` changes or when the preflight starts failing in fresh clones.
 
 A newer Cirrus image is a trap: Xcode 27 cannot build WinMux, even with the 6.2.4 toolchain installed over it.
+
+Build replacements alongside the current image with `VM_GOLDEN=winmux-golden-next vm build-image`, and use the same override for fresh proof clones. Keep the old image until the preflight, guest `make check` and both desk sets pass. Then rename the old image to `winmux-golden-prev` and the passing replacement to `winmux-golden`; the lander removes the previous image. An existing stopped guest can boot without a golden image; cloning needs one.

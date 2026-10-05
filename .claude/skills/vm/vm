@@ -134,10 +134,12 @@ cmd_build_image() {
 cmd_up() {
   requested_size
   local vm=${1:?usage: vm up <name> [WxH]} size=${2:-1280x720}
-  exists "$golden" || die "$golden is missing; run: vm build-image"
   running "$vm" && die "$vm is already running"
   admit
-  exists "$vm" || tart clone "$golden" "$vm"
+  if ! exists "$vm"; then
+    exists "$golden" || die "$golden is missing; run: vm build-image"
+    tart clone "$golden" "$vm"
+  fi
   tart set "$vm" --cpu "$cpu" --memory "$memory" --display "$size"
   boot "$vm"
   exec 9>&-
