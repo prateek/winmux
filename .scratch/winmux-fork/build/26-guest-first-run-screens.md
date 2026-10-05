@@ -10,6 +10,12 @@ The staged desk was dressed once, by hand, in one guest. In a fresh clone of the
 - **Ghostty**: a "Dock Tile Extension Added" notification that stays on screen.
 - **Notes**: a "Welcome to Notes" sheet, then a "Turn On iCloud" dialog.
 
+Later live runs in fresh clones met more, from macOS and from Ghostty:
+
+- **macOS**: a Tips card; calendar, weather and photos widgets on the desktop, although the recipe already sets `StandardHideWidgets`; and a "Click Wallpaper to Show Desktop Items" tip the first time the wallpaper is clicked.
+- **Ghostty**: an "Enable Automatic Updates?" prompt.
+- **Notifications** in general: every run so far has turned Do Not Disturb on by hand first.
+
 The relay films every pull request in a fresh clone, so each of these lands in a demo or blocks the stage script. This issue makes `stage-desk.sh` on a fresh clone end on the dressed desk and nothing else.
 
 ## Decisions
@@ -36,6 +42,9 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 - **Zed.** Try its settings first, in the `settings.json` the desk already copies in; Zed has had more than one way to trust a project, so check the installed version's.
 - **Ghostty.** Turn the notification off for Ghostty in the image, or keep the extension from being offered. `stage-desk.sh` already kills NotificationCenter twice; a banner that survives that needs the setting.
+- **Tips, widgets and the wallpaper tip.** Settle each with a preference in the image; find why `StandardHideWidgets` does not hide the widgets in a clone. The wallpaper tip is dismissed once in the image if no preference records it.
+- **Ghostty's update prompt.** Set its auto-update option in the config the desk already copies in.
+- **Do Not Disturb.** The image has it on, or a Focus that silences every banner, so no run turns it on by hand.
 - **Notes.** Launch it once during the image build, dismiss its two screens there, and quit it, so the image carries the dismissed state. If the state does not survive into a clone, find the preference that records it.
 - **Clicks as the last resort.** At 1280 × 720 the buttons were at: Notes "Continue" 1199,648; Notes "Turn On iCloud" Cancel 1024,430. At 1680 × 720: Zed "Trust and Continue" 672,381; the Ghostty banner's close button 1322,50, shown only while the pointer is over the banner. Find a button by its accessibility label rather than by these numbers where that works.
 - **Keeping the old image.** Rename `winmux-golden` aside before the rebuild and delete it once the new one passes.
@@ -44,7 +53,8 @@ No ticket settled these. Each is a starting default: change one if the code argu
 ## Done when
 
 - [ ] In a fresh clone of the rebuilt golden image, `stage-desk.sh` runs to the end with no input and exits 0.
-- [ ] A screenshot of each workspace of that clone, taken straight after, shows Zed and Ghostty on workspace 1 and Safari and Notes on workspace 2, with no sheet, dialog, banner or trust screen.
+- [ ] A screenshot of each workspace of that clone, taken straight after, shows Zed and Ghostty on workspace 1 and Safari and Notes on workspace 2, with no sheet, dialog, banner, prompt, Tips card, widget or trust screen.
+- [ ] Clicking the wallpaper in that clone shows no tip, and a notification posted in it shows no banner.
 - [ ] `winmux list-windows --all` in that clone lists the four set windows and nothing else.
 - [ ] Run a second time in the same clone, `stage-desk.sh` gives the same result.
 - [ ] The rebuilt image passes the `vm` preflight and `vm check` in a fresh clone.

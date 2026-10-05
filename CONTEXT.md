@@ -48,6 +48,10 @@ _Avoid_: tab source, adapter, integration
 A key or trackpad-gesture binding whose command opens a Lens.
 _Avoid_: shortcut, hotkey
 
+**Hold**:
+The time from a **Trigger**'s key press until the modifiers it was pressed with are released. It belongs to the Lens session, not to a **Presentation**: while it lasts the held modifiers are not part of what is typed, and what its end does (commit, or stay open) is decided for the Lens, not by the Presentation.
+_Avoid_: strip mode, held mode
+
 **Summon**:
 To move the selected window into the current workspace, rather than going to the window's workspace.
 _Avoid_: pull, bring, fetch
