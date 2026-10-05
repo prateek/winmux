@@ -105,6 +105,19 @@ final class TileSnapshotTest: XCTestCase {
         XCTAssertEqual(tileEntry(source, miniature: miniature, icon: nil).badges.chips(enabled: true), ["9"])
     }
 
+    func testWorkspaceBadgeUsesTheOpeningFocusSnapshot() async throws {
+        _ = TestWindow.new(id: 60, parent: focus.workspace.rootTilingContainer).focusWindow()
+        let workspace = Workspace.get(byName: "2")
+        let window = TestWindow.new(id: 61, parent: workspace.rootTilingContainer)
+        let record = try await window.windowRecord().orDie()
+        let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
+        let geometry = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window)
+        let tile = tileEntry(source, miniature: geometry, icon: nil, focusedWorkspaceName: workspace.name)
+        XCTAssertTrue(tile.badges.onFocusedWorkspace)
+        XCTAssertTrue(tile.badges.chips(enabled: true).isEmpty)
+        XCTAssertNotEqual(focus.workspace.name, workspace.name)
+    }
+
     func testSnapshotSeparatesMinimizedHiddenAndEntriesWithoutMiniatureCells() async throws {
         let workspace = Workspace.get(byName: "2")
         let minimized = TestWindow.new(id: 1, parent: macosMinimizedWindowsContainer)

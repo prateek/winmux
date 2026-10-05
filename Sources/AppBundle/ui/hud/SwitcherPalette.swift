@@ -60,8 +60,9 @@ final class SwitcherPalettePanel: NSPanelHud {
                 }
             }
         }
-        let focusedId = focus.windowOrNil?.windowId
-        let monitorHeight = focus.workspace.workspaceMonitor.visibleRect.height
+        let focused = focus
+        let focusedId = focused.windowOrNil?.windowId
+        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
         let workspaceNumbers = tileWorkspaceNumbers(entries.map { $0.record.workspace })
         let onscreen = lensOnscreenWindows(presentation: settings.presentation, tile: TileKind.resolve(configured: settings.tile, override: nil, presentation: settings.presentation)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
@@ -72,7 +73,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 icon: icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
                 projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceNumbers: workspaceNumbers, monitorHeight: monitorHeight)
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceNumbers: workspaceNumbers, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
@@ -394,11 +395,11 @@ func tileWorkspaceNumbers(_ names: [String]) -> [String: Int] {
 }
 
 @MainActor
-func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceNumbers: [String: Int]? = nil, monitorHeight: CGFloat? = nil) -> TileEntry {
+func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceNumbers: [String: Int]? = nil, monitorHeight: CGFloat? = nil, focusedWorkspaceName: String? = nil) -> TileEntry {
     let numbers = workspaceNumbers ?? tileWorkspaceNumbers([entry.record.workspace])
     return TileEntry(icon: icon, title: entry.record.title, appName: entry.record.app.name, picture: entry.window.thumbnail,
                      aspect: miniature.frame.width / max(1, miniature.frame.height),
-                     badges: TileBadges(workspaceNumber: numbers[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == focus.workspace.name,
+                     badges: TileBadges(workspaceNumber: numbers[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == (focusedWorkspaceName ?? focus.workspace.name),
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
