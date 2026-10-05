@@ -37,6 +37,7 @@ final class LensPreparationTest: XCTestCase {
     func testStartupModelsExerciseBothPictureAndPlaceholderTilesWithoutWindows() {
         for presentation in ["strip", "list", "miniatures"] {
             let model = LensStartupPreparation.model(presentation: presentation, size: CGSize(width: 1280, height: 720))
+            XCTAssertTrue(model.items.contains { !$0.tile.chips(enabled: true).isEmpty })
             XCTAssertNil(model.owner)
             XCTAssertEqual(model.settings.presentation, presentation)
             XCTAssertEqual(model.items.count, 4)

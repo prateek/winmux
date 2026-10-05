@@ -24,7 +24,10 @@ final class LensStartupPreparation {
         }
         let icon = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
         let items = (1...4).map { index in
-            let tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: index.isMultiple(of: 2) ? thumbnail : nil)
+            var tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: index.isMultiple(of: 2) ? thumbnail : nil)
+            if index.isMultiple(of: 2) {
+                tile.badges = TileBadges(workspaceLabel: "2", onFocusedWorkspace: false)
+            }
             return SwitcherPaletteItem(id: UInt32(index), title: tile.title, appName: tile.appName,
                 icon: icon, workspaceName: "1", isFocused: index == 1, tile: tile)
         }
