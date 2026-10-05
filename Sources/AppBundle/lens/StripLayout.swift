@@ -116,8 +116,9 @@ extension LensSession {
     @discardableResult
     func handleStripLetter(_ event: NSEvent) -> Bool {
         guard settings.presentation == "strip" else { return false }
-        switch meaning(for: event) {
-            case .command, .text: return perform(meaning(for: event))
+        let meaning = meaning(for: event)
+        switch meaning {
+            case .command, .text: return perform(meaning)
             default: return false
         }
     }

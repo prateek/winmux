@@ -133,7 +133,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
         if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
         makeKey()
-        if model.settings.presentation != "strip" {
+        // A list that is shown again with Search already focused keeps its caret and selection.
+        if model.settings.presentation != "strip", instruction.focusSearch || !(firstResponder is NSTextView) {
             let initialQuery = model.query
             let selectAll = instruction.focusSearch && model.hold == nil
             focusSearch(model, selectAll: selectAll)
@@ -285,6 +286,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let handled: Bool
         let destination: String
         switch meaning {
+            // A global binding pressed over a list or miniatures with no Hold is not the Lens's key.
+            case _ where carbon && !held && presentation != "strip": handled = false; destination = "global binding"
             case .dismiss: dismiss(); handled = true; destination = "dismissed"
             case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
             default:
@@ -322,6 +325,8 @@ final class SwitcherPalettePanel: NSPanelHud {
             dismiss()
             return false
         }
+        // A binding's key is named, not typed: only a one-character name is text.
+        let characters = characters.count == 1 ? characters : keyCode == 49 ? " " : ""
         guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
                                           timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
                                           context: nil, characters: characters, charactersIgnoringModifiers: characters,

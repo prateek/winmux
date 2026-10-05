@@ -52,7 +52,8 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
         case 48: return .mark
         default: break
     }
-    if !characters.isEmpty, characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
+    // Function and navigation keys carry a private-use character, which is not text.
+    if !characters.isEmpty, characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }) {
         return .text(characters)
     }
     return hold == nil ? .fieldEditor : .dropped
@@ -87,6 +88,8 @@ extension LensSession {
                 if settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveMiniatureSelection(direction)
                 } else if settings.presentation == "strip" { cycleStripSelection(code == 123 || code == 126 ? -1 : 1) }
+                // With no Hold, left and right move the caret in a list's Search field.
+                else if hold == nil, code == 123 || code == 124 { return false }
                 else { moveSelection(code == 123 || code == 126 ? -1 : 1) }
             case .mark: toggleMark()
             case .dropped: break

@@ -35,6 +35,8 @@ final class LensHoldTest: XCTestCase {
             (0, "a", .command, .text("a")),
             (9, "v", .command, .text("v")),
             (122, "", .command, .dropped),
+            (117, "\u{F728}", .command, .dropped),
+            (116, "\u{F72C}", .command, .dropped),
         ]
         for (code, text, flags, expected) in cases {
             XCTAssertEqual(lensKeyMeaning(hold: hold, keys: keys, code: code, characters: text, flags: flags), expected)
@@ -122,12 +124,12 @@ final class LensHoldTest: XCTestCase {
             let owner = testLensLifecycle()
             let gesture = StripGesture(keyCode: 15, invoking: held ? .option : [])
             let ticket = owner.begin("direct", toggle: false, invocation: gesture)!
-            XCTAssertEqual(owner.openingStripKey(keyCode: 15, flags: held ? .option : [], characters: "r"), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 15, flags: held ? .option : [], characters: "r"), held ? .consumed : nil)
             let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "r Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
             let model = LensSession(name: "direct", settings: LensConfig(), items: items, search: "")
             owner.complete(model, ticket: ticket)
-            XCTAssertEqual(model.query, held ? "" : "r")
-            XCTAssertEqual(model.selectedId, held ? 3 : 1)
+            XCTAssertEqual(model.query, "")
+            XCTAssertEqual(model.selectedId, held ? 3 : 2)
             owner.dismiss()
         }
     }
@@ -174,6 +176,38 @@ final class LensHoldTest: XCTestCase {
             XCTAssertEqual(model.meaning(for: key(4, "h")), .fieldEditor)
             XCTAssertEqual(model.meaning(for: key(13, "w")), .command("cmd-w"))
             owner.dismiss()
+        }
+    }
+
+    func testOpeningWithoutHoldLeavesGlobalBindingsAlone() {
+        let owner = testLensLifecycle()
+        defer { owner.dismiss() }
+        _ = owner.begin("leader", toggle: false, invocation: StripGesture(keyCode: 31, invoking: []))
+        XCTAssertNil(owner.openingStripKey(keyCode: 4, flags: .option, characters: "h"))
+        XCTAssertNil(owner.openingStripKey(keyCode: 4, flags: [], characters: "h"))
+        guard case .opening = owner.state else { return XCTFail("the opening Lens was dismissed") }
+    }
+
+    func testListWithoutHoldLeavesSidewaysArrowsToTheFieldEditor() {
+        let model = LensSession(name: "ordinary", settings: LensConfig(), items: [], search: "gh")
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        for flags: NSEvent.ModifierFlags in [[], .option, .shift] {
+            XCTAssertFalse(model.perform(model.meaning(for: key(123, "", flags))))
+            XCTAssertFalse(model.perform(model.meaning(for: key(124, "", flags))))
+        }
+        XCTAssertTrue(model.perform(model.meaning(for: key(125, "", []))))
+    }
+
+    func testGlobalBindingOnAListWithoutHoldIsNotTheLenss() async {
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        let ticket = panel.beginLens("ordinary", toggle: false)!
+        await panel.openLens(name: "ordinary", settings: LensConfig(), entries: [], search: "", banner: nil, context: .null, ticket: ticket)
+        let model = try! XCTUnwrap(panel.session)
+        for (code, text) in [(UInt16(48), "tab"), (53, "escape"), (125, "down")] {
+            XCTAssertFalse(panel.handleStripHotkey(keyCode: code, modifiers: .command, characters: text))
+            XCTAssertTrue(panel.session === model)
         }
     }
 

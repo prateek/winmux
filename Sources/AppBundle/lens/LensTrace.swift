@@ -114,6 +114,7 @@ final class LensOpeningTrace {
     private var stages: [LensTraceStage] = []
     private var keys: [LensKeyRecord] = []
     private var sessionRecord: LensSessionRecord?
+    private weak var liveSession: LensSession?
     private var last: Double
     private var signal: String?
     private var stageStart: Double?
@@ -170,8 +171,13 @@ final class LensOpeningTrace {
         signal = "cancelled before first frame"
     }
     func session(_ model: LensSession, active: Bool = true) {
-        sessionRecord = LensSessionRecord(presentation: model.settings.presentation, hold: model.hold != nil,
-                                          search: model.query, selectedId: model.selectedId, active: active)
+        // An open session is read when the trace is; only its last state is kept.
+        liveSession = active ? model : nil
+        sessionRecord = active ? nil : Self.record(model, active: false)
+    }
+    private static func record(_ model: LensSession, active: Bool) -> LensSessionRecord {
+        LensSessionRecord(presentation: model.settings.presentation, hold: model.hold != nil,
+                          search: model.query, selectedId: model.selectedId, active: active)
     }
     func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
              presentation: String, hold: Bool, path: String, destination: String,
@@ -185,6 +191,6 @@ final class LensOpeningTrace {
     }
     var snapshot: LensTraceSnapshot {
         LensTraceSnapshot(id: id, presentation: presentation, source: origin.source, startedAt: origin.start,
-                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages, keys: keys, session: sessionRecord)
+                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages, keys: keys, session: sessionRecord ?? liveSession.map { Self.record($0, active: true) })
     }
 }

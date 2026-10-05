@@ -271,14 +271,22 @@ final class LensLifecycle {
 
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
         guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
-        let hold = opening.release == nil && gesture.keyCode != nil && !gesture.holdModifiers.isEmpty ? gesture : nil
+        guard opening.release == nil, gesture.keyCode != nil, !gesture.holdModifiers.isEmpty else {
+            // With no Hold, only a strip takes keys while it opens: its own steps, and Tab and backtick.
+            guard opening.isStrip else { return nil }
+            if let step = gesture.step(keyCode: keyCode, flags: flags) {
+                // After the release the selection is settled: the commit waits only for the session.
+                if opening.release == nil { opening.pending.append(.step(step)); state = .opening(opening) }
+                return .consumed
+            }
+            return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
+        }
+        let hold: StripGesture? = gesture
         let meaning = lensKeyMeaning(hold: hold, keys: opening.keys,
                                      code: keyCode, characters: characters, flags: flags)
         trace?.key(code: keyCode, characters: characters, flags: flags, timestamp: timestamp ?? LensTimebase.now(),
                    presentation: "opening", hold: hold != nil, path: "openingStripKey",
                    destination: String(describing: meaning), search: "", selectedId: nil, fieldEditor: false)
-        // A release has settled the old strip selection; later Trigger presses do not revive it.
-        if opening.isStrip, opening.release != nil, gesture.step(keyCode: keyCode, flags: flags) != nil { return .consumed }
         switch meaning {
             case .global, .fieldEditor: return .ignored
             case .dismiss: return .cancel
