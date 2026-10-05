@@ -24,6 +24,10 @@ struct LensCommand: Command {
             settings = lens
         } else { settings = LensConfig() }
         if let presentation = args.presentation { settings.presentation = presentation }
+        if let tile = args.tile {
+            guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--tile is not allowed with miniatures") }
+            settings.tile = tile
+        }
         if let sort = args.sort { settings.sort = sort.split(separator: ",").map(String.init) }
         let filter = args.filter.map { $0 == "-" ? io.readStdin() : $0 }
         if let filter {

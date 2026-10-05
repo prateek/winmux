@@ -24,7 +24,7 @@ let subcommandDescriptions = [
     ["  focus", "Set focus to a window."],
     ["  fullscreen", "Toggle the fullscreen mode for the focused window"],
     ["  join-with", "Put the focused window and the nearest node in the specified direction under a common parent container"],
-    ["  lens", "Open a configured or ad-hoc Lens"],
+    ["  lens", "Open a Lens; --tile card|picture|text overrides its Tile"],
     ["  list-lenses", "Print resolved Lens settings"],
     ["  summon", "Move a window to the current workspace and focus it"],
     ["  layout", "Change layout of the focused window to the given layout"],
