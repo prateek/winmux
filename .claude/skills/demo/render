@@ -181,14 +181,16 @@ def main() -> None:
         graph.append(f"[1:v][{last}]overlay={geo['at'][0]}:{geo['at'][1]}:shortest=1[c0]")
         last = "c0"
         next_input = 3 if geo["radius"] else 2
-        for index, event in enumerate(e for e in events if args.start <= e["t"] < end):
+        visible_events = [e for e in events if args.start <= e["t"] < end]
+        for index, event in enumerate(visible_events):
             chip = key_chip(event["keys"], geo["key_h"])
             chip.save(tmp / f"k{index}.png")
             inputs += ["-framerate", str(FPS), "-loop", "1", "-t", str(length), "-i", str(tmp / f"k{index}.png")]
             t0 = event["t"] - args.start
+            t1 = min(t0 + KEY_SECONDS, visible_events[index + 1]["t"] - args.start - 0.001) if index + 1 < len(visible_events) else t0 + KEY_SECONDS
             graph.append(
                 f"[{last}][{next_input}:v]overlay={geo['keys_right'] - chip.width}:{geo['keys_y']}"
-                f":enable='between(t,{t0:.3f},{t0 + KEY_SECONDS:.3f})'[c{index + 1}]")
+                f":enable='between(t,{t0:.3f},{t1:.3f})'[c{index + 1}]")
             last = f"c{index + 1}"
             next_input += 1
         subprocess.run(

@@ -7,6 +7,8 @@ let defaults = import "winmux/defaults.ncl" in
 
   # Columns: off. I said off. A fresh install should not have opinions.
   columns.count = 'off,
+  persistent-workspaces = ["1", "2", "3", "4"],
+
 
   # Except here. Reading gets three Columns, because I read like a newspaper.
   workspace."2".columns = {

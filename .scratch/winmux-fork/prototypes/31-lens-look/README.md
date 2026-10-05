@@ -10,6 +10,4 @@ The captures in `img/` were taken in a Tart guest. `cap-alttab.jpg` is a screens
 
 ## The desk in the captures
 
-`desk/` holds what dressed the fourteen-window desk the captures and the Lens issues refer to: four workspaces, two with Columns, two tab groups and two floating windows. It is not part of the `demo` skill yet.
-
-To stage it in a guest that already has the `demo` skill's desk (`.claude/skills/demo/desk/`) and a built WinMux at `~/winmux`: copy `desk/` to `~/rich` in the guest, set the display to 1920 by 1080, and run `~/rich/stage-rich.sh`. It prints the windows and the Columns it made.
+The [demo skill's desk](../../../../.claude/skills/demo/desk/) dresses the fourteen-window set: four workspaces, two with Columns, two tab groups and two floating windows. Push that directory to `~/desk` in a guest with WinMux built at `~/winmux`, set the display to 1920 by 1080, and run `~/desk/stage-rich.sh`. It prints the windows and the Columns it made. The same directory's `stage-desk.sh` stages the smaller standing set for behavior demos.
