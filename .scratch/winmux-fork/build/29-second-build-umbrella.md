@@ -20,8 +20,9 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **The release issue is first** so that each later issue reaches an installed build as it lands. The release runs on the build machine as the last step of landing; GitHub CI stays the gate.
 - **Then the `vm` skill's two-guest limit and guest size**, so two relays can run side by side inside 70% of the build machine.
 - **Then the two issues split from the architecture review that touch Lens code.** The Lens work rewrites the same files, so they go first, and the Tile is built on the session they produce.
+- **After the Tile, three issues go ahead of the rest of the Lens look.** The first-run screens issue, because every later issue films in a clone of that image. Then the trace of a Lens opening, taken once the Tile has settled what the first frame draws and before the grid, sections and the strip each change it; it finds and removes the strip's half second. Then the lost second letter, which reads that trace's key events.
 - **Then the Lens look**, in dependency order: the Tile, the grid, sections, the strip, the Search highlight and window controls, hints, peek, release behaviour and appearance, `'miniatures`, and last the shipped Lenses and the docs.
-- **The follow-ups are independent of the Lens work** and of each other, except where a draft names a dependency. They can be built at any point. The `close` bug is still the best first issue for a relay that has never run end to end in a guest.
+- **The follow-ups are independent of the Lens work** and of each other, except where a draft names a dependency. The three landing and placement edge cases are among them. They can be built at any point. The `close` bug is still the best first issue for a relay that has never run end to end in a guest.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
