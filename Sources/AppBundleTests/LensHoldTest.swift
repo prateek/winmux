@@ -172,6 +172,23 @@ final class LensHoldTest: XCTestCase {
         }
     }
 
+    func testModifierChangesWithoutHoldPreserveFieldEditorSelection() async {
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        let ticket = panel.beginLens("ordinary-selection", toggle: false)!
+        await panel.openLens(name: "ordinary-selection", settings: LensConfig(), entries: [], search: "gh", banner: nil, context: .null, ticket: ticket)
+        let editor = NSTextView(frame: .zero)
+        panel.contentView?.addSubview(editor)
+        defer { editor.removeFromSuperview() }
+        XCTAssertTrue(panel.makeFirstResponder(editor))
+        editor.string = "gh"
+        editor.setSelectedRange(NSRange(location: 0, length: 2))
+        panel.stripFlagsChanged(.command)
+        panel.stripFlagsChanged([])
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 0, length: 2))
+        XCTAssertEqual(panel.session?.query, "gh")
+    }
+
     func testPanelKeepsBothLettersAndBackspaceAcrossConversionAtBothEntryPoints() async {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }

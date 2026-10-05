@@ -180,8 +180,9 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
+        let wasHeld = model.hold != nil
         lifecycle.stripFlagsChanged(flags, from: model)
-        synchronizeSearchEditor(model)
+        if wasHeld, model.hold == nil { synchronizeSearchEditor(model) }
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
@@ -296,7 +297,12 @@ final class SwitcherPalettePanel: NSPanelHud {
                     case .dropped: destination = "dropped"
                     default: destination = editor ? "passed to field editor" : "dropped"
                 }
-                if handled, session === model { synchronizeSearchEditor(model) }
+                if handled, session === model {
+                    switch meaning {
+                        case .text, .backspace: synchronizeSearchEditor(model)
+                        default: break
+                    }
+                }
                 if carbon, !handled, presentation == "strip" { dismiss() }
         }
         trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
