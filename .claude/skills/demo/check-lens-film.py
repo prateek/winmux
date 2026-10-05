@@ -20,11 +20,20 @@ def compare(frames, first_pts, keys, traces, visible):
         pressed = key['bootSeconds'] - first_pts
         delay = (frames[index] - pressed) * 1000
         total = trace['totalMs']
-        trace_index = bisect.bisect_left(frames, pressed + total / 1000)
+        trace_start = trace.get('startedAt', key['bootSeconds'])
+        trace_end = trace_start - first_pts + total / 1000
+        trace_index = bisect.bisect_left(frames, trace_end)
         rows.append(dict(opening=trace['id'], keySeconds=pressed, frame=index,
                          frameSeconds=frames[index], visibleMs=delay, traceMs=total,
-                         differenceMs=delay-total, differenceFrames=index-trace_index))
+                         differenceMs=delay-total, differenceFrames=index-trace_index,
+                         inputOffsetMs=(trace_start-key['bootSeconds'])*1000,
+                         endpointDifferenceMs=(frames[index]-trace_end)*1000))
     return rows
+
+
+def print_comparison(rows):
+    for row in rows:
+        print(f"Opening {row['opening']}: key {row['keySeconds']:.6f}s; strip frame {row['frame']} @ {row['frameSeconds']:.6f}s; visible {row['visibleMs']:.3f}ms; trace {row['traceMs']:.3f}ms; difference {row['differenceMs']:+.3f}ms / {row['differenceFrames']:+d} frames; input timestamp shift {row['inputOffsetMs']:+.3f}ms; endpoint difference {row['endpointDifferenceMs']:+.3f}ms")
 
 
 def validate_sample_times(encoded, metadata):
@@ -100,8 +109,7 @@ def main():
         if found is None: raise ValueError('no Presentation found within 1.5 s')
         visible.append(found)
     rows = compare(frames, offset, keys, traces, visible)
-    for row in rows:
-        print(f"Opening {row['opening']}: key {row['keySeconds']:.6f}s; strip frame {row['frame']} @ {row['frameSeconds']:.6f}s; visible {row['visibleMs']:.3f}ms; trace {row['traceMs']:.3f}ms; difference {row['differenceMs']:+.3f}ms / {row['differenceFrames']:+d} frames")
+    print_comparison(rows)
     movie.with_suffix('.comparison.json').write_text(json.dumps(rows, indent=2)+'\n')
     if any(trace.get('signal') is None for trace in traces): raise SystemExit('FAIL: incomplete first-frame trace')
     if any(abs(row['differenceMs']) > 2000/60 or abs(row['differenceFrames'])>2 for row in rows): raise SystemExit('FAIL: trace differs by more than two frames')

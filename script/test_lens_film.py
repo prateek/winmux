@@ -17,6 +17,14 @@ class LensFilmTest(unittest.TestCase):
         self.assertEqual(rows[0]['differenceFrames'], 0)
         self.assertAlmostEqual(rows[0]['keySeconds'], .025)
 
+    def testFrameComparisonUsesTheTraceOriginOnTheSharedClock(self):
+        rows = module.compare([0, .01, .025, .045, .060, .080, .10, .12], 100,
+                              [{'bootSeconds': 100.025}], [{'id': 1, 'startedAt': 100.045, 'totalMs': 50}], [5])
+        self.assertAlmostEqual(rows[0]['inputOffsetMs'], 20)
+        self.assertAlmostEqual(rows[0]['endpointDifferenceMs'], -15)
+        self.assertAlmostEqual(rows[0]['differenceMs'], 5)
+        self.assertEqual(rows[0]['differenceFrames'], -1)
+
     def testMissingOpeningsCannotSilentlyPass(self):
         with self.assertRaises(ValueError):
             module.compare([0, .1], 10, [{'bootSeconds': 10}], [], [1])
