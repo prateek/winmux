@@ -269,7 +269,6 @@ final class LensLifecycle {
         return openingStripKey(keyCode: keyCode, flags: flags) == .consumed
     }
 
-    /// Nil outside a chord's opening; accepted keys are replayed when its session is ready.
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
         guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
         let hold = opening.release == nil && gesture.keyCode != nil && !gesture.holdModifiers.isEmpty ? gesture : nil

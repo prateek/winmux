@@ -15,9 +15,13 @@ final class LensHoldTest: XCTestCase {
 
     func testPureMeaningTable() {
         let hold = StripGesture(keyCode: 48, invoking: .command)
-        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command)]
+        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command),
+                    LensKeyBinding(name: "enter", code: 36, modifiers: []),
+                    LensKeyBinding(name: "shift-enter", code: 36, modifiers: .shift)]
         let cases: [(UInt16, String, NSEvent.ModifierFlags, LensKeyMeaning)] = [
             (13, "w", .command, .command("cmd-w")),
+            (36, "\r", .command, .command("enter")),
+            (36, "\r", [.command, .shift], .command("shift-enter")),
             (48, "\t", .command, .step(1)),
             (48, "\t", [.command, .shift], .step(-1)),
             (50, "`", .command, .step(0)),

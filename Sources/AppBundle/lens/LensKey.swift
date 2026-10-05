@@ -32,7 +32,10 @@ enum LensKeyMeaning: Equatable {
 func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
                     characters: String, flags: NSEvent.ModifierFlags) -> LensKeyMeaning {
     let modifiers = flags.intersection([.command, .control, .option, .shift])
-    if let key = keys.first(where: { $0.code == (code == 76 ? 36 : code) && $0.modifiers == modifiers }) {
+    let binding = { (flags: NSEvent.ModifierFlags) in
+        keys.first { $0.code == (code == 76 ? 36 : code) && $0.modifiers == flags }
+    }
+    if let key = binding(modifiers) {
         return .command(key.name)
     }
     if let hold {
@@ -40,6 +43,7 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
         if (code == 48 || code == 50 || characters == "`"), hold.owns(flags) { return .step(0) }
         if !modifiers.subtracting(hold.invoking.union(.shift)).isEmpty { return .global }
         if modifiers.contains(.command), ["a", "v", "c", "x", "z", "y"].contains(characters.lowercased()) { return .dropped }
+        if let key = binding(modifiers.subtracting(hold.holdModifiers)) { return .command(key.name) }
     }
     if hold == nil, !modifiers.intersection([.command, .control, .option]).isEmpty, ![UInt16(48), 53, 123, 124, 125, 126].contains(code) { return .fieldEditor }
     switch code {
