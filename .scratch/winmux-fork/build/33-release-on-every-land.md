@@ -49,7 +49,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - [x] One release was cut this way, and `brew upgrade --cask winmux` on a machine with existing grants kept them. `0.5.6-dogfood.2` and `0.5.6-dogfood.3` were cut by `--next`. The upgrade was checked in a Tart guest on 2026-10-04: `.2` installed from the tap, Accessibility and Screen Recording granted to `com.zimengxiong.winmux` against that build's code requirement, then `brew upgrade --cask winmux` to `.3`, which reported both granted. The grants were written into the guest's TCC database, not clicked in System Settings, and the app was started by launchd, because Gatekeeper's Open Anyway step needs a person. An upgrade on a daily machine has not been watched.
 - [x] A test covers picking the next version from existing tags, and the skip rule.
 
-The version-selection and publishing path are built and covered by offline tests; two host `--next --dry-run` runs built, signed and verified `0.5.6-dogfood.2`. Actual publication is the driver's check at Land, and grant-preserving upgrade is Prateek's daily-machine check; the combined item above remains open. Host and CI-version guest `make check` passed: 62 Rust, 890 Swift and 40 Python tests, including 34 release tests.
+The version-selection and publishing path are built and covered by offline tests; two host `--next --dry-run` runs built, signed and verified `0.5.6-dogfood.2`. Publication was the driver's check at Land and the grant-preserving upgrade was checked in a guest afterwards; the item above records both. Host and CI-version guest `make check` passed: 62 Rust, 890 Swift and 40 Python tests, including 34 release tests.
 
 ## Sources
 

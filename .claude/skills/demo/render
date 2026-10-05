@@ -5,6 +5,8 @@
 # ///
 """Render one take into a demo GIF. See SKILL.md for the spec this implements."""
 
+from __future__ import annotations
+
 import argparse
 import json
 import shutil
@@ -141,6 +143,17 @@ def encode(frames_dir: Path, out: Path) -> None:
         subprocess.run(["gifsicle", "-O3", "--lossy=40", "-b", str(out)], check=True)
 
 
+def chip_windows(times: list[float]) -> list[tuple[float, float]]:
+    """When each key chip shows: from its key press for KEY_SECONDS, cut short just before the next press."""
+    windows = []
+    for index, t0 in enumerate(times):
+        t1 = t0 + KEY_SECONDS
+        if index + 1 < len(times):
+            t1 = min(t1, max(t0, times[index + 1] - 0.001))
+        windows.append((t0, t1))
+    return windows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("video", type=Path, help="the take: a 30 fps screen recording")
@@ -181,14 +194,16 @@ def main() -> None:
         graph.append(f"[1:v][{last}]overlay={geo['at'][0]}:{geo['at'][1]}:shortest=1[c0]")
         last = "c0"
         next_input = 3 if geo["radius"] else 2
-        for index, event in enumerate(e for e in events if args.start <= e["t"] < end):
+        visible_events = [e for e in events if args.start <= e["t"] < end]
+        windows = chip_windows([e["t"] - args.start for e in visible_events])
+        for index, event in enumerate(visible_events):
             chip = key_chip(event["keys"], geo["key_h"])
             chip.save(tmp / f"k{index}.png")
             inputs += ["-framerate", str(FPS), "-loop", "1", "-t", str(length), "-i", str(tmp / f"k{index}.png")]
-            t0 = event["t"] - args.start
+            t0, t1 = windows[index]
             graph.append(
                 f"[{last}][{next_input}:v]overlay={geo['keys_right'] - chip.width}:{geo['keys_y']}"
-                f":enable='between(t,{t0:.3f},{t0 + KEY_SECONDS:.3f})'[c{index + 1}]")
+                f":enable='between(t,{t0:.3f},{t1:.3f})'[c{index + 1}]")
             last = f"c{index + 1}"
             next_input += 1
         subprocess.run(

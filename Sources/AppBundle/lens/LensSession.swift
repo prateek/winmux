@@ -8,40 +8,61 @@ final class LensSession: ObservableObject {
     let eventFilter: String?
     private(set) var settings: LensConfig
     let items: [SwitcherPaletteItem]
-    @Published var query: String {
-        didSet {
-            guard query != oldValue else { return }
-            if query.hasPrefix("="), !oldValue.hasPrefix("=") {
-                inlineIds = Set(filterSwitcherPaletteItems(items, query: oldValue).map(\.id))
-            }
-            if !query.hasPrefix("=") { searchError = nil }
-            selection = 0
-            onSearchChanged?()
-            if settings.presentation == "miniatures" { revealMiniatureSelection() }
-        }
-    }
-    @Published var selection: Int { didSet { updateMiniatureLanding() } }
+    @Published private(set) var query: String
+    @Published private(set) var selection: Int
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
     @Published var banner: String?
-    @Published var summonHeld = false { didSet { updateMiniatureLanding() } }
+    @Published private(set) var summonHeld = false
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var miniatureSize = CGSize(width: 1000, height: 700)
-    var miniatureExcludedIds: Set<UInt32> = [] { didSet { selection = initialSelection() } }
+    private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
-    var landingTask: Task<Void, Never>?
-    var landingColumnsTask: Task<JSONValue, Error>?
-    weak var landingDestination: Workspace?
-    /// The selection the landing spot on screen, or being computed, belongs to.
-    var landingKey: UInt32?
+    weak var owner: LensLifecycle?
 
-    func cancelLanding() {
-        landingTask?.cancel()
-        landingTask = nil
-        landingColumnsTask?.cancel()
-        landingColumnsTask = nil
-        landingKey = nil
+    enum Event {
+        case searchChanged(String)
+        case selectionChanged(Int)
+        case modifiersChanged(NSEvent.ModifierFlags)
+        case summonChanged(Bool)
+        case presentationChanged(String)
+        case excludedChanged(Set<UInt32>)
+        case dismissed
+    }
+
+    func send(_ event: Event) {
+        if let owner { owner.send(event, from: self) }
+        else { apply(event) }
+    }
+
+    func apply(_ event: Event) {
+        switch event {
+            case .searchChanged(let text):
+                guard text != query else { return }
+                if text.hasPrefix("="), !query.hasPrefix("=") {
+                    inlineIds = Set(filterSwitcherPaletteItems(items, query: query).map(\.id))
+                }
+                query = text
+                if !text.hasPrefix("=") { searchError = nil }
+                selection = 0
+                if settings.presentation == "miniatures" { revealMiniatureSelection() }
+            case .selectionChanged(let index): selection = index
+            case .modifiersChanged(let flags):
+                let held = shouldSummon(flags)
+                if held != summonHeld { summonHeld = held }
+            case .summonChanged(let held):
+                if held != summonHeld { summonHeld = held }
+            case .presentationChanged(let presentation):
+                let selected = selectedId
+                settings.presentation = presentation
+                if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+                objectWillChange.send()
+            case .excludedChanged(let ids):
+                miniatureExcludedIds = ids
+                selection = initialSelection()
+            case .dismissed: break
+        }
     }
 
     private var lastPointerLocation = NSEvent.mouseLocation
@@ -51,14 +72,21 @@ final class LensSession: ObservableObject {
     /// The modifiers held when the invoking ones were released before the session was ready.
     var stripReleasedWhileOpening: NSEvent.ModifierFlags?
     var removedIds: Set<UInt32> = []
-    var onSearchChanged: (() -> Void)?
     var onAction: ((String) -> Void)?
 
     init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil) {
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
-        self.items = items
+        if settings.entries == "app" {
+            let appCounts = Dictionary(grouping: items, by: \.appIdentity).mapValues(\.count)
+            self.items = items.map { item in
+                var snapshot = item
+                snapshot.tile.title = snapshot.tile.appName
+                snapshot.tile.appCount = appCounts[item.appIdentity]
+                return snapshot
+            }
+        } else { self.items = items }
         keyBindings = settings.keys.keys.sorted().compactMap { name in
             if case .success(let (modifiers, key)) = parseBinding(name, .emptyRoot, config.keyMapping.resolve()) {
                 return (name, UInt16(key.carbonKeyCode), modifiers)
@@ -83,7 +111,7 @@ final class LensSession: ObservableObject {
     }
 
     var results: [SwitcherPaletteItem] {
-        let items = items.filter { !removedIds.contains($0.id) }
+        let items = removedIds.isEmpty ? items : items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
         let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
@@ -112,12 +140,13 @@ final class LensSession: ObservableObject {
         keyBindings.first { $0.code == 36 && $0.modifiers == modifiers }?.name
     }
 
-    func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) {
+    func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
+
+    private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
         let held = settings.presentation == "strip" ? (stripGesture?.releaseModifiers(modifiers) ?? []) : modifiers.intersection([.control, .option, .shift, .command])
-        let shouldHold = !held.isEmpty && keyBindings.contains { binding in
+        return !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }
-        if shouldHold != summonHeld { summonHeld = shouldHold }
     }
 
     func performKeyAction(_ event: NSEvent) -> Bool {
@@ -126,8 +155,8 @@ final class LensSession: ObservableObject {
         return true
     }
 
-    func moveSelection(_ delta: Int) { selection = min(max(selection + delta, 0), max(results.count - 1, 0)) }
-    func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }) { selection = index } }
+    func moveSelection(_ delta: Int) { send(.selectionChanged(min(max(selection + delta, 0), max(results.count - 1, 0)))) }
+    func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }), index != selection { send(.selectionChanged(index)) } }
     func hover(_ id: UInt32, at location: CGPoint) {
         guard location != lastPointerLocation else { return }
         lastPointerLocation = location
@@ -149,16 +178,11 @@ final class LensSession: ObservableObject {
     func acceptInlineResult(_ ids: [UInt32]) {
         inlineIds = Set(ids)
         searchError = nil
-        selection = min(selection, max(results.count - 1, 0))
+        send(.selectionChanged(min(selection, max(results.count - 1, 0))))
         if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()
     }
     func rejectInlineResult(_ error: String) { searchError = error.components(separatedBy: .newlines).first }
     func setMiniatureLanding(_ frame: CGRect?) { miniatureLanding = frame }
-    func changePresentation(_ presentation: String) {
-        let selected = selectedId
-        settings.presentation = presentation
-        if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
-        objectWillChange.send()
-    }
+    func changePresentation(_ presentation: String) { send(.presentationChanged(presentation)) }
 }

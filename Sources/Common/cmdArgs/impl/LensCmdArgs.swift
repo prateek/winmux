@@ -4,6 +4,7 @@ public struct LensCmdArgs: CmdArgs {
     public var filter: String?
     public var search: String?
     public var presentation: String?
+    public var tile: String?
     public var sort: String?
     public static let parser: CmdParser<Self> = .init(
         kind: .lens, allowInConfig: true,
@@ -11,6 +12,7 @@ public struct LensCmdArgs: CmdArgs {
         flags: ["--filter": filterBodySubArgParser(\.filter),
                 "--search": singleValueSubArgParser(\.search, "<text>") { $0 },
                 "--presentation": singleValueSubArgParser(\.presentation, "<presentation>") { $0 },
+                "--tile": singleValueSubArgParser(\.tile, "<kind>") { $0 },
                 "--sort": singleValueSubArgParser(\.sort, "<sort-keys>") { $0 }],
         posArgs: [ArgParser(\.name, upcastArgParserFun(consumeStrCliArg))]
     )
@@ -30,6 +32,9 @@ func parseLensCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LensCmdArgs> {
         .filter("A Lens name conflicts with --filter and --sort") { $0.name == nil || ($0.filter == nil && $0.sort == nil) }
         .filter("--sort requires --filter") { $0.sort == nil || $0.filter != nil }
         .filter("Possible presentations: list, strip, miniatures") { $0.presentation == nil || ["list", "strip", "miniatures"].contains($0.presentation!) }
+        .filter("--tile requires a Lens name or --filter") { $0.tile == nil || $0.name != nil || $0.filter != nil }
+        .filter("Possible --tile kinds: card, picture, text") { $0.tile == nil || ["card", "picture", "text"].contains($0.tile!) }
+        .filter("--tile is not allowed with miniatures") { $0.tile == nil || $0.presentation != "miniatures" }
         .filter("Unknown sort key") { $0.sort == nil || $0.sort!.split(separator: ",", omittingEmptySubsequences: false).allSatisfy { ["mru", "previous", "spatial", "workspace", "app", "title", "created"].contains(String($0)) } }
         .filter("--search requires a Lens name or --filter") { $0.search == nil || $0.name != nil || $0.filter != nil }
 }

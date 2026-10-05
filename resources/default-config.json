@@ -34,6 +34,7 @@
   "lenses": {
     "app-windows": {
       "accessory-window": "enlarged",
+      "badges": true,
       "enabled": true,
       "entries": "window",
       "filter": "lenses.app-windows.filter",
@@ -75,6 +76,7 @@
     },
     "floating": {
       "accessory-window": "enlarged",
+      "badges": true,
       "enabled": true,
       "entries": "window",
       "filter": "lenses.floating.filter",
@@ -116,6 +118,7 @@
     },
     "overview": {
       "accessory-window": "enlarged",
+      "badges": true,
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",
@@ -156,6 +159,7 @@
     },
     "recent": {
       "accessory-window": "enlarged",
+      "badges": true,
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",
@@ -196,6 +200,7 @@
     },
     "search": {
       "accessory-window": "enlarged",
+      "badges": true,
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",

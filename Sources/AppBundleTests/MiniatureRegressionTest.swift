@@ -126,7 +126,7 @@ final class MiniatureSelectionRegressionTest: XCTestCase {
         var settings = LensConfig(); settings.presentation = "miniatures"; settings.miniatures.currentWorkspace = "hide"
         let model = LensSession(name: "demo", settings: settings, items: items, search: "")
         XCTAssertEqual(model.selectedId, 2)
-        model.miniatureExcludedIds = [1]
+        model.send(.excludedChanged([1]))
         XCTAssertEqual(model.selectedId, 2)
     }
 

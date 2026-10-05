@@ -189,7 +189,7 @@ let workspace_help_generated = """
     """
 
 let lens_help_generated = """
-    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures]
+    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures] [--tile card|picture|text]
            lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
            lens --presentation list
 
@@ -197,6 +197,7 @@ let lens_help_generated = """
     Inline Filters bind w and ctx. Quote enum tags with double quotes:
       lens --filter "w.class == 'floating"
     --filter - reads a body from stdin.
+    --tile overrides this opening; miniatures rejects --tile.
     """
 
 let list_lenses_help_generated = "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile."

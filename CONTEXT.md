@@ -48,6 +48,10 @@ _Avoid_: tab source, adapter, integration
 A key or trackpad-gesture binding whose command opens a Lens.
 _Avoid_: shortcut, hotkey
 
+**Hold**:
+The time from a **Trigger**'s key press until the modifiers it was pressed with are released. It belongs to the Lens session, not to a **Presentation**: while it lasts the held modifiers are not part of what is typed, and what its end does (commit, or stay open) is decided for the Lens, not by the Presentation.
+_Avoid_: strip mode, held mode
+
 **Summon**:
 To move the selected window into the current workspace, rather than going to the window's workspace.
 _Avoid_: pull, bring, fetch
@@ -69,6 +73,9 @@ _Avoid_: size, ratio
 **Overflow policy**:
 The action taken when a window's target Column is already occupied: join its tab group, split it, float the window, or squeeze in an extra Column.
 _Avoid_: fallback
+
+**Resolved placement**:
+Where an incoming window or group would land, including its Column, the action to take there and the resulting widths. A landing hint uses a resolved placement; moving the window resolves again against the current workspace.
 
 **Policy hook**:
 A decision point where WinMux asks the config what to do, given the window and its context, and gets back one of a fixed set of actions, optionally followed by commands to run once the action has settled. For example, where an arriving window goes (workspace, floating, Column), or what a move does at a Column edge.

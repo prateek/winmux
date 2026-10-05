@@ -3,8 +3,6 @@ import Common
 import SwiftUI
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
-private let switcherPaletteWidth: CGFloat = 560
-private let switcherPaletteMaxHeight: CGFloat = 440
 
 struct SwitcherPaletteItem: Identifiable {
     let id: UInt32
@@ -17,6 +15,7 @@ struct SwitcherPaletteItem: Identifiable {
     var lastFocusedSeq: Int = 0
     let isFocused: Bool
     var miniature: MiniatureWindow? = nil
+    var tile = TileEntry(title: "", appName: "")
 }
 
 // MARK: - Panel
@@ -26,19 +25,16 @@ final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel(emit: broadcastEvent)
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle: LensLifecycle
-    private var stripDisplay: Task<Void, Never>?
-    private var thumbnailRefresh: Task<Void, Never>?
-    private var thumbnailSession = 0
     private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
-    private let inlineSearch = LensInlineSearch { body, context, windows in
-        await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
-    }
     var isPaletteActive: Bool { session != nil }
 
     init(emit: @escaping (ServerEvent) -> Void) {
-        lifecycle = LensLifecycle(emit: emit)
+        lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
         super.init()
+        lifecycle.show = { [weak self] model in self?.show(model) }
+        lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
+        lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
         isFloatingPanel = true
@@ -62,75 +58,48 @@ final class SwitcherPalettePanel: NSPanelHud {
                 }
             }
         }
-        let focusedId = focus.windowOrNil?.windowId
-        let onscreen = lensOnscreenWindows(presentation: settings.presentation) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
+        let focused = focus
+        let focusedId = focused.windowOrNil?.windowId
+        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
+        let workspaces = miniatureWorkspaceSnapshot(entries)
+        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
+        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
-            SwitcherPaletteItem(
+            let miniature = miniatureEntry(entry, onscreen: onscreen)
+            let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
+            return SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
-                icon: (entry.window as? MacWindow)?.macApp.nsApp.icon,
+                icon: icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
                 projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniatureEntry(entry, onscreen: onscreen)
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
-        model.miniatureWorkspaces = miniatureWorkspaceSnapshot(entries)
+        model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
-            model.miniatureExcludedIds = Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))
+            model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
-        model.onSearchChanged = { [weak self, weak model] in
-            guard let self, let model else { return }
-            self.inlineSearch.update(model, context: context, windows: records, ids: ids)
-        }
-        guard lifecycle.complete(model, ticket: ticket) else { return }
-        if settings.presentation == "strip", let invocation {
-            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt)")
-            if model.stripGesture == nil { model.beginStrip(invocation) }
-            let flags = model.stripReleasedWhileOpening ?? NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-            if let key = model.stripReleaseKey(flags: flags) { performAction(key); return }
-            model.updateSummonModifiers(flags)
-            stripDisplay = Task { @MainActor [weak self, weak model] in
-                let remaining = max(0, 0.1 - (ProcessInfo.processInfo.systemUptime - invocation.openedAt))
-                try? await Task.sleep(for: .seconds(remaining))
-                guard !Task.isCancelled, let self, let model, self.session === model, model.settings.presentation == "strip" else { return }
-                let flags = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-                if let key = model.stripReleaseKey(flags: flags) { self.performAction(key); return }
-                stripDebugLog("strip draw elapsed=\(ProcessInfo.processInfo.systemUptime - invocation.openedAt) flags=\(flags.rawValue)")
-                self.present(model)
-                self.orderFrontRegardless()
-                self.lifecycle.presented(model)
-                self.makeKey()
-                self.startThumbnailRefresh(model)
-            }
-            return
-        }
-        present(model)
-        orderFrontRegardless()
-        lifecycle.presented(model)
-        NSApp.activate(ignoringOtherApps: true)
-        makeKey()
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
-            (self.firstResponder as? NSTextView)?.selectAll(nil)
-        }
-        model.onSearchChanged?()
-        if settings.presentation == "miniatures" { startThumbnailRefresh(model) }
+        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
     }
 
-    private func startThumbnailRefresh(_ model: LensSession) {
-        thumbnailSession += 1
-        let token = thumbnailSession
-        thumbnailRefresh = Task { @MainActor [weak model] in
-            await Task.yield()
-            while !Task.isCancelled, let model {
-                if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token) }
-                else { model.refreshVisibleThumbnails(lens: token) }
-                try? await Task.sleep(for: .milliseconds(500))
+    private func show(_ model: LensSession) {
+        present(model)
+        orderFrontRegardless()
+    }
+
+    private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
+        if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
+        makeKey()
+        if instruction.focusSearch {
+            DispatchQueue.main.async { [weak self, weak model] in
+                guard let self, let model, self.session === model else { return }
+                if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
+                (self.firstResponder as? NSTextView)?.selectAll(nil)
             }
         }
     }
@@ -148,8 +117,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
         guard model.settings.presentation == "strip" else { return }
-        model.updateSummonModifiers(flags)
-        if let key = model.stripReleaseKey(flags: flags) { performAction(key) }
+        lifecycle.stripFlagsChanged(flags, from: model)
     }
 
     private func present(_ model: LensSession) {
@@ -158,6 +126,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let visible = monitor.visibleRect
         let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
         let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
+        model.miniatureSize = visible.size
         isOpaque = false
         if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
             model.miniatureSize = rect.size
@@ -167,16 +136,16 @@ final class SwitcherPalettePanel: NSPanelHud {
         } else {
             // Center on the focused monitor, with the top edge at one quarter of its height;
             // convert the top-left coordinates to AppKit's bottom-left origin.
-            setFrame(NSRect(x: rect.minX + (rect.width - switcherPaletteWidth) / 2,
-                            y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - switcherPaletteMaxHeight,
-                            width: switcherPaletteWidth, height: switcherPaletteMaxHeight), display: true)
+            let layout = model.listLayout
+            setFrame(NSRect(x: rect.minX + (rect.width - layout.width) / 2,
+                            y: appKitScreenMaxY() - rect.minY - layout.topOffset - layout.panelHeight,
+                            width: layout.width, height: layout.panelHeight), display: true)
             hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
         }
     }
 
     func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
         let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
-        clearPresentation()
         return ticket
     }
 
@@ -184,30 +153,16 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func dismiss() {
         lifecycle.dismiss()
-        clearPresentation()
     }
 
     private func clearPresentation() {
-        stripDisplay?.cancel()
-        stripDisplay = nil
-        thumbnailRefresh?.cancel()
-        thumbnailRefresh = nil
-        ThumbnailCache.shared.closeLens(thumbnailSession)
-        inlineSearch.cancel()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
     }
 
     func changePresentationToList() {
         guard let session else { return }
-        stripDisplay?.cancel()
-        thumbnailRefresh?.cancel()
-        ThumbnailCache.shared.closeLens(thumbnailSession)
-        session.changePresentation("list")
-        present(session)
-        orderFrontRegardless()
-        lifecycle.presented(session)
-        makeKey()
+        lifecycle.changePresentationToList(session)
     }
 
     private func performAction(_ key: String) {
@@ -243,7 +198,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             case .ignored: return false
             case .consumed: return true
             case .cancel: dismiss(); return true
-            case .list: changePresentationToList(); return true
+            case .list: return true
         }
     }
 
@@ -307,6 +262,7 @@ private func appKitScreenMaxY() -> CGFloat {
 // MARK: - Search
 
 func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -> [SwitcherPaletteItem] {
+    if query.allSatisfy(\.isWhitespace) { return items }
     let ranked: [(Int, SwitcherPaletteItem, Int)] = items.enumerated().compactMap { index, item in
         LensSearchFields(title: item.title, app: item.appName, workspace: item.workspaceName, project: item.projectName)
             .match(query).map { (index, item, $0.score) }
@@ -322,19 +278,22 @@ struct SwitcherPaletteView: View {
 
     var body: some View {
         let results = model.results
+        let layout = model.listLayout(count: results.count)
+        let scale = model.tileMetrics.scale
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
-                TextField("Search windows…", text: $model.query)
+                TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
                     .textFieldStyle(.plain)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 16 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textPrimary))
                     .focused($searchFocused)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 44)
+            .padding(.horizontal, 14 * scale)
+            .frame(height: 44 * scale)
+            .padding(.top, 26 * scale)
 
             Rectangle()
                 .fill(Color.white.opacity(GlassToken.separatorOpacity))
@@ -348,15 +307,12 @@ struct SwitcherPaletteView: View {
             }
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 1) {
+                    LazyVStack(spacing: layout.gap) {
                         ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
-                            SwitcherPaletteRow(
-                                item: item,
-                                isSelected: index == model.selection,
-                                isMarked: model.marks.contains(item.id),
-                                hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
-                                appCount: model.settings.entries == "app" ? model.items.filter { $0.appIdentity == item.appIdentity }.count : nil,
-                            )
+                            TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
+                                     size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
+                                     settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
+                                     hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
                             .id(item.id)
                             .onContinuousHover { phase in
                                 if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
@@ -367,7 +323,7 @@ struct SwitcherPaletteView: View {
                             }
                         }
                     }
-                    .padding(6)
+                    .padding(.horizontal, 20 * scale)
                 }
                 .onChange(of: model.selection) { newSelection in
                     if results.indices.contains(newSelection) {
@@ -375,73 +331,35 @@ struct SwitcherPaletteView: View {
                     }
                 }
             }
-            .frame(maxHeight: switcherPaletteMaxHeight - 44)
+            .frame(height: layout.rowsHeight)
+            .padding(.bottom, 20 * scale - StrokeToken.hairline)
         }
-        .frame(width: switcherPaletteWidth)
+        .frame(width: layout.width)
         .fixedSize(horizontal: false, vertical: true)
         .background {
             GlassSurface(
-                shape: RoundedRectangle(cornerRadius: RadiusToken.panel, style: .continuous),
+                shape: RoundedRectangle(cornerRadius: layout.radius, style: .continuous),
                 style: config.workspaceSidebar.chromeStyle,
                 solidColor: config.workspaceSidebar.resolvedSolidChromeColor,
             )
         }
         .overlay {
-            if model.searchError != nil { RoundedRectangle(cornerRadius: RadiusToken.panel).stroke(.orange, lineWidth: 1) }
+            if model.searchError != nil { RoundedRectangle(cornerRadius: layout.radius).stroke(.orange, lineWidth: 1) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: RadiusToken.panel, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: layout.radius, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { searchFocused = true }
     }
 }
-
-private struct SwitcherPaletteRow: View {
-    let item: SwitcherPaletteItem
-    let isSelected: Bool
-    let isMarked: Bool
-    let hint: String?
-    let appCount: Int?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if let icon = item.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 18, height: 18)
-            } else {
-                Image(systemName: "macwindow")
-                    .font(.system(size: 13))
-                    .frame(width: 18, height: 18)
-                    .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
-            }
-            Text(appCount == nil ? item.title : item.appName)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(Color.white.opacity(isSelected ? GlassToken.textPrimary : GlassToken.textSecondary))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 8)
-            if let hint { Text(hint).font(.system(size: 11)) }
-            if isMarked { Image(systemName: "checkmark.circle.fill") }
-            if let appCount { Text("\(appCount) windows").font(.system(size: 11)) }
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 30)
-        .background {
-            RoundedRectangle(cornerRadius: RadiusToken.row, style: .continuous)
-                .fill(Color.white.opacity(isSelected ? GlassToken.fillActive : 0))
-        }
-        .contentShape(Rectangle())
-    }
-}
-
 
 @MainActor
 func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace] {
     let ordered = userFacingWorkspaces(orderedWorkspacesForPresentation(), focusedWorkspace: focus.workspace).map {
         MiniatureWorkspace(name: $0.name, title: workspaceDisplayName($0.name), source: $0.workspaceMonitor.visibleRect.cgRect, current: $0 == focus.workspace)
     }
+    var seen = Set(ordered.map(\.name))
     let retained = entries.compactMap { entry -> MiniatureWorkspace? in
-        guard !entry.record.workspace.isEmpty else { return nil }
+        guard !entry.record.workspace.isEmpty, seen.insert(entry.record.workspace).inserted else { return nil }
         let workspace = Workspace.existing(byName: entry.record.workspace)
         return MiniatureWorkspace(name: entry.record.workspace, title: workspaceDisplayName(entry.record.workspace),
                                   source: (workspace?.workspaceMonitor ?? focus.workspace.workspaceMonitor).visibleRect.cgRect, current: false)
@@ -466,4 +384,36 @@ private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> Minia
 func lensSearchField(in view: NSView) -> NSTextField? {
     if let field = view as? NSTextField, field.isEditable { return field }
     return view.subviews.lazy.compactMap { lensSearchField(in: $0) }.first
+}
+
+@MainActor
+func tileWorkspaceLabels(_ names: [String], workspaces: [MiniatureWorkspace]) -> [String: String] {
+    let titles = Dictionary(uniqueKeysWithValues: workspaces.map { ($0.name, $0.title) })
+    return Dictionary(uniqueKeysWithValues: Set(names).filter { !$0.isEmpty }.map { name in
+        if let label = config.workspaceSidebar.workspaceLabels[name]?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+            return (name, tileWorkspaceLabel(label))
+        }
+        let workspace = Workspace.existing(byName: name)
+        let title = titles[name] ?? name
+        if workspace?.usesAutomaticDisplayName == true, title.hasPrefix("Workspace ") {
+            return (name, String(title.dropFirst("Workspace ".count)))
+        }
+        return (name, parsePositiveWorkspaceDisplayIndex(name).map(String.init) ?? tileWorkspaceLabel(title))
+    })
+}
+
+func tileWorkspaceLabel(_ title: String) -> String {
+    title.count > 12 ? String(title.prefix(12)) + "…" : title
+}
+
+@MainActor
+func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceLabels: [String: String], monitorHeight: CGFloat, focusedWorkspaceName: String) -> TileEntry {
+    let frame = thumbnailCaptureFrame(entry.window)
+    return TileEntry(icon: icon, title: entry.record.title, appName: entry.record.app.name, picture: entry.window.thumbnail,
+                     aspect: frame.width / max(1, frame.height),
+                     badges: TileBadges(workspaceLabel: workspaceLabels[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == focusedWorkspaceName,
+                                        floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
+                                        hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
+                     frozen: miniature.frozen, accessory: miniature.accessory,
+                     monitorHeightFraction: frame.height / max(1, monitorHeight))
 }

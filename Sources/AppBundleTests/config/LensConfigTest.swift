@@ -70,3 +70,20 @@ final class MiniaturesConfigTest: XCTestCase {
         XCTAssertEqual(overview.summonHints, ["label", "landing-spot"])
     }
 }
+
+@MainActor
+final class TileConfigTest: XCTestCase {
+    func testResolvedTileAndBadgesIntrospectionIncludingDefaultProfile() throws {
+        for (presentation, tile) in [("strip", "card"), ("list", "text"), ("miniatures", "picture")] {
+            let value: JSONValue = .object(["presentation": .string(presentation)])
+            XCTAssertEqual(LensConfig(value).json["tile"], .string(tile))
+            XCTAssertEqual(LensConfig(value).json["badges"], .bool(true))
+        }
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"presentation":"strip","tile":"card","badges":true,"when":{"default":{"tile":"text","badges":false}}}
+        """.utf8))
+        XCTAssertEqual(LensConfig(value).tile, "text")
+        XCTAssertEqual(LensConfig(value).json["tile"], .string("text"))
+        XCTAssertEqual(LensConfig(value).json["badges"], .bool(false))
+    }
+}

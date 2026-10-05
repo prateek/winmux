@@ -1,31 +1,63 @@
 import AppKit
 
 struct StripLayout {
-    static let entryWidth: CGFloat = 148
-    static let entryHeight: CGFloat = 132
     static let gap: CGFloat = 8
     let range: Range<Int>
     let before: Int
     let after: Int
     let rowWidth: CGFloat
 
-    init(count: Int, selection: Int, width: CGFloat) {
-        let capacity = max(1, min(9, Int((max(0, width - 88) + Self.gap) / (Self.entryWidth + Self.gap))))
-        let visible = min(count, capacity)
-        let start = min(max(0, selection - visible / 2), max(0, count - visible))
-        range = start ..< start + visible
-        before = start
-        after = count - range.upperBound
-        rowWidth = min(width, CGFloat(max(1, visible)) * (Self.entryWidth + Self.gap) - Self.gap + 88)
+    init(widths: [CGFloat], selection: Int, width: CGFloat, gap: CGFloat = Self.gap, overhead: CGFloat = 88, emptyWidth: CGFloat = 0) {
+        let count = widths.count
+        guard count > 0 else {
+            range = 0 ..< 0; before = 0; after = 0; rowWidth = min(width, max(overhead, emptyWidth))
+            return
+        }
+        let selected = min(max(0, selection), count - 1)
+        var best = selected ..< selected + 1
+        var bestDistance = Int.max
+        for visible in 1 ... min(9, count) {
+            for start in max(0, selected - visible + 1) ... min(selected, count - visible) {
+                let candidate = start ..< start + visible
+                let total = widths[candidate].reduce(0, +) + CGFloat(visible - 1) * gap + overhead
+                let distance = abs(start - min(max(0, selected - visible / 2), count - visible))
+                if total <= width && (visible > best.count || (visible == best.count && distance < bestDistance)) {
+                    best = candidate; bestDistance = distance
+                }
+            }
+        }
+        range = best
+        before = best.lowerBound
+        after = count - best.upperBound
+        rowWidth = min(width, widths[best].reduce(0, +) + CGFloat(best.count - 1) * gap + overhead)
     }
+
 }
 
 struct StripGesture {
     let keyCode: UInt16?
     let invoking: NSEvent.ModifierFlags
-    let openedAt: TimeInterval
+    private let elapsed: @Sendable () -> Duration
+    let waitForDisplay: @Sendable () async throws -> Void
+
+    init(keyCode: UInt16?, invoking: NSEvent.ModifierFlags, clock: any Clock<Duration> = ContinuousClock()) {
+        self.keyCode = keyCode
+        self.invoking = invoking
+        (elapsed, waitForDisplay) = Self.start(on: clock)
+    }
+
+    private static func start<C: Clock>(on clock: C) -> (@Sendable () -> Duration, @Sendable () async throws -> Void) where C.Duration == Duration {
+        let started = clock.now
+        return ({ started.duration(to: clock.now) }, { try await clock.sleep(until: started.advanced(by: .milliseconds(100)), tolerance: nil) })
+    }
+
+    var elapsedSeconds: Double {
+        let parts = elapsed().components
+        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+    }
+    // Test observation of the gesture deadline.
+    var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
-    func shouldDisplay(now: TimeInterval) -> Bool { now >= openedAt + 0.1 }
     func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(committingModifiers).isEmpty }
     func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .control, .option]).subtracting(committingModifiers)
@@ -52,7 +84,7 @@ enum StripInput { case ignored, consumed, cancel, list }
 extension LensSession {
     func beginStrip(_ gesture: StripGesture) {
         stripGesture = gesture
-        selection = gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()
+        send(.selectionChanged(gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()))
     }
 
     @discardableResult
@@ -80,7 +112,7 @@ extension LensSession {
 
     func cycleStripSelection(_ delta: Int) {
         let count = results.count
-        selection = count == 0 ? 0 : (selection + delta % count + count) % count
+        send(.selectionChanged(count == 0 ? 0 : (selection + delta % count + count) % count))
     }
 
     func stripReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
@@ -97,7 +129,7 @@ extension LensSession {
         guard held.isEmpty || held == stripGesture?.committingModifiers else { return false }
         let selected = selectedId
         changePresentation("list")
-        query = text
+        send(.searchChanged(text))
         if let selected { hover(selected) }
         return true
     }
@@ -108,24 +140,111 @@ extension LensSession {
         let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
         removedIds.formUnion(ids)
         let after = results
-        selection = after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))
+        send(.selectionChanged(after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))))
         objectWillChange.send()
     }
 
-    var stripLayout: StripLayout { StripLayout(count: results.count, selection: selection, width: miniatureSize.width - 48) }
-    var stripSummonAvailable: Bool {
-        guard summonHeld, let item = results.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
+    var tileMetrics: TileMetrics { TileMetrics(visibleSize: miniatureSize) }
+    var tileKind: TileKind { TileKind.resolve(configured: settings.tile, presentation: settings.presentation) }
+    var drawsPictures: Bool { Self.drawsPictures(settings: settings) }
+
+    static func drawsPictures(settings: LensConfig) -> Bool {
+        TileKind.resolve(configured: settings.tile, presentation: settings.presentation) != .text
+    }
+
+    var stripSnapshot: StripSnapshot {
+        StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
+    }
+    var listLayout: ListLayout { listLayout(count: results.count) }
+    func listLayout(count: Int) -> ListLayout { ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize) }
+    func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
+        guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
     }
 
-    func refreshStripThumbnails(lens: Int) {
-        let results = results
-        for index in stripLayout.range {
-            if let entry = results[index].miniature, !entry.frozen { ThumbnailCache.shared.request(entry.window, lens: lens) }
+    func refreshStripThumbnails(lens: Int, request: (Window, Int) -> Void) {
+        let snapshot = stripSnapshot
+        for index in snapshot.layout.range {
+            if let entry = snapshot.items[index].miniature, !entry.frozen { request(entry.window, lens) }
+        }
+    }
+
+    func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
+        let items = results
+        let layout = listLayout(count: items.count)
+        for index in layout.visibleRange(selection: selection, count: items.count) {
+            if let entry = items[index].miniature, !entry.frozen { request(entry.window, lens) }
+        }
+    }
+
+    func refreshThumbnails(lens: Int, request: (Window, Int) -> Void) {
+        guard drawsPictures else { return }
+        switch settings.presentation {
+            case "strip": refreshStripThumbnails(lens: lens, request: request)
+            case "list": refreshListThumbnails(lens: lens, request: request)
+            default: refreshVisibleThumbnails(lens: lens, request: request)
         }
     }
 }
 
-func lensOnscreenWindows(presentation: String, read: () -> Set<UInt32>) -> Set<UInt32> {
-    presentation == "miniatures" || presentation == "strip" ? read() : []
+struct StripSnapshot {
+    let items: [SwitcherPaletteItem]
+    let rowHeight: CGFloat
+    let widths: [CGFloat]
+    let layout: StripLayout
+    /// A one-Tile strip is still wide enough for its footer: the title, chips and count.
+    let minimumWidth: CGFloat
+
+    init(items: [SwitcherPaletteItem], selection: Int, size: CGSize, kind: TileKind, settings: LensConfig) {
+        self.items = items
+        let metrics = TileMetrics(visibleSize: size)
+        let rowHeight = metrics.stripRowHeight(aspects: items.map { $0.tile.aspect }, kind: kind, availableWidth: size.width)
+        self.rowHeight = rowHeight
+        widths = items.map { item in
+            let height = metrics.pictureHeight(rowHeight: rowHeight, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
+            return min(max(1, size.width * 0.9 - 88 * metrics.scale), metrics.width(kind: kind, aspect: item.tile.aspect, rowHeight: height))
+        }
+        minimumWidth = min(size.width * 0.9, metrics.textWidth + 88 * metrics.scale)
+        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale, emptyWidth: minimumWidth)
+    }
+}
+
+struct ListLayout {
+    let radius: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let headerHeight: CGFloat
+    let topOffset: CGFloat
+    let rowHeight: CGFloat
+    let gap: CGFloat
+    let capacity: Int
+    /// The window's height: the tallest the list gets, plus room for an error or banner line.
+    /// The window keeps this size while Search changes the row count; the view draws from its top.
+    let panelHeight: CGFloat
+    var rowsHeight: CGFloat { height - headerHeight }
+
+    init(count: Int, kind: TileKind, visibleSize: CGSize) {
+        let metrics = TileMetrics(visibleSize: visibleSize)
+        radius = 30 * metrics.scale
+        width = 760 * metrics.scale
+        headerHeight = 90 * metrics.scale
+        topOffset = visibleSize.height / 4
+        rowHeight = kind == .text ? metrics.textHeight : metrics.listPictureHeight
+        gap = 4 * metrics.scale
+        // A quarter down and at most two thirds tall leaves a margin below a full list.
+        let maxRowsHeight = max(rowHeight, visibleSize.height * 0.66 - headerHeight)
+        panelHeight = min(visibleSize.height - topOffset, maxRowsHeight + headerHeight + 40 * metrics.scale)
+        height = min(CGFloat(max(1, count)) * (rowHeight + gap), maxRowsHeight) + headerHeight
+        capacity = max(1, Int(ceil((height - headerHeight) / (rowHeight + gap))))
+    }
+
+    func visibleRange(selection: Int, count: Int) -> Range<Int> {
+        let visible = min(capacity, count)
+        let start = min(max(0, selection - visible / 2), max(0, count - visible))
+        return start ..< start + visible
+    }
+}
+
+func lensOnscreenWindows(drawsPictures: Bool, read: () -> Set<UInt32>) -> Set<UInt32> {
+    drawsPictures ? read() : []
 }

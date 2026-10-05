@@ -211,31 +211,26 @@ extension Workspace {
     }
 
     @MainActor
-    func bindToColumn(_ node: TreeNode, slot: Int, overflow: String = "tab-group") {
-        if let existing = rootTilingContainer.children.first(where: { $0.columnSlot == slot && $0 !== node }) {
-            switch overflow {
-                case "float":
-                    node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-                    return
-                case "squeeze":
-                    let columns = columns.orDie()
-                    if columns.slotCount == columns.count {
-                        let width = 1.0 / CGFloat(columns.count + 1)
-                        columns.widths = columns.widths.map { $0 * (1 - width) } + [width]
-                    }
-                    bindToColumn(node, slot: columns.slotCount)
-                    return
-                case "split":
-                    let binding = existing.unbindFromParent()
-                    let wrapper = TilingContainer(parent: binding.parent, adaptiveWeight: binding.adaptiveWeight, .v, .tiles, index: binding.index)
-                    wrapper.columnSlot = slot
-                    existing.columnSlot = nil
-                    existing.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
-                    node.columnSlot = nil
-                    node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-                    return
-                default: break
-            }
+    func bindToColumn(_ node: TreeNode, slot: Int, overflow: OverflowPolicy = .tabGroup) {
+        let columns = columns.orDie()
+        let placement = ColumnPlacement.resolve(slot: slot, overflow: overflow, columns: columns,
+                                                children: rootTilingContainer.children, incoming: node)
+        columns.widths = placement.widths
+        let slot = placement.slot
+        switch placement.effect {
+            case .float:
+                node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                return
+            case .split(let existing):
+                let binding = existing.unbindFromParent()
+                let wrapper = TilingContainer(parent: binding.parent, adaptiveWeight: binding.adaptiveWeight, .v, .tiles, index: binding.index)
+                wrapper.columnSlot = slot
+                existing.columnSlot = nil
+                existing.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
+                node.columnSlot = nil
+                node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                return
+            case .attach: break
         }
         if let group = node as? TilingContainer,
            rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {

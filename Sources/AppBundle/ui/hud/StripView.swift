@@ -5,41 +5,29 @@ struct StripView: View {
     @ObservedObject var model: LensSession
 
     var body: some View {
-        let layout = model.stripLayout
-        let items = model.results
+        let snapshot = model.stripSnapshot
+        let layout = snapshot.layout
+        let items = snapshot.items
+        let widths = snapshot.widths
+        let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: snapshot.rowHeight)
+        let summonAvailable = model.stripSummonAvailable(items: items)
         ZStack {
-            if model.stripSummonAvailable, let landing = model.miniatureLanding,
+            if summonAvailable, let landing = model.miniatureLanding,
                let current = model.miniatureWorkspaces.first(where: \.current) {
                 Rectangle().stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .frame(width: landing.width, height: landing.height)
                     .position(x: landing.midX - current.source.minX, y: landing.midY - current.source.minY)
                     .allowsHitTesting(false)
             }
-            VStack(spacing: 8) {
-                HStack(spacing: StripLayout.gap) {
-                    Text(layout.before > 0 ? "+\(layout.before)" : "").frame(width: 24)
-                    if items.isEmpty { Text("No windows").frame(width: StripLayout.entryWidth, height: StripLayout.entryHeight) }
+            VStack(spacing: 24 * model.tileMetrics.scale) {
+                HStack(spacing: model.tileMetrics.stripGap) {
                     ForEach(Array(layout.range), id: \.self) { index in
                         let item = items[index]
-                        VStack(spacing: 6) {
-                            if let entry = item.miniature {
-                                let actual = entry.accessory && model.settings.accessoryWindow == "actual-size"
-                                let scale = min(1, entry.frame.width / max(1, model.miniatureSize.width))
-                                MiniatureEntryView(item: item, entry: entry, settings: model.settings,
-                                                   selected: index == model.selection, marked: model.marks.contains(item.id),
-                                                   hint: index == model.selection && model.stripSummonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                                    .frame(width: actual ? max(32, StripLayout.entryWidth * scale) : StripLayout.entryWidth, height: actual ? max(28, 92 * scale) : 92)
-                                    .frame(width: StripLayout.entryWidth, height: 92)
-                            } else {
-                                Image(systemName: "macwindow").frame(width: StripLayout.entryWidth, height: 92)
-                            }
-                            Text(item.title.isEmpty ? item.appName : item.title).font(.system(size: 11)).lineLimit(1)
-                        }
-                        .padding(4)
-                        .frame(width: StripLayout.entryWidth, height: StripLayout.entryHeight)
-                        .background(index == model.selection ? Color.accentColor.opacity(0.22) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .contentShape(Rectangle())
+                        TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: model.tileMetrics,
+                                 size: CGSize(width: widths[index], height: height),
+                                 settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
+                                 hint: index == model.selection && summonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                        .zIndex(index == model.selection ? 1 : 0)
                         .onContinuousHover { phase in
                             if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                         }
@@ -48,17 +36,37 @@ struct StripView: View {
                             if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                         }
                     }
-                    Text(layout.after > 0 ? "+\(layout.after)" : "").frame(width: 24)
                 }
-                Text("\(model.name) · \(items.isEmpty ? 0 : model.selection + 1) of \(items.count)").font(.system(size: 11)).foregroundStyle(.secondary)
+                .overlay(alignment: .leading) {
+                    if layout.before > 0 { Text("+\(layout.before)").offset(x: -32 * model.tileMetrics.scale) }
+                }
+                .overlay(alignment: .trailing) {
+                    if layout.after > 0 { Text("+\(layout.after)").offset(x: 32 * model.tileMetrics.scale) }
+                }
+                if items.indices.contains(model.selection) {
+                    let selected = items[model.selection]
+                    HStack(spacing: model.tileMetrics.gap) {
+                        Text(selected.tile.displayTitle).fontWeight(.semibold).foregroundStyle(.white).lineLimit(1)
+                        if model.tileKind == .picture {
+                            TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
+                        }
+                        Text((selected.tile.footerAppName.map { "· \($0) " } ?? "") + "· \(model.selection + 1) of \(items.count)")
+                            .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                    }
+                    .font(.system(size: 15 * model.tileMetrics.scale))
+                } else {
+                    Text("No windows").font(.system(size: 15 * model.tileMetrics.scale))
+                }
                 if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
             }
-            .padding(12)
+            .padding(.horizontal, 44 * model.tileMetrics.scale)
+            .padding(.top, 26 * model.tileMetrics.scale)
+            .padding(.bottom, 22 * model.tileMetrics.scale)
             .foregroundStyle(.white)
             .background {
-                GlassSurface(shape: RoundedRectangle(cornerRadius: RadiusToken.panel), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
+                GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * model.tileMetrics.scale), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
             }
-            .frame(width: layout.rowWidth)
+            .frame(width: max(layout.rowWidth, snapshot.minimumWidth))
         }
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
     }

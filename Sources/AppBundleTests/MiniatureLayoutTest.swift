@@ -62,7 +62,7 @@ final class MiniatureSessionTest: XCTestCase {
         let model = session()
         let frames = model.miniatureFrames
         XCTAssertFalse(model.miniatureSearchVisible)
-        model.query = "Beta"
+        model.send(.searchChanged("Beta"))
         XCTAssertTrue(model.miniatureSearchVisible)
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertEqual(model.miniatureOpacity(1), 0.18)
@@ -70,7 +70,7 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.miniatureFrames, frames)
         model.moveMiniatureSelection(.left)
         XCTAssertEqual(model.selectedId, 2)
-        model.query = ""
+        model.send(.searchChanged(""))
         XCTAssertFalse(model.miniatureSearchVisible)
         model.hover(1)
         model.moveMiniatureSelection(.right)
@@ -105,7 +105,7 @@ final class MiniatureSessionTest: XCTestCase {
 
     func testHiddenCurrentAndListOverridePreserveSelectionAndMarks() {
         let model = session()
-        model.miniatureExcludedIds = [1, 2, 3]
+        model.send(.excludedChanged([1, 2, 3]))
         XCTAssertEqual(model.selectedId, 4)
         model.toggleMark()
         model.changePresentation("list")
@@ -135,11 +135,13 @@ final class MiniatureSessionTest: XCTestCase {
         let children = root.children
         model.hover(4)
         XCTAssertNil(model.miniatureLanding)
-        model.summonHeld = true
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.summonChanged(true))
         XCTAssertNotNil(model.miniatureLanding)
         XCTAssertEqual(root.children, children)
         XCTAssertTrue(focus.workspace.rootTilingContainer === root)
-        model.summonHeld = false
+        model.send(.summonChanged(false))
         XCTAssertNil(model.miniatureLanding)
     }
 }

@@ -107,11 +107,11 @@ extension LensSession {
         if let entry = results.first(where: { names.contains($0.miniature?.workspace ?? "") }) { hover(entry.id) }
     }
 
-    func refreshVisibleThumbnails(lens: Int) {
+    func refreshVisibleThumbnails(lens: Int, request: (Window, Int) -> Void) {
         let names = Set(miniatureLayout.cells(on: miniaturePage).map(\.workspace))
         for item in items {
             guard let entry = item.miniature, !entry.frozen, names.contains(entry.workspace) else { continue }
-            ThumbnailCache.shared.request(entry.window, lens: lens)
+            request(entry.window, lens)
         }
     }
 }
@@ -120,91 +120,6 @@ extension LensSession {
     func miniatureLandingFrame(in cell: MiniatureLayout.Cell) -> CGRect? {
         guard let source = miniatureLanding, let workspace = miniatureWorkspaces.first(where: { $0.current }) else { return nil }
         return MiniatureLayout.scale(source, from: workspace.source, to: cell.frame)
-    }
-
-    func updateMiniatureLanding() {
-        // The pointer moving inside one miniature re-assigns the same selection.
-        let key = summonHeld ? selectedId : nil
-        if key != nil, key == landingKey, landingTask != nil || miniatureLanding != nil { return }
-        landingKey = key
-        landingTask?.cancel()
-        landingTask = nil
-        setMiniatureLanding(nil)
-        guard summonHeld, (settings.presentation == "miniatures" || settings.presentation == "strip"), settings.summonHints.contains("landing-spot"),
-              let id = selectedId, let entry = items.first(where: { $0.id == id })?.miniature,
-              let workspace = miniatureWorkspaces.first(where: { $0.current }) else { setMiniatureLanding(nil); return }
-        if entry.workspace == workspace.name {
-            setMiniatureLanding(settings.presentation == "strip" ? nil : entry.frame)
-            return
-        }
-        if entry.floating {
-            let source = miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
-            setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))
-            return
-        }
-        if let columns = focus.workspace.columns {
-            let destination = focus.workspace
-            if landingDestination !== destination || landingColumnsTask == nil {
-                landingColumnsTask?.cancel()
-                landingDestination = destination
-                landingColumnsTask = Task { @MainActor in try await destination.columnRecords() }
-            }
-            let snapshotTask = landingColumnsTask!
-            landingTask = Task { @MainActor [weak self] in
-                guard let snapshot = try? await snapshotTask.value else {
-                    // A failed read is not kept for the session.
-                    if !Task.isCancelled, let self, self.landingColumnsTask == snapshotTask { self.landingColumnsTask = nil }
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                let records = snapshot.arrayOrNil?.map { column -> JSONValue in
-                    guard case .object(var fields) = column else { return column }
-                    let windows = fields["windows"]?.arrayOrNil?.filter { $0["id"] != .int(Int(id)) } ?? []
-                    fields["windows"] = .array(windows)
-                    fields["empty"] = .bool(windows.isEmpty)
-                    return .object(fields)
-                } ?? []
-                let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
-                guard !Task.isCancelled, let self, self.summonHeld, self.selectedId == id, focus.workspace === destination else { return }
-                let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
-                let occupied = destination.rootTilingContainer.children.contains {
-                    $0.columnSlot == decision.slot && $0.allLeafWindowsRecursive.contains { $0 !== entry.window }
-                }
-                if occupied && decision.overflow == "float" {
-                    self.setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: workspace.source, to: rect))
-                    return
-                }
-                var widths = columns.widths
-                var slot = decision.slot
-                if occupied && decision.overflow == "squeeze" {
-                    if widths.count == columns.count {
-                        let fraction = 1.0 / CGFloat(columns.count + 1)
-                        widths = widths.map { $0 * (1 - fraction) } + [fraction]
-                    }
-                    slot = widths.count
-                }
-                let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
-                var frame = ColumnState.frame(slot: slot, widths: widths, in: rect, gap: gaps.inner.get(.h).toDouble())
-                if occupied && decision.overflow == "split" {
-                    let gap = gaps.inner.get(.v).toDouble() / 2
-                    frame.origin.y += frame.height / 2 + gap
-                    frame.size.height = frame.height / 2 - gap
-                }
-                self.setMiniatureLanding(frame)
-            }
-            return
-        }
-        let root = focus.workspace.rootTilingContainer
-        let rect = root.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
-        let wraps = root.layout == .tabGroup && !root.children.isEmpty
-        let orientation = wraps ? root.orientation.opposite : root.orientation
-        let count = CGFloat(wraps ? 2 : root.children.count + 1)
-        let gap = count > 1 ? CGFloat(ResolvedGaps(gaps: config.gaps, monitor: focus.workspace.workspaceMonitor).inner.get(orientation).toDouble()) / 2 : 0
-        if orientation == .h {
-            setMiniatureLanding(CGRect(x: rect.maxX - rect.width / count + gap, y: rect.minY, width: rect.width / count - gap, height: rect.height))
-        } else {
-            setMiniatureLanding(CGRect(x: rect.minX, y: rect.maxY - rect.height / count + gap, width: rect.width, height: rect.height / count - gap))
-        }
     }
 }
 
@@ -235,4 +150,16 @@ func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem]
         let a = lhs.element.miniature?.floating == true, b = rhs.element.miniature?.floating == true
         return a == b ? lhs.offset > rhs.offset : !a
     }.map(\.element)
+}
+
+@MainActor
+func miniatureColumnLanding(_ placement: ResolvedColumnPlacement, in rect: CGRect, horizontalGap: CGFloat,
+                            verticalGap: CGFloat, floatingFrame: CGRect, source: CGRect) -> CGRect {
+    guard let range = placement.verticalRange else { return miniatureFloatingLanding(floatingFrame, from: source, to: rect) }
+    var frame = ColumnState.frame(slot: placement.slot, widths: placement.widths, in: rect, gap: horizontalGap)
+    let topGap = range.lowerBound > 0 ? verticalGap / 2 : 0
+    let bottomGap = range.upperBound < 1 ? verticalGap / 2 : 0
+    frame.origin.y += rect.height * range.lowerBound + topGap
+    frame.size.height = rect.height * (range.upperBound - range.lowerBound) - topGap - bottomGap
+    return frame
 }

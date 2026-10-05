@@ -21,6 +21,38 @@ final class LensCommandTest: XCTestCase {
         }
     }
 
+    func testTileParsingAndMiniaturesRefusalBeforeOpening() async throws {
+        for kind in ["card", "picture", "text"] {
+            XCTAssertNil(parseCommand("lens search --tile \(kind)").errorOrNil)
+        }
+        for command in ["lens search --tile unknown", "lens search --presentation miniatures --tile picture", "lens --presentation list --tile card"] {
+            XCTAssertTrue(parseCommand(command).errorOrNil?.contains("--tile") == true)
+        }
+        var overview = LensConfig(); overview.presentation = "miniatures"
+        config.lenses["overview"] = overview
+        let panel = SwitcherPalettePanel.shared
+        panel.dismiss()
+        let command = try XCTUnwrap(parseCommand("lens overview --tile card").cmdOrNil)
+        let result = try await command.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 2)
+        XCTAssertTrue(result.stderr.joined().contains("--tile"))
+        XCTAssertNil(panel.session)
+    }
+
+    func testListLensesReportsResolvedTilesAndBadges() async throws {
+        var strip = LensConfig(); strip.presentation = "strip"
+        var list = LensConfig(); list.tile = "picture"; list.badges = false
+        var miniatures = LensConfig(); miniatures.presentation = "miniatures"
+        config.lenses = ["strip": strip, "list": list, "miniatures": miniatures]
+        let command = try XCTUnwrap(parseCommand("list-lenses --json").cmdOrNil)
+        let result = try await command.run(.defaultEnv, .emptyStdin)
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(result.stdout.joined().utf8))
+        XCTAssertEqual(json["strip"]?["tile"], .string("card"))
+        XCTAssertEqual(json["list"]?["tile"], .string("picture"))
+        XCTAssertEqual(json["miniatures"]?["tile"], .string("picture"))
+        XCTAssertEqual(json["list"]?["badges"], .bool(false))
+    }
+
     func testSummonMovesSelectedWindowWithoutChangingFloatingClass() async throws {
         let current = Workspace.get(byName: "1")
         let other = Workspace.get(byName: "2")

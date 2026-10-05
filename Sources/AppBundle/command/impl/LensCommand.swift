@@ -15,7 +15,7 @@ struct LensCommand: Command {
             return true
         }
         let live = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-        let invocation = lensInvocation ?? StripGesture(keyCode: nil, invoking: live, openedAt: ProcessInfo.processInfo.systemUptime)
+        let invocation = lensInvocation ?? StripGesture(keyCode: nil, invoking: live)
         let name = args.name ?? "<ad-hoc>"
         var settings: LensConfig
         if let configured = args.name {
@@ -24,6 +24,10 @@ struct LensCommand: Command {
             settings = lens
         } else { settings = LensConfig() }
         if let presentation = args.presentation { settings.presentation = presentation }
+        if let tile = args.tile {
+            guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--tile is not allowed with miniatures") }
+            settings.tile = tile
+        }
         if let sort = args.sort { settings.sort = sort.split(separator: ",").map(String.init) }
         let filter = args.filter.map { $0 == "-" ? io.readStdin() : $0 }
         if let filter {

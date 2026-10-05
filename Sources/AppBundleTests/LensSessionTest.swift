@@ -73,13 +73,13 @@ final class LensSessionTest: XCTestCase {
 
     func testSearchClearAndInlineFailureKeepLastGoodRows() {
         let session = LensSession(name: "demo", settings: LensConfig(), items: [item(3), item(1), item(2)], search: "")
-        session.query = "Window 2"
+        session.send(.searchChanged("Window 2"))
         XCTAssertEqual(session.results.map(\.id), [2])
-        session.query = ""
+        session.send(.searchChanged(""))
         XCTAssertEqual(session.results.map(\.id), [3, 1, 2])
-        session.query = "= true"
+        session.send(.searchChanged("= true"))
         session.acceptInlineResult([1])
-        session.query = "= w."
+        session.send(.searchChanged("= w."))
         session.rejectInlineResult("parse failed\nmore detail")
         XCTAssertEqual(session.results.map(\.id), [1])
         XCTAssertEqual(session.searchError, "parse failed")
@@ -87,10 +87,10 @@ final class LensSessionTest: XCTestCase {
 
     func testHalfTypedInlineKeepsTextSearchRowsAndReturningToTextClearsError() {
         let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1), item(2)], search: "Window 2")
-        session.query = "= w."
+        session.send(.searchChanged("= w."))
         session.rejectInlineResult("parse error")
         XCTAssertEqual(session.results.map(\.id), [2])
-        session.query = "Window"
+        session.send(.searchChanged("Window"))
         XCTAssertNil(session.searchError)
     }
 
