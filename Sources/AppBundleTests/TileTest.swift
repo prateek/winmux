@@ -108,8 +108,9 @@ final class TileSnapshotTest: XCTestCase {
             let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
             let geometry = MiniatureWindow(workspace: record.workspace, frame: CGRect(x: 0, y: 0, width: 300, height: 600), tray: window !== popup,
                                            frozen: window !== popup, accessory: false, floating: false, window: window)
-            let tile = tileEntry(source, miniature: geometry, icon: nil)
+            let tile = tileEntry(source, miniature: geometry, icon: nil, monitorHeight: 1200)
             XCTAssertEqual(tile.aspect, 0.5)
+            XCTAssertEqual(tile.monitorHeightFraction, 0.5)
             XCTAssertTrue(tile.picture === window.thumbnail)
             XCTAssertEqual(tile.badges.minimized, window === minimized)
             XCTAssertEqual(tile.badges.hidden, window === hidden)
