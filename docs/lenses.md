@@ -35,6 +35,56 @@ winmux list-windows --search 'release notes' --workspace focused --json
 winmux summon --window-id 42
 ```
 
+## Tiles
+
+Every Presentation draws an entry through the same Tile. `tile` chooses its kind:
+
+| Kind | Drawing |
+| --- | --- |
+| `card` | App icon and title above a picture at the window's aspect ratio. |
+| `picture` | Picture with a corner icon; the selected title is in the Presentation's footer. |
+| `text` | Icon, title, app name and chips on one line, without a picture. |
+
+A strip defaults to `card`; a list defaults to `text`. Card and picture lists both keep the
+one-line title bar and add a small picture at the left. Miniatures always uses `picture` and
+rejects an explicit `tile`, including in `when.default`. The future grid defaults to `card`;
+the grid Presentation itself is not accepted yet. Nickel leaves `tile` absent so Swift can
+resolve it after a Presentation override.
+
+`badges` defaults to `true`. Chips show the sidebar's workspace label for another workspace: its number when it has one,
+otherwise its display name, truncated after twelve characters with an ellipsis. These are followed by
+`floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
+marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App entries use the
+app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
+strip puts the selected entry's chips in its footer, and miniatures puts them after the selected
+title under its workspace cell, omitting the workspace chip that the cell already names.
+Pictures carry the corner icon, mark, Summon label and Frozen/Accessory treatments. List rows
+of every kind keep the mark, Summon label and Accessory tag at the trailing end of the line.
+
+```nickel
+lenses.recent.tile = 'text,
+lenses.work = { presentation = 'list, tile = 'card, badges = false },
+```
+
+`winmux lens recent --tile picture` overrides the kind for one opening. A `--presentation`
+override resolves the default for that Presentation unless the Lens configured a kind.
+`--tile` with miniatures, whether configured or selected by `--presentation`, exits 2 before
+opening. The override needs a Lens name or `--filter`; converting an already open Lens with
+`lens --presentation list` does not accept it. `list-lenses --json` reports the resolved `tile`
+and `badges`, including the active `when.default` profile.
+
+Tile measurements scale by the smaller of visible width / 1920 and visible height / 1080.
+The list panel is 760 points wide with a 30-point radius at that scale, with its Search field scaled too. Its height
+fits its rows, up to two thirds of the visible height; its top stays a quarter of the way down, which leaves
+a margin below a full list. Refreshes request only a viewport-sized window around selection.
+
+Pictures keep their window's shape, including in list rows; a missing picture shows the app
+icon in that shape. A strip Tile's width uses an aspect clamped to 0.3–3.6; an extreme picture
+is centred at its real shape inside that allocation, with no filled or outlined box behind
+it. The aspect comes from the same rectangle as capture and stays fixed while the Lens is open.
+Card and picture strip selections lift without changing layout or hit regions. Text rows use
+a tinted plate; miniatures uses a four-point ring without scaling.
+
 `--lens`, `--filter` and `--search` imply all workspaces if no scope flag is present; with an
 explicit scope the result is the intersection. They include minimized windows that bare
 `list-windows --all` does not. Search JSON includes `score` and `matched-field`; multiple matched
@@ -139,7 +189,9 @@ Releasing cmd with Option held runs `alt-enter`, whose default
 is `summon`; Shift affects cycling and does not change that release action. Summon hints appear
 only for a selection on another workspace. Escape cancels without changing focus.
 
-Nine entries fit at most, with fewer on a narrow display. Selection scrolls the row; each end
+Nine entries fit at most, with fewer on a narrow display. Each Tile has its own width; the
+row height fits the widest nine-entry run and stays fixed as selection moves. Text Tiles use
+330 by 46 points at a visible size of 1920 by 1080. Selection scrolls the row; each end
 shows `+N` for its hidden entries. Entries show app icons and titles before capture, then reuse
 live or Frozen thumbnails and the Lens's `frozen-thumbnail` and Accessory settings. Hidden apps
 and minimized windows remain eligible. Removing an earlier entry keeps the selected window; removing
@@ -239,7 +291,7 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the modifier of a configured Summon binding is held. |
 
 Miniatures always uses workspace sections and window entries; its contract rejects explicit
-`sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
+`tile`, `sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
 `landing-spot` hint. Backdrop darkness above 0.95 fails config checking.
 
 Search dims non-matches at their fixed positions and selects the best match. Arrows navigate only

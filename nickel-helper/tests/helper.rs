@@ -1044,3 +1044,23 @@ fn conversion_requires_a_main_mode_and_leaves_modes_open_to_later_merges() {
     assert_eq!(bindings["cmd-tab"], json!("lens recent"));
     assert!(bindings.get("alt-tab").is_none());
 }
+
+#[test]
+fn tile_contract_defaults_overrides_and_miniatures_refusal() {
+    for (body, kind) in [("presentation = 'strip, tile = 'text", "text"), ("presentation = 'list, tile = 'card", "card"), ("tile = 'picture, badges = false, when.default.tile = 'text", "picture")] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let value = evaluate_to_json(&source, &library()).unwrap();
+        assert_eq!(value["lenses"]["demo"]["tile"], kind);
+    }
+    for body in ["", "presentation = 'miniatures"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let value = evaluate_to_json(&source, &library()).unwrap();
+        assert!(value["lenses"]["demo"].get("tile").is_none());
+        assert_eq!(value["lenses"]["demo"]["badges"], true);
+    }
+    for body in ["presentation = 'miniatures, tile = 'picture", "presentation = 'miniatures, when.default.tile = 'card", "tile = 'text, when.default.presentation = 'miniatures"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let error = evaluate_to_json(&source, &library()).unwrap_err();
+        assert!(error.contains("tile"), "{error}");
+    }
+}

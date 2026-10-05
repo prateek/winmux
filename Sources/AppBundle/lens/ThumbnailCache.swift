@@ -101,8 +101,7 @@ final class ThumbnailCache {
         while !ready.isEmpty {
             for id in ready {
                 guard let window = windows[id]?.value, !isHidden(window), !isMinimized(window) else { gate.finish(id); completeWaiters(id); continue }
-                let frame = Self.captureFrame(floating: window.isFloating, layout: window.lastAppliedLayoutPhysicalRect?.cgRect,
-                                              parked: window.miniatureFrame, actual: window.lastKnownActualRect?.cgRect)
+                let frame = thumbnailCaptureFrame(window)
                 let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
                 let size = Self.pixelSize(frame: frame, scale: scale)
                 lensLog.debug("thumbnail start id=\(id) in-flight=\(self.gate.inFlight)")
@@ -127,4 +126,10 @@ final class ThumbnailCache {
 
 extension Rect {
     var cgRect: CGRect { CGRect(x: topLeftX, y: topLeftY, width: width, height: height) }
+}
+
+@MainActor
+func thumbnailCaptureFrame(_ window: Window) -> CGRect {
+    ThumbnailCache.captureFrame(floating: window.isFloating, layout: window.lastAppliedLayoutPhysicalRect?.cgRect,
+                                parked: window.miniatureFrame, actual: window.lastKnownActualRect?.cgRect)
 }

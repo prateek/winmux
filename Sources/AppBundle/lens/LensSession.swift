@@ -78,7 +78,15 @@ final class LensSession: ObservableObject {
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
-        self.items = items
+        if settings.entries == "app" {
+            let appCounts = Dictionary(grouping: items, by: \.appIdentity).mapValues(\.count)
+            self.items = items.map { item in
+                var snapshot = item
+                snapshot.tile.title = snapshot.tile.appName
+                snapshot.tile.appCount = appCounts[item.appIdentity]
+                return snapshot
+            }
+        } else { self.items = items }
         keyBindings = settings.keys.keys.sorted().compactMap { name in
             if case .success(let (modifiers, key)) = parseBinding(name, .emptyRoot, config.keyMapping.resolve()) {
                 return (name, UInt16(key.carbonKeyCode), modifiers)
@@ -103,7 +111,7 @@ final class LensSession: ObservableObject {
     }
 
     var results: [SwitcherPaletteItem] {
-        let items = items.filter { !removedIds.contains($0.id) }
+        let items = removedIds.isEmpty ? items : items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
         let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }

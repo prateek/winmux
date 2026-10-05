@@ -77,7 +77,9 @@ let Miniatures = MiniatureFields & {
 let MiniatureRules = std.contract.from_validator (fun lens =>
   let presentation = std.record.get_or "presentation" 'list lens in
   if presentation == 'miniatures || presentation == "miniatures" then
-    if std.array.any (fun field => std.record.has_field field lens) ["sections", "entries", "sort"] then
+    if std.record.has_field "tile" lens then
+      'Error { message = "miniatures rejects tile" }
+    else if std.array.any (fun field => std.record.has_field field lens) ["sections", "entries", "sort"] then
       'Error { message = "miniatures rejects sections, entries and sort" }
     else if (std.record.get_or "current-workspace" 'highlight (std.record.get_or "miniatures" {} lens)) == 'hide || (std.record.get_or "current-workspace" "highlight" (std.record.get_or "miniatures" {} lens)) == "hide" then
       if std.array.any (fun hint => hint == 'landing-spot || hint == "landing-spot") (std.record.get_or "summon-hints" ['label, 'landing-spot] lens) then
@@ -89,6 +91,8 @@ let MiniatureRules = std.contract.from_validator (fun lens =>
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
+  tile | Choice [| 'card, 'picture, 'text |] | optional,
+  badges | Bool | optional,
   entries | Choice [| 'window, 'app |] | optional,
   sections | Choice [| 'none, 'workspace, 'project, 'monitor, 'app |] | optional,
   sort | Array (Choice [| 'mru, 'previous, 'spatial, 'workspace, 'app, 'title, 'created |]) | optional,
@@ -102,6 +106,7 @@ let LensFields = {
 } in
 let LensDefaults = LensFields & {
   presentation | priority -2 = 'list,
+  badges | default = true,
   entries | default = 'window,
   sections | default = 'workspace,
   sort | default = ['mru],
