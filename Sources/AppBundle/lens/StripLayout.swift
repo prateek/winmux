@@ -156,8 +156,8 @@ extension LensSession {
         StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
     }
     var listLayout: ListLayout { ListLayout(count: results.count, kind: tileKind, visibleSize: miniatureSize) }
-    var stripSummonAvailable: Bool {
-        guard summonHeld, let item = results.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
+    func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
+        guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
     }
 

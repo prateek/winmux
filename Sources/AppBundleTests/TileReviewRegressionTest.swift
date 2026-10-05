@@ -188,6 +188,7 @@ final class TileDrawingArchitectureTest: XCTestCase {
         XCTAssertFalse(strip.contains("model.stripWidths"))
         XCTAssertFalse(strip.contains("model.stripRowHeight"))
         XCTAssertFalse(strip.contains("model.results"))
+        XCTAssertTrue(strip.contains("model.stripSummonAvailable(items: items)"))
         let layout = try source("Sources/AppBundle/lens/StripLayout.swift")
         XCTAssertFalse(layout.contains("var stripWidths:"))
         XCTAssertFalse(layout.contains("var stripRowHeight:"))

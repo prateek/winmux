@@ -10,7 +10,7 @@ struct StripView: View {
         let items = snapshot.items
         let widths = snapshot.widths
         let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: snapshot.rowHeight)
-        let summonAvailable = model.stripSummonAvailable
+        let summonAvailable = model.stripSummonAvailable(items: items)
         ZStack {
             if summonAvailable, let landing = model.miniatureLanding,
                let current = model.miniatureWorkspaces.first(where: \.current) {
