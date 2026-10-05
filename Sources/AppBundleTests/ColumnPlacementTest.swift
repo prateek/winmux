@@ -237,10 +237,11 @@ final class ColumnPlacementTest: XCTestCase {
             let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
             try await load("squeeze")
             let window = incoming as! TestWindow
+            let suspended = failsRead ? workspace.rootTilingContainer.allLeafWindowsRecursive.first as! TestWindow : window
             let started = LensEffectSignal()
             var release: CheckedContinuation<Void, Never>?
-            window.beforeAxRecord = {
-                window.beforeAxRecord = nil
+            suspended.beforeAxRecord = {
+                suspended.beforeAxRecord = nil
                 await withCheckedContinuation { release = $0; started.send() }
             }
             let model = session(workspace, window: window, rect: rect)
@@ -250,7 +251,7 @@ final class ColumnPlacementTest: XCTestCase {
             await started.wait()
             let pending = owner.landingTask
             workspace.columns = nil
-            if failsRead { window.testAxRecordError = NSError(domain: "test", code: 1) }
+            if failsRead { suspended.testAxRecordError = NSError(domain: "test", code: 1) }
             release?.resume()
             await pending?.value
             let actual = model.miniatureLanding
@@ -317,26 +318,32 @@ final class ColumnPlacementTest: XCTestCase {
     }
 
     func testDismissedSessionIsFreedWhileLandingRecordsAreSuspended() async throws {
-        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
-        try await load("squeeze")
-        let window = incoming as! TestWindow
-        let started = LensEffectSignal()
-        var release: CheckedContinuation<Void, Never>?
-        window.beforeAxRecord = {
-            window.beforeAxRecord = nil
-            await withCheckedContinuation { release = $0; started.send() }
+        for stage in ["snapshot", "decision"] {
+            let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+            try await load("squeeze")
+            let window = incoming as! TestWindow
+            let suspended = stage == "snapshot" ? workspace.rootTilingContainer.allLeafWindowsRecursive.first as! TestWindow : window
+            let started = LensEffectSignal()
+            var release: CheckedContinuation<Void, Never>?
+            suspended.beforeAxRecord = {
+                suspended.beforeAxRecord = nil
+                await withCheckedContinuation { release = $0; started.send() }
+            }
+            var model: LensSession? = session(workspace, window: window, rect: rect)
+            weak var dismissed = model
+            var owner: LensLifecycle? = ownLens(model!)
+            weak var dismissedOwner = owner
+            model!.send(.summonChanged(true))
+            await started.wait()
+            let pending = owner?.landingTask
+            owner?.dismiss()
+            owner = nil
+            model = nil
+            XCTAssertNil(dismissed, stage)
+            XCTAssertNil(dismissedOwner, stage)
+            release?.resume()
+            await pending?.value
         }
-        var model: LensSession? = session(workspace, window: window, rect: rect)
-        weak var dismissed = model
-        let owner = ownLens(model!)
-        model!.send(.summonChanged(true))
-        await started.wait()
-        let pending = owner.landingTask
-        owner.dismiss()
-        model = nil
-        XCTAssertNil(dismissed)
-        release?.resume()
-        await pending?.value
     }
 
     func testPendingPreviewRejectsChangedDestinationAndColumnState() async throws {
