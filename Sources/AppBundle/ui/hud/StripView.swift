@@ -10,8 +10,9 @@ struct StripView: View {
         let items = snapshot.items
         let widths = snapshot.widths
         let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: snapshot.rowHeight)
+        let summonAvailable = model.stripSummonAvailable
         ZStack {
-            if model.stripSummonAvailable, let landing = model.miniatureLanding,
+            if summonAvailable, let landing = model.miniatureLanding,
                let current = model.miniatureWorkspaces.first(where: \.current) {
                 Rectangle().stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .frame(width: landing.width, height: landing.height)
@@ -25,7 +26,7 @@ struct StripView: View {
                         TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: model.tileMetrics,
                                  size: CGSize(width: widths[index], height: height),
                                  settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
-                                 hint: index == model.selection && model.stripSummonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                                 hint: index == model.selection && summonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
                         .zIndex(index == model.selection ? 1 : 0)
                         .onContinuousHover { phase in
                             if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }

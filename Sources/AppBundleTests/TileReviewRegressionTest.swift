@@ -76,6 +76,15 @@ final class TileReviewRegressionTest: XCTestCase {
         }
     }
 
+    func testExtremePictureSelectionLeavesRowsAndMiniaturesUnchanged() {
+        for (presentation, kind, expected): (String, TileKind, Bool) in [("strip", .card, true), ("strip", .picture, true), ("strip", .text, false), ("list", .card, false), ("list", .picture, false), ("miniatures", .picture, false)] {
+            let view = TileView(entry: TileEntry(title: "Toolbar", appName: "Editor", aspect: 10), kind: kind, presentation: presentation,
+                                metrics: TileMetrics(visibleSize: CGSize(width: 1920, height: 1080)), size: CGSize(width: 380, height: 156),
+                                settings: LensConfig(), selected: true, marked: false, hint: nil)
+            XCTAssertEqual(view.extremeAspect, expected, presentation)
+        }
+    }
+
     func testFloatingTileUsesCaptureFrameAndKeepsOpeningAspect() async throws {
         let workspace = focus.workspace
         let window = TestWindow.new(id: 90, parent: workspace)
@@ -88,6 +97,16 @@ final class TileReviewRegressionTest: XCTestCase {
         XCTAssertEqual(miniature.frame.size, CGSize(width: 300, height: 600))
         window.recordAuthoritativeActualRect(Rect(topLeftX: 0, topLeftY: 0, width: 200, height: 800))
         XCTAssertEqual(tile.aspect, 4)
+    }
+
+    func testSidebarRenameReplacesAnAutomaticWorkspaceNumber() throws {
+        let workspace = Workspace.get(byName: "2")
+        workspace.markAsAutomaticallyNamed()
+        _ = TestWindow.new(id: 92, parent: workspace.rootTilingContainer)
+        try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "mail")
+        XCTAssertEqual(tileWorkspaceLabels([workspace.name])[workspace.name], "mail")
+        try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "correspondence")
+        XCTAssertEqual(tileWorkspaceLabels([workspace.name])[workspace.name], "corresponden…")
     }
 
     func testNamedWorkspaceHasItsSidebarLabel() async throws {

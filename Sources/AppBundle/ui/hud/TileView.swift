@@ -17,7 +17,7 @@ struct TileView: View {
     private var line: Bool { kind == .text || row }
     private var selectionRing: CGFloat { miniature ? metrics.miniatureRing : metrics.selectionRing }
     private var radius: CGFloat { miniature ? metrics.miniatureRadius : line ? metrics.textRadius : metrics.radius }
-    private var extremeAspect: Bool { entry.aspect < 0.3 || entry.aspect > 3.6 }
+    var extremeAspect: Bool { !line && !miniature && (entry.aspect < 0.3 || entry.aspect > 3.6) }
 
     var body: some View {
         Color.clear
@@ -85,7 +85,6 @@ struct TileView: View {
             if line {
                 if let hint { label(hint) }
             }
-
         }
     }
 

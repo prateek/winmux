@@ -388,6 +388,9 @@ func lensSearchField(in view: NSView) -> NSTextField? {
 @MainActor
 func tileWorkspaceLabels(_ names: [String]) -> [String: String] {
     Dictionary(uniqueKeysWithValues: Set(names).filter { !$0.isEmpty }.map { name in
+        if let label = config.workspaceSidebar.workspaceLabels[name]?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+            return (name, tileWorkspaceLabel(label))
+        }
         let workspace = Workspace.existing(byName: name)
         let number = workspace.map { $0.usesAutomaticDisplayName ? automaticWorkspaceDisplayIndex($0, focusedWorkspace: focus.workspace) : parsePositiveWorkspaceDisplayIndex(name) } ?? nil
         return (name, number.map(String.init) ?? tileWorkspaceLabel(workspaceDisplayName(name)))
