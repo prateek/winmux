@@ -48,7 +48,7 @@ This issue makes one **Tile**: the drawing of one Lens entry. Every Presentation
 - [x] `tile` on a `'miniatures` Lens fails at load with a message naming the field.
 - [x] A window on another workspace shows its workspace label; a floating window shows `floating`; `badges = false` removes both.
 - [x] Marks, the Summon label, the Frozen thumbnail looks and the Accessory treatment draw in all three Presentations as they did before.
-- [ ] The pull request shows the strip, the list and `overview` on the staged desk beside the prototype at the same settings.
+- [x] The pull request shows the strip, the list and `overview` on the staged desk beside the prototype at the same settings.
 
 ## Implementation notes
 
