@@ -3,8 +3,6 @@ import Common
 import SwiftUI
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
-private let switcherPaletteWidth: CGFloat = 560
-private let switcherPaletteMaxHeight: CGFloat = 440
 
 struct SwitcherPaletteItem: Identifiable {
     let id: UInt32
@@ -63,8 +61,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let focused = focus
         let focusedId = focused.windowOrNil?.windowId
         let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
-        let workspaceNumbers = tileWorkspaceNumbers(entries.map { $0.record.workspace })
-        let onscreen = lensOnscreenWindows(presentation: settings.presentation, tile: TileKind.resolve(configured: settings.tile, override: nil, presentation: settings.presentation)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
+        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace })
+        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
         let items = entries.map { entry in
             let miniature = miniatureEntry(entry, onscreen: onscreen)
             let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
@@ -73,7 +71,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 icon: icon,
                 workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
                 projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceNumbers: workspaceNumbers, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
             )
         }
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
@@ -137,9 +135,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         } else {
             // Center on the focused monitor, with the top edge at one quarter of its height;
             // convert the top-left coordinates to AppKit's bottom-left origin.
-            setFrame(NSRect(x: rect.minX + (rect.width - switcherPaletteWidth) / 2,
-                            y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - switcherPaletteMaxHeight,
-                            width: switcherPaletteWidth, height: switcherPaletteMaxHeight), display: true)
+            let layout = model.listLayout
+            setFrame(NSRect(x: rect.minX + (rect.width - layout.width) / 2,
+                            y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - layout.height,
+                            width: layout.width, height: layout.height), display: true)
             hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
         }
     }
@@ -278,19 +277,22 @@ struct SwitcherPaletteView: View {
 
     var body: some View {
         let results = model.results
+        let layout = ListLayout(count: results.count, kind: model.tileKind, visibleSize: model.miniatureSize)
+        let scale = model.tileMetrics.scale
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
                 TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
                     .textFieldStyle(.plain)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 16 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textPrimary))
                     .focused($searchFocused)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 44)
+            .padding(.horizontal, 14 * scale)
+            .frame(height: 44 * scale)
+            .padding(.top, 26 * scale)
 
             Rectangle()
                 .fill(Color.white.opacity(GlassToken.separatorOpacity))
@@ -304,10 +306,10 @@ struct SwitcherPaletteView: View {
             }
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 1) {
+                    LazyVStack(spacing: layout.gap) {
                         ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
                             TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
-                                     size: CGSize(width: switcherPaletteWidth - 12, height: model.tileKind == .text ? model.tileMetrics.textHeight : model.tileMetrics.listPictureHeight),
+                                     size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
                                      settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
                                      hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
                             .id(item.id)
@@ -320,7 +322,7 @@ struct SwitcherPaletteView: View {
                             }
                         }
                     }
-                    .padding(6)
+                    .padding(.horizontal, 20 * scale)
                 }
                 .onChange(of: model.selection) { newSelection in
                     if results.indices.contains(newSelection) {
@@ -328,9 +330,10 @@ struct SwitcherPaletteView: View {
                     }
                 }
             }
-            .frame(maxHeight: switcherPaletteMaxHeight - 44)
+            .frame(height: layout.rowsHeight)
+            .padding(.bottom, 20 * scale - StrokeToken.hairline)
         }
-        .frame(width: switcherPaletteWidth)
+        .frame(width: layout.width)
         .fixedSize(horizontal: false, vertical: true)
         .background {
             GlassSurface(
@@ -383,25 +386,26 @@ func lensSearchField(in view: NSView) -> NSTextField? {
 }
 
 @MainActor
-func tileWorkspaceNumbers(_ names: [String]) -> [String: Int] {
-    Dictionary(uniqueKeysWithValues: Set(names).compactMap { name in
-        guard let workspace = Workspace.existing(byName: name) else { return nil }
-        let number = workspace.usesAutomaticDisplayName
-            ? automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace)
-            : parsePositiveWorkspaceDisplayIndex(name)
-        guard let number else { return nil }
-        return (name, number)
+func tileWorkspaceLabels(_ names: [String]) -> [String: String] {
+    Dictionary(uniqueKeysWithValues: Set(names).filter { !$0.isEmpty }.map { name in
+        let workspace = Workspace.existing(byName: name)
+        let number = workspace.map { $0.usesAutomaticDisplayName ? automaticWorkspaceDisplayIndex($0, focusedWorkspace: focus.workspace) : parsePositiveWorkspaceDisplayIndex(name) } ?? nil
+        return (name, number.map(String.init) ?? tileWorkspaceLabel(workspaceDisplayName(name)))
     })
 }
 
+func tileWorkspaceLabel(_ title: String) -> String {
+    title.count > 12 ? String(title.prefix(12)) + "…" : title
+}
+
 @MainActor
-func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceNumbers: [String: Int]? = nil, monitorHeight: CGFloat? = nil, focusedWorkspaceName: String? = nil) -> TileEntry {
-    let numbers = workspaceNumbers ?? tileWorkspaceNumbers([entry.record.workspace])
+func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceLabels: [String: String], monitorHeight: CGFloat, focusedWorkspaceName: String) -> TileEntry {
+    let frame = thumbnailCaptureFrame(entry.window)
     return TileEntry(icon: icon, title: entry.record.title, appName: entry.record.app.name, picture: entry.window.thumbnail,
-                     aspect: miniature.frame.width / max(1, miniature.frame.height),
-                     badges: TileBadges(workspaceNumber: numbers[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == (focusedWorkspaceName ?? focus.workspace.name),
+                     aspect: frame.width / max(1, frame.height),
+                     badges: TileBadges(workspaceLabel: workspaceLabels[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == focusedWorkspaceName,
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
-                     monitorHeightFraction: miniature.frame.height / max(1, monitorHeight ?? focus.workspace.workspaceMonitor.visibleRect.height))
+                     monitorHeightFraction: frame.height / max(1, monitorHeight))
 }

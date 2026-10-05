@@ -3,26 +3,25 @@ import AppKit
 import XCTest
 
 final class TileTest: XCTestCase {
-    func testKindResolutionUsesOverrideThenConfigThenPresentation() {
+    func testKindResolutionUsesConfigThenPresentation() {
         for (presentation, expected): (String, TileKind) in [("strip", .card), ("grid", .card), ("list", .text), ("miniatures", .picture)] {
-            XCTAssertEqual(TileKind.resolve(configured: nil, override: nil, presentation: presentation), expected)
+            XCTAssertEqual(TileKind.resolve(configured: nil, presentation: presentation), expected)
             for kind in TileKind.allCases {
-                XCTAssertEqual(TileKind.resolve(configured: kind.rawValue, override: nil, presentation: presentation), presentation == "miniatures" ? .picture : kind)
-                XCTAssertEqual(TileKind.resolve(configured: "text", override: kind.rawValue, presentation: presentation), presentation == "miniatures" ? .picture : kind)
+                XCTAssertEqual(TileKind.resolve(configured: kind.rawValue, presentation: presentation), presentation == "miniatures" ? .picture : kind)
             }
         }
     }
 
     func testBadgesAreOrderedAndCanBeDisabledWithoutChangingEntryFlags() {
-        let flags = TileBadges(workspaceNumber: 3, onFocusedWorkspace: false, floating: true, minimized: true, hidden: true)
+        let flags = TileBadges(workspaceLabel: "3", onFocusedWorkspace: false, floating: true, minimized: true, hidden: true)
         XCTAssertEqual(flags.chips(enabled: true), ["3", "floating", "minimized", "hidden"])
         XCTAssertEqual(flags.chips(enabled: false), [])
-        XCTAssertEqual(TileBadges(workspaceNumber: 1, onFocusedWorkspace: true).chips(enabled: true), [])
-        XCTAssertEqual(TileBadges(workspaceNumber: nil, onFocusedWorkspace: false, hidden: true).chips(enabled: true), ["hidden"])
+        XCTAssertEqual(TileBadges(workspaceLabel: "1", onFocusedWorkspace: true).chips(enabled: true), [])
+        XCTAssertEqual(TileBadges(workspaceLabel: nil, onFocusedWorkspace: false, hidden: true).chips(enabled: true), ["hidden"])
     }
 
     func testMetricsScaleEveryPrototypeDimension() {
-        let full = TileMetrics(visibleHeight: 1080), half = TileMetrics(visibleHeight: 540)
+        let full = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080)), half = TileMetrics(visibleSize: CGSize(width: 960, height: 540))
         let dimensions: [(KeyPath<TileMetrics, CGFloat>, CGFloat)] = [
             (\.padding, 10), (\.gap, 8), (\.radius, 14), (\.barHeight, 28),
             (\.icon, 26), (\.titleFont, 17), (\.appFont, 14), (\.chipFont, 12),
@@ -47,16 +46,8 @@ final class TileTest: XCTestCase {
         XCTAssertEqual(half.selectionScale, full.selectionScale)
     }
 
-    func testPictureBadgesClearTheSummonLabelAtEveryScale() {
-        for height in [CGFloat(1080), 540] {
-            let metrics = TileMetrics(visibleHeight: height)
-            XCTAssertEqual(metrics.pictureBadgeTop(hasHint: false), 4 * metrics.scale)
-            XCTAssertEqual(metrics.pictureBadgeTop(hasHint: true), 30 * metrics.scale)
-        }
-    }
-
     func testAccessoryActualSizeUsesRealHeightShareAndKeepsAHittableFloor() {
-        let metrics = TileMetrics(visibleHeight: 1080)
+        let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
         XCTAssertEqual(metrics.pictureHeight(rowHeight: 190, accessory: true, actualSize: true, monitorHeightFraction: 0.5), 95)
         XCTAssertEqual(metrics.pictureHeight(rowHeight: 190, accessory: true, actualSize: true, monitorHeightFraction: 0.01), 28)
         XCTAssertEqual(metrics.pictureHeight(rowHeight: 190, accessory: true, actualSize: true, monitorHeightFraction: 2), 190)
@@ -65,7 +56,7 @@ final class TileTest: XCTestCase {
     }
 
     func testWidthsKeepRealShapeWithPictureFloorAndCardTitleFloor() {
-        let metrics = TileMetrics(visibleHeight: 1080)
+        let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
         XCTAssertEqual(metrics.width(kind: .picture, aspect: 0.2, rowHeight: 190), 90)
         XCTAssertEqual(metrics.width(kind: .picture, aspect: 2, rowHeight: 190), 400)
         XCTAssertEqual(metrics.width(kind: .card, aspect: 0.2, rowHeight: 190), 220)
@@ -88,9 +79,9 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: second.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: true, window: window)
-        let numbers = tileWorkspaceNumbers([first.name, second.name, second.name])
-        XCTAssertEqual(numbers, [first.name: 1, second.name: 2])
-        let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceNumbers: numbers)
+        let numbers = tileWorkspaceLabels([first.name, second.name, second.name])
+        XCTAssertEqual(numbers, [first.name: "1", second.name: "2"])
+        let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: numbers, monitorHeight: 1080, focusedWorkspaceName: focus.workspace.name)
         XCTAssertEqual(tile.badges.chips(enabled: true), ["2", "floating"])
         XCTAssertEqual(second.name, "7")
     }
@@ -102,7 +93,7 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: true, accessory: false, floating: false, window: window)
-        XCTAssertEqual(tileEntry(source, miniature: miniature, icon: nil).badges.chips(enabled: true), ["9"])
+        XCTAssertEqual(tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name]), monitorHeight: 1080, focusedWorkspaceName: focus.workspace.name).badges.chips(enabled: true), ["9"])
     }
 
     func testWorkspaceBadgeUsesTheOpeningFocusSnapshot() async throws {
@@ -112,7 +103,7 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let geometry = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window)
-        let tile = tileEntry(source, miniature: geometry, icon: nil, focusedWorkspaceName: workspace.name)
+        let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name]), monitorHeight: 1080, focusedWorkspaceName: workspace.name)
         XCTAssertTrue(tile.badges.onFocusedWorkspace)
         XCTAssertTrue(tile.badges.chips(enabled: true).isEmpty)
         XCTAssertNotEqual(focus.workspace.name, workspace.name)
@@ -124,12 +115,13 @@ final class TileSnapshotTest: XCTestCase {
         let hidden = TestWindow.new(id: 2, parent: workspace.macOsNativeHiddenAppsWindowsContainer)
         let popup = TestWindow.new(id: 3, parent: macosPopupWindowsContainer)
         for window in [minimized, hidden, popup] {
+            window.miniatureFrame = CGRect(x: 0, y: 0, width: 300, height: 600)
             let snapshot = try await window.windowRecord()
             let record = try XCTUnwrap(snapshot)
             let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
             let geometry = MiniatureWindow(workspace: record.workspace, frame: CGRect(x: 0, y: 0, width: 300, height: 600), tray: window !== popup,
                                            frozen: window !== popup, accessory: false, floating: false, window: window)
-            let tile = tileEntry(source, miniature: geometry, icon: nil, monitorHeight: 1200)
+            let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([record.workspace]), monitorHeight: 1200, focusedWorkspaceName: focus.workspace.name)
             XCTAssertEqual(tile.aspect, 0.5)
             XCTAssertEqual(tile.monitorHeightFraction, 0.5)
             XCTAssertTrue(tile.picture === window.thumbnail)
@@ -167,6 +159,6 @@ final class TileSnapshotTest: XCTestCase {
             requested.append(window.windowId)
         }
         XCTAssertEqual(requested, [1])
-        XCTAssertEqual(lensOnscreenWindows(presentation: "list", tile: .card) { [42] }, [42])
+        XCTAssertEqual(lensOnscreenWindows(drawsPictures: session.drawsPictures) { [42] }, [42])
     }
 }

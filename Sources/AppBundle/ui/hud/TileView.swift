@@ -17,9 +17,7 @@ struct TileView: View {
     private var line: Bool { kind == .text || row }
     private var selectionRing: CGFloat { miniature ? metrics.miniatureRing : metrics.selectionRing }
     private var radius: CGFloat { miniature ? metrics.miniatureRadius : line ? metrics.textRadius : metrics.radius }
-    private var chips: [String] {
-        entry.badges.chips(enabled: settings.badges) + ((!miniature ? entry.appCount : nil).map { ["\($0) windows"] } ?? [])
-    }
+    private var extremeAspect: Bool { entry.aspect < 0.3 || entry.aspect > 3.6 }
 
     var body: some View {
         Color.clear
@@ -27,12 +25,12 @@ struct TileView: View {
             .overlay {
                 drawing
                     .frame(width: size.width, height: size.height)
-                    .background(selected && !miniature ? (line ? Color.accentColor.opacity(0.26) : Color.white.opacity(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
+                    .background(selected && !miniature && !extremeAspect ? (line ? Color.accentColor.opacity(0.26) : Color.white.opacity(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
                     .overlay {
-                        if selected && !line {
+                        if selected && !line && !extremeAspect {
                             RoundedRectangle(cornerRadius: radius).inset(by: -selectionRing / 2).stroke(Color.accentColor, lineWidth: selectionRing)
                         }
-                        if entry.accessory {
+                        if entry.accessory && !extremeAspect {
                             RoundedRectangle(cornerRadius: radius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
                         }
                     }
@@ -71,7 +69,7 @@ struct TileView: View {
     private var bar: some View {
         HStack(spacing: metrics.gap) {
             icon(size: metrics.icon)
-            Text(entry.title.isEmpty ? entry.appName : entry.title)
+            Text(entry.displayTitle)
                 .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
                 .foregroundStyle(.white.opacity(selected ? 1 : 0.62))
                 .lineLimit(1).truncationMode(.tail)
@@ -81,27 +79,18 @@ struct TileView: View {
                 Text(entry.appName).font(.system(size: metrics.appFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            chipLine
-            if marked && kind != .text && (kind == .card || row) { Image(systemName: "checkmark.circle.fill") }
-            if entry.accessory && kind == .text { chip("menu-bar app") }
-            if kind == .text {
-                if marked { Image(systemName: "checkmark.circle.fill") }
+            TileChips(entry: entry, metrics: metrics, enabled: settings.badges)
+            if marked { Image(systemName: "checkmark.circle.fill") }
+            if entry.accessory && line { chip("menu-bar app") }
+            if line {
                 if let hint { label(hint) }
             }
-        }
-    }
 
-    private var chipLine: some View {
-        HStack(spacing: metrics.chipGap) {
-            ForEach(Array(chips.enumerated()), id: \.offset) { _, text in chip(text) }
         }
     }
 
     private func chip(_ text: String) -> some View {
-        Text(text).font(.system(size: metrics.chipFont, weight: .semibold))
-            .padding(.vertical, metrics.chipVerticalPadding).padding(.horizontal, metrics.chipHorizontalPadding)
-            .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
-            .fixedSize()
+        TileChip(text: text, metrics: metrics)
     }
 
     private func label(_ text: String) -> some View {
@@ -131,6 +120,12 @@ struct TileView: View {
             .clipShape(RoundedRectangle(cornerRadius: miniature ? metrics.miniaturePictureRadius : metrics.pictureRadius))
             .shadow(color: .black.opacity(miniature ? 0 : 0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
             .overlay {
+                if selected && !line && extremeAspect {
+                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(Color.accentColor, lineWidth: selectionRing)
+                }
+                if entry.accessory && extremeAspect {
+                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
+                }
                 if miniature {
                     RoundedRectangle(cornerRadius: metrics.miniaturePictureRadius).stroke(.white.opacity(0.35), lineWidth: metrics.scale)
                 }
@@ -141,18 +136,13 @@ struct TileView: View {
                         icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon)
                             .shadow(color: .black.opacity(0.5), radius: metrics.iconShadowRadius, y: metrics.iconShadowY)
                     }
-                    if entry.accessory { label("menu-bar app") }
+                    if entry.accessory && !line { label("menu-bar app") }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
-            }
-            .overlay(alignment: .topLeading) {
-                if miniature || kind == .picture && !row {
-                    chipLine.padding(.horizontal, 4 * metrics.scale).padding(.top, metrics.pictureBadgeTop(hasHint: hint != nil))
-                }
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {
                     if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill") }
-                    if let hint { label(hint) }
+                    if let hint, !line { label(hint) }
                 }.padding(metrics.gap)
             }
         }
@@ -185,5 +175,32 @@ private struct TilePicture: View {
                 }
             }
         }
+    }
+}
+
+struct TileChips: View {
+    let entry: TileEntry
+    let metrics: TileMetrics
+    let enabled: Bool
+    var includeWorkspace = true
+
+    var body: some View {
+        HStack(spacing: metrics.chipGap) {
+            ForEach(Array(entry.chips(enabled: enabled, includeWorkspace: includeWorkspace).enumerated()), id: \.offset) { _, text in
+                TileChip(text: text, metrics: metrics)
+            }
+        }
+    }
+}
+
+private struct TileChip: View {
+    let text: String
+    let metrics: TileMetrics
+
+    var body: some View {
+        Text(text).font(.system(size: metrics.chipFont, weight: .semibold))
+            .padding(.vertical, metrics.chipVerticalPadding).padding(.horizontal, metrics.chipHorizontalPadding)
+            .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
+            .fixedSize()
     }
 }

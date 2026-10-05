@@ -3,14 +3,14 @@ import AppKit
 enum TileKind: String, CaseIterable, Sendable {
     case card, picture, text
 
-    static func resolve(configured: String?, override: String?, presentation: String) -> Self {
+    static func resolve(configured: String?, presentation: String) -> Self {
         if presentation == "miniatures" { return .picture }
-        return (override ?? configured).flatMap(Self.init(rawValue:)) ?? (presentation == "list" ? .text : .card)
+        return configured.flatMap(Self.init(rawValue:)) ?? (presentation == "list" ? .text : .card)
     }
 }
 
 struct TileBadges: Equatable {
-    var workspaceNumber: Int?
+    var workspaceLabel: String?
     var onFocusedWorkspace: Bool
     var floating = false
     var minimized = false
@@ -18,14 +18,14 @@ struct TileBadges: Equatable {
 
     func chips(enabled: Bool) -> [String] {
         guard enabled else { return [] }
-        return [!onFocusedWorkspace ? workspaceNumber.map(String.init) : nil,
+        return [!onFocusedWorkspace ? workspaceLabel : nil,
                 floating ? "floating" : nil, minimized ? "minimized" : nil, hidden ? "hidden" : nil].compactMap { $0 }
     }
 }
 
 struct TileMetrics {
     let scale: CGFloat
-    init(visibleHeight: CGFloat) { scale = max(1, visibleHeight) / 1080 }
+    init(visibleSize: CGSize) { scale = min(max(1, visibleSize.width) / 1920, max(1, visibleSize.height) / 1080) }
     var padding: CGFloat { 10 * scale }
     var gap: CGFloat { 8 * scale }
     var radius: CGFloat { 14 * scale }
@@ -70,17 +70,13 @@ struct TileMetrics {
     var miniatureShadowY: CGFloat { 10 * scale }
     var accessoryPictureFloor: CGFloat { 28 * scale }
 
-    func pictureBadgeTop(hasHint: Bool) -> CGFloat {
-        4 * scale + (hasHint ? gap + chipFont + 2 * labelVerticalPadding : 0)
-    }
-
     func pictureHeight(rowHeight: CGFloat, accessory: Bool, actualSize: Bool, monitorHeightFraction: CGFloat) -> CGFloat {
         accessory && actualSize ? min(rowHeight, max(accessoryPictureFloor, rowHeight * monitorHeightFraction)) : rowHeight
     }
 
     func width(kind: TileKind, aspect: CGFloat, rowHeight: CGFloat) -> CGFloat {
         if kind == .text { return textWidth }
-        let picture = max(70 * scale, max(0.01, aspect) * rowHeight)
+        let picture = max(70 * scale, min(3.6, max(0.3, aspect)) * rowHeight)
         let titleFloor = kind == .card ? min(200 * scale, max(1.2 * rowHeight, 110 * scale)) : 0
         return max(picture, titleFloor) + 2 * padding
     }
@@ -118,9 +114,18 @@ struct TileEntry {
     var appName: String
     var picture: WindowThumbnail?
     var aspect: CGFloat = 4 / 3
-    var badges = TileBadges(workspaceNumber: nil, onFocusedWorkspace: true)
+    var badges = TileBadges(workspaceLabel: nil, onFocusedWorkspace: true)
     var frozen = false
     var accessory = false
     var monitorHeightFraction: CGFloat = 1
     var appCount: Int?
+
+    var displayTitle: String { title.isEmpty ? appName : title }
+    var footerAppName: String? { displayTitle == appName ? nil : appName }
+
+    func chips(enabled: Bool, includeWorkspace: Bool = true) -> [String] {
+        var badges = badges
+        if !includeWorkspace { badges.onFocusedWorkspace = true }
+        return badges.chips(enabled: enabled) + (appCount.map { ["\($0) windows"] } ?? [])
+    }
 }

@@ -5,10 +5,11 @@ struct StripView: View {
     @ObservedObject var model: LensSession
 
     var body: some View {
-        let layout = model.stripLayout
-        let items = model.results
-        let widths = model.stripWidths
-        let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: model.stripRowHeight)
+        let snapshot = model.stripSnapshot
+        let layout = snapshot.layout
+        let items = snapshot.items
+        let widths = snapshot.widths
+        let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: snapshot.rowHeight)
         ZStack {
             if model.stripSummonAvailable, let landing = model.miniatureLanding,
                let current = model.miniatureWorkspaces.first(where: \.current) {
@@ -19,7 +20,6 @@ struct StripView: View {
             }
             VStack(spacing: 24 * model.tileMetrics.scale) {
                 HStack(spacing: model.tileMetrics.stripGap) {
-                    if items.isEmpty { Text("No windows").frame(width: 330 * model.tileMetrics.scale, height: model.tileMetrics.textHeight) }
                     ForEach(Array(layout.range), id: \.self) { index in
                         let item = items[index]
                         TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: model.tileMetrics,
@@ -44,9 +44,17 @@ struct StripView: View {
                 }
                 if items.indices.contains(model.selection) {
                     let selected = items[model.selection]
-                    (Text(selected.tile.title.isEmpty ? selected.tile.appName : selected.tile.title).fontWeight(.semibold).foregroundColor(.white)
-                     + Text(" · \(selected.appName) · \(model.selection + 1) of \(items.count)").foregroundColor(.white.opacity(0.62)))
-                        .font(.system(size: 15 * model.tileMetrics.scale)).lineLimit(1)
+                    HStack(spacing: model.tileMetrics.gap) {
+                        Text(selected.tile.displayTitle).fontWeight(.semibold).foregroundStyle(.white).lineLimit(1)
+                        if model.tileKind == .picture {
+                            TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
+                        }
+                        Text((selected.tile.footerAppName.map { " · \($0)" } ?? "") + " · \(model.selection + 1) of \(items.count)")
+                            .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                    }
+                    .font(.system(size: 15 * model.tileMetrics.scale))
+                } else {
+                    Text("No windows").font(.system(size: 15 * model.tileMetrics.scale))
                 }
                 if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
             }

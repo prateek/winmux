@@ -51,7 +51,7 @@ struct LensConfig: Equatable, Sendable {
 
     var json: JSONValue {
         .object([
-            "tile": .string(TileKind.resolve(configured: tile, override: nil, presentation: presentation).rawValue), "badges": .bool(badges),
+            "tile": .string(TileKind.resolve(configured: tile, presentation: presentation).rawValue), "badges": .bool(badges),
             "filter": filter.map(JSONValue.string) ?? .null,
             "presentation": .string(presentation), "entries": .string(entries), "sections": .string(sections),
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),

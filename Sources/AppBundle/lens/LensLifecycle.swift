@@ -204,7 +204,7 @@ final class LensLifecycle {
 
     private func startPresentationEffects(_ model: LensSession) {
         if model.settings.presentation != "strip" { updateMiniatureLanding() }
-        guard model.settings.presentation == "strip" || model.settings.presentation == "miniatures" || model.tileKind != .text, thumbnailRefresh == nil else { return }
+        guard model.drawsPictures, thumbnailRefresh == nil else { return }
         nextThumbnailToken += 1
         let token = nextThumbnailToken
         thumbnailToken = token
@@ -215,9 +215,7 @@ final class LensLifecycle {
             while !Task.isCancelled {
                 do {
                     guard let self, let model, ticket == self.generation, self.session === model, self.thumbnailToken == token else { return }
-                    if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
-                    else if model.settings.presentation == "list" { model.refreshListThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
-                    else { model.refreshVisibleThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
+                    model.refreshThumbnails(lens: token, request: self.dependencies.requestThumbnail)
                 }
                 do { try await clock.sleep(for: .milliseconds(500)) } catch { return }
             }

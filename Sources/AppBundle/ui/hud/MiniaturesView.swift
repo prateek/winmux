@@ -24,7 +24,6 @@ struct MiniaturesView: View {
                                  size: CGSize(width: max(1, frame.width), height: max(1, frame.height)), settings: model.settings,
                                  selected: selectedId == item.id, marked: model.marks.contains(item.id),
                                  hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                            .zIndex(selectedId == item.id ? 10 : 0)
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onContinuousHover { phase in
                                 if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
@@ -70,7 +69,10 @@ struct MiniaturesView: View {
         Text(workspace?.title ?? cell.workspace).font(.system(size: 12, weight: .semibold))
             .position(x: cell.frame.midX, y: cell.frame.minY - 12)
         if let selected = model.items.first(where: { $0.id == selectedId && $0.miniature?.workspace == cell.workspace }) {
-            Text(selected.title).font(.system(size: 12)).lineLimit(1)
+            HStack(spacing: model.tileMetrics.gap) {
+                Text(selected.tile.displayTitle).font(.system(size: 12)).lineLimit(1)
+                TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges, includeWorkspace: false)
+            }
                 .frame(width: cell.frame.width)
                 .position(x: cell.frame.midX, y: cell.tray.maxY + 12)
         }

@@ -144,44 +144,95 @@ extension LensSession {
         objectWillChange.send()
     }
 
-    var tileMetrics: TileMetrics { TileMetrics(visibleHeight: miniatureSize.height) }
-    var tileKind: TileKind { TileKind.resolve(configured: settings.tile, override: nil, presentation: settings.presentation) }
-    var stripRowHeight: CGFloat {
-        tileMetrics.stripRowHeight(aspects: results.map { $0.tile.aspect }, kind: tileKind, availableWidth: miniatureSize.width)
+    var tileMetrics: TileMetrics { TileMetrics(visibleSize: miniatureSize) }
+    var tileKind: TileKind { TileKind.resolve(configured: settings.tile, presentation: settings.presentation) }
+    var drawsPictures: Bool { Self.drawsPictures(settings: settings) }
+
+    static func drawsPictures(settings: LensConfig) -> Bool {
+        TileKind.resolve(configured: settings.tile, presentation: settings.presentation) != .text
     }
-    var stripWidths: [CGFloat] {
-        let metrics = tileMetrics
-        let height = stripRowHeight
-        return results.map { item in
-            let pictureHeight = metrics.pictureHeight(rowHeight: height, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
-            return min(max(1, miniatureSize.width * 0.9 - 88 * metrics.scale), metrics.width(kind: tileKind, aspect: item.tile.aspect, rowHeight: pictureHeight))
-        }
+
+    var stripSnapshot: StripSnapshot {
+        StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
     }
-    var stripLayout: StripLayout {
-        StripLayout(widths: stripWidths, selection: selection, width: miniatureSize.width * 0.9,
-                    gap: tileMetrics.stripGap, overhead: 88 * tileMetrics.scale)
-    }
+    var listLayout: ListLayout { ListLayout(count: results.count, kind: tileKind, visibleSize: miniatureSize) }
     var stripSummonAvailable: Bool {
         guard summonHeld, let item = results.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
     }
 
     func refreshStripThumbnails(lens: Int, request: (Window, Int) -> Void) {
-        let results = results
-        for index in stripLayout.range {
-            if let entry = results[index].miniature, !entry.frozen { request(entry.window, lens) }
+        let snapshot = stripSnapshot
+        for index in snapshot.layout.range {
+            if let entry = snapshot.items[index].miniature, !entry.frozen { request(entry.window, lens) }
         }
     }
-}
 
-func lensOnscreenWindows(presentation: String, tile: TileKind = .text, read: () -> Set<UInt32>) -> Set<UInt32> {
-    presentation == "miniatures" || presentation == "strip" || tile != .text ? read() : []
-}
-
-extension LensSession {
     func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
-        for item in results {
-            if let entry = item.miniature, !entry.frozen { request(entry.window, lens) }
+        let items = results
+        let layout = ListLayout(count: items.count, kind: tileKind, visibleSize: miniatureSize)
+        for index in layout.visibleRange(selection: selection, count: items.count) {
+            if let entry = items[index].miniature, !entry.frozen { request(entry.window, lens) }
         }
     }
+
+    func refreshThumbnails(lens: Int, request: (Window, Int) -> Void) {
+        guard drawsPictures else { return }
+        switch settings.presentation {
+            case "strip": refreshStripThumbnails(lens: lens, request: request)
+            case "list": refreshListThumbnails(lens: lens, request: request)
+            case "miniatures": refreshVisibleThumbnails(lens: lens, request: request)
+            default: break
+        }
+    }
+}
+
+struct StripSnapshot {
+    let items: [SwitcherPaletteItem]
+    let rowHeight: CGFloat
+    let widths: [CGFloat]
+    let layout: StripLayout
+
+    init(items: [SwitcherPaletteItem], selection: Int, size: CGSize, kind: TileKind, settings: LensConfig) {
+        self.items = items
+        let metrics = TileMetrics(visibleSize: size)
+        let rowHeight = metrics.stripRowHeight(aspects: items.map { $0.tile.aspect }, kind: kind, availableWidth: size.width)
+        self.rowHeight = rowHeight
+        widths = items.map { item in
+            let height = metrics.pictureHeight(rowHeight: rowHeight, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
+            return min(max(1, size.width * 0.9 - 88 * metrics.scale), metrics.width(kind: kind, aspect: item.tile.aspect, rowHeight: height))
+        }
+        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale)
+    }
+}
+
+struct ListLayout {
+    let width: CGFloat
+    let height: CGFloat
+    let headerHeight: CGFloat
+    let rowHeight: CGFloat
+    let gap: CGFloat
+    let capacity: Int
+    var rowsHeight: CGFloat { height - headerHeight }
+
+    init(count: Int, kind: TileKind, visibleSize: CGSize) {
+        let metrics = TileMetrics(visibleSize: visibleSize)
+        width = 760 * metrics.scale
+        headerHeight = 90 * metrics.scale
+        rowHeight = kind == .text ? metrics.textHeight : metrics.listPictureHeight
+        gap = 4 * metrics.scale
+        let maxRowsHeight = max(rowHeight, visibleSize.height * 0.82 - headerHeight)
+        height = min(CGFloat(max(1, count)) * (rowHeight + gap), maxRowsHeight) + headerHeight
+        capacity = max(1, Int(ceil((height - headerHeight) / (rowHeight + gap))))
+    }
+
+    func visibleRange(selection: Int, count: Int) -> Range<Int> {
+        let visible = min(capacity, count)
+        let start = min(max(0, selection - visible / 2), max(0, count - visible))
+        return start ..< start + visible
+    }
+}
+
+func lensOnscreenWindows(drawsPictures: Bool, read: () -> Set<UInt32>) -> Set<UInt32> {
+    drawsPictures ? read() : []
 }

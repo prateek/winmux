@@ -29,7 +29,7 @@ final class StripLayoutTest: XCTestCase {
         }
     }
     func testRowHeightShrinksForTheWidestNineEntryWindowAndIgnoresSelection() {
-        let metrics = TileMetrics(visibleHeight: 1080)
+        let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
         let aspects: [CGFloat] = [0.3, 2, 1, 1.6, 0.4, 2.5, 1, 1.2, 2, 0.5, 1]
         let height = metrics.stripRowHeight(aspects: aspects, kind: .card, availableWidth: 1800)
         XCTAssertLessThan(height, 190)
@@ -38,13 +38,14 @@ final class StripLayoutTest: XCTestCase {
             XCTAssertLessThanOrEqual(widths[start ..< start + 9].reduce(0, +) + 8 * metrics.stripGap, 1800 * 0.9 - 88)
         }
     }
+    @MainActor
     func testStripAndMiniaturesUseOnscreenSnapshotForFullscreenThumbnails() {
         for presentation in ["strip", "miniatures"] {
-            let onscreen = lensOnscreenWindows(presentation: presentation) { [42] }
+            let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: { var settings = LensConfig(); settings.presentation = presentation; return settings }())) { [42] }
             XCTAssertFalse(miniatureIsFrozen(tray: false, fullscreen: !onscreen.contains(42), workspaceVisible: onscreen.contains(42), parked: false))
             XCTAssertTrue(miniatureIsFrozen(tray: false, fullscreen: !onscreen.contains(43), workspaceVisible: onscreen.contains(43), parked: false))
         }
-        XCTAssertTrue(lensOnscreenWindows(presentation: "list") { XCTFail("List does not capture thumbnails"); return [42] }.isEmpty)
+        XCTAssertTrue(lensOnscreenWindows(drawsPictures: false) { XCTFail("List does not capture thumbnails"); return [42] }.isEmpty)
     }
     func testInvokingModifiersDelayAndReleaseBinding() async {
         let clock = TestClock()
