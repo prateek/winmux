@@ -5,17 +5,38 @@ import Clocks
 
 final class StripLayoutTest: XCTestCase {
     func testFitsWidthCapsAtNineAndCountsHiddenEntries() {
-        let wide = StripLayout(count: 20, selection: 10, width: 3000)
+        let wide = StripLayout(widths: Array(repeating: 148, count: 20), selection: 10, width: 3000)
         XCTAssertEqual(wide.range.count, 9)
         XCTAssertEqual(wide.before, 6)
         XCTAssertEqual(wide.after, 5)
-        let narrow = StripLayout(count: 20, selection: 19, width: 600)
+        let narrow = StripLayout(widths: Array(repeating: 148, count: 20), selection: 19, width: 600)
         XCTAssertEqual(narrow.range, 17..<20)
         XCTAssertEqual(narrow.before, 17)
         XCTAssertEqual(narrow.after, 0)
         XCTAssertLessThanOrEqual(narrow.rowWidth, 600)
-        XCTAssertEqual(StripLayout(count: 0, selection: 0, width: 600).range, 0..<0)
-        XCTAssertEqual(StripLayout(count: 1, selection: 0, width: 600).range, 0..<1)
+        XCTAssertEqual(StripLayout(widths: [], selection: 0, width: 600).range, 0..<0)
+        XCTAssertEqual(StripLayout(widths: [148], selection: 0, width: 600).range, 0..<1)
+    }
+    func testMixedWidthsKeepSelectionVisibleAndFitWithoutChangingWidths() {
+        let widths: [CGFloat] = [90, 340, 180, 220, 100, 300, 90, 400, 110, 250, 150]
+        for selection in widths.indices {
+            let layout = StripLayout(widths: widths, selection: selection, width: 700)
+            XCTAssertTrue(layout.range.contains(selection))
+            XCTAssertLessThanOrEqual(layout.range.count, 9)
+            XCTAssertLessThanOrEqual(layout.rowWidth, 700)
+            XCTAssertLessThanOrEqual(widths[layout.range].reduce(0, +) + CGFloat(max(0, layout.range.count - 1)) * StripLayout.gap + 88, 700)
+            XCTAssertEqual(layout.before + layout.range.count + layout.after, widths.count)
+        }
+    }
+    func testRowHeightShrinksForTheWidestNineEntryWindowAndIgnoresSelection() {
+        let metrics = TileMetrics(visibleHeight: 1080)
+        let aspects: [CGFloat] = [0.3, 2, 1, 1.6, 0.4, 2.5, 1, 1.2, 2, 0.5, 1]
+        let height = metrics.stripRowHeight(aspects: aspects, kind: .card, availableWidth: 1800)
+        XCTAssertLessThan(height, 190)
+        let widths = aspects.map { metrics.width(kind: .card, aspect: $0, rowHeight: height) }
+        for start in 0 ... aspects.count - 9 {
+            XCTAssertLessThanOrEqual(widths[start ..< start + 9].reduce(0, +) + 8 * StripLayout.gap, 1800 * 0.9 - 88)
+        }
     }
     func testStripAndMiniaturesUseOnscreenSnapshotForFullscreenThumbnails() {
         for presentation in ["strip", "miniatures"] {
