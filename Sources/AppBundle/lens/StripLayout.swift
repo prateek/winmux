@@ -171,6 +171,7 @@ extension LensSession {
         switch settings.presentation {
             case "strip": refreshStripThumbnails(lens: lens, request: request)
             case "list": refreshListThumbnails(lens: lens, request: request)
+            case "grid": refreshGridThumbnails(lens: lens, request: request)
             default: refreshVisibleThumbnails(lens: lens, request: request)
         }
     }

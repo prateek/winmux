@@ -8,7 +8,7 @@ final class LensCommandTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testLensCommandsAndScriptScopeParse() {
-        for command in ["lens search", "lens search --search foo", "lens --presentation list",
+        for command in ["lens search", "lens recent --presentation grid", "lens --filter true --presentation grid", "lens search --search foo", "lens --presentation list",
                         "lens --filter floating --sort mru,title", "lens --filter -", "list-windows --filter -",
                         "list-lenses --json", "summon --window-id 42",
                         "list-windows --lens search --json", "list-windows --filter floating",
@@ -16,7 +16,7 @@ final class LensCommandTest: XCTestCase {
             XCTAssertNil(parseCommand(command).errorOrNil, command)
         }
         for command in ["lens", "lens search --filter floating", "lens search --sort mru", "lens --presentation grid",
-                        "lens --filter true --sort unknown", "list-windows --lens search --filter true"] {
+                        "lens recent --presentation mosaic", "lens --filter true --sort unknown", "list-windows --lens search --filter true"] {
             XCTAssertNotNil(parseCommand(command).errorOrNil, command)
         }
     }

@@ -39,6 +39,9 @@
       "entries": "window",
       "filter": "lenses.app-windows.filter",
       "frozen-thumbnail": "dimmed",
+      "grid": {
+        "tile-size": "real"
+      },
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -81,6 +84,9 @@
       "entries": "window",
       "filter": "lenses.floating.filter",
       "frozen-thumbnail": "dimmed",
+      "grid": {
+        "tile-size": "real"
+      },
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -122,6 +128,9 @@
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",
+      "grid": {
+        "tile-size": "real"
+      },
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -163,6 +172,9 @@
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",
+      "grid": {
+        "tile-size": "real"
+      },
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -204,6 +216,9 @@
       "enabled": true,
       "entries": "window",
       "frozen-thumbnail": "dimmed",
+      "grid": {
+        "tile-size": "real"
+      },
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",

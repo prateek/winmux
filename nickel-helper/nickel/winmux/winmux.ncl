@@ -88,9 +88,13 @@ let MiniatureRules = std.contract.from_validator (fun lens =>
     else 'Ok
   else 'Ok
 ) in
+let GridFields = {
+  tile-size | Choice [| 'real, 'same-height, 'equal |] | optional,
+} in
+let Grid = GridFields & { tile-size | default = 'real } in
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
-  presentation | std.contract.Sequence [Choice [| 'list, 'strip, 'miniatures, 'grid |], std.contract.from_predicate (fun p => p != 'grid && p != "grid")] | optional,
+  presentation | Choice [| 'list, 'strip, 'miniatures, 'grid |] | optional,
   tile | Choice [| 'card, 'picture, 'text |] | optional,
   badges | Bool | optional,
   entries | Choice [| 'window, 'app |] | optional,
@@ -103,6 +107,7 @@ let LensFields = {
   summon-hints | Array (Choice [| 'label, 'landing-spot, 'target-workspace |]) | optional,
   enabled | Bool | optional,
   miniatures | MiniatureFields | optional,
+  grid | GridFields | optional,
 } in
 let LensDefaults = LensFields & {
   presentation | priority -2 = 'list,
@@ -131,6 +136,7 @@ let LensDefaults = LensFields & {
   summon-hints | default = ['label, 'landing-spot],
   enabled | default = true,
   miniatures | Miniatures | default = {},
+  grid | Grid | default = {},
   when | { _ | LensFields } | optional,
 } in
 let Lens = std.contract.Sequence [

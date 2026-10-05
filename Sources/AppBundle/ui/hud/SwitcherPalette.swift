@@ -28,6 +28,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let lifecycle: LensLifecycle
     private let startupPreparation = LensStartupPreparation()
     private var preparedSession: LensSession?
+    private let gridLandingPanel = NSPanelHud()
+    private var gridMonitorRect = CGRect.zero
     private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
@@ -38,6 +40,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
+        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -53,6 +56,13 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.onFirstFrame = { [weak self] refresh in
             self?.lifecycle.trace?.finish(signal: String(format: "third display-link tick at %.1f ms refresh", refresh * 1000))
         }
+        gridLandingPanel.backgroundColor = .clear
+        gridLandingPanel.isOpaque = false
+        gridLandingPanel.hasShadow = false
+        gridLandingPanel.ignoresMouseEvents = true
+        gridLandingPanel.applyWinMuxLayer(.overlay)
+        gridLandingPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hostingView.wantsLayer = true
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -78,7 +88,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
-        if settings.presentation == "miniatures" {
+        // The grid's 'real size needs a floating window's frame as it is now, as miniatures does.
+        if settings.presentation == "miniatures" || settings.presentation == "grid" {
             await withTaskGroup(of: Void.self) { group in
                 for entry in entries where entry.window.isFloating && (entry.window as? MacWindow)?.isHiddenInCorner != true {
                     group.addTask { @MainActor @Sendable in
@@ -128,6 +139,20 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.trace?.advance("panel ordered front")
         lifecycle.trace?.startInterval("first frame presented")
         hostingView.observeFirstFrame()
+        if model.settings.presentation == "grid" {
+            gridLandingPanel.order(.below, relativeTo: windowNumber)
+            // A view's layer is anchored at its corner, so the scale is about the centre by hand.
+            let centre = CGPoint(x: hostingView.bounds.midX, y: hostingView.bounds.midY)
+            let shrunk = CGAffineTransform(translationX: centre.x, y: centre.y).scaledBy(x: 0.97, y: 0.97).translatedBy(x: -centre.x, y: -centre.y)
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.0; fade.toValue = 1.0
+            let scale = CABasicAnimation(keyPath: "transform")
+            scale.fromValue = CATransform3DMakeAffineTransform(shrunk); scale.toValue = CATransform3DIdentity
+            for (key, animation) in [("opacity", fade), ("transform", scale)] {
+                animation.duration = 0.1
+                hostingView.layer?.add(animation, forKey: key)
+            }
+        }
     }
 
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
@@ -189,6 +214,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
         scrollPaging = MiniatureScrollPaging()
+        gridLandingPanel.orderOut(nil)
         let monitor = focus.workspace.workspaceMonitor
         let visible = monitor.visibleRect
         let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
@@ -202,6 +228,17 @@ final class SwitcherPalettePanel: NSPanelHud {
             model.revealMiniatureSelection()
             frame = NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height)
             root = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
+        } else if model.settings.presentation == "grid" {
+            gridMonitorRect = rect.cgRect
+            let layout = model.gridLayout
+            let size = layout.panelSize
+            lensLog.debug("Grid layout row height \(layout.rowHeight, privacy: .public), \(layout.tiles.count) Tiles, panel \(size.width, privacy: .public) × \(size.height, privacy: .public), widest picture \(layout.tiles.map { $0.pictureSize.width }.max() ?? 0, privacy: .public)")
+            frame = NSRect(x: rect.minX + (rect.width - size.width) / 2,
+                           y: appKitScreenMaxY() - rect.minY - (rect.height + size.height) / 2,
+                           width: size.width, height: size.height)
+            root = AnyView(GridView(model: model))
+            gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
+            gridLandingPanel.contentView = NSHostingView(rootView: GridLandingView(model: model))
         } else {
             let layout = model.listLayout
             frame = NSRect(x: rect.minX + (rect.width - layout.width) / 2,
@@ -240,7 +277,21 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.dismiss()
     }
 
+    private func updateGridFrame(_ model: LensSession) {
+        // Only a drawn grid follows its results; an opening one is framed by `prepare`.
+        guard model.settings.presentation == "grid", isVisible else { return }
+        let size = model.gridLayout.panelSize
+        let rect = gridMonitorRect
+        let frame = NSRect(x: rect.minX + (rect.width - size.width) / 2,
+                           y: appKitScreenMaxY() - rect.minY - (rect.height + size.height) / 2,
+                           width: size.width, height: size.height)
+        if frame != self.frame { setFrame(frame, display: true) }
+    }
+
     private func clearPresentation() {
+        gridLandingPanel.orderOut(nil)
+        gridLandingPanel.contentView = nil
+        hostingView.layer?.removeAllAnimations()
         preparedSession = nil
         hostingView.disarm()
         orderOut(nil)
@@ -506,7 +557,7 @@ func tileWorkspaceLabel(_ title: String) -> String {
 func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, workspaceLabels: [String: String], monitorHeight: CGFloat, focusedWorkspaceName: String) -> TileEntry {
     let frame = thumbnailCaptureFrame(entry.window)
     return TileEntry(icon: icon, title: entry.record.title, appName: entry.record.app.name, picture: entry.window.thumbnail,
-                     aspect: frame.width / max(1, frame.height),
+                     aspect: frame.width / max(1, frame.height), realSize: frame.size,
                      badges: TileBadges(workspaceLabel: workspaceLabels[entry.record.workspace], onFocusedWorkspace: entry.record.workspace == focusedWorkspaceName,
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),

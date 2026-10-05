@@ -19,6 +19,7 @@ final class LensSession: ObservableObject {
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    var gridLayoutCache: GridLayoutCache?
     weak var owner: LensLifecycle?
 
     enum Event {

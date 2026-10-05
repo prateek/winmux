@@ -88,6 +88,8 @@ extension LensSession {
             case .arrow(let code):
                 if settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveMiniatureSelection(direction)
+                } else if settings.presentation == "grid", let direction = [UInt16(123): GridLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
+                    moveGridSelection(direction)
                 } else if settings.presentation == "strip" { cycleStripSelection(code == 123 || code == 126 ? -1 : 1) }
                 // With no Hold, left and right move the caret in a list's Search field.
                 else if hold == nil, code == 123 || code == 124 { return false }
