@@ -66,31 +66,15 @@ final class LensPreparationTest: XCTestCase {
     func testStartupPreparesEachPresentationOnlyOnce() {
         let preparation = LensStartupPreparation()
         var rendered: [String] = []
-        preparation.run { rendered.append($0) }
-        preparation.run { rendered.append($0) }
+        preparation.run(idle: true) { rendered.append($0) }
+        preparation.run(idle: true) { rendered.append($0) }
         XCTAssertEqual(rendered, ["strip", "list", "miniatures"])
     }
 
-    func testFullCanvasRasterizationIsOnlyForStartup() {
-        var rasterizations = 0
-        var displays = 0
-        LensPresentationPreparation.draw(startup: true, rasterize: { rasterizations += 1 }, display: { displays += 1 })
-        LensPresentationPreparation.draw(startup: false, rasterize: { rasterizations += 1 }, display: { displays += 1 })
-        XCTAssertEqual(rasterizations, 1)
-        XCTAssertEqual(displays, 1)
-    }
-
-    func testBackingDrawingCompletesAfterLayoutBeforePreparationReturns() {
-        var steps: [String] = []
-        LensPresentationPreparation.run(content: { steps.append("content") }, frame: { steps.append("frame") }, layout: { steps.append("layout") }, draw: { steps.append("draw") })
-        XCTAssertEqual(steps, ["content", "frame", "layout", "draw"])
-    }
-
-    func testPreparationPutsCurrentContentInTheFrameBeforeLayout() {
-        var content = "old"
-        var framedContent = ""
-        var laidOutContent = ""
-        LensPresentationPreparation.run(content: { content = "current" }, frame: { framedContent = content }, layout: { laidOutContent = framedContent })
-        XCTAssertEqual(laidOutContent, "current")
+    func testStartupDrawsNothingWhileALensOwnsThePanel() {
+        let preparation = LensStartupPreparation()
+        var rendered: [String] = []
+        XCTAssertFalse(preparation.run(idle: false) { rendered.append($0) })
+        XCTAssertEqual(rendered, [])
     }
 }

@@ -50,16 +50,21 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.onFirstLayout = { [weak self] in
             self?.lifecycle.trace?.advance("first layout")
         }
-        hostingView.onFirstFrame = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link after two compositor cycles") }
+        hostingView.onFirstFrame = { [weak self] refresh in
+            self?.lifecycle.trace?.finish(signal: String(format: "third display-link tick at %.1f ms refresh", refresh * 1000))
+        }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
     }
 
     func prepareAtStartup() async {
+        let started = LensTimebase.now()
         let entries = (try? await lensWindows(popups: [])) ?? []
+        // A Lens that opened during the read owns the panel; drawing here would replace its view.
+        let idle = if case .closed = lifecycle.state { true } else { false }
         let workspaces = miniatureWorkspaceSnapshot(entries)
-        startupPreparation.run { presentation in
+        let drew = startupPreparation.run(idle: idle) { presentation in
             var settings = LensConfig()
             settings.presentation = presentation
             let items = presentationItems(entries, settings: settings, workspaces: workspaces)
@@ -67,7 +72,9 @@ final class SwitcherPalettePanel: NSPanelHud {
                                                      existingItems: items, workspaces: workspaces)
             prepare(model, startup: true)
         }
+        guard drew else { return }
         clearPresentation()
+        lensLog.notice("Lens startup preparation took \(Int((LensTimebase.now() - started) * 1000)) ms")
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
@@ -173,26 +180,23 @@ final class SwitcherPalettePanel: NSPanelHud {
                            width: layout.width, height: layout.panelHeight)
             root = AnyView(SwitcherPaletteView(model: model))
         }
+        // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
-        LensPresentationPreparation.run(content: {
-            hostingView.rootView = root
-        }, frame: {
-            setFrame(frame, display: false)
-            hostingView.arm()
-            lifecycle.trace?.advance("view built")
-        }, layout: {
-            lifecycle.trace?.startInterval("first layout")
-            hostingView.needsLayout = true
-            hostingView.layoutSubtreeIfNeeded()
-        }, draw: {
-            lifecycle.trace?.startInterval("first-frame thumbnails ready")
-            LensPresentationPreparation.draw(startup: startup, rasterize: {
-                if let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
-                    hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
-                }
-            }, display: { hostingView.displayIfNeeded() })
-            lifecycle.trace?.advance("first-frame thumbnails ready")
-        })
+        hostingView.rootView = root
+        setFrame(frame, display: false)
+        hostingView.arm()
+        lifecycle.trace?.advance("view built")
+        lifecycle.trace?.startInterval("first layout")
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        lifecycle.trace?.startInterval("first-frame thumbnails ready")
+        if startup, let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
+            // Rasterizing the whole canvas is what pays SwiftUI's first drawing; an opening only displays.
+            hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+        } else {
+            hostingView.displayIfNeeded()
+        }
+        lifecycle.trace?.advance("first-frame thumbnails ready")
         preparedSession = model
     }
 
@@ -228,9 +232,9 @@ final class SwitcherPalettePanel: NSPanelHud {
             return
         }
         let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
-        let event = NSApp.currentEvent
+        // An action can run from a timer or a command task, where the current event is unrelated.
         let now = LensTimebase.now()
-        let origin = event.map { LensTraceOrigin(event: $0, received: now) } ?? LensTraceOrigin(start: now, received: now, source: "internal")
+        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
         if !keepStrip { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
@@ -478,7 +482,7 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
 @MainActor
 private final class LensHostingView: NSHostingView<AnyView> {
     var onFirstLayout: (() -> Void)?
-    var onFirstFrame: (() -> Void)?
+    var onFirstFrame: ((_ refreshSeconds: Double) -> Void)?
     private var firstLayout = false
     private var displayTicks = 0
     private var firstFrameLink: CADisplayLink?
@@ -503,8 +507,9 @@ private final class LensHostingView: NSHostingView<AnyView> {
         guard link === firstFrameLink else { return }
         displayTicks += 1
         guard displayTicks == 3 else { return }
+        let refresh = link.duration
         link.invalidate()
         firstFrameLink = nil
-        onFirstFrame?()
+        onFirstFrame?(refresh)
     }
 }

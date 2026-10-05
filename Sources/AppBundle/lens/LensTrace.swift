@@ -8,10 +8,11 @@ struct LensTraceOrigin: Sendable {
     let received: Double
     let source: String
     init(start: Double, received: Double, source: String) {
-        self.start = start; self.received = received; self.source = source
+        // An event stamped after its own receipt is on another clock; the trace then starts at receipt.
+        self.start = min(start, received); self.received = received; self.source = source
     }
     init(event: NSEvent, received: Double) {
-        self.init(start: LensTimebase.eventSeconds(event.timestamp), received: received, source: "NSEvent")
+        self.init(start: event.timestamp, received: received, source: "NSEvent")
     }
 }
 @TaskLocal var lensTraceOrigin: LensTraceOrigin?
@@ -52,6 +53,8 @@ final class LensTraceStore {
         if traces.count > capacity { traces.removeFirst(traces.count - capacity) }
         return trace
     }
+    /// Forgets a trace that turned out not to be an opening, such as a toggle that closed the Lens.
+    func discard(_ trace: LensOpeningTrace) { traces.removeAll { $0 === trace } }
     func snapshots(last: Int) -> [LensTraceSnapshot] { traces.suffix(max(0, last)).map { $0.snapshot } }
     func json(last: Int) -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

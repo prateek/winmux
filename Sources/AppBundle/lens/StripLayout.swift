@@ -51,10 +51,6 @@ struct StripGesture {
         return ({ started.duration(to: clock.now) }, { try await clock.sleep(until: started.advanced(by: .milliseconds(100)), tolerance: nil) })
     }
 
-    var elapsedSeconds: Double {
-        let parts = elapsed().components
-        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
-    }
     // Test observation of the gesture deadline.
     var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }

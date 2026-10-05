@@ -107,8 +107,6 @@ final class LensTraceTest: XCTestCase {
     func testTimebaseConversionsAndRequestRoundTrip() throws {
         let timebase = LensTimebase(numerator: 125, denominator: 3)
         XCTAssertEqual(timebase.seconds(ticks: 24_000_000), 1, accuracy: 0.00001)
-        XCTAssertEqual(LensTimebase.eventSeconds(42.125), 42.125)
-        XCTAssertEqual(LensTimebase.cgSeconds(nanoseconds: 42_125_000_000), 42.125)
         let request = ClientRequest(args: ["lens", "recent"], stdin: "", windowId: nil, workspace: nil, sentAt: 42.125)
         XCTAssertEqual(try JSONDecoder().decode(ClientRequest.self, from: JSONEncoder().encode(request)).sentAt, 42.125)
     }
@@ -147,6 +145,24 @@ final class LensTraceTest: XCTestCase {
         XCTAssertEqual(store.snapshots(last: 1)[0].signal, "cancelled before first frame")
         XCTAssertEqual(store.snapshots(last: 1)[0].totalMs, 3, accuracy: 0.00001)
         XCTAssertEqual(store.snapshots(last: 1)[0].stages.last?.name, "opening cancelled")
+    }
+
+    func testAnEventStampedAfterItsReceiptStartsTheTraceAtReceipt() {
+        let origin = LensTraceOrigin(start: 99, received: 42.130, source: "NSEvent")
+        let store = LensTraceStore(stamp: { 42.140 })
+        store.begin(presentation: "list", origin: origin).finish(signal: "test")
+        XCTAssertEqual(store.snapshots(last: 1)[0].totalMs, 10, accuracy: 0.00001)
+        XCTAssertEqual(store.snapshots(last: 1)[0].stages[0].durationMs, 0, accuracy: 0.00001)
+    }
+
+    func testAToggleThatClosesALensLeavesNoOpeningBehind() {
+        let store = LensTraceStore(stamp: { 0 })
+        let opened = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "CLI"))
+        opened.finish(signal: "test")
+        let closing = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "CLI"))
+        closing.cancel()
+        store.discard(closing)
+        XCTAssertEqual(store.snapshots(last: 5).map(\.signal), ["test"])
     }
 
     func testCommandArguments() {

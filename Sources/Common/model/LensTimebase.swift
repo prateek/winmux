@@ -1,7 +1,8 @@
 import Darwin
 
 /// Lens stamps use Mach absolute seconds, excluding sleep. Processes on the
-/// same machine share this timebase.
+/// same machine share this timebase, and `NSEvent.timestamp` and a Carbon
+/// event's time are already on it.
 public struct LensTimebase: Sendable {
     public let numerator: UInt32
     public let denominator: UInt32
@@ -18,6 +19,4 @@ public struct LensTimebase: Sendable {
         return Self(numerator: info.numer, denominator: info.denom)
     }()
     public static func now() -> Double { system.seconds(ticks: mach_absolute_time()) }
-    public static func eventSeconds(_ seconds: Double) -> Double { seconds }
-    public static func cgSeconds(nanoseconds: UInt64) -> Double { Double(nanoseconds) / 1e9 }
 }

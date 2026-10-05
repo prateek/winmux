@@ -1,22 +1,9 @@
 import AppKit
 
 @MainActor
-enum LensPresentationPreparation {
-    static func draw(startup: Bool, rasterize: () -> Void, display: () -> Void) {
-        if startup { rasterize() } else { display() }
-    }
-    static func run(content: () -> Void, frame: () -> Void, layout: () -> Void, draw: () -> Void = {}) {
-        content()
-        frame()
-        layout()
-        draw()
-    }
-}
-
-@MainActor
 final class LensStartupPreparation {
     private var prepared = false
-    static func model(presentation: String, size: CGSize, icons: [NSImage] = [], existingItems: [SwitcherPaletteItem]? = nil, workspaces: [MiniatureWorkspace]? = nil) -> LensSession {
+    static func model(presentation: String, size: CGSize, existingItems: [SwitcherPaletteItem]? = nil, workspaces: [MiniatureWorkspace]? = nil) -> LensSession {
         var settings = LensConfig()
         settings.presentation = presentation
         if let existingItems, !existingItems.isEmpty {
@@ -35,14 +22,13 @@ final class LensStartupPreparation {
         let fallback = thumbnail.image.map { NSImage(cgImage: $0, size: NSSize(width: 128, height: 128)) }
         let emptyThumbnail = WindowThumbnail()
         let items = (1...4).map { index in
-            let icon = icons.isEmpty ? fallback : icons[(index - 1) % icons.count]
             let picture = index == 1 ? nil : index == 2 ? emptyThumbnail : thumbnail
-            var tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: picture)
+            var tile = TileEntry(icon: fallback, title: "Window", appName: "Application", picture: picture)
             if index.isMultiple(of: 2) {
                 tile.badges = TileBadges(workspaceLabel: "2", onFocusedWorkspace: false)
             }
             return SwitcherPaletteItem(id: UInt32(index), title: tile.title, appName: tile.appName,
-                icon: icon, workspaceName: "1", isFocused: index == 1, tile: tile)
+                icon: fallback, workspaceName: "1", isFocused: index == 1, tile: tile)
         }
         let model = LensSession(name: "<startup>", settings: settings, items: items, search: "")
         model.miniatureSize = size
@@ -50,9 +36,13 @@ final class LensStartupPreparation {
         return model
     }
 
-    func run(_ render: (String) -> Void) {
-        guard !prepared else { return }
+    /// Draws each Presentation once. `idle` is false while a Lens is open or opening: it owns the
+    /// panel, so nothing is drawn. Returns whether anything was.
+    @discardableResult
+    func run(idle: Bool, _ render: (String) -> Void) -> Bool {
+        guard idle, !prepared else { return false }
         prepared = true
         for presentation in ["strip", "list", "miniatures"] { render(presentation) }
+        return true
     }
 }

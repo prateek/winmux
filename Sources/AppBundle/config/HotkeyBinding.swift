@@ -75,7 +75,7 @@ extension HotKey {
     cancelPendingTapTriggers()
     for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
-            let origin = LensTraceOrigin(start: LensTimebase.eventSeconds(eventTime), received: LensTimebase.now(), source: "Carbon")
+            let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
                 if hotkeysSuspended { return }
                 noteTapBindingKeyDown()

@@ -33,6 +33,19 @@ class LensFilmTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.compare([0, .1], 10, [{'bootSeconds': 10}], [], [1])
 
+    def testACancelledOrPendingOpeningIsNotAFirstFrame(self):
+        key = {'bootSeconds': 10}
+        module.require_presented([key], [{'id': 1, 'signal': 'third display-link tick at 16.7 ms refresh'}])
+        for signal in (None, 'cancelled before first frame'):
+            with self.assertRaises(ValueError):
+                module.require_presented([key], [{'id': 1, 'signal': signal}])
+
+    def testATakeWithNoOpeningsCannotPass(self):
+        with self.assertRaises(ValueError):
+            module.require_presented([], [])
+        with self.assertRaises(ValueError):
+            module.require_presented([{'bootSeconds': 10}], [])
+
     def testCorruptedEncoderTimestampsCannotPassTheClockCheck(self):
         metadata = {'firstPTS': 100, 'framePTS': [100, 100.01, 100.025]}
         module.validate_sample_times([0, .01, .025], metadata)

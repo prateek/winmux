@@ -47,9 +47,9 @@ import Foundation
             }
             _ = try await config.afterStartupCommand.runCmdSeq(.defaultEnv, .emptyStdin)
         }
-        await SwitcherPalettePanel.shared.prepareAtStartup()
         isWinMuxRuntimeReady = true
         await reloadConfigIfSavedDuringStartup()
+        await SwitcherPalettePanel.shared.prepareAtStartup()
         if bootstrappedConfigUrl != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 ShortcutSettingsModel.shared.requestWindowOpen()

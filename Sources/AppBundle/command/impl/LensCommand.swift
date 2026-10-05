@@ -42,7 +42,10 @@ struct LensCommand: Command {
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
         trace.advance("binding resolved")
         trace.startInterval("windows collected")
-        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil, trace: trace) else { return true }
+        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil, trace: trace) else {
+            LensTraceStore.shared.discard(trace)
+            return true
+        }
         defer { panel.cancelLensOpening(ticket: ticket) }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))

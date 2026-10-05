@@ -12,6 +12,18 @@ import pathlib
 import subprocess
 
 
+def require_presented(keys, traces):
+    """Every key press needs a trace that reached its first frame."""
+    if not keys:
+        raise ValueError('the event log has no openings to compare')
+    if len(traces) != len(keys):
+        raise ValueError('key and trace counts differ')
+    for trace in traces:
+        signal = trace.get('signal')
+        if signal is None or 'cancelled' in signal:
+            raise ValueError(f"opening {trace['id']} did not present a frame: {signal}")
+
+
 def compare(frames, first_pts, keys, traces, visible):
     if not len(keys) == len(traces) == len(visible):
         raise ValueError("key, trace and visible-frame counts differ")
@@ -74,7 +86,9 @@ def main():
     validate_sample_times([float(frame["best_effort_timestamp_time"]) for frame in raw_frames], metadata)
     events = json.loads(movie.with_suffix('.events.json').read_text())
     keys = [event for event in events if event['keys'] == '⌘ Tab']
-    traces = [trace for trace in json.loads(args.traces.read_text()) if trace['presentation'] == 'strip'][-len(keys):]
+    traces = [trace for trace in json.loads(args.traces.read_text()) if trace['presentation'] == 'strip']
+    traces = traces[len(traces)-len(keys):]
+    require_presented(keys, traces)
     probe = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames', '-show_streams', '-of', 'json', str(movie)]))
     frames = [float(frame['best_effort_timestamp_time']) for frame in probe['frames']]
     stream = probe['streams'][0]
@@ -115,7 +129,6 @@ def main():
     rows = compare(frames, offset, keys, traces, visible)
     print_comparison(rows)
     movie.with_suffix('.comparison.json').write_text(json.dumps(rows, indent=2)+'\n')
-    if any(trace.get('signal') is None for trace in traces): raise SystemExit('FAIL: incomplete first-frame trace')
     if not comparison_passes(rows): raise SystemExit('FAIL: trace differs by more than two frames')
 
 
