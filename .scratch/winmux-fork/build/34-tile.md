@@ -42,13 +42,48 @@ This issue makes one **Tile**: the drawing of one Lens entry. Every Presentation
 
 ## Done when
 
-- [ ] The strip, the list and `'miniatures` draw every entry through one Tile view; `SwitcherPaletteRow` and the strip's own cell are gone.
-- [ ] In the strip on the staged desk, no Tile has dead space beside its picture: a narrow window's Tile is narrow.
-- [ ] `tile = 'text` on a strip and `tile = 'card` on a list both load and draw as the prototype shows.
-- [ ] `tile` on a `'miniatures` Lens fails at load with a message naming the field.
-- [ ] A window on another workspace shows its workspace number; a floating window shows `floating`; `badges = false` removes both.
-- [ ] Marks, the Summon label, the Frozen thumbnail looks and the Accessory treatment draw in all three Presentations as they did before.
+- [x] The strip, the list and `'miniatures` draw every entry through one Tile view; `SwitcherPaletteRow` and the strip's own cell are gone.
+- [x] In the strip on the staged desk, no Tile has dead space beside its picture: a narrow window's Tile is narrow.
+- [x] `tile = 'text` on a strip and `tile = 'card` on a list both load and draw as the prototype shows.
+- [x] `tile` on a `'miniatures` Lens fails at load with a message naming the field.
+- [x] A window on another workspace shows its workspace number; a floating window shows `floating`; `badges = false` removes both.
+- [x] Marks, the Summon label, the Frozen thumbnail looks and the Accessory treatment draw in all three Presentations as they did before.
 - [ ] The pull request shows the strip, the list and `overview` on the staged desk beside the prototype at the same settings.
+
+## Implementation notes
+
+The shared drawing is `Sources/AppBundle/ui/hud/TileView.swift`. Its window-free
+`TileEntry` is prepared once from the opening snapshot; `TileKind`, `TileBadges`
+and `TileMetrics` are pure, tested seams for the grid. Presentations retain
+placement, routing, Search, workspace geometry, landing rectangles and footers.
+There is no new dependency or change to eligibility or the thumbnail cache.
+
+No **Default chosen for you** changed.
+
+Decided: the strip fits the widest contiguous run of at most nine entries at one
+stable height, so moving selection cannot resize the row. Its 44-point end
+padding reserves the existing hidden-entry counters.
+
+Decided: a `--tile` override needs a named Lens or `--filter`; a no-name
+Presentation conversion rejects it rather than silently ignoring it.
+
+Decided: pause and age overlays occupy the picture's bottom-right, leaving the
+Summon label at top-right. Their meaning and `ThumbnailAppearance` rules are
+unchanged.
+
+Decided: the allowed neutral Accessory fixture checks Accessory styling because
+the standing desk's Updater fixture registers as a regular app.
+
+Decided: empty Search returns the original entry order without ranking, and an
+empty removed-entry set avoids copying it. Existing order and removal tests
+cover these fast paths; entry eligibility is unchanged.
+
+The prototype's Tile dimensions are scaled by visible monitor height. The list
+keeps its existing width, Search and scroll viewport; miniatures keep their
+adaptive workspace geometry. Native materials, shadow blur and app content
+cannot be pixel-identical to CSS and the prototype's static pictures. The strip
+keeps its nine-entry cap; miniatures add the required workspace and state chips
+over pictures even though the prototype omits them there.
 
 ## Sources
 
