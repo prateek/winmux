@@ -163,7 +163,7 @@ extension HotKey {
             // Match! Execute the command and consume the event
             lastSequencePrefixTime = nil
             lastSequencePrefixKey = nil
-            triggerBinding(seq.descriptionWithKeyNotation, seq.commands)
+            triggerBinding(seq.descriptionWithKeyNotation, seq.commands, origin: LensTraceOrigin(event: event, received: LensTimebase.now()))
             return true
         }
     }
@@ -179,7 +179,7 @@ extension HotKey {
     pendingTapBindings = [:]
 }
 
-@MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) {
+@MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, origin: LensTraceOrigin? = nil) {
     SwitcherPalettePanel.shared.stripFlagsChanged(modifierFlags)
     if hotkeysSuspended { return }
     if activeTapBindings.isEmpty && pendingTapBindings.isEmpty && pendingTapTriggerTasks.isEmpty { return }
@@ -202,7 +202,7 @@ extension HotKey {
     }
 
     if let binding = pendingTapBindings.removeValue(forKey: tapModifier) {
-        scheduleTapBindingTrigger(binding)
+        scheduleTapBindingTrigger(binding, origin: origin)
     }
 }
 
@@ -210,7 +210,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
     Set(TapModifierKey.allCases.filter { $0.isPressed(in: modifierFlags) })
 }
 
-@MainActor private func scheduleTapBindingTrigger(_ binding: TapBinding) {
+@MainActor private func scheduleTapBindingTrigger(_ binding: TapBinding, origin: LensTraceOrigin?) {
     let trigger = binding.trigger
     nextTapTriggerToken += 1
     let token = nextTapTriggerToken
@@ -221,7 +221,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
         pendingTapTriggerTasks[trigger] = nil
         pendingTapTriggerTokens[trigger] = nil
         guard pressedTapModifiers.isEmpty else { return }
-        triggerBinding(binding.descriptionWithKeyNotation, binding.commands)
+        triggerBinding(binding.descriptionWithKeyNotation, binding.commands, origin: origin)
     }
     pendingTapTriggerTasks[trigger] = task
 }

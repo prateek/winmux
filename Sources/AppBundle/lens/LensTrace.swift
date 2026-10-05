@@ -1,3 +1,4 @@
+import AppKit
 import Common
 import Foundation
 import os
@@ -6,6 +7,12 @@ struct LensTraceOrigin: Sendable {
     let start: Double
     let received: Double
     let source: String
+    init(start: Double, received: Double, source: String) {
+        self.start = start; self.received = received; self.source = source
+    }
+    init(event: NSEvent, received: Double) {
+        self.init(start: LensTimebase.eventSeconds(event.timestamp), received: received, source: "NSEvent")
+    }
 }
 @TaskLocal var lensTraceOrigin: LensTraceOrigin?
 
@@ -76,12 +83,17 @@ final class LensOpeningTrace {
     init(id: Int, presentation: String, origin: LensTraceOrigin, stamp: @escaping () -> Double) {
         self.id = id; self.presentation = presentation; self.origin = origin; self.stamp = stamp
         last = origin.start
-        record("event reaching WinMux", at: origin.received)
+        advance("event reaching WinMux", at: origin.received)
         startInterval("binding resolved", at: origin.received)
     }
     func advance(_ name: StaticString, at time: Double? = nil) {
         guard signal == nil else { return }
+        let wasRecording = interval != nil
         endInterval()
+        if !wasRecording, lensOpeningRecordingGate.isEnabled, poster.isEnabled {
+            let marker = poster.beginInterval(name, id: poster.makeSignpostID())
+            poster.endInterval(name, marker)
+        }
         record(name, at: time ?? stamp())
     }
     func startInterval(_ name: StaticString, at time: Double? = nil) {

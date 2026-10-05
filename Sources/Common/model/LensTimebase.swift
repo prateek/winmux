@@ -1,8 +1,7 @@
 import Darwin
 
-/// Event timestamps, CLI stamps and trace stages use the host's Mach absolute clock,
-/// in seconds since boot excluding sleep. No wall-clock synchronization is needed
-/// between processes on the same machine.
+/// Lens stamps use Mach absolute seconds, excluding sleep. Processes on the
+/// same machine share this timebase.
 public struct LensTimebase: Sendable {
     public let numerator: UInt32
     public let denominator: UInt32

@@ -216,7 +216,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
         let event = NSApp.currentEvent
         let now = LensTimebase.now()
-        let origin = LensTraceOrigin(start: event.map { LensTimebase.eventSeconds($0.timestamp) } ?? now, received: now, source: event == nil ? "internal" : "NSEvent")
+        let origin = event.map { LensTraceOrigin(event: $0, received: now) } ?? LensTraceOrigin(start: now, received: now, source: "internal")
         if !keepStrip { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }

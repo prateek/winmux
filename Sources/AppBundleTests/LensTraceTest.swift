@@ -86,6 +86,17 @@ final class LensTraceTest: XCTestCase {
         XCTAssertTrue(store.text(last: 1).contains("gap"))
     }
 
+    func testNativeEventOriginIncludesDispatchTimeOnTheSameClock() throws {
+        let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 42.125, windowNumber: 0, context: nil, characters: "r", charactersIgnoringModifiers: "r", isARepeat: false, keyCode: 15))
+        let origin = LensTraceOrigin(event: event, received: 42.130)
+        let store = LensTraceStore(stamp: { 42.140 })
+        store.begin(presentation: "list", origin: origin).finish(signal: "controlled native input")
+        let result = store.snapshots(last: 1)[0]
+        XCTAssertEqual(result.source, "NSEvent")
+        XCTAssertEqual(result.totalMs, 15, accuracy: 0.00001)
+        XCTAssertEqual(result.stages[0].durationMs, 5, accuracy: 0.00001)
+    }
+
     func testTimebaseConversionsAndRequestRoundTrip() throws {
         let timebase = LensTimebase(numerator: 125, denominator: 3)
         XCTAssertEqual(timebase.seconds(ticks: 24_000_000), 1, accuracy: 0.00001)
