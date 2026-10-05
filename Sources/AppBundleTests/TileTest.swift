@@ -79,7 +79,7 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: second.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: true, window: window)
-        let numbers = tileWorkspaceLabels([first.name, second.name, second.name])
+        let numbers = tileWorkspaceLabels([first.name, second.name, second.name], workspaces: miniatureWorkspaceSnapshot([]))
         XCTAssertEqual(numbers, [first.name: "1", second.name: "2"])
         let tile = tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: numbers, monitorHeight: 1080, focusedWorkspaceName: focus.workspace.name)
         XCTAssertEqual(tile.badges.chips(enabled: true), ["2", "floating"])
@@ -93,7 +93,7 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let miniature = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: true, accessory: false, floating: false, window: window)
-        XCTAssertEqual(tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name]), monitorHeight: 1080, focusedWorkspaceName: focus.workspace.name).badges.chips(enabled: true), ["9"])
+        XCTAssertEqual(tileEntry(source, miniature: miniature, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([])), monitorHeight: 1080, focusedWorkspaceName: focus.workspace.name).badges.chips(enabled: true), ["9"])
     }
 
     func testWorkspaceBadgeUsesTheOpeningFocusSnapshot() async throws {
@@ -103,7 +103,7 @@ final class TileSnapshotTest: XCTestCase {
         let record = try await window.windowRecord().orDie()
         let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
         let geometry = MiniatureWindow(workspace: workspace.name, frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window)
-        let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name]), monitorHeight: 1080, focusedWorkspaceName: workspace.name)
+        let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([])), monitorHeight: 1080, focusedWorkspaceName: workspace.name)
         XCTAssertTrue(tile.badges.onFocusedWorkspace)
         XCTAssertTrue(tile.badges.chips(enabled: true).isEmpty)
         XCTAssertNotEqual(focus.workspace.name, workspace.name)
@@ -121,7 +121,7 @@ final class TileSnapshotTest: XCTestCase {
             let source = LensWindow(record: record, window: window, spatialIndex: 0, workspaceIndex: 0)
             let geometry = MiniatureWindow(workspace: record.workspace, frame: CGRect(x: 0, y: 0, width: 300, height: 600), tray: window !== popup,
                                            frozen: window !== popup, accessory: false, floating: false, window: window)
-            let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([record.workspace]), monitorHeight: 1200, focusedWorkspaceName: focus.workspace.name)
+            let tile = tileEntry(source, miniature: geometry, icon: nil, workspaceLabels: tileWorkspaceLabels([record.workspace], workspaces: miniatureWorkspaceSnapshot([])), monitorHeight: 1200, focusedWorkspaceName: focus.workspace.name)
             XCTAssertEqual(tile.aspect, 0.5)
             XCTAssertEqual(tile.monitorHeightFraction, 0.5)
             XCTAssertTrue(tile.picture === window.thumbnail)
