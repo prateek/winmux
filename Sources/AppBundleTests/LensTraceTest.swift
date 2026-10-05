@@ -95,6 +95,42 @@ final class LensTraceTest: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ClientRequest.self, from: JSONEncoder().encode(request)).sentAt, 42.125)
     }
 
+    func testCommandReadsTheCompletedOpeningAsTextAndJSON() async throws {
+        let now = LensTimebase.now()
+        let trace = LensTraceStore.shared.begin(presentation: "list", origin: .init(start: now, received: now, source: "test"))
+        trace.advance("binding resolved", at: now + 0.002)
+        trace.finish(signal: "controlled presentation", at: now + 0.020)
+        for json in [false, true] {
+            let command = parseCommand("debug-lens-trace --last 1" + (json ? " --json" : "")).cmdOrDie
+            let io = CmdIo(stdin: .emptyStdin)
+            let succeeded = try await command.run(.defaultEnv, io)
+            XCTAssertTrue(succeeded)
+            XCTAssertTrue(io.stderr.isEmpty)
+            if json {
+                let result = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(io.stdout.joined().utf8))
+                XCTAssertEqual(result.count, 1)
+                XCTAssertEqual(result[0].totalMs, 20, accuracy: 0.001)
+                XCTAssertEqual(result[0].stages.map(\.name), ["event reaching WinMux", "binding resolved", "first frame presented"])
+            } else {
+                XCTAssertTrue(io.stdout.joined().contains("20.000 ms"))
+                XCTAssertTrue(io.stdout.joined().contains("controlled presentation"))
+            }
+        }
+    }
+
+    func testDismissedOpeningEndsWithCancellationRatherThanAPendingFrame() {
+        var now = 0.0
+        let store = LensTraceStore(stamp: { now })
+        let trace = store.begin(presentation: "strip", origin: .init(start: 0, received: 0, source: "test"))
+        now = 0.003
+        trace.cancel()
+        now = 0.500
+        trace.finish(signal: "late display link")
+        XCTAssertEqual(store.snapshots(last: 1)[0].signal, "cancelled before first frame")
+        XCTAssertEqual(store.snapshots(last: 1)[0].totalMs, 3, accuracy: 0.00001)
+        XCTAssertEqual(store.snapshots(last: 1)[0].stages.last?.name, "opening cancelled")
+    }
+
     func testCommandArguments() {
         let args = parseCmdArgs(["debug-lens-trace", "--json", "--last", "5"].slice).cmdOrNil as? DebugLensTraceCmdArgs
         XCTAssertEqual(args?.last, 5)

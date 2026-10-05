@@ -21,6 +21,7 @@ struct LensTraceSnapshot: Codable, Equatable {
     let startedAt: Double
     let totalMs: Double
     let signal: String?
+    let signposting: Bool
     let stages: [LensTraceStage]
 }
 
@@ -63,6 +64,7 @@ final class LensOpeningTrace {
     private let presentation: String
     private let origin: LensTraceOrigin
     private let stamp: () -> Double
+    private let signposting = lensOpeningRecordingGate.isEnabled
     private var stages: [LensTraceStage] = []
     private var last: Double
     private var signal: String?
@@ -75,7 +77,7 @@ final class LensOpeningTrace {
         self.id = id; self.presentation = presentation; self.origin = origin; self.stamp = stamp
         last = origin.start
         record("event reaching WinMux", at: origin.received)
-        startInterval("binding resolved")
+        startInterval("binding resolved", at: origin.received)
     }
     func advance(_ name: StaticString, at time: Double? = nil) {
         guard signal == nil else { return }
@@ -86,7 +88,7 @@ final class LensOpeningTrace {
         guard signal == nil else { return }
         stageStart = time ?? stamp()
         endInterval()
-        guard poster.isEnabled else { return }
+        guard lensOpeningRecordingGate.isEnabled, poster.isEnabled else { return }
         intervalName = name
         interval = poster.beginInterval(name, id: poster.makeSignpostID())
     }
@@ -109,8 +111,13 @@ final class LensOpeningTrace {
         advance("first frame presented", at: time)
         self.signal = signal
     }
+    func cancel() {
+        guard signal == nil else { return }
+        advance("opening cancelled")
+        signal = "cancelled before first frame"
+    }
     var snapshot: LensTraceSnapshot {
         LensTraceSnapshot(id: id, presentation: presentation, source: origin.source, startedAt: origin.start,
-                          totalMs: (last - origin.start) * 1000, signal: signal, stages: stages)
+                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages)
     }
 }
