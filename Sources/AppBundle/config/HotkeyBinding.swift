@@ -81,7 +81,7 @@ extension HotKey {
                 noteTapBindingKeyDown()
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
                 let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
-                if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text) { return }
+                if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text, timestamp: origin.start) { return }
                 triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture, origin: origin)
             }
         })

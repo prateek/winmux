@@ -9,6 +9,8 @@ final class LensLifecycle {
         var steps = 0
         var release: NSEvent.ModifierFlags?
         var prepared: LensSession?
+        var keys: [LensKeyBinding] = []
+        var pending: [LensKeyMeaning] = []
     }
     enum State {
         case closed
@@ -88,13 +90,13 @@ final class LensLifecycle {
     }
     var searchTask: Task<Void, Never>? { inlineSearch.current }
 
-    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil) -> Int? {
+    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = []) -> Int? {
         let previous: String?
         if case .opening(let opening) = state { previous = opening.name } else { previous = session?.name }
         dismiss()
         if previous == name && toggle && strip == nil { trace?.cancel(); return nil }
         self.trace = trace
-        state = .opening(Opening(name: name, gesture: strip))
+        state = .opening(Opening(name: name, gesture: strip, keys: keys))
         return generation
     }
 
@@ -106,11 +108,16 @@ final class LensLifecycle {
             model.cycleStripSelection(opening.steps)
             model.stripReleasedWhileOpening = opening.release
         }
+        let gesture = opening.gesture ?? invocation
+        model.startHold(gesture?.keyCode == nil ? nil : gesture)
+        if let release = opening.release { model.endHold(flags: release) }
         trace?.advance("session ready")
         model.owner = self
         searchInput = (context, windows, ids)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
             state = .ready(model)
+            for meaning in opening.pending { _ = model.perform(meaning, retainTyping: true) }
+            guard session === model, model.settings.presentation == "strip" else { return true }
             let flags = opening.release ?? dependencies.flags()
             // A release that came before readiness runs its action once; the strip is never drawn.
             if commitStripRelease(flags, model: model) { return true }
@@ -133,6 +140,7 @@ final class LensLifecycle {
             opening.prepared = model
             state = .opening(opening)
             presented(model)
+            for meaning in opening.pending { _ = model.perform(meaning, retainTyping: true) }
         }
         return true
     }
@@ -188,6 +196,12 @@ final class LensLifecycle {
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags, from model: LensSession) {
         send(.modifiersChanged(flags), from: model)
         guard session === model else { return }
+        let wasHeld = model.hold != nil
+        model.endHold(flags: flags)
+        trace?.key(code: 65535, characters: "", flags: flags, timestamp: LensTimebase.now(),
+                   presentation: model.settings.presentation, hold: model.hold != nil, path: "flagsChanged",
+                   destination: wasHeld && model.hold == nil ? "Hold ended" : "modifiers changed",
+                   search: model.query, selectedId: model.selectedId, fieldEditor: false)
         _ = commitStripRelease(flags, model: model)
     }
 
@@ -199,6 +213,7 @@ final class LensLifecycle {
     }
 
     private func commitStripRelease(_ flags: NSEvent.ModifierFlags, model: LensSession) -> Bool {
+        model.endHold(flags: flags)
         guard let key = model.stripReleaseKey(flags: flags) else { return false }
         if let action = model.onAction { action(key) } else { dismiss() }
         return true
@@ -247,15 +262,23 @@ final class LensLifecycle {
     /// A key that arrives while a strip is opening. The invoking key is a step applied when the
     /// session is ready; Tab and backtick with the strip's modifiers do nothing; anything else is
     /// `.ignored`, which means it is not the strip's. Nil when no strip is opening.
-    func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> StripInput? {
-        guard case .opening(var opening) = state, let gesture = opening.gesture else { return nil }
-        trace?.key(code: keyCode, characters: "", flags: flags, timestamp: LensTimebase.now(), presentation: "opening", hold: opening.release == nil, path: "openingStripKey", destination: gesture.step(keyCode: keyCode, flags: flags) != nil ? "step queued" : "dropped", search: "", selectedId: nil, fieldEditor: false)
-        if let step = gesture.step(keyCode: keyCode, flags: flags) {
-            // After the release the selection is settled: the commit waits only for the session.
-            if opening.release == nil { opening.steps += step; state = .opening(opening) }
-            return .consumed
+    func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
+        guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
+        let meaning = lensKeyMeaning(hold: opening.release == nil ? gesture : nil, keys: opening.keys,
+                                     code: keyCode, characters: characters, flags: flags)
+        trace?.key(code: keyCode, characters: characters, flags: flags, timestamp: timestamp ?? LensTimebase.now(),
+                   presentation: "opening", hold: opening.release == nil, path: "openingStripKey",
+                   destination: String(describing: meaning), search: "", selectedId: nil, fieldEditor: false)
+        // A release has settled the old strip selection; later Trigger presses do not revive it.
+        if opening.release != nil, gesture.step(keyCode: keyCode, flags: flags) != nil { return .consumed }
+        switch meaning {
+            case .step(let delta): opening.steps += delta
+            case .global, .fieldEditor: return .ignored
+            case .dismiss: return .cancel
+            default: opening.pending.append(meaning)
         }
-        return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
+        state = .opening(opening)
+        return .consumed
     }
 
     /// Records a release of the invoking modifiers that happens before the session is ready, so a

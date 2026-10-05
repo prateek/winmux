@@ -80,6 +80,7 @@ enum StripInput { case ignored, consumed, cancel, list }
 extension LensSession {
     func beginStrip(_ gesture: StripGesture) {
         stripGesture = gesture
+        startHold(gesture)
         send(.selectionChanged(gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()))
     }
 
@@ -92,17 +93,9 @@ extension LensSession {
 
     func stripInput(_ event: NSEvent) -> StripInput {
         guard settings.presentation == "strip" else { return .ignored }
-        if cycleStrip(keyCode: event.keyCode, flags: event.modifierFlags) { return .consumed }
-        switch event.keyCode {
-            case 53: return .cancel
-            case 123: cycleStripSelection(-1); return .consumed
-            case 124: cycleStripSelection(1); return .consumed
-            // Tab and backtick belong to the strip only with its own modifiers; another chord on them is a global binding.
-            case 48, 50: return stripGesture?.owns(event.modifierFlags) == true ? .consumed : .ignored
-            default: break
-        }
-        if event.charactersIgnoringModifiers == "`" { return stripGesture?.owns(event.modifierFlags) == true ? .consumed : .ignored }
-        if handleStripLetter(event) { return settings.presentation == "list" ? .list : .consumed }
+        let meaning = meaning(for: event)
+        if meaning == .dismiss { return .cancel }
+        if perform(meaning) { return settings.presentation == "list" ? .list : .consumed }
         return .ignored
     }
 
@@ -119,15 +112,10 @@ extension LensSession {
     @discardableResult
     func handleStripLetter(_ event: NSEvent) -> Bool {
         guard settings.presentation == "strip" else { return false }
-        if performKeyAction(event) { return true }
-        guard let text = event.charactersIgnoringModifiers, !text.isEmpty, text.unicodeScalars.allSatisfy({ CharacterSet.letters.contains($0) }) else { return false }
-        let held = event.modifierFlags.intersection([.command, .control, .option])
-        guard held.isEmpty || held == stripGesture?.committingModifiers else { return false }
-        let selected = selectedId
-        changePresentation("list")
-        send(.searchChanged(text))
-        if let selected { hover(selected) }
-        return true
+        switch meaning(for: event) {
+            case .command, .text: return perform(meaning(for: event))
+            default: return false
+        }
     }
 
     func removeStripItems(_ ids: Set<UInt32>) {

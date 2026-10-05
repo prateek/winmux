@@ -133,14 +133,28 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
         if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
         makeKey()
-        if instruction.focusSearch {
+        if model.settings.presentation != "strip" {
+            let initialQuery = model.query
+            let selectAll = instruction.focusSearch && model.hold == nil
+            focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
                 guard let self, let model, self.session === model else { return }
-                if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
-                (self.firstResponder as? NSTextView)?.selectAll(nil)
-                self.lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(), presentation: model.settings.presentation, hold: false, path: "focus", destination: "Search first responder", search: model.query, selectedId: model.selectedId, fieldEditor: self.firstResponder is NSTextView)
+                self.focusSearch(model, selectAll: selectAll && model.query == initialQuery)
             }
         }
+    }
+
+    private func focusSearch(_ model: LensSession, selectAll: Bool) {
+        guard let field = lensSearchField(in: hostingView) else { return }
+        makeFirstResponder(field)
+        synchronizeSearchEditor(model)
+        if selectAll { (firstResponder as? NSTextView)?.selectAll(nil) }
+    }
+
+    private func synchronizeSearchEditor(_ model: LensSession) {
+        guard let editor = firstResponder as? NSTextView else { return }
+        if editor.string != model.query { editor.string = model.query }
+        editor.setSelectedRange(NSRange(location: (model.query as NSString).length, length: 0))
     }
 
     func cycleStrip(name: String, invocation: StripGesture) -> Bool {
@@ -157,7 +171,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let result = super.makeFirstResponder(responder)
         if result, let model = session {
             lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(),
-                presentation: model.settings.presentation, hold: model.stripGesture != nil,
+                presentation: model.settings.presentation, hold: model.hold != nil,
                 path: "focus", destination: firstResponder is NSTextView ? "Search first responder" : "other responder",
                 search: model.query, selectedId: model.selectedId, fieldEditor: firstResponder is NSTextView)
         }
@@ -166,8 +180,8 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
-        guard model.settings.presentation == "strip" else { return }
         lifecycle.stripFlagsChanged(flags, from: model)
+        synchronizeSearchEditor(model)
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
@@ -212,8 +226,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = model
     }
 
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace)
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = []) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys)
         return ticket
     }
 
@@ -259,96 +273,59 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
-    private func recordKey(_ event: NSEvent, path: String, destination: String, model: LensSession? = nil, trace: LensOpeningTrace? = nil, presentation: String? = nil) {
-        let model = model ?? session
-        (trace ?? lifecycle.trace)?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
-            flags: event.modifierFlags, timestamp: event.timestamp,
-            presentation: presentation ?? model?.settings.presentation ?? "opening",
-            hold: model?.stripGesture.map { !$0.shouldCommit(flags: event.modifierFlags) } ?? false,
-            path: path, destination: destination, search: model?.query ?? "", selectedId: model?.selectedId,
-            fieldEditor: firstResponder is NSTextView)
+    private func routeKey(_ event: NSEvent, path: String, carbon: Bool = false) -> Bool {
+        guard let model = session else { return false }
+        let trace = lifecycle.trace
+        let presentation = model.settings.presentation
+        let held = model.hold != nil
+        let editor = firstResponder is NSTextView
+        let meaning = model.meaning(for: event)
+        let handled: Bool
+        let destination: String
+        switch meaning {
+            case .dismiss: dismiss(); handled = true; destination = "dismissed"
+            case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
+            default:
+                handled = model.perform(meaning, retainTyping: !editor && model.settings.presentation != "strip")
+                switch meaning {
+                    case .text, .backspace: destination = handled ? "Search" : editor ? "passed to field editor" : "dropped"
+                    case .command(let key): destination = "Lens keys command " + key
+                    case .step: destination = "step"
+                    case .arrow, .mark: destination = "selection"
+                    case .dropped: destination = "dropped"
+                    default: destination = editor ? "passed to field editor" : "dropped"
+                }
+                if handled, session === model { synchronizeSearchEditor(model) }
+                if carbon, !handled, presentation == "strip" { dismiss() }
+        }
+        trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
+                   timestamp: event.timestamp, presentation: presentation, hold: held, path: path,
+                   destination: destination, search: model.query, selectedId: model.selectedId, fieldEditor: editor)
+        return handled
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let model = session
-        let trace = lifecycle.trace
-        let presentation = model?.settings.presentation
-        let search = model?.query
-        if presentation == "strip", handleStripKey(event) {
-            recordKey(event, path: "performKeyEquivalent", destination: model?.query != search ? "Search" : "strip", model: model, trace: trace, presentation: presentation)
-            return true
-        }
-        if model?.performKeyAction(event) == true {
-            recordKey(event, path: "performKeyEquivalent", destination: "Lens keys command", model: model, trace: trace, presentation: presentation)
-            return true
-        }
-        recordKey(event, path: "performKeyEquivalent", destination: "passed to field editor", model: model, trace: trace, presentation: presentation)
+        if routeKey(event, path: "performKeyEquivalent") { return true }
         return super.performKeyEquivalent(with: event)
     }
 
-    private func handleStripKey(_ event: NSEvent) -> Bool {
-        guard let model = session, model.settings.presentation == "strip" else { return false }
-        switch model.stripInput(event) {
-            case .ignored: return false
-            case .consumed: return true
-            case .cancel: dismiss(); return true
-            case .list: return true
-        }
-    }
-
-    func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String) -> Bool {
-        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers) {
-            if input == .consumed {
-                stripDebugLog("strip queued key uptime=\(ProcessInfo.processInfo.systemUptime) key=\(keyCode) modifiers=\(modifiers.rawValue)")
-                return true
-            }
-            // Not the strip's: drop the opening strip so its release cannot undo the binding that runs now.
+    func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String, timestamp: Double? = nil) -> Bool {
+        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers, characters: characters, timestamp: timestamp) {
+            if input == .consumed { return true }
             dismiss()
             return false
         }
         guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
-                                          timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,
+                                          timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
                                           context: nil, characters: characters, charactersIgnoringModifiers: characters,
                                           isARepeat: false, keyCode: keyCode) else { return false }
-        let model = session
-        let trace = lifecycle.trace
-        let presentation = model?.settings.presentation
-        let handled = handleStripKey(event)
-        recordKey(event, path: "Carbon", destination: handled ? "strip" : "global binding", model: model, trace: trace, presentation: presentation)
-        if !handled, session?.settings.presentation == "strip" { dismiss() }
-        return handled
+        return routeKey(event, path: "Carbon", carbon: true)
     }
 
-    // Intercept navigation keys before the field editor consumes them; other typing
-    // flows to the Search field unless it matches a configured action.
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
-        if event.type == .flagsChanged {
-            model.updateSummonModifiers(event.modifierFlags)
-        }
-        if event.type == .keyDown {
-            let trace = lifecycle.trace
-            let presentation = model.settings.presentation
-            let search = model.query
-            let selection = model.selectedId
-            defer {
-                let destination = session == nil ? "dismissed" : model.query != search ? "Search" : model.selectedId != selection ? "selection" : firstResponder is NSTextView ? "passed to field editor" : "dropped"
-                recordKey(event, path: "sendEvent", destination: destination, model: model, trace: trace, presentation: presentation)
-            }
-            if model.settings.presentation == "strip", handleStripKey(event) { return }
-            if model.settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][event.keyCode] {
-                model.moveMiniatureSelection(direction)
-                return
-            }
-            switch event.keyCode {
-                case 53: dismiss(); return // esc
-                case 125: model.moveSelection(1); return // down arrow
-                case 126: model.moveSelection(-1); return // up arrow
-                case 48: model.toggleMark(); return // tab
-                default: break
-            }
-            if model.performKeyAction(event) { return }
-        }
+        if event.type == .flagsChanged { model.updateSummonModifiers(event.modifierFlags) }
+        if event.type == .keyDown, routeKey(event, path: "sendEvent") { return }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
             if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
             return
