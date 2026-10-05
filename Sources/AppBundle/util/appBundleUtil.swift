@@ -3,6 +3,9 @@ import Common
 import Foundation
 import os
 
+let lensOpeningRecordingGate = OSSignposter(subsystem: winMuxAppId, category: .dynamicTracing)
+let lensOpeningSignposter = OSSignposter(subsystem: winMuxAppId, category: "lens-opening")
+
 let signposter = OSSignposter(subsystem: winMuxAppId, category: .pointsOfInterest)
 
 let myPid = NSRunningApplication.current.processIdentifier

@@ -42,20 +42,41 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **The command.** `winmux debug-lens-trace [--json] [--last <n>]`, beside `debug-windows`.
 - **The first frame.** A `CADisplayLink` or `CATransaction` completion on the panel's layer after the first layout, or the hosting view's first `viewDidDraw`; whichever agrees with the recording. Say which was tried.
 - **The key press's timestamp.** `NSEvent.timestamp` for a panel key, the Carbon event's time for a global binding, and the client's send time carried in the request for a CLI open.
-- **The film check.** `ffmpeg` scene detection or a pixel probe at the strip's centre over a `screencapture -v` recording, with the key press time from the demo skill's `keys` event log.
-- **Measure before changing anything.** Open the strip twice in one process and compare: a cost paid once per process (SwiftUI's first layout, fonts, the glass effect compiling) shows as a slow first opening and a fast second, and every filmed take so far started a fresh process. Then look at the recording frame by frame: the strip draws placeholders until thumbnails publish, so the 0.5 s may be the thumbnails arriving in a panel that was already up.
+- **The film check — changed.** A centre pixel probe and a straight strip-edge guard over `trace-film`'s ScreenCaptureKit movie. The edge guard rejects workspace motion that changes centre pixels before the strip arrives. Immutable pixel copies and their measured first-sample Mach stamp establish frame zero; `keys` logs the posted event stamp on that clock. The helper rejects encoded timestamp corruption and verifies the output's real 60 fps rate before comparing frames. The old `screencapture`/wall-clock origin was not a frame-zero measurement.
+- **Measure before changing anything — changed by the driver.** Open the strip five times in one process, with its first-ever Lens as the first row, and compare: a cost paid once per process (SwiftUI's first layout, fonts, the glass effect compiling) shows as a slow first opening and a fast second, and every filmed take so far started a fresh process. Then look at the recording frame by frame: the strip draws placeholders until thumbnails publish, so the 0.5 s may be the thumbnails arriving in a panel that was already up.
 - **Suspects in the code.** The panel calls `setFrame(display: true)` before it assigns the hosting view's `rootView`, so the synchronous draw is of the empty view and the strip's first frame waits for a later run-loop turn. Thumbnail polling starts only after the Presentation is presented. `strip draw` is logged before `show()` is called, not after it returns. Then the first `NSHostingView` layout of a view tree never built before, `GlassSurface` compiling on first use, and the window server in a guest with no GPU.
-- **Where the stages live.** In `LensLifecycle`, which already owns every transition; the panel reports the AppKit stages to it through the seam it has.
+- **Where the stages live — changed.** `LensLifecycle` owns the active trace, delay and cancellation. `LensCommand` measures collection/Filter work where it happens, and the panel measures AppKit preparation/order/display through the same trace. A separate bounded store owns the reader and injectable stamp source; profiling does not move command or AppKit work into the lifecycle.
+
+## Build result
+
+The trace and reader were committed before any timing change, and the before guest build comes from that instrument-only commit. First layout held the cold cost. The view now assigns its real root before sizing, lays out while hidden during the strip's existing display delay, and orders only at its original 100 ms deadline. Startup drawing warms all three Presentations using existing window snapshots and cached pictures; an empty desktop uses neutral picture, placeholder and workspace-badge branches. It neither orders a panel nor requests fresh thumbnails. Full bitmap rasterization is confined to startup; ordinary openings use the hosting display pass.
+
+Decided: use Mach absolute seconds, excluding sleep. `NSEvent.timestamp` and a Carbon event's time are already on that timebase and are used as they are. The CLI carries its send time across the same-machine socket because both processes share the kernel clock.
+Decided: use the hosting view's display link after the render tick and two following compositor cycles, calibrated against film of a 60 Hz guest; the signal line names the refresh interval. `viewDidDraw` was unreliable on repeated layer-backed openings; a one-tick signal was early. AppKit exposes no public first-window-composite acknowledgement, so the signal is an observation proxy, not a hardware guarantee.
+Decided: use immutable ScreenCaptureKit receipt-time samples and audit every encoded timestamp. The guest's source display timestamps and a reordered H.264 take did not provide a trustworthy movie origin.
+Decided: warm existing window-card branches at startup, falling back to neutral branches on an empty desktop. This shifts cold rendering out of the first gesture, without changing the 100 ms delay or starting thumbnail capture.
+Decided: measure stages at their existing owners, with one trace passed into LensLifecycle and a separate bounded reader store. This avoids moving collection, Filter or AppKit work merely to instrument it.
+Decided: retain twenty openings, default to the last five, and mark cancelled openings explicitly. Signposts use WinMux's subsystem and `lens-opening` category, gated by Instruments' dynamic recording category.
+
+The final default-size five-opening film agrees within two frames (maximum 20.323 ms, at most one frame index). Its trace totals are 139.842–157.254 ms, with the strip visible on film at 128.591–175.402 ms. WinMux's own work ends when the panel is ordered front, about 107 ms after the key press; what follows is the guest's compositor putting the frame up, one and a half to four 60 Hz frames on film. The warm openings of the build before the fix show the same 141–173 ms, so the fix removed the cold first opening and left this part as it was. A 4-core/6144-MB take still has 40–63 ms after ordering; its first total disagreed with film by 97.616 ms while the desk was moving, so that take is diagnostic, not calibration.
+
+`first frame presented` ends on the third display-link tick after ordering, so it is about three refreshes long by construction and names its refresh interval in the signal line. It cannot say on its own whether a faster compositor met 150 ms. No host desktop build runs in the relay, so the 150 ms item stays unticked for Prateek's check on his installed dogfood build after landing: hold Cmd and press Tab five times, releasing Cmd between openings, then run `winmux debug-lens-trace --last 5`. `panel ordered front` should end near 107 ms on every row; film of the same openings (the demo directory's `trace-film` and `check-lens-film.py`, or any 60 fps screen recording) says when the strip is on the glass. The startup drawing's cost on a large display is his to read too, from the `Lens startup preparation took` log line. Installed build, a second display and real sleep/wake/unlock also remain his checks.
+
+From the review: startup drawing runs after WinMux is ready and skips a launch where a Lens is already open or opening; a toggle that closes a Lens leaves no trace behind; an action's Lens starts its trace at the action, not at whatever event AppKit last dequeued; the film check rejects cancelled openings and an empty take. Startup drawing uses default Lens settings, so a Lens configured with other Tile options may still pay some first-drawing cost; that was not measured.
+
+ScreenCaptureKit recording over ssh raised a `com.apple.sshd-session` private-picker prompt in a guest that had been rebooted and had made several hundred captures, despite the image's approvals file. It was not granted. The image recipe does not yet settle it.
+
+How to record and read the stages, including Instruments and the film check: [Lens opening traces](../../../docs/lens-opening-traces.md). The new command replaces the strip ready/draw elapsed log; `WINMUX_DEBUG_STRIP_EVENTS` still prints flag events.
 
 ## Done when
 
-- [ ] Opening the strip, the list and `overview` each records a trace whose stages cover the key press to the first frame with no unnamed gap over 5 ms.
-- [ ] `winmux debug-lens-trace` prints the last openings as a table and as JSON; a test drives an opening on the controlled clock and reads the stages in order.
-- [ ] The stages show as intervals in Instruments or `xctrace` from a debug build in a guest; the pull request has the screenshot.
-- [ ] In a guest, the trace's total for the strip agrees with a screen recording of the same opening to within two frames, over five openings.
-- [ ] The pull request names where the 0.4 s went, with the table before and after.
+- [x] Opening the strip, the list and `overview` each records a trace whose stages cover the key press to the first frame with no unnamed gap over 5 ms.
+- [x] `winmux debug-lens-trace` prints the last openings as a table and as JSON; a test drives an opening on the controlled clock and reads the stages in order.
+- [x] The stages show as intervals in Instruments or `xctrace` from a debug build in a guest; the pull request has the screenshot.
+- [x] In a guest, the trace's total for the strip agrees with a screen recording of the same opening to within two frames, over five openings.
+- [x] The pull request names where the 0.4 s went, with the table before and after.
 - [ ] The strip is on screen within 150 ms of the key press in a guest, or the pull request shows with the same trace why a guest cannot do it and what a host build does.
-- [ ] `docs/` says how to record and read a trace.
+- [x] `docs/` says how to record and read a trace.
 
 ## Sources
 

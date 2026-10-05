@@ -15,6 +15,7 @@ public final class HotKey {
 	public internal(set) var registrationError: OSStatus = noErr
 	public let keyCombo: KeyCombo
 	public var keyDownHandler: Handler?
+    public var keyDownWithTimeHandler: ((Double) -> Void)?
 	public var keyUpHandler: Handler?
     public var isPaused = false {
         didSet {
@@ -41,9 +42,10 @@ public final class HotKey {
 		self.init(keyCombo: keyCombo, keyDownHandler: keyDownHandler, keyUpHandler: keyUpHandler)
 	}
 
-	public convenience init(key: Key, modifiers: NSEvent.ModifierFlags, keyDownHandler: Handler? = nil, keyUpHandler: Handler? = nil) {
+	public convenience init(key: Key, modifiers: NSEvent.ModifierFlags, keyDownHandler: Handler? = nil, keyUpHandler: Handler? = nil, keyDownWithTimeHandler: ((Double) -> Void)? = nil) {
 		let keyCombo = KeyCombo(key: key, modifiers: modifiers)
 		self.init(keyCombo: keyCombo, keyDownHandler: keyDownHandler, keyUpHandler: keyUpHandler)
+        self.keyDownWithTimeHandler = keyDownWithTimeHandler
 	}
 
 	deinit {

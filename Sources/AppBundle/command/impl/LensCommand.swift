@@ -38,15 +38,26 @@ struct LensCommand: Command {
         }
         let panel = SwitcherPalettePanel.shared
         if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation) { return true }
-        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil) else { return true }
+        let now = LensTimebase.now()
+        let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
+        trace.advance("binding resolved")
+        trace.startInterval("windows collected")
+        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil, trace: trace) else {
+            LensTraceStore.shared.discard(trace)
+            return true
+        }
         defer { panel.cancelLensOpening(ticket: ticket) }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
+        trace.advance("windows collected")
+        trace.startInterval("Filter evaluated")
         let result = if let filter {
             await NickelSupervisor.shared.evalFilter(filter, context: context.json, windows: entries.map { $0.record.json })
         } else {
             await NickelSupervisor.shared.filter(lens: name, context: context.json, windows: entries.map { $0.record.json })
         }
+        trace.advance("Filter evaluated")
+        trace.startInterval("session ready")
         let resolution = LensFilterResolution(candidateIds: entries.map { $0.window.windowId }, result: result)
         let ids = Set(resolution.ids)
         let eligible = entries.filter { ids.contains($0.window.windowId) }

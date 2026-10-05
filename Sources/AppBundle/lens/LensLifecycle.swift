@@ -37,6 +37,7 @@ final class LensLifecycle {
         }
     }
 
+    private(set) var trace: LensOpeningTrace?
     private(set) var state: State = .closed
     var session: LensSession? {
         switch state {
@@ -49,6 +50,7 @@ final class LensLifecycle {
     private let emit: (ServerEvent) -> Void
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
+    var prepare: (LensSession) -> Void = { _ in }
     var show: (LensSession) -> Void
     struct ShowInstruction: Equatable {
         let activate: Bool
@@ -86,11 +88,12 @@ final class LensLifecycle {
     }
     var searchTask: Task<Void, Never>? { inlineSearch.current }
 
-    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
+    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil) -> Int? {
         let previous: String?
         if case .opening(let opening) = state { previous = opening.name } else { previous = session?.name }
         dismiss()
-        if previous == name && toggle && strip == nil { return nil }
+        if previous == name && toggle && strip == nil { trace?.cancel(); return nil }
+        self.trace = trace
         state = .opening(Opening(name: name, gesture: strip))
         return generation
     }
@@ -103,14 +106,17 @@ final class LensLifecycle {
             model.cycleStripSelection(opening.steps)
             model.stripReleasedWhileOpening = opening.release
         }
+        trace?.advance("session ready")
         model.owner = self
         searchInput = (context, windows, ids)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
             state = .ready(model)
-            stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(gesture.elapsedSeconds)")
             let flags = opening.release ?? dependencies.flags()
             // A release that came before readiness runs its action once; the strip is never drawn.
             if commitStripRelease(flags, model: model) { return true }
+            prepare(model)
+            guard session === model, ticket == generation else { return true }
+            trace?.startInterval("display delay")
             send(.modifiersChanged(flags), from: model)
             guard session === model else { return true }
             stripDisplay = Task { @MainActor [weak self, weak model] in
@@ -120,7 +126,7 @@ final class LensLifecycle {
                 let flags = self.dependencies.flags()
                 if self.commitStripRelease(flags, model: model) { return }
                 guard self.session === model else { return }
-                stripDebugLog("strip draw elapsed=\(gesture.elapsedSeconds) flags=\(flags.rawValue)")
+                self.trace?.advance("display delay")
                 self.presented(model)
             }
         } else {
@@ -265,6 +271,8 @@ final class LensLifecycle {
 
     func dismiss() {
         if case .closed = state { return }
+        trace?.cancel()
+        trace = nil
         let model = session
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }

@@ -1,6 +1,7 @@
 import AppKit
 import Common
 import SwiftUI
+import QuartzCore
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
 
@@ -23,8 +24,10 @@ struct SwitcherPaletteItem: Identifiable {
 @MainActor
 final class SwitcherPalettePanel: NSPanelHud {
     static let shared = SwitcherPalettePanel(emit: broadcastEvent)
-    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+    private let hostingView = LensHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle: LensLifecycle
+    private let startupPreparation = LensStartupPreparation()
+    private var preparedSession: LensSession?
     private var scrollPaging = MiniatureScrollPaging()
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
@@ -32,6 +35,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     init(emit: @escaping (ServerEvent) -> Void) {
         lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
         super.init()
+        lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
@@ -43,9 +47,34 @@ final class SwitcherPalettePanel: NSPanelHud {
         backgroundColor = .clear
         applyWinMuxLayer(.overlay)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        hostingView.onFirstLayout = { [weak self] in
+            self?.lifecycle.trace?.advance("first layout")
+        }
+        hostingView.onFirstFrame = { [weak self] refresh in
+            self?.lifecycle.trace?.finish(signal: String(format: "third display-link tick at %.1f ms refresh", refresh * 1000))
+        }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
+    }
+
+    func prepareAtStartup() async {
+        let started = LensTimebase.now()
+        let entries = (try? await lensWindows(popups: [])) ?? []
+        // A Lens that opened during the read owns the panel; drawing here would replace its view.
+        let idle = if case .closed = lifecycle.state { true } else { false }
+        let workspaces = miniatureWorkspaceSnapshot(entries)
+        let drew = startupPreparation.run(idle: idle) { presentation in
+            var settings = LensConfig()
+            settings.presentation = presentation
+            let items = presentationItems(entries, settings: settings, workspaces: workspaces)
+            let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size,
+                                                     existingItems: items, workspaces: workspaces)
+            prepare(model, startup: true)
+        }
+        guard drew else { return }
+        clearPresentation()
+        lensLog.notice("Lens startup preparation took \(Int((LensTimebase.now() - started) * 1000)) ms")
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
@@ -58,23 +87,8 @@ final class SwitcherPalettePanel: NSPanelHud {
                 }
             }
         }
-        let focused = focus
-        let focusedId = focused.windowOrNil?.windowId
-        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
         let workspaces = miniatureWorkspaceSnapshot(entries)
-        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
-        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
-        let items = entries.map { entry in
-            let miniature = miniatureEntry(entry, onscreen: onscreen)
-            let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
-            return SwitcherPaletteItem(
-                id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
-                icon: icon,
-                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
-                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
-                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
-            )
-        }
+        let items = presentationItems(entries, settings: settings, workspaces: workspaces)
         let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
         model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
@@ -87,9 +101,33 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
     }
 
+    private func presentationItems(_ entries: [LensWindow], settings: LensConfig, workspaces: [MiniatureWorkspace]) -> [SwitcherPaletteItem] {
+        let focused = focus
+        let focusedId = focused.windowOrNil?.windowId
+        let monitorHeight = focused.workspace.workspaceMonitor.visibleRect.height
+        let workspaceLabels = tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)
+        let onscreen = lensOnscreenWindows(drawsPictures: LensSession.drawsPictures(settings: settings)) { Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }) }
+        return entries.map { entry in
+            let miniature = miniatureEntry(entry, onscreen: onscreen)
+            let icon = (entry.window as? MacWindow)?.macApp.nsApp.icon
+            return SwitcherPaletteItem(
+                id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
+                icon: icon,
+                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
+                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
+                miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
+            )
+        }
+    }
+
     private func show(_ model: LensSession) {
-        present(model)
+        if preparedSession !== model { prepare(model) }
+        preparedSession = nil
+        lifecycle.trace?.startInterval("panel ordered front")
         orderFrontRegardless()
+        lifecycle.trace?.advance("panel ordered front")
+        lifecycle.trace?.startInterval("first frame presented")
+        hostingView.observeFirstFrame()
     }
 
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
@@ -120,7 +158,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.stripFlagsChanged(flags, from: model)
     }
 
-    private func present(_ model: LensSession) {
+    private func prepare(_ model: LensSession, startup: Bool = false) {
         scrollPaging = MiniatureScrollPaging()
         let monitor = focus.workspace.workspaceMonitor
         let visible = monitor.visibleRect
@@ -128,24 +166,42 @@ final class SwitcherPalettePanel: NSPanelHud {
         let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
         model.miniatureSize = visible.size
         isOpaque = false
+        let frame: NSRect
+        let root: AnyView
         if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
             model.miniatureSize = rect.size
             model.revealMiniatureSelection()
-            setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: true)
-            hostingView.rootView = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
+            frame = NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height)
+            root = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
         } else {
-            // Center on the focused monitor, with the top edge at one quarter of its height;
-            // convert the top-left coordinates to AppKit's bottom-left origin.
             let layout = model.listLayout
-            setFrame(NSRect(x: rect.minX + (rect.width - layout.width) / 2,
-                            y: appKitScreenMaxY() - rect.minY - layout.topOffset - layout.panelHeight,
-                            width: layout.width, height: layout.panelHeight), display: true)
-            hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
+            frame = NSRect(x: rect.minX + (rect.width - layout.width) / 2,
+                           y: appKitScreenMaxY() - rect.minY - layout.topOffset - layout.panelHeight,
+                           width: layout.width, height: layout.panelHeight)
+            root = AnyView(SwitcherPaletteView(model: model))
         }
+        // The real root goes in before the frame is set, so the first layout is of the Presentation.
+        lifecycle.trace?.startInterval("view built")
+        hostingView.rootView = root
+        setFrame(frame, display: false)
+        hostingView.arm()
+        lifecycle.trace?.advance("view built")
+        lifecycle.trace?.startInterval("first layout")
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        lifecycle.trace?.startInterval("first-frame thumbnails ready")
+        if startup, let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
+            // Rasterizing the whole canvas is what pays SwiftUI's first drawing; an opening only displays.
+            hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+        } else {
+            hostingView.displayIfNeeded()
+        }
+        lifecycle.trace?.advance("first-frame thumbnails ready")
+        preparedSession = model
     }
 
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip)
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace)
         return ticket
     }
 
@@ -156,6 +212,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func clearPresentation() {
+        preparedSession = nil
+        hostingView.disarm()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
     }
@@ -174,12 +232,15 @@ final class SwitcherPalettePanel: NSPanelHud {
             return
         }
         let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
+        // An action can run from a timer or a command task, where the current event is unrelated.
+        let now = LensTimebase.now()
+        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
         if !keepStrip { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
                 let io = CmdIo(stdin: .emptyStdin)
-                if try await !runLensAction(commands, session: model, io: io) {
+                if try await !($lensTraceOrigin.withValue(origin) { try await runLensAction(commands, session: model, io: io) }) {
                     lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
                 }
             }
@@ -416,4 +477,39 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
                      monitorHeightFraction: frame.height / max(1, monitorHeight))
+}
+
+@MainActor
+private final class LensHostingView: NSHostingView<AnyView> {
+    var onFirstLayout: (() -> Void)?
+    var onFirstFrame: ((_ refreshSeconds: Double) -> Void)?
+    private var firstLayout = false
+    private var displayTicks = 0
+    private var firstFrameLink: CADisplayLink?
+
+    func disarm() {
+        firstLayout = false
+        firstFrameLink?.invalidate()
+        firstFrameLink = nil
+        displayTicks = 0
+    }
+    func arm() { disarm(); firstLayout = true }
+    override func layout() {
+        super.layout()
+        if firstLayout { firstLayout = false; onFirstLayout?() }
+    }
+    func observeFirstFrame() {
+        let link = displayLink(target: self, selector: #selector(displayTick(_:)))
+        firstFrameLink = link
+        link.add(to: .main, forMode: .common)
+    }
+    @objc private func displayTick(_ link: CADisplayLink) {
+        guard link === firstFrameLink else { return }
+        displayTicks += 1
+        guard displayTicks == 3 else { return }
+        let refresh = link.duration
+        link.invalidate()
+        firstFrameLink = nil
+        onFirstFrame?(refresh)
+    }
 }

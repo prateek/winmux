@@ -72,6 +72,7 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
             }
             continue
         }
+        let traceOrigin = LensTraceOrigin(start: request.sentAt ?? LensTimebase.now(), received: LensTimebase.now(), source: "CLI")
         let (command, help, err) = parseCommand(request.args).unwrap()
         guard let token: RunSessionGuard = await .isServerEnabled(orIsEnableCommand: command) else {
             await answerToClient(
@@ -104,7 +105,7 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
                         windowId: request.windowId.flatMap { $0 },
                         workspaceName: request.workspace.flatMap { $0 },
                     )
-                    let cmdResult = try await command.run(env, CmdStdin(request.stdin))
+                    let cmdResult = try await $lensTraceOrigin.withValue(traceOrigin) { try await command.run(env, CmdStdin(request.stdin)) }
                     return ServerAnswer(
                         exitCode: cmdResult.exitCode,
                         stdout: cmdResult.stdout.joined(separator: "\n"),

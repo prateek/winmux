@@ -74,14 +74,15 @@ extension HotKey {
     pressedTapModifiers = []
     cancelPendingTapTriggers()
     for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
-        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownHandler: {
+        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
+            let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
                 if hotkeysSuspended { return }
                 noteTapBindingKeyDown()
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
                 let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
                 if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text) { return }
-                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture)
+                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture, origin: origin)
             }
         })
     }
@@ -110,7 +111,7 @@ extension HotKey {
     }
 }
 
-@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil) {
+@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
     if hotkeysSuspended { return }
     Task {
         if let activeMode {
@@ -123,7 +124,9 @@ extension HotKey {
                 .checkServerIsEnabledOrDie(),
                 shouldSchedulePostRefresh: !commands.canSkipPostCommandRefresh
             ) { () throws in
-                _ = try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
+                _ = try await $lensTraceOrigin.withValue(origin) {
+                    try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
+                }
             }
         }
     }
@@ -160,7 +163,7 @@ extension HotKey {
             // Match! Execute the command and consume the event
             lastSequencePrefixTime = nil
             lastSequencePrefixKey = nil
-            triggerBinding(seq.descriptionWithKeyNotation, seq.commands)
+            triggerBinding(seq.descriptionWithKeyNotation, seq.commands, origin: LensTraceOrigin(event: event, received: LensTimebase.now()))
             return true
         }
     }
@@ -176,7 +179,7 @@ extension HotKey {
     pendingTapBindings = [:]
 }
 
-@MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) {
+@MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, origin: LensTraceOrigin? = nil) {
     SwitcherPalettePanel.shared.stripFlagsChanged(modifierFlags)
     if hotkeysSuspended { return }
     if activeTapBindings.isEmpty && pendingTapBindings.isEmpty && pendingTapTriggerTasks.isEmpty { return }
@@ -199,7 +202,7 @@ extension HotKey {
     }
 
     if let binding = pendingTapBindings.removeValue(forKey: tapModifier) {
-        scheduleTapBindingTrigger(binding)
+        scheduleTapBindingTrigger(binding, origin: origin)
     }
 }
 
@@ -207,7 +210,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
     Set(TapModifierKey.allCases.filter { $0.isPressed(in: modifierFlags) })
 }
 
-@MainActor private func scheduleTapBindingTrigger(_ binding: TapBinding) {
+@MainActor private func scheduleTapBindingTrigger(_ binding: TapBinding, origin: LensTraceOrigin?) {
     let trigger = binding.trigger
     nextTapTriggerToken += 1
     let token = nextTapTriggerToken
@@ -218,7 +221,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
         pendingTapTriggerTasks[trigger] = nil
         pendingTapTriggerTokens[trigger] = nil
         guard pressedTapModifiers.isEmpty else { return }
-        triggerBinding(binding.descriptionWithKeyNotation, binding.commands)
+        triggerBinding(binding.descriptionWithKeyNotation, binding.commands, origin: origin)
     }
     pendingTapTriggerTasks[trigger] = task
 }

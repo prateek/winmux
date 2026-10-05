@@ -129,6 +129,10 @@ final class HotKeysController {
 		// Call the handler
 		switch GetEventKind(event) {
 		case UInt32(kEventHotKeyPressed):
+            if !hotKey.isPaused, let handler = hotKey.keyDownWithTimeHandler {
+                handler(GetEventTime(event))
+                return noErr
+            }
 			if !hotKey.isPaused, let handler = hotKey.keyDownHandler {
 				handler()
 				return noErr

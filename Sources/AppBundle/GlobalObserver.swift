@@ -74,8 +74,9 @@ enum GlobalObserver {
         stripDebugLog("strip flags source=\(source) modifiers=\(event.modifierFlags.rawValue) uptime=\(ProcessInfo.processInfo.systemUptime) timestamp=\(event.timestamp)")
         let keyCode = event.keyCode
         let modifierFlags = event.modifierFlags
+        let origin = LensTraceOrigin(event: event, received: LensTimebase.now())
         runOnMainActor {
-            noteTapBindingFlagsChanged(keyCode: keyCode, modifierFlags: modifierFlags)
+            noteTapBindingFlagsChanged(keyCode: keyCode, modifierFlags: modifierFlags, origin: origin)
         }
     }
 
