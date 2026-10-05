@@ -29,6 +29,8 @@ def compare(frames, first_pts, keys, traces, visible):
 
 def validate_sample_times(encoded, metadata):
     expected = [time - metadata['firstPTS'] for time in metadata['framePTS']]
+    if not expected or abs(expected[0]) > .002 or not encoded or abs(encoded[0]) > .002:
+        raise ValueError('first measured sample was not encoded at frame zero')
     if len(encoded) != len(expected):
         raise ValueError('encoded frame count differs from clock metadata')
     if any(b < a for a, b in zip(encoded, encoded[1:])):

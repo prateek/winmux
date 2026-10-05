@@ -30,3 +30,7 @@ class LensFilmTest(unittest.TestCase):
             module.validate_sample_times([0, .01, .050], metadata)
         with self.assertRaises(ValueError):
             module.validate_sample_times([0], metadata)
+
+    def testDroppedFirstSampleCannotShiftTheRecordingOrigin(self):
+        with self.assertRaises(ValueError):
+            module.validate_sample_times([.01, .025], {'firstPTS': 100, 'framePTS': [100.01, 100.025]})
