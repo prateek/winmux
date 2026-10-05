@@ -17,7 +17,7 @@ struct TileView: View {
     private var line: Bool { kind == .text || row }
     private var radius: CGFloat { miniature ? metrics.miniatureRadius : line ? metrics.textRadius : metrics.radius }
     private var chips: [String] {
-        entry.badges.chips(enabled: settings.badges) + (entry.appCount.map { ["\($0) windows"] } ?? [])
+        entry.badges.chips(enabled: settings.badges) + ((!miniature ? entry.appCount : nil).map { ["\($0) windows"] } ?? [])
     }
 
     var body: some View {
@@ -26,7 +26,7 @@ struct TileView: View {
             .overlay {
                 drawing
                     .frame(width: size.width, height: size.height)
-                    .background(selected && !miniature ? Color.accentColor.opacity(line ? 0.26 : 0.16) : .clear, in: RoundedRectangle(cornerRadius: radius))
+                    .background(selected && !miniature ? (line ? Color.accentColor.opacity(0.26) : Color.white.opacity(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
                     .overlay {
                         if selected && !line {
                             RoundedRectangle(cornerRadius: radius).stroke(Color.accentColor, lineWidth: miniature ? metrics.miniatureRing : metrics.selectionRing)
@@ -35,10 +35,12 @@ struct TileView: View {
                             RoundedRectangle(cornerRadius: radius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
                         }
                     }
-                    .shadow(color: .black.opacity(selected && !line ? 0.4 : 0), radius: 18 * metrics.scale, y: 10 * metrics.scale)
+                    .shadow(color: .black.opacity(selected && !line ? 0.4 : 0), radius: miniature ? metrics.miniatureShadowRadius : metrics.selectionShadowRadius, y: miniature ? metrics.miniatureShadowY : metrics.selectionShadowY)
                     .scaleEffect(selected && !line && !miniature ? metrics.selectionScale : 1)
+                    .animation(.easeOut(duration: 0.16), value: selected)
                     .allowsHitTesting(false)
             }
+            .foregroundStyle(.white)
             .contentShape(Rectangle())
     }
 
@@ -47,14 +49,14 @@ struct TileView: View {
         if miniature {
             picture(in: size)
         } else if line {
-            HStack(spacing: (row && kind != .text ? 14 : 8) * metrics.scale) {
+            HStack(spacing: row && kind != .text ? metrics.rowGap : metrics.gap) {
                 if kind != .text {
-                    picture(in: CGSize(width: metrics.listPictureWidth, height: size.height - 12 * metrics.scale))
+                    picture(in: CGSize(width: metrics.listPictureWidth, height: size.height - 2 * metrics.rowVerticalPadding))
                         .frame(width: metrics.listPictureWidth)
                 }
                 bar
             }
-            .padding(.horizontal, 12 * metrics.scale)
+            .padding(.horizontal, metrics.rowHorizontalPadding)
         } else {
             VStack(spacing: metrics.gap) {
                 if kind == .card { bar.frame(height: metrics.barHeight) }
@@ -68,7 +70,7 @@ struct TileView: View {
     private var bar: some View {
         HStack(spacing: metrics.gap) {
             icon(size: metrics.icon)
-            Text(entry.appCount != nil ? entry.appName : entry.title.isEmpty ? entry.appName : entry.title)
+            Text(entry.title.isEmpty ? entry.appName : entry.title)
                 .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
                 .foregroundStyle(.white.opacity(selected ? 1 : 0.62))
                 .lineLimit(1).truncationMode(.tail)
@@ -76,8 +78,10 @@ struct TileView: View {
                 .layoutPriority(1)
             if line && entry.appCount == nil {
                 Text(entry.appName).font(.system(size: metrics.appFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             chipLine
+            if marked && kind != .text && (kind == .card || row) { Image(systemName: "checkmark.circle.fill") }
             if entry.accessory && kind == .text { chip("menu-bar app") }
             if kind == .text {
                 if marked { Image(systemName: "checkmark.circle.fill") }
@@ -87,7 +91,7 @@ struct TileView: View {
     }
 
     private var chipLine: some View {
-        HStack(spacing: 5 * metrics.scale) {
+        HStack(spacing: metrics.chipGap) {
             ForEach(Array(chips.enumerated()), id: \.offset) { _, text in chip(text) }
         }
     }
@@ -101,7 +105,7 @@ struct TileView: View {
 
     private func label(_ text: String) -> some View {
         Text(text).font(.system(size: metrics.chipFont))
-            .padding(.vertical, 3 * metrics.scale).padding(.horizontal, 8 * metrics.scale)
+            .padding(.vertical, metrics.labelVerticalPadding).padding(.horizontal, metrics.labelHorizontalPadding)
             .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
             .fixedSize()
     }
@@ -114,7 +118,7 @@ struct TileView: View {
 
     private func picture(in available: CGSize) -> some View {
         let actual = presentation == "strip" && entry.accessory && settings.accessoryWindow == "actual-size"
-        let pictureHeight = actual ? min(available.height, max(28 * metrics.scale, available.height * entry.monitorHeightFraction)) : available.height
+        let pictureHeight = metrics.pictureHeight(rowHeight: available.height, accessory: entry.accessory, actualSize: actual, monitorHeightFraction: entry.monitorHeightFraction)
         let fitted = metrics.fittedPicture(aspect: entry.aspect, in: CGSize(width: available.width, height: pictureHeight))
         return ZStack {
             Group {
@@ -123,22 +127,22 @@ struct TileView: View {
                 } else { icon(size: min(fitted.width, fitted.height)) }
             }
             .frame(width: fitted.width, height: fitted.height)
-            .clipShape(RoundedRectangle(cornerRadius: miniature ? 4 * metrics.scale : metrics.pictureRadius))
-            .shadow(color: .black.opacity(0.35), radius: 6 * metrics.scale, y: 6 * metrics.scale)
+            .clipShape(RoundedRectangle(cornerRadius: miniature ? metrics.miniaturePictureRadius : metrics.pictureRadius))
+            .shadow(color: .black.opacity(0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 3 * metrics.scale) {
-                    if miniature || kind == .picture && !row { icon(size: miniature ? metrics.miniatureIcon : 30 * metrics.scale) }
+                    if miniature || kind == .picture && !row { icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon) }
                     if entry.accessory { label("menu-bar app") }
-                }.padding((miniature ? 4 : 6) * metrics.scale)
+                }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
             }
             .overlay(alignment: .topLeading) {
                 if miniature || kind == .picture && !row { chipLine.padding(4 * metrics.scale) }
             }
             .overlay(alignment: .topTrailing) {
-                HStack(spacing: 4 * metrics.scale) {
-                    if marked { Image(systemName: "checkmark.circle.fill") }
+                HStack(spacing: metrics.adornmentGap) {
+                    if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill") }
                     if let hint { label(hint) }
-                }.padding(8 * metrics.scale)
+                }.padding(metrics.gap)
             }
         }
         .frame(width: available.width, height: available.height)

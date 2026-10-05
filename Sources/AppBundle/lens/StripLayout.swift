@@ -130,6 +130,8 @@ extension LensSession {
         objectWillChange.send()
     }
 
+    var tileMetrics: TileMetrics { TileMetrics(visibleHeight: miniatureSize.height) }
+    var tileKind: TileKind { TileKind.resolve(configured: settings.tile, override: nil, presentation: settings.presentation) }
     var stripLayout: StripLayout { StripLayout(count: results.count, selection: selection, width: miniatureSize.width - 48) }
     var stripSummonAvailable: Bool {
         guard summonHeld, let item = results.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
@@ -144,6 +146,14 @@ extension LensSession {
     }
 }
 
-func lensOnscreenWindows(presentation: String, read: () -> Set<UInt32>) -> Set<UInt32> {
-    presentation == "miniatures" || presentation == "strip" ? read() : []
+func lensOnscreenWindows(presentation: String, tile: TileKind = .text, read: () -> Set<UInt32>) -> Set<UInt32> {
+    presentation == "miniatures" || presentation == "strip" || tile != .text ? read() : []
+}
+
+extension LensSession {
+    func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
+        for item in results {
+            if let entry = item.miniature, !entry.frozen { request(entry.window, lens) }
+        }
+    }
 }

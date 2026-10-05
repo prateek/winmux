@@ -49,6 +49,28 @@ struct TileMetrics {
     var miniatureIcon: CGFloat { 22 * scale }
     var miniatureRing: CGFloat { 4 * scale }
     var stripGap: CGFloat { 14 * scale }
+    var rowGap: CGFloat { 14 * scale }
+    var rowHorizontalPadding: CGFloat { 12 * scale }
+    var rowVerticalPadding: CGFloat { 6 * scale }
+    var chipGap: CGFloat { 5 * scale }
+    var labelVerticalPadding: CGFloat { 3 * scale }
+    var labelHorizontalPadding: CGFloat { 8 * scale }
+    var pictureIcon: CGFloat { 30 * scale }
+    var pictureIconInset: CGFloat { 6 * scale }
+    var miniatureIconInset: CGFloat { 4 * scale }
+    var miniaturePictureRadius: CGFloat { 4 * scale }
+    var adornmentGap: CGFloat { 4 * scale }
+    var pictureShadowRadius: CGFloat { 9 * scale }
+    var pictureShadowY: CGFloat { 6 * scale }
+    var selectionShadowRadius: CGFloat { 20 * scale }
+    var selectionShadowY: CGFloat { 18 * scale }
+    var miniatureShadowRadius: CGFloat { 15 * scale }
+    var miniatureShadowY: CGFloat { 10 * scale }
+    var accessoryPictureFloor: CGFloat { 28 * scale }
+
+    func pictureHeight(rowHeight: CGFloat, accessory: Bool, actualSize: Bool, monitorHeightFraction: CGFloat) -> CGFloat {
+        accessory && actualSize ? min(rowHeight, max(accessoryPictureFloor, rowHeight * monitorHeightFraction)) : rowHeight
+    }
 
     func width(kind: TileKind, aspect: CGFloat, rowHeight: CGFloat) -> CGFloat {
         if kind == .text { return textWidth }
