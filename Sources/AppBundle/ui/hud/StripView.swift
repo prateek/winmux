@@ -44,7 +44,7 @@ struct StripView: View {
                 }
                 if items.indices.contains(model.selection) {
                     let selected = items[model.selection]
-                    (Text(selected.title.isEmpty ? selected.appName : selected.title).fontWeight(.semibold).foregroundColor(.white)
+                    (Text(selected.tile.title.isEmpty ? selected.tile.appName : selected.tile.title).fontWeight(.semibold).foregroundColor(.white)
                      + Text(" · \(selected.appName) · \(model.selection + 1) of \(items.count)").foregroundColor(.white.opacity(0.62)))
                         .font(.system(size: 15 * model.tileMetrics.scale)).lineLimit(1)
                 }

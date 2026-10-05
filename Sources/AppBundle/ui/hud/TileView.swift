@@ -128,7 +128,12 @@ struct TileView: View {
             }
             .frame(width: fitted.width, height: fitted.height)
             .clipShape(RoundedRectangle(cornerRadius: miniature ? metrics.miniaturePictureRadius : metrics.pictureRadius))
-            .shadow(color: .black.opacity(0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
+            .shadow(color: .black.opacity(miniature ? 0 : 0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
+            .overlay {
+                if miniature {
+                    RoundedRectangle(cornerRadius: metrics.miniaturePictureRadius).stroke(.white.opacity(0.35), lineWidth: metrics.scale)
+                }
+            }
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 3 * metrics.scale) {
                     if miniature || kind == .picture && !row { icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon) }

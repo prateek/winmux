@@ -78,15 +78,15 @@ final class LensSession: ObservableObject {
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
-        let appCounts = Dictionary(grouping: items, by: \.appIdentity).mapValues(\.count)
-        self.items = items.map { item in
-            var snapshot = item
-            if settings.entries == "app" {
+        if settings.entries == "app" {
+            let appCounts = Dictionary(grouping: items, by: \.appIdentity).mapValues(\.count)
+            self.items = items.map { item in
+                var snapshot = item
                 snapshot.tile.title = snapshot.tile.appName
                 snapshot.tile.appCount = appCounts[item.appIdentity]
+                return snapshot
             }
-            return snapshot
-        }
+        } else { self.items = items }
         keyBindings = settings.keys.keys.sorted().compactMap { name in
             if case .success(let (modifiers, key)) = parseBinding(name, .emptyRoot, config.keyMapping.resolve()) {
                 return (name, UInt16(key.carbonKeyCode), modifiers)

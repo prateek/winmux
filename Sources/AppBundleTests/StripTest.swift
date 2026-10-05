@@ -35,7 +35,7 @@ final class StripLayoutTest: XCTestCase {
         XCTAssertLessThan(height, 190)
         let widths = aspects.map { metrics.width(kind: .card, aspect: $0, rowHeight: height) }
         for start in 0 ... aspects.count - 9 {
-            XCTAssertLessThanOrEqual(widths[start ..< start + 9].reduce(0, +) + 8 * StripLayout.gap, 1800 * 0.9 - 88)
+            XCTAssertLessThanOrEqual(widths[start ..< start + 9].reduce(0, +) + 8 * metrics.stripGap, 1800 * 0.9 - 88)
         }
     }
     func testStripAndMiniaturesUseOnscreenSnapshotForFullscreenThumbnails() {
