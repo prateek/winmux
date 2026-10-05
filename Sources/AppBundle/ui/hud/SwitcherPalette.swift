@@ -137,7 +137,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             // convert the top-left coordinates to AppKit's bottom-left origin.
             let layout = model.listLayout
             setFrame(NSRect(x: rect.minX + (rect.width - layout.width) / 2,
-                            y: appKitScreenMaxY() - rect.minY - rect.height * 0.25 - layout.height,
+                            y: appKitScreenMaxY() - rect.minY - layout.topOffset - layout.height,
                             width: layout.width, height: layout.height), display: true)
             hostingView.rootView = AnyView(SwitcherPaletteView(model: model))
         }

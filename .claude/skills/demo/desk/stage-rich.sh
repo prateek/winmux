@@ -4,9 +4,10 @@ export PATH=/opt/homebrew/bin:$PATH
 W=$HOME/winmux/.build/debug/winmux
 for app in Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Preview Calculator Updater osascript WinMuxApp; do pkill -x $app; done
 sleep 1
-mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes ~/desk/docs
+mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes ~/desk/docs ~/desk/repo
 (cd ~/desk && swiftc -O wallpaper.swift -o wallpaper && swiftc -O dialog.swift -o Updater)
 swiftc -O ~/winmux/.claude/skills/demo/keys.swift -o ~/desk/keys
+zsh ~/desk/make-repo.sh
 cp ~/desk/zed/settings.json ~/.config/zed/settings.json
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
 ~/winmux/nickel-helper/target/release/winmux-nickel check ~/.config/winmux/winmux.ncl || exit 1
@@ -33,8 +34,8 @@ put() {
 
 # Open everything, then put each window where it belongs.
 (open -a Zed ~/.config/winmux/winmux.ncl &); sleep 6
-(open -a Ghostty &); sleep 3
-(open -na Ghostty &); sleep 3
+(open -a Ghostty --args -e ~/desk/term.sh &); sleep 3
+(open -na Ghostty --args -e ~/desk/term.sh &); sleep 3
 (open -a Safari ~/desk/docs/lenses.html &); sleep 5
 ~/desk/keys 0 /tmp/new-window.json down:cmd tap:n up:cmd wait:0.5
 open -a Safari ~/desk/docs/columns.html; sleep 2

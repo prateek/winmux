@@ -210,6 +210,7 @@ struct ListLayout {
     let width: CGFloat
     let height: CGFloat
     let headerHeight: CGFloat
+    let topOffset: CGFloat
     let rowHeight: CGFloat
     let gap: CGFloat
     let capacity: Int
@@ -219,9 +220,10 @@ struct ListLayout {
         let metrics = TileMetrics(visibleSize: visibleSize)
         width = 760 * metrics.scale
         headerHeight = 90 * metrics.scale
+        topOffset = visibleSize.height / 4
         rowHeight = kind == .text ? metrics.textHeight : metrics.listPictureHeight
         gap = 4 * metrics.scale
-        let maxRowsHeight = max(rowHeight, visibleSize.height * 0.82 - headerHeight)
+        let maxRowsHeight = max(rowHeight, min(visibleSize.height * 0.82, visibleSize.height - topOffset) - headerHeight)
         height = min(CGFloat(max(1, count)) * (rowHeight + gap), maxRowsHeight) + headerHeight
         capacity = max(1, Int(ceil((height - headerHeight) / (rowHeight + gap))))
     }

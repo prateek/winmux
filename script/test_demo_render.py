@@ -39,6 +39,8 @@ class RichDeskTest(unittest.TestCase):
         self.assertIn('swiftc -O dialog.swift', script)
         self.assertIn('keys.swift -o ~/desk/keys', script)
         self.assertIn('"Start Page"', script)
+        self.assertIn('make-repo.sh', script)
+        self.assertIn('Ghostty --args -e ~/desk/term.sh', script)
         self.assertIn('persistent-workspaces = ["1", "2", "3", "4"]', config)
         self.assertIn('workspace."2".columns', config)
         self.assertIn('workspace."3".columns', config)
