@@ -164,6 +164,39 @@ Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup
 and moves nothing, because a popup has no workspace.
 
 
+## The Hold
+
+A Trigger with modifiers starts a **Hold** on its Lens session.
+It ends once, when its invoking Command, Control and Option modifiers are released,
+or when Shift is released for a Shift-only chord. Shift otherwise controls
+reverse stepping and capital letters. CLI openings and the modifier-free letters
+of the `lens` binding mode have no Hold. Changing Presentation keeps the Hold.
+
+While it lasts, a Lens `keys` chord wins first. The Trigger's own key steps the
+selection, with Shift reversing it; Tab and backtick with the same invoking
+modifiers keep the strip's existing behavior (the other Lens's Trigger is consumed
+without stepping). Other keys are read without the Hold's modifiers: letters edit
+Search, Backspace deletes its last character, arrows move the selection and Escape
+dismisses. Ordinary bindings such as Enter and Shift+Enter are resolved again with
+the held modifiers removed. A strip starts Search only from letters, and converts to a list. A global
+chord with another modifier dismisses the Lens before its binding runs, in every
+Presentation, including while opening. Carbon bindings such as alt-h become Search
+letters during an Alt Hold too.
+
+Search edits during a Hold append and delete at the end through the session;
+selection, insertion elsewhere and clipboard editing wait until release. Cmd+A,
+Cmd+V, Cmd+C, Cmd+X, Cmd+Z and Cmd+Y do nothing during a Command Hold unless bound in
+`keys`. After release the field editor owns typing again, including ordinary Command
+shortcuts, with the caret at the end of held typing. Search focus is requested during
+conversion, and input arriving before the editor is ready is retained in order in
+the session. The matching rules and debounce are unchanged.
+
+A release commits only a strip. A list or miniatures stays open, including a strip
+converted to a list; release during opening ends its Hold before it is presented.
+The strip's display deadline remains 100 ms. [Session key records](lens-opening-traces.md#session-keys)
+show key routing, focus and the final Search/selection without a debugger.
+
+
 ## Strip and the system switcher
 
 `recent` is a strip of every eligible window in Global MRU order. `app-windows` uses the same

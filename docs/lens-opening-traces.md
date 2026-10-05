@@ -85,10 +85,26 @@ At this desk size, the additional straight top-border probe rejects workspace mo
 ## Session keys
 
 `debug-lens-trace` also reads a separate **Keys** table, retained after the first
-frame until dismissal. JSON's `keys` contains the last 256 rows per opening.
+frame and after dismissal, within the twenty-opening history. JSON's `keys` contains the last 256 rows per opening.
 The opening stages and total do not include these rows. Each row carries the
-physical key code, characters, modifier flags, event and receipt boot seconds on
+physical key code, characters, modifier flags, event, receipt and recorded boot seconds on
 `LensTimebase`, Presentation, Hold, entry path, destination, Search and selected
-window id. `fieldEditor` tells whether Search had its AppKit editor at receipt;
+window id. `fieldEditor` tells whether Search had its AppKit editor when a key entered routing;
 `focus` rows mark when that editor became first responder. Read the table from
 the same guest's debug CLI; no debugger or environment flag is needed.
+
+The final `Session` line (JSON `session`) reports current or dismissed state:
+Presentation, Hold, Search, selected window id and `active`. It includes field-editor
+edits, which finish after a key is passed to AppKit. `flagsChanged` rows mark the
+Hold ending; their synthetic code is 65535. Focus and flag rows are observations,
+not additional typed keys. During conversion, the first focus row can appear before
+the triggering letter's completed routing row: compare event timestamps with
+receipt timestamps when measuring the handoff. `receivedAt` is stamped before
+routing and `recordedAt` after its effects; the row's Search and selection are the
+result, while Presentation and Hold are the facts at entry. AppKit can send one
+physical key through more than one entry path; each call gets its own row.
+
+For a true zero-gap pair in the guest driver, use `delay:0` before the two taps and
+`wait:0.005`, `wait:0.020` or `wait:0.050` between them for the other samples. The
+ordinary driver adds 15 ms after each posted key-down and key-up; the event log's
+`bootSeconds` is the actual posting clock. `tap:backspace` deletes a character.
