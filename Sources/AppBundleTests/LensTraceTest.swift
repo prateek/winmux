@@ -6,6 +6,27 @@ import XCTest
 
 @MainActor
 final class LensTraceTest: XCTestCase {
+    func testSessionReadbackIncludesFieldEditorEditsReleaseAndDismissal() {
+        let store = LensTraceStore(stamp: { 10 })
+        let trace = store.begin(presentation: "list", origin: .init(start: 10, received: 10, source: "test"))
+        let owner = testLensLifecycle()
+        let gesture = StripGesture(keyCode: 15, invoking: .command)
+        let model = LensSession(name: "direct", settings: LensConfig(), items: [], search: "")
+        let ticket = owner.begin("direct", toggle: false, strip: gesture, trace: trace)!
+        owner.complete(model, ticket: ticket)
+        model.send(.searchChanged("gh"))
+        XCTAssertEqual(trace.snapshot.session?.search, "gh")
+        XCTAssertEqual(trace.snapshot.session?.hold, true)
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(trace.snapshot.session?.hold, false)
+        XCTAssertEqual(trace.snapshot.session?.active, true)
+        model.send(.searchChanged("gha"))
+        XCTAssertEqual(trace.snapshot.session?.search, "gha")
+        XCTAssertTrue(store.text(last: 1).contains("Search=\"gha\""))
+        owner.dismiss()
+        XCTAssertEqual(trace.snapshot.session?.active, false)
+    }
+
     func testKeysContinueAfterFirstFrameWithoutChangingStagesAndStayBounded() {
         var now = 10.0
         let store = LensTraceStore(stamp: { now })

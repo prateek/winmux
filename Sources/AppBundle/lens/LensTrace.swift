@@ -84,11 +84,23 @@ final class LensTraceStore {
         return String(decoding: try! encoder.encode(snapshots(last: last)), as: UTF8.self)
     }
     func text(last: Int) -> String {
-        snapshots(last: last).map { trace in
-            let rows = trace.stages.map { $0.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", $0.startMs, $0.durationMs) }
-            return "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")\nStage                                Start ms  Duration ms\n" + rows.joined(separator: "\n") + "\nKeys: code text flags boot-seconds received-seconds Presentation Hold path destination Search selection field-editor\n" + trace.keys.map { "\($0.keyCode) \($0.characters.debugDescription) \($0.modifiers) \($0.timestamp) \($0.receivedAt) \($0.presentation) \($0.hold) \($0.path) \($0.destination) \($0.search.debugDescription) \(String(describing: $0.selectedId)) \($0.fieldEditor)" }.joined(separator: "\n") + (trace.session.map { "\nSession: \($0.presentation) Hold=\($0.hold) Search=\($0.search.debugDescription) selection=\(String(describing: $0.selectedId)) active=\($0.active)" } ?? "")
+        snapshots(last: last).map { trace -> String in
+            let stages = trace.stages.map { stage in
+                stage.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", stage.startMs, stage.durationMs)
+            }.joined(separator: "\n")
+            let keys = trace.keys.map { key -> String in
+                "\(key.keyCode) \(key.characters.debugDescription) \(key.modifiers) \(key.timestamp) \(key.receivedAt) \(key.presentation) \(key.hold) \(key.path) \(key.destination) \(key.search.debugDescription) \(String(describing: key.selectedId)) \(key.fieldEditor)"
+            }.joined(separator: "\n")
+            let opening = "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")"
+            var lines = [opening, "Stage                                Start ms  Duration ms", stages,
+                         "Keys: code text flags boot-seconds received-seconds Presentation Hold path destination Search selection field-editor", keys]
+            if let session = trace.session {
+                lines.append("Session: \(session.presentation) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) active=\(session.active)")
+            }
+            return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }
+
 }
 
 @MainActor
