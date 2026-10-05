@@ -6,7 +6,7 @@ Part of {{UMBRELLA}}.
 
 `'miniatures` draws each workspace as a small copy of itself, which answers "where is it". The grid answers "which one": every match at once as Tiles packed into rows, as large as the monitor allows, for sets of windows whose positions mean nothing. One app's windows across workspaces, the floating windows, the results of a Search.
 
-Today a config with `presentation = 'grid` is rejected at load. This issue builds it and removes the rejection.
+Before this issue, a config with `presentation = 'grid` was rejected at load. This issue builds it and removes the rejection.
 
 ## Decisions
 
@@ -36,21 +36,32 @@ Today a config with `presentation = 'grid` is rejected at load. This issue build
 
 ## Defaults chosen for you
 
-- **The limits.** The panel is at most 90% of the monitor's width and 88% of its height. The row height starts near 30% of the monitor's height and steps down until everything fits. A card is never narrower than its title needs to stay readable; the prototype's rule is the starting point.
+- **The limits.** The panel is at most 90% of the monitor's width and 88% of its height. The row height starts near 30% of the monitor's height and steps down until everything fits. A card starts with the prototype's title-width floor. When that prevents fitting every Tile, the floor, chrome and gaps shrink too; 1200 by 900 editor cards first need this at 89 entries on a 1920 by 1080 visible monitor.
 - **Opening.** The panel fades and scales in over about a tenth of a second. Nothing flies.
-- **The thumbnail cache** caps a thumbnail's width (`ThumbnailCache.swift`). With few windows a Tile can be wider than the cap. Raise the cap for the Tiles that need it or accept the softness, and say which in the pull request.
+- **The thumbnail cache** caps a thumbnail's width (`ThumbnailCache.swift`). With few windows a Tile can be wider than the cap. The shared cap stays at 582.4 points; the grid accepts softness above it (616 points unlifted, up to 643.7 with selection lift, in the three-window same-height guest run; real mode measured 586.7 and up to 613.1).
 - **The command line.** `winmux lens --presentation grid` is accepted wherever `list`, `strip` and `miniatures` are.
 - **The layout is a pure function** from Tile sizes and a monitor size to frames, tested without a window server, as `StripLayout` and `MiniatureLayout` are.
 
 ## Done when
 
-- [ ] A Lens with `presentation = 'grid` loads, opens and draws every match.
-- [ ] With three windows the Tiles are large; with the staged desk's fourteen they fill the panel in rows; with forty every Tile is on screen.
-- [ ] `grid.tile-size` takes its three values, and `'real` shows a dialog smaller than an editor.
-- [ ] Search narrows the grid and it re-sizes to the matches; marks, `close`, `focus`, Summon and the workspace keys act on the selection.
-- [ ] Arrow keys reach every Tile.
-- [ ] Layout tests cover one Tile, a full row, a wrap, and forty Tiles.
+- [x] A Lens with `presentation = 'grid` loads, opens and draws every match.
+- [x] With three windows the Tiles are large; with the staged desk's fourteen they fill the panel in rows; with forty every Tile is on screen.
+- [x] `grid.tile-size` takes its three values, and `'real` shows a dialog smaller than an editor.
+- [x] Search narrows the grid and it re-sizes to the matches; marks, `close`, `focus`, Summon and the workspace keys act on the selection.
+- [x] Arrow keys reach every Tile.
+- [x] Layout tests cover one Tile, a full row, a wrap, and forty Tiles.
 - [ ] The pull request shows the grid on the staged desk beside the prototype at the same settings.
+
+## Build notes
+
+`GridLayout` is window-free and returns frames and picture sizes. Real sizing uses the monitor's visible height and real window widths; small pictures stay centred without stretching. Same-height and equal pictures fit their boxes and stop at their real point sizes, including the selection lift. The grid loads and reports settings on every Lens, applying `when.default`; the block has no effect in another Presentation. Sections load and are ignored.
+
+Search is inside the panel's 90-point reserve, above Tiles at a 40-point inset. It re-packs only matches in session order. The lifecycle owns half-second refresh, Hold/release and Summon hints; a separate transparent screen-sized panel draws the landing outline behind the content-sized grid. Arrows use the pure layout's nearest centres. The fade/scale starts after ordering the panel and lasts 0.1 seconds.
+
+At a 1920 by 1080 guest display (1920 by 1050 visible), the measured real-mode row heights were 320.8 for three shaped windows, 210 for the fourteen-window desk and 110.8 for forty mixed windows. Grid startup preparation remains enabled: matched empty-desktop base launches took 290/283/292 ms, grid launches 336/361/356 ms (+62.7 ms mean). Shipped Lenses keep their Presentations.
+
+- [ ] Installed/signed build checks (Prateek).
+- [ ] Second display and real sleep, wake or unlock (Prateek).
 
 ## Sources
 

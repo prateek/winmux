@@ -23,7 +23,7 @@ let W = import "winmux/winmux.ncl" in
 Omitting `filter` matches every candidate. Candidates include minimized windows and windows
 of hidden apps. Candidate AX reads overlap and keep tree order; a window whose record cannot
 be read is omitted from that open. Popup classes are excluded unless listed in `popups`. The one active Display
-profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies. `grid` is rejected.
+profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies; `grid` packs every match into centred rows.
 
 ```sh
 winmux list-lenses --json
@@ -47,8 +47,7 @@ Every Presentation draws an entry through the same Tile. `tile` chooses its kind
 
 A strip defaults to `card`; a list defaults to `text`. Card and picture lists both keep the
 one-line title bar and add a small picture at the left. Miniatures always uses `picture` and
-rejects an explicit `tile`, including in `when.default`. The future grid defaults to `card`;
-the grid Presentation itself is not accepted yet. Nickel leaves `tile` absent so Swift can
+rejects an explicit `tile`, including in `when.default`. A grid defaults to `card`. Nickel leaves `tile` absent so Swift can
 resolve it after a Presentation override.
 
 `badges` defaults to `true`. Chips show the sidebar's workspace label for another workspace: its number when it has one,
@@ -56,7 +55,7 @@ otherwise its display name, truncated after twelve characters with an ellipsis. 
 `floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
 marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App entries use the
 app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
-strip puts the selected entry's chips in its footer, and miniatures puts them after the selected
+strip or grid puts the selected entry's chips in its footer, and miniatures puts them after the selected
 title under its workspace cell, omitting the workspace chip that the cell already names.
 Pictures carry the corner icon, mark, Summon label and Frozen/Accessory treatments. List rows
 of every kind keep the mark, Summon label and Accessory tag at the trailing end of the line.
@@ -194,7 +193,7 @@ shortcuts, with the caret at the end of held typing. Search focus is requested d
 conversion, and input arriving before the editor is ready is retained in order in
 the session. The matching rules and debounce are unchanged.
 
-A release commits only a strip. A list or miniatures stays open, including a strip
+A release commits only a strip. A list, grid or miniatures stays open, including a strip
 converted to a list; release during opening ends its Hold before it is presented.
 The strip's display deadline remains 100 ms. [Session key records](lens-opening-traces.md#session-keys)
 show key routing, focus and the final Search/selection without a debugger.
@@ -281,6 +280,51 @@ marker. Quit that recovered instance to return the native chord. The debug execu
 upstream build cannot repair this build's marker.
 
 
+## Grid
+
+`winmux lens recent --presentation grid` shows every match at once. The panel is centred on
+the focused monitor and fits its contents, up to 90% of the visible width and 88% of its height.
+Tiles pack left to right into centred rows with 14-point gaps at 1920 by 1080. The picture row
+height starts at 330 scaled points and shrinks until everything fits. There is no paging or
+minimum Tile size; at very large counts, title width, type and spacing shrink too.
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  lenses.documents = {
+    presentation = 'grid,
+    grid.tile-size = 'real,
+    tile = 'card,
+  },
+  mode.main.binding.alt-g = "lens documents",
+}) | W.Config
+```
+
+| `grid.tile-size` | Pictures |
+| --- | --- |
+| `real` (default) | One scale factor, row height divided by the monitor's visible height, applied to each window's real size. A dialog stays smaller than an editor. |
+| `same-height` | A common picture-row height with widths allocated from aspects clamped to 0.6–2.1. |
+| `equal` | Equal 1.5:1 picture boxes, with each picture fitted inside its box. |
+
+Pictures keep their own aspect and never grow past their window's real size, including when
+selection lifts. A narrow picture is centred inside the Tile's width allocation. The card's title
+floor yields when needed to fit all Tiles. Text Tiles use the same packed rows without pictures;
+picture Tiles put the selected title and chips in the footer. The footer also shows app and count.
+
+Search shows only matches in the session's order and re-packs them, resizing the panel and Tiles.
+All four arrows select the nearest Tile in that direction, including with no Hold; an edge press
+keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
+Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9
+move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
+`badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label
+and a screen-space landing outline while the configured modifier is held. Trigger release leaves
+the grid open.
+
+`grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
+every Lens. On another Presentation the block loads and is reported but has no visual effect,
+like `miniatures`. `sections` loads on grid Lenses and is currently ignored; the grid is ungrouped.
+The shipped Lenses keep their existing Presentations; use a config Lens or the CLI override.
+
 ## Overview and miniatures
 
 `winmux lens overview` opens every workspace in sidebar order, with tiled windows in their
@@ -342,4 +386,4 @@ placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 The shipped leader bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, and `r` opens `recent --presentation list`. Escape runs only `mode main`. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
 
-Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List and miniatures panels appear immediately. See [subscription events](events.md).
+Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List, grid and miniatures panels appear immediately. See [subscription events](events.md).
