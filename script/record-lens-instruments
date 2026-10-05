@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+seconds=${1:-15}
+output=${2:-LensOpening.trace}
+here=$(cd "$(dirname "$0")" && pwd)
+package="$output.instrdst"
+xcrun instrumentbuilder -o "$package" "$here/LensOpening.instrpkg"
+for subsystem in com.zimengxiong.winmux.debug com.zimengxiong.winmux; do
+    sudo /usr/bin/log config --mode level:debug --subsystem "$subsystem" --category lens-opening
+done
+cleanup() {
+    for subsystem in com.zimengxiong.winmux.debug com.zimengxiong.winmux; do
+        sudo /usr/bin/log config --reset --subsystem "$subsystem" --category lens-opening
+    done
+}
+trap cleanup EXIT
+xcrun xctrace record --template "Time Profiler" --package "$package" --instrument "Lens Opening" \
+    --attach WinMuxApp --time-limit "${seconds}s" --output "$output"

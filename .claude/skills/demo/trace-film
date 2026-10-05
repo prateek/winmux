@@ -1,0 +1,32 @@
+#!/bin/bash
+# In the guest: trace-film <take> <seconds> <keys step>...
+set -euo pipefail
+take=$1; seconds=$2; shift 2
+here=$(cd "$(dirname "$0")" && pwd)
+mkdir -p ~/takes
+out=~/takes/$take.raw.mov
+rm -f "$out" "$out.clock.json"
+[ "$here/trace-recorder" -nt "$here/trace-recorder.swift" ] || swiftc -O "$here/trace-recorder.swift" -o "$here/trace-recorder"
+[ "$here/keys" -nt "$here/keys.swift" ] || swiftc -O "$here/keys.swift" -o "$here/keys"
+"$here/trace-recorder" "$out" "$seconds" &
+recorder=$!
+trap 'kill "$recorder" 2>/dev/null || true' EXIT
+for ((i=0;i<200;i++)); do [ ! -f "$out.clock.json" ] || break; sleep .05; done
+[ -f "$out.clock.json" ] || { echo 'recorder produced no first sample' >&2; exit 1; }
+t0=$(python3 -c 'import time; print(time.time())')
+sleep 1.5
+"$here/keys" "$t0" ~/takes/"$take".events.json "$@"
+wait "$recorder"
+trap - EXIT
+
+python3 - "$here/check-lens-film.py" "$out" <<'AUDIT'
+import json, runpy, subprocess, sys
+helper, raw = sys.argv[1:]
+metadata = json.load(open(raw + '.clock.json'))
+frames = json.loads(subprocess.check_output(['/opt/homebrew/bin/ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames', '-of', 'json', raw]))['frames']
+runpy.run_path(helper)['validate_sample_times']([float(frame['best_effort_timestamp_time']) for frame in frames], metadata)
+print('Encoded sample clock verified:', len(frames), 'immutable frames')
+AUDIT
+
+/opt/homebrew/bin/ffmpeg -y -v error -i "$out" -vf fps=60 -c:v libx264 -preset fast -crf 18 ~/takes/"$take".mov
+cp "$out.clock.json" ~/takes/"$take".mov.clock.json

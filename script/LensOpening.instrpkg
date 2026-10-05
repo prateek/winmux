@@ -27,8 +27,8 @@
   <create-table><id>release-stages</id><schema-ref>lens-opening-release-stages</schema-ref></create-table>
   <create-table><id>release-gate</id><schema-ref>lens-opening-release-gate</schema-ref></create-table>
   <graph><title>Lens opening</title><lane><title>Stages</title><table-ref>stages</table-ref><plot><value-from>stage</value-from><label-from>stage</label-from></plot></lane></graph>
-  <list><title>Stages</title><table-ref>stages</table-ref><column>stage</column></list>
   <graph><title>Release Lens opening</title><lane><title>Stages</title><table-ref>release-stages</table-ref><plot><value-from>stage</value-from><label-from>stage</label-from></plot></lane></graph>
-  <list><title>Release stages</title><table-ref>release-stages</table-ref><column>stage</column></list>
+  <list><title>Stages</title><table-ref>stages</table-ref><column>start</column><column>duration</column><column>stage</column></list>
+  <list><title>Release stages</title><table-ref>release-stages</table-ref><column>start</column><column>duration</column><column>stage</column></list>
  </instrument>
 </package>

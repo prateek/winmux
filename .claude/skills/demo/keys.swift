@@ -24,11 +24,17 @@ var held: [String] = []
 var events: [[String: Any]] = []
 var flags: CGEventFlags { modifiers.filter { held.contains($0.name) }.reduce(CGEventFlags()) { $0.union($1.flag) } }
 
-func post(_ code: CGKeyCode, down: Bool) {
+@discardableResult
+func post(_ code: CGKeyCode, down: Bool) -> Double {
     let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
     event.flags = flags
+    var timebase = mach_timebase_info_data_t()
+    mach_timebase_info(&timebase)
+    event.timestamp = UInt64(Double(mach_absolute_time()) * Double(timebase.numer) / Double(timebase.denom))
     event.post(tap: .cghidEventTap)
+    let stamp = Double(event.timestamp) / 1e9
     usleep(15_000)
+    return stamp
 }
 
 for step in args.dropFirst(2) {
@@ -47,8 +53,9 @@ for step in args.dropFirst(2) {
     case "tap":
         guard let code = keyCodes[parts[1]] else { fatalError("no key \(parts[1])") }
         let chord = modifiers.filter { held.contains($0.name) }.map(\.label) + [keyLabels[parts[1]] ?? parts[1].uppercased()]
-        events.append(["t": (Date().timeIntervalSince1970 - t0 * 1).rounded3, "keys": chord.joined(separator: " ")])
-        post(code, down: true)
+        let elapsed = Date().timeIntervalSince1970 - t0
+        let bootSeconds = post(code, down: true)
+        events.append(["t": elapsed.rounded3, "bootSeconds": bootSeconds, "keys": chord.joined(separator: " ")])
         post(code, down: false)
     default: fatalError("bad step: \(step)")
     }
