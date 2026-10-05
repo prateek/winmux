@@ -186,7 +186,7 @@ final class LensLifecycle {
     }
 
     private func startPresentationEffects(_ model: LensSession) {
-        updateMiniatureLanding()
+        if model.settings.presentation != "strip" { updateMiniatureLanding() }
         guard model.settings.presentation == "strip" || model.settings.presentation == "miniatures", thumbnailRefresh == nil else { return }
         nextThumbnailToken += 1
         let token = nextThumbnailToken

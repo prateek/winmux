@@ -196,9 +196,13 @@ final class LensEffectLifetimeTest: XCTestCase {
         let session = LensSession(name: "recent", settings: settings, items: [], search: "")
         owner.complete(session, ticket: owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!)
         XCTAssertFalse(session.summonHeld)
+        var changes = 0
+        let observation = session.objectWillChange.sink { changes += 1 }
         flags = [.command, .option]
         await clock.advance(by: .milliseconds(100))
         XCTAssertFalse(session.summonHeld, "The display deadline only rechecks the release key")
+        XCTAssertEqual(changes, 0, "First strip display does not recompute landing")
+        withExtendedLifetime(observation) {}
         owner.dismiss()
         try await clock.checkSuspension()
     }
