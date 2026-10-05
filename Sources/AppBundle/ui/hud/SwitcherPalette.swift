@@ -50,7 +50,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.onFirstLayout = { [weak self] in
             self?.lifecycle.trace?.advance("first layout")
         }
-        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link after two compositor cycles") }
+        hostingView.onFirstFrame = { [weak self] in self?.lifecycle.trace?.finish(signal: "display-link after two compositor cycles") }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -478,7 +478,7 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
 @MainActor
 private final class LensHostingView: NSHostingView<AnyView> {
     var onFirstLayout: (() -> Void)?
-    var onFirstDraw: (() -> Void)?
+    var onFirstFrame: (() -> Void)?
     private var firstLayout = false
     private var displayTicks = 0
     private var firstFrameLink: CADisplayLink?
@@ -505,6 +505,6 @@ private final class LensHostingView: NSHostingView<AnyView> {
         guard displayTicks == 3 else { return }
         link.invalidate()
         firstFrameLink = nil
-        onFirstDraw?()
+        onFirstFrame?()
     }
 }
