@@ -181,6 +181,21 @@ final class LensLifecycleTest: XCTestCase {
         owner.dismiss()
     }
 
+    func testOnlyStripUsesReadyStateWhileFirstNonStripSessionIsCurrent() {
+        for presentation in ["list", "miniatures"] {
+            var owner: LensLifecycle!
+            owner = testLensLifecycle(show: { model in
+                XCTAssertTrue(owner.session === model)
+                if case .ready = owner.state { XCTFail("Ready belongs only to a delayed strip") }
+            })
+            var settings = LensConfig(); settings.presentation = presentation
+            let model = LensSession(name: "demo", settings: settings, items: [], search: "")
+            owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
+            guard case .presented = owner.state else { return XCTFail("Expected presented") }
+            owner.dismiss()
+        }
+    }
+
     func testDismissalClearsSearchSnapshotAndContext() {
         let owner = testLensLifecycle()
         owner.complete(session("demo"), ticket: owner.begin("demo", toggle: false)!,

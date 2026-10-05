@@ -8,6 +8,7 @@ final class LensLifecycle {
         let gesture: StripGesture?
         var steps = 0
         var release: NSEvent.ModifierFlags?
+        var prepared: LensSession?
     }
     enum State {
         case closed
@@ -39,6 +40,7 @@ final class LensLifecycle {
     private(set) var state: State = .closed
     var session: LensSession? {
         switch state {
+            case .opening(let opening): return opening.prepared
             case .ready(let model), .presented(let model): return model
             default: return nil
         }
@@ -95,7 +97,7 @@ final class LensLifecycle {
 
     @discardableResult
     func complete(_ model: LensSession, ticket: Int, context: JSONValue = .null, windows: [JSONValue] = [], ids: [UInt32] = [], invocation: StripGesture? = nil) -> Bool {
-        guard ticket == generation, case .opening(let opening) = state, opening.name == model.name else { return false }
+        guard ticket == generation, case .opening(var opening) = state, opening.name == model.name else { return false }
         if model.settings.presentation == "strip", let gesture = opening.gesture ?? invocation {
             model.beginStrip(gesture)
             model.cycleStripSelection(opening.steps)
@@ -120,7 +122,8 @@ final class LensLifecycle {
                 self.presented(model)
             }
         } else {
-            state = .ready(model)
+            opening.prepared = model
+            state = .opening(opening)
             presented(model)
         }
         return true
@@ -344,12 +347,12 @@ final class LensLifecycle {
                     let snapshot = try? await snapshotTask.value
                     do {
                         guard let self, let model, !Task.isCancelled, request == self.landingRequest, self.session === model else { return }
+                        guard destination.columns === columns else { continue }
                         guard snapshot != nil else {
                             // A failed read is not kept for the session.
                             if self.landingColumnsTask == snapshotTask { self.landingColumnsTask = nil }
                             return
                         }
-                        guard destination.columns === columns else { continue }
                     }
                     let records = snapshot?.arrayOrNil?.map { column -> JSONValue in
                         guard case .object(var fields) = column else { return column }

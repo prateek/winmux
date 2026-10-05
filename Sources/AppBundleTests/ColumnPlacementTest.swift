@@ -233,29 +233,32 @@ final class ColumnPlacementTest: XCTestCase {
     }
 
     func testColumnsRemovedDuringEvaluationUsesColumnsOffGeometry() async throws {
-        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
-        try await load("squeeze")
-        let window = incoming as! TestWindow
-        let started = LensEffectSignal()
-        var release: CheckedContinuation<Void, Never>?
-        window.beforeAxRecord = {
-            window.beforeAxRecord = nil
-            await withCheckedContinuation { release = $0; started.send() }
+        for failsRead in [false, true] {
+            let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+            try await load("squeeze")
+            let window = incoming as! TestWindow
+            let started = LensEffectSignal()
+            var release: CheckedContinuation<Void, Never>?
+            window.beforeAxRecord = {
+                window.beforeAxRecord = nil
+                await withCheckedContinuation { release = $0; started.send() }
+            }
+            let model = session(workspace, window: window, rect: rect)
+            let owner = ownLens(model)
+            defer { owner.dismiss() }
+            model.send(.summonChanged(true))
+            await started.wait()
+            let pending = owner.landingTask
+            workspace.columns = nil
+            if failsRead { window.testAxRecordError = NSError(domain: "test", code: 1) }
+            release?.resume()
+            await pending?.value
+            let actual = model.miniatureLanding
+            XCTAssertNotNil(actual)
+            owner.cancelLanding()
+            owner.updateMiniatureLanding()
+            XCTAssertEqual(actual, model.miniatureLanding)
         }
-        let model = session(workspace, window: window, rect: rect)
-        let owner = ownLens(model)
-        defer { owner.dismiss() }
-        model.send(.summonChanged(true))
-        await started.wait()
-        let pending = owner.landingTask
-        workspace.columns = nil
-        release?.resume()
-        await pending?.value
-        let actual = model.miniatureLanding
-        XCTAssertNotNil(actual)
-        owner.cancelLanding()
-        owner.updateMiniatureLanding()
-        XCTAssertEqual(actual, model.miniatureLanding)
     }
 
     func testNilLandingOutcomeIsEvaluatedOnceUntilSummonOrDestinationChanges() async throws {
@@ -276,6 +279,10 @@ final class ColumnPlacementTest: XCTestCase {
         model.send(.summonChanged(false))
         model.send(.summonChanged(true))
         XCTAssertGreaterThan(changes, before)
+        let afterSummon = changes
+        XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace())
+        owner.updateMiniatureLanding()
+        XCTAssertGreaterThan(changes, afterSummon)
         withExtendedLifetime(observation) {}
     }
 

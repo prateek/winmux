@@ -85,11 +85,14 @@ final class LensEffectLifetimeTest: XCTestCase {
             let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([true]) },
                 requestThumbnail: { _, _ in requests += 1 }, closeThumbnails: { _ in closed += 1 }, flags: { .command })
             let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { events.append($0) }, show: { _ in }, hide: {})
+            var instructions: [LensLifecycle.ShowInstruction] = []
+            owner.finishShow = { _, instruction in instructions.append(instruction) }
             let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
             let session = model()
             owner.complete(session, ticket: ticket)
             if !ready { await clock.advance(by: .milliseconds(100)) }
             session.send(.presentationChanged("list"))
+            XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false), "Conversion from ready and presented both preserve the base calls")
             session.send(.searchChanged("= true"))
             XCTAssertTrue(owner.ownedEffects.contains(.search))
             await clock.advance(by: .seconds(3))
@@ -174,6 +177,9 @@ final class LensEffectLifetimeTest: XCTestCase {
         XCTAssertEqual(changes, 0)
         session.send(.summonChanged(true))
         changes = 0
+        session.send(.modifiersChanged(.option))
+        session.send(.modifiersChanged([.option, .capsLock]))
+        XCTAssertEqual(changes, 0)
         session.send(.selectionChanged(session.selection))
         XCTAssertEqual(changes, 1, "The base assigns selection unconditionally, but dedupes landing")
         owner.dismiss()
