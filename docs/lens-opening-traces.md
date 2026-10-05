@@ -81,3 +81,14 @@ python3 .claude/skills/demo/check-lens-film.py strip.mov strip.json --probe 500,
 ```
 
 At this desk size, the additional straight top-border probe rejects workspace motion that can fool centre pixels. It requires the bright strip edge to span most of its width, with darker pixels outside and inside; adjust the geometry for another Presentation size. Inspect the extracted PNGs before accepting the probes: it must detect the strip surface, including placeholders, rather than wait for fresh thumbnails. The helper first checks every encoded raw-frame timestamp against the measured receipt metadata, rejecting encoder reordering or an incorrect movie origin. The checker reads the movie's actual frame timestamps and rates, verifies 60 fps spacing, and prints each key time, first visible frame, trace total, difference in milliseconds and difference in frames. It also prints the posted-key to trace-origin shift and the actual endpoint difference on the shared clock; frame indices use the recorded trace origin, not an assumption that both starts coincide. It rejects missing openings, pending traces and disagreement over two frames. One frame is 16.667 ms in this file. Keep frames at the key press, the trace's first-frame estimate and the first frame a viewer calls present. Read back focused workspace and windows after the take.
+
+## Session keys
+
+`debug-lens-trace` also reads a separate **Keys** table, retained after the first
+frame until dismissal. JSON's `keys` contains the last 256 rows per opening.
+The opening stages and total do not include these rows. Each row carries the
+physical key code, characters, modifier flags, event and receipt boot seconds on
+`LensTimebase`, Presentation, Hold, entry path, destination, Search and selected
+window id. `fieldEditor` tells whether Search had its AppKit editor at receipt;
+`focus` rows mark when that editor became first responder. Read the table from
+the same guest's debug CLI; no debugger or environment flag is needed.

@@ -249,6 +249,7 @@ final class LensLifecycle {
     /// `.ignored`, which means it is not the strip's. Nil when no strip is opening.
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> StripInput? {
         guard case .opening(var opening) = state, let gesture = opening.gesture else { return nil }
+        trace?.key(code: keyCode, characters: "", flags: flags, timestamp: LensTimebase.now(), presentation: "opening", hold: opening.release == nil, path: "openingStripKey", destination: gesture.step(keyCode: keyCode, flags: flags) != nil ? "step queued" : "dropped", search: "", selectedId: nil, fieldEditor: false)
         if let step = gesture.step(keyCode: keyCode, flags: flags) {
             // After the release the selection is settled: the commit waits only for the session.
             if opening.release == nil { opening.steps += step; state = .opening(opening) }

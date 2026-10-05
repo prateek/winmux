@@ -138,6 +138,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                 guard let self, let model, self.session === model else { return }
                 if let field = lensSearchField(in: self.hostingView) { self.makeFirstResponder(field) }
                 (self.firstResponder as? NSTextView)?.selectAll(nil)
+                self.lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(), presentation: model.settings.presentation, hold: false, path: "focus", destination: "Search first responder", search: model.query, selectedId: model.selectedId, fieldEditor: self.firstResponder is NSTextView)
             }
         }
     }
@@ -247,9 +248,20 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
+    private func recordKey(_ event: NSEvent, path: String, destination: String, model: LensSession? = nil, trace: LensOpeningTrace? = nil, presentation: String? = nil) {
+        let model = model ?? session
+        (trace ?? lifecycle.trace)?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
+            flags: event.modifierFlags, timestamp: event.timestamp,
+            presentation: presentation ?? model?.settings.presentation ?? "opening",
+            hold: model?.stripGesture.map { !$0.shouldCommit(flags: event.modifierFlags) } ?? false,
+            path: path, destination: destination, search: model?.query ?? "", selectedId: model?.selectedId,
+            fieldEditor: firstResponder is NSTextView)
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if session?.settings.presentation == "strip", handleStripKey(event) { return true }
-        if session?.performKeyAction(event) == true { return true }
+        if session?.settings.presentation == "strip", handleStripKey(event) { recordKey(event, path: "performKeyEquivalent", destination: "strip"); return true }
+        if session?.performKeyAction(event) == true { recordKey(event, path: "performKeyEquivalent", destination: "Lens keys command"); return true }
+        recordKey(event, path: "performKeyEquivalent", destination: "passed to field editor")
         return super.performKeyEquivalent(with: event)
     }
 
@@ -277,7 +289,11 @@ final class SwitcherPalettePanel: NSPanelHud {
                                           timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber,
                                           context: nil, characters: characters, charactersIgnoringModifiers: characters,
                                           isARepeat: false, keyCode: keyCode) else { return false }
+        let model = session
+        let trace = lifecycle.trace
+        let presentation = model?.settings.presentation
         let handled = handleStripKey(event)
+        recordKey(event, path: "Carbon", destination: handled ? "strip" : "global binding", model: model, trace: trace, presentation: presentation)
         if !handled, session?.settings.presentation == "strip" { dismiss() }
         return handled
     }
@@ -290,6 +306,14 @@ final class SwitcherPalettePanel: NSPanelHud {
             model.updateSummonModifiers(event.modifierFlags)
         }
         if event.type == .keyDown {
+            let trace = lifecycle.trace
+            let presentation = model.settings.presentation
+            let search = model.query
+            let selection = model.selectedId
+            defer {
+                let destination = session == nil ? "dismissed" : model.query != search ? "Search" : model.selectedId != selection ? "selection" : firstResponder is NSTextView ? "passed to field editor" : "dropped"
+                recordKey(event, path: "sendEvent", destination: destination, model: model, trace: trace, presentation: presentation)
+            }
             if model.settings.presentation == "strip", handleStripKey(event) { return }
             if model.settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][event.keyCode] {
                 model.moveMiniatureSelection(direction)

@@ -22,6 +22,20 @@ struct LensTraceStage: Codable, Equatable {
     let startMs: Double
     let durationMs: Double
 }
+struct LensKeyRecord: Codable, Equatable {
+    let keyCode: UInt16
+    let characters: String
+    let modifiers: UInt
+    let timestamp: Double
+    let receivedAt: Double
+    let presentation: String
+    let hold: Bool
+    let path: String
+    let destination: String
+    let search: String
+    let selectedId: UInt32?
+    let fieldEditor: Bool
+}
 struct LensTraceSnapshot: Codable, Equatable {
     let id: Int
     let presentation: String
@@ -31,6 +45,7 @@ struct LensTraceSnapshot: Codable, Equatable {
     let signal: String?
     let signposting: Bool
     let stages: [LensTraceStage]
+    let keys: [LensKeyRecord]
 }
 
 @MainActor
@@ -63,7 +78,7 @@ final class LensTraceStore {
     func text(last: Int) -> String {
         snapshots(last: last).map { trace in
             let rows = trace.stages.map { $0.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", $0.startMs, $0.durationMs) }
-            return "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")\nStage                                Start ms  Duration ms\n" + rows.joined(separator: "\n")
+            return "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")\nStage                                Start ms  Duration ms\n" + rows.joined(separator: "\n") + "\nKeys: code text flags boot-seconds received-seconds Presentation Hold path destination Search selection field-editor\n" + trace.keys.map { "\($0.keyCode) \($0.characters.debugDescription) \($0.modifiers) \($0.timestamp) \($0.receivedAt) \($0.presentation) \($0.hold) \($0.path) \($0.destination) \($0.search.debugDescription) \(String(describing: $0.selectedId)) \($0.fieldEditor)" }.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }
 }
@@ -76,6 +91,7 @@ final class LensOpeningTrace {
     private let stamp: () -> Double
     private let signposting = lensOpeningRecordingGate.isEnabled
     private var stages: [LensTraceStage] = []
+    private var keys: [LensKeyRecord] = []
     private var last: Double
     private var signal: String?
     private var stageStart: Double?
@@ -131,8 +147,17 @@ final class LensOpeningTrace {
         advance("opening cancelled")
         signal = "cancelled before first frame"
     }
+    func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
+             presentation: String, hold: Bool, path: String, destination: String,
+             search: String, selectedId: UInt32?, fieldEditor: Bool) {
+        keys.append(LensKeyRecord(keyCode: code, characters: characters, modifiers: flags.rawValue,
+                                 timestamp: timestamp, receivedAt: stamp(), presentation: presentation,
+                                 hold: hold, path: path, destination: destination, search: search,
+                                 selectedId: selectedId, fieldEditor: fieldEditor))
+        if keys.count > 256 { keys.removeFirst(keys.count - 256) }
+    }
     var snapshot: LensTraceSnapshot {
         LensTraceSnapshot(id: id, presentation: presentation, source: origin.source, startedAt: origin.start,
-                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages)
+                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages, keys: keys)
     }
 }
