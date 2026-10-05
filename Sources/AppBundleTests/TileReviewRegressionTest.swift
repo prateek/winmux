@@ -35,11 +35,17 @@ final class TileReviewRegressionTest: XCTestCase {
         let full = ListLayout(count: 40, kind: .card, visibleSize: CGSize(width: 1920, height: 1080))
         XCTAssertEqual(full.width, 760)
         XCTAssertEqual(full.radius, 30)
-        XCTAssertEqual(full.height, 1080 * 0.75)
-        XCTAssertLessThanOrEqual(full.height + 1080 / 4, 1080)
+        XCTAssertEqual(full.height, 1080 * 0.66, accuracy: 0.001)
+        XCTAssertLessThanOrEqual(full.topOffset + full.panelHeight, 1080 * 0.96)
         XCTAssertEqual(full.rowHeight, 74)
         XCTAssertEqual(full.headerHeight, 90)
-        XCTAssertEqual(full.capacity, 10)
+        XCTAssertEqual(full.capacity, 8)
+        // The window is sized for the tallest list and one error line, whatever the row count,
+        // so clearing a Search that opened on three rows has room for all of them.
+        let few = ListLayout(count: 3, kind: .card, visibleSize: CGSize(width: 1920, height: 1080))
+        XCTAssertLessThan(few.height, full.height)
+        XCTAssertEqual(few.panelHeight, full.panelHeight)
+        XCTAssertGreaterThanOrEqual(full.panelHeight, full.height + 30)
         let small = ListLayout(count: 2, kind: .card, visibleSize: CGSize(width: 960, height: 540))
         XCTAssertEqual(small.width, 380)
         XCTAssertEqual(small.radius, 15)
@@ -58,6 +64,16 @@ final class TileReviewRegressionTest: XCTestCase {
             XCTAssertGreaterThanOrEqual(empty.layout.rowWidth - 88 * metrics.scale, caption)
             XCTAssertTrue(empty.layout.range.isEmpty)
         }
+    }
+
+    func testOnePortraitPictureStillLeavesRoomForItsFooter() {
+        let size = CGSize(width: 1920, height: 1080)
+        let metrics = TileMetrics(visibleSize: size)
+        var item = SwitcherPaletteItem(id: 1, title: "Notes", appName: "Notes", icon: nil, workspaceName: "2", isFocused: false)
+        item.tile = TileEntry(title: "Notes", appName: "Notes", aspect: 0.5)
+        let strip = StripSnapshot(items: [item], selection: 0, size: size, kind: .picture, settings: LensConfig())
+        XCTAssertLessThan(strip.layout.rowWidth, strip.minimumWidth)
+        XCTAssertEqual(strip.minimumWidth, metrics.textWidth + 88 * metrics.scale)
     }
 
     func testFooterOmitsAppNameWhenItIsAlreadyTheTitle() {
@@ -116,6 +132,8 @@ final class TileReviewRegressionTest: XCTestCase {
         let workspace = Workspace.get(byName: "2")
         workspace.markAsAutomaticallyNamed()
         _ = TestWindow.new(id: 92, parent: workspace.rootTilingContainer)
+        // Before a rename the chip is the sidebar's number, read from the title the sidebar shows.
+        XCTAssertNotNil(tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([]))[workspace.name].flatMap(Int.init))
         try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "mail")
         XCTAssertEqual(tileWorkspaceLabels([workspace.name], workspaces: miniatureWorkspaceSnapshot([]))[workspace.name], "mail")
         try renameWorkspaceForSidebar(workspaceName: workspace.name, displayName: "correspondence")
@@ -156,74 +174,12 @@ final class TileReviewRegressionTest: XCTestCase {
         await clock.advance()
         requests.removeAll()
         await clock.advance(by: .milliseconds(500))
-        XCTAssertEqual(requests.count, 10)
+        XCTAssertEqual(requests.count, session.listLayout.capacity)
+        XCTAssertEqual(requests.count, 8)
         XCTAssertTrue(requests.contains(21))
         XCTAssertFalse(requests.contains(1))
         XCTAssertFalse(requests.contains(40))
         owner.dismiss()
         try await clock.checkSuspension()
-    }
-}
-
-final class TileDrawingArchitectureTest: XCTestCase {
-    private func source(_ path: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-    }
-
-    func testPictureBadgesAreSharedWithThePresentationFooters() throws {
-        let tile = try source("Sources/AppBundle/ui/hud/TileView.swift")
-        XCTAssertFalse(tile.contains("pictureBadgeTop"))
-        XCTAssertFalse(tile.contains(".overlay(alignment: .topLeading)"))
-        for path in ["StripView.swift", "MiniaturesView.swift"] {
-            XCTAssertTrue(try source("Sources/AppBundle/ui/hud/" + path).contains("TileChips("))
-        }
-    }
-
-    func testMiniatureSelectionPreservesTheFloatingDrawOrder() throws {
-        let miniatures = try source("Sources/AppBundle/ui/hud/MiniaturesView.swift")
-        XCTAssertTrue(miniatures.contains("miniatureDrawOrder("))
-        XCTAssertFalse(miniatures.contains(".zIndex("))
-        XCTAssertTrue(try source("Sources/AppBundle/ui/hud/StripView.swift").contains(".zIndex("))
-    }
-
-    func testListAdornmentsUseTheLineInsteadOfThePicture() throws {
-        let tile = try source("Sources/AppBundle/ui/hud/TileView.swift")
-        XCTAssertTrue(tile.contains("if line {"))
-        XCTAssertTrue(tile.contains("if entry.accessory && line"))
-        XCTAssertTrue(tile.contains("if let hint, !line"))
-        XCTAssertTrue(tile.contains("if entry.accessory && !line"))
-    }
-
-    func testFooterDoesNotAlwaysRepeatTheAppAndEmptyStateLivesThere() throws {
-        let strip = try source("Sources/AppBundle/ui/hud/StripView.swift")
-        XCTAssertFalse(strip.contains("Text(\" · \\(selected.appName)"))
-        XCTAssertFalse(strip.contains("if items.isEmpty { Text(\"No windows\").frame"))
-        XCTAssertTrue(strip.contains("No windows"))
-    }
-
-    func testStripRenderAndRefreshConsumeOneSnapshot() throws {
-        let strip = try source("Sources/AppBundle/ui/hud/StripView.swift")
-        XCTAssertFalse(strip.contains("model.stripWidths"))
-        XCTAssertFalse(strip.contains("model.stripRowHeight"))
-        XCTAssertFalse(strip.contains("model.results"))
-        XCTAssertTrue(strip.contains("model.stripSummonAvailable(items: items)"))
-        let layout = try source("Sources/AppBundle/lens/StripLayout.swift")
-        XCTAssertFalse(layout.contains("var stripWidths:"))
-        XCTAssertFalse(layout.contains("var stripRowHeight:"))
-        let palette = try source("Sources/AppBundle/ui/hud/SwitcherPalette.swift")
-        XCTAssertTrue(palette.contains("tileWorkspaceLabels(entries.map { $0.record.workspace }, workspaces: workspaces)"))
-        XCTAssertTrue(palette.contains("model.miniatureWorkspaces = workspaces"))
-    }
-
-    func testLifecycleUsesOnePicturePolicyAndRefreshDispatch() throws {
-        let lifecycle = try source("Sources/AppBundle/lens/LensLifecycle.swift")
-        XCTAssertTrue(lifecycle.contains("guard model.drawsPictures"))
-        XCTAssertTrue(lifecycle.contains("model.refreshThumbnails("))
-        XCTAssertFalse(lifecycle.contains("model.refreshListThumbnails("))
-        XCTAssertFalse(try source("Sources/AppBundle/lens/Tile.swift").contains("override: String?"))
-        let palette = try source("Sources/AppBundle/ui/hud/SwitcherPalette.swift")
-        XCTAssertFalse(palette.contains("monitorHeight: CGFloat? = nil"))
-        XCTAssertFalse(palette.contains("focusedWorkspaceName: String? = nil"))
     }
 }

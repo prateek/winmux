@@ -50,7 +50,7 @@ struct StripView: View {
                         if model.tileKind == .picture {
                             TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
                         }
-                        Text((selected.tile.footerAppName.map { " · \($0)" } ?? "") + " · \(model.selection + 1) of \(items.count)")
+                        Text((selected.tile.footerAppName.map { "· \($0) " } ?? "") + "· \(model.selection + 1) of \(items.count)")
                             .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
                     }
                     .font(.system(size: 15 * model.tileMetrics.scale))
@@ -66,7 +66,7 @@ struct StripView: View {
             .background {
                 GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * model.tileMetrics.scale), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
             }
-            .frame(width: layout.rowWidth)
+            .frame(width: max(layout.rowWidth, snapshot.minimumWidth))
         }
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
     }

@@ -155,7 +155,8 @@ extension LensSession {
     var stripSnapshot: StripSnapshot {
         StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
     }
-    var listLayout: ListLayout { ListLayout(count: results.count, kind: tileKind, visibleSize: miniatureSize) }
+    var listLayout: ListLayout { listLayout(count: results.count) }
+    func listLayout(count: Int) -> ListLayout { ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize) }
     func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
         guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
@@ -170,7 +171,7 @@ extension LensSession {
 
     func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
         let items = results
-        let layout = ListLayout(count: items.count, kind: tileKind, visibleSize: miniatureSize)
+        let layout = listLayout(count: items.count)
         for index in layout.visibleRange(selection: selection, count: items.count) {
             if let entry = items[index].miniature, !entry.frozen { request(entry.window, lens) }
         }
@@ -181,8 +182,7 @@ extension LensSession {
         switch settings.presentation {
             case "strip": refreshStripThumbnails(lens: lens, request: request)
             case "list": refreshListThumbnails(lens: lens, request: request)
-            case "miniatures": refreshVisibleThumbnails(lens: lens, request: request)
-            default: break
+            default: refreshVisibleThumbnails(lens: lens, request: request)
         }
     }
 }
@@ -192,6 +192,8 @@ struct StripSnapshot {
     let rowHeight: CGFloat
     let widths: [CGFloat]
     let layout: StripLayout
+    /// A one-Tile strip is still wide enough for its footer: the title, chips and count.
+    let minimumWidth: CGFloat
 
     init(items: [SwitcherPaletteItem], selection: Int, size: CGSize, kind: TileKind, settings: LensConfig) {
         self.items = items
@@ -202,7 +204,8 @@ struct StripSnapshot {
             let height = metrics.pictureHeight(rowHeight: rowHeight, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
             return min(max(1, size.width * 0.9 - 88 * metrics.scale), metrics.width(kind: kind, aspect: item.tile.aspect, rowHeight: height))
         }
-        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale, emptyWidth: metrics.textWidth + 88 * metrics.scale)
+        minimumWidth = min(size.width * 0.9, metrics.textWidth + 88 * metrics.scale)
+        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale, emptyWidth: minimumWidth)
     }
 }
 
@@ -215,6 +218,9 @@ struct ListLayout {
     let rowHeight: CGFloat
     let gap: CGFloat
     let capacity: Int
+    /// The window's height: the tallest the list gets, plus room for an error or banner line.
+    /// The window keeps this size while Search changes the row count; the view draws from its top.
+    let panelHeight: CGFloat
     var rowsHeight: CGFloat { height - headerHeight }
 
     init(count: Int, kind: TileKind, visibleSize: CGSize) {
@@ -225,7 +231,9 @@ struct ListLayout {
         topOffset = visibleSize.height / 4
         rowHeight = kind == .text ? metrics.textHeight : metrics.listPictureHeight
         gap = 4 * metrics.scale
-        let maxRowsHeight = max(rowHeight, min(visibleSize.height * 0.82, visibleSize.height - topOffset) - headerHeight)
+        // A quarter down and at most two thirds tall leaves a margin below a full list.
+        let maxRowsHeight = max(rowHeight, visibleSize.height * 0.66 - headerHeight)
+        panelHeight = min(visibleSize.height - topOffset, maxRowsHeight + headerHeight + 40 * metrics.scale)
         height = min(CGFloat(max(1, count)) * (rowHeight + gap), maxRowsHeight) + headerHeight
         capacity = max(1, Int(ceil((height - headerHeight) / (rowHeight + gap))))
     }

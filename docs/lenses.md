@@ -75,8 +75,8 @@ and `badges`, including the active `when.default` profile.
 
 Tile measurements scale by the smaller of visible width / 1920 and visible height / 1080.
 The list panel is 760 points wide with a 30-point radius at that scale, with its Search field scaled too. Its height
-fits the rows up to 82% of the visible height, further bounded by the space below its existing
-quarter-height top position. Refreshes request only a viewport-sized window around selection.
+fits its rows, up to two thirds of the visible height; its top stays a quarter of the way down, which leaves
+a margin below a full list. Refreshes request only a viewport-sized window around selection.
 
 Pictures keep their window's shape, including in list rows; a missing picture shows the app
 icon in that shape. A strip Tile's width uses an aspect clamped to 0.3–3.6; an extreme picture

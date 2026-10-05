@@ -82,8 +82,10 @@ Decided: empty Search returns the original entry order without ranking, and an
 empty removed-entry set avoids copying it. Existing order and removal tests
 cover these fast paths; entry eligibility is unchanged.
 
-Decided: keep the list's quarter-height top position and cap its height to the
-remaining on-screen space as well as the 82% limit, so its last row stays reachable.
+Decided: keep the list's quarter-height top position and cap its height at two
+thirds of the visible height, not the prototype's 82%, so a full list ends with a
+margin below it. The window is sized for the tallest list once, and the rows draw
+from its top, so a Search that changes the row count never outgrows the window.
 
 Decided: an empty strip reserves a text Tile's width for its “No windows” footer.
 
