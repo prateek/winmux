@@ -261,6 +261,7 @@ private func appKitScreenMaxY() -> CGFloat {
 // MARK: - Search
 
 func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -> [SwitcherPaletteItem] {
+    if query.allSatisfy(\.isWhitespace) { return items }
     let ranked: [(Int, SwitcherPaletteItem, Int)] = items.enumerated().compactMap { index, item in
         LensSearchFields(title: item.title, app: item.appName, workspace: item.workspaceName, project: item.projectName)
             .match(query).map { (index, item, $0.score) }
