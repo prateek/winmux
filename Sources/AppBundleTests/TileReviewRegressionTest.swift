@@ -34,6 +34,7 @@ final class TileReviewRegressionTest: XCTestCase {
     func testListPanelUsesPrototypeSizeAndOneScale() {
         let full = ListLayout(count: 40, kind: .card, visibleSize: CGSize(width: 1920, height: 1080))
         XCTAssertEqual(full.width, 760)
+        XCTAssertEqual(full.radius, 30)
         XCTAssertEqual(full.height, 1080 * 0.75)
         XCTAssertLessThanOrEqual(full.height + 1080 / 4, 1080)
         XCTAssertEqual(full.rowHeight, 74)
@@ -41,6 +42,7 @@ final class TileReviewRegressionTest: XCTestCase {
         XCTAssertEqual(full.capacity, 10)
         let small = ListLayout(count: 2, kind: .card, visibleSize: CGSize(width: 960, height: 540))
         XCTAssertEqual(small.width, 380)
+        XCTAssertEqual(small.radius, 15)
         XCTAssertEqual(small.height, (90 + 2 * 78) / 2)
         XCTAssertEqual(small.rowHeight, 37)
         XCTAssertEqual(small.visibleRange(selection: 0, count: 2), 0..<2)

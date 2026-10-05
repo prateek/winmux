@@ -338,15 +338,15 @@ struct SwitcherPaletteView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background {
             GlassSurface(
-                shape: RoundedRectangle(cornerRadius: RadiusToken.panel, style: .continuous),
+                shape: RoundedRectangle(cornerRadius: layout.radius, style: .continuous),
                 style: config.workspaceSidebar.chromeStyle,
                 solidColor: config.workspaceSidebar.resolvedSolidChromeColor,
             )
         }
         .overlay {
-            if model.searchError != nil { RoundedRectangle(cornerRadius: RadiusToken.panel).stroke(.orange, lineWidth: 1) }
+            if model.searchError != nil { RoundedRectangle(cornerRadius: layout.radius).stroke(.orange, lineWidth: 1) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: RadiusToken.panel, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: layout.radius, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { searchFocused = true }
     }

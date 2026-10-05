@@ -74,7 +74,7 @@ opening. The override needs a Lens name or `--filter`; converting an already ope
 and `badges`, including the active `when.default` profile.
 
 Tile measurements scale by the smaller of visible width / 1920 and visible height / 1080.
-The list panel is 760 points wide at that scale, with its Search field scaled too. Its height
+The list panel is 760 points wide with a 30-point radius at that scale, with its Search field scaled too. Its height
 fits the rows up to 82% of the visible height, further bounded by the space below its existing
 quarter-height top position. Refreshes request only a viewport-sized window around selection.
 

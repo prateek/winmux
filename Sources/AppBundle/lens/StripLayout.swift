@@ -207,6 +207,7 @@ struct StripSnapshot {
 }
 
 struct ListLayout {
+    let radius: CGFloat
     let width: CGFloat
     let height: CGFloat
     let headerHeight: CGFloat
@@ -218,6 +219,7 @@ struct ListLayout {
 
     init(count: Int, kind: TileKind, visibleSize: CGSize) {
         let metrics = TileMetrics(visibleSize: visibleSize)
+        radius = 30 * metrics.scale
         width = 760 * metrics.scale
         headerHeight = 90 * metrics.scale
         topOffset = visibleSize.height / 4
