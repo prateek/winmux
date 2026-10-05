@@ -13,6 +13,7 @@ struct LensConfig: Equatable, Sendable {
     var accessoryWindow = "enlarged"
     var summonHints = ["label", "landing-spot"]
     var miniatures = MiniaturesConfig()
+    var grid = GridConfig()
     var enabled = true
     var keys: [String: [String]] = {
         var keys = ["enter": ["focus"], "shift-enter": ["summon"], "alt-enter": ["summon"], "cmd-w": ["close"]]
@@ -41,6 +42,7 @@ struct LensConfig: Equatable, Sendable {
         accessoryWindow = value["accessory-window"]?.stringOrNil ?? accessoryWindow
         summonHints = value["summon-hints"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? summonHints
         if let miniatureSettings = value["miniatures"] { miniatures.apply(miniatureSettings) }
+        if let gridSettings = value["grid"] { grid.apply(gridSettings) }
         if case .bool(let enabled) = value["enabled"] { self.enabled = enabled }
         if case .object(let keys) = value["keys"] {
             for (key, command) in keys {
@@ -57,7 +59,7 @@ struct LensConfig: Equatable, Sendable {
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),
             "summon-hints": .array(summonHints.map(JSONValue.string)), "enabled": .bool(enabled),
-            "miniatures": miniatures.json,
+            "miniatures": miniatures.json, "grid": grid.json,
             "keys": .object(keys.mapValues { $0.count == 1 ? .string($0[0]) : .array($0.map(JSONValue.string)) }),
         ])
     }
@@ -88,4 +90,10 @@ struct MiniaturesConfig: Equatable, Sendable {
         .object(["fit": .string(fit), "current-workspace": .string(currentWorkspace), "arrow-keys": .string(arrowKeys),
                  "backdrop": .object(["darkness": .double(darkness), "blur": .bool(blur)])])
     }
+}
+
+struct GridConfig: Equatable, Sendable {
+    var tileSize = "real"
+    mutating func apply(_ value: JSONValue) { tileSize = value["tile-size"]?.stringOrNil ?? tileSize }
+    var json: JSONValue { .object(["tile-size": .string(tileSize)]) }
 }

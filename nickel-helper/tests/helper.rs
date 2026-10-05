@@ -646,8 +646,8 @@ fn shipped_library_declares_contract_version_one() {
 }
 
 #[test]
-fn lens_contract_rejects_unknown_fields_sort_and_grid() {
-    for body in ["presentation = 'grid", "frozen_thumbnail = 'dimmed", "sort = ['mystery]"] {
+fn lens_contract_rejects_unknown_fields_and_sort() {
+    for body in ["frozen_thumbnail = 'dimmed", "sort = ['mystery]"] {
         let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
         assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
     }
@@ -1062,5 +1062,24 @@ fn tile_contract_defaults_overrides_and_miniatures_refusal() {
         let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
         let error = evaluate_to_json(&source, &library()).unwrap_err();
         assert!(error.contains("tile"), "{error}");
+    }
+}
+
+#[test]
+fn grid_contract_loads_modes_profiles_and_ignored_settings() {
+    for mode in ["real", "same-height", "equal"] {
+        for presentation in ["grid", "list", "strip", "miniatures"] {
+            let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ presentation = '{presentation}, grid.tile-size = '{mode}, when.default.grid.tile-size = 'equal }} }} | W.Config");
+            let value = evaluate_to_json(&source, &library()).unwrap();
+            assert_eq!(value["lenses"]["demo"]["grid"]["tile-size"], mode);
+            assert_eq!(value["lenses"]["demo"]["when"]["default"]["grid"]["tile-size"], "equal");
+        }
+    }
+    let value = evaluate_to_json("let W = import \"winmux/winmux.ncl\" in { lenses.demo = { presentation = 'grid, tile = 'text, entries = 'app, sections = 'workspace } } | W.Config", &library()).unwrap();
+    assert_eq!(value["lenses"]["demo"]["grid"]["tile-size"], "real");
+    for body in ["grid.tile-size = 'huge", "when.default.grid.tile-size = 'huge", "grid.sections-arrangement = 'flow"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        let error = evaluate_to_json(&source, &library()).unwrap_err();
+        assert!(error.contains("tile-size") || error.contains("sections-arrangement"), "{error}");
     }
 }
