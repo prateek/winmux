@@ -49,7 +49,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             self?.lifecycle.trace?.advance("first-frame thumbnails ready")
             self?.lifecycle.trace?.startInterval("first frame presented")
         }
-        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "hosting draw / CATransaction completion") }
+        hostingView.onFirstDraw = { [weak self] in self?.lifecycle.trace?.finish(signal: "first display-link callback after layout") }
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -438,23 +438,21 @@ private final class LensHostingView: NSHostingView<AnyView> {
     private var firstLayout = false
     private var firstDraw = false
     private var generation = 0
-    func arm() { generation += 1; firstLayout = true; firstDraw = true }
+    private var firstFrameLink: CADisplayLink?
+    func arm() { generation += 1; firstLayout = true; firstDraw = true; firstFrameLink?.invalidate(); firstFrameLink = nil }
     override func layout() {
         super.layout()
-        if firstLayout { firstLayout = false; onFirstLayout?() }
-    }
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard firstDraw else { return }
-        firstDraw = false
-        let ticket = generation
-        CATransaction.begin()
-        CATransaction.setCompletionBlock { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, self.generation == ticket else { return }
-                self.onFirstDraw?()
-            }
+        if firstLayout {
+            firstLayout = false
+            onFirstLayout?()
+            let link = displayLink(target: self, selector: #selector(displayTick(_:)))
+            firstFrameLink = link
+            link.add(to: .main, forMode: .common)
         }
-        CATransaction.commit()
+    }
+    @objc private func displayTick(_ link: CADisplayLink) {
+        link.invalidate()
+        firstFrameLink = nil
+        onFirstDraw?()
     }
 }
