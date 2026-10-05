@@ -19,11 +19,12 @@ struct MiniaturesView: View {
                 workspaceCell(cell, selectedId: selectedId)
                 let entries = miniatureDrawOrder(model.items.filter { $0.miniature?.workspace == cell.workspace })
                 ForEach(entries) { item in
-                    if let entry = item.miniature, let frame = frames[item.id] {
-                        MiniatureEntryView(item: item, entry: entry, settings: model.settings,
-                                           selected: selectedId == item.id, marked: model.marks.contains(item.id),
-                                           hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                            .frame(width: max(1, frame.width), height: max(1, frame.height))
+                    if item.miniature != nil, let frame = frames[item.id] {
+                        TileView(entry: item.tile, kind: .picture, presentation: "miniatures", metrics: model.tileMetrics,
+                                 size: CGSize(width: max(1, frame.width), height: max(1, frame.height)), settings: model.settings,
+                                 selected: selectedId == item.id, marked: model.marks.contains(item.id),
+                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                            .zIndex(selectedId == item.id ? 10 : 0)
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onContinuousHover { phase in
                                 if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
@@ -84,56 +85,6 @@ struct MiniaturesView: View {
                     .allowsHitTesting(false)
             }
         }
-    }
-}
-
-struct MiniatureEntryView: View {
-    let item: SwitcherPaletteItem
-    let entry: MiniatureWindow
-    let settings: LensConfig
-    let selected: Bool
-    let marked: Bool
-    let hint: String?
-    @ObservedObject private var thumbnail: WindowThumbnail
-
-    init(item: SwitcherPaletteItem, entry: MiniatureWindow, settings: LensConfig, selected: Bool, marked: Bool, hint: String?) {
-        self.item = item; self.entry = entry; self.settings = settings
-        self.selected = selected; self.marked = marked; self.hint = hint
-        thumbnail = entry.window.thumbnail
-    }
-
-    var body: some View {
-        let appearance = ThumbnailAppearance(frozen: entry.frozen, look: settings.frozenThumbnail, capturedAt: thumbnail.capturedAt, now: Date())
-        ZStack(alignment: .bottomLeading) {
-            Color(white: 0.16)
-            if let image = thumbnail.image {
-                Image(decorative: image, scale: 1).resizable().scaledToFit()
-                    .saturation(appearance.saturation)
-                    .colorMultiply(Color(white: appearance.brightness))
-                    .opacity(appearance.opacity)
-            } else if let icon = item.icon {
-                Image(nsImage: icon).resizable().scaledToFit().padding(6)
-            } else { Image(systemName: "macwindow").frame(maxWidth: .infinity, maxHeight: .infinity) }
-            HStack(spacing: 3) {
-                if let icon = item.icon { Image(nsImage: icon).resizable().frame(width: 16, height: 16) }
-                if marked { Image(systemName: "checkmark.circle.fill") }
-                if entry.accessory { Text("menu-bar app").font(.system(size: 9)) }
-            }.padding(3).background(.black.opacity(0.65))
-            if appearance.badge == "pause" {
-                Image(systemName: "pause.fill").padding(4).background(.black.opacity(0.6)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            }
-            if entry.frozen && settings.frozenThumbnail == "age-badge", let date = thumbnail.capturedAt {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(ThumbnailAppearance(frozen: true, look: "age-badge", capturedAt: date, now: context.date).badge ?? "").font(.system(size: 10)).padding(3).background(.black.opacity(0.6))
-                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            }
-            if let hint { Text(hint).font(.system(size: 10)).padding(4).background(.black.opacity(0.75)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 3))
-        .overlay {
-            RoundedRectangle(cornerRadius: 3).stroke(selected ? Color.accentColor : .white.opacity(0.5), style: StrokeStyle(lineWidth: selected ? 3 : 1, dash: entry.accessory ? [4, 3] : []))
-        }
-        .contentShape(Rectangle())
     }
 }
 
