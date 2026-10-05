@@ -163,6 +163,40 @@ final class LensEffectLifetimeTest: XCTestCase {
         try await clock.checkSuspension()
     }
 
+    func testUnchangedModifiersDoNotPublishAndIdenticalSelectionStillPublishesOnce() {
+        let owner = testLensLifecycle()
+        let session = model("overview", presentation: "miniatures")
+        session.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "Demo", source: .zero, current: true)]
+        owner.complete(session, ticket: owner.begin("overview", toggle: false)!)
+        var changes = 0
+        let observation = session.objectWillChange.sink { changes += 1 }
+        session.send(.modifiersChanged([]))
+        XCTAssertEqual(changes, 0)
+        session.send(.summonChanged(true))
+        changes = 0
+        session.send(.selectionChanged(session.selection))
+        XCTAssertEqual(changes, 1, "The base assigns selection unconditionally, but dedupes landing")
+        owner.dismiss()
+        withExtendedLifetime(observation) {}
+    }
+
+    func testStripDeadlineChecksReleaseWithoutUpdatingSummon() async throws {
+        let clock = TestClock()
+        var flags: NSEvent.ModifierFlags = .command
+        let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
+            requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { flags })
+        let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
+        var settings = LensConfig(); settings.presentation = "strip"; settings.keys["alt-enter"] = ["summon"]
+        let session = LensSession(name: "recent", settings: settings, items: [], search: "")
+        owner.complete(session, ticket: owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!)
+        XCTAssertFalse(session.summonHeld)
+        flags = [.command, .option]
+        await clock.advance(by: .milliseconds(100))
+        XCTAssertFalse(session.summonHeld, "The display deadline only rechecks the release key")
+        owner.dismiss()
+        try await clock.checkSuspension()
+    }
+
     func testPollingStopsAfterReplacementAndRepeatedDismissalCancelsOnlyOwnedToken() async throws {
         let base = TestClock()
         let clock = CancellationInsensitiveClock(base: base)

@@ -48,8 +48,11 @@ final class LensSession: ObservableObject {
                 selection = 0
                 if settings.presentation == "miniatures" { revealMiniatureSelection() }
             case .selectionChanged(let index): selection = index
-            case .modifiersChanged(let flags): summonHeld = shouldSummon(flags)
-            case .summonChanged(let held): summonHeld = held
+            case .modifiersChanged(let flags):
+                let held = shouldSummon(flags)
+                if held != summonHeld { summonHeld = held }
+            case .summonChanged(let held):
+                if held != summonHeld { summonHeld = held }
             case .presentationChanged(let presentation):
                 let selected = selectedId
                 settings.presentation = presentation

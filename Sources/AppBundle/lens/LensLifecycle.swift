@@ -99,7 +99,7 @@ final class LensLifecycle {
                 guard let self, let model, ticket == self.generation, self.session === model, !Task.isCancelled else { return }
                 self.stripDisplay = nil
                 let flags = self.dependencies.flags()
-                self.send(.modifiersChanged(flags), from: model)
+                if self.commitStripRelease(flags, model: model) { return }
                 guard self.session === model else { return }
                 stripDebugLog("strip draw elapsed=\(gesture.elapsedSeconds) flags=\(flags.rawValue)")
                 self.presented(model)
@@ -137,6 +137,7 @@ final class LensLifecycle {
         if case .dismissed = event { dismiss(); return }
         let oldSearch = model.query
         let oldPresentation = model.settings.presentation
+        let oldSummon = model.summonHeld
         model.apply(event)
         switch event {
             case .searchChanged:
@@ -147,13 +148,19 @@ final class LensLifecycle {
                 cancelPresentationEffects()
                 presented(model, restartEffects: true, conversion: true)
             case .modifiersChanged(let flags):
-                if let key = model.stripReleaseKey(flags: flags) {
-                    if let action = model.onAction { action(key) } else { dismiss() }
-                    return
-                }
+                if commitStripRelease(flags, model: model) { return }
+                guard oldSummon != model.summonHeld else { return }
+            case .summonChanged:
+                guard oldSummon != model.summonHeld else { return }
             default: break
         }
         updateMiniatureLanding()
+    }
+
+    private func commitStripRelease(_ flags: NSEvent.ModifierFlags, model: LensSession) -> Bool {
+        guard let key = model.stripReleaseKey(flags: flags) else { return false }
+        if let action = model.onAction { action(key) } else { dismiss() }
+        return true
     }
 
     private func startSearch(_ model: LensSession) {
