@@ -381,9 +381,11 @@ func lensSearchField(in view: NSView) -> NSTextField? {
 @MainActor
 func tileWorkspaceNumbers(_ names: [String]) -> [String: Int] {
     Dictionary(uniqueKeysWithValues: Set(names).compactMap { name in
-        guard let workspace = Workspace.existing(byName: name),
-              let number = automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace) ?? parsePositiveWorkspaceDisplayIndex(name)
-        else { return nil }
+        guard let workspace = Workspace.existing(byName: name) else { return nil }
+        let number = workspace.usesAutomaticDisplayName
+            ? automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace)
+            : parsePositiveWorkspaceDisplayIndex(name)
+        guard let number else { return nil }
         return (name, number)
     })
 }
