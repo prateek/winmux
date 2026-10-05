@@ -23,24 +23,26 @@ final class TileTest: XCTestCase {
 
     func testMetricsScaleEveryPrototypeDimension() {
         let full = TileMetrics(visibleHeight: 1080), half = TileMetrics(visibleHeight: 540)
-        XCTAssertEqual(full.padding, 10)
-        XCTAssertEqual(full.gap, 8)
-        XCTAssertEqual(full.radius, 14)
-        XCTAssertEqual(full.barHeight, 28)
-        XCTAssertEqual(full.icon, 26)
-        XCTAssertEqual(full.titleFont, 17)
-        XCTAssertEqual(full.appFont, 14)
-        XCTAssertEqual(full.chipFont, 12)
-        XCTAssertEqual(full.textHeight, 46)
-        XCTAssertEqual(full.listPictureHeight, 74)
-        XCTAssertEqual(full.listPictureWidth, 96)
+        let dimensions: [(KeyPath<TileMetrics, CGFloat>, CGFloat)] = [
+            (\.padding, 10), (\.gap, 8), (\.radius, 14), (\.barHeight, 28),
+            (\.icon, 26), (\.titleFont, 17), (\.appFont, 14), (\.chipFont, 12),
+            (\.chipVerticalPadding, 2), (\.chipHorizontalPadding, 7), (\.chipRadius, 6),
+            (\.pictureRadius, 7), (\.selectionRing, 2.5), (\.textHeight, 46),
+            (\.textWidth, 330), (\.textRadius, 10), (\.listPictureHeight, 74), (\.listPictureWidth, 96),
+            (\.miniatureRadius, 5), (\.miniatureIcon, 22), (\.miniatureRing, 4),
+            (\.stripGap, 14), (\.rowGap, 14), (\.rowHorizontalPadding, 12), (\.rowVerticalPadding, 6),
+            (\.chipGap, 5), (\.labelVerticalPadding, 3), (\.labelHorizontalPadding, 8),
+            (\.pictureIcon, 30), (\.pictureIconInset, 6), (\.miniatureIconInset, 4),
+            (\.miniaturePictureRadius, 4), (\.adornmentGap, 4),
+            (\.pictureShadowRadius, 9), (\.pictureShadowY, 6),
+            (\.selectionShadowRadius, 20), (\.selectionShadowY, 18),
+            (\.miniatureShadowRadius, 15), (\.miniatureShadowY, 10), (\.accessoryPictureFloor, 28),
+        ]
+        for (property, points) in dimensions {
+            XCTAssertEqual(full[keyPath: property], points, "\(property)")
+            XCTAssertEqual(half[keyPath: property], points / 2, "\(property)")
+        }
         XCTAssertEqual(full.selectionScale, 1.045)
-        XCTAssertEqual(full.selectionRing, 2.5)
-        XCTAssertEqual(full.miniatureRing, 4)
-        XCTAssertEqual(half.padding, 5)
-        XCTAssertEqual(half.titleFont, 8.5)
-        XCTAssertEqual(half.textHeight, 23)
-        XCTAssertEqual(half.miniatureIcon, 11)
         XCTAssertEqual(half.selectionScale, full.selectionScale)
     }
 
