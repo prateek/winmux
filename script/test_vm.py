@@ -116,6 +116,21 @@ class VMTest(unittest.TestCase):
         self.assert_refused(self.run_vm('up', 'c'), 'two-guest limit', 'a', 'foreign-runner', '3 cores', '5120 MB')
         self.assertNotIn('c', self.state()['guests'])
 
+    def test_stopped_guest_boots_without_golden_image(self):
+        self.seed({'kept': guest('stopped')})
+        state = self.state()
+        del state['guests']['winmux-golden']
+        (self.root / 'state.json').write_text(json.dumps(state))
+        self.assert_started(self.run_vm('up', 'kept'), 'kept')
+        self.assertFalse(any(c[:2] == ['tart', 'clone'] for c in self.state()['calls']))
+
+    def test_new_guest_requires_golden_image(self):
+        self.seed()
+        state = self.state()
+        del state['guests']['winmux-golden']
+        (self.root / 'state.json').write_text(json.dumps(state))
+        self.assert_refused(self.run_vm('up', 'new'), 'missing', 'build-image')
+
     def test_second_guest_uses_default_size(self):
         self.seed({'a': guest()})
         self.assert_started(self.run_vm('up', 'b'), 'b')
