@@ -167,12 +167,16 @@ final class LensLifecycle {
         let token = nextThumbnailToken
         thumbnailToken = token
         let ticket = generation
+        let clock = self.clock
         thumbnailRefresh = Task { @MainActor [weak self, weak model] in
             await Task.yield()
-            while let self, let model, !Task.isCancelled, ticket == self.generation, self.session === model, self.thumbnailToken == token {
-                if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
-                else { model.refreshVisibleThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
-                do { try await self.clock.sleep(for: .milliseconds(500)) } catch { return }
+            while !Task.isCancelled {
+                do {
+                    guard let self, let model, ticket == self.generation, self.session === model, self.thumbnailToken == token else { return }
+                    if model.settings.presentation == "strip" { model.refreshStripThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
+                    else { model.refreshVisibleThumbnails(lens: token, request: self.dependencies.requestThumbnail) }
+                }
+                do { try await clock.sleep(for: .milliseconds(500)) } catch { return }
             }
         }
     }
@@ -236,7 +240,11 @@ final class LensLifecycle {
     private var landingColumnsTask: Task<JSONValue, Error>?
     private weak var landingDestination: Workspace?
     private weak var landingColumns: ColumnState?
+    // The selection the landing spot on screen, or being computed, belongs to.
     private var landingKey: UInt32?
+    private var landingEvaluated = false
+    private weak var evaluatedDestination: Workspace?
+    private weak var evaluatedColumns: ColumnState?
     private var landingRequest = 0
 
     func cancelLanding() {
@@ -248,16 +256,22 @@ final class LensLifecycle {
         landingDestination = nil
         landingColumns = nil
         landingKey = nil
+        landingEvaluated = false
+        evaluatedDestination = nil
+        evaluatedColumns = nil
         session?.setMiniatureLanding(nil)
     }
     func updateMiniatureLanding() {
         guard let model = session else { return }
         // The pointer moving inside one miniature re-assigns the same selection.
         let key = model.summonHeld ? model.selectedId : nil
-        if key != nil, key == landingKey, landingTask != nil || model.miniatureLanding != nil { return }
+        if key != nil, key == landingKey, landingEvaluated, evaluatedDestination === focus.workspace, evaluatedColumns === focus.workspace.columns { return }
         landingRequest += 1
         let request = landingRequest
         landingKey = key
+        landingEvaluated = key != nil
+        evaluatedDestination = focus.workspace
+        evaluatedColumns = focus.workspace.columns
         landingTask?.cancel()
         landingTask = nil
         model.setMiniatureLanding(nil)
@@ -276,22 +290,39 @@ final class LensLifecycle {
         if focus.workspace.columns != nil {
             let destination = focus.workspace
             landingTask = Task { @MainActor [weak self, weak model] in
-                guard let self, let model else { return }
-                defer { if request == self.landingRequest { self.landingTask = nil } }
-                while !Task.isCancelled, request == self.landingRequest, self.session === model, let columns = destination.columns {
-                    if self.landingDestination !== destination || self.landingColumns !== columns || self.landingColumnsTask == nil {
-                        self.landingColumnsTask?.cancel()
-                        self.landingDestination = destination
-                        self.landingColumns = columns
-                        self.landingColumnsTask = Task { @MainActor in try await destination.columnRecords() }
-                    }
-                    let snapshotTask = self.landingColumnsTask!
-                    guard let snapshot = try? await snapshotTask.value else {
-                        if request == self.landingRequest, self.landingColumnsTask == snapshotTask { self.landingColumnsTask = nil }
+                defer { if request == self?.landingRequest { self?.landingTask = nil } }
+                while !Task.isCancelled {
+                    guard let columns = destination.columns else {
+                        guard let self, let model, request == self.landingRequest, self.session === model,
+                              focus.workspace === destination else { return }
+                        self.evaluatedColumns = nil
+                        self.columnsOffLanding(model, workspace: workspace)
                         return
                     }
-                    guard !Task.isCancelled, request == self.landingRequest, self.session === model else { return }
-                    let records = snapshot.arrayOrNil?.map { column -> JSONValue in
+                    let snapshotTask: Task<JSONValue, Error>
+                    do {
+                        guard let self, let model, request == self.landingRequest, self.session === model else { return }
+                        if self.landingDestination !== destination || self.landingColumns !== columns || self.landingColumnsTask == nil {
+                            // The cached records describe the Column state that was replaced.
+                            self.landingColumnsTask?.cancel()
+                            self.landingDestination = destination
+                            self.landingColumns = columns
+                            self.landingColumnsTask = Task { @MainActor in try await destination.columnRecords() }
+                        }
+                        self.evaluatedColumns = columns
+                        snapshotTask = self.landingColumnsTask!
+                    }
+                    let snapshot = try? await snapshotTask.value
+                    do {
+                        guard let self, let model, !Task.isCancelled, request == self.landingRequest, self.session === model else { return }
+                        guard snapshot != nil else {
+                            // A failed read is not kept for the session.
+                            if self.landingColumnsTask == snapshotTask { self.landingColumnsTask = nil }
+                            return
+                        }
+                        guard destination.columns === columns else { continue }
+                    }
+                    let records = snapshot?.arrayOrNil?.map { column -> JSONValue in
                         guard case .object(var fields) = column else { return column }
                         let windows = fields["windows"]?.arrayOrNil?.filter { $0["id"] != .int(Int(id)) } ?? []
                         fields["windows"] = .array(windows)
@@ -299,21 +330,27 @@ final class LensLifecycle {
                         return .object(fields)
                     } ?? []
                     let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
-                    guard !Task.isCancelled, request == self.landingRequest, self.session === model,
-                          model.summonHeld, model.selectedId == id, focus.workspace === destination else { return }
-                    guard destination.columns === columns else { continue }
-                    let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
-                    let placement = ColumnPlacement.resolve(decision, columns: columns,
-                                                            children: destination.rootTilingContainer.children, incoming: entry.window)
-                    let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
-                    let frame = miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
-                                                       verticalGap: gaps.inner.get(.v).toDouble(), floatingFrame: entry.frame, source: workspace.source)
-                    model.setMiniatureLanding(frame)
-                    return
+                    do {
+                        guard let self, let model, !Task.isCancelled, request == self.landingRequest, self.session === model,
+                              model.summonHeld, model.selectedId == id, focus.workspace === destination else { return }
+                        guard destination.columns === columns else { continue }
+                        let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
+                        let placement = ColumnPlacement.resolve(decision, columns: columns,
+                                                                children: destination.rootTilingContainer.children, incoming: entry.window)
+                        let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
+                        let frame = miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
+                                                           verticalGap: gaps.inner.get(.v).toDouble(), floatingFrame: entry.frame, source: workspace.source)
+                        model.setMiniatureLanding(frame)
+                        return
+                    }
                 }
             }
             return
         }
+        columnsOffLanding(model, workspace: workspace)
+    }
+
+    private func columnsOffLanding(_ model: LensSession, workspace: MiniatureWorkspace) {
         let root = focus.workspace.rootTilingContainer
         let rect = root.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
         let wraps = root.layout == .tabGroup && !root.children.isEmpty

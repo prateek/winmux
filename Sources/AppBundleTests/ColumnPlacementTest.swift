@@ -232,6 +232,107 @@ final class ColumnPlacementTest: XCTestCase {
         XCTAssertNil(owner.session)
     }
 
+    func testColumnsRemovedDuringEvaluationUsesColumnsOffGeometry() async throws {
+        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+        try await load("squeeze")
+        let window = incoming as! TestWindow
+        let started = LensEffectSignal()
+        var release: CheckedContinuation<Void, Never>?
+        window.beforeAxRecord = {
+            window.beforeAxRecord = nil
+            await withCheckedContinuation { release = $0; started.send() }
+        }
+        let model = session(workspace, window: window, rect: rect)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.summonChanged(true))
+        await started.wait()
+        let pending = owner.landingTask
+        workspace.columns = nil
+        release?.resume()
+        await pending?.value
+        let actual = model.miniatureLanding
+        XCTAssertNotNil(actual)
+        owner.cancelLanding()
+        owner.updateMiniatureLanding()
+        XCTAssertEqual(actual, model.miniatureLanding)
+    }
+
+    func testNilLandingOutcomeIsEvaluatedOnceUntilSummonOrDestinationChanges() async throws {
+        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "float"))
+        try await load("float")
+        let window = incoming as! TestWindow
+        let model = session(workspace, window: window, rect: rect)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        // No usable geometry is still a completed evaluation of this selection.
+        model.miniatureWorkspaces = []
+        var changes = 0
+        let observation = model.objectWillChange.sink { changes += 1 }
+        model.send(.summonChanged(true))
+        let before = changes
+        for _ in 0..<3 { owner.updateMiniatureLanding() }
+        XCTAssertEqual(changes, before)
+        XCTAssertNil(model.miniatureLanding)
+        model.send(.summonChanged(false))
+        model.send(.summonChanged(true))
+        XCTAssertGreaterThan(changes, before)
+        withExtendedLifetime(observation) {}
+    }
+
+    func testFailedLandingReadIsNotRetriedUntilSelectionChanges() async throws {
+        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+        try await load("squeeze")
+        let window = incoming as! TestWindow
+        let anchor = workspace.rootTilingContainer.allLeafWindowsRecursive.first as! TestWindow
+        anchor.testAxRecordError = NSError(domain: "test", code: 1)
+        var reads = 0
+        anchor.beforeAxRecord = { reads += 1 }
+        let model = session(workspace, window: window, rect: rect)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.summonChanged(true))
+        await owner.landingTask?.value
+        XCTAssertNil(model.miniatureLanding)
+        XCTAssertNil(owner.landingTask)
+        let firstReads = reads
+        XCTAssertGreaterThan(firstReads, 0)
+        for _ in 0..<3 {
+            model.send(.selectionChanged(model.selection))
+            await owner.landingTask?.value
+        }
+        XCTAssertEqual(reads, firstReads)
+        anchor.testAxRecordError = nil
+        model.send(.selectionChanged(99))
+        model.send(.selectionChanged(0))
+        await owner.landingTask?.value
+        XCTAssertGreaterThan(reads, firstReads)
+        XCTAssertNotNil(model.miniatureLanding)
+    }
+
+    func testDismissedSessionIsFreedWhileLandingRecordsAreSuspended() async throws {
+        let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
+        try await load("squeeze")
+        let window = incoming as! TestWindow
+        let started = LensEffectSignal()
+        var release: CheckedContinuation<Void, Never>?
+        window.beforeAxRecord = {
+            window.beforeAxRecord = nil
+            await withCheckedContinuation { release = $0; started.send() }
+        }
+        var model: LensSession? = session(workspace, window: window, rect: rect)
+        weak var dismissed = model
+        let owner = ownLens(model!)
+        model!.send(.summonChanged(true))
+        await started.wait()
+        let pending = owner.landingTask
+        owner.dismiss()
+        model = nil
+        XCTAssertNil(dismissed)
+        release?.resume()
+        await pending?.value
+    }
+
     func testPendingPreviewRejectsChangedDestinationAndColumnState() async throws {
         for change in ["destination", "columns"] {
             let (workspace, incoming, rect) = try await fixture(Case(occupied: true, overflow: "squeeze"))
