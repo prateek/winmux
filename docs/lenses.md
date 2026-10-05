@@ -51,10 +51,15 @@ rejects an explicit `tile`, including in `when.default`. The future grid default
 the grid Presentation itself is not accepted yet. Nickel leaves `tile` absent so Swift can
 resolve it after a Presentation override.
 
-`badges` defaults to `true`. Chips show the sidebar's workspace number for another workspace,
-then `floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
+`badges` defaults to `true`. Chips show the sidebar's workspace label for another workspace: its number when it has one,
+otherwise its display name, truncated after twelve characters with an ellipsis. These are followed by
+`floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
 marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App entries use the
-app name as their title and retain their window-count chip.
+app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
+strip puts the selected entry's chips in its footer, and miniatures puts them after the selected
+title under its workspace cell, omitting the workspace chip that the cell already names.
+Pictures carry the corner icon, mark, Summon label and Frozen/Accessory treatments. List rows
+of every kind keep the mark, Summon label and Accessory tag at the trailing end of the line.
 
 ```nickel
 lenses.recent.tile = 'text,
@@ -68,8 +73,15 @@ opening. The override needs a Lens name or `--filter`; converting an already ope
 `lens --presentation list` does not accept it. `list-lenses --json` reports the resolved `tile`
 and `badges`, including the active `when.default` profile.
 
-Tile measurements scale with the monitor's visible height over 1080. Pictures keep their
-window's shape, including in list rows; a missing picture shows the app icon in that shape.
+Tile measurements scale by the smaller of visible width / 1920 and visible height / 1080.
+The list panel is 760 points wide at that scale, with its Search field scaled too. Its height
+fits the rows up to 82% of the visible height, further bounded by the space below its existing
+quarter-height top position. Refreshes request only a viewport-sized window around selection.
+
+Pictures keep their window's shape, including in list rows; a missing picture shows the app
+icon in that shape. A strip Tile's width uses an aspect clamped to 0.3–3.6; an extreme picture
+is centred at its real shape inside that allocation, with no filled or outlined box behind
+it. The aspect comes from the same rectangle as capture and stays fixed while the Lens is open.
 Card and picture strip selections lift without changing layout or hit regions. Text rows use
 a tinted plate; miniatures uses a four-point ring without scaling.
 
@@ -179,7 +191,7 @@ only for a selection on another workspace. Escape cancels without changing focus
 
 Nine entries fit at most, with fewer on a narrow display. Each Tile has its own width; the
 row height fits the widest nine-entry run and stays fixed as selection moves. Text Tiles use
-330 by 46 points at a visible height of 1080. Selection scrolls the row; each end
+330 by 46 points at a visible size of 1920 by 1080. Selection scrolls the row; each end
 shows `+N` for its hidden entries. Entries show app icons and titles before capture, then reuse
 live or Frozen thumbnails and the Lens's `frozen-thumbnail` and Accessory settings. Hidden apps
 and minimized windows remain eligible. Removing an earlier entry keeps the selected window; removing
