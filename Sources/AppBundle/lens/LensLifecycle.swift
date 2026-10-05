@@ -113,6 +113,7 @@ final class LensLifecycle {
         if let release = opening.release { model.endHold(flags: release) }
         trace?.advance("session ready")
         model.owner = self
+        trace?.session(model)
         searchInput = (context, windows, ids)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
             state = .ready(model)
@@ -173,6 +174,7 @@ final class LensLifecycle {
         let oldPresentation = model.settings.presentation
         let oldSummon = model.summonHeld
         model.apply(event)
+        trace?.session(model)
         switch event {
             case .searchChanged:
                 guard oldSearch != model.query else { return }
@@ -202,6 +204,7 @@ final class LensLifecycle {
                    presentation: model.settings.presentation, hold: model.hold != nil, path: "flagsChanged",
                    destination: wasHeld && model.hold == nil ? "Hold ended" : "modifiers changed",
                    search: model.query, selectedId: model.selectedId, fieldEditor: false)
+        trace?.session(model)
         _ = commitStripRelease(flags, model: model)
     }
 
@@ -259,9 +262,7 @@ final class LensLifecycle {
         return openingStripKey(keyCode: keyCode, flags: flags) == .consumed
     }
 
-    /// A key that arrives while a strip is opening. The invoking key is a step applied when the
-    /// session is ready; Tab and backtick with the strip's modifiers do nothing; anything else is
-    /// `.ignored`, which means it is not the strip's. Nil when no strip is opening.
+    /// Nil outside a chord's opening; accepted keys are replayed when its session is ready.
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
         guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
         let meaning = lensKeyMeaning(hold: opening.release == nil ? gesture : nil, keys: opening.keys,
@@ -295,9 +296,10 @@ final class LensLifecycle {
 
     func dismiss() {
         if case .closed = state { return }
+        let model = session
+        if let model { trace?.session(model, active: false) }
         trace?.cancel()
         trace = nil
-        let model = session
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         state = .closed

@@ -69,8 +69,13 @@ final class LensSession: ObservableObject {
     private var inlineIds: Set<UInt32>?
     let keyBindings: [LensKeyBinding]
     private(set) var hold: StripGesture?
+    private var holdInitialized = false
 
-    func startHold(_ gesture: StripGesture?) { hold = gesture?.committingModifiers.isEmpty == false ? gesture : nil }
+    func startHold(_ gesture: StripGesture?) {
+        guard !holdInitialized else { return }
+        holdInitialized = true
+        hold = gesture?.committingModifiers.isEmpty == false ? gesture : nil
+    }
     func endHold(flags: NSEvent.ModifierFlags) {
         if hold?.shouldCommit(flags: flags) == true { hold = nil }
     }

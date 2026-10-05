@@ -70,6 +70,8 @@ final class LensHoldTest: XCTestCase {
         XCTAssertEqual(actions, ["cmd-w"])
         owner.stripFlagsChanged(.command, from: model)
         XCTAssertNil(model.hold)
+        model.startHold(gesture)
+        XCTAssertNil(model.hold)
         XCTAssertEqual(model.meaning(for: key(4, "h")), .fieldEditor)
         XCTAssertFalse(model.perform(model.meaning(for: key(4, "h"))))
         XCTAssertEqual(model.query, "g")
