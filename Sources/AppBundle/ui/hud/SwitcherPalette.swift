@@ -270,9 +270,19 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if session?.settings.presentation == "strip", handleStripKey(event) { recordKey(event, path: "performKeyEquivalent", destination: "strip"); return true }
-        if session?.performKeyAction(event) == true { recordKey(event, path: "performKeyEquivalent", destination: "Lens keys command"); return true }
-        recordKey(event, path: "performKeyEquivalent", destination: "passed to field editor")
+        let model = session
+        let trace = lifecycle.trace
+        let presentation = model?.settings.presentation
+        let search = model?.query
+        if presentation == "strip", handleStripKey(event) {
+            recordKey(event, path: "performKeyEquivalent", destination: model?.query != search ? "Search" : "strip", model: model, trace: trace, presentation: presentation)
+            return true
+        }
+        if model?.performKeyAction(event) == true {
+            recordKey(event, path: "performKeyEquivalent", destination: "Lens keys command", model: model, trace: trace, presentation: presentation)
+            return true
+        }
+        recordKey(event, path: "performKeyEquivalent", destination: "passed to field editor", model: model, trace: trace, presentation: presentation)
         return super.performKeyEquivalent(with: event)
     }
 
