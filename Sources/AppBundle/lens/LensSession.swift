@@ -122,7 +122,8 @@ final class LensSession: ObservableObject {
     var results: [SwitcherPaletteItem] {
         let items = removedIds.isEmpty ? items : items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
-        let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
+        let matched = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
+        let windows = settings.presentation == "grid" ? available.filter { item in matched.contains { $0.id == item.id } } : matched
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
         var seen: Set<String> = []
         return windows.filter { seen.insert($0.appIdentity).inserted }.map { representative in

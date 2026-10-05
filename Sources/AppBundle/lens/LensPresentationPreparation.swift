@@ -42,7 +42,7 @@ final class LensStartupPreparation {
     func run(idle: Bool, _ render: (String) -> Void) -> Bool {
         guard idle, !prepared else { return false }
         prepared = true
-        for presentation in ["strip", "list", "miniatures"] { render(presentation) }
+        for presentation in ["strip", "list", "miniatures", "grid"] { render(presentation) }
         return true
     }
 }

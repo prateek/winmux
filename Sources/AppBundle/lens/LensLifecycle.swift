@@ -53,6 +53,7 @@ final class LensLifecycle {
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
     var prepare: (LensSession) -> Void = { _ in }
+    var updatePresentation: (LensSession) -> Void = { _ in }
     var show: (LensSession) -> Void
     struct ShowInstruction: Equatable {
         let activate: Bool
@@ -182,6 +183,7 @@ final class LensLifecycle {
         let oldSummon = model.summonHeld
         model.apply(event)
         trace?.session(model)
+        updatePresentation(model)
         switch event {
             case .searchChanged:
                 guard oldSearch != model.query else { return }
@@ -369,11 +371,11 @@ final class LensLifecycle {
         landingTask?.cancel()
         landingTask = nil
         model.setMiniatureLanding(nil)
-        guard model.summonHeld, (model.settings.presentation == "miniatures" || model.settings.presentation == "strip"), model.settings.summonHints.contains("landing-spot"),
+        guard model.summonHeld, (model.settings.presentation == "miniatures" || model.settings.presentation == "strip" || model.settings.presentation == "grid"), model.settings.summonHints.contains("landing-spot"),
               let id = model.selectedId, let entry = model.items.first(where: { $0.id == id })?.miniature,
               let workspace = model.miniatureWorkspaces.first(where: { $0.current }) else { model.setMiniatureLanding(nil); return }
         if entry.workspace == workspace.name {
-            model.setMiniatureLanding(model.settings.presentation == "strip" ? nil : entry.frame)
+            model.setMiniatureLanding(model.settings.presentation == "miniatures" ? entry.frame : nil)
             return
         }
         if entry.floating {

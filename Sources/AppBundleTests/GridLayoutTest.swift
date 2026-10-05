@@ -75,6 +75,27 @@ final class GridLayoutTest: XCTestCase {
         XCTAssertGreaterThan(check(3).rowHeight, check(40).rowHeight)
         XCTAssertNotEqual(check(3).panelSize, check(40).panelSize)
     }
+    func testOneTileLastRowRemainsCentredAndReachable() {
+        let input = Array(repeating: GridLayout.Entry(aspect: 1.5, realSize: CGSize(width: 1500, height: 1000), kind: .card), count: 4)
+        let layout = GridLayout(entries: input, visibleSize: monitor, tileSize: "equal")
+        XCTAssertEqual(Set(layout.tiles.map { $0.frame.minY }).count, 2)
+        XCTAssertEqual(layout.tiles[3].frame.midX, layout.panelSize.width / 2)
+        XCTAssertEqual(layout.nearest(from: 1, direction: .down), 3)
+        XCTAssertEqual(layout.nearest(from: 3, direction: .up), 1)
+    }
+    func testRealUsesUnclampedRealWidthForExtremeWindows() {
+        let input = [GridLayout.Entry(aspect: 10, realSize: CGSize(width: 1800, height: 180), kind: .picture)]
+        let layout = GridLayout(entries: input, visibleSize: monitor, tileSize: "real")
+        XCTAssertEqual(layout.tiles[0].pictureSize.width, 1800 * layout.rowHeight / monitor.height, accuracy: 0.001)
+        XCTAssertEqual(layout.tiles[0].pictureSize.height, 180 * layout.rowHeight / monitor.height, accuracy: 0.001)
+    }
+    func testFloorRelaxationThreshold() {
+        let input = GridLayout.Entry(aspect: 4 / 3, realSize: CGSize(width: 1200, height: 900), kind: .card)
+        let threshold = (1...300).first { GridLayout(entries: Array(repeating: input, count: $0), visibleSize: monitor, tileSize: "real").relaxedTitleFloor }!
+        print("GRID title floor gives way at \(threshold) editor-sized Tiles on 1920x1080")
+        XCTAssertGreaterThan(threshold, 80)
+        XCTAssertFalse(GridLayout(entries: Array(repeating: input, count: threshold - 1), visibleSize: monitor, tileSize: "real").relaxedTitleFloor)
+    }
     func testArrowsReachEveryTileFromEveryTileAndStopAtEdges() {
         for count in [3, 7, 14, 40, 80] {
             let layout = check(count, mode: "same-height")

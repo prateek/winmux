@@ -35,7 +35,7 @@ final class LensPreparationTest: XCTestCase {
     }
 
     func testStartupModelsExerciseBothPictureAndPlaceholderTilesWithoutWindows() {
-        for presentation in ["strip", "list", "miniatures"] {
+        for presentation in ["strip", "list", "miniatures", "grid"] {
             let model = LensStartupPreparation.model(presentation: presentation, size: CGSize(width: 1280, height: 720))
             XCTAssertTrue(model.items.contains { !$0.tile.chips(enabled: true).isEmpty })
             XCTAssertTrue(model.items.contains { $0.tile.picture != nil && $0.tile.picture?.image == nil })
@@ -53,7 +53,7 @@ final class LensPreparationTest: XCTestCase {
         let tile = TileEntry(icon: nil, title: "Existing window", appName: "Existing app", picture: thumbnail)
         let item = SwitcherPaletteItem(id: 42, title: tile.title, appName: tile.appName, icon: nil, workspaceName: "real", isFocused: true, tile: tile)
         let workspace = MiniatureWorkspace(name: "real", title: "Real workspace", source: CGRect(x: 0, y: 0, width: 1280, height: 720), current: true)
-        for presentation in ["strip", "list", "miniatures"] {
+        for presentation in ["strip", "list", "miniatures", "grid"] {
             let model = LensStartupPreparation.model(presentation: presentation, size: workspace.source.size, existingItems: [item], workspaces: [workspace])
             XCTAssertEqual(model.items.map(\.id), [42])
             XCTAssertTrue(model.items[0].tile.picture === thumbnail)
@@ -68,7 +68,7 @@ final class LensPreparationTest: XCTestCase {
         var rendered: [String] = []
         preparation.run(idle: true) { rendered.append($0) }
         preparation.run(idle: true) { rendered.append($0) }
-        XCTAssertEqual(rendered, ["strip", "list", "miniatures"])
+        XCTAssertEqual(rendered, ["strip", "list", "miniatures", "grid"])
     }
 
     func testStartupDrawsNothingWhileALensOwnsThePanel() {

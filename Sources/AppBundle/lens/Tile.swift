@@ -114,6 +114,7 @@ struct TileEntry {
     var appName: String
     var picture: WindowThumbnail?
     var aspect: CGFloat = 4 / 3
+    var realSize = CGSize(width: 800, height: 600)
     var badges = TileBadges(workspaceLabel: nil, onFocusedWorkspace: true)
     var frozen = false
     var accessory = false

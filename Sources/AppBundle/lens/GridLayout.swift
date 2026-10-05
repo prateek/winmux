@@ -40,13 +40,13 @@ struct GridLayout {
                 let box: CGSize
                 if tileSize == "real" {
                     let factor = min(1, height / max(1, visibleSize.height))
-                    box = CGSize(width: max(70 * chrome, entry.realSize.width * factor), height: height)
+                    box = CGSize(width: max(70 * chrome, entry.realSize.width * factor), height: max(height, entry.realSize.height * factor))
                 } else {
                     box = CGSize(width: height * (tileSize == "equal" ? 1.5 : min(2.1, max(0.6, entry.aspect))), height: height)
                 }
                 let picture: CGSize
                 if tileSize == "real" {
-                    let factor = min(1, height / max(1, visibleSize.height), box.width / max(1, entry.realSize.width), box.height / max(1, entry.realSize.height))
+                    let factor = min(1, height / max(1, visibleSize.height))
                     picture = CGSize(width: entry.realSize.width * factor, height: entry.realSize.height * factor)
                 } else {
                     let fitted = metrics.fittedPicture(aspect: entry.aspect, in: box)
@@ -55,7 +55,7 @@ struct GridLayout {
                 }
                 let floor = entry.kind == .card && titleFloor ? min(200 * chrome, max(1.2 * height, 110 * chrome)) : 0
                 let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor) + 2 * metrics.padding
-                let tileHeight = metrics.height(kind: entry.kind, rowHeight: height)
+                let tileHeight = metrics.height(kind: entry.kind, rowHeight: box.height)
                 let last = rows.count - 1
                 if !rows[last].isEmpty, rowWidths[last] + gap + width > maxWidth {
                     rows.append([]); rowWidths.append(0)
