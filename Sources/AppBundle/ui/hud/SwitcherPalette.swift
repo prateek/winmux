@@ -352,8 +352,9 @@ func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace]
     let ordered = userFacingWorkspaces(orderedWorkspacesForPresentation(), focusedWorkspace: focus.workspace).map {
         MiniatureWorkspace(name: $0.name, title: workspaceDisplayName($0.name), source: $0.workspaceMonitor.visibleRect.cgRect, current: $0 == focus.workspace)
     }
+    var seen = Set(ordered.map(\.name))
     let retained = entries.compactMap { entry -> MiniatureWorkspace? in
-        guard !entry.record.workspace.isEmpty else { return nil }
+        guard !entry.record.workspace.isEmpty, seen.insert(entry.record.workspace).inserted else { return nil }
         let workspace = Workspace.existing(byName: entry.record.workspace)
         return MiniatureWorkspace(name: entry.record.workspace, title: workspaceDisplayName(entry.record.workspace),
                                   source: (workspace?.workspaceMonitor ?? focus.workspace.workspaceMonitor).visibleRect.cgRect, current: false)

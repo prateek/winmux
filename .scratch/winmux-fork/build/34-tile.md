@@ -60,6 +60,10 @@ There is no new dependency or change to eligibility or the thumbnail cache.
 
 No **Default chosen for you** changed.
 
+Decided: workspace geometry reuses the already-built sidebar cells and reads
+each retained origin once, avoiding per-window monitor reads while preserving
+the snapshot and retained-origin order.
+
 Decided: the strip fits the widest contiguous run of at most nine entries at one
 stable height, so moving selection cannot resize the row. Its 44-point end
 padding reserves the existing hidden-entry counters.
