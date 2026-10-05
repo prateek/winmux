@@ -12,8 +12,11 @@ DEMO = ROOT / '.claude/skills/demo'
 
 def load_render():
     # render draws with Pillow, which uv supplies when it runs as a script; chip timing needs none of it.
+    class Absent(types.ModuleType):
+        def __getattr__(self, name):  # the names render's annotations mention
+            return object
     for name in ['PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFilter', 'PIL.ImageFont']:
-        sys.modules.setdefault(name, types.ModuleType(name))
+        sys.modules.setdefault(name, Absent(name))
     loader = importlib.machinery.SourceFileLoader('demo_render', str(DEMO / 'render'))
     module = importlib.util.module_from_spec(importlib.util.spec_from_loader('demo_render', loader))
     loader.exec_module(module)

@@ -5,6 +5,8 @@
 # ///
 """Render one take into a demo GIF. See SKILL.md for the spec this implements."""
 
+from __future__ import annotations
+
 import argparse
 import json
 import shutil
