@@ -136,7 +136,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         // A list that is shown again with Search already focused keeps its caret and selection.
         if model.settings.presentation != "strip", instruction.focusSearch || !(firstResponder is NSTextView) {
             let initialQuery = model.query
-            let selectAll = instruction.focusSearch && model.hold == nil
+            let selectAll = instruction.focusSearch
             focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
                 guard let self, let model, self.session === model else { return }
@@ -183,7 +183,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
         let wasHeld = model.hold != nil
         lifecycle.stripFlagsChanged(flags, from: model)
-        if wasHeld, model.hold == nil { synchronizeSearchEditor(model) }
+        // An untouched Search keeps the selection it opened with.
+        if wasHeld, model.hold == nil, model.searchEdited { synchronizeSearchEditor(model) }
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {

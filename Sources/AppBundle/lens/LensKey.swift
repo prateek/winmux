@@ -79,11 +79,12 @@ extension LensSession {
                     if let selected { hover(selected) }
                 } else {
                     guard hold != nil || retainTyping else { return false }
-                    send(.searchChanged(query + text))
+                    // What the session opened with is selected, so the first edit replaces it.
+                    send(.searchChanged(searchEdited ? query + text : text))
                 }
             case .backspace:
                 guard settings.presentation != "strip", hold != nil || retainTyping else { return false }
-                send(.searchChanged(String(query.dropLast())))
+                send(.searchChanged(searchEdited ? String(query.dropLast()) : ""))
             case .arrow(let code):
                 if settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveMiniatureSelection(direction)

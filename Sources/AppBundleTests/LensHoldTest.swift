@@ -179,6 +179,25 @@ final class LensHoldTest: XCTestCase {
         }
     }
 
+    func testHeldTypingReplacesARememberedSearchAsSelectAllWould() {
+        for backspace in [false, true] {
+            let owner = testLensLifecycle()
+            let model = LensSession(name: "remembered", settings: LensConfig(), items: [], search: "foo")
+            owner.complete(model, ticket: owner.begin("remembered", toggle: false)!, invocation: StripGesture(keyCode: 44, invoking: .option))
+            XCTAssertNotNil(model.hold)
+            XCTAssertFalse(model.searchEdited)
+            if backspace {
+                XCTAssertTrue(model.perform(model.meaning(for: key(51, "", .option))))
+                XCTAssertEqual(model.query, "")
+            }
+            XCTAssertTrue(model.perform(model.meaning(for: key(11, "b", .option))))
+            XCTAssertTrue(model.perform(model.meaning(for: key(0, "a", .option))))
+            XCTAssertEqual(model.query, "ba")
+            XCTAssertTrue(model.searchEdited)
+            owner.dismiss()
+        }
+    }
+
     func testOpeningWithoutHoldLeavesGlobalBindingsAlone() {
         let owner = testLensLifecycle()
         defer { owner.dismiss() }

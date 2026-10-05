@@ -184,7 +184,9 @@ Presentation, including while opening. Carbon bindings such as alt-h become Sear
 letters during an Alt Hold too.
 
 Search edits during a Hold append and delete at the end through the session;
-selection, insertion elsewhere and clipboard editing wait until release. Every
+selection, insertion elsewhere and clipboard editing wait until release. A Search
+the Lens remembered from its last opening is shown selected, and the first letter or
+Backspace of the Hold replaces it, as it would with no Hold. Every
 letter is a letter during a Hold: with Command held, "a", "c" and "v" go to Search
 like any other, and do not select, copy or paste, unless the Lens binds the chord in
 `keys`. After release the field editor owns typing again, including ordinary Command
