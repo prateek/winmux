@@ -74,10 +74,10 @@ final class LensSession: ObservableObject {
     func startHold(_ gesture: StripGesture?) {
         guard !holdInitialized else { return }
         holdInitialized = true
-        hold = gesture?.committingModifiers.isEmpty == false ? gesture : nil
+        hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
     }
     func endHold(flags: NSEvent.ModifierFlags) {
-        if hold?.shouldCommit(flags: flags) == true { hold = nil }
+        if hold?.holdEnded(flags: flags) == true { hold = nil }
     }
     var stripGesture: StripGesture?
     /// The modifiers held when the invoking ones were released before the session was ready.

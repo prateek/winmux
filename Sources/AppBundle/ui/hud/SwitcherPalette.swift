@@ -146,7 +146,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func focusSearch(_ model: LensSession, selectAll: Bool) {
         guard let field = lensSearchField(in: hostingView) else { return }
-        makeFirstResponder(field)
+        _ = makeFirstResponder(field)
         synchronizeSearchEditor(model)
         if selectAll { (firstResponder as? NSTextView)?.selectAll(nil) }
     }
@@ -226,8 +226,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = model
     }
 
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = []) -> Int? {
-        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys)
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil) -> Int? {
+        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys, invocation: invocation)
         return ticket
     }
 

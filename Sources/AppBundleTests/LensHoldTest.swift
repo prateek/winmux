@@ -77,6 +77,56 @@ final class LensHoldTest: XCTestCase {
         XCTAssertEqual(model.query, "g")
     }
 
+    func testOpeningKeepsLettersAndStepsInTheirOriginalOrder() {
+        let owner = testLensLifecycle()
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("order", toggle: false, strip: gesture)!
+        XCTAssertEqual(owner.openingStripKey(keyCode: 5, flags: .command, characters: "g"), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 48, flags: [.command, .shift]), .consumed)
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items: [SwitcherPaletteItem] = (1...3).map { id in
+            let title = id == 1 ? "Other" : "g Demo"
+            return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: id == 1)
+        }
+        let model = LensSession(name: "order", settings: settings, items: items, search: "")
+        owner.complete(model, ticket: ticket)
+        XCTAssertEqual(model.query, "g")
+        XCTAssertEqual(model.selectedId, 3)
+        owner.dismiss()
+    }
+
+    func testShiftOnlyChordHasAHoldWithoutChangingStripCommitModifiers() {
+        let owner = testLensLifecycle()
+        let gesture = StripGesture(keyCode: 15, invoking: .shift)
+        let model = LensSession(name: "shift", settings: LensConfig(), items: [], search: "")
+        owner.complete(model, ticket: owner.begin("shift", toggle: false)!, invocation: gesture)
+        owner.stripFlagsChanged(.shift, from: model)
+        XCTAssertNotNil(model.hold)
+        XCTAssertEqual(model.meaning(for: key(4, "H", .shift)), .text("H"))
+        XCTAssertTrue(model.perform(model.meaning(for: key(4, "H", .shift))))
+        XCTAssertEqual(model.query, "H")
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertNil(model.hold)
+        XCTAssertTrue(owner.session === model)
+        XCTAssertEqual(gesture.committingModifiers, [])
+        owner.dismiss()
+    }
+
+    func testDirectListOpeningStepsAndUnmodifiedLeaderTyping() {
+        for held in [true, false] {
+            let owner = testLensLifecycle()
+            let gesture = StripGesture(keyCode: 15, invoking: held ? .option : [])
+            let ticket = owner.begin("direct", toggle: false, invocation: gesture)!
+            XCTAssertEqual(owner.openingStripKey(keyCode: 15, flags: held ? .option : [], characters: "r"), .consumed)
+            let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "r Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+            let model = LensSession(name: "direct", settings: LensConfig(), items: items, search: "")
+            owner.complete(model, ticket: ticket)
+            XCTAssertEqual(model.query, held ? "" : "r")
+            XCTAssertEqual(model.selectedId, held ? 3 : 1)
+            owner.dismiss()
+        }
+    }
+
     func testReleaseDuringOpeningStartsDirectListWithoutHold() {
         let owner = testLensLifecycle()
         defer { owner.dismiss() }
@@ -176,7 +226,7 @@ final class LensHoldTest: XCTestCase {
         panel.session!.changePresentation("strip")
         panel.sendEvent(key(5, "g"))
         panel.stripFlagsChanged([])
-        panel.makeFirstResponder(nil)
+        _ = panel.makeFirstResponder(nil)
         panel.sendEvent(key(4, "h", []))
         panel.sendEvent(key(0, "a", []))
         XCTAssertEqual(panel.session?.query, "gha")

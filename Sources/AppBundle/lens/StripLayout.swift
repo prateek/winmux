@@ -54,6 +54,10 @@ struct StripGesture {
     // Test observation of the gesture deadline.
     var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
+    var holdModifiers: NSEvent.ModifierFlags {
+        committingModifiers.isEmpty ? invoking.intersection(.shift) : committingModifiers
+    }
+    func holdEnded(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(holdModifiers).isEmpty }
     func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(committingModifiers).isEmpty }
     func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .control, .option]).subtracting(committingModifiers)

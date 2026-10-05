@@ -6,7 +6,7 @@ final class LensLifecycle {
     struct Opening {
         let name: String
         let gesture: StripGesture?
-        var steps = 0
+        let isStrip: Bool
         var release: NSEvent.ModifierFlags?
         var prepared: LensSession?
         var keys: [LensKeyBinding] = []
@@ -90,13 +90,13 @@ final class LensLifecycle {
     }
     var searchTask: Task<Void, Never>? { inlineSearch.current }
 
-    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = []) -> Int? {
+    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil) -> Int? {
         let previous: String?
         if case .opening(let opening) = state { previous = opening.name } else { previous = session?.name }
         dismiss()
         if previous == name && toggle && strip == nil { trace?.cancel(); return nil }
         self.trace = trace
-        state = .opening(Opening(name: name, gesture: strip, keys: keys))
+        state = .opening(Opening(name: name, gesture: strip ?? invocation, isStrip: strip != nil, keys: keys))
         return generation
     }
 
@@ -105,7 +105,7 @@ final class LensLifecycle {
         guard ticket == generation, case .opening(var opening) = state, opening.name == model.name else { return false }
         if model.settings.presentation == "strip", let gesture = opening.gesture ?? invocation {
             model.beginStrip(gesture)
-            model.cycleStripSelection(opening.steps)
+            model.cycleStripSelection(0)
             model.stripReleasedWhileOpening = opening.release
         }
         let gesture = opening.gesture ?? invocation
@@ -117,7 +117,7 @@ final class LensLifecycle {
         searchInput = (context, windows, ids)
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
             state = .ready(model)
-            for meaning in opening.pending { _ = model.perform(meaning, retainTyping: true) }
+            replay(opening.pending, to: model)
             guard session === model, model.settings.presentation == "strip" else { return true }
             let flags = opening.release ?? dependencies.flags()
             // A release that came before readiness runs its action once; the strip is never drawn.
@@ -141,9 +141,16 @@ final class LensLifecycle {
             opening.prepared = model
             state = .opening(opening)
             presented(model)
-            for meaning in opening.pending { _ = model.perform(meaning, retainTyping: true) }
+            replay(opening.pending, to: model)
         }
         return true
+    }
+
+    private func replay(_ keys: [LensKeyMeaning], to model: LensSession) {
+        for meaning in keys {
+            guard session === model else { return }
+            _ = model.perform(meaning, retainTyping: true)
+        }
     }
 
     func presented(_ model: LensSession, restartEffects: Bool = false, conversion: Bool = false) {
@@ -265,15 +272,15 @@ final class LensLifecycle {
     /// Nil outside a chord's opening; accepted keys are replayed when its session is ready.
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
         guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
-        let meaning = lensKeyMeaning(hold: opening.release == nil ? gesture : nil, keys: opening.keys,
+        let hold = opening.release == nil && gesture.keyCode != nil && !gesture.holdModifiers.isEmpty ? gesture : nil
+        let meaning = lensKeyMeaning(hold: hold, keys: opening.keys,
                                      code: keyCode, characters: characters, flags: flags)
         trace?.key(code: keyCode, characters: characters, flags: flags, timestamp: timestamp ?? LensTimebase.now(),
-                   presentation: "opening", hold: opening.release == nil, path: "openingStripKey",
+                   presentation: "opening", hold: hold != nil, path: "openingStripKey",
                    destination: String(describing: meaning), search: "", selectedId: nil, fieldEditor: false)
         // A release has settled the old strip selection; later Trigger presses do not revive it.
-        if opening.release != nil, gesture.step(keyCode: keyCode, flags: flags) != nil { return .consumed }
+        if opening.isStrip, opening.release != nil, gesture.step(keyCode: keyCode, flags: flags) != nil { return .consumed }
         switch meaning {
-            case .step(let delta): opening.steps += delta
             case .global, .fieldEditor: return .ignored
             case .dismiss: return .cancel
             default: opening.pending.append(meaning)
@@ -286,7 +293,8 @@ final class LensLifecycle {
     /// press that follows it cannot hide it from the live modifier state.
     func openingFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard case .opening(var opening) = state, let gesture = opening.gesture, opening.release == nil else { return }
-        if gesture.shouldCommit(flags: flags) { opening.release = flags; state = .opening(opening) }
+        guard opening.isStrip || !gesture.holdModifiers.isEmpty else { return }
+        if gesture.holdEnded(flags: flags) || (opening.isStrip && gesture.shouldCommit(flags: flags)) { opening.release = flags; state = .opening(opening) }
     }
 
     func cancelOpening(ticket: Int) {

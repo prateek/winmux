@@ -41,6 +41,7 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
         if !modifiers.subtracting(hold.invoking.union(.shift)).isEmpty { return .global }
         if modifiers.contains(.command), ["a", "v", "c", "x", "z", "y"].contains(characters.lowercased()) { return .dropped }
     }
+    if hold == nil, !modifiers.intersection([.command, .control, .option]).isEmpty, ![UInt16(48), 53, 123, 124, 125, 126].contains(code) { return .fieldEditor }
     switch code {
         case 53: return .dismiss
         case 123...126: return .arrow(code)
@@ -48,7 +49,6 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
         case 48: return .mark
         default: break
     }
-    if hold == nil, !modifiers.intersection([.command, .control, .option]).isEmpty { return .fieldEditor }
     if !characters.isEmpty, characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
         return .text(characters)
     }
