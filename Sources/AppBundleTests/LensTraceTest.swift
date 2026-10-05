@@ -6,6 +6,47 @@ import XCTest
 
 @MainActor
 final class LensTraceTest: XCTestCase {
+    func testSessionReadbackIncludesFieldEditorEditsReleaseAndDismissal() {
+        let store = LensTraceStore(stamp: { 10 })
+        let trace = store.begin(presentation: "list", origin: .init(start: 10, received: 10, source: "test"))
+        let owner = testLensLifecycle()
+        let gesture = StripGesture(keyCode: 15, invoking: .command)
+        let model = LensSession(name: "direct", settings: LensConfig(), items: [], search: "")
+        let ticket = owner.begin("direct", toggle: false, strip: gesture, trace: trace)!
+        owner.complete(model, ticket: ticket)
+        model.send(.searchChanged("gh"))
+        XCTAssertEqual(trace.snapshot.session?.search, "gh")
+        XCTAssertEqual(trace.snapshot.session?.hold, true)
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(trace.snapshot.session?.hold, false)
+        XCTAssertEqual(trace.snapshot.session?.active, true)
+        model.send(.searchChanged("gha"))
+        XCTAssertEqual(trace.snapshot.session?.search, "gha")
+        XCTAssertTrue(store.text(last: 1).contains("Search=\"gha\""))
+        owner.dismiss()
+        XCTAssertEqual(trace.snapshot.session?.active, false)
+    }
+
+    func testKeysContinueAfterFirstFrameWithoutChangingStagesAndStayBounded() {
+        var now = 10.0
+        let store = LensTraceStore(stamp: { now })
+        let trace = store.begin(presentation: "strip", origin: .init(start: 10, received: 10, source: "test"))
+        trace.finish(signal: "test")
+        let before = trace.snapshot
+        now = 11
+        for _ in 0..<300 {
+            trace.key(code: 4, characters: "h", flags: .command, timestamp: 10.9,
+                      presentation: "list", hold: true, path: "sendEvent", destination: "Search",
+                      search: "gh", selectedId: 7, fieldEditor: false)
+        }
+        XCTAssertEqual(trace.snapshot.stages, before.stages)
+        XCTAssertEqual(trace.snapshot.totalMs, before.totalMs)
+        XCTAssertEqual(trace.snapshot.keys.count, 256)
+        XCTAssertEqual(trace.snapshot.keys.last?.receivedAt, 11)
+        XCTAssertEqual(trace.snapshot.keys.last?.search, "gh")
+        XCTAssertTrue(store.text(last: 1).contains("sendEvent Search"))
+    }
+
     func testStagesUseInjectedClockAndExposeGapsAndBoundedHistory() throws {
         var now = 10.0
         let store = LensTraceStore(capacity: 2, stamp: { now })

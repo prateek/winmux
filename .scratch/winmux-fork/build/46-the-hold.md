@@ -50,13 +50,49 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] Holding the Trigger's modifiers, pressing the Trigger and typing two letters puts both in Search, in a lifecycle test and in a guest.
-- [ ] With the modifiers still held after conversion, Backspace deletes one character, the arrows move the selection and a Lens `keys` chord runs its command.
-- [ ] After the modifiers are released, a Command chord on the list is not typed into Search, and releasing them did not commit the list.
-- [ ] A Lens opened from the CLI or the `lens` binding mode reads keys exactly as before.
-- [ ] One function decides what a key means during a Hold, and the strip, the list and `'miniatures` call it; the strip's step, commit and unrelated-chord tests pass unchanged.
-- [ ] Two letters sent with no gap and no modifier after a conversion both reach Search, or the record shows the gap cannot be hit and says why.
-- [ ] The click-in-the-field workaround is gone from the handoff and from any skill that carries it.
+- [x] Holding the Trigger's modifiers, pressing the Trigger and typing two letters puts both in Search, in a lifecycle test and in a guest.
+- [x] With the modifiers still held after conversion, Backspace deletes one character, the arrows move the selection and a Lens `keys` chord runs its command.
+- [x] After the modifiers are released, a Command chord on the list is not typed into Search, and releasing them did not commit the list.
+- [x] A Lens opened from the CLI or the `lens` binding mode reads keys exactly as before.
+- [x] One function decides what a key means during a Hold, and the strip, the list and `'miniatures` call it; the strip's step, commit and unrelated-chord tests pass unchanged.
+- [x] Two letters sent with no gap and no modifier after a conversion both reach Search, or the record shows the gap cannot be hit and says why.
+- [x] The click-in-the-field workaround is gone from the handoff and from any skill that carries it.
+
+## Built and checked
+
+The Hold is stored on `LensSession` and set or ended by `LensLifecycle`, including
+release while opening. `lensKeyMeaning` is the pure decision used by panel events,
+key equivalents, Carbon bindings and queued opening keys. Held Search edits go
+through session events; conversion requests focus synchronously and retains early
+typing in arrival order. Opening stages remain unchanged; `debug-lens-trace`
+retains a separate bounded key table and final session readback.
+
+The record-only guest captures showed Search stuck at `g` for held `gh`, release
+before `h`, and every short-gap pair: Search never acquired its field editor during
+those takes. After the fix, held `gh` and release-before-`h` both read `gh`; the
+0, 5, 20 and 50 ms pairs after conversion all read `gha`, without a caret click.
+Controlled-clock lifecycle, pure-table and AppKit event-entry tests cover the rule.
+The guest also checks Backspace, arrows, Lens commands, foreign Carbon chords,
+direct list/overview openings, CLI/leader input and unchanged strip commit/cycling.
+
+Decided: Preserve the existing strip distinction between its own Trigger and the
+other Lens's Tab/backtick Trigger: the latter is consumed without stepping. This
+keeps the existing strip assertions and behavior required by the builder ruling.
+Decided: Search editing during a Hold operates at the end; ordinary editing resumes
+in the field editor after release.
+
+One starting default was changed: **Cmd+A, Cmd+V and the like in Search during a
+Hold**. It said they type nothing. The third step of the key order is a Decision and
+says a letter goes to Search with the Hold's modifiers taken off, and a Search that
+drops "a", "c", "v", "x", "y" and "z" while Command is held cannot find "calculator".
+So they are letters like the rest: they type, and they do not select, copy or paste
+until the modifiers are up.
+
+Host and CI-version guest `make check` pass. Installed behavior remains separate:
+
+- [ ] Installed-build checks.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 

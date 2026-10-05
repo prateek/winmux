@@ -44,6 +44,7 @@ final class LensSession: ObservableObject {
                     inlineIds = Set(filterSwitcherPaletteItems(items, query: query).map(\.id))
                 }
                 query = text
+                searchEdited = true
                 if !text.hasPrefix("=") { searchError = nil }
                 selection = 0
                 if settings.presentation == "miniatures" { revealMiniatureSelection() }
@@ -67,7 +68,20 @@ final class LensSession: ObservableObject {
 
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
-    private let keyBindings: [(name: String, code: UInt16, modifiers: NSEvent.ModifierFlags)]
+    let keyBindings: [LensKeyBinding]
+    private(set) var hold: StripGesture?
+    /// False while Search still holds what the session opened with, which is shown selected.
+    private(set) var searchEdited = false
+    private var holdInitialized = false
+
+    func startHold(_ gesture: StripGesture?) {
+        guard !holdInitialized else { return }
+        holdInitialized = true
+        hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
+    }
+    func endHold(flags: NSEvent.ModifierFlags) {
+        if hold?.holdEnded(flags: flags) == true { hold = nil }
+    }
     var stripGesture: StripGesture?
     /// The modifiers held when the invoking ones were released before the session was ready.
     var stripReleasedWhileOpening: NSEvent.ModifierFlags?
@@ -87,12 +101,7 @@ final class LensSession: ObservableObject {
                 return snapshot
             }
         } else { self.items = items }
-        keyBindings = settings.keys.keys.sorted().compactMap { name in
-            if case .success(let (modifiers, key)) = parseBinding(name, .emptyRoot, config.keyMapping.resolve()) {
-                return (name, UInt16(key.carbonKeyCode), modifiers)
-            }
-            return nil
-        }
+        keyBindings = LensKeyBinding.resolve(settings.keys)
         query = search
         selection = 0
         selection = initialSelection()

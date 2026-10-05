@@ -42,7 +42,9 @@ struct LensCommand: Command {
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
         trace.advance("binding resolved")
         trace.startInterval("windows collected")
-        guard let ticket = panel.beginLens(name, toggle: args.name != nil, strip: settings.presentation == "strip" ? invocation : nil, trace: trace) else {
+        guard let ticket = panel.beginLens(name, toggle: args.name != nil,
+                                          strip: settings.presentation == "strip" ? invocation : nil,
+                                          trace: trace, keys: LensKeyBinding.resolve(settings.keys), invocation: lensInvocation) else {
             LensTraceStore.shared.discard(trace)
             return true
         }
