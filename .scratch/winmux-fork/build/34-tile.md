@@ -92,7 +92,13 @@ the standing desk's files while allowing one push of `demo/desk` to stage either
 Seed workspaces in order before applying the rich desk's Column rules. Serve owned
 pages on localhost and use owned terminal prompt/title text to keep captures public.
 
-Miniatures keeps its adaptive workspace geometry. Native materials, shadow blur,
+The settled strip width-from-aspect rule gives ordinary pictures a common row
+height. The prototype's real-size branch instead scales physical window widths
+and heights against 1025, so short windows can be smaller in its pictures.
+
+Miniatures keeps its adaptive workspace geometry, five-point workspace-cell
+radius and twelve-point workspace/selected-title text rather than the prototype's
+fixed two-by-two cells, twelve-point cell radius and fifteen-point text. Native materials, shadow blur,
 app icons and live content cannot be pixel-identical to CSS and static pictures.
 The strip retains its nine-entry cap and hidden-entry counts rather than prototype
 paging, and its Lens name stays out of the footer. The list retains native Search
