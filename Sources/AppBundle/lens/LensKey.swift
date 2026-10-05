@@ -42,7 +42,6 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
         if let step = hold.step(keyCode: code, flags: flags) { return .step(step) }
         if (code == 48 || code == 50 || characters == "`"), hold.owns(flags) { return .step(0) }
         if !modifiers.subtracting(hold.invoking.union(.shift)).isEmpty { return .global }
-        if modifiers.contains(.command), ["a", "v", "c", "x", "z", "y"].contains(characters.lowercased()) { return .dropped }
         if let key = binding(modifiers.subtracting(hold.holdModifiers)) { return .command(key.name) }
     }
     if hold == nil, !modifiers.intersection([.command, .control, .option]).isEmpty, ![UInt16(48), 53, 123, 124, 125, 126].contains(code) { return .fieldEditor }

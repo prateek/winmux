@@ -32,8 +32,9 @@ final class LensHoldTest: XCTestCase {
             (125, "", .command, .arrow(125)),
             (53, "", .command, .dismiss),
             (4, "h", [.command, .option], .global),
-            (0, "a", .command, .dropped),
-            (9, "v", .command, .dropped),
+            (0, "a", .command, .text("a")),
+            (9, "v", .command, .text("v")),
+            (122, "", .command, .dropped),
         ]
         for (code, text, flags, expected) in cases {
             XCTAssertEqual(lensKeyMeaning(hold: hold, keys: keys, code: code, characters: text, flags: flags), expected)

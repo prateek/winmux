@@ -79,7 +79,14 @@ Decided: Preserve the existing strip distinction between its own Trigger and the
 other Lens's Tab/backtick Trigger: the latter is consumed without stepping. This
 keeps the existing strip assertions and behavior required by the builder ruling.
 Decided: Search editing during a Hold operates at the end; ordinary editing resumes
-in the field editor after release. No starting default was changed.
+in the field editor after release.
+
+One starting default was changed: **Cmd+A, Cmd+V and the like in Search during a
+Hold**. It said they type nothing. The third step of the key order is a Decision and
+says a letter goes to Search with the Hold's modifiers taken off, and a Search that
+drops "a", "c", "v", "x", "y" and "z" while Command is held cannot find "calculator".
+So they are letters like the rest: they type, and they do not select, copy or paste
+until the modifiers are up.
 
 Host and CI-version guest `make check` pass. Installed behavior remains separate:
 
