@@ -47,7 +47,7 @@ final class LensEffectLifetimeTest: XCTestCase {
         events = []; shown = 0
         let quick = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
         owner.complete(model(), ticket: quick)
-        owner.session?.send(.modifiersChanged([]))
+        owner.stripFlagsChanged([], from: owner.session!)
         await clock.advance(by: .seconds(2))
         XCTAssertEqual(shown, 0)
         XCTAssertTrue(events.isEmpty)
@@ -235,5 +235,52 @@ final class LensEffectLifetimeTest: XCTestCase {
         XCTAssertEqual(closed, [1, 2])
         XCTAssertTrue(owner.ownedEffects.isEmpty)
         try await base.checkSuspension()
+    }
+
+    func testReleaseCommittedAtReadinessSchedulesNoDisplayEvenWhenTheSessionSurvives() async throws {
+        let clock = TestClock()
+        var shown = 0
+        let owner = testLensLifecycle(clock: clock, show: { _ in shown += 1 })
+        let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
+        owner.openingFlagsChanged([])
+        let session = model()
+        var actions = 0
+        session.onAction = { _ in actions += 1 }
+        owner.complete(session, ticket: ticket)
+        XCTAssertEqual(actions, 1)
+        XCTAssertFalse(owner.ownedEffects.contains(.stripDisplay))
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(actions, 1)
+        XCTAssertEqual(shown, 0)
+        owner.dismiss()
+    }
+
+    func testOnlyTheStripFlagsPathCommitsARelease() {
+        let owner = testLensLifecycle()
+        let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!
+        let session = model()
+        var actions = 0
+        session.onAction = { _ in actions += 1 }
+        owner.complete(session, ticket: ticket)
+        session.updateSummonModifiers([])
+        XCTAssertEqual(actions, 0, "The panel's own flagsChanged only updates Summon")
+        owner.stripFlagsChanged([], from: session)
+        XCTAssertEqual(actions, 1)
+        owner.dismiss()
+    }
+
+    func testListAskedToBecomeAListIsPresentedAgainWithoutActivationOrEvents() {
+        var events: [ServerEvent] = []
+        var shown = 0
+        var instructions: [LensLifecycle.ShowInstruction] = []
+        let owner = testLensLifecycle(emit: { events.append($0) }, show: { _ in shown += 1 })
+        owner.finishShow = { _, instruction in instructions.append(instruction) }
+        let session = model("search", presentation: "list")
+        owner.complete(session, ticket: owner.begin("search", toggle: false)!)
+        owner.changePresentationToList(session)
+        XCTAssertEqual(shown, 2)
+        XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
+        XCTAssertEqual(events.map(\.eventType), [.lensOpened])
+        owner.dismiss()
     }
 }

@@ -112,7 +112,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
         guard model.settings.presentation == "strip" else { return }
-        lifecycle.send(.modifiersChanged(flags), from: model)
+        lifecycle.stripFlagsChanged(flags, from: model)
     }
 
     private func present(_ model: LensSession) {
@@ -155,7 +155,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func changePresentationToList() {
         guard let session else { return }
-        lifecycle.send(.presentationChanged("list"), from: session)
+        lifecycle.changePresentationToList(session)
     }
 
     private func performAction(_ key: String) {

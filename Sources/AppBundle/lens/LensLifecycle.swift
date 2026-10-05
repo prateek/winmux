@@ -109,6 +109,8 @@ final class LensLifecycle {
             state = .ready(model)
             stripDebugLog("strip ready uptime=\(ProcessInfo.processInfo.systemUptime) elapsed=\(gesture.elapsedSeconds)")
             let flags = opening.release ?? dependencies.flags()
+            // A release that came before readiness runs its action once; the strip is never drawn.
+            if commitStripRelease(flags, model: model) { return true }
             send(.modifiersChanged(flags), from: model)
             guard session === model else { return true }
             stripDisplay = Task { @MainActor [weak self, weak model] in
@@ -146,7 +148,7 @@ final class LensLifecycle {
         let firstNonStrip = !conversion && model.settings.presentation != "strip"
         finishShow(model, ShowInstruction(activate: firstNonStrip, focusSearch: firstNonStrip))
         guard session === model, ticket == generation else { return }
-        if !wasPresented { startSearch(model) }
+        if !wasPresented, !conversion, model.settings.presentation != "strip" { startSearch(model) }
         if !wasPresented || restartEffects { startPresentationEffects(model) }
     }
 
@@ -165,14 +167,29 @@ final class LensLifecycle {
                 guard oldPresentation != model.settings.presentation else { return }
                 cancelPresentationEffects()
                 presented(model, restartEffects: true, conversion: true)
-            case .modifiersChanged(let flags):
-                if commitStripRelease(flags, model: model) { return }
+                return
+            case .modifiersChanged:
                 guard oldSummon != model.summonHeld else { return }
             case .summonChanged:
                 guard oldSummon != model.summonHeld else { return }
             default: break
         }
         updateMiniatureLanding()
+    }
+
+    /// Modifier changes from the global and local monitors. Only these commit a strip's release;
+    /// the panel's own `flagsChanged` events update Summon alone.
+    func stripFlagsChanged(_ flags: NSEvent.ModifierFlags, from model: LensSession) {
+        send(.modifiersChanged(flags), from: model)
+        guard session === model else { return }
+        _ = commitStripRelease(flags, model: model)
+    }
+
+    /// `lens` with no arguments. A session that is already a list is put in front and made key again.
+    func changePresentationToList(_ model: LensSession) {
+        guard session === model else { return }
+        guard model.settings.presentation == "list" else { send(.presentationChanged("list"), from: model); return }
+        if case .presented = state { presented(model, conversion: true) }
     }
 
     private func commitStripRelease(_ flags: NSEvent.ModifierFlags, model: LensSession) -> Bool {
@@ -274,7 +291,6 @@ final class LensLifecycle {
     private weak var landingColumns: ColumnState?
     /// The selection the landing spot on screen, or being computed, belongs to.
     private var landingKey: UInt32?
-    private var landingEvaluated = false
     private weak var evaluatedDestination: Workspace?
     private weak var evaluatedColumns: ColumnState?
     private var landingRequest = 0
@@ -288,7 +304,6 @@ final class LensLifecycle {
         landingDestination = nil
         landingColumns = nil
         landingKey = nil
-        landingEvaluated = false
         evaluatedDestination = nil
         evaluatedColumns = nil
         session?.setMiniatureLanding(nil)
@@ -297,11 +312,10 @@ final class LensLifecycle {
         guard let model = session else { return }
         // The pointer moving inside one miniature re-assigns the same selection.
         let key = model.summonHeld ? model.selectedId : nil
-        if key != nil, key == landingKey, landingEvaluated, evaluatedDestination === focus.workspace, evaluatedColumns === focus.workspace.columns { return }
+        if key != nil, key == landingKey, evaluatedDestination === focus.workspace, evaluatedColumns === focus.workspace.columns { return }
         landingRequest += 1
         let request = landingRequest
         landingKey = key
-        landingEvaluated = key != nil
         evaluatedDestination = focus.workspace
         evaluatedColumns = focus.workspace.columns
         landingTask?.cancel()

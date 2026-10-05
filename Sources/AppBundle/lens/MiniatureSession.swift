@@ -121,8 +121,6 @@ extension LensSession {
         guard let source = miniatureLanding, let workspace = miniatureWorkspaces.first(where: { $0.current }) else { return nil }
         return MiniatureLayout.scale(source, from: workspace.source, to: cell.frame)
     }
-
-
 }
 
 func miniatureIsFrozen(tray: Bool, fullscreen: Bool, workspaceVisible: Bool, parked: Bool) -> Bool {
