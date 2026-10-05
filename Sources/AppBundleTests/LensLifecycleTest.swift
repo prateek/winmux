@@ -181,6 +181,55 @@ final class LensLifecycleTest: XCTestCase {
         owner.dismiss()
     }
 
+    func testDismissalClearsSearchSnapshotAndContext() {
+        let owner = testLensLifecycle()
+        owner.complete(session("demo"), ticket: owner.begin("demo", toggle: false)!,
+            context: .string("context"), windows: [.string("record")], ids: [1])
+        XCTAssertEqual(owner.searchInput.windows.count, 1)
+        owner.dismiss()
+        XCTAssertEqual(owner.searchInput.context, .null)
+        XCTAssertTrue(owner.searchInput.windows.isEmpty)
+        XCTAssertTrue(owner.searchInput.ids.isEmpty)
+    }
+
+    func testLiveDependenciesReadTestEnvironmentOnceAtAssembly() {
+        var reads = 0
+        var requests = 0
+        let dependencies = LensLifecycle.Dependencies.live(isTesting: { reads += 1; return false }, request: { _, _ in requests += 1 })
+        XCTAssertEqual(reads, 1)
+        setUpWorkspacesForTests()
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        for _ in 0..<5 { dependencies.requestThumbnail(window, 1) }
+        XCTAssertEqual(reads, 1)
+        XCTAssertEqual(requests, 5)
+    }
+
+    func testAcceptedStripInitializesOnceAndRejectedTicketDoesNotInitialize() {
+        let owner = testLensLifecycle()
+        let model = stripSession()
+        var changes = 0
+        let observation = model.objectWillChange.sink { changes += 1 }
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("recent", toggle: false)!
+        XCTAssertFalse(owner.complete(model, ticket: ticket - 1, invocation: gesture))
+        XCTAssertNil(model.stripGesture)
+        XCTAssertEqual(changes, 0)
+        XCTAssertTrue(owner.complete(model, ticket: ticket, invocation: gesture))
+        XCTAssertNotNil(model.stripGesture)
+        XCTAssertEqual(changes, 2, "One initialization and one application of accumulated steps")
+        owner.dismiss()
+        withExtendedLifetime(observation) {}
+    }
+
+    func testPanelDoesNotStartStripOrOwnSessionEffects() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let panel = try String(contentsOf: root.appendingPathComponent("AppBundle/ui/hud/SwitcherPalette.swift"), encoding: .utf8)
+        XCTAssertFalse(panel.contains(".beginStrip("), "Only the owner initializes a strip, after accepting its ticket")
+        for field in ["stripDisplay", "thumbnailRefresh", "thumbnailSession", "inlineSearch"] {
+            XCTAssertFalse(panel.contains("var \(field)"), field)
+        }
+    }
+
     func testConfigReloadDoesNotChangeOpenEntriesOrKeyActions() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         let store = testLensLifecycle()

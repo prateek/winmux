@@ -31,19 +31,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     var isPaletteActive: Bool { session != nil }
 
     init(emit: @escaping (ServerEvent) -> Void) {
-        lifecycle = LensLifecycle(
-            dependencies: .init(
-                evaluate: { body, context, windows in
-                    precondition(!isUnitTest, "Unconfigured Lens dependency: NickelSupervisor.evalFilter")
-                    return await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
-                },
-                requestThumbnail: { window, token in
-                    precondition(!isUnitTest, "Unconfigured Lens dependency: ThumbnailCache.request")
-                    ThumbnailCache.shared.request(window, lens: token)
-                },
-                closeThumbnails: { token in ThumbnailCache.shared.closeLens(token) },
-                flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) }
-            ), emit: emit, show: { _ in }, hide: {})
+        lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
@@ -91,8 +79,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         model.onAction = { [weak self] key in self?.performAction(key) }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
-        if settings.presentation == "strip", model.stripGesture == nil, let invocation { model.beginStrip(invocation) }
-        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids)
+        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
     }
 
     private func show(_ model: LensSession) {

@@ -20,6 +20,20 @@ final class LensLifecycle {
         var requestThumbnail: (Window, Int) -> Void
         var closeThumbnails: (Int) -> Void
         var flags: () -> NSEvent.ModifierFlags
+
+        @MainActor
+        static func live(isTesting: () -> Bool = { isUnitTest },
+                         request: @escaping @MainActor (Window, Int) -> Void = { ThumbnailCache.shared.request($0, lens: $1) }) -> Self {
+            let testing = isTesting()
+            return Self(evaluate: { body, context, windows in
+                precondition(!testing, "Unconfigured Lens dependency: NickelSupervisor.evalFilter")
+                return await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
+            }, requestThumbnail: { window, token in
+                precondition(!testing, "Unconfigured Lens dependency: ThumbnailCache.request")
+                request(window, token)
+            }, closeThumbnails: { ThumbnailCache.shared.closeLens($0) },
+            flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) })
+        }
     }
 
     private(set) var state: State = .closed
@@ -44,7 +58,7 @@ final class LensLifecycle {
     private var thumbnailRefresh: Task<Void, Never>?
     private var thumbnailToken: Int?
     private var nextThumbnailToken = 0
-    private var searchInput: (context: JSONValue, windows: [JSONValue], ids: [UInt32]) = (.null, [], [])
+    private(set) var searchInput: (context: JSONValue, windows: [JSONValue], ids: [UInt32]) = (.null, [], [])
     private var generation = 0
     private var remembered: [String: String] = [:]
 
@@ -58,6 +72,7 @@ final class LensLifecycle {
         inlineSearch = LensInlineSearch(clock: clock, evaluate: dependencies.evaluate)
     }
 
+    // Test observation of owned work.
     enum Effect: Hashable { case search, landing, stripDisplay, thumbnails }
     var ownedEffects: Set<Effect> {
         var effects: Set<Effect> = []
@@ -79,9 +94,9 @@ final class LensLifecycle {
     }
 
     @discardableResult
-    func complete(_ model: LensSession, ticket: Int, context: JSONValue = .null, windows: [JSONValue] = [], ids: [UInt32] = []) -> Bool {
+    func complete(_ model: LensSession, ticket: Int, context: JSONValue = .null, windows: [JSONValue] = [], ids: [UInt32] = [], invocation: StripGesture? = nil) -> Bool {
         guard ticket == generation, case .opening(let opening) = state, opening.name == model.name else { return false }
-        if model.settings.presentation == "strip", let gesture = opening.gesture {
+        if model.settings.presentation == "strip", let gesture = opening.gesture ?? invocation {
             model.beginStrip(gesture)
             model.cycleStripSelection(opening.steps)
             model.stripReleasedWhileOpening = opening.release
@@ -204,15 +219,21 @@ final class LensLifecycle {
         return openingStripKey(keyCode: keyCode, flags: flags) == .consumed
     }
 
+    /// A key that arrives while a strip is opening. The invoking key is a step applied when the
+    /// session is ready; Tab and backtick with the strip's modifiers do nothing; anything else is
+    /// `.ignored`, which means it is not the strip's. Nil when no strip is opening.
     func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> StripInput? {
         guard case .opening(var opening) = state, let gesture = opening.gesture else { return nil }
         if let step = gesture.step(keyCode: keyCode, flags: flags) {
+            // After the release the selection is settled: the commit waits only for the session.
             if opening.release == nil { opening.steps += step; state = .opening(opening) }
             return .consumed
         }
         return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
     }
 
+    /// Records a release of the invoking modifiers that happens before the session is ready, so a
+    /// press that follows it cannot hide it from the live modifier state.
     func openingFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard case .opening(var opening) = state, let gesture = opening.gesture, opening.release == nil else { return }
         if gesture.shouldCommit(flags: flags) { opening.release = flags; state = .opening(opening) }
@@ -231,6 +252,7 @@ final class LensLifecycle {
         state = .closed
         generation += 1
         inlineSearch.cancel()
+        searchInput = (.null, [], [])
         cancelPresentationEffects()
         if let model {
             model.setMiniatureLanding(nil)
@@ -247,7 +269,7 @@ final class LensLifecycle {
     private var landingColumnsTask: Task<JSONValue, Error>?
     private weak var landingDestination: Workspace?
     private weak var landingColumns: ColumnState?
-    // The selection the landing spot on screen, or being computed, belongs to.
+    /// The selection the landing spot on screen, or being computed, belongs to.
     private var landingKey: UInt32?
     private var landingEvaluated = false
     private weak var evaluatedDestination: Workspace?

@@ -265,7 +265,6 @@ final class ColumnPlacementTest: XCTestCase {
         let model = session(workspace, window: window, rect: rect)
         let owner = ownLens(model)
         defer { owner.dismiss() }
-        // No usable geometry is still a completed evaluation of this selection.
         model.miniatureWorkspaces = []
         var changes = 0
         let observation = model.objectWillChange.sink { changes += 1 }

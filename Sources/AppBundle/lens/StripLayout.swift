@@ -41,6 +41,7 @@ struct StripGesture {
         let parts = elapsed().components
         return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
     }
+    // Test observation of the gesture deadline.
     var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
     func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(committingModifiers).isEmpty }
