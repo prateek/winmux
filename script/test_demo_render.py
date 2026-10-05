@@ -39,6 +39,7 @@ class RichDeskTest(unittest.TestCase):
         self.assertIn('swiftc -O dialog.swift', script)
         self.assertIn('keys.swift -o ~/desk/keys', script)
         self.assertIn('"Start Page"', script)
+        self.assertIn('SafariTabs.db*(N)', script)
         self.assertIn('http://localhost:8765/lenses.html', script)
         self.assertNotIn('open -a Safari ~/desk/docs', script)
         self.assertIn('--bind 127.0.0.1 --directory', script)

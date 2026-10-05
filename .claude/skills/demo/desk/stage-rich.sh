@@ -11,7 +11,7 @@ zsh ~/desk/make-repo.sh
 cp ~/desk/zed/settings.json ~/.config/zed/settings.json
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
 ~/winmux/nickel-helper/target/release/winmux-nickel check ~/.config/winmux/winmux.ncl || exit 1
-rm -f ~/Library/Containers/com.apple.Safari/Data/Library/Safari/SafariTabs.db*
+rm -f ~/Library/Containers/com.apple.Safari/Data/Library/Safari/SafariTabs.db*(N)
 rm -rf ~/Library/Saved\ Application\ State/com.apple.Safari.savedState ~/Library/Saved\ Application\ State/com.apple.TextEdit.savedState ~/Library/Saved\ Application\ State/com.apple.Preview.savedState
 ~/desk/wallpaper ~/desk/wallpaper.jpg
 style='<style>body{font:17px/1.6 -apple-system,sans-serif;max-width:46em;margin:40px auto;padding:0 28px;color:#1d1d1f}code{background:#f0f0f3;border-radius:4px;padding:1px 5px;font-size:.9em}pre{background:#f0f0f3;padding:14px;border-radius:8px;overflow:auto}pre code{padding:0}h1{font-size:34px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:5px 10px}</style>'
