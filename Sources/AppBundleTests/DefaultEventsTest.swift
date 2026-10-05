@@ -59,13 +59,13 @@ final class DefaultEventsTest: XCTestCase {
     func testOneLensPairAcrossSearchAndPresentationChangesAndRepeatedDismissal() throws {
         for presentation in ["list", "strip", "miniatures"] {
             var events: [ServerEvent] = []
-            let lifecycle = LensLifecycle(emit: { events.append($0) })
+            let lifecycle = testLensLifecycle(emit: { events.append($0) })
             var settings = LensConfig(); settings.presentation = presentation
             let ticket = try XCTUnwrap(lifecycle.begin("recent", toggle: true))
             let session = LensSession(name: "recent", settings: settings, items: [], search: "")
             XCTAssertTrue(lifecycle.complete(session, ticket: ticket))
             lifecycle.presented(session)
-            session.query = "Demo"
+            session.send(.searchChanged("Demo"))
             session.changePresentation("list")
             XCTAssertEqual(events.count, 1)
             lifecycle.dismiss()
@@ -73,7 +73,7 @@ final class DefaultEventsTest: XCTestCase {
             XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
         }
         var events: [ServerEvent] = []
-        let lifecycle = LensLifecycle(emit: { events.append($0) })
+        let lifecycle = testLensLifecycle(emit: { events.append($0) })
         let ticket = try XCTUnwrap(lifecycle.begin("bad", toggle: false))
         lifecycle.cancelOpening(ticket: ticket)
         let late = LensSession(name: "bad", settings: LensConfig(), items: [], search: "")
@@ -109,14 +109,14 @@ final class DefaultEventsTest: XCTestCase {
                         windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
                     panel.session?.onAction?(try XCTUnwrap(panel.session?.key(for: click, click: true)))
                 case "release":
-                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command))
                     panel.stripFlagsChanged([])
                 case "global binding":
-                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command, openedAt: 0))
+                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command))
                     XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
                 case "handoff":
                     panel.changePresentationToList()
-                    panel.session?.query = "Demo"
+                    panel.session?.send(.searchChanged("Demo"))
                     XCTAssertEqual(events.map(\.eventType), [.lensOpened])
                     panel.dismiss()
                 default: panel.dismiss()
@@ -244,7 +244,7 @@ final class DefaultEventsTest: XCTestCase {
         var events: [ServerEvent] = []
         let panel = SwitcherPalettePanel(emit: { events.append($0) })
         var settings = LensConfig(); settings.presentation = "strip"
-        let invocation = StripGesture(keyCode: 48, invoking: .command, openedAt: ProcessInfo.processInfo.systemUptime)
+        let invocation = StripGesture(keyCode: 48, invoking: .command)
         let ticket = try XCTUnwrap(panel.beginLens("recent", toggle: false, strip: invocation))
         panel.stripFlagsChanged([])
         await panel.openLens(name: "recent", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: invocation)

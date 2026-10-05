@@ -30,8 +30,8 @@ This is a demonstrated ownership and testability problem, not a claim that a vis
 **What is preserved**
 
 - Search memory, selection and marks, actions over the selected window versus the marked windows, inline-Filter failure behaviour, the opening strip's steps, release before ready, and Presentation conversion.
-- The event semantics from #33: one opening and closing pair only for a presented session, no events for a quick strip tap that never draws, and no new pair when the Search or the Presentation changes. Named and ad-hoc payload identity is kept.
-- The fix and regression coverage from #35, if it has landed.
+- The documented subscription event semantics: one opening and closing pair only for a presented session, no events for a quick strip tap that never draws, and no new pair when the Search or the Presentation changes. Named and ad-hoc payload identity is kept.
+- The existing strip-close behaviour and regressions; **`close` reports success on a window with no close button, and the strip drops its entry** is independent and has not landed.
 
 **Time**
 
@@ -67,13 +67,25 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] The owner of every session effect and its cancellation trigger is explicit. Dismissal or replacement leaves no session-owned polling and no late publication.
-- [ ] Tests cover an overtaken opening, release before readiness, dismissal while Search or landing evaluation is suspended, strip-to-list conversion, and repeated dismissal.
-- [ ] Event tests distinguish ready from presented, verify that a quick tap is silent, and verify one pair across Presentation changes.
-- [ ] Existing behaviour tests survive or are replaced by equivalent tests through the new interface. No test is removed only because the implementation moved.
-- [ ] The Lens timing tests use controlled time and finish without wall-clock sleeps.
-- [ ] Deadline tests prove there is no result just before a deadline, a result at it, and that a late response is rejected, including from a dependency that does not promptly honour cancellation.
-- [ ] A live run in a guest shows the strip, the list and `overview` behaving as before, and the pull request says what was not checked.
+- [x] The owner of every session effect and its cancellation trigger is explicit. Dismissal or replacement leaves no session-owned polling and no late publication.
+- [x] Tests cover an overtaken opening, release before readiness, dismissal while Search or landing evaluation is suspended, strip-to-list conversion, and repeated dismissal.
+- [x] Event tests distinguish ready from presented, verify that a quick tap is silent, and verify one pair across Presentation changes.
+- [x] Existing behaviour tests survive or are replaced by equivalent tests through the new interface. No test is removed only because the implementation moved.
+- [x] The Lens timing tests use controlled time and finish without wall-clock sleeps.
+- [x] Deadline tests prove there is no result just before a deadline, a result at it, and that a late response is rejected, including from a dependency that does not promptly honour cancellation.
+- [x] A live run in a guest shows the strip, the list and `overview` behaving as before, and the pull request says what was not checked.
+
+## Build result
+
+`LensLifecycle` owns closed, opening, strip-ready and presented state and all four effects. A first non-strip opening carries its prepared session before the panel shows; only strips enter ready. The split presentation seam preserves the base order: present, order front, emit opened, activate, make key, then enqueue Search focus/selection. Conversion omits activation and Search selection; first miniatures opens include both. Request identities reject overtaken shows and late publication.
+
+Landing keeps an explicit evaluated-key marker separate from its task handle. Replaced Columns re-evaluate in one task; removed Columns use ordinary landing geometry. Owner and session are weak across both record-read awaits. Unchanged modifiers publish nothing; unchanged selection still publishes the base's selection assignment while landing dedupes. The strip deadline checks release only. Dismissal clears Search records/context, and live dependencies sample the test environment once at assembly.
+
+The owner is the existing `LensLifecycle`. Exact Swift Clocks 1.1.1 is test-only; production uses standard-library clocks and initializer dependencies. State, ownership and clocks share one pull request, as the relay ruled.
+
+Decided: **The panel seam** separates ordering the panel front from activation, making key and queued Search focus, so the owner can emit opened between the same AppKit calls as the base.
+
+Host and guest checks pass, including undo/restore regression checks and twenty repeated relevant-suite runs on each. The owned-window guest run covers strip, list, overview, Search, actions, landing, paging, refresh and replacement. Direct comparisons against `9fd6c1ad` cover conversion, frontmost application, remembered overview Search, event streams and five-open timings. The synthetic second letter after conversion was ignored on both builds until Search was clicked; both then retained `gh`, without selecting the first letter. This inherited focus limitation is disclosed rather than changing the base's conversion calls. No release or physical-device checks ran.
 
 ## Sources
 

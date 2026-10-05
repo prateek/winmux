@@ -21,6 +21,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "./ShellParserGenerated"),
+        .package(url: "https://github.com/pointfreeco/swift-clocks", exact: "1.1.1"),
         .package(url: "https://github.com/InerziaSoft/ISSoundAdditions.git", exact: "2.0.1"),
         .package(url: "https://github.com/LebJe/TOMLKit.git", exact: "0.5.5"),
         .package(url: "https://github.com/rxhanson/MASShortcut", revision: "2f9fbb3f959b7a683c6faaf9638d22afad37a235"),
@@ -88,6 +89,7 @@ let package = Package(
         .testTarget(
             name: "AppBundleTests",
             dependencies: [
+                .product(name: "Clocks", package: "swift-clocks"),
                 .target(name: "AppBundle"),
             ],
             path: "Sources/AppBundleTests",

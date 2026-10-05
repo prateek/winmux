@@ -39,7 +39,7 @@ struct MiniaturesView: View {
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                    TextField("\(model.name) • Type to Search", text: $model.query)
+                    TextField("\(model.name) • Type to Search", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
                         .textFieldStyle(.plain).focused($searchFocused)
                     Spacer()
                     Text("\(page + 1) / \(layout.pageCount)").monospacedDigit()

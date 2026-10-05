@@ -3,19 +3,24 @@ import Common
 @MainActor
 final class LensInlineSearch {
     typealias Evaluate = @MainActor (String, JSONValue, [JSONValue]) async -> Result<[Bool], NickelFailure>
+    private let clock: any Clock<Duration>
     private let debounce: Duration
     private let deadline: Duration
     private let evaluate: Evaluate
-    private var current: Task<Void, Never>?
+    private(set) var current: Task<Void, Never>?
+    private var displayDeadline: Task<Void, Never>?
     private var generation = 0
 
-    init(debounce: Duration = .milliseconds(150), deadline: Duration = .milliseconds(50), evaluate: @escaping Evaluate) {
+    init(clock: any Clock<Duration> = ContinuousClock(), debounce: Duration = .milliseconds(150), deadline: Duration = .milliseconds(50), evaluate: @escaping Evaluate) {
+        self.clock = clock
         self.debounce = debounce
         self.deadline = deadline
         self.evaluate = evaluate
     }
 
     func cancel() {
+        displayDeadline?.cancel()
+        displayDeadline = nil
         current?.cancel()
         current = nil
         generation += 1
@@ -29,18 +34,23 @@ final class LensInlineSearch {
         let body = String(model.query.dropFirst())
         let task = Task { [weak self, weak model] in
             guard let self else { return }
-            do { try await Task.sleep(for: self.debounce) } catch { return }
+            defer { if ticket == self.generation { self.current = nil } }
+            do { try await self.clock.sleep(for: self.debounce) } catch { return }
             guard let model, ticket == self.generation, !Task.isCancelled else { return }
             var expired = false
             let displayDeadline = Task { @MainActor in
-                do { try await Task.sleep(for: self.deadline) } catch { return }
-                guard ticket == self.generation else { return }
+                do { try await self.clock.sleep(for: self.deadline) } catch { return }
+                guard ticket == self.generation, !Task.isCancelled else { return }
+                self.displayDeadline = nil
                 expired = true
                 model.rejectInlineResult("Filter too slow")
             }
+            self.displayDeadline = displayDeadline
             let result = await self.evaluate(body, context, windows)
             displayDeadline.cancel()
-            guard !expired, ticket == self.generation, !Task.isCancelled else { return }
+            guard ticket == self.generation, !Task.isCancelled else { return }
+            self.displayDeadline = nil
+            guard !expired else { return }
             switch result {
                 case .success(let bits):
                     model.acceptInlineResult(lensFilterMatches(ids, bits: bits))
