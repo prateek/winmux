@@ -1,4 +1,5 @@
 #!/bin/bash
+# Settle every first-run screen the sets' apps and macOS show in a fresh clone. See provision.sh.
 set -euo pipefail
 export PATH=/opt/homebrew/bin:$PATH
 cd ~/vm
@@ -22,11 +23,15 @@ defaults write "$notes" bypassICloudAlert -bool true
 startup_version=$(python3 -c 'import platform; v=platform.mac_ver()[0].split("."); v += ["0"] * (3-len(v)); print("<array>" + "".join("<integer>" + n + "</integer>" for n in v) + "</array>")')
 defaults write "$notes" lastShownStartupVersion-1 "$startup_version"
 killall cfprefsd 2>/dev/null || true
-# Register the Dock tile once in the image, so clones do not offer it on first launch.
-swiftc -O dismiss-registration.swift -o dismiss-registration
-open /Applications/Ghostty.app
-./dismiss-registration
-sleep 1
+# Register the Dock tile once in the image, so clones do not offer it on first launch. macOS shows
+# the notice once: the marker lets a resumed image build pass this step.
+if [ ! -f dock-tile-registered ]; then
+  swiftc -O dismiss-registration.swift -o dismiss-registration
+  open /Applications/Ghostty.app
+  ./dismiss-registration
+  touch dock-tile-registered
+  sleep 1
+fi
 pkill -x ghostty || true
 pkill -x Ghostty || true
 sleep 2

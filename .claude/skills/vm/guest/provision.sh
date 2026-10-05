@@ -21,7 +21,6 @@ sudo scutil --set HostName winmux-vm; sudo scutil --set LocalHostName winmux-vm;
 pkill -x Terminal || true
 rm -rf ~/Library/Saved\ Application\ State/com.apple.Terminal.savedState
 defaults write com.apple.loginwindow TALLogoutSavesState -bool false
-defaults write com.apple.WindowManager StandardHideWidgets -int 1
 defaults write com.apple.WindowManager StandardHideDesktopIcons -int 1
 defaults write com.apple.dock autohide -bool true
 defaults write com.apple.dock autohide-delay -float 1000

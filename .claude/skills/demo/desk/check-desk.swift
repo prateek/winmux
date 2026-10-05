@@ -5,8 +5,12 @@ import Vision
 
 let expected = Set(CommandLine.arguments.dropFirst().flatMap { $0.split(separator: " ").compactMap { UInt32($0) } })
 var failures: [String] = []
-let furniture: Set<String> = ["Window Server", "Dock", "Wallpaper", "WindowManager", "SystemUIServer", "TextInputMenuAgent", "Spotlight"]
-let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+// Without either grant the passes below see nothing and would call the desk clean.
+if !AXIsProcessTrusted() { failures.append("check-desk has no Accessibility grant") }
+if !CGPreflightScreenCaptureAccess() { failures.append("check-desk has no Screen Recording grant") }
+// Desktop elements are listed too: a widget is one. Finder's only window here is the desktop itself.
+let furniture: Set<String> = ["Window Server", "Dock", "Finder", "Wallpaper", "WindowManager", "SystemUIServer", "TextInputMenuAgent", "Spotlight"]
+let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 for window in windows {
     let owner = window[kCGWindowOwnerName as String] as? String ?? "unknown"
     let id = window[kCGWindowNumber as String] as? UInt32 ?? 0
@@ -27,8 +31,10 @@ func attribute(_ node: AXUIElement, _ name: String) -> CFTypeRef? {
 func inspect(_ node: AXUIElement, _ owner: String, _ depth: Int) {
     guard depth < 25 else { return }
     let role = attribute(node, kAXRoleAttribute) as? String ?? ""
-    if role == kAXSheetRole || role == "AXDialog" {
-        failures.append("\(owner): \(role) \(attribute(node, kAXTitleAttribute) as? String ?? "untitled")")
+    let subrole = attribute(node, kAXSubroleAttribute) as? String ?? ""
+    // A dialog is a window whose subrole says so; only a sheet has a role of its own.
+    if role == kAXSheetRole || subrole == kAXDialogSubrole || subrole == kAXSystemDialogSubrole {
+        failures.append("\(owner): \(role == kAXSheetRole ? role : subrole) \(attribute(node, kAXTitleAttribute) as? String ?? "untitled")")
     }
     for child in attribute(node, kAXChildrenAttribute) as? [AXUIElement] ?? [] { inspect(child, owner, depth + 1) }
 }

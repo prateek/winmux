@@ -80,7 +80,7 @@ Decided: Keep the base image and both app sets unchanged; check the fourteen-win
 
 Host and fresh-clone `make check` pass (59 helper tests, 954 Swift tests and 65 script tests); the guest uses Swift 6.2.4. The standing desk runs twice without input, exits 0 both times and lists only Zed/Ghostty on workspace 1 and Safari/Notes on workspace 2. Full-screen captures after each run show no first-run UI. A wallpaper click shows no tip; a notification posted through granted System Events is delivered without a banner at 0.5, 2 and 5 seconds.
 
-The image was built beside the old image. Fresh-clone checks exposed Ghostty's lowercase process and Notes' sandbox/version gating before the passing rebuild. The old image remains as `winmux-golden-prev` for the driver to delete at Land.
+The image was built beside the old image. Fresh-clone checks exposed Ghostty's lowercase process and Notes' sandbox/version gating before the passing rebuild. After review the recipe changed once more (a resumed image build skips the Dock tile step, and the desk check gained its grant, dialog, desktop-element and docs-page checks), and the image was rebuilt from the final recipe and proved the same way. The old image was kept as `winmux-golden-prev` until the issue landed.
 
 The unchanged rich script has a separate staging limitation: its first cold run can miss the separate Lenses Safari window, and retries can create an extra plain Ghostty terminal and report Column placement errors. Wait and rerun it; the live report records each result and any CLI dismissal of that extra terminal. These are not first-run screens. No app was added and the script was not redesigned.
 

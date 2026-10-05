@@ -17,7 +17,6 @@ func notice(_ root: AXUIElement) -> AXUIElement? {
     }
 }
 let deadline = Date().addingTimeInterval(30)
-var dismissed = false
 while Date() < deadline {
     if let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == "Notification Center" }) {
         let root = AXUIElementCreateApplication(app.processIdentifier)
@@ -33,7 +32,6 @@ while Date() < deadline {
             if let close = descendants(banner).first(where: {
                 (attribute($0, kAXTitleAttribute) as? String) == "Close" || (attribute($0, kAXDescriptionAttribute) as? String) == "Close"
             }), AXUIElementPerformAction(close, kAXPressAction as CFString) == .success {
-                dismissed = true
                 Thread.sleep(forTimeInterval: 1)
                 guard notice(root) == nil else { fputs("Registration notice remained after Close\n", stderr); exit(1) }
                 print("dismissed Dock tile registration notice by Close label")
@@ -43,5 +41,5 @@ while Date() < deadline {
     }
     Thread.sleep(forTimeInterval: 0.2)
 }
-fputs(dismissed ? "Registration notice remained\n" : "No labelled Dock tile registration notice arrived\n", stderr)
+fputs("No labelled Dock tile registration notice arrived\n", stderr)
 exit(1)
