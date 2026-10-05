@@ -51,7 +51,7 @@ final class LensTraceStore {
     }
     func text(last: Int) -> String {
         snapshots(last: last).map { trace in
-            let rows = trace.stages.map { String(format: "%-34@ %10.3f %12.3f", $0.name as NSString, $0.startMs, $0.durationMs) }
+            let rows = trace.stages.map { $0.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", $0.startMs, $0.durationMs) }
             return "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")\nStage                                Start ms  Duration ms\n" + rows.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }
