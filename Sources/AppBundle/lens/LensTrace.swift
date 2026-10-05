@@ -66,6 +66,7 @@ final class LensOpeningTrace {
     private var stages: [LensTraceStage] = []
     private var last: Double
     private var signal: String?
+    private var stageStart: Double?
     private var interval: OSSignpostIntervalState?
     private var intervalName: StaticString?
     private var poster: OSSignposter { lensOpeningSignposter }
@@ -81,9 +82,11 @@ final class LensOpeningTrace {
         endInterval()
         record(name, at: time ?? stamp())
     }
-    func startInterval(_ name: StaticString) {
-        guard signal == nil, poster.isEnabled else { return }
+    func startInterval(_ name: StaticString, at time: Double? = nil) {
+        guard signal == nil else { return }
+        stageStart = time ?? stamp()
         endInterval()
+        guard poster.isEnabled else { return }
         intervalName = name
         interval = poster.beginInterval(name, id: poster.makeSignpostID())
     }
@@ -92,9 +95,14 @@ final class LensOpeningTrace {
         interval = nil; intervalName = nil
     }
     private func record(_ name: StaticString, at time: Double) {
-        let end = max(last, time)
-        stages.append(LensTraceStage(name: String(describing: name), startMs: (last - origin.start) * 1000, durationMs: (end - last) * 1000))
+        let start = max(last, stageStart ?? last)
+        let end = max(start, time)
+        if start > last {
+            stages.append(LensTraceStage(name: "gap", startMs: (last - origin.start) * 1000, durationMs: (start - last) * 1000))
+        }
+        stages.append(LensTraceStage(name: String(describing: name), startMs: (start - origin.start) * 1000, durationMs: (end - start) * 1000))
         last = end
+        stageStart = nil
     }
     func finish(signal: String, at time: Double? = nil) {
         guard self.signal == nil else { return }

@@ -72,6 +72,20 @@ final class LensTraceTest: XCTestCase {
         }
     }
 
+    func testReaderNamesTimeOutsideAnIntervalAsAGap() {
+        var now = 0.0
+        let store = LensTraceStore(stamp: { now })
+        let trace = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "CLI"))
+        now = 0.010; trace.advance("binding resolved")
+        now = 0.022; trace.startInterval("windows collected")
+        now = 0.030; trace.advance("windows collected")
+        trace.finish(signal: "test")
+        let gap = store.snapshots(last: 1)[0].stages.first { $0.name == "gap" }
+        XCTAssertEqual(gap?.startMs, 10)
+        XCTAssertEqual(gap?.durationMs ?? -1, 12, accuracy: 0.00001)
+        XCTAssertTrue(store.text(last: 1).contains("gap"))
+    }
+
     func testTimebaseConversionsAndRequestRoundTrip() throws {
         let timebase = LensTimebase(numerator: 125, denominator: 3)
         XCTAssertEqual(timebase.seconds(ticks: 24_000_000), 1, accuracy: 0.00001)
