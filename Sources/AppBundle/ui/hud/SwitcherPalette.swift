@@ -65,7 +65,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             let items = presentationItems(entries, settings: settings, workspaces: workspaces)
             let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size,
                                                      existingItems: items, workspaces: workspaces)
-            prepare(model)
+            prepare(model, startup: true)
         }
         clearPresentation()
     }
@@ -151,7 +151,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.stripFlagsChanged(flags, from: model)
     }
 
-    private func prepare(_ model: LensSession) {
+    private func prepare(_ model: LensSession, startup: Bool = false) {
         scrollPaging = MiniatureScrollPaging()
         let monitor = focus.workspace.workspaceMonitor
         let visible = monitor.visibleRect
@@ -186,9 +186,11 @@ final class SwitcherPalettePanel: NSPanelHud {
             hostingView.layoutSubtreeIfNeeded()
         }, draw: {
             lifecycle.trace?.startInterval("first-frame thumbnails ready")
-            if let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
-                hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
-            }
+            LensPresentationPreparation.draw(startup: startup, rasterize: {
+                if let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
+                    hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+                }
+            }, display: { hostingView.displayIfNeeded() })
             lifecycle.trace?.advance("first-frame thumbnails ready")
         })
         preparedSession = model

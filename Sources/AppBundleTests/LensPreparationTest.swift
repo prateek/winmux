@@ -71,6 +71,15 @@ final class LensPreparationTest: XCTestCase {
         XCTAssertEqual(rendered, ["strip", "list", "miniatures"])
     }
 
+    func testFullCanvasRasterizationIsOnlyForStartup() {
+        var rasterizations = 0
+        var displays = 0
+        LensPresentationPreparation.draw(startup: true, rasterize: { rasterizations += 1 }, display: { displays += 1 })
+        LensPresentationPreparation.draw(startup: false, rasterize: { rasterizations += 1 }, display: { displays += 1 })
+        XCTAssertEqual(rasterizations, 1)
+        XCTAssertEqual(displays, 1)
+    }
+
     func testBackingDrawingCompletesAfterLayoutBeforePreparationReturns() {
         var steps: [String] = []
         LensPresentationPreparation.run(content: { steps.append("content") }, frame: { steps.append("frame") }, layout: { steps.append("layout") }, draw: { steps.append("draw") })

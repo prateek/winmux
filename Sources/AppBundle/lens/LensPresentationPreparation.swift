@@ -2,6 +2,9 @@ import AppKit
 
 @MainActor
 enum LensPresentationPreparation {
+    static func draw(startup: Bool, rasterize: () -> Void, display: () -> Void) {
+        if startup { rasterize() } else { display() }
+    }
     static func run(content: () -> Void, frame: () -> Void, layout: () -> Void, draw: () -> Void = {}) {
         content()
         frame()
