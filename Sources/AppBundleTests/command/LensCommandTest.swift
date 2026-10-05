@@ -25,7 +25,7 @@ final class LensCommandTest: XCTestCase {
         for kind in ["card", "picture", "text"] {
             XCTAssertNil(parseCommand("lens search --tile \(kind)").errorOrNil)
         }
-        for command in ["lens search --tile unknown", "lens search --presentation miniatures --tile picture"] {
+        for command in ["lens search --tile unknown", "lens search --presentation miniatures --tile picture", "lens --presentation list --tile card"] {
             XCTAssertTrue(parseCommand(command).errorOrNil?.contains("--tile") == true)
         }
         var overview = LensConfig(); overview.presentation = "miniatures"
