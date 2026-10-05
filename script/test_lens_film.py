@@ -25,6 +25,10 @@ class LensFilmTest(unittest.TestCase):
         self.assertAlmostEqual(rows[0]['differenceMs'], 5)
         self.assertEqual(rows[0]['differenceFrames'], -1)
 
+    def testEndpointTimeCannotHideBehindTwoRoundedFrameIndices(self):
+        self.assertFalse(module.comparison_passes([{'differenceMs': 20, 'endpointDifferenceMs': 40, 'differenceFrames': 2}]))
+        self.assertTrue(module.comparison_passes([{'differenceMs': 20, 'endpointDifferenceMs': 25, 'differenceFrames': 2}]))
+
     def testMissingOpeningsCannotSilentlyPass(self):
         with self.assertRaises(ValueError):
             module.compare([0, .1], 10, [{'bootSeconds': 10}], [], [1])

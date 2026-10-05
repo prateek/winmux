@@ -36,6 +36,10 @@ def print_comparison(rows):
         print(f"Opening {row['opening']}: key {row['keySeconds']:.6f}s; strip frame {row['frame']} @ {row['frameSeconds']:.6f}s; visible {row['visibleMs']:.3f}ms; trace {row['traceMs']:.3f}ms; difference {row['differenceMs']:+.3f}ms / {row['differenceFrames']:+d} frames; input timestamp shift {row['inputOffsetMs']:+.3f}ms; endpoint difference {row['endpointDifferenceMs']:+.3f}ms")
 
 
+def comparison_passes(rows):
+    return all(abs(row['differenceMs']) <= 2000/60 and abs(row['endpointDifferenceMs']) <= 2000/60 and abs(row['differenceFrames']) <= 2 for row in rows)
+
+
 def validate_sample_times(encoded, metadata):
     expected = [time - metadata['firstPTS'] for time in metadata['framePTS']]
     if not expected or abs(expected[0]) > .002 or not encoded or abs(encoded[0]) > .002:
@@ -112,7 +116,7 @@ def main():
     print_comparison(rows)
     movie.with_suffix('.comparison.json').write_text(json.dumps(rows, indent=2)+'\n')
     if any(trace.get('signal') is None for trace in traces): raise SystemExit('FAIL: incomplete first-frame trace')
-    if any(abs(row['differenceMs']) > 2000/60 or abs(row['differenceFrames'])>2 for row in rows): raise SystemExit('FAIL: trace differs by more than two frames')
+    if not comparison_passes(rows): raise SystemExit('FAIL: trace differs by more than two frames')
 
 
 if __name__ == '__main__': main()
