@@ -75,8 +75,9 @@ final class LensSession: ObservableObject {
                 let selected = selectedId
                 let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
                 removedIds.formUnion(ids)
-                if drawsSections, !query.isEmpty { selectBestResult() }
-                else { selection = results.firstIndex { $0.id == selected } ?? min(replacement, max(0, results.count - 1)) }
+                if let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+                else if drawsSections, !query.isEmpty { selectBestResult() }
+                else { selection = min(replacement, max(0, results.count - 1)) }
                 objectWillChange.send()
             case .excludedChanged(let ids):
                 miniatureExcludedIds = ids
@@ -88,6 +89,9 @@ final class LensSession: ObservableObject {
     private var lastPointerLocation = NSEvent.mouseLocation
     private var inlineIds: Set<UInt32>?
     let keyBindings: [LensKeyBinding]
+    private let sectionsOnlyKeys: Set<String>
+    /// The key the grouping control shows: the first one bound to `sections next`.
+    let sectionsKey: String?
     private(set) var hold: StripGesture?
     /// False while Search still holds what the session opened with, which is shown selected.
     private(set) var searchEdited = false
@@ -133,6 +137,13 @@ final class LensSession: ObservableObject {
             }
         } else { self.items = items }
         keyBindings = LensKeyBinding.resolve(settings.keys)
+        sectionsOnlyKeys = Set(settings.keys.filter { Self.sectionsOnly($0.value) }.keys)
+        sectionsKey = keyBindings.first { binding in
+            (settings.keys[binding.name] ?? []).contains {
+                if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }
+                return false
+            }
+        }?.name
         query = search
         selection = 0
         selection = initialSelection()
@@ -169,20 +180,12 @@ final class LensSession: ObservableObject {
         send(.sectionsChanged(next))
     }
     var visibleSectionValues: [String] { sectionCycle + (sectionCycle.contains(settings.sections) ? [] : [settings.sections]) }
-    var sectionControlMinimumWidth: CGFloat { CGFloat(440 + visibleSectionValues.count * 68) * tileMetrics.scale }
-    var sectionsKey: String? {
-        keyBindings.first { binding in
-            commands(for: binding.name).contains {
-                if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }
-                return false
-            }
-        }?.name
-    }
-    var activeKeyBindings: [LensKeyBinding] { keyBindings.filter { drawsSections || !isSectionsOnly($0.name) } }
-    func isSectionsOnly(_ key: String) -> Bool {
-        let commands = commands(for: key)
-        return Self.sectionsOnly(commands)
-    }
+    var sectionControlMinimumWidth: CGFloat { Self.sectionControlWidth(segments: visibleSectionValues.count) * tileMetrics.scale }
+    /// A list's panel keeps its width while it is open, so it leaves room for a grouping set from outside the cycle.
+    var listControlMinimumWidth: CGFloat { Self.sectionControlWidth(segments: sectionCycle.count + 1) * tileMetrics.scale }
+    private static func sectionControlWidth(segments: Int) -> CGFloat { CGFloat(440 + segments * 68) }
+    var activeKeyBindings: [LensKeyBinding] { drawsSections ? keyBindings : keyBindings.filter { !isSectionsOnly($0.name) } }
+    func isSectionsOnly(_ key: String) -> Bool { sectionsOnlyKeys.contains(key) }
     static func sectionsOnly(_ commands: [String]) -> Bool {
         !commands.isEmpty && commands.allSatisfy {
             if case .cmd(let command) = parseCommand($0) { return command.args is SectionsCmdArgs }
@@ -269,10 +272,11 @@ final class LensSession: ObservableObject {
         return focusesSelection || marks.isEmpty ? selectedId.map { [$0] } ?? [] : marks
     }
     func acceptInlineResult(_ ids: [UInt32]) {
+        let selected = selectedId
         inlineIds = Set(ids)
         searchError = nil
-        selectBestResult()
-        send(.selectionChanged(selection))
+        let results = results
+        send(.selectionChanged(results.firstIndex { $0.id == selected } ?? min(selection, max(results.count - 1, 0))))
         if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()
     }

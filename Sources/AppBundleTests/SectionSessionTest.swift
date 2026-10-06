@@ -19,14 +19,49 @@ final class SectionSessionTest: XCTestCase {
         XCTAssertEqual(model.results.map(\.id), [3, 2])
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertEqual(model.targets(for: "enter"), [2])
+    }
+    func testAWindowClosingElsewhereLeavesTheSelectionOnItsWindowWhileSearching() {
+        let model = LensSession(name: "recent", settings: LensConfig(), items: items(), search: "needle")
         model.hover(3)
         model.removeStripItems([1])
-        XCTAssertEqual(model.selectedId, 2)
-        model.send(.searchChanged("= true"))
-        model.acceptInlineResult([2, 3])
-        XCTAssertEqual(model.selectedId, 2)
-        model.removeStripItems([2])
         XCTAssertEqual(model.selectedId, 3)
+        model.removeStripItems([99])
+        XCTAssertEqual(model.selectedId, 3)
+        model.removeStripItems([3])
+        XCTAssertEqual(model.selectedId, 2)
+    }
+    func testAnInlineResultKeepsTheSelectionOnItsWindow() {
+        let model = LensSession(name: "recent", settings: LensConfig(), items: items(), search: "= true")
+        XCTAssertEqual(model.selectedId, 2)
+        model.acceptInlineResult([1, 2, 3])
+        XCTAssertEqual(model.selectedId, 2)
+        model.hover(3)
+        model.acceptInlineResult([1, 3])
+        XCTAssertEqual(model.selectedId, 3)
+        model.acceptInlineResult([1])
+        XCTAssertEqual(model.selectedId, 1)
+    }
+    func testAppSectionsJoinProcessesThatAppEntriesKeepApart() {
+        var settings = LensConfig(); settings.entries = "app"; settings.sections = "app"
+        let instances = (1...2).map {
+            SwitcherPaletteItem(id: UInt32($0), title: "Profile \($0)", appName: "Browser", icon: nil, workspaceName: "1", appIdentity: String($0), appSection: "org.browser", isFocused: false)
+        }
+        let model = LensSession(name: "apps", settings: settings, items: instances, search: "")
+        XCTAssertEqual(model.results.map(\.id), [1, 2])
+        XCTAssertEqual(model.sections.map { $0.entries.map(\.id) }, [[1, 2]])
+    }
+    func testAListKeepsItsWidthWhenAGroupingOutsideTheCycleIsSet() {
+        let model = LensSession(name: "recent", settings: LensConfig(), items: testProjectItems(), search: "")
+        XCTAssertEqual(model.sectionCycle, ["none", "workspace", "app", "project"])
+        let width = model.listLayout.width
+        model.changeSections("monitor")
+        XCTAssertEqual(model.visibleSectionValues.count, 5)
+        XCTAssertEqual(model.listLayout.width, width)
+        XCTAssertGreaterThanOrEqual(width, model.sectionControlMinimumWidth)
+    }
+    private func testProjectItems() -> [SwitcherPaletteItem] {
+        [SwitcherPaletteItem(id: 1, title: "One", appName: "Editor", icon: nil, workspaceName: "1", projectName: "Work", projectIdentity: "work", monitorIdentity: "m", monitorName: "Main", isFocused: false),
+         SwitcherPaletteItem(id: 2, title: "Two", appName: "Mail", icon: nil, workspaceName: "2", projectName: "Home", projectIdentity: "home", monitorIdentity: "m", monitorName: "Main", isFocused: true)]
     }
     func testGroupingKeepsWindowMarksAndLifecycleWithoutEventsAndChangesCache() async {
         let clock = TestClock<Duration>()

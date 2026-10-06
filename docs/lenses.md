@@ -235,7 +235,7 @@ corresponding Enter action immediately, subtracting the invoking modifiers as re
 Cmd-click focuses and cmd-Option-click Summons.
 
 An unbound letter with the invoking modifiers (Shift may also be held), or with none, converts
-the same session to a list and puts the letter in Search. With sections, it selects the best match wherever its section draws it; `sections = 'none` retains the strip's selection when it remains a match. A Lens `keys` binding wins first: cmd-w closes the selected window while the strip stays
+the same session to a list and puts the letter in Search. The strip's selection stays on its window when it remains a match, wherever its section draws it. A Lens `keys` binding wins first: cmd-w closes the selected window while the strip stays
 open. Modifier release no longer commits after conversion to a list. You can also open
 `winmux lens recent --presentation list` explicitly. A global binding whose modifiers are not the
 strip's, Tab and backtick bindings included, closes the strip and runs normally, whether the strip
@@ -295,7 +295,8 @@ and a strip converted to a list. Set `sections = 'none` for an unlabelled run.
 Focus is snapshotted when the Lens opens. Its section is marked `· here`; app sections have
 no mark. Empty sections disappear. Windows with no workspace go in a final `No workspace`
 section; missing projects and monitors use the corresponding `No project` or `No monitor` label.
-Windows of multiple processes with the same bundle identity share an app section.
+Windows of multiple processes with the same bundle identity share an app section; `entries = 'app` still shows one entry per process.
+A window that closes while a list or grid is open leaves it, and the selection stays on its window.
 With `entries = 'app`, sections group the representatives.
 
 The list draws a 32-point header above each section, inside the scrolling rows. Up and down

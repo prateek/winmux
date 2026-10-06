@@ -143,7 +143,7 @@ extension LensSession {
             if section.label != nil { starts.append(offset) }
             offset += section.entries.count
         }
-        return ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: starts, minimumWidth: sectionControlMinimumWidth)
+        return ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: starts, minimumWidth: listControlMinimumWidth)
     }
     func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
         guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }

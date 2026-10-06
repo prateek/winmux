@@ -12,6 +12,8 @@ struct SwitcherPaletteItem: Identifiable {
     let icon: NSImage?
     let workspaceName: String
     var appIdentity: String = ""
+    /// What `sections = 'app` groups by; `appIdentity` when empty.
+    var appSection: String = ""
     var projectName: String = ""
     var workspaceIdentity: String? = nil
     var projectIdentity: String? = nil
@@ -133,7 +135,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             return SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
                 icon: icon,
-                workspaceName: entry.searchFields.workspace, appIdentity: lensAppIdentity(bundleId: entry.record.app.bundleId, pid: entry.record.app.pid),
+                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid), appSection: lensAppIdentity(bundleId: entry.record.app.bundleId, pid: entry.record.app.pid),
                 projectName: entry.searchFields.project, workspaceIdentity: entry.record.workspace, projectIdentity: entry.record.project,
                 monitorIdentity: entry.record.monitor.uuid, monitorName: entry.record.monitor.name, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
                 miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
@@ -199,7 +201,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func stripWindowClosed(_ id: UInt32) {
-        guard let session else { return }
+        // Miniatures draws each window where it sits and keeps its cells for the session.
+        guard let session, session.settings.presentation != "miniatures" else { return }
         session.removeStripItems([id])
     }
 
@@ -479,7 +482,6 @@ struct SwitcherPaletteView: View {
                                          size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
                                          settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
                                          hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                                .id(item.id)
                                 .onContinuousHover { phase in
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }
@@ -489,6 +491,8 @@ struct SwitcherPaletteView: View {
                                 }
                             }
                             .padding(.top, sectionStarts[item.id] != nil && index > 0 ? 6 * scale : 0)
+                            // The id is on the header and its row together, so scrolling to a section's first entry shows its header.
+                            .id(item.id)
                         }
                     }
                     .padding(.horizontal, 20 * scale)
@@ -631,7 +635,7 @@ extension SwitcherPaletteItem {
             case "workspace": workspaceIdentity ?? workspaceName
             case "project": projectIdentity ?? projectName
             case "monitor": monitorIdentity
-            case "app": appIdentity
+            case "app": appSection.isEmpty ? appIdentity : appSection
             default: ""
         }
     }
