@@ -22,6 +22,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Sections**
 - [ ] On two displays, open a list or grid with `--sections monitor`. Each display has its own Section. Tests only so far.
 
+**The strip as one row of the grid**
+- [ ] On the installed build, hold Cmd-Tab with twelve or more windows open. Every window is in the strip, in two or more rows, with no "+N"; Tab steps from the end of one row to the start of the next; release focuses the selected window.
+- [ ] On the ultrawide, hold Cmd-Tab with your usual windows. Say here if the row count or the Tile sizes look wrong: the widest display tried was 1920 by 1080, where eleven cards fit one row.
+- [ ] On a real keyboard, in a strip of two rows, keep Command down and press Down, then Up. The selection moves to the Tile below and back.
+
 **Release a dogfood build on every land**
 - [ ] `brew upgrade --cask winmux` on the daily machine keeps the Accessibility and Screen Recording grants. It did in a guest with SIP off, by `brew upgrade` and by Sparkle.
 - [ ] After that upgrade WinMux does not ask to "bypass the system private window picker". It asked once in a guest, on one version of three.

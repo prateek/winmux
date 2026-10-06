@@ -108,15 +108,14 @@ struct TileView: View {
 
     func fittedPicture(in available: CGSize) -> CGSize {
         guard let pictureSize else { return metrics.fittedPicture(aspect: entry.aspect, in: available) }
+        if presentation == "strip", entry.accessory { return pictureSize }
         let lift = selected && !line && !miniature ? metrics.selectionScale : 1
         let factor = min(1, entry.realSize.width / max(1, pictureSize.width * lift), entry.realSize.height / max(1, pictureSize.height * lift))
         return CGSize(width: pictureSize.width * factor, height: pictureSize.height * factor)
     }
 
     private func picture(in available: CGSize) -> some View {
-        let actual = presentation == "strip" && entry.accessory && settings.accessoryWindow == "actual-size"
-        let pictureHeight = metrics.pictureHeight(rowHeight: available.height, accessory: entry.accessory, actualSize: actual, monitorHeightFraction: entry.monitorHeightFraction)
-        let fitted = fittedPicture(in: CGSize(width: available.width, height: pictureHeight))
+        let fitted = fittedPicture(in: available)
         return ZStack {
             Group {
                 if let thumbnail = entry.picture {

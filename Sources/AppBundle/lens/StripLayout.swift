@@ -1,39 +1,5 @@
 import AppKit
 
-struct StripLayout {
-    static let gap: CGFloat = 8
-    let range: Range<Int>
-    let before: Int
-    let after: Int
-    let rowWidth: CGFloat
-
-    init(widths: [CGFloat], selection: Int, width: CGFloat, gap: CGFloat = Self.gap, overhead: CGFloat = 88, emptyWidth: CGFloat = 0) {
-        let count = widths.count
-        guard count > 0 else {
-            range = 0 ..< 0; before = 0; after = 0; rowWidth = min(width, max(overhead, emptyWidth))
-            return
-        }
-        let selected = min(max(0, selection), count - 1)
-        var best = selected ..< selected + 1
-        var bestDistance = Int.max
-        for visible in 1 ... min(9, count) {
-            for start in max(0, selected - visible + 1) ... min(selected, count - visible) {
-                let candidate = start ..< start + visible
-                let total = widths[candidate].reduce(0, +) + CGFloat(visible - 1) * gap + overhead
-                let distance = abs(start - min(max(0, selected - visible / 2), count - visible))
-                if total <= width && (visible > best.count || (visible == best.count && distance < bestDistance)) {
-                    best = candidate; bestDistance = distance
-                }
-            }
-        }
-        range = best
-        before = best.lowerBound
-        after = count - best.upperBound
-        rowWidth = min(width, widths[best].reduce(0, +) + CGFloat(best.count - 1) * gap + overhead)
-    }
-
-}
-
 struct StripGesture {
     let keyCode: UInt16?
     let invoking: NSEvent.ModifierFlags
@@ -133,9 +99,6 @@ extension LensSession {
         TileKind.resolve(configured: settings.tile, presentation: settings.presentation) != .text
     }
 
-    var stripSnapshot: StripSnapshot {
-        StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
-    }
     var listLayout: ListLayout { listLayout(count: results.count) }
     func listLayout(count: Int) -> ListLayout {
         var starts: [Int] = [], offset = 0
@@ -150,13 +113,6 @@ extension LensSession {
         return item.miniature?.workspace != current.name
     }
 
-    func refreshStripThumbnails(lens: Int, request: (Window, Int) -> Void) {
-        let snapshot = stripSnapshot
-        for index in snapshot.layout.range {
-            if let entry = snapshot.items[index].miniature, !entry.frozen { request(entry.window, lens) }
-        }
-    }
-
     func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
         let items = results
         let layout = listLayout(count: items.count)
@@ -168,33 +124,10 @@ extension LensSession {
     func refreshThumbnails(lens: Int, request: (Window, Int) -> Void) {
         guard drawsPictures else { return }
         switch settings.presentation {
-            case "strip": refreshStripThumbnails(lens: lens, request: request)
+            case "strip", "grid": refreshGridThumbnails(lens: lens, request: request)
             case "list": refreshListThumbnails(lens: lens, request: request)
-            case "grid": refreshGridThumbnails(lens: lens, request: request)
             default: refreshVisibleThumbnails(lens: lens, request: request)
         }
-    }
-}
-
-struct StripSnapshot {
-    let items: [SwitcherPaletteItem]
-    let rowHeight: CGFloat
-    let widths: [CGFloat]
-    let layout: StripLayout
-    /// A one-Tile strip is still wide enough for its footer: the title, chips and count.
-    let minimumWidth: CGFloat
-
-    init(items: [SwitcherPaletteItem], selection: Int, size: CGSize, kind: TileKind, settings: LensConfig) {
-        self.items = items
-        let metrics = TileMetrics(visibleSize: size)
-        let rowHeight = metrics.stripRowHeight(aspects: items.map { $0.tile.aspect }, kind: kind, availableWidth: size.width)
-        self.rowHeight = rowHeight
-        widths = items.map { item in
-            let height = metrics.pictureHeight(rowHeight: rowHeight, accessory: item.tile.accessory, actualSize: settings.accessoryWindow == "actual-size", monitorHeightFraction: item.tile.monitorHeightFraction)
-            return min(max(1, size.width * 0.9 - 88 * metrics.scale), metrics.width(kind: kind, aspect: item.tile.aspect, rowHeight: height))
-        }
-        minimumWidth = min(size.width * 0.9, metrics.textWidth + 88 * metrics.scale)
-        layout = StripLayout(widths: widths, selection: selection, width: size.width * 0.9, gap: metrics.stripGap, overhead: 88 * metrics.scale, emptyWidth: minimumWidth)
     }
 }
 

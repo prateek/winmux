@@ -91,22 +91,6 @@ struct TileMetrics {
         let height = min(size.height, size.width / aspect)
         return CGSize(width: max(1, height * aspect), height: max(1, height))
     }
-
-    func stripRowHeight(aspects: [CGFloat], kind: TileKind, availableWidth: CGFloat) -> CGFloat {
-        let capacity = min(9, aspects.count)
-        guard capacity > 0, kind != .text else { return 190 * scale }
-        let available = max(1, availableWidth * 0.9 - 88 * scale)
-        for height in stride(from: 190, through: 40, by: -6) {
-            let widths = aspects.map { width(kind: kind, aspect: $0, rowHeight: CGFloat(height) * scale) }
-            var widest: CGFloat = 0
-            for start in 0 ... (widths.count - capacity) {
-                let total = widths[start ..< start + capacity].reduce(CGFloat.zero, +)
-                widest = max(widest, total + CGFloat(capacity - 1) * stripGap)
-            }
-            if widest <= available { return CGFloat(height) * scale }
-        }
-        return 36 * scale
-    }
 }
 
 struct TileEntry {
