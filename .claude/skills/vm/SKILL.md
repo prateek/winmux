@@ -55,7 +55,9 @@ Done when the takes are on the host and `tart list` shows no guest by that name.
 
 ## What a guest cannot show
 
-A second display, real sleep, wake and unlock, fast user switching, and a signed release build. Those checks stay Prateek's.
+A second display, real sleep, wake and unlock, fast user switching, and a release build as installed: downloaded, quarantined and updated by Sparkle. Those checks stay Prateek's.
+
+A release build itself does run in a guest. The guest's compiler is not the release's, so build on the host with `script/dogfood-release --next --dry-run`, `vm push` `WinMux.app` from the `.xcarchive` under `.release/` and `bin/winmux` from `.release/package/`, and start `WinMux.app/Contents/MacOS/WinMux` over ssh with `nohup` and the two scratch `XDG` directories. It has the image's grants and answers its own CLI. Use it for anything the optimiser could change; a debug build did not show the strip crashing on Cmd-Tab.
 
 ## The golden image
 
