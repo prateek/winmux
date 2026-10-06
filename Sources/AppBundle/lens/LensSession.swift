@@ -7,6 +7,8 @@ final class LensSession: ObservableObject {
     let name: String
     let eventFilter: String?
     private(set) var settings: LensConfig
+    let sectionIdentities: [String: [LensSectionIdentity]]
+    let sectionCycle: [String]
     let items: [SwitcherPaletteItem]
     @Published private(set) var query: String
     @Published private(set) var selection: Int
@@ -28,6 +30,7 @@ final class LensSession: ObservableObject {
         case modifiersChanged(NSEvent.ModifierFlags)
         case summonChanged(Bool)
         case presentationChanged(String)
+        case sectionsChanged(String)
         case excludedChanged(Set<UInt32>)
         case dismissed
     }
@@ -47,7 +50,7 @@ final class LensSession: ObservableObject {
                 query = text
                 searchEdited = true
                 if !text.hasPrefix("=") { searchError = nil }
-                selection = 0
+                selectBestResult()
                 if settings.presentation == "miniatures" { revealMiniatureSelection() }
             case .selectionChanged(let index): selection = index
             case .modifiersChanged(let flags):
@@ -58,6 +61,12 @@ final class LensSession: ObservableObject {
             case .presentationChanged(let presentation):
                 let selected = selectedId
                 settings.presentation = presentation
+                if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+                objectWillChange.send()
+            case .sectionsChanged(let value):
+                guard drawsSections else { return }
+                let selected = selectedId
+                settings.sections = value
                 if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
                 objectWillChange.send()
             case .excludedChanged(let ids):
@@ -89,10 +98,22 @@ final class LensSession: ObservableObject {
     var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
+        let focused = items.first(where: \.isFocused)
+        var identities: [String: [LensSectionIdentity]] = [:]
+        for grouping in ["workspace", "project", "monitor"] {
+            var seen: Set<String> = []
+            identities[grouping] = items.compactMap { item in
+                let key = item.sectionKey(grouping)
+                guard !key.isEmpty, seen.insert(key).inserted else { return nil }
+                return LensSectionIdentity(key: key, label: item.sectionLabel(grouping), current: focused?.sectionKey(grouping) == key)
+            }
+        }
+        self.sectionIdentities = sectionIdentities ?? identities
+        sectionCycle = ["none", "workspace", "app"] + (Set(items.map { $0.sectionKey("project") }.filter { !$0.isEmpty }).count > 1 ? ["project"] : []) + (Set(items.map { $0.sectionKey("monitor") }.filter { !$0.isEmpty }).count > 1 ? ["monitor"] : [])
         if settings.entries == "app" {
             let appCounts = Dictionary(grouping: items, by: \.appIdentity).mapValues(\.count)
             self.items = items.map { item in
@@ -111,16 +132,50 @@ final class LensSession: ObservableObject {
     /// The list opens on its second row when the first is the focused window. Miniatures are not
     /// drawn in sort order, so they open on the most recently focused window that is not focused.
     func initialSelection() -> Int {
+        let ranked = rankedResults
         let results = results
         guard settings.presentation == "miniatures", query.isEmpty else {
-            return results.count > 1 && results.first?.isFocused == true ? 1 : 0
+            let id = ranked.indices.contains(ranked.count > 1 && ranked.first?.isFocused == true && query.isEmpty ? 1 : 0) ? ranked[ranked.count > 1 && ranked.first?.isFocused == true && query.isEmpty ? 1 : 0].id : nil
+            return results.firstIndex { $0.id == id } ?? 0
         }
         return results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
             lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
         }?.offset ?? 0
     }
 
-    var results: [SwitcherPaletteItem] {
+    var drawsSections: Bool { settings.presentation == "list" || settings.presentation == "grid" }
+    var sections: [LensSection<SwitcherPaletteItem>] {
+        lensSections(rankedResults, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
+                     key: { $0.sectionKey(self.settings.sections) }, label: { $0.sectionLabel(self.settings.sections) })
+    }
+    var results: [SwitcherPaletteItem] { sections.flatMap(\.entries) }
+    func selectBestResult() {
+        let best = rankedResults.first?.id
+        selection = results.firstIndex { $0.id == best } ?? 0
+    }
+    func changeSections(_ value: String) {
+        guard drawsSections else { return }
+        let next = value == "next" ? sectionCycle[(sectionCycle.firstIndex(of: settings.sections).map { $0 + 1 } ?? 0) % sectionCycle.count] : value
+        send(.sectionsChanged(next))
+    }
+    var visibleSectionValues: [String] { sectionCycle + (sectionCycle.contains(settings.sections) ? [] : [settings.sections]) }
+    var sectionControlMinimumWidth: CGFloat { CGFloat(440 + visibleSectionValues.count * 68) * tileMetrics.scale }
+    var sectionsKey: String? { keyBindings.first { commands(for: $0.name) == ["sections next"] }?.name }
+    var activeKeyBindings: [LensKeyBinding] { keyBindings.filter { drawsSections || !isSectionsOnly($0.name) } }
+    func isSectionsOnly(_ key: String) -> Bool {
+        let commands = commands(for: key)
+        return !commands.isEmpty && commands.allSatisfy { if case .cmd(let command) = parseCommand($0) { return command.args is SectionsCmdArgs }; return false }
+    }
+    @discardableResult
+    func performSectionsAction(_ key: String) -> Bool {
+        guard isSectionsOnly(key) else { return false }
+        for raw in commands(for: key) {
+            if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs { changeSections(args.value.val) }
+        }
+        return true
+    }
+
+    var rankedResults: [SwitcherPaletteItem] {
         let items = removedIds.isEmpty ? items : items.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
         let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
@@ -188,7 +243,8 @@ final class LensSession: ObservableObject {
     func acceptInlineResult(_ ids: [UInt32]) {
         inlineIds = Set(ids)
         searchError = nil
-        send(.selectionChanged(min(selection, max(results.count - 1, 0))))
+        selectBestResult()
+        send(.selectionChanged(selection))
         if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()
     }

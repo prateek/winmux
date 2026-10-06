@@ -129,7 +129,8 @@ extension LensSession {
         let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
         removedIds.formUnion(ids)
         let after = results
-        send(.selectionChanged(after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1))))
+        if drawsSections, !query.isEmpty { selectBestResult(); send(.selectionChanged(selection)) }
+        else { send(.selectionChanged(after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1)))) }
         objectWillChange.send()
     }
 
@@ -145,7 +146,7 @@ extension LensSession {
         StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
     }
     var listLayout: ListLayout { listLayout(count: results.count) }
-    func listLayout(count: Int) -> ListLayout { ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize) }
+    func listLayout(count: Int) -> ListLayout { ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: sections.enumerated().compactMap { index, section in section.label == nil ? nil : sections.prefix(index).reduce(0) { $0 + $1.entries.count } }, minimumWidth: sectionControlMinimumWidth) }
     func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
         guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
@@ -208,15 +209,16 @@ struct ListLayout {
     let rowHeight: CGFloat
     let gap: CGFloat
     let capacity: Int
+    let rowOffsets: [CGFloat]
     /// The window's height: the tallest the list gets, plus room for an error or banner line.
     /// The window keeps this size while Search changes the row count; the view draws from its top.
     let panelHeight: CGFloat
     var rowsHeight: CGFloat { height - headerHeight }
 
-    init(count: Int, kind: TileKind, visibleSize: CGSize) {
+    init(count: Int, kind: TileKind, visibleSize: CGSize, sectionStarts: [Int] = [], minimumWidth: CGFloat = 0) {
         let metrics = TileMetrics(visibleSize: visibleSize)
         radius = 30 * metrics.scale
-        width = 760 * metrics.scale
+        width = max(760 * metrics.scale, minimumWidth)
         headerHeight = 90 * metrics.scale
         topOffset = visibleSize.height / 4
         rowHeight = kind == .text ? metrics.textHeight : metrics.listPictureHeight
@@ -224,11 +226,25 @@ struct ListLayout {
         // A quarter down and at most two thirds tall leaves a margin below a full list.
         let maxRowsHeight = max(rowHeight, visibleSize.height * 0.66 - headerHeight)
         panelHeight = min(visibleSize.height - topOffset, maxRowsHeight + headerHeight + 40 * metrics.scale)
-        height = min(CGFloat(max(1, count)) * (rowHeight + gap), maxRowsHeight) + headerHeight
+        var y: CGFloat = 0
+        var offsets: [CGFloat] = []
+        for index in 0..<count {
+            if sectionStarts.contains(index) { y += 32 * metrics.scale + gap }
+            offsets.append(y)
+            y += rowHeight + gap
+        }
+        rowOffsets = sectionStarts.isEmpty ? [] : offsets
+        height = min(max(rowHeight + gap, y), maxRowsHeight) + headerHeight
         capacity = max(1, Int(ceil((height - headerHeight) / (rowHeight + gap))))
     }
 
     func visibleRange(selection: Int, count: Int) -> Range<Int> {
+        if !rowOffsets.isEmpty, rowOffsets.indices.contains(selection), rowOffsets.count == count {
+            let top = max(0, min(rowOffsets[selection] - rowsHeight / 2, (rowOffsets.last ?? 0) + rowHeight - rowsHeight))
+            let start = rowOffsets.firstIndex { $0 + rowHeight >= top } ?? 0
+            let end = rowOffsets.lastIndex { $0 <= top + rowsHeight } ?? start
+            return start..<end + 1
+        }
         let visible = min(capacity, count)
         let start = min(max(0, selection - visible / 2), max(0, count - visible))
         return start ..< start + visible
