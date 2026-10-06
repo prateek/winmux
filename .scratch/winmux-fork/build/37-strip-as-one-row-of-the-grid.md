@@ -48,10 +48,6 @@ Left/right, Tab, backtick and the invoking key still step in ranked order and wr
 - [ ] A real keyboard and a second display.
 - [ ] Real sleep, wake and unlock.
 
-## Live-run limit
-
-The debug guest checks covered the Done-when behaviors. Capture review of the final chrome pass found a `com.apple.sshd-session` prompt requesting to bypass the system private window picker. No permission was granted and the live run stopped. A permission-free final footer/banner and empty-desktop recheck needs that image defect settled. Installed-build and physical-device checks above remain open.
-
 ## Sources
 
 - [the Lens look prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/31-lens-look/index.html), Presentation set to Strip.

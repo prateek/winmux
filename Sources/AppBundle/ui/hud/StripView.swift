@@ -7,7 +7,7 @@ struct StripView: View {
     var body: some View {
         let snapshot = model.stripSnapshot
         let layout = snapshot.layout
-        let items = snapshot.items
+        let items = model.results
         let scale = model.tileMetrics.scale
         let metrics = TileMetrics(scale: layout.tileScale)
         let footerHeight = GridLayout.Sizing.stripFooterHeight * scale

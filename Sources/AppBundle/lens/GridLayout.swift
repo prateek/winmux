@@ -7,13 +7,15 @@ struct GridLayout {
         static let stripFooterHeight: CGFloat = 18
         let rowHeightCap: CGFloat
         let readableHeight: CGFloat?
+        /// A strip sizes an Accessory window by the Lens's `accessory-window`; the grid does not.
+        let honoursAccessoryWindow: Bool
         let horizontalChrome: CGFloat
         let top: CGFloat
         let bottom: CGFloat
         let minimumWidth: CGFloat
         let emptyHeight: CGFloat
-        static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
-        static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, horizontalChrome: 88, top: 26,
+        static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, honoursAccessoryWindow: false, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
+        static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26,
                                  bottom: 24 + stripFooterHeight + 22, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + 22)
     }
     struct Entry: Equatable {
@@ -48,7 +50,6 @@ struct GridLayout {
         var tiles: [Tile] = []
         var width: CGFloat = 0
         var height: CGFloat = 0
-        var cursor: CGFloat = 0
     }
     private struct FlowRow {
         var tiles: [Tile] = []
@@ -56,17 +57,16 @@ struct GridLayout {
         var width: CGFloat = 0
         var height: CGFloat = 0
     }
-    private static func wrap(_ tiles: ArraySlice<Tile>, width: CGFloat, gap: CGFloat, trailingGap: Bool = false) -> [WrappedRow] {
+    private static func wrap(_ tiles: ArraySlice<Tile>, width: CGFloat, gap: CGFloat) -> [WrappedRow] {
         var rows = [WrappedRow()]
         for tile in tiles {
             var index = rows.count - 1
-            var x = trailingGap ? rows[index].cursor : rows[index].width + (rows[index].tiles.isEmpty ? 0 : gap)
+            var x = rows[index].width + (rows[index].tiles.isEmpty ? 0 : gap)
             if !rows[index].tiles.isEmpty && x + tile.frame.width > width {
                 rows.append(WrappedRow()); index += 1; x = 0
             }
             rows[index].tiles.append(Tile(frame: tile.frame.offsetBy(dx: x, dy: 0), pictureSize: tile.pictureSize))
             rows[index].width = x + tile.frame.width
-            rows[index].cursor = x + (tile.frame.width + gap)
             rows[index].height = max(rows[index].height, tile.frame.height)
         }
         return rows
@@ -105,15 +105,16 @@ struct GridLayout {
             for entry in entries {
                 let box: CGSize
                 let picture: CGSize
-                if sizing.readableHeight != nil && entry.accessory && entry.kind != .text {
+                if sizing.honoursAccessoryWindow && entry.accessory && entry.kind != .text {
                     let h = metrics.pictureHeight(rowHeight: height, accessory: true, actualSize: entry.accessoryActualSize, monitorHeightFraction: entry.monitorHeightFraction)
                     let aspect: CGFloat
                     switch tileSize {
                         case "equal": aspect = 1.5
-                        case "real": aspect = max(0.01, entry.aspect)
+                        // One very wide or very thin Accessory window must not shrink the row or become a sliver.
+                        case "real": aspect = min(3.6, max(0.3, entry.aspect))
                         default: aspect = min(2.1, max(0.6, entry.aspect))
                     }
-                    box = CGSize(width: h * aspect, height: height)
+                    box = CGSize(width: max(70 * chrome, h * aspect), height: height)
                     picture = metrics.fittedPicture(aspect: entry.aspect, in: CGSize(width: box.width, height: h))
                 } else if tileSize == "real" {
                     let factor = min(1, height / max(1, visibleSize.height))
@@ -129,7 +130,6 @@ struct GridLayout {
                 let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor) + 2 * metrics.padding
                 let tileHeight = metrics.height(kind: entry.kind, rowHeight: box.height)
                 sizes.append(Tile(frame: CGRect(x: 0, y: 0, width: width, height: tileHeight), pictureSize: entry.kind == .text ? .zero : picture))
-
             }
             if labelled {
                 // Labelled columns share row tops, including windows taller than this monitor.
@@ -146,7 +146,7 @@ struct GridLayout {
                     var offset = 0, x0: CGFloat = 0
                     for (section, count) in zip(sections, counts) {
                         var y = hd, width: CGFloat = 0
-                        let rows = Self.wrap(sizes[offset..<offset + count], width: columnWidth, gap: gap, trailingGap: true)
+                        let rows = Self.wrap(sizes[offset..<offset + count], width: columnWidth, gap: gap)
                         for (index, row) in rows.enumerated() {
                             for tile in row.tiles { appendTile(tile, x: x0, y: y) }
                             width = max(width, row.width)
@@ -198,7 +198,7 @@ struct GridLayout {
                     for (section, count) in zip(sections, counts) {
                         result.headers.append(Header(frame: CGRect(x: metrics.padding, y: y + 4 * chrome, width: 0, height: 22 * chrome), label: section.label ?? "", current: section.current))
                         y += hd
-                        let rows = Self.wrap(sizes[offset..<offset + count], width: maxWidth, gap: gap, trailingGap: true)
+                        let rows = Self.wrap(sizes[offset..<offset + count], width: maxWidth, gap: gap)
                         for (index, row) in rows.enumerated() {
                             for tile in row.tiles { appendTile(tile, x: 0, y: y) }
                             result.size.width = max(result.size.width, row.width)
@@ -235,7 +235,7 @@ struct GridLayout {
                 let capFits = best.size.width <= maxWidth && best.size.height <= maxHeight && Set(best.tiles.map { $0.frame.minY }).count <= rowCount
                 if !capFits {
                     var low = floor, high = height
-                    for _ in 0..<40 {
+                    for _ in 0..<20 {
                         let candidateHeight = (low + high) / 2
                         let candidate = plan(height: candidateHeight, chrome: scale, titleFloor: true)
                         if candidate.size.width <= maxWidth && candidate.size.height <= maxHeight && Set(candidate.tiles.map { $0.frame.minY }).count <= rowCount {
@@ -243,8 +243,8 @@ struct GridLayout {
                         } else { high = candidateHeight }
                     }
                     height = low
+                    best = plan(height: height, chrome: scale, titleFloor: true)
                 }
-                best = plan(height: height, chrome: scale, titleFloor: true)
             }
         }
         while best.size.width > maxWidth || best.size.height > maxHeight {

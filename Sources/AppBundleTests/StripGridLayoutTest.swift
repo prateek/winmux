@@ -26,7 +26,6 @@ final class StripGridLayoutTest: XCTestCase {
             for mode in ["real", "same-height", "equal"] {
                 for count in [3, 9, 11, 12, 14, 20, 40] {
                     let card = layout(count, size: size, mode: mode), picture = layout(count, size: size, mode: mode, kind: .picture)
-                    print("STRIP-MEASURE | \(Int(size.width))×\(Int(size.height)) | \(mode) | \(count) | \(rows(card)) | \(String(format: "%.2f", Double(card.rowHeight))) | \(rows(picture)) | \(String(format: "%.2f", Double(picture.rowHeight))) |")
                     check(card, count: count, size: size); check(picture, count: count, size: size)
                 }
             }
@@ -54,7 +53,7 @@ final class StripGridLayoutTest: XCTestCase {
         let input = entries(9, kind: .picture)
         let width = CGFloat(9) * (1200 * floor / 1080 + 20) + 8 * 14 + 88
         for (delta, expected): (CGFloat, Int) in [(1, 1), (-1, 2)] {
-            let sizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: floor, horizontalChrome: 1920 * 0.9 - width - delta + 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
+            let sizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: floor, honoursAccessoryWindow: true, horizontalChrome: 1920 * 0.9 - width - delta + 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
             let packed = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: monitor, tileSize: "real", sizing: sizing)
             XCTAssertEqual(rows(packed), expected)
         }
@@ -118,5 +117,16 @@ final class StripGridLayoutTest: XCTestCase {
             let packed = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: monitor, tileSize: mode, sizing: .strip)
             check(packed, count: input.count, size: monitor)
         }
+    }
+    func testExtremeAccessoryNeitherShrinksTheRowNorBecomesASliver() {
+        let ordinary = entries(2, kind: .picture)
+        let bar = GridLayout.Entry(aspect: 20, realSize: CGSize(width: 400, height: 20), kind: .picture, accessory: true, monitorHeightFraction: 0.02)
+        let sliver = GridLayout.Entry(aspect: 0.05, realSize: CGSize(width: 20, height: 400), kind: .picture, accessory: true, monitorHeightFraction: 0.4, accessoryActualSize: true)
+        let packed = GridLayout(sections: [.init(label: nil, current: false, entries: ordinary + [bar, sliver])], visibleSize: monitor, tileSize: "real", sizing: .strip)
+        XCTAssertEqual(packed.rowHeight, 190)
+        XCTAssertEqual(rows(packed), 1)
+        XCTAssertEqual(packed.tiles[2].frame.width, 3.6 * 190 + 20, accuracy: 0.001)
+        XCTAssertEqual(packed.tiles[2].pictureSize.width / packed.tiles[2].pictureSize.height, 20, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(packed.tiles[3].frame.width, 70 + 20)
     }
 }

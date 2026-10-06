@@ -91,8 +91,6 @@ struct TileMetrics {
         let height = min(size.height, size.width / aspect)
         return CGSize(width: max(1, height * aspect), height: max(1, height))
     }
-
-
 }
 
 struct TileEntry {

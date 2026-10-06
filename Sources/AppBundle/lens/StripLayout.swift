@@ -113,10 +113,6 @@ extension LensSession {
         return item.miniature?.workspace != current.name
     }
 
-    func refreshStripThumbnails(lens: Int, request: (Window, Int) -> Void) {
-        refreshGridThumbnails(lens: lens, request: request)
-    }
-
     func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
         let items = results
         let layout = listLayout(count: items.count)
@@ -128,9 +124,8 @@ extension LensSession {
     func refreshThumbnails(lens: Int, request: (Window, Int) -> Void) {
         guard drawsPictures else { return }
         switch settings.presentation {
-            case "strip": refreshStripThumbnails(lens: lens, request: request)
+            case "strip", "grid": refreshGridThumbnails(lens: lens, request: request)
             case "list": refreshListThumbnails(lens: lens, request: request)
-            case "grid": refreshGridThumbnails(lens: lens, request: request)
             default: refreshVisibleThumbnails(lens: lens, request: request)
         }
     }
