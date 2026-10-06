@@ -42,6 +42,33 @@ struct GridLayout {
         var headers: [Header] = []
         var size = CGSize.zero
     }
+    private struct WrappedRow {
+        var tiles: [Tile] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+        var cursor: CGFloat = 0
+    }
+    private struct FlowRow {
+        var tiles: [Tile] = []
+        var heads: [Header] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+    private static func wrap(_ tiles: ArraySlice<Tile>, width: CGFloat, gap: CGFloat, trailingGap: Bool = false) -> [WrappedRow] {
+        var rows = [WrappedRow()]
+        for tile in tiles {
+            var index = rows.count - 1
+            var x = trailingGap ? rows[index].cursor : rows[index].width + (rows[index].tiles.isEmpty ? 0 : gap)
+            if !rows[index].tiles.isEmpty && x + tile.frame.width > width {
+                rows.append(WrappedRow()); index += 1; x = 0
+            }
+            rows[index].tiles.append(Tile(frame: tile.frame.offsetBy(dx: x, dy: 0), pictureSize: tile.pictureSize))
+            rows[index].width = x + tile.frame.width
+            rows[index].cursor = x + (tile.frame.width + gap)
+            rows[index].height = max(rows[index].height, tile.frame.height)
+        }
+        return rows
+    }
     let headers: [Header]
     let arrangement: String
     let rowHeight: CGFloat
@@ -73,8 +100,6 @@ struct GridLayout {
             let metrics = TileMetrics(scale: chrome)
             let gap = 14 * chrome
             var sizes: [Tile] = []
-            var rows: [[Tile]] = [[]]
-            var rowWidths: [CGFloat] = [0]
             for entry in entries {
                 let box: CGSize
                 let picture: CGSize
@@ -96,14 +121,7 @@ struct GridLayout {
                 let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor) + 2 * metrics.padding
                 let tileHeight = metrics.height(kind: entry.kind, rowHeight: box.height)
                 sizes.append(Tile(frame: CGRect(x: 0, y: 0, width: width, height: tileHeight), pictureSize: entry.kind == .text ? .zero : picture))
-                let last = rows.count - 1
-                if !rows[last].isEmpty, rowWidths[last] + gap + width > maxWidth {
-                    rows.append([]); rowWidths.append(0)
-                }
-                let row = rows.count - 1
-                let x = rowWidths[row] + (rows[row].isEmpty ? 0 : gap)
-                rows[row].append(Tile(frame: CGRect(x: x, y: 0, width: width, height: tileHeight), pictureSize: entry.kind == .text ? .zero : picture))
-                rowWidths[row] = x + width
+
             }
             if labelled {
                 // Labelled columns share row tops, including windows taller than this monitor.
@@ -119,24 +137,22 @@ struct GridLayout {
                     let columnWidth = max(1, (maxWidth - 30 * chrome * CGFloat(sections.count - 1)) / CGFloat(sections.count))
                     var offset = 0, x0: CGFloat = 0
                     for (section, count) in zip(sections, counts) {
-                        var x: CGFloat = 0, y = hd, rowHeight: CGFloat = 0, width: CGFloat = 0
-                        for tile in sizes[offset..<offset + count] {
-                            if x > 0 && x + tile.frame.width > columnWidth { y += rowHeight + gap; x = 0; rowHeight = 0 }
-                            appendTile(tile, x: x0 + x, y: y)
-                            width = max(width, x + tile.frame.width)
-                            rowHeight = max(rowHeight, tile.frame.height)
-                            x += tile.frame.width + gap
+                        var y = hd, width: CGFloat = 0
+                        let rows = Self.wrap(sizes[offset..<offset + count], width: columnWidth, gap: gap, trailingGap: true)
+                        for (index, row) in rows.enumerated() {
+                            for tile in row.tiles { appendTile(tile, x: x0, y: y) }
+                            width = max(width, row.width)
+                            if index + 1 < rows.count { y += row.height + gap }
                         }
                         width = max(width, 170 * chrome)
                         result.headers.append(Header(frame: CGRect(x: x0 + metrics.padding, y: 4 * chrome, width: max(0, width - 2 * metrics.padding), height: 22 * chrome), label: section.label ?? "", current: section.current))
-                        result.size.height = max(result.size.height, y + rowHeight)
+                        result.size.height = max(result.size.height, y + (rows.last?.height ?? 0))
                         x0 += width + 30 * chrome
                         offset += count
                     }
                     result.size.width = x0 - 30 * chrome
                 } else if arrangement == "flow" {
-                    struct Row { var tiles: [Tile] = []; var heads: [Header] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
-                    var packed = [Row()]
+                    var packed = [FlowRow()]
                     var offset = 0
                     for (section, count) in zip(sections, counts) {
                         for index in 0..<count {
@@ -145,7 +161,7 @@ struct GridLayout {
                             let extra = index == 0 && packed[row].width > 0 ? 30 * chrome : 0
                             var x = packed[row].width + (packed[row].tiles.isEmpty ? 0 : gap) + extra
                             if !packed[row].tiles.isEmpty && x + tile.frame.width > maxWidth {
-                                packed.append(Row()); row += 1; x = 0
+                                packed.append(FlowRow()); row += 1; x = 0
                             }
                             if index == 0 {
                                 packed[row].heads.append(Header(frame: CGRect(x: x + metrics.padding, y: 4 * chrome, width: 0, height: 22 * chrome), label: section.label ?? "", current: section.current))
@@ -174,15 +190,12 @@ struct GridLayout {
                     for (section, count) in zip(sections, counts) {
                         result.headers.append(Header(frame: CGRect(x: metrics.padding, y: y + 4 * chrome, width: 0, height: 22 * chrome), label: section.label ?? "", current: section.current))
                         y += hd
-                        var x: CGFloat = 0, rowHeight: CGFloat = 0
-                        for tile in sizes[offset..<offset + count] {
-                            if x > 0 && x + tile.frame.width > maxWidth { y += rowHeight + gap; x = 0; rowHeight = 0 }
-                            appendTile(tile, x: x, y: y)
-                            result.size.width = max(result.size.width, x + tile.frame.width)
-                            rowHeight = max(rowHeight, tile.frame.height)
-                            x += tile.frame.width + gap
+                        let rows = Self.wrap(sizes[offset..<offset + count], width: maxWidth, gap: gap, trailingGap: true)
+                        for (index, row) in rows.enumerated() {
+                            for tile in row.tiles { appendTile(tile, x: 0, y: y) }
+                            result.size.width = max(result.size.width, row.width)
+                            y += row.height + gap + (index + 1 == rows.count ? 6 * chrome : 0)
                         }
-                        y += rowHeight + gap + 6 * chrome
                         offset += count
                     }
                     result.size.height = y - gap - 6 * chrome
@@ -191,12 +204,13 @@ struct GridLayout {
                 return result
             }
             var result = Plan()
-            result.size.width = rowWidths.max() ?? 0
-            for (index, row) in rows.enumerated() {
+            let rows = Self.wrap(sizes[...], width: maxWidth, gap: gap)
+            result.size.width = rows.map(\.width).max() ?? 0
+            for row in rows {
                 let y = result.size.height
-                let dx = (result.size.width - rowWidths[index]) / 2
-                result.tiles += row.map { Tile(frame: $0.frame.offsetBy(dx: dx, dy: y), pictureSize: $0.pictureSize) }
-                result.size.height += (row.map { $0.frame.height }.max() ?? 0) + gap
+                let dx = (result.size.width - row.width) / 2
+                result.tiles += row.tiles.map { Tile(frame: $0.frame.offsetBy(dx: dx, dy: y), pictureSize: $0.pictureSize) }
+                result.size.height += row.height + gap
             }
             result.size.height -= gap
             return result
