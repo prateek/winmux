@@ -21,7 +21,7 @@ The live state a Filter can read when it runs: focused window and app, window an
 _Avoid_: environment, state
 
 **Presentation**:
-How a Lens lays out its matches: **grid** (every match at once, as thumbnails packed into sections), **miniatures** (every workspace drawn as a small copy of itself, with each window where it actually sits) **strip** (a single row cycled while a modifier is held) or **list** (a Search box above ranked rows of windows).
+How a Lens lays out its matches: **grid** (every match at once, as thumbnails packed into sections), **miniatures** (every workspace drawn as a small copy of itself, with each window where it actually sits) **strip** (rows sized to fit, cycled while a modifier is held) or **list** (a Search box above ranked rows of windows).
 _Avoid_: view, mode, style
 
 **Tile**:

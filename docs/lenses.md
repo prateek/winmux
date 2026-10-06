@@ -23,7 +23,7 @@ let W = import "winmux/winmux.ncl" in
 Omitting `filter` matches every candidate. Candidates include minimized windows and windows
 of hidden apps. Candidate AX reads overlap and keep tree order; a window whose record cannot
 be read is omitted from that open. Popup classes are excluded unless listed in `popups`. The one active Display
-profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies; `grid` packs every match into sections. Lists and grids group by workspace unless `sections` chooses another grouping.
+profile is `default`; other `when` records load but do not apply. `strip` fits every match in centred rows; `miniatures` draws workspace copies; `grid` packs every match into sections. Lists and grids group by workspace unless `sections` chooses another grouping.
 
 ```sh
 winmux list-lenses --json
@@ -78,9 +78,9 @@ fits its rows, up to two thirds of the visible height; its top stays a quarter o
 a margin below a full list. Refreshes request only a viewport-sized window around selection.
 
 Pictures keep their window's shape, including in list rows; a missing picture shows the app
-icon in that shape. A strip Tile's width uses an aspect clamped to 0.3–3.6; an extreme picture
-is centred at its real shape inside that allocation, with no filled or outlined box behind
-it. The aspect comes from the same rectangle as capture and stays fixed while the Lens is open.
+icon in that shape. A strip uses the grid's sizing: fit (`same-height`) clamps allocation aspects to 0.6–2.1,
+while `real` keeps relative window sizes and `equal` uses equal 1.5:1 boxes. An extreme picture
+is centred at its real shape inside that allocation, with no filled or outlined box behind it. The aspect comes from the same rectangle as capture and stays fixed while the Lens is open.
 Card and picture strip selections lift without changing layout or hit regions. Text rows use
 a tinted plate; miniatures uses a four-point ring without scaling.
 
@@ -210,7 +210,9 @@ Hold cmd and press Tab to select the previous window: the second entry when the 
 focused, otherwise the first. Further Tab presses cycle forward, including presses received
 while the Filter is still opening. Releasing cmd while it is still opening settles the selection:
 the commit runs as soon as the Lens is ready, and a press after that release is ignored.
-Shift-Tab cycles backward, and the arrows cycle with wrap.
+Shift-Tab cycles backward. Left and right cycle in ranked order with wrap, across rows.
+In one row, up cycles backward and down forward; in a wrapped strip they move to the
+nearest Tile in the row above or below and stop at the top and bottom.
 An initial cmd-shift-tab selects
 the last entry; releasing Shift alone does not commit. Cmd-backtick cycles the focused app's
 windows, with Shift reversing it. Backtick does nothing inside `recent`, and Tab does nothing
@@ -224,11 +226,21 @@ Releasing cmd with Option held runs `alt-enter`, whose default
 is `summon`; Shift affects cycling and does not change that release action. Summon hints appear
 only for a selection on another workspace. Escape cancels without changing focus.
 
-Nine entries fit at most, with fewer on a narrow display. Each Tile has its own width; the
-row height fits the widest nine-entry run and stays fixed as selection moves. Text Tiles use
-330 by 46 points at a visible size of 1920 by 1080. Selection scrolls the row; each end
-shows `+N` for its hidden entries. Entries show app icons and titles before capture, then reuse
-live or Frozen thumbnails and the Lens's `frozen-thumbnail` and Accessory settings. Hidden apps
+Every match is visible. The strip uses `grid.tile-size`, including its default `real`, and
+ignores sections and `grid.sections-arrangement`. Its row height grows up to 190 scaled points.
+It first fits one row at or above the 88-point readable floor; otherwise it uses the fewest
+readable rows and the largest height those rows allow. Cards retain the grid's title-width
+floor, so they wrap sooner than pictures. When readable rows cannot fit vertically, Tiles
+shrink until every match fits, with title width and chrome yielding below 36 scaled points.
+There is no overflow count, scrolling or paging. Rows wrap greedily in ranked order and
+are centred; stepping and hovering keep the same cached frames. Text Tiles use the grid's
+330 by 46 points at a visible size of 1920 by 1080 and wrap by the same rule.
+The strip retains its own padding, footer and empty-panel size. Entries show app icons
+and titles before capture, then reuse live or Frozen thumbnails and the Lens's
+`frozen-thumbnail` and Accessory settings. Every non-Frozen picture refreshes every 500 ms.
+Accessory `enlarged` pictures use the full row height; `actual-size` uses the window's
+monitor-height fraction with a 28-point picture floor, in every size mode. The grid ignores
+this Accessory size setting. Hidden apps
 and minimized windows remain eligible. Removing an earlier entry keeps the selected window; removing
 the selection chooses its surviving successor, or the last entry. Hover selects; click runs the
 corresponding Enter action immediately, subtracting the invoking modifiers as release does.
@@ -380,8 +392,8 @@ and a screen-space landing outline while the configured modifier is held. Trigge
 the grid open.
 
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
-every Lens. On another Presentation the block loads and is reported but has no visual effect,
-like `miniatures`. `grid.sections-arrangement` controls labelled sections; `sections = 'none` keeps the original packed layout.
+every Lens. Strips use `grid.tile-size`; on lists and miniatures the block loads and is reported
+but has no visual effect. `grid.sections-arrangement` controls labelled sections; `sections = 'none` keeps the original packed layout.
 The shipped Lenses keep their existing Presentations; use a config Lens or the CLI override.
 
 ## Overview and miniatures
