@@ -23,7 +23,7 @@ let W = import "winmux/winmux.ncl" in
 Omitting `filter` matches every candidate. Candidates include minimized windows and windows
 of hidden apps. Candidate AX reads overlap and keep tree order; a window whose record cannot
 be read is omitted from that open. Popup classes are excluded unless listed in `popups`. The one active Display
-profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies; `grid` packs every match into centred rows.
+profile is `default`; other `when` records load but do not apply. `strip` draws a centred row; `miniatures` draws workspace copies; `grid` packs every match into sections. Lists and grids group by workspace unless `sections` chooses another grouping.
 
 ```sh
 winmux list-lenses --json
@@ -73,7 +73,7 @@ opening. The override needs a Lens name or `--filter`; converting an already ope
 and `badges`, including the active `when.default` profile.
 
 Tile measurements scale by the smaller of visible width / 1920 and visible height / 1080.
-The list panel is 760 points wide with a 30-point radius at that scale, with its Search field scaled too. Its height
+The list panel starts at 760 points wide with a 30-point radius at that scale. It grows when the grouping control needs more room; its Search field scales too. Its height
 fits its rows, up to two thirds of the visible height; its top stays a quarter of the way down, which leaves
 a margin below a full list. Refreshes request only a viewport-sized window around selection.
 
@@ -235,8 +235,7 @@ corresponding Enter action immediately, subtracting the invoking modifiers as re
 Cmd-click focuses and cmd-Option-click Summons.
 
 An unbound letter with the invoking modifiers (Shift may also be held), or with none, converts
-the same session to a list, puts the letter in Search and preserves the selection when it remains
-a match. A Lens `keys` binding wins first: cmd-w closes the selected window while the strip stays
+the same session to a list and puts the letter in Search. With sections, it selects the best match wherever its section draws it; `sections = 'none` retains the strip's selection when it remains a match. A Lens `keys` binding wins first: cmd-w closes the selected window while the strip stays
 open. Modifier release no longer commits after conversion to a list. You can also open
 `winmux lens recent --presentation list` explicitly. A global binding whose modifiers are not the
 strip's, Tab and backtick bindings included, closes the strip and runs normally, whether the strip
@@ -280,6 +279,57 @@ marker. Quit that recovered instance to return the native chord. The debug execu
 upstream build cannot repair this build's marker.
 
 
+## Sections and the grouping control
+
+Every list and grid Lens draws workspace sections by default, including `search`, `floating`
+and a strip converted to a list. Set `sections = 'none` for an unlabelled run.
+
+| `sections` | Order and label |
+| --- | --- |
+| `workspace` (default) | Workspace order, with the focused workspace first; workspace display names. |
+| `project` | Project order, with the focused project first; project display names. |
+| `monitor` | Monitor order, with the focused monitor first; monitor names. |
+| `app` | Each app's first occurrence in the Lens's ranked results; app names. |
+| `none` | One unlabelled run in the Lens's ranked order. |
+
+Focus is snapshotted when the Lens opens. Its section is marked `· here`; app sections have
+no mark. Empty sections disappear. Windows with no workspace go in a final `No workspace`
+section; missing projects and monitors use the corresponding `No project` or `No monitor` label.
+Windows of multiple processes with the same bundle identity share an app section.
+With `entries = 'app`, sections group the representatives.
+
+The list draws a 32-point header above each section, inside the scrolling rows. Up and down
+walk windows across headers. Search keeps the grouping and selects the strongest match even
+when it is in a later section. Marks, actions, hover and the grid's count use this same entry order.
+
+The Search row has a right-aligned `Group` control. Its segments show `none`, `workspace` and
+`app`, followed by `project` or `monitor` when the opening's entries span more than one of them.
+A grouping set explicitly outside that cycle appears as an extra selected segment. Clicking a
+segment preserves the selected window, Search focus and any Hold. The shortcut chip shows
+this Lens's first binding to `sections next`, and disappears when there is none.
+The grid grows to at least 644 scaled points for the three-segment control, plus 68 per extra
+segment; the list also keeps its 760-point minimum.
+
+```sh
+winmux lens search --sections app
+winmux lens recent --presentation grid --sections app
+winmux sections next
+winmux sections workspace
+```
+
+`--sections` accepts the five values above, needs a Lens name or `--filter`, and changes this
+opening only. Miniatures refuses it with exit 2; a strip accepts and ignores it until conversion
+to a list. `list-lenses --json` continues to report the configured values.
+The `sections` command changes an open list or grid without closing it or emitting `lens-opened` or `lens-closed` subscription
+events. With no Lens open it exits 2 with `No Lens is open`; miniatures and strips stay open
+and ignore it. A grouping change lasts until this Lens closes. Converting a strip retains it.
+
+The default Lens key `cmd-g = "sections next"` cycles grouping. A value outside the cycle
+advances to `none`. Bound chords win during a Hold: with Command held in a list or grid,
+typing `log` puts `lo` in Search and uses the `g` as Command-G. A key bound only to `sections`
+commands is omitted in strips and miniatures. Cmd-Tab, then `g`, then `h` therefore converts
+the strip to a list with Search `gh`; another `g` while Command stays held changes grouping.
+
 ## Grid
 
 `winmux lens recent --presentation grid` shows every match at once. The panel is centred on
@@ -293,7 +343,7 @@ let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
   lenses.documents = {
     presentation = 'grid,
-    grid.tile-size = 'real,
+    grid = { tile-size = 'real, sections-arrangement = 'flow },
     tile = 'card,
   },
   mode.main.binding.alt-g = "lens documents",
@@ -306,14 +356,22 @@ let W = import "winmux/winmux.ncl" in
 | `same-height` | A common picture-row height with widths allocated from aspects clamped to 0.6–2.1. |
 | `equal` | Equal 1.5:1 picture boxes, with each picture fitted inside its box. |
 
+| `grid.sections-arrangement` | Labelled sections |
+| --- | --- |
+| `flow` (default) | Sections run on in centred rows; a mid-row section starts 30 points beyond the normal gap. Every row reserves header space. |
+| `rows` | Each section starts its own left-aligned row, under a full-width header, with six extra points after the section. |
+| `columns` | Sections sit side by side, 30 points apart, each wrapping its own Tiles below its header. |
+
+Headers shrink with the chrome and truncate within their available width. No arrangement
+pages or has a size floor: a large number of columns becomes small rather than switching layouts.
+
 Pictures keep their own aspect and never grow past their window's real size, including when
-selection lifts. A narrow picture is centred inside the Tile's width allocation. The card's title
+selection lifts. Labelled grid rows share a height, including when a window is taller than the monitor. A narrow picture is centred inside the Tile's width allocation. The card's title
 floor yields when needed to fit all Tiles. Text Tiles use the same packed rows without pictures;
 picture Tiles put the selected title and chips in the footer. The footer also shows app and count.
 
-Search shows only matches, best match first as in the list, and re-packs them, resizing the panel and Tiles.
-Left and right move along the row; up and down go to the Tile in the next row whose centre is
-nearest. Arrows work with no Hold too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
+Search shows only matches, ranks them within their sections, and selects the best-ranked match across all sections. It re-packs them, resizing the panel and Tiles.
+Left and right move to the nearest Tile along the row, crossing section boundaries. In columns, a neighbouring Tile with an overlapping vertical span is used when that row is absent. Up and down use the nearest row and horizontal centre; columns prefer a Tile below or above in the same column. Arrows work with no Hold too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
 Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9
 move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
 `badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label
@@ -322,7 +380,7 @@ the grid open.
 
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
 every Lens. On another Presentation the block loads and is reported but has no visual effect,
-like `miniatures`. `sections` loads on grid Lenses and is currently ignored; the grid is ungrouped.
+like `miniatures`. `grid.sections-arrangement` controls labelled sections; `sections = 'none` keeps the original packed layout.
 The shipped Lenses keep their existing Presentations; use a config Lens or the CLI override.
 
 ## Overview and miniatures
@@ -370,7 +428,7 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
 | `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the modifier of a configured Summon binding is held. |
 
-Miniatures always uses workspace sections and window entries; its contract rejects explicit
+Miniatures keeps its own workspace arrangement and window entries; its contract rejects explicit
 `tile`, `sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
 `landing-spot` hint. Backdrop darkness above 0.95 fails config checking.
 

@@ -55,3 +55,7 @@ The upstream bindings keep their commands. The fork adds these Triggers:
 The first four values are ordered command lists: `mode main` runs before the Lens starts opening. This **Leaving the `lens` mode** default makes panel Escape available whether the Lens opens or fails. `winmux list-modes --current` reports `main` while it is open. A `lens` command by itself leaves the active binding mode alone, including a user's sticky mode named `lens`.
 
 `winmux list-lenses --json` lists resolved Lens settings and Filter paths. It does not list Triggers; those belong to `mode.<name>.binding` in the loaded config. `winmux list-columns --json` prints `[]` when Columns are off. Both commands print valid JSON and exit 0 on success, 1 on runtime failure and 2 on bad usage. See [Lenses](lenses.md), [Columns](columns.md) and [subscription events](events.md).
+
+Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sections by default;
+their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
+that binding; a strip treats it as a letter and converts to a list. See [Sections](lenses.md#sections-and-the-grouping-control).

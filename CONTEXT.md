@@ -28,6 +28,10 @@ _Avoid_: view, mode, style
 The drawing of one Lens entry: its picture, icon, title and badges. Every **Presentation** lays out Tiles and draws nothing of its own inside them, so a change to the Tile shows in all of them.
 _Avoid_: cell, card, thumbnail, row
 
+**Section**:
+A labelled group of a Lens's entries, by workspace, project, monitor or app. Lists and grids draw sections; the grouping can change while the Lens stays open.
+_Avoid_: category, bucket
+
 **Search**:
 The text typed into an open Lens. It narrows the Lens's matches and ranks them by how well they match; the Filter decides which windows are eligible, and the Search picks among them.
 _Avoid_: query, filter text
