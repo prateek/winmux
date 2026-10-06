@@ -2,6 +2,8 @@
 
 Part of {{UMBRELLA}}.
 
+**Blocked on Prateek** until he chooses what holds the pins. See **mise or Nix to hold the toolchain pins**.
+
 ## What to build
 
 WinMux is built in three places, by three toolchains, and no check runs on the one that builds what is installed.
@@ -17,8 +19,9 @@ Make a build the same wherever it runs: the same Xcode, Swift and Rust, named in
 ## Decisions
 
 - **Xcode's Swift is the compiler.** The app links Apple frameworks and ships built by Xcode's toolchain. CI selects an Xcode by version and stops installing swiftly.
-- **The pins are two files in the repository.** A `mise.toml` pins everything mise can install: Rust for the helper, Python for the scripts, and the build's command-line tools. An `.xcode-version` pins Xcode, which nothing can install for us. CI, `vm build-image`, `make check` and the release script read them. Nothing else names a version, and `.swift-version` goes.
-- **Not Bazel and not Nix.** Neither can supply Xcode: Bazel's Apple rules and Nix on macOS both build with the Xcode on the machine, so the compiler that disagreed would still come from outside the pin. Bazel would also replace SwiftPM and cargo as the build. Nix would pin Rust and the tools more strictly than mise does, at the cost of installing Nix on the CI runner, in the guest image and on the build machine; mise is already on the build machine. If the tools drift in practice, Nix for the non-Xcode part is the next step, and this issue does not rule it out.
+- **Xcode has a pin of its own**, an `.xcode-version` file, because nothing can install Xcode for us: Nix on macOS and Bazel's Apple rules both build with the Xcode on the machine.
+- **What holds every other pin is open with Prateek**: Nix (a flake whose shell supplies Rust, Python and the build's command-line tools) or mise (a `mise.toml`). He is considering moving his machines to Nix, which would make Nix the choice here too. See **mise or Nix to hold the toolchain pins**. Whichever it is, CI, `vm build-image`, `make check` and the release script read the same pins, nothing else names a version, and `.swift-version` goes.
+- **Not Bazel.** It would replace SwiftPM and cargo as the build and still take its compiler from the machine's Xcode.
 - **A build with another toolchain is refused by name.** `make check` and the release script check the selected Xcode and the Rust toolchain before building and say which pin they miss. A developer's local `swift build` is not policed.
 - **Dependencies are locked.** `Package.resolved` and `Cargo.lock` are committed and the builds use them as they are (`--locked` for cargo; a resolve that changes `Package.resolved` fails CI).
 - **The first step is to look**: which Xcode versions the `macos-26` runner carries, and what the build machine has installed. If no one version is available in all three, stop and say so in the pull request, with the versions found.
@@ -39,7 +42,7 @@ Nothing.
 - [ ] `make check` and the release script each refuse, by name, an Xcode or a Rust that is not the pinned one.
 - [ ] A build that would change `Package.resolved` or `Cargo.lock` fails.
 - [ ] `make check` passes in all three places.
-- [ ] `mise.toml` and `.xcode-version` are the only places a toolchain version is written, and the `vm` skill, `AGENTS.md` and the handoff say how to move a pin.
+- [ ] The pin files are the only places a toolchain version is written, and the `vm` skill, `AGENTS.md` and the handoff say how to move a pin.
 
 ## Sources
 
