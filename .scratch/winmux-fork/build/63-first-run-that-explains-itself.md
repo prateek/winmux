@@ -19,7 +19,7 @@ None yet. Prateek asked for a follow-up issue; the shape below is a starting poi
 
 ## Not in this issue
 
-- Notarizing, which removes the Gatekeeper step: **Sign with the Developer ID and notarize**.
+- Notarizing, which removes the Gatekeeper step: **Sign dogfood builds with the Developer ID and notarize them**.
 - The Cmd-Tab default: **The system's Cmd-Tab stays the system's unless the config asks for it**.
 - Putting windows back on quit: **Quitting WinMux puts windows back where they were**.
 
