@@ -21,6 +21,12 @@ struct GridLayout {
         let label: String
         let current: Bool
     }
+    // Not local to `init`: swift.org's 6.2.4 compiler crashes on a local type captured by a nested function.
+    private struct Plan {
+        var tiles: [Tile] = []
+        var headers: [Header] = []
+        var size = CGSize.zero
+    }
     let headers: [Header]
     let arrangement: String
     let rowHeight: CGFloat
@@ -47,11 +53,6 @@ struct GridLayout {
             headers = []
             tiles = []; tileScale = scale; relaxedTitleFloor = false
             return
-        }
-        struct Plan {
-            var tiles: [Tile] = []
-            var headers: [Header] = []
-            var size = CGSize.zero
         }
         func plan(height: CGFloat, chrome: CGFloat, titleFloor: Bool) -> Plan {
             let metrics = TileMetrics(scale: chrome)

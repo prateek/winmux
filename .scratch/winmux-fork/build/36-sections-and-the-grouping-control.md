@@ -67,7 +67,7 @@ windows, retaining their real picture sizes and geometric arrow rows. The origin
 - [x] `winmux lens <name> --sections app` opens grouped by app without changing the config.
 - [x] `cmd-g` and a click on the header control both change the grouping, and the selection stays on its window.
 - [x] `sections` on a `'miniatures` Lens still fails at load.
-- [ ] The pull request shows each arrangement on the staged desk.
+- [x] The pull request shows each arrangement on the staged desk.
 
 ## Sources
 
