@@ -4,9 +4,9 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Prateek, on `0.5.6-dogfood.12` with the shipped defaults: his Exposé shortcut gave "an Exposé-like thing" that was much slower than Exposé, was not the grid, and showed WinMux's sidebar as if it were an app's window.
+Prateek, on `0.5.6-dogfood.12` with the shipped defaults: the trackpad's three- or four-finger swipe for Mission Control gave "an Exposé-like thing" that was much slower than Exposé, was not the grid, and showed WinMux's sidebar as if it were an app's window.
 
-WinMux binds no Mission Control or Exposé key by default and has no code that takes them over, so the likeliest reading is that this was macOS's own Mission Control, drawn badly because of what WinMux does to the desktop:
+That gesture is macOS's own. WinMux binds no Mission Control or Exposé key, handles no trackpad gesture, and has no code that takes either over. So this was Mission Control itself, drawn badly because of what WinMux does to the desktop:
 
 - The sidebar panel's `collectionBehavior` is `[.canJoinAllSpaces, .fullScreenAuxiliary]` (`WorkspaceSidebarPanelController.swift`), with neither `.stationary` nor `.transient`, so Mission Control treats it as a window to show.
 - Windows of hidden workspaces are parked at the screen's edge, and Mission Control animates all of them.
@@ -15,7 +15,7 @@ Nobody has reproduced it. The first step is to see it in a guest.
 
 ## Decisions
 
-- **Reproduce before fixing.** If it turns out a WinMux binding did fire (the `overview` Lens is `alt-semicolon` then `o`), say which, and this issue becomes that one.
+- **Reproduce before fixing**, in a guest, with Mission Control opened by its key (a guest has no trackpad; the gesture and `ctrl-up` open the same thing).
 
 ## Not in this issue
 
@@ -38,4 +38,4 @@ Nothing.
 
 ## Sources
 
-- Prateek, 2026-10-06. Which keys he pressed is not recorded; ask him on the issue if the guest does not show it.
+- Prateek, 2026-10-06: "it took over my Exposé shortcuts, but it was much slower than Exposé … in the Exposé view it was using the sidebar as well, like an app." He opened it with the three- or four-finger trackpad gesture.
