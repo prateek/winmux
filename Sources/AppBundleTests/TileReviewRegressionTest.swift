@@ -17,17 +17,14 @@ final class TileReviewRegressionTest: XCTestCase {
     }
 
     func testExtremeAspectDoesNotCollapseStripOrChangeVisibleCount() {
+        let input = Array(repeating: GridLayout.Entry(aspect: 3, realSize: CGSize(width: 900, height: 300), kind: .card), count: 8)
+        let normal = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "same-height", sizing: .strip)
+        let mixed = GridLayout(sections: [.init(label: nil, current: false, entries: input + [.init(aspect: 10, realSize: CGSize(width: 1000, height: 100), kind: .card)])], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "same-height", sizing: .strip)
+        XCTAssertGreaterThanOrEqual(mixed.rowHeight, GridLayout.stripReadableHeight)
+        XCTAssertEqual(mixed.tiles.count, 9)
+        XCTAssertGreaterThan(mixed.rowHeight, normal.rowHeight / 2)
+        for tile in mixed.tiles { XCTAssertTrue(CGRect(origin: .zero, size: mixed.panelSize).contains(tile.frame)) }
         let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
-        let ordinary = Array(repeating: CGFloat(3), count: 8)
-        let mixed = ordinary + [10]
-        let normalHeight = metrics.stripRowHeight(aspects: ordinary, kind: .card, availableWidth: 1920)
-        let height = metrics.stripRowHeight(aspects: mixed, kind: .card, availableWidth: 1920)
-        XCTAssertLessThanOrEqual(abs(normalHeight - height), 6)
-        let widths = mixed.map { metrics.width(kind: .card, aspect: $0, rowHeight: height) }
-        let counts = widths.indices.map { StripLayout(widths: widths, selection: $0, width: 1920 * 0.9, gap: metrics.stripGap).range.count }
-        XCTAssertEqual(Set(counts), [9])
-        XCTAssertEqual(metrics.width(kind: .picture, aspect: 10, rowHeight: 100), 380)
-        XCTAssertEqual(metrics.width(kind: .picture, aspect: 0.01, rowHeight: 300), 110)
         XCTAssertEqual(metrics.fittedPicture(aspect: 10, in: CGSize(width: 360, height: 100)), CGSize(width: 360, height: 36))
     }
 
@@ -59,10 +56,10 @@ final class TileReviewRegressionTest: XCTestCase {
     func testEmptyStripReservesReadableFooterWidth() {
         for size in [CGSize(width: 1920, height: 1080), CGSize(width: 960, height: 540)] {
             let metrics = TileMetrics(visibleSize: size)
-            let empty = StripSnapshot(items: [], selection: 0, size: size, kind: .picture, settings: LensConfig())
+            let empty = StripSnapshot(items: [], size: size, kind: .picture, settings: LensConfig())
             let caption = ("No windows" as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 15 * metrics.scale)]).width
-            XCTAssertGreaterThanOrEqual(empty.layout.rowWidth - 88 * metrics.scale, caption)
-            XCTAssertTrue(empty.layout.range.isEmpty)
+            XCTAssertGreaterThanOrEqual(empty.layout.panelSize.width - 88 * metrics.scale, caption)
+            XCTAssertTrue(empty.layout.tiles.isEmpty)
         }
     }
 
@@ -71,8 +68,8 @@ final class TileReviewRegressionTest: XCTestCase {
         let metrics = TileMetrics(visibleSize: size)
         var item = SwitcherPaletteItem(id: 1, title: "Notes", appName: "Notes", icon: nil, workspaceName: "2", isFocused: false)
         item.tile = TileEntry(title: "Notes", appName: "Notes", aspect: 0.5)
-        let strip = StripSnapshot(items: [item], selection: 0, size: size, kind: .picture, settings: LensConfig())
-        XCTAssertLessThan(strip.layout.rowWidth, strip.minimumWidth)
+        let strip = StripSnapshot(items: [item], size: size, kind: .picture, settings: LensConfig())
+        XCTAssertGreaterThanOrEqual(strip.layout.panelSize.width, strip.minimumWidth)
         XCTAssertEqual(strip.minimumWidth, metrics.textWidth + 88 * metrics.scale)
     }
 

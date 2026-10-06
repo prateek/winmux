@@ -4,39 +4,10 @@ import XCTest
 import Clocks
 
 final class StripLayoutTest: XCTestCase {
-    func testFitsWidthCapsAtNineAndCountsHiddenEntries() {
-        let wide = StripLayout(widths: Array(repeating: 148, count: 20), selection: 10, width: 3000)
-        XCTAssertEqual(wide.range.count, 9)
-        XCTAssertEqual(wide.before, 6)
-        XCTAssertEqual(wide.after, 5)
-        let narrow = StripLayout(widths: Array(repeating: 148, count: 20), selection: 19, width: 600)
-        XCTAssertEqual(narrow.range, 17..<20)
-        XCTAssertEqual(narrow.before, 17)
-        XCTAssertEqual(narrow.after, 0)
-        XCTAssertLessThanOrEqual(narrow.rowWidth, 600)
-        XCTAssertEqual(StripLayout(widths: [], selection: 0, width: 600).range, 0..<0)
-        XCTAssertEqual(StripLayout(widths: [148], selection: 0, width: 600).range, 0..<1)
-    }
-    func testMixedWidthsKeepSelectionVisibleAndFitWithoutChangingWidths() {
-        let widths: [CGFloat] = [90, 340, 180, 220, 100, 300, 90, 400, 110, 250, 150]
-        for selection in widths.indices {
-            let layout = StripLayout(widths: widths, selection: selection, width: 700)
-            XCTAssertTrue(layout.range.contains(selection))
-            XCTAssertLessThanOrEqual(layout.range.count, 9)
-            XCTAssertLessThanOrEqual(layout.rowWidth, 700)
-            XCTAssertLessThanOrEqual(widths[layout.range].reduce(0, +) + CGFloat(max(0, layout.range.count - 1)) * StripLayout.gap + 88, 700)
-            XCTAssertEqual(layout.before + layout.range.count + layout.after, widths.count)
-        }
-    }
-    func testRowHeightShrinksForTheWidestNineEntryWindowAndIgnoresSelection() {
-        let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
-        let aspects: [CGFloat] = [0.3, 2, 1, 1.6, 0.4, 2.5, 1, 1.2, 2, 0.5, 1]
-        let height = metrics.stripRowHeight(aspects: aspects, kind: .card, availableWidth: 1800)
-        XCTAssertLessThan(height, 190)
-        let widths = aspects.map { metrics.width(kind: .card, aspect: $0, rowHeight: height) }
-        for start in 0 ... aspects.count - 9 {
-            XCTAssertLessThanOrEqual(widths[start ..< start + 9].reduce(0, +) + 8 * metrics.stripGap, 1800 * 0.9 - 88)
-        }
+    func testAllEntriesUseTheGridStripSizing() {
+        let layout = GridLayout(sections: [.init(label: nil, current: false, entries: Array(repeating: .init(aspect: 1.5, realSize: CGSize(width: 1200, height: 800), kind: .card), count: 14))], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "real", sizing: .strip)
+        XCTAssertEqual(layout.tiles.count, 14)
+        XCTAssertEqual(Set(layout.tiles.map { $0.frame.minY }).count, 2)
     }
     @MainActor
     func testStripAndMiniaturesUseOnscreenSnapshotForFullscreenThumbnails() {
@@ -72,6 +43,62 @@ final class StripSessionTest: XCTestCase {
             SwitcherPaletteItem(id: UInt32(i + 1), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: i == 0)
         }, search: "")
     }
+    func testLayoutDoesNotChangeWhileSteppingHoveringOrHoldingSummon() {
+        let session = model(count: 14)
+        session.miniatureSize = CGSize(width: 1920, height: 1080)
+        let frames = session.stripSnapshot.layout.tiles.map(\.frame)
+        for _ in 0..<14 {
+            session.cycleStripSelection(1)
+            XCTAssertEqual(session.stripSnapshot.layout.tiles.map(\.frame), frames)
+        }
+        session.hover(8)
+        session.updateSummonModifiers(.option)
+        XCTAssertEqual(session.stripSnapshot.layout.tiles.map(\.frame), frames)
+    }
+
+    func testSingleRowArrowsCycleAndWrappedVerticalArrowsStayAtEdges() {
+        let single = model(count: 3)
+        single.miniatureSize = CGSize(width: 1920, height: 1080)
+        single.send(.selectionChanged(0)); single.perform(.arrow(126))
+        XCTAssertEqual(single.selection, 2)
+        single.perform(.arrow(125)); XCTAssertEqual(single.selection, 0)
+        let wrapped = model(count: 14)
+        wrapped.miniatureSize = CGSize(width: 1920, height: 1080)
+        wrapped.send(.selectionChanged(0)); wrapped.perform(.arrow(126))
+        XCTAssertEqual(wrapped.selection, 0)
+        let layout = wrapped.stripSnapshot.layout
+        let below = layout.nearest(from: 0, direction: .down)!
+        wrapped.perform(.arrow(125)); XCTAssertEqual(wrapped.selection, below)
+        wrapped.perform(.arrow(125)); XCTAssertEqual(wrapped.selection, below)
+        let firstSecondRow = layout.tiles.firstIndex { $0.frame.minY > layout.tiles[0].frame.minY }!
+        wrapped.send(.selectionChanged(firstSecondRow - 1)); wrapped.perform(.arrow(124))
+        XCTAssertEqual(wrapped.selection, firstSecondRow)
+        wrapped.send(.selectionChanged(13)); wrapped.perform(.arrow(124)); XCTAssertEqual(wrapped.selection, 0)
+    }
+
+    func testRemovingTwelfthEntryRepacksToOneRowAndKeepsSelectedWindow() {
+        let session = model(count: 12)
+        session.miniatureSize = CGSize(width: 1920, height: 1080)
+        session.hover(5)
+        XCTAssertEqual(Set(session.stripSnapshot.layout.tiles.map { $0.frame.minY }).count, 2)
+        session.removeStripItems([12])
+        XCTAssertEqual(session.selectedId, 5)
+        XCTAssertEqual(Set(session.stripSnapshot.layout.tiles.map { $0.frame.minY }).count, 1)
+    }
+
+    func testEveryStripPictureRefreshesAndFrozenPicturesDoNot() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = (1...14).map { id in
+            let window = TestWindow.new(id: UInt32(id), parent: focus.workspace.rootTilingContainer)
+            return SwitcherPaletteItem(id: window.windowId, title: "Window", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
+                miniature: MiniatureWindow(workspace: "1", frame: .zero, tray: false, frozen: id == 14, accessory: false, floating: false, window: window))
+        }
+        let session = LensSession(name: "recent", settings: settings, items: items, search: "")
+        var requests: [UInt32] = []
+        session.refreshThumbnails(lens: 1) { window, _ in requests.append(window.windowId) }
+        XCTAssertEqual(requests, Array(1...13).map(UInt32.init))
+    }
+
     func testUnrelatedGlobalBindingClosesStripBeforeYielding() async {
         _ = NSApplication.shared
         let panel = SwitcherPalettePanel.shared

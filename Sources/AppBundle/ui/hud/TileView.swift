@@ -114,7 +114,7 @@ struct TileView: View {
     }
 
     private func picture(in available: CGSize) -> some View {
-        let actual = presentation == "strip" && entry.accessory && settings.accessoryWindow == "actual-size"
+        let actual = pictureSize == nil && presentation == "strip" && entry.accessory && settings.accessoryWindow == "actual-size"
         let pictureHeight = metrics.pictureHeight(rowHeight: available.height, accessory: entry.accessory, actualSize: actual, monitorHeightFraction: entry.monitorHeightFraction)
         let fitted = fittedPicture(in: CGSize(width: available.width, height: pictureHeight))
         return ZStack {

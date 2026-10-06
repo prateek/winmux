@@ -8,8 +8,8 @@ struct StripView: View {
         let snapshot = model.stripSnapshot
         let layout = snapshot.layout
         let items = snapshot.items
-        let widths = snapshot.widths
-        let height = model.tileMetrics.height(kind: model.tileKind, rowHeight: snapshot.rowHeight)
+        let scale = model.tileMetrics.scale
+        let metrics = TileMetrics(scale: layout.tileScale)
         let summonAvailable = model.stripSummonAvailable(items: items)
         ZStack {
             if summonAvailable, let landing = model.miniatureLanding,
@@ -19,14 +19,14 @@ struct StripView: View {
                     .position(x: landing.midX - current.source.minX, y: landing.midY - current.source.minY)
                     .allowsHitTesting(false)
             }
-            VStack(spacing: 24 * model.tileMetrics.scale) {
-                HStack(spacing: model.tileMetrics.stripGap) {
-                    ForEach(Array(layout.range), id: \.self) { index in
-                        let item = items[index]
-                        TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: model.tileMetrics,
-                                 size: CGSize(width: widths[index], height: height),
-                                 settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
-                                 hint: index == model.selection && summonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    let tile = layout.tiles[index]
+                    TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: metrics,
+                             size: tile.frame.size, settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
+                             hint: index == model.selection && summonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
+                             pictureSize: tile.pictureSize)
+                        .position(x: tile.frame.midX, y: tile.frame.midY)
                         .zIndex(index == model.selection ? 1 : 0)
                         .onContinuousHover { phase in
                             if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
@@ -35,25 +35,20 @@ struct StripView: View {
                             model.hover(item.id)
                             if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                         }
-                    }
                 }
-                .overlay(alignment: .leading) {
-                    if layout.before > 0 { Text("+\(layout.before)").offset(x: -32 * model.tileMetrics.scale) }
+                VStack(spacing: 3 * scale) {
+                    LensSelectionFooter(model: model, items: items)
+                    if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
                 }
-                .overlay(alignment: .trailing) {
-                    if layout.after > 0 { Text("+\(layout.after)").offset(x: 32 * model.tileMetrics.scale) }
-                }
-                LensSelectionFooter(model: model, items: items)
-                if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
+                .padding(.horizontal, 44 * scale)
+                .frame(width: layout.panelSize.width, height: 22 * scale + (model.banner == nil ? 0 : 18 * scale))
+                .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 33 * scale + (model.banner == nil ? 0 : 9 * scale))
             }
-            .padding(.horizontal, 44 * model.tileMetrics.scale)
-            .padding(.top, 26 * model.tileMetrics.scale)
-            .padding(.bottom, 22 * model.tileMetrics.scale)
             .foregroundStyle(.white)
+            .frame(width: layout.panelSize.width, height: layout.panelSize.height + (model.banner == nil ? 0 : 18 * scale))
             .background {
-                GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * model.tileMetrics.scale), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
+                GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * scale), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
             }
-            .frame(width: max(layout.rowWidth, snapshot.minimumWidth))
         }
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
     }
