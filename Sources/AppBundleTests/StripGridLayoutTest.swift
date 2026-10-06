@@ -83,6 +83,25 @@ final class StripGridLayoutTest: XCTestCase {
             XCTAssertEqual(pack(actual, .grid).tiles[0].pictureSize, pack(ordinary, .grid).tiles[0].pictureSize)
         }
     }
+    func testStripKeepsGridSizeModesFitLimitsAndTextDimensions() {
+        let window = GridLayout.Entry(aspect: 10, realSize: CGSize(width: 9000, height: 900), kind: .picture)
+        for mode in ["real", "same-height", "equal"] {
+            let packed = GridLayout(sections: [.init(label: nil, current: false, entries: [window])], visibleSize: monitor, tileSize: mode, sizing: .strip)
+            XCTAssertEqual(packed.rowHeight, 190)
+            let width: CGFloat = mode == "real" ? 9000 * 190 / 1080 : (mode == "equal" ? 1.5 : 2.1) * 190
+            XCTAssertEqual(packed.tiles[0].frame.width, width + 20, accuracy: 0.001)
+            XCTAssertEqual(packed.tiles[0].pictureSize.width, width, accuracy: 0.001)
+        }
+        let portrait = GridLayout.Entry(aspect: 0.01, realSize: CGSize(width: 9, height: 900), kind: .picture)
+        let fit = GridLayout(sections: [.init(label: nil, current: false, entries: [portrait])], visibleSize: monitor, tileSize: "same-height", sizing: .strip)
+        XCTAssertEqual(fit.tiles[0].frame.width, 0.6 * 190 + 20, accuracy: 0.001)
+        let text = layout(3, kind: .text)
+        XCTAssertEqual(rows(text), 1)
+        XCTAssertEqual(text.tiles[0].frame.size, CGSize(width: 330, height: 46))
+        let cards = layout(11)
+        let title = min(200, max(1.2 * cards.rowHeight, 110))
+        for tile in cards.tiles { XCTAssertGreaterThanOrEqual(tile.frame.width, title + 20) }
+    }
     func testMixedExtremeAndOversizedWindowsRemainInsidePanel() {
         let input: [GridLayout.Entry] = [0.01, 10, 1.5, 0.6, 100, 1.2].map {
             .init(aspect: $0, realSize: CGSize(width: $0 * 2000, height: 2000), kind: .card)
