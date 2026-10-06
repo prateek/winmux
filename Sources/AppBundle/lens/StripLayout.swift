@@ -4,7 +4,9 @@ struct StripGesture {
     let keyCode: UInt16?
     let invoking: NSEvent.ModifierFlags
     private let elapsed: @Sendable () -> Duration
-    let waitForDisplay: @Sendable () async throws -> Void
+    /// Isolated by name. An optimised Swift 6.3 build does not return a caller-isolated closure
+    /// formed in a generic function to its caller's actor, and the strip was then shown off the main thread.
+    let waitForDisplay: @MainActor @Sendable () async throws -> Void
 
     init(keyCode: UInt16?, invoking: NSEvent.ModifierFlags, clock: any Clock<Duration> = ContinuousClock()) {
         self.keyCode = keyCode
@@ -12,7 +14,7 @@ struct StripGesture {
         (elapsed, waitForDisplay) = Self.start(on: clock)
     }
 
-    private static func start<C: Clock>(on clock: C) -> (@Sendable () -> Duration, @Sendable () async throws -> Void) where C.Duration == Duration {
+    private static func start<C: Clock>(on clock: C) -> (@Sendable () -> Duration, @MainActor @Sendable () async throws -> Void) where C.Duration == Duration {
         let started = clock.now
         return ({ started.duration(to: clock.now) }, { try await clock.sleep(until: started.advanced(by: .milliseconds(100)), tolerance: nil) })
     }
