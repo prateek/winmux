@@ -34,10 +34,10 @@ struct GridLayout {
     }
 
     init(sections: [Section], visibleSize: CGSize, tileSize: String, arrangement: String = "flow", minimumWidth: CGFloat = 0) {
-        self.arrangement = arrangement
         let sections = sections.filter { !$0.entries.isEmpty }
         let entries = sections.flatMap(\.entries)
         let labelled = sections.contains { $0.label != nil }
+        self.arrangement = labelled ? arrangement : "flow"
         let scale = TileMetrics(visibleSize: visibleSize).scale
         let maxWidth = max(1, visibleSize.width * 0.9 - 56 * scale)
         let maxHeight = max(1, visibleSize.height * 0.88 - 90 * scale)

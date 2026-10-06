@@ -123,16 +123,7 @@ extension LensSession {
         }
     }
 
-    func removeStripItems(_ ids: Set<UInt32>) {
-        let before = results
-        let selected = before.indices.contains(selection) ? before[selection].id : nil
-        let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
-        removedIds.formUnion(ids)
-        let after = results
-        if drawsSections, !query.isEmpty { selectBestResult(); send(.selectionChanged(selection)) }
-        else { send(.selectionChanged(after.firstIndex { $0.id == selected } ?? min(replacement, max(0, after.count - 1)))) }
-        objectWillChange.send()
-    }
+    func removeStripItems(_ ids: Set<UInt32>) { send(.itemsRemoved(ids)) }
 
     var tileMetrics: TileMetrics { TileMetrics(visibleSize: miniatureSize) }
     var tileKind: TileKind { TileKind.resolve(configured: settings.tile, presentation: settings.presentation) }
@@ -229,7 +220,7 @@ struct ListLayout {
         var y: CGFloat = 0
         var offsets: [CGFloat] = []
         for index in 0..<count {
-            if sectionStarts.contains(index) { y += 32 * metrics.scale + gap }
+            if sectionStarts.contains(index) { y += (32 + (index == 0 ? 0 : 6)) * metrics.scale }
             offsets.append(y)
             y += rowHeight + gap
         }

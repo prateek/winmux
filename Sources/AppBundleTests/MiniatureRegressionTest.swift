@@ -105,7 +105,7 @@ final class MiniatureSelectionRegressionTest: XCTestCase {
             SwitcherPaletteItem(id: window.windowId, title: String(format: "%02d", index), appName: "Demo", icon: nil, workspaceName: String(index + 1), lastFocusedSeq: index, isFocused: index == 29,
               miniature: MiniatureWindow(workspace: String(index + 1), frame: CGRect(x: 0, y: 0, width: 500, height: 500), tray: false, frozen: false, accessory: false, floating: false, window: window))
         }
-        var settings = LensConfig(); settings.presentation = "miniatures"; settings.sort = ["title"]
+        var settings = LensConfig(); settings.presentation = "miniatures"; settings.sort = ["title"]; settings.sections = "none"
         let model = LensSession(name: "demo", settings: settings, items: items, search: "")
         model.miniatureWorkspaces = windows.enumerated().map { MiniatureWorkspace(name: String($0.offset + 1), title: "Demo", source: CGRect(x: 0, y: 0, width: 1000, height: 500), current: $0.offset == 29) }
         model.revealMiniatureSelection()

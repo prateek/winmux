@@ -11,7 +11,6 @@ struct LensSection<Entry> {
     let entries: [Entry]
 }
 
-/// Preserves the incoming rank within each section. Identities are an opening-time snapshot.
 func lensSections<Entry>(_ entries: [Entry], grouping: String, identities: [LensSectionIdentity],
                          key: (Entry) -> String, label: (Entry) -> String) -> [LensSection<Entry>] {
     guard !entries.isEmpty else { return [] }
@@ -34,4 +33,8 @@ func lensSections<Entry>(_ entries: [Entry], grouping: String, identities: [Lens
                            label: value.isEmpty && grouping != "app" ? "No \(grouping)" : identity?.label ?? label(entries[0]),
                            current: grouping != "app" && identity?.current == true, entries: entries)
     }
+}
+
+func lensAppIdentity(bundleId: String, pid: Int) -> String {
+    bundleId.isEmpty ? "pid:\(pid)" : bundleId
 }

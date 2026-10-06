@@ -48,9 +48,7 @@ struct LensCommand: Command {
         trace.startInterval("windows collected")
         guard let ticket = panel.beginLens(name, toggle: args.name != nil,
                                           strip: settings.presentation == "strip" ? invocation : nil,
-                                          trace: trace, keys: LensKeyBinding.resolve(settings.keys.filter { key, commands in
-                                              (settings.presentation == "list" || settings.presentation == "grid") || !commands.allSatisfy { $0.hasPrefix("sections ") }
-                                          }), invocation: lensInvocation) else {
+                                          trace: trace, keys: LensSession.openingBindings(settings), invocation: lensInvocation) else {
             LensTraceStore.shared.discard(trace)
             return true
         }

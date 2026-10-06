@@ -13,6 +13,10 @@ struct SwitcherPaletteItem: Identifiable {
     let workspaceName: String
     var appIdentity: String = ""
     var projectName: String = ""
+    var workspaceIdentity: String? = nil
+    var projectIdentity: String? = nil
+    var monitorIdentity: String = ""
+    var monitorName: String = ""
     var lastFocusedSeq: Int = 0
     let isFocused: Bool
     var miniature: MiniatureWindow? = nil
@@ -100,7 +104,12 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         let workspaces = miniatureWorkspaceSnapshot(entries)
         let items = presentationItems(entries, settings: settings, workspaces: workspaces)
-        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter)
+        let identities: [String: [LensSectionIdentity]] = [
+            "workspace": workspaces.map { LensSectionIdentity(key: $0.name, label: $0.title, current: $0.current) },
+            "project": workspaceProjects().map { LensSectionIdentity(key: $0.id.rawValue, label: $0.name, current: $0.id == focus.workspace.projectId) },
+            "monitor": sortedMonitors.map { LensSectionIdentity(key: $0.displayUuid, label: $0.name, current: $0.displayUuid == focus.workspace.workspaceMonitor.displayUuid) },
+        ]
+        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter, sectionIdentities: identities)
         model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
             model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))
@@ -124,8 +133,9 @@ final class SwitcherPalettePanel: NSPanelHud {
             return SwitcherPaletteItem(
                 id: entry.window.windowId, title: entry.record.title, appName: entry.record.app.name,
                 icon: icon,
-                workspaceName: entry.searchFields.workspace, appIdentity: String(entry.record.app.pid),
-                projectName: entry.searchFields.project, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
+                workspaceName: entry.searchFields.workspace, appIdentity: lensAppIdentity(bundleId: entry.record.app.bundleId, pid: entry.record.app.pid),
+                projectName: entry.searchFields.project, workspaceIdentity: entry.record.workspace, projectIdentity: entry.record.project,
+                monitorIdentity: entry.record.monitor.uuid, monitorName: entry.record.monitor.name, lastFocusedSeq: entry.record.lastFocusedSeq, isFocused: entry.window.windowId == focusedId,
                 miniature: miniature, tile: tileEntry(entry, miniature: miniature, icon: icon, workspaceLabels: workspaceLabels, monitorHeight: monitorHeight, focusedWorkspaceName: focused.workspace.name)
             )
         }
@@ -189,7 +199,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func stripWindowClosed(_ id: UInt32) {
-        guard let session, session.settings.presentation == "strip" else { return }
+        guard let session else { return }
         session.removeStripItems([id])
     }
 
@@ -305,6 +315,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func performAction(_ key: String) {
         guard let model = session else { return }
+        if model.performSectionsAction(key) { return }
         let commands = model.commands(for: key)
         guard !commands.isEmpty else {
             // A release always closes the strip, even when its binding runs nothing.
@@ -427,6 +438,7 @@ struct SwitcherPaletteView: View {
         let results = model.results
         let layout = model.listLayout(count: results.count)
         let scale = model.tileMetrics.scale
+        let sectionStarts = Dictionary(uniqueKeysWithValues: model.sections.compactMap { section in section.label.map { (section.entries[0].id, ($0, section.current)) } })
         VStack(spacing: 0) {
             HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass")
@@ -437,6 +449,8 @@ struct SwitcherPaletteView: View {
                     .font(.system(size: 16 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textPrimary))
                     .focused($searchFocused)
+                    .frame(minWidth: 180 * scale)
+                LensGroupingControl(model: model)
             }
             .padding(.horizontal, 14 * scale)
             .frame(height: 44 * scale)
@@ -456,23 +470,30 @@ struct SwitcherPaletteView: View {
                 ScrollView {
                     LazyVStack(spacing: layout.gap) {
                         ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
-                            TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
-                                     size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
-                                     settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
-                                     hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                            .id(item.id)
-                            .onContinuousHover { phase in
-                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                            VStack(spacing: 0) {
+                                if let (label, current) = sectionStarts[item.id] {
+                                    LensSectionHeader(label: label, current: current, scale: scale)
+                                        .frame(height: 32 * scale).padding(.horizontal, 12 * scale)
+                                }
+                                TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
+                                         size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
+                                         settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
+                                         hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                                .id(item.id)
+                                .onContinuousHover { phase in
+                                    if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                                }
+                                .onTapGesture {
+                                    model.hover(item.id)
+                                    if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
+                                }
                             }
-                            .onTapGesture {
-                                model.hover(item.id)
-                                if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
-                            }
+                            .padding(.top, sectionStarts[item.id] != nil && index > 0 ? 6 * scale : 0)
                         }
                     }
                     .padding(.horizontal, 20 * scale)
                 }
-                .onChange(of: model.selection) { newSelection in
+                .onChange(of: model.selection) { _, newSelection in
                     if results.indices.contains(newSelection) {
                         proxy.scrollTo(results[newSelection].id, anchor: nil)
                     }
@@ -597,5 +618,26 @@ private final class LensHostingView: NSHostingView<AnyView> {
         link.invalidate()
         firstFrameLink = nil
         onFirstFrame?(refresh)
+    }
+}
+
+extension SwitcherPaletteItem {
+    func sectionKey(_ grouping: String) -> String {
+        switch grouping {
+            case "workspace": workspaceIdentity ?? workspaceName
+            case "project": projectIdentity ?? projectName
+            case "monitor": monitorIdentity
+            case "app": appIdentity
+            default: ""
+        }
+    }
+    func sectionLabel(_ grouping: String) -> String {
+        switch grouping {
+            case "workspace": workspaceName
+            case "project": projectName
+            case "monitor": monitorName
+            case "app": appName
+            default: ""
+        }
     }
 }

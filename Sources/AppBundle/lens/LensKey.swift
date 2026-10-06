@@ -76,7 +76,7 @@ extension LensSession {
                     let selected = selectedId
                     changePresentation("list")
                     send(.searchChanged(text))
-                    if let selected { hover(selected) }
+                    if settings.sections == "none", let selected { hover(selected) }
                 } else {
                     guard hold != nil || retainTyping else { return false }
                     // What the session opened with is selected, so the first edit replaces it.

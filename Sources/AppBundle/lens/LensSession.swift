@@ -31,6 +31,7 @@ final class LensSession: ObservableObject {
         case summonChanged(Bool)
         case presentationChanged(String)
         case sectionsChanged(String)
+        case itemsRemoved(Set<UInt32>)
         case excludedChanged(Set<UInt32>)
         case dismissed
     }
@@ -69,6 +70,14 @@ final class LensSession: ObservableObject {
                 settings.sections = value
                 if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
                 objectWillChange.send()
+            case .itemsRemoved(let ids):
+                let before = results
+                let selected = selectedId
+                let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
+                removedIds.formUnion(ids)
+                if drawsSections, !query.isEmpty { selectBestResult() }
+                else { selection = results.firstIndex { $0.id == selected } ?? min(replacement, max(0, results.count - 1)) }
+                objectWillChange.send()
             case .excludedChanged(let ids):
                 miniatureExcludedIds = ids
                 selection = initialSelection()
@@ -95,7 +104,7 @@ final class LensSession: ObservableObject {
     var stripGesture: StripGesture?
     /// The modifiers held when the invoking ones were released before the session was ready.
     var stripReleasedWhileOpening: NSEvent.ModifierFlags?
-    var removedIds: Set<UInt32> = []
+    private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
 
     init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
@@ -135,7 +144,7 @@ final class LensSession: ObservableObject {
         let ranked = rankedResults
         let results = results
         guard settings.presentation == "miniatures", query.isEmpty else {
-            let id = ranked.indices.contains(ranked.count > 1 && ranked.first?.isFocused == true && query.isEmpty ? 1 : 0) ? ranked[ranked.count > 1 && ranked.first?.isFocused == true && query.isEmpty ? 1 : 0].id : nil
+            let id = ranked.indices.contains(ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0) ? ranked[ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0].id : nil
             return results.firstIndex { $0.id == id } ?? 0
         }
         return results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
@@ -160,11 +169,22 @@ final class LensSession: ObservableObject {
     }
     var visibleSectionValues: [String] { sectionCycle + (sectionCycle.contains(settings.sections) ? [] : [settings.sections]) }
     var sectionControlMinimumWidth: CGFloat { CGFloat(440 + visibleSectionValues.count * 68) * tileMetrics.scale }
-    var sectionsKey: String? { keyBindings.first { commands(for: $0.name) == ["sections next"] }?.name }
+    var sectionsKey: String? { keyBindings.first { commands(for: $0.name).contains { if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }; return false } }?.name }
     var activeKeyBindings: [LensKeyBinding] { keyBindings.filter { drawsSections || !isSectionsOnly($0.name) } }
     func isSectionsOnly(_ key: String) -> Bool {
         let commands = commands(for: key)
-        return !commands.isEmpty && commands.allSatisfy { if case .cmd(let command) = parseCommand($0) { return command.args is SectionsCmdArgs }; return false }
+        return Self.sectionsOnly(commands)
+    }
+    static func sectionsOnly(_ commands: [String]) -> Bool {
+        !commands.isEmpty && commands.allSatisfy {
+            if case .cmd(let command) = parseCommand($0) { return command.args is SectionsCmdArgs }
+            return false
+        }
+    }
+    static func openingBindings(_ settings: LensConfig) -> [LensKeyBinding] {
+        LensKeyBinding.resolve(settings.keys.filter { _, commands in
+            settings.presentation == "list" || settings.presentation == "grid" || !sectionsOnly(commands)
+        })
     }
     @discardableResult
     func performSectionsAction(_ key: String) -> Bool {

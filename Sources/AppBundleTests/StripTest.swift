@@ -66,8 +66,8 @@ final class StripLayoutTest: XCTestCase {
 @MainActor
 final class StripSessionTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
-    private func model(count: Int = 3) -> LensSession {
-        var settings = LensConfig(); settings.presentation = "strip"
+    private func model(count: Int = 3, sections: String = "workspace") -> LensSession {
+        var settings = LensConfig(); settings.presentation = "strip"; settings.sections = sections
         return LensSession(name: "recent", settings: settings, items: (0..<count).map { i in
             SwitcherPaletteItem(id: UInt32(i + 1), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: i == 0)
         }, search: "")
@@ -232,7 +232,7 @@ final class StripSessionTest: XCTestCase {
     }
 
     func testReleaseChoosesEnterBindingWithoutShiftAndLetterBindingWins() throws {
-        let model = model()
+        let model = model(sections: "none")
         model.beginStrip(StripGesture(keyCode: 48, invoking: [.command]))
         XCTAssertNil(model.stripReleaseKey(flags: [.command]))
         XCTAssertEqual(model.stripReleaseKey(flags: [.shift]), "enter")

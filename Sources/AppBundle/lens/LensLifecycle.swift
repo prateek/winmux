@@ -3,6 +3,10 @@ import Common
 
 @MainActor
 final class LensLifecycle {
+    enum PendingKey {
+        case meaning(LensKeyMeaning)
+        case key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, hold: StripGesture)
+    }
     struct Opening {
         let name: String
         let gesture: StripGesture?
@@ -10,7 +14,7 @@ final class LensLifecycle {
         var release: NSEvent.ModifierFlags?
         var prepared: LensSession?
         var keys: [LensKeyBinding] = []
-        var pending: [LensKeyMeaning] = []
+        var pending: [PendingKey] = []
     }
     enum State {
         case closed
@@ -147,9 +151,15 @@ final class LensLifecycle {
         return true
     }
 
-    private func replay(_ keys: [LensKeyMeaning], to model: LensSession) {
-        for meaning in keys {
+    private func replay(_ keys: [PendingKey], to model: LensSession) {
+        for key in keys {
             guard session === model else { return }
+            let meaning: LensKeyMeaning
+            switch key {
+                case .meaning(let queued): meaning = queued
+                case .key(let code, let characters, let flags, let hold):
+                    meaning = lensKeyMeaning(hold: hold, keys: model.activeKeyBindings, code: code, characters: characters, flags: flags)
+            }
             _ = model.perform(meaning, retainTyping: true)
         }
     }
@@ -278,7 +288,7 @@ final class LensLifecycle {
             guard opening.isStrip else { return nil }
             if let step = gesture.step(keyCode: keyCode, flags: flags) {
                 // After the release the selection is settled: the commit waits only for the session.
-                if opening.release == nil { opening.pending.append(.step(step)); state = .opening(opening) }
+                if opening.release == nil { opening.pending.append(.meaning(.step(step))); state = .opening(opening) }
                 return .consumed
             }
             return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
@@ -292,7 +302,7 @@ final class LensLifecycle {
         switch meaning {
             case .global, .fieldEditor: return .ignored
             case .dismiss: return .cancel
-            default: opening.pending.append(meaning)
+            default: opening.pending.append(.key(code: keyCode, characters: characters, flags: flags, hold: gesture))
         }
         state = .opening(opening)
         return .consumed
