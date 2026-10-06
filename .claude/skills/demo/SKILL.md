@@ -16,6 +16,8 @@ The viewer is a reviewer who has not read the issue. Every choice below serves o
 Read the pull request's diff and its issue's **Done when** list. Cut the work into claims: a Done-when item may split into several claims or share one. Write `$OUT/storyboard.md` in the format of [storyboard.md](storyboard.md).
 
 - A claim where something moves gets a demo.
+- A **Watch** that names a count gets it from running the query on the filming desk, not from a guess.
+- Choose windows by their minimum width. Safari will not go narrower than 574 points, so at 1280 by 720 it cannot be the window that lands in a quarter-width Column; Ghostty can.
 - A claim that is a static state gets a **still**.
 - A claim that is a command's output (JSON, an exit code, a `config check` result) gets a **transcript**: the command and its real output in a code block.
 - Order by story: one **hero** first, showing the feature doing its main job; then groups under plain headings (everyday use, configuration, when something fails, CLI), each opened by one sentence; then the table mapping every Done-when item to its demos.
@@ -42,6 +44,14 @@ Film on a 16:9 guest display, 1280 × 720. Push `keys.swift` and `film` into the
 
 `film` records the screen while `keys` presses the steps, starting 1.5 seconds in and logging each chord's time to `<id>.events.json`, so every take opens on a held starting state and the key chips land where the keys did. Leave two seconds of recording after the last step for the result. Park the pointer in the bottom-right corner first.
 
+- **`keys` steps** are `down:`, `up:`, `tap:`, `wait:` and `delay:`. Escape is `tap:escape` and Backspace is `tap:backspace`. It logs taps only, so a take of a modifier alone has an empty event log.
+- **Every take starts clean**: no Lens open (`winmux debug-lens-trace --last 1` shows no active session), the pointer parked, and the workspace and focus the storyboard names.
+- **A strip opened from the CLI with no modifier held commits at once.** Hold the modifier through `keys` for a strip; a list and a grid stay open.
+- **Wait for pictures.** A window just staged or opened draws as its app icon until its first capture lands.
+- **A take that types** is read back with `winmux debug-lens-trace`, which prints the keys and a `Session:` line (Search, selection, Presentation, Hold) under each opening.
+- **A claim about when the first frame appears** is filmed with `$SKILL/trace-film` and checked with `check-lens-film.py`, as `docs/lens-opening-traces.md` says. Film it first, before anything reboots or resizes the guest.
+- **The fourteen-window desk needs two runs in a fresh clone** until **The fourteen-window desk stages on its first run in a fresh guest** lands: the first exits on a Safari window that is not there yet. Run it again, close the one extra plain Ghostty terminal through the guest's `winmux` CLI, and accept only a desk that reads back fourteen windows. Do not edit the script in a demo pass.
+
 After each take, read back where WinMux ended (`winmux list-workspaces --focused`, `list-windows --focused`, `list-windows --all`) and compare it with the storyboard's **Watch**. A take can look right and be wrong: a window that slid behind another looks closed.
 
 Done when every demo in the storyboard has a take whose last frame shows the result its claim names, and an event log.
@@ -53,18 +63,20 @@ $SKILL/render <take> -o $OUT/demos/<id>.gif --title "<the claim in a few words>"
   --crop <x:y:w:h> --start <s> --end <s> --events <take>.events.json
 ```
 
+A `screencapture` take has a variable frame rate, and `render` seeking into one can give blank opening frames: make a constant-frame-rate copy first. At 1920 by 1080 a whole-screen GIF comes out at 960 by 604 and about 1 MB at the 15 fps render; crop to the panel where the claim allows it.
+
 Every demo is a card: the take with rounded corners on a dark gradient, the claim above it and the keys below. Crop when the subject is small in the frame. `render` refuses a demo over 8 seconds or 3 MB: a claim that needs longer is two claims, and one that needs more pixels wants a tighter crop.
 
 Done when every demo renders inside the budget.
 
 ## 5. Check every demo
 
-Read frames of each GIF at its start, at each key chip, and at its end. Check that the result is on screen and held, that the title and keys are legible, and that nothing shows a username, a home path, a machine name or a window that is not staged.
+Read frames of each GIF at its start, at each key chip, and at its end. Check that the result is on screen and held, that the title and keys are legible, and that nothing shows a username, a home path, a machine name, an IP address or a window that is not staged. The guest's own `admin` and `winmux-vm` are fine.
 
 Done when each demo passes the viewer test above from its caption and one loop alone.
 
 ## 6. Write the captions
 
-Above each demo in the pull request description, three short lines: the **claim**, the **setup** ("three windows on workspace 2, Columns at 3"), and what to **watch** ("the blue window lands in Column 3"). Attach the GIFs with `gh attach --repo prateek/winmux`.
+Above each demo in the pull request description, three short lines: the **claim**, the **setup** ("three windows on workspace 2, Columns at 3"), and what to **watch** ("the blue window lands in Column 3"). Attach the GIFs with `gh attach --repo prateek/winmux`; the flag is `--repo`, and `-R` is rejected. It uploads and prints the URLs, and posts nothing unless asked.
 
 Done when the description has the hero, the groups, each demo under its caption, and the Done-when table.
