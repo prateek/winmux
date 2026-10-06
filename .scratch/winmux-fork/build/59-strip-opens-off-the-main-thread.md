@@ -41,10 +41,10 @@ Nothing.
 
 ## Done when
 
-- [ ] A release build holds Cmd-Tab in a guest without crashing: ten holds past the delay, letters during a hold, Escape, and a quick tap, with no crash report and `winmux debug-lens-trace` reading back the openings.
+- [x] A release build holds Cmd-Tab in a guest without crashing: ten holds past the delay, letters during a hold, Escape, and a quick tap, with no crash report and `winmux debug-lens-trace` reading back the openings.
 - [x] `0.5.6-dogfood.12` is seen to crash the same way in the same guest, with the same frames as the report from Prateek's machine.
 - [x] The pull request says whether a unit test can catch it, and if none can, why.
-- [ ] `make check` passes on the host and in the guest.
+- [x] `make check` passes on the host and in the guest.
 - [ ] Prateek holds Cmd-Tab on the installed release that carries the fix.
 
 ## Sources
