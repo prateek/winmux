@@ -105,7 +105,13 @@ struct GridLayout {
                 let picture: CGSize
                 if sizing.readableHeight != nil && entry.accessory && entry.kind != .text {
                     let h = metrics.pictureHeight(rowHeight: height, accessory: true, actualSize: entry.accessoryActualSize, monitorHeightFraction: entry.monitorHeightFraction)
-                    box = CGSize(width: h * (tileSize == "equal" ? 1.5 : tileSize == "real" ? max(0.01, entry.aspect) : min(2.1, max(0.6, entry.aspect))), height: height)
+                    let aspect: CGFloat
+                    switch tileSize {
+                        case "equal": aspect = 1.5
+                        case "real": aspect = max(0.01, entry.aspect)
+                        default: aspect = min(2.1, max(0.6, entry.aspect))
+                    }
+                    box = CGSize(width: h * aspect, height: height)
                     picture = metrics.fittedPicture(aspect: entry.aspect, in: CGSize(width: box.width, height: h))
                 } else if tileSize == "real" {
                     let factor = min(1, height / max(1, visibleSize.height))

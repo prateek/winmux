@@ -54,11 +54,9 @@ final class StripGridLayoutTest: XCTestCase {
         let input = entries(9, kind: .picture)
         let width = CGFloat(9) * (1200 * floor / 1080 + 20) + 8 * 14 + 88
         for (delta, expected): (CGFloat, Int) in [(1, 1), (-1, 2)] {
-            let size = CGSize(width: (width + delta) / 0.9, height: 1080)
-            // Fix the scale by keeping the full 1920-wide monitor and varying side chrome.
             let sizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: floor, horizontalChrome: 1920 * 0.9 - width - delta + 88, top: 26, bottom: 66, minimumWidth: 418, emptyHeight: 92)
             let packed = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: monitor, tileSize: "real", sizing: sizing)
-            XCTAssertEqual(rows(packed), expected, "\(size)")
+            XCTAssertEqual(rows(packed), expected)
         }
         XCTAssertEqual(rows(layout(11)), 1)
         XCTAssertEqual(rows(layout(12)), 2)

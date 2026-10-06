@@ -41,8 +41,8 @@ struct StripView: View {
                     if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
                 }
                 .padding(.horizontal, 44 * scale)
-                .frame(width: layout.panelSize.width, height: 22 * scale + (model.banner == nil ? 0 : 18 * scale))
-                .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 33 * scale + (model.banner == nil ? 0 : 9 * scale))
+                .frame(width: layout.panelSize.width, height: 20 * scale + (model.banner == nil ? 0 : 18 * scale))
+                .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 32 * scale + (model.banner == nil ? 0 : 9 * scale))
             }
             .foregroundStyle(.white)
             .frame(width: layout.panelSize.width, height: layout.panelSize.height + (model.banner == nil ? 0 : 18 * scale))

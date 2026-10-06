@@ -43,6 +43,15 @@ final class StripSessionTest: XCTestCase {
             SwitcherPaletteItem(id: UInt32(i + 1), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: i == 0)
         }, search: "")
     }
+    func testEnlargedAccessoryPictureUsesLayoutSizeEvenForATinyWindow() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let entry = TileEntry(title: "Utility", appName: "Utility", aspect: 1.5, realSize: CGSize(width: 30, height: 20), accessory: true)
+        let size = CGSize(width: 285, height: 190)
+        let view = TileView(entry: entry, kind: .picture, presentation: "strip", metrics: TileMetrics(scale: 1), size: size,
+                            settings: settings, selected: true, marked: false, hint: nil, pictureSize: size)
+        XCTAssertEqual(view.fittedPicture(in: size), size)
+    }
+
     func testLayoutDoesNotChangeWhileSteppingHoveringOrHoldingSummon() {
         let session = model(count: 14)
         session.miniatureSize = CGSize(width: 1920, height: 1080)
