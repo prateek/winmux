@@ -5,7 +5,7 @@ description: Give a debug WinMux a desktop of its own, a Tart guest driven over 
 
 # VM
 
-A debug WinMux re-tiles whatever desktop it runs on. The **guest** is that desktop: a clone of the **golden image**, with nothing on screen but what you put there. You stay on the host and drive it with `$SKILL/vm`, where `$SKILL` is this directory, and with nothing else: not `tart exec`, and not Tart's guest agent, which raises a Screen Recording prompt of its own. Do not edit `$SKILL/vm` while a `vm` command is running from it; bash reads a script as it runs. The guest holds no credential: git, `gh` and every sign-in stay on the host.
+A debug WinMux re-tiles whatever desktop it runs on. The **guest** is that desktop: a clone of the **golden image**, with nothing on screen but what you put there. You stay on the host and drive it with `$SKILL/vm`, where `$SKILL` is this directory, and with nothing else of your own: no `tart exec` and no screenshot through Tart's guest agent, which raises a Screen Recording prompt of its own. Do not edit `$SKILL/vm` while a `vm` command is running from it; bash reads a script as it runs. The guest holds no credential: git, `gh` and every sign-in stay on the host.
 
 ## 1. Bring a guest up
 
@@ -36,7 +36,7 @@ Done when `~/winmux/.build/debug/WinMuxApp` and `~/winmux/.build/debug/winmux` e
 `$SKILL/vm ssh <name> '<command>'` runs anything in the guest's desktop session. Start long-lived apps with `nohup … &`. `/opt/homebrew/bin` is not on the ssh `PATH`: `cliclick` and `brew` need `export PATH=/opt/homebrew/bin:$PATH` inside the command.
 
 - **WinMux:** `.build/debug/WinMuxApp` with `XDG_CONFIG_HOME` and `XDG_STATE_HOME` set to directories under `~/demo`, and `WINMUX_NICKEL_HELPER` set to `~/winmux/nickel-helper/target/release/winmux-nickel`. Talk to it with `.build/debug/winmux`; the release CLI cannot reach a debug build.
-- **Keys and pointer:** `cliclick`, with a whole chord sequence in one invocation: `cliclick kd:cmd kp:tab w:1000 kp:tab ku:cmd`. A key sent by a second invocation arrives without the held modifier. Return needs a wait after it, `kp:return w:300`, or presses are lost. `cliclick` cannot type letters or a backtick, and adds 100 ms of its own between actions.
+- **Keys and pointer:** `cliclick`, with a whole chord sequence in one invocation: `cliclick kd:cmd kp:tab w:1000 kp:tab ku:cmd`. A key sent by a second invocation arrives without the held modifier. Return needs a wait after it, `kp:return w:300`, or presses are lost. `kp:` presses named keys only, so it has no letter and no backtick; use the `demo` skill's `keys` for those. `cliclick` adds 100 ms of its own between actions.
 - **Recording:** `screencapture -x -v -V <seconds> ~/takes/<take>.mov`. It will not overwrite a file, so remove an old take first or it passes for the new one, and it records at a variable frame rate. 1920 by 1080 films without stutter at the default size.
 - **Long sessions.** After about two hours and several hundred captures a guest has shown "… is requesting to bypass the system private window picker", for `sshd-session` and for `WinMuxApp`. Do not grant it; film a long pass in a fresh clone. **A long guest session raises the private-picker prompt** is the issue.
 - **Park the pointer bottom-right.** WinMux's sidebar expands under a pointer at the left edge.

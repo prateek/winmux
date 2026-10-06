@@ -16,7 +16,7 @@ The viewer is a reviewer who has not read the issue. Every choice below serves o
 Read the pull request's diff and its issue's **Done when** list. Cut the work into claims: a Done-when item may split into several claims or share one. Write `$OUT/storyboard.md` in the format of [storyboard.md](storyboard.md).
 
 - A claim where something moves gets a demo.
-- A **Watch** that names a count gets it from running the query on the filming desk, not from a guess.
+- A **Watch** that names a count gets it from a run of the query on the same desk, not from a guess: in the relay, the match counts the first pass wrote in `captures/index.md`.
 - Choose windows by their minimum width. Safari will not go narrower than 574 points, so at 1280 by 720 it cannot be the window that lands in a quarter-width Column; Ghostty can.
 - A claim that is a static state gets a **still**.
 - A claim that is a command's output (JSON, an exit code, a `config check` result) gets a **transcript**: the command and its real output in a code block.

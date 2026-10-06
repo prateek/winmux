@@ -24,6 +24,7 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 
 **Release a dogfood build on every land**
 - [ ] `brew upgrade --cask winmux` on the daily machine keeps the Accessibility and Screen Recording grants. It did in a guest with SIP off, by `brew upgrade` and by Sparkle.
+- [ ] After that upgrade WinMux does not ask to "bypass the system private window picker". It asked once in a guest, on one version of three.
 
 ## From the first build
 

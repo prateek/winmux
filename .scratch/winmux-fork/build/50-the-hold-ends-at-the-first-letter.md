@@ -23,7 +23,8 @@ The first letter typed during a Hold ends the Hold. The Lens stays open and the 
   5. A key with a modifier that is not the Hold's is not the Lens's. Unchanged.
 - **After the Hold, modifiers mean themselves**, including while the Trigger's modifiers are still physically down. Command-V pastes into Search, Command-A selects all, and a chord the Lens binds runs. No letter is typed by a Command chord.
 - **One session, one Hold.** It ends at the release or at the first unbound letter, whichever comes first, and does not start again.
-- **A Lens is modal from the start** when it has no Hold (the CLI, a key with no modifier) or when its `on-release` is `'stay`. `on-release` is the only way to choose; there is no key that keeps a committing Lens open. That setting is **Staying open on release, and light and dark**.
+- **A Lens with no Hold is unchanged.** Opened by the CLI or by a key with no modifier, it has nothing to end: a list or a grid stays open and takes letters as Search, and a strip opened with no modifier held still commits at once.
+- **`on-release` is the only way to choose a modal Lens.** There is no key that keeps a committing Lens open. That setting is **Staying open on release, and light and dark**.
 - **A remembered Search** is still replaced by the letter that ends the Hold.
 - **`CONTEXT.md` and `docs/lenses.md`** say this. The glossary entry for **Hold** is changed by the pull request that drafts this issue.
 
@@ -61,6 +62,7 @@ The first letter typed during a Hold ends the Hold. The Lens stays open and the 
 - [ ] The same holds for a grid and a list opened by a chord with modifiers, and for an Option Hold.
 - [ ] A Lens with no Hold reads keys as before.
 - [ ] The key record in `winmux debug-lens-trace` shows the Hold ending at the letter.
+- [ ] `docs/lenses.md` describes the Hold as built, and agrees with `CONTEXT.md`.
 
 ## Sources
 

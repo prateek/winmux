@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-The golden image writes a ScreenCaptureKit approvals file (`guest/grant.sh`) so that recording over ssh never asks. In a long session it asks anyway: macOS shows "bypass the system private window picker" and waits for a click. It has appeared three times.
+The golden image writes a ScreenCaptureKit approvals file (`.claude/skills/vm/guest/grant.sh`) so that recording over ssh never asks. In a long session it asks anyway: macOS shows "bypass the system private window picker" and waits for a click. It has appeared three times.
 
 - For `com.apple.sshd-session`, in a builder's guest after a reboot and several hundred captures.
 - For `WinMuxApp`, a debug build, at the end of a two-hour guest session.

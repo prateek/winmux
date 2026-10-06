@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-`demo/desk/stage-rich.sh` stages the desk every Lens issue films. In a fresh clone of the golden image its first run exits 1 with "no Safari window titled Lenses", and its second run passes. Three more things follow it around, and each driver hands them to the next by hand:
+`.claude/skills/demo/desk/stage-rich.sh` stages the desk every Lens issue films. In a fresh clone of the golden image its first run exits 1 with "no Safari window titled Lenses", and its second run passes. Three more things follow it around, and each driver hands them to the next by hand:
 
 - The second run leaves one extra plain Ghostty terminal, which the driver closes through the guest CLI.
 - A fresh guest's Notes sometimes stays on its empty screen until `open -a Notes`, a wait and a restaging.
