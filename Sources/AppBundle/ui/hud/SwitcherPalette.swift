@@ -493,11 +493,10 @@ struct SwitcherPaletteView: View {
                     }
                     .padding(.horizontal, 20 * scale)
                 }
-                .onChange(of: model.selection) { _, newSelection in
-                    if results.indices.contains(newSelection) {
-                        proxy.scrollTo(results[newSelection].id, anchor: nil)
-                    }
-                }
+                .onAppear { scrollSelection(proxy) }
+                .onChange(of: model.selection) { _, _ in scrollSelection(proxy) }
+                .onChange(of: model.settings.sections) { _, _ in scrollSelection(proxy) }
+                .onChange(of: results.map(\.id)) { _, _ in scrollSelection(proxy) }
             }
             .frame(height: layout.rowsHeight)
             .padding(.bottom, 20 * scale - StrokeToken.hairline)
@@ -517,6 +516,11 @@ struct SwitcherPaletteView: View {
         .clipShape(RoundedRectangle(cornerRadius: layout.radius, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { searchFocused = true }
+    }
+
+    private func scrollSelection(_ proxy: ScrollViewProxy) {
+        let results = model.results
+        if results.indices.contains(model.selection) { proxy.scrollTo(results[model.selection].id, anchor: nil) }
     }
 }
 

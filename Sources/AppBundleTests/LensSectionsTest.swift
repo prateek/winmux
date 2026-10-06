@@ -50,7 +50,7 @@ extension LensSectionsTest {
             for counts in [[4, 1, 5, 2], [2, 3, 1], [1, 1, 1, 1, 1], [8, 5, 6]] {
                 let sections = counts.enumerated().map { section, count in
                     GridLayout.Section(label: "Section \(section)", current: section == 0, entries: (0..<count).map { index in
-                        .init(aspect: [2.4, 0.6, 1.3][index % 3], realSize: CGSize(width: [1800, 450, 1000][index % 3], height: 900), kind: .card)
+                        .init(aspect: [2.4, 0.6, 1.3][index % 3], realSize: CGSize(width: [1800, 450, 1000][index % 3], height: [900, 1800, 500][(index + section) % 3]), kind: .card)
                     })
                 }
                 let layout = GridLayout(sections: sections, visibleSize: CGSize(width: 1920, height: 1080), tileSize: "real", arrangement: arrangement)
@@ -123,5 +123,18 @@ extension LensSectionsTest {
     func testAppIdentityGroupsMultipleProcessesOfOneBundleButKeepsAnonymousAppsDistinct() {
         XCTAssertEqual(lensAppIdentity(bundleId: "org.ghostty", pid: 1), lensAppIdentity(bundleId: "org.ghostty", pid: 2))
         XCTAssertNotEqual(lensAppIdentity(bundleId: "", pid: 1), lensAppIdentity(bundleId: "", pid: 2))
+    }
+}
+
+extension LensSectionsTest {
+    func testNoneKeepsIndividualHeightsForOversizedRealWindows() {
+        let layout = GridLayout(entries: [
+            .init(aspect: 0.625, realSize: CGSize(width: 1000, height: 1600), kind: .card),
+            .init(aspect: 1, realSize: CGSize(width: 1000, height: 900), kind: .card),
+        ], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "real")
+        XCTAssertEqual(layout.rowHeight, 330)
+        XCTAssertEqual(layout.tiles[0].frame.height, 1600 * 330 / 1080 + 56, accuracy: 0.001)
+        XCTAssertEqual(layout.tiles[1].frame.height, 386)
+        XCTAssertTrue(layout.headers.isEmpty)
     }
 }

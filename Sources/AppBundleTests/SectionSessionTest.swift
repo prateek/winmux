@@ -19,6 +19,9 @@ final class SectionSessionTest: XCTestCase {
         XCTAssertEqual(model.results.map(\.id), [3, 2])
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertEqual(model.targets(for: "enter"), [2])
+        model.hover(3)
+        model.removeStripItems([1])
+        XCTAssertEqual(model.selectedId, 2)
         model.send(.searchChanged("= true"))
         model.acceptInlineResult([2, 3])
         XCTAssertEqual(model.selectedId, 2)
@@ -54,6 +57,7 @@ final class SectionSessionTest: XCTestCase {
             let model = LensSession(name: "demo", settings: settings, items: items(), search: "")
             model.startHold(StripGesture(keyCode: 48, invoking: .command))
             if presentation == "strip" {
+                XCTAssertEqual(model.meaning(for: key(5, "g")), .text("g"))
                 for event in [key(5, "g"), key(4, "h")] { _ = model.perform(model.meaning(for: event)) }
                 XCTAssertEqual(model.query, "gh")
                 XCTAssertEqual(model.settings.presentation, "list")
@@ -62,7 +66,10 @@ final class SectionSessionTest: XCTestCase {
             }
             let query = model.query
             if presentation == "miniatures" { model.changeSections("next") }
-            else { _ = model.perform(model.meaning(for: key(5, "g"))) }
+            else {
+                XCTAssertEqual(lensKeyMeaning(hold: model.hold, keys: model.activeKeyBindings, code: 5, characters: "g", flags: .command), .command("cmd-g"))
+                _ = model.perform(model.meaning(for: key(5, "g")))
+            }
             XCTAssertEqual(model.query, query)
             XCTAssertEqual(model.settings.sections, presentation == "miniatures" ? "workspace" : "app")
             model.endHold(flags: [])

@@ -144,8 +144,9 @@ final class LensSession: ObservableObject {
         let ranked = rankedResults
         let results = results
         guard settings.presentation == "miniatures", query.isEmpty else {
-            let id = ranked.indices.contains(ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0) ? ranked[ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0].id : nil
-            return results.firstIndex { $0.id == id } ?? 0
+            let index = ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0
+            guard ranked.indices.contains(index) else { return 0 }
+            return results.firstIndex { $0.id == ranked[index].id } ?? 0
         }
         return results.enumerated().filter { !$0.element.isFocused }.max { lhs, rhs in
             lhs.element.lastFocusedSeq == rhs.element.lastFocusedSeq ? lhs.offset > rhs.offset : lhs.element.lastFocusedSeq < rhs.element.lastFocusedSeq
@@ -169,7 +170,14 @@ final class LensSession: ObservableObject {
     }
     var visibleSectionValues: [String] { sectionCycle + (sectionCycle.contains(settings.sections) ? [] : [settings.sections]) }
     var sectionControlMinimumWidth: CGFloat { CGFloat(440 + visibleSectionValues.count * 68) * tileMetrics.scale }
-    var sectionsKey: String? { keyBindings.first { commands(for: $0.name).contains { if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }; return false } }?.name }
+    var sectionsKey: String? {
+        keyBindings.first { binding in
+            commands(for: binding.name).contains {
+                if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }
+                return false
+            }
+        }?.name
+    }
     var activeKeyBindings: [LensKeyBinding] { keyBindings.filter { drawsSections || !isSectionsOnly($0.name) } }
     func isSectionsOnly(_ key: String) -> Bool {
         let commands = commands(for: key)

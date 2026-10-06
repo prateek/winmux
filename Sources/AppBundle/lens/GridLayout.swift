@@ -86,6 +86,9 @@ struct GridLayout {
                 rowWidths[row] = x + width
             }
             if labelled {
+                // Labelled columns share row tops, including windows taller than this monitor.
+                let slotHeight = sizes.map(\.frame.height).max() ?? 0
+                sizes = sizes.map { Tile(frame: CGRect(x: 0, y: 0, width: $0.frame.width, height: slotHeight), pictureSize: $0.pictureSize) }
                 let hd = 34 * chrome
                 var result = Plan()
                 let counts = sections.map { $0.entries.count }

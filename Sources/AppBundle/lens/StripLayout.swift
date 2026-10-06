@@ -137,7 +137,14 @@ extension LensSession {
         StripSnapshot(items: results, selection: selection, size: miniatureSize, kind: tileKind, settings: settings)
     }
     var listLayout: ListLayout { listLayout(count: results.count) }
-    func listLayout(count: Int) -> ListLayout { ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: sections.enumerated().compactMap { index, section in section.label == nil ? nil : sections.prefix(index).reduce(0) { $0 + $1.entries.count } }, minimumWidth: sectionControlMinimumWidth) }
+    func listLayout(count: Int) -> ListLayout {
+        var starts: [Int] = [], offset = 0
+        for section in sections {
+            if section.label != nil { starts.append(offset) }
+            offset += section.entries.count
+        }
+        return ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: starts, minimumWidth: sectionControlMinimumWidth)
+    }
     func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
         guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
         return item.miniature?.workspace != current.name
