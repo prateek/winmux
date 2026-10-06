@@ -34,7 +34,7 @@ Every strip, Cmd-Tab included, shows every window using `GridLayout`. Tiles grow
 - [x] A strip with fourteen windows shows all fourteen, with no "+N".
 - [x] Hold, step, reverse with shift, release to commit and Escape behave as before, checked in a guest with the `keys` driver.
 - [x] A quick tap that never draws still emits no Lens events.
-- [ ] The pull request shows the strip at three, nine and fourteen windows.
+- [x] The pull request shows the strip at three, nine and fourteen windows.
 
 ## Built behavior
 
