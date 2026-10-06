@@ -61,14 +61,14 @@ func lensKeyMeaning(hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
 
 extension LensSession {
     func meaning(for event: NSEvent) -> LensKeyMeaning {
-        lensKeyMeaning(hold: hold, keys: keyBindings, code: event.keyCode,
+        lensKeyMeaning(hold: hold, keys: activeKeyBindings, code: event.keyCode,
                        characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags)
     }
 
     @discardableResult
     func perform(_ meaning: LensKeyMeaning, retainTyping: Bool = false) -> Bool {
         switch meaning {
-            case .command(let key): onAction?(key)
+            case .command(let key): if !performSectionsAction(key) { onAction?(key) }
             case .step(let delta): cycleStripSelection(delta)
             case .text(let text):
                 if settings.presentation == "strip" {

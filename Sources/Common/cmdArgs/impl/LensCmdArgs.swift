@@ -5,6 +5,7 @@ public struct LensCmdArgs: CmdArgs {
     public var search: String?
     public var presentation: String?
     public var tile: String?
+    public var sections: String?
     public var sort: String?
     public static let parser: CmdParser<Self> = .init(
         kind: .lens, allowInConfig: true,
@@ -12,6 +13,7 @@ public struct LensCmdArgs: CmdArgs {
         flags: ["--filter": filterBodySubArgParser(\.filter),
                 "--search": singleValueSubArgParser(\.search, "<text>") { $0 },
                 "--presentation": singleValueSubArgParser(\.presentation, "<presentation>") { $0 },
+                "--sections": singleValueSubArgParser(\.sections, "<grouping>") { $0 },
                 "--tile": singleValueSubArgParser(\.tile, "<kind>") { $0 },
                 "--sort": singleValueSubArgParser(\.sort, "<sort-keys>") { $0 }],
         posArgs: [ArgParser(\.name, upcastArgParserFun(consumeStrCliArg))]
@@ -35,6 +37,9 @@ func parseLensCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LensCmdArgs> {
         .filter("--tile requires a Lens name or --filter") { $0.tile == nil || $0.name != nil || $0.filter != nil }
         .filter("Possible --tile kinds: card, picture, text") { $0.tile == nil || ["card", "picture", "text"].contains($0.tile!) }
         .filter("--tile is not allowed with miniatures") { $0.tile == nil || $0.presentation != "miniatures" }
+        .filter("--sections requires a Lens name or --filter") { $0.sections == nil || $0.name != nil || $0.filter != nil }
+        .filter("Possible --sections values: none, workspace, project, monitor, app") { $0.sections == nil || ["none", "workspace", "project", "monitor", "app"].contains($0.sections!) }
+        .filter("--sections is not allowed with miniatures") { $0.sections == nil || $0.presentation != "miniatures" }
         .filter("Unknown sort key") { $0.sort == nil || $0.sort!.split(separator: ",", omittingEmptySubsequences: false).allSatisfy { ["mru", "previous", "spatial", "workspace", "app", "title", "created"].contains(String($0)) } }
         .filter("--search requires a Lens name or --filter") { $0.search == nil || $0.name != nil || $0.filter != nil }
 }

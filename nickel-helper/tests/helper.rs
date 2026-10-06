@@ -1077,7 +1077,7 @@ fn grid_contract_loads_modes_profiles_and_ignored_settings() {
     }
     let value = evaluate_to_json("let W = import \"winmux/winmux.ncl\" in { lenses.demo = { presentation = 'grid, tile = 'text, entries = 'app, sections = 'workspace } } | W.Config", &library()).unwrap();
     assert_eq!(value["lenses"]["demo"]["grid"]["tile-size"], "real");
-    for body in ["grid.tile-size = 'huge", "when.default.grid.tile-size = 'huge", "grid.sections-arrangement = 'flow"] {
+    for body in ["grid.tile-size = 'huge", "when.default.grid.tile-size = 'huge", "grid.sections-arrangement = 'spiral"] {
         let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
         let error = evaluate_to_json(&source, &library()).unwrap_err();
         assert!(error.contains("tile-size") || error.contains("sections-arrangement"), "{error}");
@@ -1097,4 +1097,14 @@ fn grid_load_and_check_use_the_real_helper_contract() {
     let invalid = run_helper(&["check", &fixture("grid-invalid.ncl")]);
     assert_eq!(invalid.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("tile-size"));
+}
+
+#[test]
+fn sections_arrangements_and_grouping_key_load_through_helper() {
+    for arrangement in ["flow", "rows", "columns"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ grid.sections-arrangement = '{arrangement}, when.default.grid.sections-arrangement = 'rows }} }} | W.Config");
+        let value = evaluate_to_json(&source, &library()).unwrap();
+        assert_eq!(value["lenses"]["demo"]["grid"]["sections-arrangement"], arrangement);
+        assert_eq!(value["lenses"]["demo"]["keys"]["cmd-g"], "sections next");
+    }
 }

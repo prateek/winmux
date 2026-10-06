@@ -43,20 +43,7 @@ struct StripView: View {
                 .overlay(alignment: .trailing) {
                     if layout.after > 0 { Text("+\(layout.after)").offset(x: 32 * model.tileMetrics.scale) }
                 }
-                if items.indices.contains(model.selection) {
-                    let selected = items[model.selection]
-                    HStack(spacing: model.tileMetrics.gap) {
-                        Text(selected.tile.displayTitle).fontWeight(.semibold).foregroundStyle(.white).lineLimit(1)
-                        if model.tileKind == .picture {
-                            TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
-                        }
-                        Text((selected.tile.footerAppName.map { "· \($0) " } ?? "") + "· \(model.selection + 1) of \(items.count)")
-                            .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
-                    }
-                    .font(.system(size: 15 * model.tileMetrics.scale))
-                } else {
-                    Text("No windows").font(.system(size: 15 * model.tileMetrics.scale))
-                }
+                LensSelectionFooter(model: model, items: items)
                 if let banner = model.banner { Text(banner).font(.caption).foregroundStyle(.orange) }
             }
             .padding(.horizontal, 44 * model.tileMetrics.scale)

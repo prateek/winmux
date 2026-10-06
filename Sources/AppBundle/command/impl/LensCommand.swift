@@ -24,6 +24,10 @@ struct LensCommand: Command {
             settings = lens
         } else { settings = LensConfig() }
         if let presentation = args.presentation { settings.presentation = presentation }
+        if let sections = args.sections {
+            guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--sections is not allowed with miniatures") }
+            settings.sections = sections
+        }
         if let tile = args.tile {
             guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--tile is not allowed with miniatures") }
             settings.tile = tile
@@ -44,7 +48,7 @@ struct LensCommand: Command {
         trace.startInterval("windows collected")
         guard let ticket = panel.beginLens(name, toggle: args.name != nil,
                                           strip: settings.presentation == "strip" ? invocation : nil,
-                                          trace: trace, keys: LensKeyBinding.resolve(settings.keys), invocation: lensInvocation) else {
+                                          trace: trace, keys: LensSession.openingBindings(settings), invocation: lensInvocation) else {
             LensTraceStore.shared.discard(trace)
             return true
         }

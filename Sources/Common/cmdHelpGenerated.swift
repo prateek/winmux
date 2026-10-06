@@ -189,7 +189,7 @@ let workspace_help_generated = """
     """
 
 let lens_help_generated = """
-    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures|grid] [--tile card|picture|text]
+    USAGE: lens <name> [--search <text>] [--presentation list|strip|miniatures|grid] [--tile card|picture|text] [--sections none|workspace|project|monitor|app]
            lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
            lens --presentation list
 
@@ -201,6 +201,8 @@ let lens_help_generated = """
     """
 
 let list_lenses_help_generated = "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile."
+
+let sections_help_generated = "USAGE: sections (next|none|workspace|project|monitor|app)\nChange the open Lens grouping without closing it."
 
 let summon_help_generated = "USAGE: summon [--window-id <id>]\nMove a window to the current workspace and focus it."
 

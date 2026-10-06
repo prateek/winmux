@@ -28,25 +28,22 @@ struct GridView: View {
                         if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                     }
             }
+            ForEach(Array(layout.headers.enumerated()), id: \.offset) { _, header in
+                LensSectionHeader(label: header.label, current: header.current, scale: layout.tileScale)
+                    .frame(width: header.frame.width, height: header.frame.height)
+                    .position(x: header.frame.midX, y: header.frame.midY)
+            }
             HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.62))
                 TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
                     .textFieldStyle(.plain).focused($searchFocused)
+                    .frame(minWidth: 180 * scale)
+                LensGroupingControl(model: model)
             }
             .font(.system(size: 16 * scale)).padding(.horizontal, 28 * scale)
             .frame(width: layout.panelSize.width, height: 36 * scale)
             VStack(spacing: 3 * scale) {
-                if items.indices.contains(model.selection) {
-                    let selected = items[model.selection]
-                    HStack(spacing: 8 * scale) {
-                        Text(selected.tile.displayTitle).fontWeight(.semibold).lineLimit(1)
-                        if model.tileKind == .picture {
-                            TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
-                        }
-                        Text((selected.tile.footerAppName.map { "· \($0) " } ?? "") + "· \(model.selection + 1) of \(items.count)")
-                            .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
-                    }
-                } else { Text("No windows") }
+                LensSelectionFooter(model: model, items: items)
                 if let error = model.searchError ?? model.banner {
                     Text(error.components(separatedBy: .newlines).first ?? error).font(.system(size: 11 * scale)).foregroundStyle(.orange).lineLimit(1)
                 }

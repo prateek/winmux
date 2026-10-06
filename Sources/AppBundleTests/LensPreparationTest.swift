@@ -78,3 +78,21 @@ final class LensPreparationTest: XCTestCase {
         XCTAssertEqual(rendered, [])
     }
 }
+
+
+extension LensPreparationTest {
+    func testNeutralPreparationWarmsHeadersAndGroupingControlWithoutWindows() {
+        for presentation in ["list", "grid"] {
+            let model = LensStartupPreparation.model(presentation: presentation, size: CGSize(width: 1920, height: 1080), existingItems: [])
+            XCTAssertEqual(model.sections.count, 1)
+            XCTAssertTrue(model.sections[0].current)
+            XCTAssertEqual(model.visibleSectionValues, ["none", "workspace", "app"])
+            XCTAssertEqual(model.sectionsKey, "cmd-g")
+            XCTAssertNil(model.owner)
+            if presentation == "grid" {
+                XCTAssertEqual(model.gridLayout.headers.count, 1)
+                XCTAssertGreaterThanOrEqual(model.gridLayout.panelSize.width, model.sectionControlMinimumWidth)
+            } else { XCTAssertEqual(model.listLayout.rowOffsets[0], 32) }
+        }
+    }
+}
