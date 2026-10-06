@@ -50,6 +50,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case split
     case stackWith = "stack-with"
     case subscribe
+    case sections
     case summon
     case summonWorkspace = "summon-workspace"
     case swap
@@ -106,6 +107,7 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseLayoutCmdArgs)
             case .lens: result[kind.rawValue] = SubCommandParser(parseLensCmdArgs)
             case .listLenses: result[kind.rawValue] = SubCommandParser(ListLensesCmdArgs.init)
+            case .sections: result[kind.rawValue] = SubCommandParser(SectionsCmdArgs.init)
             case .summon: result[kind.rawValue] = SubCommandParser(SummonCmdArgs.init)
             case .listApps:
                 result[kind.rawValue] = SubCommandParser(parseListAppsCmdArgs)

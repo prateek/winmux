@@ -16,7 +16,7 @@ struct LensConfig: Equatable, Sendable {
     var grid = GridConfig()
     var enabled = true
     var keys: [String: [String]] = {
-        var keys = ["enter": ["focus"], "shift-enter": ["summon"], "alt-enter": ["summon"], "cmd-w": ["close"]]
+        var keys = ["enter": ["focus"], "shift-enter": ["summon"], "alt-enter": ["summon"], "cmd-w": ["close"], "cmd-g": ["sections next"]]
         for n in 1 ... 9 { keys["cmd-\(n)"] = ["move-node-to-workspace \(n)"] }
         return keys
     }()
@@ -94,6 +94,10 @@ struct MiniaturesConfig: Equatable, Sendable {
 
 struct GridConfig: Equatable, Sendable {
     var tileSize = "real"
-    mutating func apply(_ value: JSONValue) { tileSize = value["tile-size"]?.stringOrNil ?? tileSize }
-    var json: JSONValue { .object(["tile-size": .string(tileSize)]) }
+    var sectionsArrangement = "flow"
+    mutating func apply(_ value: JSONValue) {
+        tileSize = value["tile-size"]?.stringOrNil ?? tileSize
+        sectionsArrangement = value["sections-arrangement"]?.stringOrNil ?? sectionsArrangement
+    }
+    var json: JSONValue { .object(["tile-size": .string(tileSize), "sections-arrangement": .string(sectionsArrangement)]) }
 }

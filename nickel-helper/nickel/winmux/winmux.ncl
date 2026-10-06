@@ -90,8 +90,9 @@ let MiniatureRules = std.contract.from_validator (fun lens =>
 ) in
 let GridFields = {
   tile-size | Choice [| 'real, 'same-height, 'equal |] | optional,
+  sections-arrangement | Choice [| 'flow, 'rows, 'columns |] | optional,
 } in
-let Grid = GridFields & { tile-size | default = 'real } in
+let Grid = GridFields & { tile-size | default = 'real, sections-arrangement | default = 'flow } in
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | Choice [| 'list, 'strip, 'miniatures, 'grid |] | optional,
@@ -120,6 +121,7 @@ let LensDefaults = LensFields & {
     shift-enter | default = "summon",
     alt-enter | default = "summon",
     cmd-w | default = "close",
+    cmd-g | default = "sections next",
     cmd-1 | default = "move-node-to-workspace 1",
     cmd-2 | default = "move-node-to-workspace 2",
     cmd-3 | default = "move-node-to-workspace 3",

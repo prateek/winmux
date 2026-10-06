@@ -45,6 +45,7 @@ extension CmdArgs {
             case let args as OpenSidebarCmdArgs: OpenSidebarCommand(args: args)
             case let args as LensCmdArgs: LensCommand(args: args)
             case let args as ListLensesCmdArgs: ListLensesCommand(args: args)
+            case let args as SectionsCmdArgs: SectionsCommand(args: args)
             case let args as SummonCmdArgs: SummonCommand(args: args)
             case let args as PaletteCmdArgs: PaletteCommand(args: args)
             case let args as ProjectCmdArgs: ProjectCommand(args: args)

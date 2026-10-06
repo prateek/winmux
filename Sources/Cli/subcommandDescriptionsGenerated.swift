@@ -27,6 +27,7 @@ let subcommandDescriptions = [
     ["  join-with", "Put the focused window and the nearest node in the specified direction under a common parent container"],
     ["  lens", "Open a Lens (list|strip|miniatures|grid); --tile card|picture|text overrides its Tile"],
     ["  list-lenses", "Print resolved Lens settings"],
+    ["  sections", "Change the open Lens grouping without closing it"],
     ["  summon", "Move a window to the current workspace and focus it"],
     ["  layout", "Change layout of the focused window to the given layout"],
     ["  list-apps", "Print the list of running applications that appears in the Dock and may have a user interface"],

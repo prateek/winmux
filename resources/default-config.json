@@ -40,6 +40,7 @@
       "filter": "lenses.app-windows.filter",
       "frozen-thumbnail": "dimmed",
       "grid": {
+        "sections-arrangement": "flow",
         "tile-size": "real"
       },
       "keys": {
@@ -53,6 +54,7 @@
         "cmd-7": "move-node-to-workspace 7",
         "cmd-8": "move-node-to-workspace 8",
         "cmd-9": "move-node-to-workspace 9",
+        "cmd-g": "sections next",
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"
@@ -85,6 +87,7 @@
       "filter": "lenses.floating.filter",
       "frozen-thumbnail": "dimmed",
       "grid": {
+        "sections-arrangement": "flow",
         "tile-size": "real"
       },
       "keys": {
@@ -98,6 +101,7 @@
         "cmd-7": "move-node-to-workspace 7",
         "cmd-8": "move-node-to-workspace 8",
         "cmd-9": "move-node-to-workspace 9",
+        "cmd-g": "sections next",
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"
@@ -129,6 +133,7 @@
       "entries": "window",
       "frozen-thumbnail": "dimmed",
       "grid": {
+        "sections-arrangement": "flow",
         "tile-size": "real"
       },
       "keys": {
@@ -142,6 +147,7 @@
         "cmd-7": "move-node-to-workspace 7",
         "cmd-8": "move-node-to-workspace 8",
         "cmd-9": "move-node-to-workspace 9",
+        "cmd-g": "sections next",
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"
@@ -173,6 +179,7 @@
       "entries": "window",
       "frozen-thumbnail": "dimmed",
       "grid": {
+        "sections-arrangement": "flow",
         "tile-size": "real"
       },
       "keys": {
@@ -186,6 +193,7 @@
         "cmd-7": "move-node-to-workspace 7",
         "cmd-8": "move-node-to-workspace 8",
         "cmd-9": "move-node-to-workspace 9",
+        "cmd-g": "sections next",
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"
@@ -217,6 +225,7 @@
       "entries": "window",
       "frozen-thumbnail": "dimmed",
       "grid": {
+        "sections-arrangement": "flow",
         "tile-size": "real"
       },
       "keys": {
@@ -230,6 +239,7 @@
         "cmd-7": "move-node-to-workspace 7",
         "cmd-8": "move-node-to-workspace 8",
         "cmd-9": "move-node-to-workspace 9",
+        "cmd-g": "sections next",
         "cmd-w": "close",
         "enter": "focus",
         "shift-enter": "summon"

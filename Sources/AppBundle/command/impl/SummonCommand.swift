@@ -38,6 +38,10 @@ func restoreLensWindow(_ window: Window, on workspace: Workspace, runPlace: Bool
 func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async throws -> Bool {
     var success = true
     for raw in commands {
+        if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs {
+            session.changeSections(args.value.val)
+            continue
+        }
         for id in session.targets(forCommand: raw) {
             guard let window = Window.get(byId: id) else { success = io.err("Window \(id) has closed"); continue }
             if raw == "focus" {
