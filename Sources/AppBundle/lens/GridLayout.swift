@@ -2,10 +2,25 @@ import Foundation
 
 struct GridLayout {
     enum Direction { case left, right, up, down }
-    struct Entry {
+    static let stripReadableHeight: CGFloat = 88
+    struct Sizing {
+        let rowHeightCap: CGFloat
+        let readableHeight: CGFloat?
+        let horizontalChrome: CGFloat
+        let top: CGFloat
+        let bottom: CGFloat
+        let minimumWidth: CGFloat
+        let emptyHeight: CGFloat
+        static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
+        static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, horizontalChrome: 88, top: 26, bottom: 66, minimumWidth: 418, emptyHeight: 92)
+    }
+    struct Entry: Equatable {
         let aspect: CGFloat
         let realSize: CGSize
         let kind: TileKind
+        var accessory = false
+        var monitorHeightFraction: CGFloat = 1
+        var accessoryActualSize = false
     }
     struct Tile {
         let frame: CGRect
@@ -39,17 +54,17 @@ struct GridLayout {
         self.init(sections: [Section(label: nil, current: false, entries: entries)], visibleSize: visibleSize, tileSize: tileSize)
     }
 
-    init(sections: [Section], visibleSize: CGSize, tileSize: String, arrangement: String = "flow", minimumWidth: CGFloat = 0) {
+    init(sections: [Section], visibleSize: CGSize, tileSize: String, arrangement: String = "flow", minimumWidth: CGFloat = 0, sizing: Sizing = .grid) {
         let sections = sections.filter { !$0.entries.isEmpty }
         let entries = sections.flatMap(\.entries)
         let labelled = sections.contains { $0.label != nil }
         self.arrangement = labelled ? arrangement : "flow"
         let scale = TileMetrics(visibleSize: visibleSize).scale
-        let maxWidth = max(1, visibleSize.width * 0.9 - 56 * scale)
-        let maxHeight = max(1, visibleSize.height * 0.88 - 90 * scale)
+        let maxWidth = max(1, visibleSize.width * 0.9 - sizing.horizontalChrome * scale)
+        let maxHeight = max(1, visibleSize.height * 0.88 - (sizing.top + sizing.bottom) * scale)
         guard !entries.isEmpty else {
-            rowHeight = 330 * scale
-            panelSize = CGSize(width: min(max(386 * scale, minimumWidth), visibleSize.width * 0.9), height: 136 * scale)
+            rowHeight = sizing.rowHeightCap * scale
+            panelSize = CGSize(width: min(max(sizing.minimumWidth * scale, minimumWidth), visibleSize.width * 0.9), height: sizing.emptyHeight * scale)
             headers = []
             tiles = []; tileScale = scale; relaxedTitleFloor = false
             return
@@ -63,7 +78,11 @@ struct GridLayout {
             for entry in entries {
                 let box: CGSize
                 let picture: CGSize
-                if tileSize == "real" {
+                if sizing.readableHeight != nil && entry.accessory && entry.kind != .text {
+                    let h = metrics.pictureHeight(rowHeight: height, accessory: true, actualSize: entry.accessoryActualSize, monitorHeightFraction: entry.monitorHeightFraction)
+                    box = CGSize(width: h * (tileSize == "equal" ? 1.5 : tileSize == "real" ? max(0.01, entry.aspect) : min(2.1, max(0.6, entry.aspect))), height: height)
+                    picture = metrics.fittedPicture(aspect: entry.aspect, in: CGSize(width: box.width, height: h))
+                } else if tileSize == "real" {
                     let factor = min(1, height / max(1, visibleSize.height))
                     picture = CGSize(width: entry.realSize.width * factor, height: entry.realSize.height * factor)
                     box = CGSize(width: max(70 * chrome, picture.width), height: max(height, picture.height))
@@ -182,10 +201,30 @@ struct GridLayout {
             result.size.height -= gap
             return result
         }
-        var height = 330 * scale
+        var height = sizing.rowHeightCap * scale
         var chrome = scale
         var relaxed = false
         var best = plan(height: height, chrome: chrome, titleFloor: true)
+        if let readable = sizing.readableHeight {
+            let floor = readable * scale
+            let atFloor = plan(height: floor, chrome: scale, titleFloor: true)
+            if atFloor.size.width <= maxWidth && atFloor.size.height <= maxHeight {
+                let rowCount = Set(atFloor.tiles.map { $0.frame.minY }).count
+                let capFits = best.size.width <= maxWidth && best.size.height <= maxHeight && Set(best.tiles.map { $0.frame.minY }).count <= rowCount
+                if !capFits {
+                    var low = floor, high = height
+                    for _ in 0..<40 {
+                        let candidateHeight = (low + high) / 2
+                        let candidate = plan(height: candidateHeight, chrome: scale, titleFloor: true)
+                        if candidate.size.width <= maxWidth && candidate.size.height <= maxHeight && Set(candidate.tiles.map { $0.frame.minY }).count <= rowCount {
+                            low = candidateHeight
+                        } else { high = candidateHeight }
+                    }
+                    height = low
+                }
+                best = plan(height: height, chrome: scale, titleFloor: true)
+            }
+        }
         while best.size.width > maxWidth || best.size.height > maxHeight {
             if height > 36 * scale {
                 height = max(36 * scale, height - 6 * scale)
@@ -199,10 +238,10 @@ struct GridLayout {
         rowHeight = height
         tileScale = chrome
         relaxedTitleFloor = relaxed
-        panelSize = CGSize(width: max(best.size.width + 56 * scale, min(max(386 * scale, minimumWidth), visibleSize.width * 0.9)), height: best.size.height + 90 * scale)
+        panelSize = CGSize(width: max(best.size.width + sizing.horizontalChrome * scale, min(max(sizing.minimumWidth * scale, minimumWidth), visibleSize.width * 0.9)), height: best.size.height + (sizing.top + sizing.bottom) * scale)
         let insetX = (panelSize.width - best.size.width) / 2
-        headers = best.headers.map { Header(frame: $0.frame.offsetBy(dx: insetX, dy: 40 * scale), label: $0.label, current: $0.current) }
-        tiles = best.tiles.map { Tile(frame: $0.frame.offsetBy(dx: insetX, dy: 40 * scale), pictureSize: $0.pictureSize) }
+        headers = best.headers.map { Header(frame: $0.frame.offsetBy(dx: insetX, dy: sizing.top * scale), label: $0.label, current: $0.current) }
+        tiles = best.tiles.map { Tile(frame: $0.frame.offsetBy(dx: insetX, dy: sizing.top * scale), pictureSize: $0.pictureSize) }
     }
 
     func nearest(from index: Int, direction: Direction) -> Int? {
