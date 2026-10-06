@@ -1,6 +1,6 @@
 # WinMux fork
 
-A personal fork of WinMux. The trunk is `fork`; `main` only mirrors upstream. The first build plan, [issue #1](https://github.com/prateek/winmux/issues/1), is built; the open work is [issue #55](https://github.com/prateek/winmux/issues/55), and `.scratch/winmux-fork/handoff.md` orients a new session.
+A personal fork of WinMux. The trunk is `fork`; `main` only mirrors upstream. The first build plan, [issue #1](https://github.com/prateek/winmux/issues/1), is built; the open work is [issue #55](https://github.com/prateek/winmux/issues/55), and `.scratch/winmux-fork/handoff.md` orients a new session. Questions and checks that wait on Prateek are children of [issue #84](https://github.com/prateek/winmux/issues/84).
 
 ## Landing work
 

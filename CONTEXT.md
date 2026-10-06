@@ -53,7 +53,7 @@ A key or trackpad-gesture binding whose command opens a Lens.
 _Avoid_: shortcut, hotkey
 
 **Hold**:
-The time from a **Trigger**'s key press until its invoking Command, Control and Option modifiers are released (or Shift for a Shift-only chord). Shift otherwise controls reverse stepping and capital letters. It belongs to the Lens session, not to a **Presentation**: while it lasts the held modifiers are not part of what is typed, and what its end does (commit, or stay open) is decided for the Lens, not by the Presentation.
+The time from a **Trigger**'s key press until its invoking Command, Control and Option modifiers are released (or Shift for a Shift-only chord), or until the first unbound letter is typed, whichever comes first. Shift otherwise controls reverse stepping and capital letters. It belongs to the Lens session, not to a **Presentation**. While it lasts the Lens is a gesture: the Trigger's key steps and the Lens's own chords run. After it the Lens is modal: it stays open with nothing held, letters go to Search and a modifier means itself. What a release does (commit, or stay open) is decided for the Lens, not by the Presentation.
 _Avoid_: strip mode, held mode
 
 **Summon**:
