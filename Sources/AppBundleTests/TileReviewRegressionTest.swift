@@ -18,11 +18,11 @@ final class TileReviewRegressionTest: XCTestCase {
 
     func testExtremeAspectDoesNotCollapseStripOrChangeVisibleCount() {
         let input = Array(repeating: GridLayout.Entry(aspect: 3, realSize: CGSize(width: 900, height: 300), kind: .card), count: 8)
-        let normal = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "same-height", sizing: .strip)
+        let normal = GridLayout(sections: [.init(label: nil, current: false, entries: input + [input[0]])], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "same-height", sizing: .strip)
         let mixed = GridLayout(sections: [.init(label: nil, current: false, entries: input + [.init(aspect: 10, realSize: CGSize(width: 1000, height: 100), kind: .card)])], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "same-height", sizing: .strip)
         XCTAssertGreaterThanOrEqual(mixed.rowHeight, GridLayout.stripReadableHeight)
         XCTAssertEqual(mixed.tiles.count, 9)
-        XCTAssertGreaterThan(mixed.rowHeight, normal.rowHeight / 2)
+        XCTAssertEqual(mixed.rowHeight, normal.rowHeight, accuracy: 0.001)
         for tile in mixed.tiles { XCTAssertTrue(CGRect(origin: .zero, size: mixed.panelSize).contains(tile.frame)) }
         let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))
         XCTAssertEqual(metrics.fittedPicture(aspect: 10, in: CGSize(width: 360, height: 100)), CGSize(width: 360, height: 36))

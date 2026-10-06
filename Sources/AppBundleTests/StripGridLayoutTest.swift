@@ -54,7 +54,7 @@ final class StripGridLayoutTest: XCTestCase {
         let input = entries(9, kind: .picture)
         let width = CGFloat(9) * (1200 * floor / 1080 + 20) + 8 * 14 + 88
         for (delta, expected): (CGFloat, Int) in [(1, 1), (-1, 2)] {
-            let sizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: floor, horizontalChrome: 1920 * 0.9 - width - delta + 88, top: 26, bottom: 66, minimumWidth: 418, emptyHeight: 92)
+            let sizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: floor, horizontalChrome: 1920 * 0.9 - width - delta + 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
             let packed = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: monitor, tileSize: "real", sizing: sizing)
             XCTAssertEqual(rows(packed), expected)
         }
@@ -101,6 +101,14 @@ final class StripGridLayoutTest: XCTestCase {
         let cards = layout(11)
         let title = min(200, max(1.2 * cards.rowHeight, 110))
         for tile in cards.tiles { XCTAssertGreaterThanOrEqual(tile.frame.width, title + 20) }
+    }
+    func testStripChromeKeepsTheFooterGapAndEmptyHeight() {
+        let packed = layout(3)
+        let end = packed.tiles.map { $0.frame.maxY }.max()!
+        XCTAssertEqual(packed.panelSize.height - end, 24 + 18 + 22)
+        let empty = layout(0)
+        XCTAssertEqual(empty.panelSize.height, 26 + 24 + 18 + 22)
+        XCTAssertEqual(packed.tiles[0].frame.minY, 26)
     }
     func testMixedExtremeAndOversizedWindowsRemainInsidePanel() {
         let input: [GridLayout.Entry] = [0.01, 10, 1.5, 0.6, 100, 1.2].map {

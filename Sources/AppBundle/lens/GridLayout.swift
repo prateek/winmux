@@ -4,6 +4,7 @@ struct GridLayout {
     enum Direction { case left, right, up, down }
     static let stripReadableHeight: CGFloat = 88
     struct Sizing {
+        static let stripFooterHeight: CGFloat = 18
         let rowHeightCap: CGFloat
         let readableHeight: CGFloat?
         let horizontalChrome: CGFloat
@@ -12,7 +13,8 @@ struct GridLayout {
         let minimumWidth: CGFloat
         let emptyHeight: CGFloat
         static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
-        static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, horizontalChrome: 88, top: 26, bottom: 66, minimumWidth: 418, emptyHeight: 92)
+        static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, horizontalChrome: 88, top: 26,
+                                 bottom: 24 + stripFooterHeight + 22, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + 22)
     }
     struct Entry: Equatable {
         let aspect: CGFloat
