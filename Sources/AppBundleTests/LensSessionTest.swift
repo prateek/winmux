@@ -8,6 +8,28 @@ final class LensSessionTest: XCTestCase {
         SwitcherPaletteItem(id: id, title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: focused)
     }
 
+    func testSummonHintsSubtractHoldModifiersInEveryPresentation() {
+        for presentation in ["list", "grid", "miniatures", "strip"] {
+            for invoking: NSEvent.ModifierFlags in [.option, [.option, .shift]] {
+                var settings = LensConfig(); settings.presentation = presentation
+                settings.keys["ctrl-enter"] = ["summon"]
+                let session = LensSession(name: "demo", settings: settings, items: [item(1)], search: "")
+                let gesture = StripGesture(keyCode: 31, invoking: invoking)
+                session.startHold(gesture)
+                if presentation == "strip" { session.stripGesture = gesture }
+                for flags in [invoking, NSEvent.ModifierFlags.option] {
+                    session.updateSummonModifiers(flags)
+                    XCTAssertFalse(session.summonHeld, "\(presentation), \(invoking), \(flags)")
+                }
+                session.updateSummonModifiers(invoking.union(.control))
+                XCTAssertTrue(session.summonHeld, "Control is an additional Summon modifier outside the Hold")
+                session.endHold(flags: [])
+                session.updateSummonModifiers(.option)
+                if presentation != "strip" { XCTAssertTrue(session.summonHeld) }
+            }
+        }
+    }
+
     func testStationaryPointerCannotReplaceDefaultOrKeyboardSelection() {
         let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1, focused: true), item(2), item(3)], search: "")
         let pointer = NSEvent.mouseLocation

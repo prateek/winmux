@@ -240,7 +240,8 @@ final class LensSession: ObservableObject {
     func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
     private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
-        let held = settings.presentation == "strip" ? (stripGesture?.releaseModifiers(modifiers) ?? []) : modifiers.intersection([.control, .option, .shift, .command])
+        let gesture = hold ?? (settings.presentation == "strip" ? stripGesture : nil)
+        let held = gesture?.releaseModifiers(modifiers) ?? (settings.presentation == "strip" ? [] : modifiers.intersection([.control, .option, .shift, .command]))
         return !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }

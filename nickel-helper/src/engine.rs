@@ -15,7 +15,7 @@ use std::{
 use nickel_lang_core::{
     cache::{CacheHub, InputFormat, SourcePath},
     error::{
-        Error as CoreError, NullReporter,
+        Error as CoreError, EvalErrorKind, NullReporter,
         report::{ColorOpt, report_as_str},
     },
     eval::{
@@ -30,6 +30,21 @@ use nickel_lang_core::{
 
 /// Nickel's own diagnostic text, as the `nickel` CLI prints it.
 pub type Diagnostic = String;
+
+// Migration hints apply only to chords removed when the defaults became the short list.
+const REMOVED_DEFAULT_BINDINGS: &[&str] = &[
+    "cmd-tab", "cmd-shift-tab", "cmd-backtick", "alt-tab", "alt-shift-tab",
+    "alt-n", "alt-p", "alt-space", "alt-cmd-1", "alt-cmd-2",
+    "alt-cmd-3", "alt-cmd-4", "alt-cmd-5", "alt-cmd-6", "alt-cmd-7",
+    "alt-cmd-8", "alt-cmd-9", "alt-cmd-h", "alt-cmd-j", "alt-cmd-k",
+    "alt-cmd-l", "alt-cmd-shift-1", "alt-cmd-shift-2", "alt-cmd-shift-3", "alt-cmd-shift-4",
+    "alt-cmd-shift-5", "alt-cmd-shift-6", "alt-cmd-shift-7", "alt-cmd-shift-8", "alt-cmd-shift-9",
+    "alt-cmd-shift-h", "alt-cmd-shift-l", "cmd-ctrl-h", "cmd-ctrl-l", "cmd-shift-h",
+    "cmd-shift-i", "cmd-shift-j", "cmd-shift-k", "cmd-shift-l", "ctrl-cmd-shift-h",
+    "ctrl-cmd-shift-j", "ctrl-cmd-shift-k", "ctrl-cmd-shift-l", "ctrl-0", "ctrl-shift-0",
+    "ctrl-shift-h", "ctrl-shift-l", "ctrl-e", "ctrl-f", "ctrl-h",
+    "ctrl-l", "ctrl-q", "ctrl-r", "ctrl-t", "ctrl-w",
+];
 
 pub enum Source<'a> {
     File(&'a Path),
@@ -90,8 +105,16 @@ impl Engine {
     }
 
     fn report(ctx: &mut VmContext<CacheHub, CacheImpl>, error: CoreError) -> Diagnostic {
+        let hint = match &error {
+            CoreError::EvalError(e) => match &e.error {
+                EvalErrorKind::FieldMissing { id, .. } if REMOVED_DEFAULT_BINDINGS.contains(&id.label()) =>
+                    format!("{} is no longer a default binding; delete its removal from your config.\n\n", id.label()),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
         let mut files = ctx.import_resolver.sources.files().clone();
-        report_as_str(&mut files, error, ColorOpt::Never)
+        hint + &report_as_str(&mut files, error, ColorOpt::Never)
     }
 
     /// The whole config, fully evaluated, without its functions. Evaluating it applies every

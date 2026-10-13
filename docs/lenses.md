@@ -2,7 +2,7 @@
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
 Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent` and `app-windows`.
-Alt-slash opens `search`; alt-semicolon enters the `lens` binding mode for `overview`, `floating`, `search` and the list Presentation of `recent`. Cmd-tab and cmd-shift-tab open `recent`, and cmd-backtick opens `app-windows`. See [default Triggers](default-config.md). `palette` is an alias for
+Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `lens` binding mode: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app strip. See [default Triggers](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
@@ -206,15 +206,15 @@ Presentation and sort with `filters.same-app`: the window's bundle id must equal
 app's bundle id. With no focused app it matches nothing. Both omit popup classes.
 They use the same Lens session, Filter evaluation and thumbnail cache as the list and miniatures.
 
-Hold cmd and press Tab to select the previous window: the second entry when the first is
+With the [Cmd-Tab opt-in](default-config.md#opt-in-to-cmd-tab), hold cmd and press Tab to select the previous window: the second entry when the first is
 focused, otherwise the first. Further Tab presses cycle forward, including presses received
 while the Filter is still opening. Releasing cmd while it is still opening settles the selection:
 the commit runs as soon as the Lens is ready, and a press after that release is ignored.
 Shift-Tab cycles backward. Left and right cycle in ranked order with wrap, across rows.
 In one row, up cycles backward and down forward; in a wrapped strip they move to the
 nearest Tile in the row above or below and stop at the top and bottom.
-An initial cmd-shift-tab selects
-the last entry; releasing Shift alone does not commit. Cmd-backtick cycles the focused app's
+With that opt-in, an initial cmd-shift-tab selects
+the last entry; releasing Shift alone does not commit. The opt-in's Cmd-backtick cycles the focused app's
 windows, with Shift reversing it. Backtick does nothing inside `recent`, and Tab does nothing
 inside `app-windows`.
 
@@ -340,7 +340,7 @@ and ignore it. A grouping change lasts until this Lens closes. Converting a stri
 The default Lens key `cmd-g = "sections next"` cycles grouping. A value outside the cycle
 advances to `none`. Bound chords win during a Hold: with Command held in a list or grid,
 typing `log` puts `lo` in Search and uses the `g` as Command-G. A key bound only to `sections`
-commands is omitted in strips and miniatures. Cmd-Tab, then `g`, then `h` therefore converts
+commands is omitted in strips and miniatures. With the Cmd-Tab opt-in, Cmd-Tab, then `g`, then `h` converts
 the strip to a list with Search `gh`; another `g` while Command stays held changes grouping.
 
 ## Grid

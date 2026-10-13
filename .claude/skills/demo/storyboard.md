@@ -31,7 +31,7 @@ Reaching a window on another workspace without leaving this one.
 
 | Done when | Shown by |
 | --- | --- |
-| `cmd-tab` opens `recent` as a strip | strip-cycle |
+| The desk’s opt-in `cmd-tab` opens `recent` as a strip | strip-cycle |
 | A second display … | not shown: needs two displays; covered by `StripLayoutTest` |
 ```
 

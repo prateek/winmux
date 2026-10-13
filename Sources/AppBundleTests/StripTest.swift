@@ -154,7 +154,7 @@ final class StripSessionTest: XCTestCase {
         func key(_ code: UInt16, _ flags: NSEvent.ModifierFlags) throws -> NSEvent {
             try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code))
         }
-        // cmd-tab inside a cmd-backtick strip does nothing; alt-tab is a global binding.
+        // cmd-tab inside a cmd-backtick strip does nothing; alt-tab is outside this strip's gesture.
         XCTAssertEqual(model.stripInput(try key(48, .command)), .consumed)
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertEqual(model.stripInput(try key(48, .option)), .ignored)

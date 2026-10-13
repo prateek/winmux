@@ -197,6 +197,11 @@ let Columns = WorkspaceColumns & {
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
 Contract
 & {
+  # Remove inherited chords without depending on which defaults this version ships.
+  without-bindings = fun chords bindings => std.array.fold_left (fun record chord =>
+    if std.record.has_field chord record then std.record.remove chord record else record
+  ) bindings chords,
+
   # A yes/no function over a window, given the Filter context. Its arguments are `Dyn`, not
   # `Window` and `FilterContext`: WinMux checks every record before it reaches a Filter, and
   # checking it again on each call makes a Filter several times slower. A Filter called with the
