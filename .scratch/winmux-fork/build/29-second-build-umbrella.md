@@ -30,13 +30,13 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Prateek's switching decisions of 2026-10-13 set the order of what is open.** The system's Cmd-Tab is the fast switcher, and `overview` is the view that stays open. So the Cmd-Tab default and the short list of default shortcuts go first, as one change to the defaults. Then the Hold's replacement, then `'miniatures` filling the screen with a chord of its own, then the strip's pictures at one height and hover selecting. The prototype of a row of windows above the system's Cmd-Tab waits for the Cmd-Tab default and is with the follow-ups.
 - **Five defects from the switching comparison and the shortcut audit** are with the follow-ups: long names and titles in a Tile, a strip with one entry per app, Ctrl-Up with the pointer over the sidebar, a Safari window drawn as a grey strip, and a chord bound to an empty command list.
 - **Thirteen issues from Prateek's week of daily use** are with the follow-ups, each from an answer he gave on 2026-10-07 or 2026-10-13: the windowing mode, a `winmux://` URL, Settings showing what is loaded, the CLI socket, a find-focus command, closing a window from its tab, the ninth tab digit, hints on tabs, the drag overlay with Columns on, a skill for a person's agent, a capture mode for hooks, and two prototypes, the sidebar as a tree and the tab strip above apps with tabs of their own. The windowing mode follows the short list of default shortcuts. The two prototypes end in a choice for him, not in shipped code.
+- **Display profiles is no longer deferred.** Prateek answered its open questions on 2026-10-13. It is with the follow-ups, and its last check needs his hardware.
 - **Questions and checks that wait on Prateek** are children of **Open with Prateek: questions and checks that wait on him**, not of this umbrella.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
 
 - **Deferred features.** Designed in part during #1 and put off. None is specified, and no child issue builds toward them beyond what it states.
-  - #47 Display profiles
   - #48 Tabs. The Tile draws an entry, not a window, so that a Tab can be an entry later.
   - #49 Trackpad gestures as Triggers
   - #51 Proactive registration of Accessory apps
