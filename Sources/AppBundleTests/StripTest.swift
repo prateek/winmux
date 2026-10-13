@@ -19,7 +19,7 @@ final class StripLayoutTest: XCTestCase {
         XCTAssertTrue(lensOnscreenWindows(drawsPictures: false) { XCTFail("List does not capture thumbnails"); return [42] }.isEmpty)
     }
     func testInvokingModifiersDelayAndReleaseBinding() async {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         let gesture = StripGesture(keyCode: 48, invoking: [.command, .shift], clock: clock)
         XCTAssertEqual(gesture.committingModifiers, [.command])
         await clock.advance(by: .milliseconds(99))

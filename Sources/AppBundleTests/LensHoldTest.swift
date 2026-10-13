@@ -49,7 +49,7 @@ final class LensHoldTest: XCTestCase {
     }
 
     func testControlledLifecycleHoldSurvivesConversionAndEndsOnceWithoutCommit() async {
-        let clock = TestClock<Duration>()
+        let clock = SerialTestClock()
         let owner = testLensLifecycle(clock: clock)
         defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys["cmd-w"] = []

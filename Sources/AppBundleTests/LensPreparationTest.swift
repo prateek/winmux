@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class LensPreparationTest: XCTestCase {
     func testStripPreparesWhileWaitingButIsNeverOrderedBeforeTheDeadline() async throws {
-        let clock = TestClock<Duration>()
+        let clock = SerialTestClock()
         var prepared = false
         var shown = false
         let owner = testLensLifecycle(clock: clock, show: { _ in

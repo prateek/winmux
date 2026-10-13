@@ -74,7 +74,7 @@ final class LensTraceTest: XCTestCase {
 
     func testLifecycleTracesAllPresentationsOnControlledClock() async throws {
         for presentation in ["strip", "list", "miniatures"] {
-            let clock = TestClock<Duration>()
+            let clock = SerialTestClock()
             let epoch = clock.now
             let store = LensTraceStore(stamp: {
                 let duration = epoch.duration(to: clock.now).components

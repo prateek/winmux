@@ -67,7 +67,7 @@ final class GridSessionTest: XCTestCase {
         XCTAssertEqual(apps.results.map { $0.tile.appCount }, [7, 7])
     }
     func testLifecycleRefreshesEveryLiveMatchEachHalfSecondAndCancels() async throws {
-        let clock = TestClock<Duration>()
+        let clock = SerialTestClock()
         var requests: [UInt32] = [], closed: [Int] = []
         let deps = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: deps, emit: { _ in }, show: { _ in }, hide: {})

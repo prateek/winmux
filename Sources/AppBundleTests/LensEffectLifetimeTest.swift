@@ -5,8 +5,8 @@ import Common
 import XCTest
 
 private struct CancellationInsensitiveClock: Clock {
-    let base: TestClock<Duration>
-    var now: TestClock<Duration>.Instant { base.now }
+    let base: SerialTestClock
+    var now: SerialTestClock.Instant { base.now }
     var minimumResolution: Duration { base.minimumResolution }
     func sleep(until deadline: Instant, tolerance: Duration?) async throws {
         try await Task.detached { try await base.sleep(until: deadline, tolerance: tolerance) }.value
@@ -26,7 +26,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testStripReadyIsSilentUntilExactGestureDeadlineAndQuickTapIsSilent() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         var events: [ServerEvent] = []
         var shown = 0
         let owner = testLensLifecycle(clock: clock, emit: { events.append($0) }, show: { _ in shown += 1 })
@@ -56,7 +56,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testDismissalRejectsLateStripSleeperAndOvertakenOpeningStartsNoEffects() async throws {
-        let base = TestClock()
+        let base = SerialTestClock()
         let clock = CancellationInsensitiveClock(base: base)
         var shown: [String] = []
         let owner = testLensLifecycle(clock: clock, show: { shown.append($0.name) })
@@ -78,7 +78,7 @@ final class LensEffectLifetimeTest: XCTestCase {
 
     func testStripToListCancelsDelayAndRefreshAndRetainsOneEventPair() async throws {
         for ready in [true, false] {
-            let clock = TestClock()
+            let clock = SerialTestClock()
             var events: [ServerEvent] = []
             var requests = 0
             var closed = 0
@@ -107,7 +107,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testDismissedSearchCannotPublishOrClearReplacementWork() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         let started = LensEffectSignal()
         var finishes: [CheckedContinuation<Result<[Bool], NickelFailure>, Never>] = []
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in
@@ -143,7 +143,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testPresentationChangeKeepsSuspendedSessionSearchAndOneEventPair() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         let reached = LensEffectSignal()
         var finish: CheckedContinuation<Result<[Bool], NickelFailure>, Never>?
         var events: [ServerEvent] = []
@@ -187,7 +187,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testStripDeadlineChecksReleaseWithoutUpdatingSummon() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         var flags: NSEvent.ModifierFlags = .command
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
             requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { flags })
@@ -208,7 +208,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testPollingStopsAfterReplacementAndRepeatedDismissalCancelsOnlyOwnedToken() async throws {
-        let base = TestClock()
+        let base = SerialTestClock()
         let clock = CancellationInsensitiveClock(base: base)
         var requests: [UInt32] = []
         var closed: [Int] = []
@@ -238,7 +238,7 @@ final class LensEffectLifetimeTest: XCTestCase {
     }
 
     func testReleaseCommittedAtReadinessSchedulesNoDisplayEvenWhenTheSessionSurvives() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         var shown = 0
         let owner = testLensLifecycle(clock: clock, show: { _ in shown += 1 })
         let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!

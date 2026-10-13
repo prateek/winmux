@@ -154,7 +154,7 @@ final class TileReviewRegressionTest: XCTestCase {
     }
 
     func testPictureListRequestsOnlyTheRowsThatCanBeVisibleOnOneClockTick() async throws {
-        let clock = TestClock()
+        let clock = SerialTestClock()
         var settings = LensConfig(); settings.tile = "card"
         let items = (1...40).map { id in
             let window = TestWindow.new(id: UInt32(id), parent: focus.workspace.rootTilingContainer)
