@@ -36,7 +36,7 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] In Mission Control, press an arrow key, then Return. Say here whether a window was selected and focused. Sources disagree.
 
 **The system's Cmd-Tab stays the system's, and a short list of default shortcuts**
-- [ ] Upgrade the daily machine to the build with this change and run `winmux config check`. If it says a chord "is no longer a default binding", delete that removal from your config, or use `W.without-bindings`, and check again. A pass prints nothing, and `winmux doctor` then names your own config file.
+- [ ] After the build with this change arrives on the daily machine, by Sparkle or `brew upgrade --cask winmux`, run `winmux config check`. If it says a chord "is no longer a default binding", delete that removal from your config, or use `W.without-bindings`, and check again. A pass prints nothing, and `winmux doctor` then names your own config file.
 - [ ] With your config and no `cmd-tab` binding in it, hold Cmd-Tab. It is Apple's app switcher, and `winmux doctor` shows `held=[] marker=[]`.
 - [ ] On a real keyboard, `ctrl-w` deletes a word and `ctrl-r` searches history in your shell, and `alt-shift-o` opens `overview`.
 
