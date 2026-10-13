@@ -887,7 +887,7 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     let mut expected = config.clone();
     expected["mode"]["main"]["binding"]["alt-slash"] = json!("focus left");
     assert_eq!(changed, expected);
-    let removed = loaded_source("binding-remove", r#"let d = import "winmux/defaults.ncl" in (d & { mode.main.binding | force = std.record.remove "alt-slash" d.mode.main.binding }) | (import "winmux/winmux.ncl").Config"#);
+    let removed = loaded_source("binding-remove", r#"let d = import "winmux/defaults.ncl" in (d & { mode.main.binding | force = (import "winmux/winmux.ncl").without-bindings ["alt-slash"] d.mode.main.binding }) | (import "winmux/winmux.ncl").Config"#);
     expected["mode"]["main"]["binding"].as_object_mut().unwrap().remove("alt-slash");
     assert_eq!(removed, expected);
 
@@ -1137,5 +1137,41 @@ fn sections_arrangements_and_grouping_key_load_through_helper() {
         let value = evaluate_to_json(&source, &library()).unwrap();
         assert_eq!(value["lenses"]["demo"]["grid"]["sections-arrangement"], arrangement);
         assert_eq!(value["lenses"]["demo"]["keys"]["cmd-g"], "sections next");
+    }
+}
+
+#[test]
+fn without_bindings_ignores_absent_chords_and_removes_present_ones() {
+    let config = loaded_source("safe-binding-removal", r#"
+        let W = import "winmux/winmux.ncl" in
+        let d = import "winmux/defaults.ncl" in
+        (d & { mode.main.binding | force = W.without-bindings
+            ["alt-slash", "ctrl-w", "never-a-binding", "alt-slash"] d.mode.main.binding }) | W.Config
+    "#);
+    let defaults = loaded_source("safe-binding-defaults", r#"(import "winmux/defaults.ncl") | (import "winmux/winmux.ncl").Config"#);
+    let mut expected = defaults;
+    expected["mode"]["main"]["binding"].as_object_mut().unwrap().remove("alt-slash");
+    assert_eq!(config, expected);
+}
+
+#[test]
+fn check_hints_only_for_missing_chords_removed_from_defaults() {
+    for (chord, hint) in [("ctrl-w", true), ("never-a-binding", false), ("alt-slash", false)] {
+        let file = std::env::temp_dir().join(format!("winmux-removal-{chord}-{}.ncl", std::process::id()));
+        let record = if chord == "alt-slash" { "{}" } else { "d.mode.main.binding" };
+        std::fs::write(&file, format!(r#"
+            let W = import "winmux/winmux.ncl" in
+            let d = import "winmux/defaults.ncl" in
+            (d & {{ mode.main.binding | force = std.record.remove "{chord}" {record} }}) | W.Config
+        "#)).unwrap();
+        let output = run_helper(&["check", &file.to_string_lossy()]);
+        std::fs::remove_file(file).unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        let error = String::from_utf8(output.stderr).unwrap();
+        assert!(error.contains(&format!("missing field `{chord}`")), "{error}");
+        assert_eq!(error.contains("is no longer a default binding"), hint, "{error}");
+        if hint {
+            assert!(error.starts_with("ctrl-w is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
+        }
     }
 }
