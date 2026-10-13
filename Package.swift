@@ -86,9 +86,15 @@ let package = Package(
             ],
         ),
         .executableTarget(name: "WindowCapture"),
+        .target(
+            name: "TestWatchdog",
+            path: "TestSupport/TestWatchdog",
+            cSettings: [.unsafeFlags(["-fobjc-arc"])],
+        ),
         .testTarget(
             name: "AppBundleTests",
             dependencies: [
+                .target(name: "TestWatchdog"),
                 .product(name: "Clocks", package: "swift-clocks"),
                 .target(name: "AppBundle"),
             ],
