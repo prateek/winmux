@@ -42,7 +42,7 @@ Nothing.
 ## Defaults chosen for you
 
 - **The ten tab digits stay unchanged**: `alt-1` to `alt-9` and `alt-0` target indices 1 through 10. **The ninth tab digit goes to the last tab** is separate work.
-- **The overview chord is `alt-shift-o`.** The `alt-shift-` family had no collision in the audit beyond two currency symbols. It types `Ø` on US and ABC. It has no shipped Lens-key or system symbolic-hotkey collision and stays as chosen.
+- **The overview chord is `alt-shift-o`.** The `alt-shift-` family had no collision in the audit beyond two currency symbols. It types `Ø` on US and ABC. It has no system symbolic-hotkey collision and stays as chosen. Its held modifiers overlap Enter's Summon bindings; the upgrade guide describes the routing, which belongs to **The Hold ends at the first letter**.
 - **What lost its chord is reached in the mode on `alt-semicolon`**, which **A windowing mode on `alt-semicolon`** builds. Until it lands, the removed chords are documented as lines to paste.
 - **An existing config that imports the defaults** loses the removed chords on upgrade. The release notes and `docs/default-config.md` carry the old block, ready to paste.
 - **`config convert`** output is unchanged for a converted TOML's own bindings.
@@ -60,8 +60,7 @@ Built together with **The system's Cmd-Tab stays the system's unless the config 
 
 The guest's loaded no-config JSON has the exact set. Ghostty accessible text proves Ctrl-W word deletion, Ctrl-R history search and Ctrl-L clearing; Zed's Cmd-Shift-K deletes a line, with clipboard text read back. Alt-L, Alt-Shift-L, Ctrl-2, Alt-Shift-3, Search, direct overview and leader `a/r/o` each have screenshots and runtime readbacks. Both demo desks explicitly opt in to switching; their scripts stage with the new defaults. Conversion preserves all upstream fixture commands and a custom Cmd-Tab binding. Host and guest `make check` pass, with no skipped Swift tests.
 
-Decided: Keep Option-Shift-O despite its `Ø` character on US and ABC; there is no shipped Lens or system symbolic-hotkey collision.
-Decided: Keep all ten tab digits and add only `a` to the leader, following the combined build rulings. No default chosen for this combined pass was changed.
+Option-Shift-O remains the overview Trigger. It types `Ø` on US and ABC; Enter Summons with Option, Shift or both still down. Summon hints subtract an active Hold in every Presentation, while Lens-key routing remains unchanged for **The Hold ends at the first letter**. The library's `W.without-bindings` ignores absent chords; missing-field errors for the removed defaults explain that their old removal can be deleted. The upgrade guide also covers earlier conversions' explicit Cmd bindings and the redeclaration error for an alternative spelling of the new defaults. No default chosen for this combined pass was changed.
 
 ## Checks for Prateek
 

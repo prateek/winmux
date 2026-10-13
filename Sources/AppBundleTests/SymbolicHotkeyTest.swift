@@ -190,19 +190,22 @@ final class SymbolicHotkeyTest: XCTestCase {
 @MainActor
 final class SymbolicHotkeyBindingStateTest: XCTestCase {
     func testLoadedDefaultsHoldNoSystemShortcutsAndExplicitOptInHoldsOnlyTabPartners() async throws {
-        setUpWorkspacesForTests()
+        let originalModes = config.modes
+        defer { XCTAssertEqual(config.modes, originalModes, "The ownership check must leave global config unchanged") }
+        func chords(_ config: Config) -> Set<SymbolicHotkeyChord> {
+            Set(config.modes["main"]!.bindings.values.map {
+                SymbolicHotkeyChord(keyCode: UInt16($0.keyCode.carbonKeyCode), modifiers: UInt64($0.modifiers.rawValue))
+            })
+        }
         guard nickelHelperUrl() != nil else { throw XCTSkip("Build the helper") }
         let supervisor = NickelSupervisor()
         let loaded = try await supervisor.load(nil).get()
-        defer { supervisor.discard(loaded); resetHotKeys() }
+        defer { supervisor.discard(loaded) }
         let parsed = parseConfig(loaded.settings)
         XCTAssertTrue(parsed.errors.isEmpty)
-        config = parsed.config
-        resetHotKeys()
-        try await activateMode("main")
         let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
         let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
-        reconciler.reconcile(listeningHotkeyChords())
+        reconciler.reconcile(chords(parsed.config))
         XCTAssertTrue(reconciler.heldIds.isEmpty)
         XCTAssertTrue(reconciler.markerIds.isEmpty)
 
@@ -211,10 +214,7 @@ final class SymbolicHotkeyBindingStateTest: XCTestCase {
         """.utf8))
         let optedIn = parseConfig(optIn)
         XCTAssertTrue(optedIn.errors.isEmpty)
-        config = optedIn.config
-        resetHotKeys()
-        try await activateMode("main")
-        reconciler.reconcile(listeningHotkeyChords())
+        reconciler.reconcile(chords(optedIn.config))
         XCTAssertEqual(reconciler.heldIds, [1, 2])
         XCTAssertEqual(reconciler.markerIds, [1, 2])
         XCTAssertEqual(table.read(27)?.enabled, true)
