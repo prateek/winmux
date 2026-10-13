@@ -1208,25 +1208,47 @@ fn window_mode_removal_and_user_lens_mode_compatibility() {
     let diagnostic = String::from_utf8(output.stderr).unwrap();
     assert!(diagnostic.starts_with("The default binding mode lens was renamed to window; use defaults.mode.window.binding."), "{diagnostic}");
     assert!(diagnostic.contains("missing field"), "{diagnostic}");
+    let other = std::env::temp_dir().join(format!("winmux-other-lens-{}.ncl", std::process::id()));
+    std::fs::write(&other, r#"let defaults = import "winmux/defaults.ncl" in { lenses.search = defaults.lenses.lens } | (import "winmux/winmux.ncl").Config"#).unwrap();
+    let output = run_helper(&["check", &other.to_string_lossy()]);
+    std::fs::remove_file(other).unwrap();
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(diagnostic.starts_with("error: missing field"), "{diagnostic}");
 }
 
 #[test]
-fn conversion_preserves_user_window_chords_and_old_lens_trigger() {
-    let converted = converted_toml("window-overrides", r#"config-version = 2
+fn conversion_adds_the_windowing_mode_and_its_trigger_together_or_not_at_all() {
+    // The TOML's own `window` mode keeps its keys and gains none; nothing new enters it.
+    let own_mode = converted_toml("window-own-mode", r#"config-version = 2
+[mode.main.binding]
+alt-h = "focus left"
+[mode.window.binding]
+l = "focus up"
+"#).unwrap();
+    let config = loaded_source("window-own-mode", &own_mode.nickel);
+    assert_eq!(config["mode"]["window"]["binding"], json!({"l": "focus up"}));
+    assert!(config["mode"]["main"]["binding"].get("alt-semicolon").is_none());
+    assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
+
+    // The TOML's own alt-semicolon wins, and no mode is added that nothing enters.
+    let own_trigger = converted_toml("window-own-trigger", r#"config-version = 2
 [mode.main.binding]
 alt-semicolon = "mode lens"
 [mode.lens.binding]
 x = "focus left"
-[mode.window.binding]
-l = "focus up"
-alt-semicolon = "mode custom"
 "#).unwrap();
-    let config = loaded_source("window-overrides", &converted.nickel);
-    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
+    let config = loaded_source("window-own-trigger", &own_trigger.nickel);
+    let main = config["mode"]["main"]["binding"].as_object().unwrap();
+    let triggers: Vec<_> = main.iter().filter(|(key, _)| key.contains("semicolon")).collect();
+    assert_eq!(triggers.len(), 1, "{triggers:?}");
+    assert_eq!(triggers[0].1, "mode lens");
     assert_eq!(config["mode"]["lens"]["binding"], json!({"x": "focus left"}));
-    let mut expected = expected_window_bindings();
-    expected["l"] = json!("focus up");
-    expected["alt-semicolon"] = json!("mode custom");
-    assert_eq!(config["mode"]["window"]["binding"], expected);
-    assert!(converted.nickel.contains("windowing mode"));
+    assert!(config["mode"].get("window").is_none());
+
+    // With neither, both arrive.
+    let neither = converted_toml("window-neither", "config-version = 2\n[mode.main.binding]\nalt-h = \"focus left\"\n").unwrap();
+    let config = loaded_source("window-neither", &neither.nickel);
+    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode window");
+    assert_eq!(config["mode"]["window"]["binding"], expected_window_bindings());
+    assert!(neither.nickel.contains("windowing mode"));
 }

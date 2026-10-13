@@ -13,23 +13,31 @@ func bindingModeHudText(mode: String?, enabled: Bool) -> String? {
 
     private let show: (String, NSRect) -> Void
     private let hide: () -> Void
+    private var shown: (text: String, visibleFrame: NSRect)?
 
     init(show: @escaping (String, NSRect) -> Void, hide: @escaping () -> Void) {
         self.show = show
         self.hide = hide
     }
 
-    func refresh(mode: String?, enabled: Bool, visibleFrame: NSRect) {
-        if let text = bindingModeHudText(mode: mode, enabled: enabled) {
-            show(text, visibleFrame)
-        } else {
-            hide()
+    /// Shows, moves or hides the panel only when the answer changed: a panel ordered front again on
+    /// every layout would climb over a Lens opened while the binding mode stays on.
+    func refresh(mode: String?, enabled: Bool, visibleFrame: () -> NSRect) {
+        guard let text = bindingModeHudText(mode: mode, enabled: enabled) else {
+            if shown != nil { hide() }
+            shown = nil
+            return
         }
+        let frame = visibleFrame()
+        if let shown, shown.text == text, shown.visibleFrame == frame { return }
+        shown = (text, frame)
+        show(text, frame)
     }
 
     func refresh() {
-        refresh(mode: activeMode, enabled: TrayMenuModel.shared.isEnabled,
-                visibleFrame: focus.workspace.workspaceMonitor.visibleRect.toAppKitScreenRect)
+        refresh(mode: activeMode, enabled: TrayMenuModel.shared.isEnabled) {
+            focus.workspace.workspaceMonitor.visibleRect.toAppKitScreenRect
+        }
     }
 }
 
@@ -65,6 +73,7 @@ func bindingModeHudText(mode: String?, enabled: Bool) -> String? {
         label.setFrameOrigin(NSPoint(x: 16, y: 9))
         setFrame(NSRect(x: visibleFrame.midX - size.width / 2, y: visibleFrame.minY + 20,
                         width: size.width, height: size.height), display: true)
+        invalidateShadow()
         orderFrontRegardless()
     }
 }

@@ -78,8 +78,8 @@ extension HotKey {
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
                 if hotkeysSuspended { return }
-                guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
                 noteTapBindingKeyDown()
+                guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
                 let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
                 if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text, timestamp: origin.start) { return }

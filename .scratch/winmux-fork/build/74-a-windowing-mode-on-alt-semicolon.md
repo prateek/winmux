@@ -43,7 +43,7 @@ The defaults bind exactly 43 windowing keys; `main` keeps its 41 chords, changin
 
 The HUD shows only the active name. Mode changes, CLI entry, reload retention/removal and disabling update it; layout refresh follows monitor focus. It never becomes key and ignores clicks. The HUD is gone in overview's first recorded frame. The existing menu-bar letter is unchanged.
 
-Conversion adds `window` keys only where that TOML mode has no binding for the chord; the three fork Triggers keep their existing addition rule. Earlier converted files retain their explicit `lens` mode and Trigger. Removed default reads receive a rename hint above Nickel's error. The docs keep the migration paste block and describe unknown-mode behavior.
+Conversion adds the `window` mode and its `alt-semicolon` Trigger together, only when the TOML has neither a mode named `window` nor an `alt-semicolon` binding in `main`; `alt-slash` and `alt-shift-o` keep their existing addition rule. Earlier converted files retain their explicit `lens` mode and Trigger. Removed default reads receive a rename hint above Nickel's error. The docs keep the migration paste block and describe unknown-mode behavior.
 
 Helper and Swift tests cover exact key sets, migration, conversion, the loaded-default binding sequence, failure persistence, HUD decisions, CLI entry, reload keep/drop and disable. Guest captures cover the Done-when sequence, all ruled key families, unbound text, inactive main chords, user modes and config examples. Resize remains outside this build; Ctrl-Shift-H/L and Ctrl-Shift-J/K would fit grow/shrink commands in a later change.
 
