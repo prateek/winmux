@@ -70,8 +70,8 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     nickel.push_str("let defaults = import \"winmux/defaults.ncl\" in\n");
     if let Some(modes) = converted_modes {
         nickel
-            .push_str("# Kept from defaults: the five Lenses, lens mode keys, and main Triggers\n");
-        nickel.push_str("# alt-slash, alt-semicolon, alt-shift-o only where unbound.\n");
+            .push_str("# Kept from defaults: the five Lenses, and main Triggers alt-slash and alt-shift-o where unbound.\n");
+        nickel.push_str("# The windowing mode and alt-semicolon are kept only when the TOML had neither.\n");
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
         write_fields(modes.as_object().unwrap(), 1, &mut nickel);
@@ -119,6 +119,14 @@ fn converted_modes(
             }
         }
     }
+    // The windowing mode and its Trigger go in together or not at all: its plain keys must not land
+    // in a mode the person wrote, and without the Trigger nothing would enter it.
+    let trigger = chord_identity("alt-semicolon", &mapping);
+    let main_binds_trigger = table["main"]
+        .get("binding")
+        .and_then(Value::as_object)
+        .is_some_and(|b| b.keys().any(|key| chord_identity(key, &mapping) == trigger));
+    let add_window = !table.contains_key("window") && !main_binds_trigger;
     let mut add = |mode: &str, defaults: Vec<(&str, Value)>| {
         let bindings = table
             .entry(mode.to_owned())
@@ -145,18 +153,21 @@ fn converted_modes(
         "main",
         FORK_TRIGGERS
             .iter()
+            .filter(|key| add_window || **key != "alt-semicolon")
             .map(|key| (*key, defaults["main"]["binding"][key].clone()))
             .collect(),
     );
-    add(
-        "lens",
-        defaults["lens"]["binding"]
-            .as_object()
-            .unwrap()
-            .iter()
-            .map(|(key, cmd)| (key.as_str(), cmd.clone()))
-            .collect(),
-    );
+    if add_window {
+        add(
+            "window",
+            defaults["window"]["binding"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(key, cmd)| (key.as_str(), cmd.clone()))
+                .collect(),
+        );
+    }
     Ok(modes)
 }
 

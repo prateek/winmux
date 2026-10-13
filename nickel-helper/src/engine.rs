@@ -31,7 +31,6 @@ use nickel_lang_core::{
 /// Nickel's own diagnostic text, as the `nickel` CLI prints it.
 pub type Diagnostic = String;
 
-// Migration hints apply only to chords removed when the defaults became the short list.
 const REMOVED_DEFAULT_BINDINGS: &[&str] = &[
     "cmd-tab", "cmd-shift-tab", "cmd-backtick", "alt-tab", "alt-shift-tab",
     "alt-n", "alt-p", "alt-space", "alt-cmd-1", "alt-cmd-2",
@@ -109,6 +108,10 @@ impl Engine {
             CoreError::EvalError(e) => match &e.error {
                 EvalErrorKind::FieldMissing { id, .. } if REMOVED_DEFAULT_BINDINGS.contains(&id.label()) =>
                     format!("{} is no longer a default binding; delete its removal from your config.\n\n", id.label()),
+                // Only a read of the modes record: any other record missing a `lens` field is not the rename.
+                EvalErrorKind::FieldMissing { id, field_names, .. }
+                    if id.label() == "lens" && ["main", "window"].iter().all(|mode| field_names.iter().any(|f| f.label() == *mode)) =>
+                    "The default binding mode lens was renamed to window; use defaults.mode.window.binding.\n\n".to_owned(),
                 _ => String::new(),
             },
             _ => String::new(),

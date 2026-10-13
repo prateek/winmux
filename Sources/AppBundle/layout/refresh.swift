@@ -385,6 +385,7 @@ enum OptimalHideCorner {
 @MainActor
 private func layoutWorkspaces() async throws {
     defer {
+        BindingModeHud.shared.refresh()
         FocusedEmptyColumnPanel.shared.refresh()
         ColumnDividerPanelController.shared.refresh()
     }

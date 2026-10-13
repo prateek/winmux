@@ -379,7 +379,7 @@ fn convert_writes_a_config_over_the_defaults_that_passes_check() {
     assert!(config["mode"]["main"]["binding"].get("cmd-shift-tab").is_none());
     assert!(config["mode"]["main"]["binding"].get("cmd-backtick").is_none());
     assert_eq!(config["mode"]["main"]["binding"]["alt-shift-o"], "lens overview");
-    assert_eq!(config["mode"]["lens"]["binding"]["esc"], "mode main");
+    assert_eq!(config["mode"]["window"]["binding"]["esc"], "mode main");
     assert_eq!(config["workspace-sidebar"]["project-labels"]["my project"], "Work %{x}");
 }
 
@@ -872,12 +872,9 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     let defaults = request(&mut helper, json!({"op": "load"}));
     let config = &defaults["result"]["config"];
     assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
-    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
-    assert_eq!(config["mode"]["lens"]["binding"], json!({
-        "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
-        "a": ["mode main", "lens app-windows --presentation list"],
-        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"], "esc": "mode main"
-    }));
+    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode window");
+    assert_eq!(config["mode"]["window"]["binding"], expected_window_bindings());
+    assert!(config["mode"].get("lens").is_none());
     assert_eq!(config["columns"]["count"], "off");
     assert!(config.get("config-version").is_none());
     assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search"]);
@@ -1174,4 +1171,84 @@ fn check_hints_only_for_missing_chords_removed_from_defaults() {
             assert!(error.starts_with("ctrl-w is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
         }
     }
+}
+
+fn expected_window_bindings() -> Value {
+    let mut expected = json!({
+        "h": "focus left", "j": "focus down", "k": "focus up", "l": "focus right",
+        "shift-h": "move left", "shift-j": "move down", "shift-k": "move up", "shift-l": "move right",
+        "ctrl-h": "join-with left", "ctrl-j": "join-with down", "ctrl-k": "join-with up", "ctrl-l": "join-with right",
+        "n": "focus tab-next", "p": "focus tab-prev", "t": "layout floating tiling", "m": "fullscreen",
+        "rightSquareBracket": "project next", "leftSquareBracket": "project prev",
+        "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
+        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"],
+        "a": ["mode main", "lens app-windows --presentation list"], "esc": "mode main", "alt-semicolon": "mode main"
+    });
+    for n in 1..=9 {
+        expected[n.to_string()] = json!(format!("workspace {n}"));
+        expected[format!("shift-{n}")] = json!(format!("move-node-to-workspace {n}"));
+    }
+    expected
+}
+
+#[test]
+fn window_mode_removal_and_user_lens_mode_compatibility() {
+    let removed = loaded_source("remove-window-t", r#"let W = import "winmux/winmux.ncl" in let defaults = import "winmux/defaults.ncl" in (defaults & { mode.window.binding | force = W.without-bindings ["t"] defaults.mode.window.binding }) | W.Config"#);
+    let mut expected = expected_window_bindings();
+    expected.as_object_mut().unwrap().remove("t");
+    assert_eq!(removed["mode"]["window"]["binding"], expected);
+    let custom = columns_load("mode.lens.binding.x = \"focus left\"");
+    assert_eq!(custom["ok"], true);
+    assert_eq!(custom["result"]["config"]["mode"]["lens"]["binding"], json!({"x": "focus left"}));
+    let file = std::env::temp_dir().join(format!("winmux-removed-lens-{}.ncl", std::process::id()));
+    std::fs::write(&file, r#"let defaults = import "winmux/defaults.ncl" in { mode.main.binding = defaults.mode.lens.binding } | (import "winmux/winmux.ncl").Config"#).unwrap();
+    let output = run_helper(&["check", &file.to_string_lossy()]);
+    std::fs::remove_file(file).unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(diagnostic.starts_with("The default binding mode lens was renamed to window; use defaults.mode.window.binding."), "{diagnostic}");
+    assert!(diagnostic.contains("missing field"), "{diagnostic}");
+    let other = std::env::temp_dir().join(format!("winmux-other-lens-{}.ncl", std::process::id()));
+    std::fs::write(&other, r#"let defaults = import "winmux/defaults.ncl" in { lenses.search = defaults.lenses.lens } | (import "winmux/winmux.ncl").Config"#).unwrap();
+    let output = run_helper(&["check", &other.to_string_lossy()]);
+    std::fs::remove_file(other).unwrap();
+    let diagnostic = String::from_utf8(output.stderr).unwrap();
+    assert!(diagnostic.starts_with("error: missing field"), "{diagnostic}");
+}
+
+#[test]
+fn conversion_adds_the_windowing_mode_and_its_trigger_together_or_not_at_all() {
+    // The TOML's own `window` mode keeps its keys and gains none; nothing new enters it.
+    let own_mode = converted_toml("window-own-mode", r#"config-version = 2
+[mode.main.binding]
+alt-h = "focus left"
+[mode.window.binding]
+l = "focus up"
+"#).unwrap();
+    let config = loaded_source("window-own-mode", &own_mode.nickel);
+    assert_eq!(config["mode"]["window"]["binding"], json!({"l": "focus up"}));
+    assert!(config["mode"]["main"]["binding"].get("alt-semicolon").is_none());
+    assert_eq!(config["mode"]["main"]["binding"]["alt-slash"], "lens search");
+
+    // The TOML's own alt-semicolon wins, and no mode is added that nothing enters.
+    let own_trigger = converted_toml("window-own-trigger", r#"config-version = 2
+[mode.main.binding]
+alt-semicolon = "mode lens"
+[mode.lens.binding]
+x = "focus left"
+"#).unwrap();
+    let config = loaded_source("window-own-trigger", &own_trigger.nickel);
+    let main = config["mode"]["main"]["binding"].as_object().unwrap();
+    let triggers: Vec<_> = main.iter().filter(|(key, _)| key.contains("semicolon")).collect();
+    assert_eq!(triggers.len(), 1, "{triggers:?}");
+    assert_eq!(triggers[0].1, "mode lens");
+    assert_eq!(config["mode"]["lens"]["binding"], json!({"x": "focus left"}));
+    assert!(config["mode"].get("window").is_none());
+
+    // With neither, both arrive.
+    let neither = converted_toml("window-neither", "config-version = 2\n[mode.main.binding]\nalt-h = \"focus left\"\n").unwrap();
+    let config = loaded_source("window-neither", &neither.nickel);
+    assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode window");
+    assert_eq!(config["mode"]["window"]["binding"], expected_window_bindings());
+    assert!(neither.nickel.contains("windowing mode"));
 }

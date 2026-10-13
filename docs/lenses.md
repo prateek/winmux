@@ -2,7 +2,7 @@
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
 Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent` and `app-windows`.
-Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `lens` binding mode: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app strip. See [default Triggers](default-config.md). `palette` is an alias for
+Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `window` binding mode: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app strip. See [default Triggers](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel
@@ -140,7 +140,7 @@ let W = import "winmux/winmux.ncl" in
 The shipped `floating` Lens uses `filters.floating` (`fun w ctx => w.class == 'floating`),
 with the list Presentation, MRU sort and empty `popups`. It finds floating windows on every
 workspace; Enter focuses one there and shift-enter Summons it to the current workspace.
-The `lens` binding mode reaches it with `f`. Both the named Filter and Lens settings can be overridden by a config.
+The `window` binding mode reaches it with `f`. Both the named Filter and Lens settings can be overridden by a config.
 
 An app whose bundle declares `LSUIElement` floats by default, even when its live activation
 policy is regular. Filters read that stable identity as `w.app.accessory` and the live policy
@@ -169,7 +169,7 @@ A Trigger with modifiers starts a **Hold** on its Lens session.
 It ends once, when its invoking Command, Control and Option modifiers are released,
 or when Shift is released for a Shift-only chord. Shift otherwise controls
 reverse stepping and capital letters. CLI openings and the modifier-free letters
-of the `lens` binding mode have no Hold. Changing Presentation keeps the Hold.
+of the `window` binding mode have no Hold. Changing Presentation keeps the Hold.
 
 While it lasts, a Lens `keys` chord wins first. The Trigger's own key steps the
 selection, with Shift reversing it; Tab and backtick with the same invoking
@@ -451,10 +451,10 @@ selected window's title appears, under its workspace. The landing hint uses Colu
 placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 `winmux lens floating --presentation miniatures` ignores that Lens's list grouping and sorting.
-`winmux lens --presentation list` keeps the open session's Search, marks and selection. The `lens` binding mode reaches `overview` with `o`.
+`winmux lens --presentation list` keeps the open session's Search, marks and selection. The `window` binding mode reaches `overview` with `o`.
 
-## Leaving the `lens` mode
+## Leaving the windowing mode
 
-The shipped leader bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, and `r` opens `recent --presentation list`. Escape runs only `mode main`. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
+The shipped windowing bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent --presentation list`, and `a` opens `app-windows --presentation list`. Escape and Option-semicolon run only `mode main`. The HUD is hidden before a Lens opens. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
 
 Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List, grid and miniatures panels appear immediately. See [subscription events](events.md).

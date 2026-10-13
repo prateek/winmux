@@ -40,11 +40,13 @@ final class DefaultEventsTest: XCTestCase {
             (.focusedMonitorChanged(workspace: "Demo", monitorId_oneBased: 1), ["_event", "workspace", "monitorId"]),
             (.workspaceChanged(workspace: "Demo", prevWorkspace: "Other"), ["_event", "workspace", "prevWorkspace"]),
             (.modeChanged(mode: nil), ["_event"]),
+            (.modeChanged(mode: "window"), ["_event", "mode"]),
             (.windowDetected(windowId: 42, workspace: "Demo", appBundleId: "org.example.Demo", appName: "Demo"),
              ["_event", "windowId", "workspace", "appBundleId", "appName"]),
             (.bindingTriggered(mode: "main", binding: "alt-slash"), ["_event", "mode", "binding"]),
         ]
         for (event, keys) in cases { XCTAssertEqual(Set(try json(event).keys), keys) }
+        XCTAssertEqual(try json(.modeChanged(mode: "window"))["mode"] as? String, "window")
     }
 
     func testAllIncludesTenEventsAndNewEventsParse() throws {

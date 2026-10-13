@@ -26,6 +26,7 @@ let projectRoot: URL = {
 
 @MainActor
 func setUpWorkspacesForTests() {
+    BindingModeHud.shared = BindingModeHud(show: { _, _ in }, hide: {})
     config = defaultConfig
     setMonitorsForTests(nil)
     configUrl = defaultConfigUrl
