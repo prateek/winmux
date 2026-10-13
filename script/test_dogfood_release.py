@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -222,14 +223,42 @@ class DogfoodReleaseTest(unittest.TestCase):
         self.assert_lock_free()
 
     def test_cancelled_build_preserves_signal_exit_when_group_cannot_be_signalled(self):
-        worker = unittest.mock.Mock()
-        worker.wait.side_effect = [SystemExit(143), 0, 0]
-        with patch.object(release.subprocess, 'Popen', return_value=worker), \
-                patch.object(release.os, 'killpg', side_effect=[None, PermissionError(1, 'Operation not permitted')]):
-            with self.assertRaises(SystemExit) as interrupted:
-                release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
-        self.assertEqual(interrupted.exception.code, 143)
-        self.assertEqual(worker.wait.call_count, 3)
+        refused = PermissionError(1, 'Operation not permitted')
+        for signals in ([None, refused], [refused, refused]):
+            with self.subTest(signals=signals):
+                worker = unittest.mock.Mock()
+                worker.wait.side_effect = [SystemExit(143), 0, 0]
+                with patch.object(release.subprocess, 'Popen', return_value=worker), \
+                        patch.object(release.os, 'killpg', side_effect=signals):
+                    with self.assertRaises(SystemExit) as interrupted:
+                        release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
+                self.assertEqual(interrupted.exception.code, 143)
+                self.assertEqual(worker.wait.call_count, 3)
+
+    def read_lines(self, process, count):
+        """The script's next lines of stdout. A script that ended first fails with everything it wrote."""
+        lines = []
+        for _ in range(count):
+            line = process.stdout.readline()
+            if not line:
+                process.kill()
+                stdout, stderr = process.communicate()
+                self.fail(f'the script ended early with {process.returncode}\nstdout:\n{"".join(lines)}{stdout}\nstderr:\n{stderr}')
+            lines.append(line)
+        return lines
+
+    def assert_group_gone(self, pgid, diagnostic):
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                os.killpg(pgid, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                pass  # Only zombies are left; launchd reaps them.
+            if time.monotonic() > deadline:
+                self.fail(f'the worker\'s process group {pgid} is still there\n{diagnostic}')
+            time.sleep(0.02)
 
     def test_cli_sigterm_releases_lock_and_stops_worker(self):
         scripts = self.repo / 'script'
@@ -248,15 +277,14 @@ class DogfoodReleaseTest(unittest.TestCase):
                                         'WINMUX_TEST_WORKER_PID': str(worker_pid)},
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            output = [process.stdout.readline(), process.stdout.readline()]
+            output = self.read_lines(process, 2)
             self.assertIn('next version:', output[0])
             self.assertEqual(output[1].strip(), 'READY')
             process.terminate()
             stdout, stderr = process.communicate(timeout=5)
             diagnostic = f'stdout:\n{"".join(output)}{stdout}\nstderr:\n{stderr}'
             self.assertEqual(process.returncode, 143, diagnostic)
-            with self.assertRaises(ProcessLookupError, msg=diagnostic):
-                os.kill(int(worker_pid.read_text()), 0)
+            self.assert_group_gone(int(worker_pid.read_text()), diagnostic)
             try:
                 self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
             except OSError as error:
@@ -446,7 +474,7 @@ sys.exit(release.main())
                                    env={**os.environ, 'XDG_STATE_HOME': str(state), 'PYTHONDONTWRITEBYTECODE': '1'},
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            self.assertEqual(process.stdout.readline().strip(), 'READY')
+            self.assertEqual(self.read_lines(process, 1)[0].strip(), 'READY')
             process.terminate()
             stdout, stderr = process.communicate(timeout=5)
             diagnostic = f'stdout:\n{stdout}\nstderr:\n{stderr}'

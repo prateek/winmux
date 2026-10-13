@@ -132,7 +132,8 @@ def build_release(repo, version, dry_run, head_sha):
         if process is not None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
+                # macOS returns EPERM for a process group whose only members are unreaped zombies.
                 pass
             try:
                 process.wait(timeout=WORKER_GRACE)
@@ -141,7 +142,6 @@ def build_release(repo, version, dry_run, head_sha):
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
-                # macOS returns EPERM for an orphaned zombie-only process group.
                 pass
             process.wait()
         raise

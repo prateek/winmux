@@ -186,15 +186,9 @@ final class NickelHelperIntegrationTest: XCTestCase {
 
         assertEquals(try bits.get().filter { $0 }.count, 10)
         assertEquals(hook, .success(.object(["workspace": .string("Inbox"), "column": .int(2)])))
-        let sharedRunner = NickelLatencyLimits(environment: [:])
-        XCTAssertLessThanOrEqual(filterTime, sharedRunner.filter, "50-window Filter request: \(filterTime)")
-        XCTAssertLessThanOrEqual(hookTime, sharedRunner.hook, "hook request: \(hookTime)")
-        let environment = ProcessInfo.processInfo.environment
-        if environment["WINMUX_NICKEL_STRICT_LATENCY"] != nil {
-            let benchmark = NickelLatencyLimits(environment: environment)
-            XCTAssertLessThanOrEqual(filterTime, benchmark.filter, "50-window Filter request: \(filterTime)")
-            XCTAssertLessThanOrEqual(hookTime, benchmark.hook, "hook request: \(hookTime)")
-        }
+        let limits = NickelLatencyLimits(environment: ProcessInfo.processInfo.environment)
+        XCTAssertLessThanOrEqual(filterTime, limits.filter, "50-window Filter request: \(filterTime)")
+        XCTAssertLessThanOrEqual(hookTime, limits.hook, "hook request: \(hookTime)")
         print("winmux-nickel latency: 50-window filter \(filterTime), hook \(hookTime)")
     }
 }

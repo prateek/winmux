@@ -13,6 +13,15 @@ final class TestWatchdogTest: XCTestCase {
         wait(for: [fired], timeout: 1)
     }
 
+    func testAFinishedTestHasNoDeadline() {
+        let fired = expectation(description: "watchdog fired")
+        fired.isInverted = true
+        let watchdog = WMTestWatchdog(seconds: 0.02) { _ in fired.fulfill() }
+        watchdog.startTest("Suite.testFinished")
+        watchdog.finishTest("Suite.testFinished")
+        wait(for: [fired], timeout: 0.2)
+    }
+
     func testFinishingAndReplacingTestsCancelsTheirDeadlines() {
         let fired = expectation(description: "only the current test expires")
         fired.assertForOverFulfill = true

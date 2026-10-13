@@ -90,7 +90,8 @@ static const NSTimeInterval WMTestTimeoutSeconds = 120;
         }
         _watchdog = [[WMTestWatchdog alloc] initWithSeconds:seconds onTimeout:^(NSString *name) {
             fprintf(stderr, "WinMux test timeout: %s exceeded %.3f seconds; terminating test process (later tests will not run)\n", name.UTF8String, seconds);
-            fflush(stderr);
+            // _Exit skips the buffers, and on CI stdout is a pipe holding the earlier tests' output.
+            fflush(NULL);
             _Exit(124);
         }];
     }
