@@ -170,6 +170,8 @@ final class ConfigBootstrapTest: XCTestCase {
             ["alt-h", "alt-shift-o", "alt-slash", "alt-semicolon"].contains($0.key)
         }
         assertEquals(config.modes, expectedModes)
+        XCTAssertNotNil(config.modes["window"])
+        XCTAssertNil(config.modes["lens"])
         XCTAssertNil(config.modes["main"]?.bindings["alt-tab"])
         assertEquals(config.lenses, defaultConfig.lenses)
     }

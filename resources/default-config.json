@@ -266,31 +266,6 @@
     }
   },
   "mode": {
-    "lens": {
-      "binding": {
-        "a": [
-          "mode main",
-          "lens app-windows --presentation list"
-        ],
-        "esc": "mode main",
-        "f": [
-          "mode main",
-          "lens floating"
-        ],
-        "o": [
-          "mode main",
-          "lens overview"
-        ],
-        "r": [
-          "mode main",
-          "lens recent --presentation list"
-        ],
-        "s": [
-          "mode main",
-          "lens search"
-        ]
-      }
-    },
     "main": {
       "binding": {
         "alt-0": "focus --tab-index 10",
@@ -307,7 +282,7 @@
         "alt-j": "focus down",
         "alt-k": "focus up",
         "alt-l": "focus right",
-        "alt-semicolon": "mode lens",
+        "alt-semicolon": "mode window",
         "alt-shift-1": "move-node-to-workspace 1",
         "alt-shift-2": "move-node-to-workspace 2",
         "alt-shift-3": "move-node-to-workspace 3",
@@ -334,6 +309,68 @@
         "ctrl-7": "workspace 7",
         "ctrl-8": "workspace 8",
         "ctrl-9": "workspace 9"
+      }
+    },
+    "window": {
+      "binding": {
+        "1": "workspace 1",
+        "2": "workspace 2",
+        "3": "workspace 3",
+        "4": "workspace 4",
+        "5": "workspace 5",
+        "6": "workspace 6",
+        "7": "workspace 7",
+        "8": "workspace 8",
+        "9": "workspace 9",
+        "a": [
+          "mode main",
+          "lens app-windows --presentation list"
+        ],
+        "alt-semicolon": "mode main",
+        "ctrl-h": "join-with left",
+        "ctrl-j": "join-with down",
+        "ctrl-k": "join-with up",
+        "ctrl-l": "join-with right",
+        "esc": "mode main",
+        "f": [
+          "mode main",
+          "lens floating"
+        ],
+        "h": "focus left",
+        "j": "focus down",
+        "k": "focus up",
+        "l": "focus right",
+        "leftSquareBracket": "project prev",
+        "m": "fullscreen",
+        "n": "focus tab-next",
+        "o": [
+          "mode main",
+          "lens overview"
+        ],
+        "p": "focus tab-prev",
+        "r": [
+          "mode main",
+          "lens recent --presentation list"
+        ],
+        "rightSquareBracket": "project next",
+        "s": [
+          "mode main",
+          "lens search"
+        ],
+        "shift-1": "move-node-to-workspace 1",
+        "shift-2": "move-node-to-workspace 2",
+        "shift-3": "move-node-to-workspace 3",
+        "shift-4": "move-node-to-workspace 4",
+        "shift-5": "move-node-to-workspace 5",
+        "shift-6": "move-node-to-workspace 6",
+        "shift-7": "move-node-to-workspace 7",
+        "shift-8": "move-node-to-workspace 8",
+        "shift-9": "move-node-to-workspace 9",
+        "shift-h": "move left",
+        "shift-j": "move down",
+        "shift-k": "move up",
+        "shift-l": "move right",
+        "t": "layout floating tiling"
       }
     }
   },

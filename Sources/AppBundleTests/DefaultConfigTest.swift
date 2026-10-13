@@ -35,17 +35,20 @@ final class DefaultConfigTest: XCTestCase {
     func testFiveLensesTriggersAndLeaderEscape() async throws {
         let defaults = defaultConfig
         XCTAssertEqual(Set(defaults.lenses.keys), ["recent", "app-windows", "overview", "floating", "search"])
-        XCTAssertEqual(Set(defaults.modes.keys), ["main", "lens"])
+        XCTAssertEqual(Set(defaults.modes.keys), ["main", "window"])
         XCTAssertNil(defaults.columns.resolved(workspace: "Demo"))
-        let expected = ["alt-shift-o": "lens overview", "alt-slash": "lens search", "alt-semicolon": "mode lens"]
+        let expected = ["alt-shift-o": "lens overview", "alt-slash": "lens search", "alt-semicolon": "mode window"]
         for (chord, raw) in expected {
             let binding = try XCTUnwrap(defaults.modes["main"]?.bindings[chord])
             XCTAssertTrue(binding.commands.singleOrNil()?.equals(parseCommand(raw).cmdOrDie) == true, chord)
         }
-        let leader = try XCTUnwrap(defaults.modes["lens"])
-        XCTAssertEqual(Set(leader.bindings.keys), ["o", "f", "s", "r", "a", "esc"])
+        let leader = try XCTUnwrap(defaults.modes["window"])
+        let windowKeys: Set<String> = Set(["h", "j", "k", "l", "shift-h", "shift-j", "shift-k", "shift-l",
+            "ctrl-h", "ctrl-j", "ctrl-k", "ctrl-l", "n", "p", "t", "m", "rightSquareBracket", "leftSquareBracket",
+            "o", "f", "s", "r", "a", "esc", "alt-semicolon"] + (1...9).map { "\($0)" } + (1...9).map { "shift-\($0)" })
+        XCTAssertEqual(Set(leader.bindings.keys), windowKeys)
         // Mode activation in these tests registers no desktop bindings.
-        config.modes = ["main": .zero, "lens": .zero]
+        config.modes = ["main": .zero, "window": .zero]
         for (key, name) in ["o": "overview", "f": "floating", "s": "search", "r": "recent", "a": "app-windows"] {
             let commands = try XCTUnwrap(leader.bindings[key]?.commands)
             XCTAssertEqual(commands.count, 2)
@@ -53,13 +56,13 @@ final class DefaultConfigTest: XCTestCase {
             XCTAssertTrue(commands[0].equals(parseCommand("mode main").cmdOrDie))
             var disabled = LensConfig(); disabled.enabled = false
             config.lenses = [name: disabled]
-            try await activateMode("lens")
+            try await activateMode("window")
             let failed = try await commands.runCmdSeq(.defaultEnv, .emptyStdin)
             XCTAssertEqual(failed.exitCode, 2)
             XCTAssertEqual(activeMode, "main", "a rejected Lens must still leave the leader")
             XCTAssertFalse(SwitcherPalettePanel.shared.isPaletteActive)
         }
-        try await activateMode("lens")
+        try await activateMode("window")
         let escaped = try await leader.bindings["esc"]!.commands.runCmdSeq(.defaultEnv, .emptyStdin)
         XCTAssertEqual(escaped.exitCode, 0)
         XCTAssertEqual(activeMode, "main")
@@ -132,7 +135,7 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertTrue(main.bindings["alt-shift-h"]?.commands.singleOrNil()?.equals(parseCommand("move left").cmdOrDie) == true)
         XCTAssertEqual(main.bindings["cmd-tab"]?.descriptionWithKeyNotation, "cmd-mytab")
         XCTAssertTrue(main.bindings["cmd-tab"]?.commands.singleOrNil()?.equals(parseCommand("focus right").cmdOrDie) == true)
-        XCTAssertEqual(Set(parsed.config.modes.keys), ["main", "lens", "custom"])
+        XCTAssertEqual(Set(parsed.config.modes.keys), ["main", "window", "custom"])
         XCTAssertEqual(Set(parsed.config.lenses.keys), Set(defaultConfig.lenses.keys))
     }
 

@@ -70,7 +70,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     nickel.push_str("let defaults = import \"winmux/defaults.ncl\" in\n");
     if let Some(modes) = converted_modes {
         nickel
-            .push_str("# Kept from defaults: the five Lenses, lens mode keys, and main Triggers\n");
+            .push_str("# Kept from defaults: the five Lenses, windowing mode keys, and main Triggers\n");
         nickel.push_str("# alt-slash, alt-semicolon, alt-shift-o only where unbound.\n");
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
@@ -149,8 +149,8 @@ fn converted_modes(
             .collect(),
     );
     add(
-        "lens",
-        defaults["lens"]["binding"]
+        "window",
+        defaults["window"]["binding"]
             .as_object()
             .unwrap()
             .iter()
