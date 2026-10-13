@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -220,27 +221,46 @@ class DogfoodReleaseTest(unittest.TestCase):
         self.assertEqual(self.built, [])
         self.assert_lock_free()
 
+    def test_cancelled_build_preserves_signal_exit_when_group_cannot_be_signalled(self):
+        worker = unittest.mock.Mock()
+        worker.wait.side_effect = [SystemExit(143), 0, 0]
+        with patch.object(release.subprocess, 'Popen', return_value=worker), \
+                patch.object(release.os, 'killpg', side_effect=[None, PermissionError(1, 'Operation not permitted')]):
+            with self.assertRaises(SystemExit) as interrupted:
+                release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
+        self.assertEqual(interrupted.exception.code, 143)
+        self.assertEqual(worker.wait.call_count, 3)
+
     def test_cli_sigterm_releases_lock_and_stops_worker(self):
         scripts = self.repo / 'script'
         scripts.mkdir()
         shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
-        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho READY\nsleep 30\n')
+        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho $$ > "$WINMUX_TEST_WORKER_PID"\necho READY\nsleep 30\n')
         self.git('add', 'script')
         self.git('commit', '-m', 'scripts')
         remote = Path(self.temp.name) / 'remote.git'
         subprocess.check_call(['git', 'init', '--bare', str(remote)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.git('remote', 'add', 'fork', str(remote))
         state = Path(self.temp.name) / 'state'
-        process = subprocess.Popen(['python3', str(scripts / 'dogfood_release.py'), '--next', '--dry-run'],
-                                   env={**os.environ, 'XDG_STATE_HOME': str(state), 'WINMUX_RELEASE_REMOTE': 'fork'},
+        worker_pid = Path(self.temp.name) / 'worker.pid'
+        process = subprocess.Popen([sys.executable, str(scripts / 'dogfood_release.py'), '--next', '--dry-run'],
+                                   env={**os.environ, 'XDG_STATE_HOME': str(state), 'WINMUX_RELEASE_REMOTE': 'fork',
+                                        'WINMUX_TEST_WORKER_PID': str(worker_pid)},
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            self.assertIn('next version:', process.stdout.readline())
-            self.assertEqual(process.stdout.readline().strip(), 'READY')
+            output = [process.stdout.readline(), process.stdout.readline()]
+            self.assertIn('next version:', output[0])
+            self.assertEqual(output[1].strip(), 'READY')
             process.terminate()
-            process.communicate(timeout=5)
-            self.assertEqual(process.returncode, 143)
-            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            stdout, stderr = process.communicate(timeout=5)
+            diagnostic = f'stdout:\n{"".join(output)}{stdout}\nstderr:\n{stderr}'
+            self.assertEqual(process.returncode, 143, diagnostic)
+            with self.assertRaises(ProcessLookupError, msg=diagnostic):
+                os.kill(int(worker_pid.read_text()), 0)
+            try:
+                self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            except OSError as error:
+                self.fail(f'lock was not released: {error}\n{diagnostic}')
         finally:
             if process.poll() is None:
                 process.kill()
@@ -360,13 +380,17 @@ subprocess.Popen = interrupted_spawn
 sys.argv = ['script/dogfood-release', '--next', '--dry-run']
 sys.exit(release.main())
 """
-        process = subprocess.Popen(['python3', '-c', code, str(scripts), str(pid_file)],
+        process = subprocess.Popen([sys.executable, '-c', code, str(scripts), str(pid_file)],
                                    env={**os.environ, 'XDG_STATE_HOME': str(state), 'PYTHONDONTWRITEBYTECODE': '1'},
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            process.communicate(timeout=5)
-            self.assertEqual(process.returncode, 143)
-            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            stdout, stderr = process.communicate(timeout=5)
+            diagnostic = f'stdout:\n{stdout}\nstderr:\n{stderr}'
+            self.assertEqual(process.returncode, 143, diagnostic)
+            try:
+                self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            except OSError as error:
+                self.fail(f'lock was not released: {error}\n{diagnostic}')
         finally:
             if process.poll() is None:
                 process.kill()
@@ -389,7 +413,7 @@ sys.exit(release.main())
         self.assertEqual(locks[0], locks[1])
 
     def test_lock_of_a_killed_release_is_free(self):
-        holder = subprocess.Popen(['python3', '-c', 'import fcntl, sys, time\n'
+        holder = subprocess.Popen([sys.executable, '-c', 'import fcntl, sys, time\n'
                                    'handle = open(sys.argv[1], "w")\n'
                                    'fcntl.flock(handle, fcntl.LOCK_EX)\n'
                                    'print("LOCKED", flush=True)\n'
@@ -418,15 +442,19 @@ sys.exit(release.main())
                 'release.WORKER_GRACE = 0.2\n'
                 "sys.argv = ['script/dogfood-release', '0.5.6-dogfood.1', '--dry-run']\n"
                 'sys.exit(release.main())\n')
-        process = subprocess.Popen(['python3', '-c', code, str(scripts)],
+        process = subprocess.Popen([sys.executable, '-c', code, str(scripts)],
                                    env={**os.environ, 'XDG_STATE_HOME': str(state), 'PYTHONDONTWRITEBYTECODE': '1'},
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             self.assertEqual(process.stdout.readline().strip(), 'READY')
             process.terminate()
-            process.communicate(timeout=5)
-            self.assertEqual(process.returncode, 143)
-            self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            stdout, stderr = process.communicate(timeout=5)
+            diagnostic = f'stdout:\n{stdout}\nstderr:\n{stderr}'
+            self.assertEqual(process.returncode, 143, diagnostic)
+            try:
+                self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            except OSError as error:
+                self.fail(f'lock was not released: {error}\n{diagnostic}')
         finally:
             if process.poll() is None:
                 process.kill()

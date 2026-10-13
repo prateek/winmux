@@ -140,7 +140,8 @@ def build_release(repo, version, dry_run, head_sha):
                 pass
             try:
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
+                # macOS returns EPERM for an orphaned zombie-only process group.
                 pass
             process.wait()
         raise
