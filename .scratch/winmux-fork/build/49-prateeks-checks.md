@@ -35,6 +35,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] In System Settings, Trackpad, More Gestures, open the Mission Control menu and say here whether it offers "Off". A WinMux view on that swipe needs the system's gesture turned off first.
 - [ ] In Mission Control, press an arrow key, then Return. Say here whether a window was selected and focused. Sources disagree.
 
+**The system's Cmd-Tab stays the system's, and a short list of default shortcuts**
+- [ ] Upgrade the daily machine to the build with this change and run `winmux config check`. If it says a chord "is no longer a default binding", delete that removal from your config, or use `W.without-bindings`, and check again. A pass prints nothing, and `winmux doctor` then names your own config file.
+- [ ] With your config and no `cmd-tab` binding in it, hold Cmd-Tab. It is Apple's app switcher, and `winmux doctor` shows `held=[] marker=[]`.
+- [ ] On a real keyboard, `ctrl-w` deletes a word and `ctrl-r` searches history in your shell, and `alt-shift-o` opens `overview`.
+
 **Display profiles: match a profile to the attached display**
 - [ ] Once it has landed: with a profile for the laptop panel and one for the ultrawide, undock and dock with the lid shut, then with it open, then run your display script. Each time the Column count changes once, after the display settles, and docking again restores the ultrawide's arrangement.
 

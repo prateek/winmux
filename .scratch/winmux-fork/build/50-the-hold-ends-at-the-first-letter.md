@@ -62,6 +62,10 @@ Prateek's words settle the Decisions above. These he has not spoken to; build th
 - **Showing the state.** The Search row reads as inactive in normal mode and shows a `/` hint; say what you drew.
 - **The live run** is the Hold's own, in a guest, with posted keys, on a release build as the `vm` skill describes: the gesture, the letter that ends it, movement by `hjkl`, `/` and a Search, Escape back to normal, a paste in Search, and a bound chord in each state.
 
+## Seen while building the short list of default shortcuts
+
+A Lens opened by `alt-slash` or `alt-shift-o` has Option, or Option and Shift, down while its Hold lasts, and the shipped Summon keys are `alt-enter` and `shift-enter`. Enter pressed before those modifiers are up runs Summon, where the person meant Enter. The Summon label and landing outline no longer show for the Trigger's own modifiers; what Enter does there was left for this issue. Say what a Lens key means while its modifiers are the Trigger's own.
+
 ## Done when
 
 - [ ] Cmd-Tab, Tab, Tab, release: the selection steps at each press and the window selected at release is focused, as today.
