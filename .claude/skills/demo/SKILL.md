@@ -44,7 +44,7 @@ Film on a 16:9 guest display, 1280 × 720. Push `keys.swift` and `film` into the
 
 `film` records the screen while `keys` presses the steps, starting 1.5 seconds in and logging each chord's time to `<id>.events.json`, so every take opens on a held starting state and the key chips land where the keys did. Leave two seconds of recording after the last step for the result. Park the pointer in the bottom-right corner first.
 
-- **`keys` steps** are `down:`, `up:`, `tap:`, `wait:` and `delay:`. Escape is `tap:escape` and Backspace is `tap:backspace`. It logs taps only, so a take of a modifier alone has an empty event log.
+- **`keys` steps** are `down:`, `up:`, `tap:`, `wait:` and `delay:`. Escape is `tap:escape` and Backspace is `tap:backspace`; digits are `tap:3`, and the square brackets `tap:leftbracket` and `tap:rightbracket`. It logs taps only, so a take of a modifier alone has an empty event log.
 - **Every take starts clean**: no Lens open (`winmux debug-lens-trace --last 1` shows no active session), the pointer parked, and the workspace and focus the storyboard names.
 - **A strip opened from the CLI with no modifier held commits at once.** Hold the modifier through `keys` for a strip; a list and a grid stay open.
 - **Wait for pictures.** A window just staged or opened draws as its app icon until its first capture lands.
