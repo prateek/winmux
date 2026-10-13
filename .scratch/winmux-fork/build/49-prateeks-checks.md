@@ -47,6 +47,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] `brew upgrade --cask winmux` on the daily machine keeps the Accessibility and Screen Recording grants. It did in a guest with SIP off, by `brew upgrade` and by Sparkle.
 - [ ] After that upgrade WinMux does not ask to "bypass the system private window picker". It asked once in a guest, on one version of three.
 
+**A windowing mode on `alt-semicolon`**
+- [ ] On a real keyboard, press `alt-semicolon`, let go, then `l`, `l`, `shift-j`, `3`, Escape. Focus moves twice, the window moves down, workspace 3 comes up, and a small `window` label sits at the bottom centre of the screen until Escape. Then do it fast, as you would in use: say here if the first letter after `alt-semicolon` is typed into the app as `¬` or another Option character, which means Option was still down when it landed.
+- [ ] With a second display attached and the mode on, move focus to a window on the other display. The `window` label follows to that display.
+- [ ] After the build with this change arrives, run `winmux config check`. If it says "The default binding mode lens was renamed to window", change that read to `defaults.mode.window.binding`. A config converted earlier keeps its own five-letter `lens` mode until you replace it.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
