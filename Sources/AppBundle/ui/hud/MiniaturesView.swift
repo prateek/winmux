@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MiniaturesView: View {
     @ObservedObject var model: LensSession
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let layout = model.miniatureLayout
@@ -39,8 +38,7 @@ struct MiniaturesView: View {
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                    TextField("\(model.name) • Type to Search", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
-                        .textFieldStyle(.plain).focused($searchFocused)
+                    LensSearchRow(model: model)
                     Spacer()
                     Text("\(page + 1) / \(layout.pageCount)").monospacedDigit()
                 }
@@ -51,7 +49,6 @@ struct MiniaturesView: View {
         }
         .foregroundStyle(.white)
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
-        .onAppear { searchFocused = true }
     }
 
     @ViewBuilder

@@ -153,7 +153,7 @@ final class LensLifecycleTest: XCTestCase {
             let owner = testLensLifecycle()
             owner.finishShow = { _, instruction in instructions.append(instruction) }
             owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
-            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation != "strip")])
+            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation == "list")])
             model.send(.presentationChanged("list"))
             if presentation != "list" {
                 XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
@@ -231,7 +231,7 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertEqual(changes, 0)
         XCTAssertTrue(owner.complete(model, ticket: ticket, invocation: gesture))
         XCTAssertNotNil(model.stripGesture)
-        XCTAssertEqual(changes, 2, "One initialization and one application of accumulated steps")
+        XCTAssertEqual(changes, 3, "One Hold state change, one initialization and one application of accumulated steps")
         owner.dismiss()
         withExtendedLifetime(observation) {}
     }

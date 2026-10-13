@@ -3,7 +3,6 @@ import SwiftUI
 
 struct GridView: View {
     @ObservedObject var model: LensSession
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let layout = model.gridLayout
@@ -35,8 +34,7 @@ struct GridView: View {
             }
             HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.62))
-                TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
-                    .textFieldStyle(.plain).focused($searchFocused)
+                LensSearchRow(model: model)
                     .frame(minWidth: 180 * scale)
                 LensGroupingControl(model: model)
             }
@@ -61,7 +59,6 @@ struct GridView: View {
         .overlay {
             if model.searchError != nil { RoundedRectangle(cornerRadius: 30 * scale).stroke(.orange, lineWidth: 1) }
         }
-        .onAppear { searchFocused = true }
     }
 }
 

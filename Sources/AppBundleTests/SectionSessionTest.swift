@@ -91,26 +91,30 @@ final class SectionSessionTest: SerialClockTestCase {
             var settings = LensConfig(); settings.presentation = presentation
             let model = LensSession(name: "demo", settings: settings, items: items(), search: "")
             model.startHold(StripGesture(keyCode: 48, invoking: .command))
-            if presentation == "strip" {
-                XCTAssertEqual(model.meaning(for: key(5, "g")), .text("g"))
-                for event in [key(5, "g"), key(4, "h")] { _ = model.perform(model.meaning(for: event)) }
-                XCTAssertEqual(model.query, "gh")
-                XCTAssertEqual(model.settings.presentation, "list")
-            } else if presentation != "miniatures" {
-                for event in [key(37, "l"), key(31, "o")] { _ = model.perform(model.meaning(for: event)) }
+            if presentation == "strip" || presentation == "miniatures" {
+                XCTAssertEqual(model.meaning(for: key(5, "g")), .endHold(5, "g"))
+                _ = model.perform(model.meaning(for: key(5, "g")))
+                XCTAssertEqual(model.query, "")
+                XCTAssertEqual(model.settings.presentation, presentation)
+            } else {
+                XCTAssertEqual(model.meaning(for: key(5, "g")), .command("cmd-g"))
+                _ = model.perform(model.meaning(for: key(5, "g")))
+                XCTAssertNotNil(model.hold)
+                _ = model.perform(model.meaning(for: key(37, "l")))
+                XCTAssertNil(model.hold)
             }
             let query = model.query
-            if presentation == "miniatures" { model.changeSections("next") }
+            if presentation == "miniatures" || presentation == "strip" { model.changeSections("next") }
             else {
-                XCTAssertEqual(lensKeyMeaning(hold: model.hold, keys: model.activeKeyBindings, code: 5, characters: "g", flags: .command), .command("cmd-g"))
+                XCTAssertEqual(lensKeyMeaning(state: model.inputState, hold: model.hold, keys: model.activeKeyBindings, code: 5, characters: "g", flags: .command), .command("cmd-g"))
                 _ = model.perform(model.meaning(for: key(5, "g")))
             }
             XCTAssertEqual(model.query, query)
-            XCTAssertEqual(model.settings.sections, presentation == "miniatures" ? "workspace" : "app")
+            XCTAssertEqual(model.settings.sections, presentation == "miniatures" || presentation == "strip" ? "workspace" : "none")
             model.endHold(flags: [])
-            if presentation != "miniatures" {
+            if presentation == "list" || presentation == "grid" {
                 _ = model.perform(model.meaning(for: key(5, "g")))
-                XCTAssertEqual(model.settings.sections, "none")
+                XCTAssertEqual(model.settings.sections, "workspace")
                 XCTAssertEqual(model.query, query)
             }
         }
@@ -122,11 +126,11 @@ extension SectionSessionTest {
     func testQueuedHoldLettersReResolveBindingsAfterStripConversion() {
         let clock = TestClock<Duration>()
         let owner = testLensLifecycle(clock: clock)
-        var settings = LensConfig(); settings.presentation = "strip"
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
         let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
         let ticket = owner.begin("demo", toggle: false, strip: gesture, keys: [])!
-        for (code, text): (UInt16, String) in [(5, "g"), (4, "h"), (5, "g")] {
-            XCTAssertEqual(owner.openingStripKey(keyCode: code, flags: .command, characters: text), .consumed)
+        for (code, text, flags): (UInt16, String, NSEvent.ModifierFlags) in [(5, "g", .command), (4, "h", []), (5, "g", .command)] {
+            XCTAssertEqual(owner.openingStripKey(keyCode: code, flags: flags, characters: text), .consumed)
         }
         owner.openingFlagsChanged([])
         let model = LensSession(name: "demo", settings: settings, items: items(), search: "")

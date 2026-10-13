@@ -52,8 +52,10 @@ final class GridSessionTest: SerialClockTestCase {
         let owner = testLensLifecycle()
         let gesture = StripGesture(keyCode: 5, invoking: .option)
         owner.complete(session, ticket: owner.begin("grid", toggle: false, invocation: gesture)!)
-        XCTAssertTrue(session.perform(.text("document")))
+        XCTAssertTrue(session.perform(.endHold(38, "j")))
         XCTAssertEqual(session.settings.presentation, "grid")
+        XCTAssertEqual(session.query, "")
+        XCTAssertEqual(session.inputState, .normal)
         session.perform(.mark)
         let marked = session.selectedId
         owner.stripFlagsChanged([], from: session)
@@ -66,6 +68,19 @@ final class GridSessionTest: SerialClockTestCase {
         XCTAssertEqual(apps.results.count, 2)
         XCTAssertEqual(apps.results.map { $0.tile.appCount }, [7, 7])
     }
+    func testNormalHJKLUseExactlyTheArrowGeometry() {
+        for (code, text, arrow): (UInt16, String, UInt16) in [(4, "h", 123), (38, "j", 125), (40, "k", 126), (37, "l", 124)] {
+            for selection in 0..<14 {
+                let letter = model(); let control = model()
+                letter.send(.selectionChanged(selection)); control.send(.selectionChanged(selection))
+                let meaning = lensKeyMeaning(state: letter.inputState, hold: nil, keys: letter.activeKeyBindings, code: code, characters: text, flags: [])
+                XCTAssertTrue(letter.perform(meaning)); XCTAssertTrue(control.perform(.arrow(arrow)))
+                XCTAssertEqual(letter.selectedId, control.selectedId)
+                XCTAssertEqual(letter.query, "")
+            }
+        }
+    }
+
     func testLifecycleRefreshesEveryLiveMatchEachHalfSecondAndCancels() async throws {
         let clock = TestClock<Duration>()
         var requests: [UInt32] = [], closed: [Int] = []

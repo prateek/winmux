@@ -46,7 +46,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
-        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model) }
+        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -171,13 +171,27 @@ final class SwitcherPalettePanel: NSPanelHud {
         if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
         makeKey()
         // A list that is shown again with Search already focused keeps its caret and selection.
+        guard model.inputState == .search else { _ = makeFirstResponder(self); return }
         if model.settings.presentation != "strip", instruction.focusSearch || !(firstResponder is NSTextView) {
             let initialQuery = model.query
             let selectAll = instruction.focusSearch
             focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
-                guard let self, let model, self.session === model else { return }
+                guard let self, let model, self.session === model, model.inputState == .search else { return }
                 self.focusSearch(model, selectAll: selectAll && model.query == initialQuery)
+            }
+        }
+    }
+
+    private func updateInputFocus(_ model: LensSession) {
+        if model.inputState != .search {
+            if firstResponder !== self { _ = makeFirstResponder(self) }
+        } else if !(firstResponder is NSTextView) {
+            focusSearch(model, selectAll: !model.searchEdited)
+            DispatchQueue.main.async { [weak self, weak model] in
+                guard let self, let model, self.session === model, model.inputState == .search,
+                      !(self.firstResponder is NSTextView) else { return }
+                self.focusSearch(model, selectAll: !model.searchEdited)
             }
         }
     }
@@ -210,7 +224,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let result = super.makeFirstResponder(responder)
         if result, let model = session {
             lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(),
-                presentation: model.settings.presentation, hold: model.hold != nil,
+                presentation: model.settings.presentation, state: model.inputState, hold: model.hold != nil,
                 path: "focus", destination: firstResponder is NSTextView ? "Search first responder" : "other responder",
                 search: model.query, selectedId: model.selectedId, fieldEditor: firstResponder is NSTextView)
         }
@@ -325,11 +339,11 @@ final class SwitcherPalettePanel: NSPanelHud {
             if model.settings.presentation == "strip", key.hasSuffix("enter") { dismiss() }
             return
         }
-        let keepStrip = model.settings.presentation == "strip" && !commands.contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") } && !key.hasSuffix("enter")
+        let keepOpen = model.keepsOpen(after: key)
         // An action can run from a timer or a command task, where the current event is unrelated.
         let now = LensTimebase.now()
         let origin = LensTraceOrigin(start: now, received: now, source: "internal")
-        if !keepStrip { dismiss() }
+        if !keepOpen { dismiss() }
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.menuBarButton, token) {
@@ -347,6 +361,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let trace = lifecycle.trace
         let presentation = model.settings.presentation
         let held = model.hold != nil
+        let state = model.inputState
         let editor = firstResponder is NSTextView
         let meaning = model.meaning(for: event)
         let handled: Bool
@@ -355,11 +370,17 @@ final class SwitcherPalettePanel: NSPanelHud {
             // A global binding pressed over a list or miniatures with no Hold is not the Lens's key.
             case _ where carbon && !held && presentation != "strip": handled = false; destination = "global binding"
             case .dismiss: dismiss(); handled = true; destination = "dismissed"
+            case .triggerGlobal: handled = false; destination = "global Trigger"
             case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
             default:
-                handled = model.perform(meaning, retainTyping: !editor && model.settings.presentation != "strip")
+                if state == .search, editor, meaning.editsSearch {
+                    handled = false
+                } else { handled = model.perform(meaning) }
                 switch meaning {
                     case .text, .backspace: destination = handled ? "Search" : editor ? "passed to field editor" : "dropped"
+                    case .endHold: destination = "Hold ended by key; " + model.inputState.rawValue
+                    case .enterSearch: destination = "entered Search"
+                    case .leaveSearch: destination = "left Search"
                     case .command(let key): destination = "Lens keys command " + key
                     case .step: destination = "step"
                     case .arrow, .mark: destination = "selection"
@@ -368,14 +389,14 @@ final class SwitcherPalettePanel: NSPanelHud {
                 }
                 if handled, session === model {
                     switch meaning {
-                        case .text, .backspace: synchronizeSearchEditor(model)
+                        case .text, .backspace, .endHold: synchronizeSearchEditor(model)
                         default: break
                     }
                 }
                 if carbon, !handled, presentation == "strip" { dismiss() }
         }
         trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
-                   timestamp: event.timestamp, presentation: presentation, hold: held, path: path,
+                   timestamp: event.timestamp, presentation: presentation, state: state, hold: held, path: path,
                    destination: destination, search: model.query, selectedId: model.selectedId, fieldEditor: editor, receivedAt: receivedAt)
         return handled
     }
@@ -403,7 +424,10 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged { model.updateSummonModifiers(event.modifierFlags) }
-        if event.type == .keyDown, routeKey(event, path: "sendEvent") { return }
+        if event.type == .keyDown {
+            if routeKey(event, path: "sendEvent") { return }
+            if session === model, model.inputState != .search { return }
+        }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
             if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
             return
@@ -435,7 +459,6 @@ func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -
 
 struct SwitcherPaletteView: View {
     @ObservedObject var model: LensSession
-    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let results = model.results
@@ -447,11 +470,8 @@ struct SwitcherPaletteView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14 * scale, weight: .medium))
                     .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
-                TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
-                    .textFieldStyle(.plain)
+                LensSearchRow(model: model)
                     .font(.system(size: 16 * scale, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(GlassToken.textPrimary))
-                    .focused($searchFocused)
                     .frame(minWidth: 180 * scale)
                 LensGroupingControl(model: model)
             }
@@ -519,7 +539,6 @@ struct SwitcherPaletteView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: layout.radius, style: .continuous))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { searchFocused = true }
     }
 
     private func scrollSelection(_ proxy: ScrollViewProxy) {

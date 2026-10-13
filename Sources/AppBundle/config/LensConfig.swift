@@ -3,6 +3,7 @@ import Common
 struct LensConfig: Equatable, Sendable {
     var filter: String?
     var presentation = "list"
+    var startsIn: String?
     var tile: String?
     var badges = true
     var entries = "window"
@@ -32,6 +33,7 @@ struct LensConfig: Equatable, Sendable {
     private mutating func apply(_ value: JSONValue) {
         filter = value["filter"]?.stringOrNil ?? filter
         presentation = value["presentation"]?.stringOrNil ?? presentation
+        startsIn = value["starts-in"]?.stringOrNil ?? startsIn
         tile = value["tile"]?.stringOrNil ?? tile
         if case .bool(let badges) = value["badges"] { self.badges = badges }
         entries = value["entries"]?.stringOrNil ?? entries
@@ -55,6 +57,7 @@ struct LensConfig: Equatable, Sendable {
         .object([
             "tile": .string(TileKind.resolve(configured: tile, presentation: presentation).rawValue), "badges": .bool(badges),
             "filter": filter.map(JSONValue.string) ?? .null,
+            "starts-in": startsIn.map(JSONValue.string) ?? .null,
             "presentation": .string(presentation), "entries": .string(entries), "sections": .string(sections),
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),
