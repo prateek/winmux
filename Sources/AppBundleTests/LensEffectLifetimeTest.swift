@@ -14,7 +14,7 @@ private struct CancellationInsensitiveClock: Clock {
 }
 
 @MainActor
-final class LensEffectLifetimeTest: XCTestCase {
+final class LensEffectLifetimeTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     private func model(_ name: String = "recent", presentation: String = "strip", id: UInt32 = 1, search: String = "") -> LensSession {

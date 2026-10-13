@@ -4,7 +4,7 @@ import Clocks
 import XCTest
 
 @MainActor
-final class SectionSessionTest: XCTestCase {
+final class SectionSessionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
     private func items() -> [SwitcherPaletteItem] {
         [SwitcherPaletteItem(id: 1, title: "Focused", appName: "Editor", icon: nil, workspaceName: "1", appIdentity: "editor", isFocused: true),

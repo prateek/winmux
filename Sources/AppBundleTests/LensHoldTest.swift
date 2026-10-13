@@ -4,7 +4,7 @@ import Clocks
 import XCTest
 
 @MainActor
-final class LensHoldTest: XCTestCase {
+final class LensHoldTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests(); _ = NSApplication.shared }
 
     private func key(_ code: UInt16, _ text: String, _ flags: NSEvent.ModifierFlags = .command) -> NSEvent {

@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class TileReviewRegressionTest: XCTestCase {
+final class TileReviewRegressionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testPortraitAndNarrowDisplaysUseTheSmallerScale() {

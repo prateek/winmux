@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class GridSessionTest: XCTestCase {
+final class GridSessionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
     private func model(count: Int = 14, settings: LensConfig? = nil) -> LensSession {
         var config = settings ?? LensConfig(); config.presentation = "grid"

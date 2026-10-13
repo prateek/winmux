@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class LensPreparationTest: XCTestCase {
+final class LensPreparationTest: SerialClockTestCase {
     func testStripPreparesWhileWaitingButIsNeverOrderedBeforeTheDeadline() async throws {
         let clock = TestClock<Duration>()
         var prepared = false

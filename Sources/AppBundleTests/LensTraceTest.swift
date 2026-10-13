@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class LensTraceTest: XCTestCase {
+final class LensTraceTest: SerialClockTestCase {
     func testSessionReadbackIncludesFieldEditorEditsReleaseAndDismissal() {
         let store = LensTraceStore(stamp: { 10 })
         let trace = store.begin(presentation: "list", origin: .init(start: 10, received: 10, source: "test"))
