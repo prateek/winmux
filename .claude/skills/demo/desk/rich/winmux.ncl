@@ -2,7 +2,10 @@ let W = import "winmux/winmux.ncl" in
 let defaults = import "winmux/defaults.ncl" in
 
 (defaults & {
-  # cmd-tab used to belong to Apple. Things change.
+  # These desks opt in to filming the strip.
+  mode.main.binding.cmd-tab = "lens recent",
+  mode.main.binding.cmd-shift-tab = "lens recent",
+  mode.main.binding.cmd-backtick = "lens app-windows",
   mode.main.binding.alt-r = "lens recent --presentation list",
 
   # Columns: off. I said off. A fresh install should not have opinions.

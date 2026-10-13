@@ -2,7 +2,7 @@
 
 A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
 Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent` and `app-windows`.
-Alt-slash opens `search`; alt-semicolon enters the `lens` binding mode for `overview`, `floating`, `search` and the list Presentation of `recent`. Cmd-tab and cmd-shift-tab open `recent`, and cmd-backtick opens `app-windows`. See [default Triggers](default-config.md). `palette` is an alias for
+Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `lens` binding mode: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app strip. See [default Triggers](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 ```nickel

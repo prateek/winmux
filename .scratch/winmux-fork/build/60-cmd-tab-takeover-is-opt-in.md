@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-The shipped defaults bind `cmd-tab`, `cmd-shift-tab` and `cmd-backtick` to Lenses. Binding them makes WinMux switch off macOS's own Cmd-Tab and Cmd-backtick, and it has to switch them back on at every exit. On Prateek's first install that meant a tester's Cmd-Tab was replaced unasked, and when WinMux crashed, native Cmd-Tab stayed off until it was relaunched and quit.
+Before this change, the shipped defaults bound `cmd-tab`, `cmd-shift-tab` and `cmd-backtick` to Lenses. Binding the Cmd-Tab pair makes WinMux switch off matching enabled system shortcuts and restore them at exit. Cmd-backtick is registered without disabling its native symbolic hotkey. On Prateek's first install that meant a tester's Cmd-Tab was replaced unasked, and when WinMux crashed, native Cmd-Tab stayed off until it was relaunched and quit.
 
 A fresh install leaves the system's switcher alone. Taking it over is something a person turns on in their config.
 
@@ -31,10 +31,22 @@ Nothing.
 
 ## Done when
 
-- [ ] With no config, `winmux doctor` reports no held system shortcut and no marker, and macOS's Cmd-Tab works while WinMux runs.
-- [ ] A config with the three bindings takes Cmd-Tab over as today, and a normal quit, a signal and a relaunch after a hard kill each restore it.
-- [ ] `docs/default-config.md` and `docs/lenses.md` show the opt-in and say what it does to the system's switcher.
-- [ ] The helper's default-config tests and the conversion fixture are updated, not deleted.
+- [x] With no config, `winmux doctor` reports no held system shortcut and no marker, and macOS's Cmd-Tab works while WinMux runs.
+- [x] A config with the three bindings takes Cmd-Tab over as today, and a normal quit, a signal and a relaunch after a hard kill each restore it.
+- [x] `docs/default-config.md` and `docs/lenses.md` show the opt-in and say what it does to the system's switcher.
+- [x] The helper's default-config tests and the conversion fixture are updated, not deleted.
+
+## Built
+
+Built together with **A short list of default shortcuts**. The defaults contain exactly 41 main chords, with overview on `alt-shift-o`, and `a` in the Lens leader opens `app-windows` as a list. Conversion adds only `alt-slash`, `alt-semicolon` and `alt-shift-o` to TOML modes where unbound; a TOML's own Cmd-Tab command remains unchanged.
+
+Host and guest `make check` pass, with no skipped Swift tests. The debug guest shows empty held/marker sets and Apple's panel with no config, native Cmd-backtick cycling, and three explicit opt-in strips. Normal quit, SIGTERM and hard-kill/relaunch/normal-quit restore Apple's panel and empty the marker. The same script against the base build gives the same opt-in ownership and restoration results. Exact-default helper/Swift tests and the loaded-config ownership seam cover the change; takeover and empty-command registration code are untouched. The documentation's opt-in and migration examples pass the helper.
+
+## Checks for Prateek
+
+- [ ] Installed dogfood build behavior.
+- [ ] A second physical display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
