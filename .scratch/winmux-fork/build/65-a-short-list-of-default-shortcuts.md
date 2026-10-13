@@ -40,9 +40,9 @@ Nothing.
 
 ## Defaults chosen for you
 
-- **The tab digits stay**: `alt-1` to `alt-0` focus a tab by index. Prateek uses them and named only `alt-tab`. They type symbols on a US layout. Say in the pull request if you move them.
+- **The tab digits stay**, as **The ninth tab digit goes to the last tab** leaves them: `alt-1` to `alt-9`. Prateek uses them and named only `alt-tab`. They type symbols on a US layout. Say in the pull request if you move them.
 - **The overview chord is `alt-shift-o`.** The `alt-shift-` family had no collision in the audit beyond two currency symbols. Check that it types nothing a person needs before settling it.
-- **The `alt-semicolon` mode gains letters** for what lost its chord and is used often: next and previous tab, next and previous workspace, and the join directions. The rest is documented as lines to paste.
+- **What lost its chord is reached in the mode on `alt-semicolon`**, which **A windowing mode on `alt-semicolon`** builds. Until it lands, the removed chords are documented as lines to paste.
 - **An existing config that imports the defaults** loses the removed chords on upgrade. The release notes and `docs/default-config.md` carry the old block, ready to paste.
 - **`config convert`** output is unchanged for a converted TOML's own bindings.
 
