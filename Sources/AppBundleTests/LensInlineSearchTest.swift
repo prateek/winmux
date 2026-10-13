@@ -4,9 +4,9 @@ import Clocks
 import XCTest
 
 @MainActor
-final class LensInlineSearchTest: XCTestCase {
+final class LensInlineSearchTest: SerialClockTestCase {
     func testDisplayDeadlineKeepsLastResultAndIgnoresLateSuccess() async throws {
-        let clock = SerialTestClock()
+        let clock = TestClock()
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         let model = LensSession(name: "demo", settings: LensConfig(), items: [item], search: "= true")
         model.acceptInlineResult([1])
@@ -33,7 +33,7 @@ final class LensInlineSearchTest: XCTestCase {
     }
 
     func testCancelledEvaluationCannotPublishOverNewerSearchOrClearItsHandle() async throws {
-        let clock = SerialTestClock()
+        let clock = TestClock()
         let model = LensSession(name: "demo", settings: LensConfig(), items: [], search: "= old")
         let reached = LensEffectSignal()
         var finishes: [CheckedContinuation<Result<[Bool], NickelFailure>, Never>] = []
@@ -59,7 +59,7 @@ final class LensInlineSearchTest: XCTestCase {
     }
 
     func testTypingCancelsDebounceAndOnlyLatestSearchEvaluates() async throws {
-        let clock = SerialTestClock()
+        let clock = TestClock()
         let model = LensSession(name: "demo", settings: LensConfig(), items: [], search: "= false")
         var bodies: [String] = []
         let scheduler = LensInlineSearch(clock: clock, debounce: .milliseconds(10), deadline: .seconds(1)) { body, _, _ in

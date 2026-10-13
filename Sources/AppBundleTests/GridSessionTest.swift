@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class GridSessionTest: XCTestCase {
+final class GridSessionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
     private func model(count: Int = 14, settings: LensConfig? = nil) -> LensSession {
         var config = settings ?? LensConfig(); config.presentation = "grid"
@@ -67,7 +67,7 @@ final class GridSessionTest: XCTestCase {
         XCTAssertEqual(apps.results.map { $0.tile.appCount }, [7, 7])
     }
     func testLifecycleRefreshesEveryLiveMatchEachHalfSecondAndCancels() async throws {
-        let clock = SerialTestClock()
+        let clock = TestClock<Duration>()
         var requests: [UInt32] = [], closed: [Int] = []
         let deps = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: deps, emit: { _ in }, show: { _ in }, hide: {})

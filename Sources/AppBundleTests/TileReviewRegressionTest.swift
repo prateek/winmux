@@ -5,7 +5,7 @@ import Common
 import XCTest
 
 @MainActor
-final class TileReviewRegressionTest: XCTestCase {
+final class TileReviewRegressionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
     func testPortraitAndNarrowDisplaysUseTheSmallerScale() {
@@ -154,7 +154,7 @@ final class TileReviewRegressionTest: XCTestCase {
     }
 
     func testPictureListRequestsOnlyTheRowsThatCanBeVisibleOnOneClockTick() async throws {
-        let clock = SerialTestClock()
+        let clock = TestClock()
         var settings = LensConfig(); settings.tile = "card"
         let items = (1...40).map { id in
             let window = TestWindow.new(id: UInt32(id), parent: focus.workspace.rootTilingContainer)

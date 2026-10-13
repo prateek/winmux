@@ -4,7 +4,7 @@ import Clocks
 import XCTest
 
 @MainActor
-final class SectionSessionTest: XCTestCase {
+final class SectionSessionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
     private func items() -> [SwitcherPaletteItem] {
         [SwitcherPaletteItem(id: 1, title: "Focused", appName: "Editor", icon: nil, workspaceName: "1", appIdentity: "editor", isFocused: true),
@@ -64,7 +64,7 @@ final class SectionSessionTest: XCTestCase {
          SwitcherPaletteItem(id: 2, title: "Two", appName: "Mail", icon: nil, workspaceName: "2", projectName: "Home", projectIdentity: "home", monitorIdentity: "m", monitorName: "Main", isFocused: true)]
     }
     func testGroupingKeepsWindowMarksAndLifecycleWithoutEventsAndChangesCache() async {
-        let clock = SerialTestClock()
+        let clock = TestClock<Duration>()
         var events: [String] = []
         let owner = testLensLifecycle(clock: clock, emit: { events.append($0.eventType.rawValue) })
         var settings = LensConfig(); settings.presentation = "grid"
@@ -120,7 +120,7 @@ final class SectionSessionTest: XCTestCase {
 
 extension SectionSessionTest {
     func testQueuedHoldLettersReResolveBindingsAfterStripConversion() {
-        let clock = SerialTestClock()
+        let clock = TestClock<Duration>()
         let owner = testLensLifecycle(clock: clock)
         var settings = LensConfig(); settings.presentation = "strip"
         let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)

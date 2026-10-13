@@ -4,7 +4,7 @@ import Clocks
 import XCTest
 
 @MainActor
-final class LensHoldTest: XCTestCase {
+final class LensHoldTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests(); _ = NSApplication.shared }
 
     private func key(_ code: UInt16, _ text: String, _ flags: NSEvent.ModifierFlags = .command) -> NSEvent {
@@ -49,7 +49,7 @@ final class LensHoldTest: XCTestCase {
     }
 
     func testControlledLifecycleHoldSurvivesConversionAndEndsOnceWithoutCommit() async {
-        let clock = SerialTestClock()
+        let clock = TestClock<Duration>()
         let owner = testLensLifecycle(clock: clock)
         defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys["cmd-w"] = []

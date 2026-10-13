@@ -3,7 +3,7 @@ import AppKit
 import XCTest
 import Clocks
 
-final class StripLayoutTest: XCTestCase {
+final class StripLayoutTest: SerialClockTestCase {
     func testAllEntriesUseTheGridStripSizing() {
         let layout = GridLayout(sections: [.init(label: nil, current: false, entries: Array(repeating: .init(aspect: 1.5, realSize: CGSize(width: 1200, height: 800), kind: .card), count: 14))], visibleSize: CGSize(width: 1920, height: 1080), tileSize: "real", sizing: .strip)
         XCTAssertEqual(layout.tiles.count, 14)
@@ -19,7 +19,7 @@ final class StripLayoutTest: XCTestCase {
         XCTAssertTrue(lensOnscreenWindows(drawsPictures: false) { XCTFail("List does not capture thumbnails"); return [42] }.isEmpty)
     }
     func testInvokingModifiersDelayAndReleaseBinding() async {
-        let clock = SerialTestClock()
+        let clock = TestClock()
         let gesture = StripGesture(keyCode: 48, invoking: [.command, .shift], clock: clock)
         XCTAssertEqual(gesture.committingModifiers, [.command])
         await clock.advance(by: .milliseconds(99))
@@ -35,7 +35,7 @@ final class StripLayoutTest: XCTestCase {
 }
 
 @MainActor
-final class StripSessionTest: XCTestCase {
+final class StripSessionTest: SerialClockTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
     private func model(count: Int = 3) -> LensSession {
         var settings = LensConfig(); settings.presentation = "strip"
