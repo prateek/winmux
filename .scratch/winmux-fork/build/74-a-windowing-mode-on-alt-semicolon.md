@@ -6,12 +6,12 @@ Part of {{UMBRELLA}}.
 
 `alt-semicolon` enters the `window` binding mode: persistent window commands and five letters that leave it before opening Lenses. **A short list of default shortcuts** leaves most window commands without a chord. Prateek asked for a windowing mode, where plain keys drive windows, and chose to make this one mode.
 
-`alt-semicolon` enters a mode in which plain keys move focus, move windows, switch workspaces and open Lenses, until Escape or another `alt-semicolon`.
+`alt-semicolon` enters a mode in which plain keys move focus, move windows, switch workspaces and open Lenses, until Escape.
 
 ## Decisions
 
 - **One mode, on `alt-semicolon`.** It replaces the `lens` mode and keeps its letters.
-- **It stays until Escape or another `alt-semicolon`.** A command that moves focus or a window leaves the mode on. A letter that opens a Lens leaves the mode, as today.
+- **It stays until Escape.** A command that moves focus or a window leaves the mode on. A letter that opens a Lens leaves the mode, as today.
 - **Plain keys, vim's where vim has one**: `h` `j` `k` `l` focus, with shift they move the window, digits go to a workspace, with shift they send the window.
 
 ## Not in this issue
@@ -27,6 +27,7 @@ Part of {{UMBRELLA}}.
 
 - **The mode is visible while it is on**: a small non-activating HUD naming every non-main binding mode at the bottom centre of the focused monitor, alongside the existing menu-bar letter. A mode a person cannot see is a keyboard that has stopped working.
 - **The rest of the letters**: next and previous tab, the join directions, float or tile, fullscreen, project next and previous. Use `n`/`p`, `ctrl-h/j/k/l`, `t`, `m`, and square brackets; the exact key map is in `docs/default-config.md`.
+- **`alt-semicolon` inside the mode leaves it too**, as Escape does: Option-semicolon would otherwise type a character into the focused app. The relay added this.
 - **The mode's name** in config is `window`, with no `lens` alias. User-defined `lens` modes remain valid; reads of `defaults.mode.lens.binding` fail with a migration hint.
 
 ## Done when
