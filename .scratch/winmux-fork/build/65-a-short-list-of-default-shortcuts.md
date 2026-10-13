@@ -32,6 +32,7 @@ The defaults shrink to a list small enough to learn and to check for collisions.
 - Removing a command. Only its default chord goes.
 - The keys inside an open Lens and the letters of the `lens` binding mode.
 - A Settings pane for shortcuts.
+- Freeing a chord with an empty command list. That is **A chord bound to an empty command list is still taken**.
 
 ## Depends on
 
@@ -49,7 +50,6 @@ Nothing.
 
 - [ ] With no config, the loaded bindings are the chords above, the tab digits and the Lens keys, and nothing else.
 - [ ] `ctrl-w`, `ctrl-r`, `ctrl-l` and `cmd-shift-k` reach the focused app with WinMux running on the defaults, checked in a guest.
-- [ ] A chord bound to an empty command list in a config reaches the focused app. Prateek's own config notes say it is still swallowed, and that freeing a chord needs the binding record rebuilt without it; this was not tested. Fix it here if so.
 - [ ] `docs/default-config.md` lists the defaults, and the removed block as lines to paste.
 - [ ] The helper's default-config tests are updated, not deleted.
 
