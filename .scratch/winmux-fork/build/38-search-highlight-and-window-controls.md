@@ -30,6 +30,7 @@ Two parts of the Tile that make a Lens quicker to read and to act in.
 
 ## Defaults chosen for you
 
+- **Hover also selects**, once **Hover selects in the strip and the grid** lands, so the Tile with the controls is the selected one. A pointer that has not moved shows no controls.
 - **A control whose command cannot apply** is hidden, such as close on a window with no close button.
 - **After a control closes a window**, the Lens stays open and the layout re-flows.
 - **The highlight colour** is the prototype's, checked for contrast in light and dark.
