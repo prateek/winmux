@@ -71,7 +71,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     if let Some(modes) = converted_modes {
         nickel
             .push_str("# Kept from defaults: the five Lenses, lens mode keys, and main Triggers\n");
-        nickel.push_str("# cmd-tab, cmd-shift-tab, cmd-backtick, alt-slash, alt-semicolon only where unbound.\n");
+        nickel.push_str("# alt-slash, alt-semicolon, alt-shift-o only where unbound.\n");
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
         write_fields(modes.as_object().unwrap(), 1, &mut nickel);
@@ -89,11 +89,9 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
 }
 
 const FORK_TRIGGERS: &[&str] = &[
-    "cmd-tab",
-    "cmd-shift-tab",
-    "cmd-backtick",
     "alt-slash",
     "alt-semicolon",
+    "alt-shift-o",
 ];
 
 fn converted_modes(

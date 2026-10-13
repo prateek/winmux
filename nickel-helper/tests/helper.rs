@@ -375,6 +375,10 @@ fn convert_writes_a_config_over_the_defaults_that_passes_check() {
     assert_eq!(config["gaps"]["inner"], json!({ "horizontal": 4, "vertical": 8 }), "unset settings come from the defaults");
     assert_eq!(config["mode"]["main"]["binding"]["alt-h"], "focus left");
     assert_eq!(config["mode"]["main"]["binding"]["cmd-1"], json!(["workspace 1", "mode main"]));
+    assert_eq!(config["mode"]["main"]["binding"]["cmd-tab"], "focus right");
+    assert!(config["mode"]["main"]["binding"].get("cmd-shift-tab").is_none());
+    assert!(config["mode"]["main"]["binding"].get("cmd-backtick").is_none());
+    assert_eq!(config["mode"]["main"]["binding"]["alt-shift-o"], "lens overview");
     assert_eq!(config["mode"]["lens"]["binding"]["esc"], "mode main");
     assert_eq!(config["workspace-sidebar"]["project-labels"]["my project"], "Work %{x}");
 }
@@ -774,6 +778,22 @@ fn miniatures_rejections_include_actionable_message() {
 }
 
 #[test]
+fn default_main_bindings_are_exactly_the_short_list() {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"op": "load", "path": null}));
+    assert_eq!(reply["ok"], true);
+    let mut expected: std::collections::BTreeSet<String> = [
+        "alt-h", "alt-j", "alt-k", "alt-l", "alt-shift-h", "alt-shift-j", "alt-shift-k", "alt-shift-l",
+        "alt-shift-t", "alt-shift-m", "alt-slash", "alt-semicolon", "alt-shift-o"
+    ].into_iter().map(str::to_owned).collect();
+    expected.extend((1..=9).map(|n| format!("ctrl-{n}")));
+    expected.extend((1..=9).map(|n| format!("alt-shift-{n}")));
+    expected.extend((0..=9).map(|n| format!("alt-{n}")));
+    let actual = reply["result"]["config"]["mode"]["main"]["binding"].as_object().unwrap().keys().cloned().collect();
+    assert_eq!(expected, actual);
+}
+
+#[test]
 fn strip_defaults_and_same_app_filter_handle_missing_focus() {
     let mut helper = Helper::new(library());
     let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": null}));
@@ -784,9 +804,9 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
         assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
         assert_eq!(config["lenses"][name]["popups"], json!([]));
     }
-    assert_eq!(config["mode"]["main"]["binding"]["cmd-tab"], "lens recent");
-    assert_eq!(config["mode"]["main"]["binding"]["cmd-shift-tab"], "lens recent");
-    assert_eq!(config["mode"]["main"]["binding"]["cmd-backtick"], "lens app-windows");
+    assert!(config["mode"]["main"]["binding"].get("cmd-tab").is_none());
+    assert!(config["mode"]["main"]["binding"].get("cmd-shift-tab").is_none());
+    assert!(config["mode"]["main"]["binding"].get("cmd-backtick").is_none());
     for (ctx, expected) in [(context(), json!([false, false])), (context_focused_on("demo"), json!([true, false]))] {
         let filtered = request(&mut helper, json!({"id": 2, "op": "filter", "lens": "app-windows", "ctx": ctx, "windows": [window("demo", "tiled"), window("other", "floating")]}));
         assert_eq!(filtered["ok"], true, "{}", filtered["error"]);
@@ -855,6 +875,7 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode lens");
     assert_eq!(config["mode"]["lens"]["binding"], json!({
         "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
+        "a": ["mode main", "lens app-windows --presentation list"],
         "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"], "esc": "mode main"
     }));
     assert_eq!(config["columns"]["count"], "off");
@@ -873,10 +894,15 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     let converted = run_helper(&["convert", &fixture("upstream-default-config.toml")]);
     assert_eq!(converted.status.code(), Some(0));
     let converted = loaded_source("converted-defaults", &String::from_utf8(converted.stdout).unwrap());
-    assert_eq!(converted, *config);
     let upstream = evaluate_to_json(&format!("import {} as 'Toml", winmux_nickel::engine::nickel_string(&fixture("upstream-default-config.toml"))), &library()).unwrap();
+    let mut expected_conversion = config.clone();
+    expected_conversion["mode"]["main"]["binding"] = upstream["mode"]["main"]["binding"].clone();
+    for key in ["alt-slash", "alt-semicolon", "alt-shift-o"] {
+        expected_conversion["mode"]["main"]["binding"][key] = config["mode"]["main"]["binding"][key].clone();
+    }
+    assert_eq!(converted, expected_conversion);
     for (key, command) in upstream["mode"]["main"]["binding"].as_object().unwrap() {
-        assert_eq!(config["mode"]["main"]["binding"][key], *command, "upstream chord {key}");
+        assert_eq!(converted["mode"]["main"]["binding"][key], *command, "upstream chord {key}");
     }
     assert_eq!(run_helper(&["check", &library().join("winmux/defaults.ncl").to_string_lossy()]).status.code(), Some(0));
 }
@@ -965,6 +991,7 @@ mytab = "tab"
 shift-alt-h = "move left"
 shift-cmd-mytab = "focus right"
 cmd-tab = "focus left"
+shift-alt-o = "focus up"
 "#,
     )
     .unwrap();
@@ -975,6 +1002,8 @@ cmd-tab = "focus left"
     assert!(!bindings.contains_key("alt-shift-h"));
     assert!(!bindings.contains_key("cmd-shift-tab"));
     assert_eq!(bindings["cmd-tab"], "focus left");
+    assert_eq!(bindings["shift-alt-o"], "focus up");
+    assert!(!bindings.contains_key("alt-shift-o"));
     assert_eq!(bindings.len(), 6);
     assert!(converted.nickel.contains("# Kept from defaults:"));
     std::fs::write(&file, "config-version = 2").unwrap();
@@ -992,14 +1021,16 @@ fn conversion_deduplicates_remapped_defaults_and_rejects_duplicate_user_chords()
     let file = std::env::temp_dir().join(format!("winmux-aliases-{}.toml", std::process::id()));
     std::fs::write(&file, r#"config-version = 2
 [key-mapping.key-notation-to-key-code]
-tab = "backtick"
+slash = "semicolon"
 [mode.main.binding]
 "#).unwrap();
     let converted = winmux_nickel::convert::convert(&file, &library()).unwrap();
     let config = loaded_source("alias-defaults", &converted.nickel);
     let bindings = config["mode"]["main"]["binding"].as_object().unwrap();
-    assert!(bindings.contains_key("cmd-tab"));
+    assert!(!bindings.contains_key("cmd-tab"));
     assert!(!bindings.contains_key("cmd-backtick"));
+    assert!(bindings.contains_key("alt-slash"));
+    assert!(!bindings.contains_key("alt-semicolon"));
     std::fs::write(&file, r#"[mode.main.binding]
 shift-alt-h = "move left"
 alt-shift-h = "move right"
@@ -1041,7 +1072,7 @@ fn conversion_requires_a_main_mode_and_leaves_modes_open_to_later_merges() {
     let bindings = loaded_source("merge", &extended)["mode"]["main"]["binding"].clone();
     assert_eq!(bindings["alt-x"], json!("lens search"));
     assert_eq!(bindings["alt-h"], json!("focus left"));
-    assert_eq!(bindings["cmd-tab"], json!("lens recent"));
+    assert!(bindings.get("cmd-tab").is_none());
     assert!(bindings.get("alt-tab").is_none());
 }
 

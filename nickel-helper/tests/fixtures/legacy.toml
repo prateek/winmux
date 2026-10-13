@@ -5,6 +5,7 @@ start-at-login = true
 
 [mode.main.binding]
     alt-h = 'focus left'
+    cmd-tab = 'focus right'
     cmd-1 = ['workspace 1', 'mode main']
 
 [workspace-sidebar.project-labels]

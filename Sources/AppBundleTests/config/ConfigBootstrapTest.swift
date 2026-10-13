@@ -167,7 +167,7 @@ final class ConfigBootstrapTest: XCTestCase {
         assertEquals(config.gaps.inner.vertical, .constant(8))
         var expectedModes = defaultConfig.modes
         expectedModes["main"]?.bindings = defaultConfig.modes["main"]!.bindings.filter {
-            ["alt-h", "cmd-tab", "cmd-shift-tab", "cmd-backtick", "alt-slash", "alt-semicolon"].contains($0.key)
+            ["alt-h", "alt-shift-o", "alt-slash", "alt-semicolon"].contains($0.key)
         }
         assertEquals(config.modes, expectedModes)
         XCTAssertNil(config.modes["main"]?.bindings["alt-tab"])
