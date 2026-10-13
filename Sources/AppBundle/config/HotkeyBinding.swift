@@ -78,6 +78,7 @@ extension HotKey {
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
                 if hotkeysSuspended { return }
+                guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
                 noteTapBindingKeyDown()
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
                 let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
@@ -100,6 +101,7 @@ extension HotKey {
     let oldMode = activeMode
     activeMode = targetMode
     applyHotkeyEnabledState()
+    BindingModeHud.shared.refresh()
     if oldMode != targetMode {
         broadcastEvent(.modeChanged(mode: targetMode))
         if !config.onModeChanged.isEmpty {
@@ -259,4 +261,8 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 
 @MainActor func hasPendingTapBindingForTests() -> Bool {
     !pendingTapBindings.isEmpty || !pendingTapTriggerTasks.isEmpty
+}
+
+@MainActor func activeHotkeyBinding(_ chord: String, mode: String?, modes: [String: Mode]) -> HotkeyBinding? {
+    mode.flatMap { modes[$0]?.bindings[chord] }
 }
