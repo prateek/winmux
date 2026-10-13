@@ -8,6 +8,8 @@ Starting WinMux re-tiles every window. Quitting it centres every window on its m
 
 On a normal quit, each window that was open before WinMux started goes back to the frame it had then.
 
+A quit by signal is worse than a normal one today. After `SIGTERM` to `0.5.6-dogfood.13` in a guest, only the visible workspace's windows were on screen; the windows of hidden workspaces stayed parked at the screen's corner.
+
 ## Decisions
 
 - **Keep it small.** Prateek: "I don't want to invest too much work in this." One record of frames taken before the first layout, and one restore on quit.
@@ -33,9 +35,11 @@ Nothing.
 
 - [ ] Five windows at known frames, WinMux started, windows moved across two workspaces, WinMux quit: every window is at its recorded frame, on screen, checked in a guest by reading the frames before and after.
 - [ ] A window opened after launch is on screen after quit.
+- [ ] After `SIGTERM` with windows on three workspaces, every window is on screen.
 - [ ] A window closed while WinMux ran is not reopened and causes no error.
 - [ ] The pull request shows the desktop before launch, tiled, and after quit.
 
 ## Sources
 
 - Prateek, 2026-10-06: "if we quit WinMux, especially for a short duration, the user's windows are back to what they used to be … just something that isn't so jarring for the testers."
+- The switching comparison, 2026-10-07: WinMux stopped by signal between captures.

@@ -11,6 +11,7 @@ A fresh install leaves the system's switcher alone. Taking it over is something 
 ## Decisions
 
 - **The shipped defaults bind none of `cmd-tab`, `cmd-shift-tab` and `cmd-backtick`.** With no such binding WinMux disables no system shortcut and has nothing to restore.
+- **The system's switcher is the fast switcher.** Prateek chose this on 2026-10-13, with WinMux's `overview` as the view that stays open. The strip is a Lens a person opts into, not the centre of switching.
 - **Opting in is config**: the three bindings, written by the person. The takeover, its repair on wake and unlock, and its restore on exit stay as built, and run only for a config that binds those chords.
 
 ## Not in this issue
@@ -24,7 +25,7 @@ Nothing.
 
 ## Defaults chosen for you
 
-- **How `recent` and `app-windows` are reached by default.** They stay in the `lens` binding mode (`alt-semicolon`, then a key). Whether the defaults also give the strip a held chord that macOS does not own is the builder's call; say which and why.
+- **How `recent` and `app-windows` are reached by default.** They stay in the `lens` binding mode (`alt-semicolon`, then a key). The defaults give the strip no held chord: **A short list of default shortcuts** names every default chord, and `alt-tab` is deliberately left free.
 - **`config convert`** adds the fork's Triggers to a converted TOML today. It stops adding these three.
 - **An existing config that imports the defaults and relied on them** loses Cmd-Tab on upgrade. The release notes and `docs/default-config.md` give the three lines to paste.
 
@@ -38,3 +39,4 @@ Nothing.
 ## Sources
 
 - Prateek, after installing `0.5.6-dogfood.12` on his daily machine, 2026-10-06: "maybe you just don't take over shortcuts by default. We can let people opt into that via config. That way we don't have to deal with reverting the shortcuts."
+- Prateek, 2026-10-13, choosing who owns Cmd-Tab and the open view: Apple's Cmd-Tab, WinMux's open view, and a row of windows above Cmd-Tab as a prototype.

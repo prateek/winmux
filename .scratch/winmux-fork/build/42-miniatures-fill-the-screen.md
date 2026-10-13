@@ -6,11 +6,14 @@ Part of {{UMBRELLA}}.
 
 `overview` draws its workspaces in one row across the top. On a 1920 by 1080 monitor with four workspaces that is the top sixth of the screen, and the rest is empty. A tab group draws as one window, so three browser windows in a group look like one. This issue uses the screen and shows the group.
 
+Prateek chose `overview` as WinMux's view that stays open, the counterpart of Mission Control, with the system's Cmd-Tab left as the fast switcher. So this issue is what makes that view usable.
+
 ## Decisions
 
 - **Workspaces are arranged in rows and columns** so that each is as large as the monitor allows. Four workspaces are two by two.
 - **Workspace order reads left to right, then top to bottom.**
 - **A tab group fans out.** Its windows are drawn offset from each other so each one's edge is visible and can be selected. The front one is the active tab.
+- **`overview` opens with one chord.** **A short list of default shortcuts** names it. Today it is `alt-semicolon`, then `o`.
 - **Everything else about `'miniatures` stays**: real positions, the tray, the current-workspace treatments, `fit`, its arrow-key modes, the backdrop.
 
 ## Not in this issue
@@ -38,4 +41,5 @@ Part of {{UMBRELLA}}.
 
 ## Sources
 
+- Prateek, 2026-10-13, choosing who owns Cmd-Tab and the open view.
 - [the Lens look prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/31-lens-look/index.html), Presentation set to Miniatures.

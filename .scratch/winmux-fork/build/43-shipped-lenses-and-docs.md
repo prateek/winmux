@@ -9,8 +9,8 @@ The grid exists after the issues before this one, and no shipped Lens uses it. T
 ## Decisions
 
 - **A shipped Lens named `windows`** shows every window in a grid, grouped by workspace. It is the Mission Control replacement.
-- **`app-windows` and `floating` become grids.** Their windows have no positions worth keeping. `app-windows` keeps its cmd-backtick Trigger and commits on release.
-- **`recent` stays a strip** on cmd-tab, and **`overview` stays `'miniatures`**.
+- **`app-windows` and `floating` become grids.** Their windows have no positions worth keeping. `app-windows` commits on release; its cmd-backtick Trigger is opt-in, as the Cmd-Tab issue decides.
+- **`recent` stays a strip**, reached as **The system's Cmd-Tab stays the system's unless the config asks for it** decides, and **`overview` stays `'miniatures`**.
 - **`windows` is in the `lens` binding mode** on `w`.
 - **`docs/lenses.md`** documents the Tile, the grid, sections and the grouping control, hints, peek, `on-release` and `appearance`, with a picture of each Presentation.
 - **`winmux config convert`** and the config examples are checked against the new fields.
