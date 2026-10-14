@@ -821,6 +821,8 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
     let config = &reply["result"]["config"];
     for name in ["recent", "app-windows"] {
         assert_eq!(config["lenses"][name]["presentation"], "strip");
+        assert_eq!(config["lenses"][name]["tile"], "picture");
+        assert_eq!(config["lenses"][name]["grid"]["tile-size"], "same-height");
         assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
         assert_eq!(config["lenses"][name]["popups"], json!([]));
     }
@@ -1201,8 +1203,8 @@ fn expected_window_bindings() -> Value {
         "n": "focus tab-next", "p": "focus tab-prev", "t": "layout floating tiling", "m": "fullscreen",
         "rightSquareBracket": "project next", "leftSquareBracket": "project prev",
         "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
-        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"],
-        "a": ["mode main", "lens app-windows --presentation list"], "esc": "mode main", "alt-semicolon": "mode main"
+        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list --tile text"],
+        "a": ["mode main", "lens app-windows --presentation list --tile text"], "esc": "mode main", "alt-semicolon": "mode main"
     });
     for n in 1..=9 {
         expected[n.to_string()] = json!(format!("workspace {n}"));
@@ -1271,4 +1273,34 @@ x = "focus left"
     assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode window");
     assert_eq!(config["mode"]["window"]["binding"], expected_window_bindings());
     assert!(neither.nickel.contains("windowing mode"));
+}
+
+#[test]
+fn shipped_picture_strips_allow_cards_back_and_partial_grid_overrides() {
+    let cards = loaded_source("cards-back", r#"
+        let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & {
+            lenses.recent.tile = 'card,
+            lenses.recent.grid.tile-size = 'real,
+            lenses.app-windows.tile = 'card,
+            lenses.app-windows.grid.tile-size = 'real,
+        }) | W.Config
+    "#);
+    for name in ["recent", "app-windows"] {
+        assert_eq!(cards["lenses"][name]["tile"], "card");
+        assert_eq!(cards["lenses"][name]["grid"]["tile-size"], "real");
+    }
+    let rows = loaded_source("strip-rows", r#"
+        let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & { lenses.recent.grid.sections-arrangement = 'rows }) | W.Config
+    "#);
+    assert_eq!(rows["lenses"]["recent"]["grid"]["sections-arrangement"], "rows");
+    assert_eq!(rows["lenses"]["recent"]["grid"]["tile-size"], "same-height");
+    let removed = loaded_source("remove-recent", r#"
+        let W = import "winmux/winmux.ncl" in
+        let defaults = import "winmux/defaults.ncl" in
+        (defaults & { lenses | force = std.record.remove "recent" defaults.lenses }) | W.Config
+    "#);
+    assert!(removed["lenses"].get("recent").is_none());
+    assert_eq!(removed["lenses"]["app-windows"]["tile"], "picture");
 }

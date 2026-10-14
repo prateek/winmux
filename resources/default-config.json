@@ -41,7 +41,7 @@
       "frozen-thumbnail": "dimmed",
       "grid": {
         "sections-arrangement": "flow",
-        "tile-size": "real"
+        "tile-size": "same-height"
       },
       "keys": {
         "alt-enter": "summon",
@@ -77,7 +77,8 @@
       "summon-hints": [
         "label",
         "landing-spot"
-      ]
+      ],
+      "tile": "picture"
     },
     "floating": {
       "accessory-window": "enlarged",
@@ -180,7 +181,7 @@
       "frozen-thumbnail": "dimmed",
       "grid": {
         "sections-arrangement": "flow",
-        "tile-size": "real"
+        "tile-size": "same-height"
       },
       "keys": {
         "alt-enter": "summon",
@@ -216,7 +217,8 @@
       "summon-hints": [
         "label",
         "landing-spot"
-      ]
+      ],
+      "tile": "picture"
     },
     "search": {
       "accessory-window": "enlarged",
@@ -324,7 +326,7 @@
         "9": "workspace 9",
         "a": [
           "mode main",
-          "lens app-windows --presentation list"
+          "lens app-windows --presentation list --tile text"
         ],
         "alt-semicolon": "mode main",
         "ctrl-h": "join-with left",
@@ -350,7 +352,7 @@
         "p": "focus tab-prev",
         "r": [
           "mode main",
-          "lens recent --presentation list"
+          "lens recent --presentation list --tile text"
         ],
         "rightSquareBracket": "project next",
         "s": [

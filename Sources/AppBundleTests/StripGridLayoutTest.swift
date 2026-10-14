@@ -21,6 +21,44 @@ final class StripGridLayoutTest: XCTestCase {
             for previous in layout.tiles.prefix(index) { XCTAssertFalse(previous.frame.intersects(tile.frame)) }
         }
     }
+    // BASE's MRU frames in .scratch/winmux-fork/prototypes/31-lens-look/index.html.
+    // The current live desk is measured separately.
+    private let richDeskSizes: [CGSize] = [
+        CGSize(width: 919, height: 1025), CGSize(width: 919, height: 509),
+        CGSize(width: 798, height: 986), CGSize(width: 709, height: 1025),
+        CGSize(width: 1221, height: 986), CGSize(width: 611, height: 1025),
+        CGSize(width: 798, height: 986), CGSize(width: 440, height: 202),
+        CGSize(width: 919, height: 509), CGSize(width: 513, height: 1025),
+        CGSize(width: 798, height: 986), CGSize(width: 1221, height: 986),
+        CGSize(width: 1846, height: 1025), CGSize(width: 230, height: 408),
+    ]
+
+    @MainActor
+    func testPictureStripComparisonSizesThroughExistingRowRule() {
+        let controlledAspects: [CGFloat] = [0.3, 0.45, 0.7, 0.8, 0.9, 0.6, 2.6]
+        let controlled = (0..<25).map { CGSize(width: 600 * controlledAspects[$0 % controlledAspects.count], height: 600) }
+        let cases: [([CGSize], CGSize, Int)] = [
+            (richDeskSizes, CGSize(width: 1728, height: 460.278), 2),
+            ([CGSize(width: 300, height: 800), CGSize(width: 400, height: 1000), CGSize(width: 200, height: 600)], CGSize(width: 518, height: 300), 1),
+            (Array((richDeskSizes + richDeskSizes).prefix(25)), CGSize(width: 1728, height: 605.324), 3),
+            (controlled, CGSize(width: 1728, height: 368.504), 2),
+        ]
+        for (sizes, expected, expectedRows) in cases {
+            let items = sizes.enumerated().map { index, size in
+                var item = SwitcherPaletteItem(id: UInt32(index + 1), title: "Window \(index)", appName: "Fixture", icon: nil, workspaceName: "1", isFocused: false)
+                item.tile = TileEntry(title: item.title, appName: item.appName, aspect: size.width / size.height, realSize: size)
+                return item
+            }
+            var settings = LensConfig(); settings.grid.tileSize = "same-height"
+            let packed = StripSnapshot(items: items, size: monitor, kind: .picture, settings: settings).layout
+            XCTAssertEqual(packed.panelSize.width, expected.width, accuracy: 0.01)
+            XCTAssertEqual(packed.panelSize.height, expected.height, accuracy: 0.01)
+            XCTAssertEqual(rows(packed), expectedRows)
+            check(packed, count: sizes.count, size: monitor)
+            print("Picture strip comparison: \(sizes.count) windows, \(packed.panelSize), \(rows(packed)) rows")
+        }
+    }
+
     func testMeasuredOrdinaryWindows() {
         for size in [monitor, CGSize(width: 1280, height: 720)] {
             for mode in ["real", "same-height", "equal"] {
