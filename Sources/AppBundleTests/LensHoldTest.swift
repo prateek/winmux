@@ -330,16 +330,30 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertEqual(model.query, "saf")
     }
 
-    func testPureDecisionPreservesCarbonModePriorityOnlyAfterHold() {
+    func testPureDecisionPreservesPlainCarbonPriorityAndLensChordPrecedence() {
         let hold = StripGesture(keyCode: 48, invoking: .command)
-        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command)]
+        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command), LensKeyBinding(name: "j", code: 38, modifiers: [])]
         for presentation in ["list", "grid", "miniatures"] {
             for state in [LensInputState.normal, .search] {
-                XCTAssertEqual(lensKeyMeaning(state: state, hold: nil, keys: keys, code: 13, characters: "w", flags: .command, presentation: presentation, source: .carbon), .globalBinding)
+                XCTAssertEqual(lensKeyMeaning(state: state, hold: nil, keys: keys, code: 13, characters: "w", flags: .command, presentation: presentation, source: .carbon), .command("cmd-w"))
+                XCTAssertEqual(lensKeyMeaning(state: state, hold: nil, keys: keys, code: 38, characters: "j", flags: [], presentation: presentation, source: .carbon), .globalBinding)
             }
             XCTAssertEqual(lensKeyMeaning(state: .hold, hold: hold, keys: keys, code: 13, characters: "w", flags: .command, presentation: presentation, source: .carbon), .command("cmd-w"))
         }
         XCTAssertEqual(lensKeyMeaning(state: .normal, hold: nil, keys: keys, code: 13, characters: "w", flags: .command, presentation: "strip", source: .carbon), .command("cmd-w"))
+    }
+
+    func testNormalGridApplyingRecalledSearchSelectsBestMatch() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let items: [SwitcherPaletteItem] = (1...3).map { id in
+            let title = id == 1 ? "Safari" : "Safari extra"
+            return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "recalled-ranking", settings: settings, items: items, search: "Safari")
+        model.hover(3)
+        model.enterSearch()
+        XCTAssertEqual(model.selectedId, 1)
+        XCTAssertEqual(model.query, "Safari")
     }
 
     func testPureMeaningTableOverThreeStates() {
@@ -355,6 +369,8 @@ final class LensHoldTest: SerialClockTestCase {
             (.hold, 48, "\t", [.command, .shift], .step(-1)),
             (.hold, 50, "`", .command, .step(0)),
             (.hold, 5, "g", .command, .endHold(5, "g")),
+            (.hold, 0, "a", .command, .endHold(0, "a")),
+            (.hold, 9, "v", .command, .endHold(9, "v")),
             (.hold, 4, "H", [.command, .shift], .endHold(4, "H", .shift)),
             (.hold, 4, "h", [], .endHold(4, "h")),
             (.hold, 44, "/", .command, .endHold(44, "/")),

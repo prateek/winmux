@@ -113,7 +113,7 @@ final class LensSession: ObservableObject {
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
     func enterSearch() {
-        let selected = selectedId
+        let selected = settings.presentation == "strip" ? selectedId : nil
         if inputState == .hold { endHoldByKey() }
         send(.inputStateChanged(.search))
         if settings.presentation == "strip" { changePresentation("list") }

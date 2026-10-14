@@ -49,10 +49,13 @@ enum LensKeyMeaning: Equatable {
 
 func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
                     characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", source: LensKeySource = .panel) -> LensKeyMeaning {
-    if source == .carbon, state != .hold, presentation != "strip" { return .globalBinding }
     let modifiers = flags.intersection([.command, .control, .option, .shift])
     let binding = { (flags: NSEvent.ModifierFlags) in
         keys.first { $0.code == (code == 76 ? 36 : code) && $0.modifiers == flags }
+    }
+    if source == .carbon, state != .hold, presentation != "strip" {
+        if !modifiers.intersection([.command, .control, .option]).isEmpty, let key = binding(modifiers) { return .command(key.name) }
+        return .globalBinding
     }
     if state == .hold, let hold, code == 36 || code == 76 {
         let released = modifiers.subtracting(hold.invoking)
