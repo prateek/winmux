@@ -5,8 +5,10 @@ struct LensSearchRow: View {
 
     var body: some View {
         if model.inputState == .search {
-            TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }))
+            TextField("Search windows…", text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }),
+                      prompt: Text("Search windows…").foregroundColor(.white.opacity(0.62)))
                 .textFieldStyle(.plain)
+                .foregroundStyle(.white.opacity(GlassToken.textPrimary))
         } else {
             Button { model.enterSearch() } label: {
                 HStack {

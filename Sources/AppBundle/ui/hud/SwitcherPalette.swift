@@ -175,11 +175,12 @@ final class SwitcherPalettePanel: NSPanelHud {
         guard model.inputState == .search else { _ = makeFirstResponder(self); return }
         if model.settings.presentation != "strip", instruction.focusSearch || !(firstResponder is NSTextView) {
             let initialQuery = model.query
-            let selectAll = instruction.focusSearch
+            let selectAll = instruction.focusSearch || !model.searchEdited
             focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
-                guard let self, let model, self.session === model, model.inputState == .search else { return }
-                self.focusSearch(model, selectAll: selectAll && model.query == initialQuery)
+                guard let self, let model, self.session === model, model.inputState == .search,
+                      !(self.firstResponder is NSTextView) else { return }
+                self.focusSearch(model, selectAll: selectAll && !model.searchEdited && model.query == initialQuery)
             }
         }
     }
@@ -438,6 +439,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
             default:
                 if state == .search, editor, meaning.editsSearch {
+                    model.noteSearchEdit()
                     handled = false
                 } else { handled = model.perform(meaning) }
                 switch meaning {

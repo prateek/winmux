@@ -55,12 +55,12 @@ final class LensSession: ObservableObject {
                     selectBestResult()
                 }
             case .searchChanged(let text):
-                searchEdited = true
                 guard text != query else { return }
                 if text.hasPrefix("="), !query.hasPrefix("=") {
                     inlineIds = Set(filterSwitcherPaletteItems(items, query: query).map(\.id))
                 }
                 query = text
+                searchEdited = true
                 if !text.hasPrefix("=") { searchError = nil }
                 selectBestResult()
                 if settings.presentation == "miniatures" { revealMiniatureSelection() }
@@ -133,6 +133,10 @@ final class LensSession: ObservableObject {
     /// Untouched recalled Search is selected; its first edit replaces it.
     private(set) var searchEdited = false
     private var holdInitialized = false
+    func noteSearchEdit() {
+        if inputState == .search { searchEdited = true }
+    }
+
 
     func startHold(_ gesture: StripGesture?) {
         guard !holdInitialized else { return }

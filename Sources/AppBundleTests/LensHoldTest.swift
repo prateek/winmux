@@ -167,7 +167,7 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertTrue(model.perform(model.meaning(for: key(38, "j", []))))
         XCTAssertEqual(model.query, "j")
         XCTAssertEqual(model.meaning(for: key(0, "a")), .fieldEditor)
-        XCTAssertEqual(model.meaning(for: key(9, "v")), .fieldEditor)
+        XCTAssertEqual(model.meaning(for: key(9, "v")), .fieldEditorEdit)
     }
 
     func testNormalAndHoldKeepPanelResponderAndSearchGivesItToEditor() async {
@@ -356,6 +356,32 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertEqual(model.query, "Safari")
     }
 
+    func testRetainedMatchingLetterKeepsCaretThroughInitialFocusCallback() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        await panel.openLens(name: "initial-same-letter", settings: LensConfig(), entries: [], search: "s", banner: nil, context: .null, ticket: panel.beginLens("initial-same-letter", toggle: false)!)
+        XCTAssertFalse(panel.session!.searchEdited)
+        _ = panel.makeFirstResponder(panel)
+        panel.sendEvent(key(1, "s", []))
+        for _ in 0..<20 { await Task.yield() }
+        let editor = try XCTUnwrap(panel.firstResponder as? NSTextView)
+        XCTAssertEqual(editor.string, "s")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 1, length: 0))
+        XCTAssertTrue(panel.session!.searchEdited)
+    }
+
+    func testStripSlashSelectsRecalledSearchForReplacement() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        var settings = LensConfig(); settings.startsIn = "normal"
+        await panel.openLens(name: "strip-recall-focus", settings: settings, entries: [], search: "s", banner: nil, context: .null, ticket: panel.beginLens("strip-recall-focus", toggle: false)!)
+        panel.session!.changePresentation("strip")
+        panel.session!.enterSearch()
+        for _ in 0..<20 { await Task.yield() }
+        let editor = try XCTUnwrap(panel.firstResponder as? NSTextView)
+        XCTAssertEqual(editor.string, "s")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 0, length: 1))
+        XCTAssertFalse(panel.session!.searchEdited)
+    }
+
     func testPureMeaningTableOverThreeStates() {
         let hold = StripGesture(keyCode: 48, invoking: .command)
         let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command),
@@ -397,7 +423,7 @@ final class LensHoldTest: SerialClockTestCase {
             (.normal, 38, "j", .command, .fieldEditor),
             (.search, 38, "j", [], .text("j")),
             (.search, 0, "a", .command, .fieldEditor),
-            (.search, 9, "v", .command, .fieldEditor),
+            (.search, 9, "v", .command, .fieldEditorEdit),
             (.search, 51, "", [], .backspace),
             (.search, 53, "", [], .leaveSearch),
         ]

@@ -37,11 +37,12 @@ enum LensKeyMeaning: Equatable {
     case triggerGlobal
     case globalBinding
     case fieldEditor
+    case fieldEditorEdit
     case dropped
 
     var editsSearch: Bool {
         switch self {
-            case .text, .backspace: return true
+            case .text, .backspace, .fieldEditorEdit: return true
             default: return false
         }
     }
@@ -77,6 +78,7 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
         }
         return .dropped
     }
+    if state == .search, modifiers.contains(.command), code == 7 || code == 9 { return .fieldEditorEdit }
     if state != .hold, chord, hold?.step(keyCode: code, flags: flags) != nil { return .triggerGlobal }
     if state == .normal, chord { return .fieldEditor }
     if chord, ![UInt16(48), 53, 123, 124, 125, 126].contains(code) { return .fieldEditor }
@@ -124,10 +126,14 @@ extension LensSession {
             case .leaveSearch: leaveSearch()
             case .text(let text):
                 guard inputState == .search else { return true }
-                send(.searchChanged(searchEdited ? query + text : text))
+                let updated = searchEdited ? query + text : text
+                noteSearchEdit()
+                send(.searchChanged(updated))
             case .backspace:
                 guard inputState == .search else { return true }
-                send(.searchChanged(searchEdited ? String(query.dropLast()) : ""))
+                let updated = searchEdited ? String(query.dropLast()) : ""
+                noteSearchEdit()
+                send(.searchChanged(updated))
             case .arrow(let code):
                 if settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveMiniatureSelection(direction)
@@ -138,7 +144,7 @@ extension LensSession {
                 else { moveSelection(code == 123 || code == 126 ? -1 : 1) }
             case .mark: toggleMark()
             case .dropped: break
-            case .dismiss, .global, .triggerGlobal, .globalBinding, .fieldEditor: return false
+            case .dismiss, .global, .triggerGlobal, .globalBinding, .fieldEditor, .fieldEditorEdit: return false
         }
         return true
     }
