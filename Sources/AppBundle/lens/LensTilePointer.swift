@@ -87,8 +87,9 @@ extension LensSession {
     func hoverTile(at point: CGPoint?, pointerLocation: CGPoint) {
         let armed = pointerMoved(to: pointerLocation)
         let hit = point.flatMap { tileHitTest(at: $0) }
-        if armed { hoveredTileId = hit?.windowId }
-        else if hit == nil { hoveredTileId = nil }
+        // Assigning a published value redraws the panel even when it is unchanged.
+        let hovered = armed ? hit?.windowId : hit == nil ? nil : hoveredTileId
+        if hovered != hoveredTileId { hoveredTileId = hovered }
         hoverIndex(armed: armed) { hit?.index }
     }
 

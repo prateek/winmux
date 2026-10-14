@@ -1,5 +1,6 @@
 @testable import AppBundle
 import AppKit
+import Combine
 import XCTest
 
 @MainActor
@@ -126,6 +127,25 @@ final class LensWindowControlsTest: XCTestCase {
             session.hoverTile(at: centre(layout.tiles[0].frame), pointerLocation: pointer)
             session.changePresentation("list")
             XCTAssertNil(session.hoveredTileId)
+        }
+    }
+
+    func testMovesWithinTheHoveredTileDoNotRedrawThePanel() {
+        for presentation in ["strip", "grid"] {
+            var pointer = CGPoint.zero
+            let session = session(presentation, pointer: { pointer })
+            let frame = layout(session).tiles[2].frame
+            pointer.x = 2
+            session.hoverTile(at: centre(frame), pointerLocation: pointer)
+            XCTAssertEqual(session.hoveredTileId, 3)
+            var changes = 0
+            let subscription = session.objectWillChange.sink { changes += 1 }
+            for step in 1...5 {
+                pointer.x += 2
+                session.hoverTile(at: CGPoint(x: frame.midX + CGFloat(step), y: frame.midY), pointerLocation: pointer)
+            }
+            XCTAssertEqual(changes, 0)
+            subscription.cancel()
         }
     }
 

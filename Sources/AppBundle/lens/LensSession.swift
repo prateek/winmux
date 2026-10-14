@@ -235,7 +235,8 @@ final class LensSession: ObservableObject {
         inputState = startingState
         rememberedSearch = search
         self.searchIsExplicit = searchIsExplicit
-        query = startingState == .search || searchIsExplicit ? search : ""
+        // A strip has no Search row to show a recalled Search in: it waits for the list. A Search the caller asked for applies.
+        query = (startingState == .search && settings.presentation != "strip") || searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
     }

@@ -53,16 +53,16 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertTrue(model.summonHeld)
     }
 
-    func testSearchStartingStripAppliesRememberedSearchAtOpening() {
+    func testSearchStartingStripOpensUnfilteredByRememberedSearch() {
         var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
         let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2)].map { title, id in
             SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         }
         let model = LensSession(name: "strip-recall", settings: settings, items: items, search: "saf")
-        XCTAssertEqual(model.query, "saf")
-        XCTAssertEqual(model.results.map(\.id), [1])
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.results.count, 2)
         model.startHold(StripGesture(keyCode: 48, invoking: .command))
-        XCTAssertEqual(model.results.map(\.id), [1])
+        XCTAssertEqual(model.results.count, 2)
         model.enterSearch()
         XCTAssertEqual(model.query, "saf")
         XCTAssertEqual(model.results.map(\.id), [1])
@@ -296,7 +296,7 @@ final class LensHoldTest: SerialClockTestCase {
                 let model = LensSession(name: "start", settings: settings, items: [], search: "saved")
                 let expected: LensInputState = configured == "search" || (configured == nil && presentation == "list") ? .search : .normal
                 XCTAssertEqual(model.inputState, expected)
-                XCTAssertEqual(model.query, expected == .search ? "saved" : "")
+                XCTAssertEqual(model.query, expected == .search && presentation != "strip" ? "saved" : "")
                 model.changePresentation(presentation == "list" ? "grid" : "list")
                 XCTAssertEqual(model.inputState, expected)
                 if expected == .normal {
@@ -440,13 +440,13 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertFalse(panel.session!.searchEdited)
     }
 
-    func testSearchStartingStripReleaseCommitsAmongRecalledMatches() {
+    func testSearchStartingStripReleaseCommitsWithoutApplyingRecalledSearch() {
         let owner = testLensLifecycle(); defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
         let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
         let model = LensSession(name: "release-search", settings: settings, items: items, search: "saf")
         owner.complete(model, ticket: owner.begin("release-search", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!)
-        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.query, "")
         model.hover(3)
         var focused: UInt32?
         model.onAction = { _ in focused = model.selectedId }

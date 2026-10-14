@@ -123,7 +123,7 @@ Equal title/app scores prefer title; equal workspace/project scores prefer works
 the Lens's sort; Search ties use that order. Search is remembered per named Lens and selected
 on reopening in Search. In normal mode it waits for `/`. `--search` overrides it, and is
 applied at once in either state: a grid opened with `--search` starts in normal mode over its
-matches. An explicit Search also filters a strip at opening; a Search-starting strip applies recalled Search then.
+matches. An explicit Search also filters a strip at opening; a remembered Search never does.
 
 Matched characters in the title and app name use yellow (`#ffd54a`) behind dark text (`#111111`),
 in light and dark appearances. List rows, text Tiles and card bars show the match in their text;
@@ -297,9 +297,10 @@ release enters Search with its text selected and the selection unchanged. The fi
 letter replaces that text. Opening in normal mode leaves it inactive and unapplied.
 At `/` it appears selected and is applied, and the first letter replaces it.
 Applying remembered Search keeps the selected window if it matches, and selects
-the best match otherwise. A normal-starting strip leaves recalled Search dormant until `/`;
-a Search-starting strip applies it at opening, and an explicit `--search` always applies.
-A Search-starting strip also keeps a matching selected
+the best match otherwise. A strip has no Search row, so it never opens filtered by a
+remembered Search, whatever its `starts-in`: the Search is applied when the strip
+becomes a list. An explicit `--search` filters a strip at opening, and the footer marks
+the match. A Search-starting strip also keeps a matching selected
 window through conversion at the Hold-ending letter, using the typed Search.
 Leaving Search with Escape preserves its matches.
 
