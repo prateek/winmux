@@ -22,11 +22,15 @@ struct MiniaturesView: View {
                         TileView(entry: item.tile, kind: .picture, presentation: "miniatures", metrics: model.tileMetrics,
                                  size: CGSize(width: max(1, frame.width), height: max(1, frame.height)), settings: model.settings,
                                  selected: selectedId == item.id, marked: model.marks.contains(item.id),
-                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
-                            .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
-                            .onContinuousHover { phase in
-                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
+                                 pictureSize: item.miniature?.tab == nil ? nil : frame.size)
+                            // A dimmed Frozen picture would otherwise show the tabs behind it through the front tab
+                            .background {
+                                if item.miniature?.tab != nil {
+                                    RoundedRectangle(cornerRadius: model.tileMetrics.miniaturePictureRadius).fill(Color.black)
+                                }
                             }
+                            .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onTapGesture {
                                 model.hover(item.id)
                                 if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
@@ -49,6 +53,10 @@ struct MiniaturesView: View {
         }
         .foregroundStyle(.white)
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
+        .contentShape(Rectangle())
+        .onContinuousHover { phase in
+            if case .active(let point) = phase { model.hoverMiniature(at: point, pointerLocation: NSEvent.mouseLocation) }
+        }
     }
 
     @ViewBuilder

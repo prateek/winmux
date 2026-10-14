@@ -34,6 +34,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Two defects found while building the short list of default shortcuts** are with the follow-ups: three screens a fresh guest still shows, and `winmux doctor` naming a stale commit.
 - **One defect found while ending the CI failures that were not the change's** is with the follow-ups: a second signal during a release's cleanup leaving the worker running.
 - **One defect found while building the Hold's replacement** is with the follow-ups: keys queued while a Lens opens are decided by a copy of the session's rules, which loses a global chord pressed straight after Return.
+- **One defect found while building `'miniatures` filling the screen** is with the follow-ups: `overview` draws a workspace not yet shown since WinMux started at the wrong positions.
 - **Questions and checks that wait on Prateek** are children of **Open with Prateek: questions and checks that wait on him**, not of this umbrella.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 

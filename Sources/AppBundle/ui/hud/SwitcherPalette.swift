@@ -559,13 +559,12 @@ func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace]
 private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> MiniatureWindow {
     let window = entry.window
     let tray = window.parent is MacosMinimizedWindowsContainer || window.parent is MacosHiddenAppsWindowsContainer
-    let source = window.nodeWorkspace?.workspaceMonitor.visibleRect.cgRect ?? focus.workspace.workspaceMonitor.visibleRect.cgRect
-    let frame = window.isFloating ? (window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source) : (window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source)
+    let frame = miniatureWindowFrame(window)
     let nativeFullscreen = window.parent is MacosFullscreenWindowsContainer
     let frozen = miniatureIsFrozen(tray: tray, fullscreen: nativeFullscreen && !onscreen.contains(window.windowId),
                                    workspaceVisible: nativeFullscreen ? onscreen.contains(window.windowId) : window.nodeWorkspace?.isVisible == true, parked: (window as? MacWindow)?.isHiddenInCorner == true)
     return MiniatureWindow(workspace: entry.record.workspace, frame: frame, tray: tray, frozen: frozen,
-                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window)
+                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window, tab: miniatureTabSnapshot(window))
 }
 
 @MainActor

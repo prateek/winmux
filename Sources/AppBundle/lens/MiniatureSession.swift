@@ -15,6 +15,7 @@ struct MiniatureWindow {
     let accessory: Bool
     let floating: Bool
     let window: Window
+    var tab: MiniatureTabSnapshot? = nil
 }
 
 extension LensSession {
@@ -49,8 +50,15 @@ extension LensSession {
                         frame = CGRect(x: cell.tray.minX + CGFloat(trayIndex) * width, y: cell.tray.minY, width: max(1, width - 4), height: cell.tray.height)
                         trayIndex += 1
                     } else {
-                        var scaled = MiniatureLayout.scale(entry.frame, from: workspace.source, to: cell.frame)
-                        if entry.accessory && settings.accessoryWindow == "enlarged" {
+                        let source = entry.tab?.frame ?? entry.frame
+                        var scaled = MiniatureLayout.scale(source, from: workspace.source, to: cell.frame)
+                        if let tab = entry.tab {
+                            // Fan only the tabs this Lens draws; a missing active tab gives the front to the first one drawn
+                            let drawn = windows.compactMap(\.tab).filter { $0.group == tab.group }.map(\.index).sorted()
+                            scaled = MiniatureLayout.fan(scaled, count: drawn.count, index: drawn.firstIndex(of: tab.index) ?? 0,
+                                                         activeIndex: drawn.firstIndex(of: tab.activeIndex) ?? -1, cellWidth: cell.frame.width)
+                        }
+                        if entry.tab == nil && entry.accessory && settings.accessoryWindow == "enlarged" {
                             scaled.size.width = max(scaled.width, min(120, cell.frame.width))
                             scaled.size.height = max(scaled.height, min(64, cell.frame.height))
                             scaled.origin.x = min(max(cell.frame.minX, scaled.minX), max(cell.frame.minX, cell.frame.maxX - scaled.width))
@@ -63,6 +71,22 @@ extension LensSession {
             }
         }
         return frames
+    }
+
+    func miniatureHitTest(at point: CGPoint) -> UInt32? {
+        let layout = miniatureLayout
+        let page = min(miniaturePage, layout.pageCount - 1)
+        let frames = miniatureFrames(layout: layout)
+        let point = CGPoint(x: point.x, y: point.y + CGFloat(page) * miniatureSize.height)
+        let matches = Set(results.map(\.id))
+        let drawn = miniatureCells(on: page, layout: layout).flatMap { cell in
+            miniatureDrawOrder(items.filter { $0.miniature?.workspace == cell.workspace && matches.contains($0.id) })
+        }
+        return drawn.reversed().first { frames[$0.id]?.contains(point) == true }?.id
+    }
+
+    func hoverMiniature(at point: CGPoint, pointerLocation: CGPoint) {
+        if let id = miniatureHitTest(at: point) { hover(id, at: pointerLocation) }
     }
 
     func miniatureOpacity(_ id: UInt32) -> Double { results.contains { $0.id == id } ? 1 : 0.18 }
@@ -91,7 +115,11 @@ extension LensSession {
                     self.items.first { $0.miniature?.workspace == name && matches.contains($0.id) }?.id
                 }.first
             }
-        } else { target = MiniatureLayout.nearest(from: id, direction: direction, frames: miniatureFrames, matches: matches) }
+        } else {
+            let group = items.first(where: { $0.id == id })?.miniature?.tab?.group
+            let tabs = group.map { group in Set(items.filter { $0.miniature?.tab?.group == group }.map(\.id)) } ?? []
+            target = MiniatureLayout.nearest(from: id, direction: direction, frames: miniatureFrames, matches: matches, adjacentTabs: tabs)
+        }
         if let target { hover(target); revealMiniatureSelection() }
     }
 
@@ -143,12 +171,21 @@ func appendingRetainedMiniatureWorkspaces(_ ordered: [MiniatureWorkspace], retai
     return snapshots
 }
 
-/// Items arrive in the Lens's sort order. Tiled windows are drawn first and floating ones over
-/// them; where two overlap, the one earlier in sort order is drawn last and takes the pointer.
 func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem] {
-    items.enumerated().sorted { lhs, rhs in
-        let a = lhs.element.miniature?.floating == true, b = rhs.element.miniature?.floating == true
-        return a == b ? lhs.offset > rhs.offset : !a
+    var groupOrder: [ObjectIdentifier: Int] = [:]
+    for (index, item) in items.enumerated() {
+        if let tab = item.miniature?.tab, groupOrder[tab.group] == nil { groupOrder[tab.group] = index }
+    }
+    return items.enumerated().sorted { lhs, rhs in
+        let a = lhs.element.miniature, b = rhs.element.miniature
+        if (a?.floating == true) != (b?.floating == true) { return b?.floating == true }
+        let leftOrder = a?.tab.flatMap { groupOrder[$0.group] } ?? lhs.offset
+        let rightOrder = b?.tab.flatMap { groupOrder[$0.group] } ?? rhs.offset
+        if leftOrder != rightOrder { return leftOrder > rightOrder }
+        if let leftTab = a?.tab, let rightTab = b?.tab, leftTab.group == rightTab.group {
+            return leftTab.depth > rightTab.depth
+        }
+        return lhs.offset > rhs.offset
     }.map(\.element)
 }
 

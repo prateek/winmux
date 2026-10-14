@@ -21,6 +21,7 @@ Read the pull request's diff and its issue's **Done when** list. Cut the work in
 - A grid packs the standing desk's four windows into one row at 1280 by 720, so `j` and `k` have nowhere to go. A take that moves vertically needs a Lens with `sections = 'workspace` and `grid.sections-arrangement = 'rows`, which puts each workspace on a row of its own.
 - A list, grid or strip opens on the entry after the focused one, and an arrow or `h` `j` `k` `l` at an edge keeps the selection. Write a **Watch** from that starting entry, not from the focused window.
 - A Lens remembers its Search for the life of the process. Restart the debug build between takes whose Search must start empty.
+- `overview` draws a workspace not yet shown since WinMux started at remembered positions, which can be wrong, tab-group fans included, until **Overview draws a workspace not yet shown at the wrong positions** lands. After every start of a build, show each workspace once, go back to the starting one, and wait for pictures before a take.
 - A claim that is a static state gets a **still**.
 - A claim that is a command's output (JSON, an exit code, a `config check` result) gets a **transcript**: the command and its real output in a code block.
 - Order by story: one **hero** first, showing the feature doing its main job; then groups under plain headings (everyday use, configuration, when something fails, CLI), each opened by one sentence; then the table mapping every Done-when item to its demos.

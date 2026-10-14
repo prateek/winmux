@@ -468,11 +468,26 @@ The shipped Lenses keep their existing Presentations; use a config Lens or the C
 
 ## Overview and miniatures
 
-`winmux lens overview` opens every workspace in sidebar order, with tiled windows in their
-layout positions and floating windows above them. Minimized windows use their retained origin
+Option-Shift-O opens the shipped overview directly. `winmux lens overview` opens every workspace
+in sidebar order, with tiled windows in their layout positions and floating windows above them. Minimized windows use their retained origin
 workspace's tray; hidden-app windows use their container's workspace. Popup windows are omitted,
 even when the Lens opts into their classes. A minimized window with no known origin has no tray
 and remains reachable through the list Presentation.
+
+Workspaces form centred rows and columns below Search. The arrangement tries every column
+count and chooses the one that makes each monitor-shaped workspace widest, with fewer rows
+on a tie. Order reads left to right, then top to bottom; a short last row starts at the left.
+Four workspaces form two rows of two on both a 16:9 display and an ultrawide display.
+
+`fit` decides only what happens below the readable size of 110 points tall. Above it, both
+values use the same largest arrangement on one page. Below it, `page` keeps the readable
+floor and lays out every page at the full page's size; `shrink` keeps all workspaces on one page.
+
+A window tab group whose tabs are all windows fans out inside its shared frame; with window tabs off, a group keeps its accordion positions. The active tab is in front at the group's origin;
+other tabs follow their group order, offset right and down behind it. The offset scales from
+16 points per 820-point workspace and shrinks when the total fan would exceed a quarter of
+the group's smaller side. Every tab has a selectable edge and uses its cached picture or app
+icon. Standalone windows, floating windows and tray entries keep their existing positions. The fan is drawn from the active tab's frame, below the group's tab bar, and fans only the tabs the Lens draws.
 
 Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
 with an 800 ms per-window throttle and at most two captures in flight. Hidden apps retain their
@@ -503,7 +518,7 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 
 | Setting | Values and behavior |
 | --- | --- |
-| `miniatures.fit` | `page` keeps a readable workspace size and scrolling turns pages; `shrink` fits all workspaces. |
+| `miniatures.fit` | Below the 110-point readable floor, `page` keeps a fixed cell size and scrolling turns pages; `shrink` fits all workspaces. |
 | `miniatures.current-workspace` | `plain`, `highlight` (default), `enlarge`, or `hide`. |
 | `miniatures.arrow-keys` | `nearest` (default) uses geometry; `by-workspace` uses left/right within a workspace and up/down between workspaces. |
 | `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. The panel remains non-opaque. |
@@ -514,6 +529,8 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 Miniatures keeps its own workspace arrangement and window entries; its contract rejects explicit
 `tile`, `sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
 `landing-spot` hint. Backdrop darkness above 0.95 fails config checking.
+
+`by-workspace` up/down selects the previous/next workspace in reading order, even when the next cell is to the right.
 
 Search dims non-matches at their fixed positions and selects the best match. Arrows navigate only
 matches; Tab marks and Enter/shift-enter keep the same Focus/Summon actions as the list. Only the
