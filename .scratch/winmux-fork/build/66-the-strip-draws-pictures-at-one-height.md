@@ -42,9 +42,7 @@ Nothing.
 
 ## Checks for Prateek
 
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+- [ ] On an installed build with Cmd-Tab opted in, holding Cmd-Tab on his own desk draws one row of pictures at one height, with the selected title in the footer.
 
 ## Sources
 
