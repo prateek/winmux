@@ -88,8 +88,13 @@ final class LensSession: ObservableObject {
             case .presentationChanged(let presentation):
                 hoveredTileId = nil
                 let selected = selectedId
+                let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
-                if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+                // A strip never shows a remembered Search; the Presentation it becomes does.
+                if leftStrip, inputState == .search, !searchEdited, query.isEmpty, !rememberedSearch.isEmpty {
+                    query = rememberedSearch
+                    keepSelectionOrSelectBest(selected)
+                } else if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
                 objectWillChange.send()
             case .sectionsChanged(let value):
                 guard drawsSections else { return }
@@ -317,14 +322,22 @@ final class LensSession: ObservableObject {
     }
 
     /// A control changed the window's state: its Tile shows the new state while the Lens stays open.
-    func refreshTile(windowId: UInt32, windowClass: WindowClass, controls: TileControlAvailability) {
+    /// The tree's class is current at once; AX reports a window's buttons late after a state change,
+    /// so the buttons stay as read when the Lens opened.
+    func refreshTile(windowId: UInt32, windowClass: WindowClass) {
         func update(_ item: SwitcherPaletteItem) -> SwitcherPaletteItem {
             guard item.id == windowId else { return item }
             var item = item
-            item.tile.controls = controls
-            item.tile.badges.minimized = windowClass == .minimized
-            // A minimized window shows its last capture, as it does when a Lens opens over it.
-            if windowClass == .minimized { item.tile.frozen = true }
+            let wasMinimized = item.tile.badges.minimized
+            let minimized = windowClass == .minimized
+            item.tile.controls = TileControlAvailability(buttons: item.tile.buttons, windowClass: windowClass)
+            item.tile.badges.minimized = minimized
+            // A minimized window shows its last capture, as it does when a Lens opens over it, and
+            // one restored from the tray is captured again.
+            if minimized != wasMinimized {
+                item.tile.frozen = minimized
+                item.miniature = item.miniature?.with(frozen: minimized, tray: minimized || windowClass == .hiddenApp)
+            }
             return item
         }
         items = items.map(update)

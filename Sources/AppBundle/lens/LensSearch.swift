@@ -26,9 +26,9 @@ struct LensSearchFields {
         var matched: [String] = []
         var titleRanges: [Range<Int>] = [], appRanges: [Range<Int>] = []
         for word in words {
-            let best = fields.compactMap { name, value, weight -> (String, Int, Int, [Range<Int>])? in
-                lensSearchTierMatch(word, in: value).map { (name, $0.tier * weight, weight, $0.ranges) }
-            }.reduce(nil as (String, Int, Int, [Range<Int>])?) { best, candidate in
+            let best = fields.compactMap { name, value, weight -> (String, Int, Int, String)? in
+                lensSearchTier(word, in: value).map { (name, $0 * weight, weight, value) }
+            }.reduce(nil as (String, Int, Int, String)?) { best, candidate in
                 guard let best else { return candidate }
                 if candidate.1 > best.1 || (candidate.1 == best.1 && candidate.2 > best.2) { return candidate }
                 return best
@@ -36,8 +36,9 @@ struct LensSearchFields {
             guard let best else { return nil }
             score += best.1
             if !matched.contains(best.0) { matched.append(best.0) }
-            if best.0 == "title" { titleRanges += best.3 }
-            if best.0 == "app" { appRanges += best.3 }
+            // Ranges are worked out only for the field that won and is drawn.
+            if best.0 == "title" { titleRanges += lensSearchTierMatch(word, in: best.3)?.ranges ?? [] }
+            if best.0 == "app" { appRanges += lensSearchTierMatch(word, in: best.3)?.ranges ?? [] }
         }
         return LensSearchMatch(score: score, matchedField: matched.joined(separator: ","),
                                titleRanges: mergedLensRanges(titleRanges), appRanges: mergedLensRanges(appRanges))

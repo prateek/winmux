@@ -16,6 +16,10 @@ struct MiniatureWindow {
     let floating: Bool
     let window: Window
     var tab: MiniatureTabSnapshot? = nil
+
+    func with(frozen: Bool, tray: Bool) -> Self {
+        Self(workspace: workspace, frame: frame, tray: tray, frozen: frozen, accessory: accessory, floating: floating, window: window, tab: tab)
+    }
 }
 
 extension LensSession {

@@ -344,28 +344,23 @@ final class SwitcherPalettePanel: NSPanelHud {
             return
         }
         let keepOpen = model.keepsOpen(after: key)
+        let origin = LensTraceOrigin.internalNow()
         if !keepOpen { dismiss() }
-        runLensCommands(model, label: key) { io in try await runLensAction(commands, session: model, io: io) }
+        runLensCommands(model, label: key, origin: origin) { io in try await runLensAction(commands, session: model, io: io) }
     }
 
     private func performControl(_ control: TileWindowControl, windowId: UInt32, model: LensSession) {
         runLensCommands(model, label: control.command) { io in
             guard try await runLensWindowAction(control.command, windowId: windowId, io: io) else { return false }
             // A closed window leaves through the removal path; one still here shows its new state.
-            if let snapshot = try await Window.get(byId: windowId)?.windowRecordWithAttributes(buttons: true) {
-                let windowClass = snapshot.record.windowClass
-                model.refreshTile(windowId: windowId, windowClass: windowClass,
-                                  controls: TileControlAvailability(buttons: snapshot.attributes.buttons, windowClass: windowClass))
-            }
+            if let windowClass = Window.get(byId: windowId)?.windowClass { model.refreshTile(windowId: windowId, windowClass: windowClass) }
             return true
         }
     }
 
     /// Runs a Lens action's commands in a light session and logs a failure under `lens`.
-    private func runLensCommands(_ model: LensSession, label: String, _ body: @escaping @MainActor (CmdIo) async throws -> Bool) {
-        // An action can run from a timer or a command task, where the current event is unrelated.
-        let now = LensTimebase.now()
-        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
+    private func runLensCommands(_ model: LensSession, label: String, origin: LensTraceOrigin = .internalNow(),
+                                 _ body: @escaping @MainActor (CmdIo) async throws -> Bool) {
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             do {
@@ -650,7 +645,7 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
-                     monitorHeightFraction: frame.height / max(1, monitorHeight), controls: entry.controls)
+                     monitorHeightFraction: frame.height / max(1, monitorHeight), buttons: entry.buttons, controls: entry.controls)
 }
 
 @MainActor

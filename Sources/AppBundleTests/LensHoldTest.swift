@@ -68,6 +68,22 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertEqual(model.results.map(\.id), [1])
     }
 
+    func testSearchStartingStripAppliesRememberedSearchWhenItBecomesAList() {
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2)].map { title, id in
+            SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "strip-recall", settings: settings, items: items, search: "saf")
+        XCTAssertEqual(model.query, "")
+        model.changePresentation("list")
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.map(\.id), [1])
+        var normal = settings; normal.startsIn = "normal"
+        let dormant = LensSession(name: "strip-normal", settings: normal, items: items, search: "saf")
+        dormant.changePresentation("list")
+        XCTAssertEqual(dormant.query, "")
+    }
+
     func testReleasedOpeningStripIsCancelledByAnotherBinding() {
         let owner = testLensLifecycle(); defer { owner.dismiss() }
         let gesture = StripGesture(keyCode: 48, invoking: .command)

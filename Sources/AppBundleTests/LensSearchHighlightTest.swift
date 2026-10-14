@@ -54,7 +54,7 @@ final class LensSearchHighlightTest: XCTestCase {
         XCTAssertEqual(entries.first { $0.record.id == 92 }?.controls, TileControlAvailability(close: true, minimize: false, fullscreen: true))
         XCTAssertEqual(entries.first { $0.record.id == 93 }?.controls, TileControlAvailability(close: true, minimize: false, fullscreen: true))
         // Anything else that reads a record skips the button reads.
-        let plain = try await ordinary.axRecordAttributes
+        let plain = try await ordinary.readAxRecordAttributes(buttons: false)
         XCTAssertNil(plain?.buttons)
     }
 

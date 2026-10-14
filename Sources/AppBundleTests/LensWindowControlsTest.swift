@@ -10,7 +10,7 @@ final class LensWindowControlsTest: XCTestCase {
         let items: [SwitcherPaletteItem] = (1...4).map { id in
             let aspect: CGFloat = narrow && id == 1 ? 0.02 : 4 / 3
             let size = narrow && id == 1 ? CGSize(width: 20, height: 1000) : CGSize(width: 800, height: 600)
-            let entry = TileEntry(title: "Window \(id)", appName: "Demo", aspect: aspect, realSize: size, controls: availability)
+            let entry = TileEntry(title: "Window \(id)", appName: "Demo", aspect: aspect, realSize: size, buttons: availability, controls: availability)
             return SwitcherPaletteItem(id: UInt32(id), title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
                 tile: entry)
         }
@@ -183,14 +183,12 @@ final class LensWindowControlsTest: XCTestCase {
                 session.hoverTile(at: centre(layout.tiles[0].frame), pointerLocation: pointer)
                 XCTAssertEqual(session.hoveredTileId, 1)
                 if control == .fullscreen {
-                    session.refreshTile(windowId: 1, windowClass: .fullscreen,
-                                        controls: TileControlAvailability(buttons: .all, windowClass: .fullscreen))
+                    session.refreshTile(windowId: 1, windowClass: .fullscreen)
                     XCTAssertFalse(session.results[0].tile.controls.minimize)
                     XCTAssertFalse(session.results[0].tile.badges.minimized)
                 }
                 if control == .minimize {
-                    session.refreshTile(windowId: 1, windowClass: .minimized,
-                                        controls: TileControlAvailability(buttons: .all, windowClass: .minimized))
+                    session.refreshTile(windowId: 1, windowClass: .minimized)
                     XCTAssertTrue(session.results[0].tile.badges.minimized)
                     XCTAssertTrue(session.results[0].tile.frozen)
                     XCTAssertFalse(session.results[0].tile.controls.minimize)
@@ -198,6 +196,30 @@ final class LensWindowControlsTest: XCTestCase {
                 }
             }
         }
+    }
+
+    func testRefreshFollowsTheWindowClassBothWaysWithTheButtonsReadAtOpening() {
+        let window = TestWindow.new(id: 1, parent: Workspace.get(byName: "1").rootTilingContainer)
+        let miniature = MiniatureWindow(workspace: "1", frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window)
+        let item = SwitcherPaletteItem(id: 1, title: "Window", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false, miniature: miniature,
+                                       tile: TileEntry(title: "Window", appName: "Demo", buttons: .all, controls: .all))
+        var settings = LensConfig(); settings.presentation = "grid"
+        let session = LensSession(name: "refresh", settings: settings, items: [item], search: "")
+        session.refreshTile(windowId: 1, windowClass: .fullscreen)
+        XCTAssertEqual(session.results[0].tile.controls, TileControlAvailability(close: true, minimize: false, fullscreen: true))
+        session.refreshTile(windowId: 1, windowClass: .tiled)
+        XCTAssertEqual(session.results[0].tile.controls, .all)
+        XCTAssertFalse(session.results[0].tile.frozen)
+        session.refreshTile(windowId: 1, windowClass: .minimized)
+        XCTAssertTrue(session.results[0].tile.badges.minimized)
+        XCTAssertTrue(session.results[0].tile.frozen)
+        XCTAssertEqual(session.results[0].miniature?.frozen, true)
+        XCTAssertEqual(session.results[0].miniature?.tray, true)
+        session.refreshTile(windowId: 1, windowClass: .fullscreen)
+        XCTAssertFalse(session.results[0].tile.badges.minimized)
+        XCTAssertFalse(session.results[0].tile.frozen)
+        XCTAssertEqual(session.results[0].miniature?.frozen, false)
+        XCTAssertEqual(session.results[0].miniature?.tray, false)
     }
 
     func testHiddenControlsKeepTheirSlotsAndTextListMiniaturesNeverHitControls() {

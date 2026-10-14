@@ -11,6 +11,11 @@ struct LensTraceOrigin: Sendable {
         // An event stamped after its own receipt is on another clock; the trace then starts at receipt.
         self.start = min(start, received); self.received = received; self.source = source
     }
+    /// An action run from a timer or a command task, where the current event is unrelated.
+    static func internalNow() -> Self {
+        let now = LensTimebase.now()
+        return Self(start: now, received: now, source: "internal")
+    }
     init(event: NSEvent, received: Double) {
         self.init(start: event.timestamp, received: received, source: "NSEvent")
     }

@@ -126,7 +126,6 @@ open class Window: TreeNode, Hashable {
     func getAxSize() async throws -> CGSize? { die("Not implemented") }
     var title: String { get async throws { die("Not implemented") } }
     /// `nil` when the window's AX element is gone, which is a window that is closing.
-    @MainActor var axRecordAttributes: WindowAxRecordAttributes? { get async throws { try await readAxRecordAttributes(buttons: false) } }
     /// `buttons` also reads whether each window button is there and enabled, which costs AX calls only a Lens needs.
     @MainActor func readAxRecordAttributes(buttons: Bool) async throws -> WindowAxRecordAttributes? { die("Not implemented") }
     /// Whether WinMux has seen the window unminimized. A window first seen minimized, such as one

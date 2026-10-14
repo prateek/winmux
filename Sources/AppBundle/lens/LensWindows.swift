@@ -9,6 +9,7 @@ struct LensWindow {
     var workspaceSearchName: String? = nil
     var projectSearchName: String? = nil
     var searchMatch: LensSearchMatch?
+    var buttons = TileControlAvailability()
     var controls = TileControlAvailability()
 
     var searchFields: LensSearchFields {
@@ -40,6 +41,7 @@ func lensWindows(popups: [String]) async throws -> [LensWindow] {
         return LensWindow(record: record, window: window, spatialIndex: index, workspaceIndex: indices[record.workspace] ?? Int.max,
                           workspaceSearchName: workspaceDisplayName(record.workspace),
                           projectSearchName: workspaceProjectDisplayName(WorkspaceProjectId(record.project), fallbackName: record.project),
+                          buttons: ax.buttons ?? TileControlAvailability(),
                           controls: TileControlAvailability(buttons: ax.buttons, windowClass: record.windowClass))
     }
     return entries
