@@ -1,14 +1,14 @@
 import AppKit
 
-/// Turns scroll events into page turns: one per trackpad gesture, one per burst of wheel events.
 struct MiniatureScrollPaging {
     private var delta: CGFloat = 0
     private var sideways: CGFloat = 0
     private var turned = false
     private var lastWheelEvent: TimeInterval = -.infinity
 
-    mutating func turn(delta incoming: CGFloat, sideways incomingSideways: CGFloat = 0, phase: NSEvent.Phase, momentum: NSEvent.Phase, time: TimeInterval) -> Int? {
+    mutating func turn(delta incoming: CGFloat, sideways incomingSideways: CGFloat = 0, phase: NSEvent.Phase, momentum: NSEvent.Phase, time: TimeInterval, precise: Bool = true) -> Int? {
         guard momentum.isEmpty else { return nil }
+        if !precise { return incoming == 0 ? nil : (incoming < 0 ? 1 : -1) }
         if phase.isEmpty {
             // A wheel has no gesture phases. A smooth-scrolling wheel sends a run of small events
             // for one flick, so the events of one run turn one page.

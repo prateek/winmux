@@ -37,6 +37,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let gridLandingPanel = NSPanelHud()
     private var gridMonitorRect = CGRect.zero
     private var scrollPaging = MiniatureScrollPaging()
+    private let pointerEvents = LensPointerEventDelivery()
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
 
@@ -149,6 +150,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = nil
         lifecycle.trace?.startInterval("panel ordered front")
         orderFrontRegardless()
+        pointerEvents.stop()
+        acceptsMouseMovedEvents = model.settings.presentation == "strip" || model.settings.presentation == "grid"
+        if acceptsMouseMovedEvents {
+            pointerEvents.start(window: self) { [weak self] in self?.hostingView.mouseMoved(with: $0) }
+        }
         lifecycle.trace?.advance("panel ordered front")
         lifecycle.trace?.startInterval("first frame presented")
         hostingView.observeFirstFrame()
@@ -233,6 +239,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
+        pointerEvents.stop()
         scrollPaging = MiniatureScrollPaging()
         gridLandingPanel.orderOut(nil)
         let monitor = focus.workspace.workspaceMonitor
@@ -308,6 +315,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func clearPresentation() {
+        pointerEvents.stop()
+        acceptsMouseMovedEvents = false
         gridLandingPanel.orderOut(nil)
         gridLandingPanel.contentView = nil
         hostingView.layer?.removeAllAnimations()
@@ -423,6 +432,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
             if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
+            return
+        }
+        if event.type == .scrollWheel, model.settings.presentation == "strip" || model.settings.presentation == "grid" {
+            model.scrollTiles(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase,
+                              momentum: event.momentumPhase, time: event.timestamp, precise: event.hasPreciseScrollingDeltas, paging: &scrollPaging)
             return
         }
         super.sendEvent(event)

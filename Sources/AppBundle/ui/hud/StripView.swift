@@ -31,13 +31,6 @@ struct StripView: View {
                                  pictureSize: tile.pictureSize)
                             .position(x: tile.frame.midX, y: tile.frame.midY)
                             .zIndex(index == model.selection ? 1 : 0)
-                            .onContinuousHover { phase in
-                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
-                            }
-                            .onTapGesture {
-                                model.hover(item.id)
-                                if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
-                            }
                     }
                     LensSelectionFooter(model: model, items: items)
                         .padding(.horizontal, 44 * scale)
@@ -45,6 +38,13 @@ struct StripView: View {
                         .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 22 * scale - footerHeight / 2)
                 }
                 .frame(width: layout.panelSize.width, height: layout.panelSize.height)
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    if case .active(let point) = phase { model.hoverTile(at: point, pointerLocation: NSEvent.mouseLocation) }
+                }
+                .onTapGesture(coordinateSpace: .local) { point in
+                    model.clickTile(at: point, event: NSApp.currentEvent)
+                }
                 if let banner = model.banner {
                     Text(banner).font(.caption).foregroundStyle(.orange)
                         .padding(.bottom, 22 * scale)

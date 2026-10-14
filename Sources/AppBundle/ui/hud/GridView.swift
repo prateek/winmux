@@ -19,13 +19,6 @@ struct GridView: View {
                          pictureSize: tile.pictureSize)
                     .position(x: tile.frame.midX, y: tile.frame.midY)
                     .zIndex(index == model.selection ? 1 : 0)
-                    .onContinuousHover { phase in
-                        if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
-                    }
-                    .onTapGesture {
-                        model.hover(item.id)
-                        if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
-                    }
             }
             ForEach(Array(layout.headers.enumerated()), id: \.offset) { _, header in
                 LensSectionHeader(label: header.label, current: header.current, scale: layout.tileScale)
@@ -52,6 +45,13 @@ struct GridView: View {
         }
         .foregroundStyle(.white)
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
+        .contentShape(Rectangle())
+        .onContinuousHover { phase in
+            if case .active(let point) = phase { model.hoverTile(at: point, pointerLocation: NSEvent.mouseLocation) }
+        }
+        .onTapGesture(coordinateSpace: .local) { point in
+            model.clickTile(at: point, event: NSApp.currentEvent)
+        }
         .background {
             GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * scale), style: config.workspaceSidebar.chromeStyle,
                          solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
