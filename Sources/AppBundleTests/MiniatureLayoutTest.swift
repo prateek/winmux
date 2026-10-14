@@ -26,9 +26,78 @@ final class MiniatureLayoutTest: XCTestCase {
         }
     }
 
-    func testShrinkNeverEnlargesPastTheLargestThumbnailWidth() {
-        let layout = MiniatureLayout(workspaces: ["1"], size: CGSize(width: 4000, height: 3000), aspect: 2, fit: "shrink")
-        XCTAssertLessThanOrEqual(layout.cells(on: 0)[0].frame.width, 560)
+    func testPagedCellsKeepFullPageGeometryAtReadableFloor() {
+        let layout = MiniatureLayout(workspaces: (1 ... 50).map(String.init), size: CGSize(width: 800, height: 600), aspect: 2, fit: "page")
+        XCTAssertEqual(layout.columns, 3)
+        XCTAssertEqual(layout.capacity, 6)
+        XCTAssertEqual(layout.workspaceHeight, 704.0 / 6, accuracy: 0.001)
+        let first = layout.cells(on: 0)
+        let last = layout.cells(on: layout.pageCount - 1)
+        XCTAssertEqual(last.count, 2)
+        for (a, b) in zip(first, last) {
+            XCTAssertEqual(a.frame, b.frame)
+            XCTAssertEqual(a.tray, b.tray)
+        }
+        XCTAssertEqual(layout.page(for: "50"), 8)
+    }
+
+    func testShrinkFiftyKeepsEveryWorkspaceAndTrayInsidePanel() {
+        for size in [CGSize(width: 800, height: 600), CGSize(width: 200, height: 150)] {
+            let layout = MiniatureLayout(workspaces: (1 ... 50).map(String.init), size: size, aspect: 2, fit: "shrink")
+            XCTAssertEqual(layout.pageCount, 1)
+            XCTAssertEqual(layout.cells(on: 0).map(\.workspace), (1 ... 50).map(String.init))
+            for cell in layout.cells(on: 0) {
+                XCTAssertGreaterThan(cell.frame.width, 0)
+                XCTAssertGreaterThanOrEqual(cell.frame.minX, 24)
+                XCTAssertLessThanOrEqual(cell.frame.maxX, size.width - 24 + 0.001)
+                XCTAssertLessThanOrEqual(cell.tray.maxY, size.height - 24 + 0.001)
+            }
+        }
+    }
+
+    func testOneWorkspaceOnLargeMonitorFillsItsCell() {
+        for fit in ["page", "shrink"] {
+            let layout = MiniatureLayout(workspaces: ["1"], size: CGSize(width: 4000, height: 3000), aspect: 2, fit: fit)
+            XCTAssertEqual(layout.columns, 1)
+            XCTAssertEqual(layout.workspaceHeight, 1976)
+            XCTAssertEqual(layout.cells(on: 0)[0].frame.width, 3952)
+        }
+    }
+
+    func testArrangementTableUsesLargestWorkspacesInReadingOrderAndCentresRows() throws {
+        for (size, aspect, expectedColumns) in [
+            (CGSize(width: 1920, height: 1080), CGFloat(16.0 / 9), [1, 2, 2, 4]),
+            (CGSize(width: 3440, height: 1440), CGFloat(43.0 / 18), [1, 2, 2, 3]),
+        ] {
+            for (count, columns) in zip([1, 2, 4, 7], expectedColumns) {
+                for fit in ["page", "shrink"] {
+                    let names = (1 ... count).map(String.init)
+                    let layout = MiniatureLayout(workspaces: names, size: size, aspect: aspect, fit: fit)
+                    let cells = layout.cells(on: 0)
+                    let rows = (count + columns - 1) / columns
+                    XCTAssertEqual(layout.columns, columns, "\(size), \(count), \(fit)")
+                    XCTAssertEqual(layout.pageCount, 1)
+                    XCTAssertEqual(cells.map(\.workspace), names)
+                    XCTAssertEqual(Set(cells.map { $0.frame.minY }).count, rows)
+                    let first = try XCTUnwrap(cells.first)
+                    let right = cells.prefix(columns).map { $0.frame.maxX }.max()!
+                    XCTAssertEqual((first.frame.minX + right) / 2, size.width / 2, accuracy: 0.001)
+                    let last = try XCTUnwrap(cells.last)
+                    // Each row reserves 24 above the workspace and 60 below it.
+                    XCTAssertEqual((first.frame.minY - 24 + last.frame.maxY + 60) / 2, (68 + size.height - 32) / 2, accuracy: 0.001)
+                    for (index, cell) in cells.enumerated() {
+                        XCTAssertGreaterThanOrEqual(cell.frame.minX, 24 - 0.001)
+                        XCTAssertLessThanOrEqual(cell.frame.maxX, size.width - 24 + 0.001)
+                        XCTAssertGreaterThanOrEqual(cell.frame.minY - 24, 68 - 0.001)
+                        XCTAssertLessThanOrEqual(cell.tray.maxY + 28, size.height - 32 + 0.001)
+                        XCTAssertEqual(cell.frame.width / cell.frame.height, aspect, accuracy: 0.001)
+                        if index % columns == 0 { XCTAssertEqual(cell.frame.minX, first.frame.minX) }
+                        else { XCTAssertGreaterThan(cell.frame.minX, cells[index - 1].frame.maxX) }
+                        if index >= columns { XCTAssertGreaterThan(cell.frame.minY, cells[index - columns].frame.maxY) }
+                    }
+                }
+            }
+        }
     }
 
     func testDirectionalMovementUsesGeometryAndOnlyMatches() {
@@ -84,6 +153,21 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(tray.minY, cell.tray.minY)
         XCTAssertLessThanOrEqual(tray.maxX, cell.tray.maxX)
         XCTAssertEqual(model.items[2].miniature?.workspace, "1")
+    }
+
+    func testUngroupedFramesKeepRealPositionsAndTraySizeThroughSearch() throws {
+        let model = session()
+        let cell = try XCTUnwrap(model.miniatureCells(on: 0).first)
+        let frames = model.miniatureFrames
+        XCTAssertEqual(frames[1], MiniatureLayout.scale(CGRect(x: 0, y: 0, width: 500, height: 500), from: model.miniatureWorkspaces[0].source, to: cell.frame))
+        XCTAssertEqual(frames[3]?.size, CGSize(width: 48, height: 28))
+        XCTAssertEqual(frames[3]?.origin, cell.tray.origin)
+        model.send(.searchChanged("a"))
+        XCTAssertEqual(model.results.count, 4)
+        XCTAssertEqual(model.miniatureFrames, frames)
+        model.send(.searchChanged("Beta"))
+        XCTAssertEqual(model.results.map(\.id), [2])
+        XCTAssertEqual(model.miniatureFrames, frames)
     }
 
     func testByWorkspaceAndOverrideIgnoreAppGrouping() {
