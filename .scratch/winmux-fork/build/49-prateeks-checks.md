@@ -69,6 +69,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Hover selects in the strip and the grid**
 - [ ] With the Cmd-Tab opt-in, on the installed build, with a real mouse or trackpad: hold Cmd-Tab with the pointer resting, then move it over another picture and release Cmd. The selection follows the pointer, and release focuses the window under it. Then hold Cmd-Tab without touching the pointer: the second entry stays selected even when the strip draws under the pointer.
 - [ ] In a grid (`winmux lens recent --presentation grid`), one notch of a real mouse wheel steps the selection one Tile, and one two-finger swipe on a real trackpad steps it once, not many times. Say here if a swipe should step more than once, or if the wheel should work with the pointer outside the panel, as the system's switcher does.
+**The Search match highlighted, and window controls on a Tile**
+- [ ] On the installed build, with the Cmd-Tab opt-in and a real mouse or trackpad: hold Cmd-Tab and move the pointer onto a picture that is not selected. Three circles, red, yellow and green, appear at its top-left. Press Tab to move the selection on, click the yellow circle without moving, and release Cmd. The window you clicked minimizes and its picture dims while the strip stays up, and release focuses the selected window, not the minimized one.
+- [ ] Press `alt-slash` and type part of a window's title and its app name, such as `rep saf`. The matched letters are yellow in each remaining row. Say here if the yellow is hard to read on your wallpaper, in light or dark.
 
 ## From the first build
 
