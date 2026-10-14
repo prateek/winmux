@@ -42,8 +42,9 @@ final class DefaultConfigTest: XCTestCase {
             XCTAssertEqual(textList.listLayout.rowHeight, 46 * textList.tileMetrics.scale)
         }
         for name in ["overview", "search", "floating"] {
-            XCTAssertNil(defaultConfig.lenses[name]?.tile)
-            XCTAssertEqual(defaultConfig.lenses[name]?.grid.tileSize, "real")
+            let settings = try XCTUnwrap(defaultConfig.lenses[name])
+            XCTAssertNil(settings.tile)
+            XCTAssertEqual(settings.grid.tileSize, "real")
         }
     }
 

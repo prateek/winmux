@@ -1108,7 +1108,7 @@ fn tile_contract_defaults_overrides_and_miniatures_refusal() {
         assert!(value["lenses"]["demo"].get("tile").is_none());
         assert_eq!(value["lenses"]["demo"]["badges"], true);
     }
-    for body in ["presentation = 'miniatures, tile = 'picture", "presentation = 'miniatures, when.default.tile = 'card", "tile = 'text, when.default.presentation = 'miniatures"] {
+    for body in ["presentation = 'miniatures, tile = 'card", "presentation = 'miniatures, tile = 'text", "presentation = 'miniatures, when.default.tile = 'card", "tile = 'text, when.default.presentation = 'miniatures"] {
         let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
         let error = evaluate_to_json(&source, &library()).unwrap_err();
         assert!(error.contains("tile"), "{error}");
@@ -1296,11 +1296,29 @@ fn shipped_picture_strips_allow_cards_back_and_partial_grid_overrides() {
     "#);
     assert_eq!(rows["lenses"]["recent"]["grid"]["sections-arrangement"], "rows");
     assert_eq!(rows["lenses"]["recent"]["grid"]["tile-size"], "same-height");
-    let removed = loaded_source("remove-recent", r#"
+    let disabled = loaded_source("disable-recent-with-cards-back", r#"
         let W = import "winmux/winmux.ncl" in
-        let defaults = import "winmux/defaults.ncl" in
-        (defaults & { lenses | force = std.record.remove "recent" defaults.lenses }) | W.Config
+        ((import "winmux/defaults.ncl") & {
+            lenses.recent.enabled = false,
+            lenses.app-windows.tile = 'card,
+            lenses.app-windows.grid.tile-size = 'real,
+        }) | W.Config
     "#);
-    assert!(removed["lenses"].get("recent").is_none());
-    assert_eq!(removed["lenses"]["app-windows"]["tile"], "picture");
+    assert_eq!(disabled["lenses"]["recent"]["enabled"], false);
+    assert_eq!(disabled["lenses"]["app-windows"]["tile"], "card");
+    assert_eq!(disabled["lenses"]["app-windows"]["grid"]["tile-size"], "real");
+}
+
+#[test]
+fn shipped_picture_lens_can_override_presentation_to_miniatures() {
+    for body in ["lenses.recent.presentation = 'miniatures", "lenses.recent.when.default.presentation = 'miniatures"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ {body} }}) | W.Config");
+        let value = loaded_source("picture-miniatures", &source);
+        assert_eq!(value["lenses"]["recent"]["tile"], "picture");
+        let presentation = if body.contains("when.default") { &value["lenses"]["recent"]["when"]["default"]["presentation"] } else { &value["lenses"]["recent"]["presentation"] };
+        assert_eq!(presentation, "miniatures");
+    }
+    let source = "let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & { lenses.recent.presentation = 'miniatures, lenses.recent.tile = 'card }) | W.Config";
+    let error = evaluate_to_json(source, &library()).unwrap_err();
+    assert!(error.contains("miniatures rejects tile"), "{error}");
 }
