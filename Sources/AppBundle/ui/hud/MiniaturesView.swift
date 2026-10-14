@@ -25,7 +25,11 @@ struct MiniaturesView: View {
                                  hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onContinuousHover { phase in
-                                if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
+                                if case .active = phase {
+                                    let location = NSEvent.mouseLocation
+                                    let point = MiniatureLayout.panelPoint(fromScreen: location, screenMaxY: appKitScreenMaxY(), origin: model.miniatureOrigin)
+                                    model.hoverMiniature(at: point, pointerLocation: location)
+                                }
                             }
                             .onTapGesture {
                                 model.hover(item.id)

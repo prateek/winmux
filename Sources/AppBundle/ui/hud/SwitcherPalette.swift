@@ -245,6 +245,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let root: AnyView
         if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
             model.miniatureSize = rect.size
+            model.miniatureOrigin = rect.cgRect.origin
             model.revealMiniatureSelection()
             frame = NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height)
             root = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
@@ -433,7 +434,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 }
 
 @MainActor
-private func appKitScreenMaxY() -> CGFloat {
+func appKitScreenMaxY() -> CGFloat {
     NSScreen.screens.first?.frame.maxY ?? 0
 }
 

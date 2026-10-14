@@ -74,6 +74,10 @@ struct MiniatureLayout {
         return CGRect(x: target.minX + (frame.minX - source.minX) * scale, y: target.minY + (frame.minY - source.minY) * scale, width: frame.width * scale, height: frame.height * scale)
     }
 
+    static func panelPoint(fromScreen point: CGPoint, screenMaxY: CGFloat, origin: CGPoint) -> CGPoint {
+        CGPoint(x: point.x - origin.x, y: screenMaxY - point.y - origin.y)
+    }
+
     static func fan(_ frame: CGRect, count: Int, index: Int, activeIndex: Int, cellWidth: CGFloat) -> CGRect {
         guard count > 1 else { return frame }
         let offset = min(cellWidth * 16 / 820, min(frame.width, frame.height) / (4 * CGFloat(count - 1)))

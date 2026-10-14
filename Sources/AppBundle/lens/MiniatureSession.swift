@@ -70,6 +70,21 @@ extension LensSession {
         return frames
     }
 
+    func miniatureHitTest(at point: CGPoint) -> UInt32? {
+        let layout = miniatureLayout
+        let page = min(miniaturePage, layout.pageCount - 1)
+        let frames = miniatureFrames(layout: layout)
+        let point = CGPoint(x: point.x, y: point.y + CGFloat(page) * miniatureSize.height)
+        let drawn = miniatureCells(on: page, layout: layout).flatMap { cell in
+            miniatureDrawOrder(items.filter { $0.miniature?.workspace == cell.workspace })
+        }
+        return drawn.reversed().first { frames[$0.id]?.contains(point) == true }?.id
+    }
+
+    func hoverMiniature(at point: CGPoint, pointerLocation: CGPoint) {
+        if let id = miniatureHitTest(at: point) { hover(id, at: pointerLocation) }
+    }
+
     func miniatureOpacity(_ id: UInt32) -> Double { results.contains { $0.id == id } ? 1 : 0.18 }
 
     func moveMiniatureSelection(_ direction: MiniatureLayout.Direction) {

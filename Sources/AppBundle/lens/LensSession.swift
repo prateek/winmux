@@ -19,6 +19,7 @@ final class LensSession: ObservableObject {
     private var currentModifiers: NSEvent.ModifierFlags = []
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
+    var miniatureOrigin = CGPoint.zero
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []

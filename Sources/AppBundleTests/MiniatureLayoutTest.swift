@@ -105,6 +105,11 @@ final class MiniatureLayoutTest: XCTestCase {
         XCTAssertEqual(layout.workspaceHeight, 116)
     }
 
+    func testPointerCoordinatesUsePanelOriginAndScreenYAxis() {
+        XCTAssertEqual(MiniatureLayout.panelPoint(fromScreen: CGPoint(x: 1494, y: 780), screenMaxY: 1080, origin: CGPoint(x: 50, y: 30)), CGPoint(x: 1444, y: 270))
+        XCTAssertEqual(MiniatureLayout.panelPoint(fromScreen: CGPoint(x: -1800, y: 2400), screenMaxY: 1080, origin: CGPoint(x: -1920, y: -1440)), CGPoint(x: 120, y: 120))
+    }
+
     func testDirectionalMovementUsesGeometryAndOnlyMatches() {
         let frames: [UInt32: CGRect] = [1: CGRect(x: 0, y: 0, width: 20, height: 20), 2: CGRect(x: 50, y: 0, width: 20, height: 20), 3: CGRect(x: 0, y: 50, width: 20, height: 20)]
         XCTAssertEqual(MiniatureLayout.nearest(from: 1, direction: .right, frames: frames, matches: [1, 2, 3]), 2)
@@ -175,6 +180,30 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.miniatureFrames, frames)
     }
 
+    func testUngroupedPointerHitTestKeepsFloatingPriorityTrayAndSearch() throws {
+        let original = session()
+        var items = original.items
+        let floating = original.items[1].miniature!.window
+        items[1] = SwitcherPaletteItem(id: 2, title: "Beta", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
+            miniature: MiniatureWindow(workspace: "1", frame: original.items[0].miniature!.frame, tray: false, frozen: false, accessory: false, floating: true, window: floating))
+        let model = LensSession(name: "pointer", settings: original.settings, items: items, search: "")
+        model.miniatureWorkspaces = original.miniatureWorkspaces
+        XCTAssertTrue(model.items.allSatisfy { $0.miniature?.tab == nil })
+        let top = try XCTUnwrap(model.miniatureFrames[1])
+        let point = CGPoint(x: top.midX, y: top.midY)
+        XCTAssertEqual(model.miniatureHitTest(at: point), 2)
+        model.hoverMiniature(at: point, pointerLocation: CGPoint(x: 10000, y: 10000))
+        XCTAssertEqual(model.selectedId, 2)
+        model.hover(1)
+        model.hoverMiniature(at: point, pointerLocation: CGPoint(x: 10000, y: 10000))
+        XCTAssertEqual(model.selectedId, 1)
+        let tray = try XCTUnwrap(model.miniatureFrames[3])
+        XCTAssertEqual(model.miniatureHitTest(at: CGPoint(x: tray.midX, y: tray.midY)), 3)
+        model.send(.searchChanged("Alpha"))
+        XCTAssertEqual(model.miniatureHitTest(at: point), 2)
+        XCTAssertEqual(model.selectedId, 1)
+    }
+
     func testByWorkspaceAndOverrideIgnoreAppGrouping() {
         let original = session()
         var settings = original.settings
@@ -203,6 +232,8 @@ final class MiniatureSessionTest: XCTestCase {
         model.hover(4)
         model.revealMiniatureSelection()
         XCTAssertEqual(model.miniaturePage, 8)
+        let lastFrame = try XCTUnwrap(model.miniatureFrames[4])
+        XCTAssertEqual(model.miniatureHitTest(at: CGPoint(x: lastFrame.midX, y: lastFrame.midY - 8 * model.miniatureSize.height)), 4)
         XCTAssertEqual(model.miniatureCells(on: 8).map(\.frame), Array(model.miniatureCells(on: 0).prefix(2)).map(\.frame))
         model.turnMiniaturePage(-1)
         XCTAssertEqual(model.miniaturePage, 7)
@@ -254,6 +285,9 @@ final class MiniatureSessionTest: XCTestCase {
                 let frame = try XCTUnwrap(frames[id])
                 let exposedEdge = CGPoint(x: frame.maxX - 0.1, y: frame.midY)
                 XCTAssertEqual(frontToBack.first { frames[$0.id]?.contains(exposedEdge) == true }?.id, id)
+                XCTAssertEqual(model.miniatureHitTest(at: exposedEdge), id)
+                model.hoverMiniature(at: exposedEdge, pointerLocation: CGPoint(x: CGFloat(id) + 10000, y: 10000))
+                XCTAssertEqual(model.selectedId, id)
             }
             model.hover(2)
             model.moveMiniatureSelection(.right)
