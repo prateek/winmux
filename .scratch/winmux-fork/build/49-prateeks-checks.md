@@ -66,6 +66,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **The strip draws pictures at one height**
 - [ ] With the Cmd-Tab opt-in, hold Cmd-Tab on your own desk. The strip is one row of pictures at one height with the selected window's title in the footer, not two rows of cards. Say here if a strip of fifteen or more windows reads as a row of icons.
 
+**Hover selects in the strip and the grid**
+- [ ] With the Cmd-Tab opt-in, on the installed build, with a real mouse or trackpad: hold Cmd-Tab with the pointer resting, then move it over another picture and release Cmd. The selection follows the pointer, and release focuses the window under it. Then hold Cmd-Tab without touching the pointer: the second entry stays selected even when the strip draws under the pointer.
+- [ ] In a grid (`winmux lens recent --presentation grid`), one notch of a real mouse wheel steps the selection one Tile, and one two-finger swipe on a real trackpad steps it once, not many times. Say here if a swipe should step more than once, or if the wheel should work with the pointer outside the panel, as the system's switcher does.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
