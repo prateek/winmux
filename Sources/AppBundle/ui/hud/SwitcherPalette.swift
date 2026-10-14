@@ -651,6 +651,8 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
 
 @MainActor
 private final class LensHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     var onFirstLayout: (() -> Void)?
     var onFirstFrame: ((_ refreshSeconds: Double) -> Void)?
     private var firstLayout = false

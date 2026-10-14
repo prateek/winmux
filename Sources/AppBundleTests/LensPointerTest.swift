@@ -14,6 +14,11 @@ final class LensPointerTest: XCTestCase {
         }
     }
 
+    func testPanelContentAcceptsTheFirstClickAfterAControlTakesNativeFocus() {
+        let panel = SwitcherPalettePanel(emit: { _ in })
+        XCTAssertEqual(panel.contentView?.acceptsFirstMouse(for: nil), true)
+    }
+
     func testMovingPointerSelectsEveryStripAndGridTileAndIgnoresChrome() {
         for presentation in ["strip", "grid"] {
             var settings = LensConfig(); settings.presentation = presentation; settings.sections = "workspace"
