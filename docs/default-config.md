@@ -48,7 +48,7 @@ Leaving the import out supplies no default Lenses or bindings. `winmux config co
 | `alt-shift-o` | `lens overview` |
 | `alt-semicolon` | `mode window` |
 
-Option-Shift-O types `Ø` on US and ABC layouts when WinMux is not listening; the overview shortcut shadows that character. It has no system symbolic-hotkey collision. Its modifiers overlap the shipped Summon keys: Enter with Option alone or Shift alone still held runs `alt-enter` or `shift-enter` (Summon); Enter with both held also Summons: subtracting Option from the Hold leaves `shift-enter`. Summon hints subtract the Hold modifiers in every Presentation, as in the strip; releasing the Hold leaves ordinary Lens keys active.
+Option-Shift-O types `Ø` on US and ABC layouts when WinMux is not listening; the overview shortcut shadows that character. It has no system symbolic-hotkey collision. During its Hold, Return subtracts the Trigger’s own Option and Shift before matching and focuses. On the Option-slash Hold, Option-Return focuses and extra Shift-Return Summons. Option-slash opens the Search list; its first letter ends the Hold and becomes the first Search letter even with Option still down. Once the Hold ends, modifiers mean themselves: `alt-enter` Summons. Overview starts in normal mode: `hjkl` and arrows move, `/` starts Search, Escape returns to normal with the matches kept, and another Escape closes. The Search list starts in Search and also takes two Escapes to close. `starts-in` can override either choice.
 
 Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and the other removed chords are free for the focused app or another switcher.
 
@@ -97,7 +97,7 @@ let defaults = import "winmux/defaults.ncl" in
 
 Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sections by default;
 their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
-that binding; a strip treats it as a letter and converts to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
+that binding and keeps its Hold; in a strip it ends the Hold and stays in normal mode. `/` converts the strip to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
 
 
 ## Opt in to Cmd-Tab
