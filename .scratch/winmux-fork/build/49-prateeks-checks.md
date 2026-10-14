@@ -73,6 +73,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On the installed build, with the Cmd-Tab opt-in and a real mouse or trackpad: hold Cmd-Tab and move the pointer onto a picture that is not selected. Three circles, red, yellow and green, appear at its top-left. Press Tab to move the selection on, click the yellow circle without moving, and release Cmd. The window you clicked minimizes and its picture dims while the strip stays up, and release focuses the selected window, not the minimized one.
 - [ ] Press `alt-slash` and type part of a window's title and its app name, such as `rep saf`. The matched letters are yellow in each remaining row. Say here if the yellow is hard to read on your wallpaper, in light or dark.
 
+**Hints shown while a key is held**
+- [ ] With the Cmd-Tab opt-in, on the installed build and a real keyboard: hold Cmd-Tab until the strip is up, then press Option too. Within a frame the selected picture shows `⌥↩ Summon to <workspace>` when it is on another workspace, a dashed orange landing spot appears where it would land, each picture shows `⌘<n>` for its workspace, and a legend sits under the strip. Let go of Option: all of it goes, the strip stays. Let go of Cmd: the selected window is focused.
+- [ ] Press `alt-slash` at your normal speed and keep Option down a moment before letting go. No label, landing spot or legend flashes while the chord's Option is down. Press Option again: they appear. Say here if the thinner panel makes the list hard to read on your wallpaper.
+- [ ] Hold Shift in an open list or grid: nothing appears, and Shift-Return still Summons the selected window.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
