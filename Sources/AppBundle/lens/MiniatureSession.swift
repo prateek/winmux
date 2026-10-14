@@ -55,7 +55,7 @@ extension LensSession {
                         if let tab = entry.tab {
                             scaled = MiniatureLayout.fan(scaled, count: tab.count, index: tab.index, activeIndex: tab.activeIndex, cellWidth: cell.frame.width)
                         }
-                        if entry.accessory && settings.accessoryWindow == "enlarged" {
+                        if entry.tab == nil && entry.accessory && settings.accessoryWindow == "enlarged" {
                             scaled.size.width = max(scaled.width, min(120, cell.frame.width))
                             scaled.size.height = max(scaled.height, min(64, cell.frame.height))
                             scaled.origin.x = min(max(cell.frame.minX, scaled.minX), max(cell.frame.minX, cell.frame.maxX - scaled.width))

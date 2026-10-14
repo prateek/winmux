@@ -53,6 +53,18 @@ final class MiniatureFanTest: XCTestCase {
         XCTAssertNil(MiniatureLayout.nearest(from: 1, direction: .down, frames: geometry, matches: [1, 2]))
     }
 
+    @MainActor
+    func testFannedPictureBorderUsesFanFrameDespiteOldPictureAspectOrSize() {
+        let frame = CGSize(width: 240, height: 320)
+        let entry = TileEntry(title: "Tab", appName: "Demo", aspect: 0.2, realSize: CGSize(width: 50, height: 100))
+        let view = TileView(entry: entry, kind: .picture, presentation: "miniatures", metrics: TileMetrics(visibleSize: CGSize(width: 1920, height: 1080)),
+                            size: frame, settings: LensConfig(), selected: false, marked: false, hint: nil, pictureSize: frame)
+        XCTAssertEqual(view.fittedPicture(in: frame), frame)
+        let ordinary = TileView(entry: entry, kind: .picture, presentation: "miniatures", metrics: TileMetrics(visibleSize: CGSize(width: 1920, height: 1080)),
+                                size: frame, settings: LensConfig(), selected: false, marked: false, hint: nil)
+        XCTAssertEqual(ordinary.fittedPicture(in: frame), CGSize(width: 64, height: 320))
+    }
+
     func testSingleWindowBesideGroupKeepsItsFrame() {
         let source = CGRect(x: 430, y: 40, width: 300, height: 300)
         XCTAssertEqual(MiniatureLayout.fan(source, count: 1, index: 0, activeIndex: 0, cellWidth: 820), source)

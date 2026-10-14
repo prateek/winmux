@@ -22,15 +22,9 @@ struct MiniaturesView: View {
                         TileView(entry: item.tile, kind: .picture, presentation: "miniatures", metrics: model.tileMetrics,
                                  size: CGSize(width: max(1, frame.width), height: max(1, frame.height)), settings: model.settings,
                                  selected: selectedId == item.id, marked: model.marks.contains(item.id),
-                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
+                                 pictureSize: item.miniature?.tab == nil ? nil : frame.size)
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
-                            .onContinuousHover { phase in
-                                if case .active = phase {
-                                    let location = NSEvent.mouseLocation
-                                    let point = MiniatureLayout.panelPoint(fromScreen: location, screenMaxY: appKitScreenMaxY(), origin: model.miniatureOrigin)
-                                    model.hoverMiniature(at: point, pointerLocation: location)
-                                }
-                            }
                             .onTapGesture {
                                 model.hover(item.id)
                                 if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
@@ -53,6 +47,14 @@ struct MiniaturesView: View {
         }
         .foregroundStyle(.white)
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
+        .contentShape(Rectangle())
+        .onContinuousHover { phase in
+            if case .active = phase {
+                let location = NSEvent.mouseLocation
+                let point = MiniatureLayout.panelPoint(fromScreen: location, screenMaxY: appKitScreenMaxY(), origin: model.miniatureOrigin)
+                model.hoverMiniature(at: point, pointerLocation: location)
+            }
+        }
     }
 
     @ViewBuilder

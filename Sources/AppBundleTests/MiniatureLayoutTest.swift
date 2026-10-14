@@ -306,6 +306,29 @@ final class MiniatureSessionTest: XCTestCase {
         }
     }
 
+    func testGroupedAccessoryTabsStayInsideGroupInsteadOfEnlargingAndClampingTogether() throws {
+        let workspace = Workspace.get(byName: "1")
+        let group = workspace.rootTilingContainer
+        let groupFrame = CGRect(x: 950, y: 400, width: 50, height: 100)
+        let source = CGRect(x: 0, y: 0, width: 1000, height: 500)
+        let items = (0 ..< 2).map { index in
+            let window = TestWindow.new(id: UInt32(index + 1), parent: group)
+            return SwitcherPaletteItem(id: window.windowId, title: "Accessory", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
+                miniature: MiniatureWindow(workspace: "1", frame: groupFrame, tray: false, frozen: false, accessory: true, floating: false, window: window,
+                    tab: MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: groupFrame, index: index, count: 2, activeIndex: 0)))
+        }
+        var settings = LensConfig()
+        settings.presentation = "miniatures"
+        let model = LensSession(name: "accessory-tabs", settings: settings, items: items, search: "")
+        model.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "One", source: source, current: true)]
+        let cell = try XCTUnwrap(model.miniatureCells(on: 0).first)
+        let scaledGroup = MiniatureLayout.scale(groupFrame, from: source, to: cell.frame)
+        for frame in model.miniatureFrames.values { XCTAssertTrue(scaledGroup.contains(frame)) }
+        model.hover(1)
+        model.moveMiniatureSelection(.right)
+        XCTAssertEqual(model.selectedId, 2)
+    }
+
     func testSummonModifierComesFromConfiguredCommands() {
         let original = session()
         var settings = original.settings
