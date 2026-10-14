@@ -198,6 +198,48 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.results.count, 4)
     }
 
+    func testTabSessionFramesDrawOrderSearchAndBothArrowModes() throws {
+        let workspace = Workspace.get(byName: "1")
+        let group = workspace.rootTilingContainer
+        let windows = (1 ... 4).map { TestWindow.new(id: UInt32($0), parent: group) }
+        let source = CGRect(x: 0, y: 0, width: 1000, height: 500)
+        let groupFrame = CGRect(x: 0, y: 0, width: 500, height: 500)
+        let items = windows.enumerated().map { index, window in
+            let tab = index < 3 ? MiniatureTabSnapshot(group: 1, frame: groupFrame, index: index, count: 3, activeIndex: 1) : nil
+            return SwitcherPaletteItem(id: window.windowId, title: "Tab \(index)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
+                miniature: MiniatureWindow(workspace: "1", frame: index == 3 ? CGRect(x: 500, y: 0, width: 500, height: 500) : .zero,
+                    tray: false, frozen: false, accessory: false, floating: false, window: window, tab: tab))
+        }
+        for mode in ["nearest", "by-workspace"] {
+            var settings = LensConfig()
+            settings.presentation = "miniatures"
+            settings.miniatures.arrowKeys = mode
+            let model = LensSession(name: "tabs", settings: settings, items: items, search: "")
+            model.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "One", source: source, current: true)]
+            let frames = model.miniatureFrames
+            XCTAssertNotEqual(frames[1], frames[2])
+            XCTAssertNotEqual(frames[2], frames[3])
+            XCTAssertNotEqual(frames[1], frames[3])
+            let cell = try XCTUnwrap(model.miniatureCells(on: 0).first)
+            XCTAssertEqual(frames[4], MiniatureLayout.scale(items[3].miniature!.frame, from: source, to: cell.frame))
+            XCTAssertEqual(miniatureDrawOrder(items).filter { $0.id <= 3 }.map(\.id), [3, 1, 2])
+            model.hover(2)
+            model.moveMiniatureSelection(.right)
+            XCTAssertEqual(model.selectedId, 1)
+            model.moveMiniatureSelection(.right)
+            XCTAssertEqual(model.selectedId, 3)
+            model.moveMiniatureSelection(.left)
+            XCTAssertEqual(model.selectedId, 1)
+            model.moveMiniatureSelection(.left)
+            XCTAssertEqual(model.selectedId, 2)
+            model.send(.searchChanged("Tab 2"))
+            XCTAssertEqual(model.selectedId, 3)
+            XCTAssertEqual(model.miniatureOpacity(1), 0.18)
+            XCTAssertEqual(model.miniatureOpacity(3), 1)
+            XCTAssertEqual(model.miniatureFrames, frames)
+        }
+    }
+
     func testSummonModifierComesFromConfiguredCommands() {
         let original = session()
         var settings = original.settings

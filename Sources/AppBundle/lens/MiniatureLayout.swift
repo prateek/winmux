@@ -74,15 +74,24 @@ struct MiniatureLayout {
         return CGRect(x: target.minX + (frame.minX - source.minX) * scale, y: target.minY + (frame.minY - source.minY) * scale, width: frame.width * scale, height: frame.height * scale)
     }
 
+    static func fan(_ frame: CGRect, count: Int, index: Int, activeIndex: Int, cellWidth: CGFloat) -> CGRect {
+        guard count > 1 else { return frame }
+        let offset = min(cellWidth * 16 / 820, min(frame.width, frame.height) / (4 * CGFloat(count - 1)))
+        let inset = CGFloat(count - 1) * offset
+        let depth = index == activeIndex ? 0 : (index < activeIndex ? index + 1 : index)
+        return CGRect(x: frame.minX + CGFloat(depth) * offset, y: frame.minY + CGFloat(depth) * offset,
+                      width: frame.width - inset, height: frame.height - inset)
+    }
+
     static func nearest(from id: UInt32, direction: Direction, frames: [UInt32: CGRect], matches: Set<UInt32>) -> UInt32? {
         guard let source = frames[id] else { return nil }
         return frames.filter { candidate, rect in
             guard candidate != id, matches.contains(candidate) else { return false }
             switch direction {
-                case .left: return rect.midX < source.midX - 1
-                case .right: return rect.midX > source.midX + 1
-                case .up: return rect.midY < source.midY - 1
-                case .down: return rect.midY > source.midY + 1
+                case .left: return rect.midX < source.midX
+                case .right: return rect.midX > source.midX
+                case .up: return rect.midY < source.midY
+                case .down: return rect.midY > source.midY
             }
         }.min { lhs, rhs in
             func distance(_ rect: CGRect) -> CGFloat { hypot(rect.midX - source.midX, rect.midY - source.midY) }

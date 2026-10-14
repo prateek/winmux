@@ -565,7 +565,7 @@ private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> Minia
     let frozen = miniatureIsFrozen(tray: tray, fullscreen: nativeFullscreen && !onscreen.contains(window.windowId),
                                    workspaceVisible: nativeFullscreen ? onscreen.contains(window.windowId) : window.nodeWorkspace?.isVisible == true, parked: (window as? MacWindow)?.isHiddenInCorner == true)
     return MiniatureWindow(workspace: entry.record.workspace, frame: frame, tray: tray, frozen: frozen,
-                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window)
+                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window, tab: miniatureTabSnapshot(window, tray: tray))
 }
 
 @MainActor
