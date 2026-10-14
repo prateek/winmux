@@ -48,7 +48,7 @@ Every Presentation draws an entry through the same Tile. `tile` chooses its kind
 
 A config Lens with no explicit Tile defaults to `card` in a strip and `text` in a list. Card and picture lists both keep the
 one-line title bar and add a small picture at the left. Miniatures always uses `picture` and
-rejects an explicit `tile`, including in `when.default`. A grid defaults to `card`. The Lens contract leaves `tile` absent so Swift can
+accepts `tile = 'picture`, including in `when.default`, and rejects `card` and `text`. A grid defaults to `card`. The Lens contract leaves `tile` absent so Swift can
 resolve it after a Presentation override.
 
 The shipped `recent` and `app-windows` Lenses use `tile = 'picture` and
@@ -64,6 +64,8 @@ let W = import "winmux/winmux.ncl" in
   lenses.app-windows.grid.tile-size = 'real,
 }) | W.Config
 ```
+
+With the cards-back recipe, `/` from the strip gives a list of card rows, since a Lens has one Tile kind; before this change it gave text rows.
 
 A shipped picture strip converted with `/` or `winmux lens --presentation list` keeps
 its picture rows. The windowing mode's `r` and `a` explicitly choose `--tile text`.
@@ -312,7 +314,8 @@ only for a selection on another workspace. Escape cancels without changing focus
 Every match is visible. The shipped strips use `grid.tile-size = 'same-height` and picture Tiles. A config Lens
 without a size setting uses the contract default `real`. The strip
 ignores sections and `grid.sections-arrangement`. Its row height grows up to 190 scaled points.
-It first fits one row at or above the 88-point readable floor; otherwise it uses the fewest
+It first fits one row at or above the readable floor: 48 scaled points for picture Tiles,
+88 for card and text Tiles. Otherwise it uses the fewest
 readable rows and the largest height those rows allow. Cards retain the grid's title-width
 floor, so they wrap sooner than pictures. When readable rows cannot fit vertically, Tiles
 shrink until every match fits, with title width and chrome yielding below 36 scaled points.
@@ -336,8 +339,8 @@ An unbound letter ends the Hold and keeps the strip modal in normal mode; `j` an
 selected window, and enters Search. With `starts-in = 'search`, a letter converts
 and types into Search instead. Later modifier release never commits either case.
 A Lens `keys` binding wins first: cmd-w closes the selected window while the Hold
-and strip stay open. You can also open `winmux lens recent --presentation list`
-explicitly. A foreign modifier chord during a Hold closes the Lens and runs its
+and strip stay open. You can also open `winmux lens recent --presentation list --tile text`
+explicitly for the text list drawn by the window mode's `r`; without `--tile text`, it draws the Lens's picture rows. A foreign modifier chord during a Hold closes the Lens and runs its
 global binding, whether drawn or still opening. After the Hold, unbound modifier
 chords again belong to global bindings; repeating its Trigger toggles the Lens closed.
 

@@ -1,6 +1,6 @@
 # Lens opening traces
 
-Hold Cmd and press Tab to open the strip; release Cmd to commit. A strip opened from a CLI without held modifiers commits immediately and has no presented frame. Open the list with `winmux lens recent --presentation list`, or miniatures with `winmux lens overview`.
+Hold Cmd and press Tab to open the strip; release Cmd to commit. A strip opened from a CLI without held modifiers commits immediately and has no presented frame. Open the text list drawn by the window mode's `r` with `winmux lens recent --presentation list --tile text`, or miniatures with `winmux lens overview`.
 
 Read the last five openings:
 
