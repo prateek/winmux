@@ -136,9 +136,13 @@ defaults and run against the selected window. Configured Command shortcuts take 
 Search field editing, including Cut and Close. Tab toggles marks; commands act on marked windows
 in mark order, while focus acts only on the selection. Escape, Tab and the four arrow keys,
 including their modifier variants, are reserved for Lens navigation and rejected in `keys`
-at load. Pointer movement over a row selects it; a stationary pointer cannot replace the
-default or keyboard selection. Click runs enter, and
-modifier-click runs the corresponding modifier-enter command. `lens --presentation list`
+at load. In every Presentation, moving the pointer over a Tile selects it after it moves
+more than one point from its anchor (Euclidean distance). Opening a Lens, a keyboard or
+wheel step, Search reselection and a miniature page turn anchor the pointer again. A Tile
+sliding under a resting pointer cannot replace the default or keyboard selection. Leaving
+the panel keeps the last selection; release uses the last input, key or pointer. Click selects
+the Tile under the pointer and runs enter; modifier-click runs the corresponding modifier-enter
+command. A click in a strip or grid gap does nothing. `lens --presentation list`
 keeps selection, marks, Search and the snapshot of eligible windows. Reloading config preserves
 an open Lens's entries and actions until it closes.
 
@@ -214,8 +218,8 @@ During a Hold, the Lens reads keys in this order:
 
 Backspace, digits, Space, other punctuation and function keys do nothing during a
 Hold. They do not end it. Releasing its invoking Command, Control and Option
-modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip;
-other Presentations remain open. **A Hold ended by a key never commits on release**,
+modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip or a
+grid opened under a held Trigger; lists and miniatures remain open. **A Hold ended by a key never commits on release**,
 including a release received while opening. One session never starts a second Hold.
 The strip's display deadline remains 100 ms.
 
@@ -330,7 +334,9 @@ Accessory `enlarged` pictures use the full row height; `actual-size` uses the wi
 monitor-height fraction with a 28-point picture floor, in every size mode. The grid ignores
 this Accessory size setting. Hidden apps
 and minimized windows remain eligible. Removing an earlier entry keeps the selected window; removing
-the selection chooses its surviving successor, or the last entry. Hover selects; click runs the
+the selection chooses its surviving successor, or the last entry. Hover selects with the
+one-point movement rule used by every Presentation; click selects the Tile under the pointer
+and runs the
 corresponding Enter action immediately. During a Hold it subtracts the invoking
 modifiers as release does: Cmd-click focuses and cmd-Option-click Summons. After a
 key ends the Hold, click modifiers mean themselves.
@@ -339,6 +345,16 @@ An unbound letter ends the Hold and keeps the strip modal in normal mode; `j` an
 `k` move as down and up. `/` converts the same session to a list, preserving the
 selected window, and enters Search. With `starts-in = 'search`, a letter converts
 and types into Search instead. Later modifier release never commits either case.
+
+The scroll wheel steps selection in the strip and the grid while the pointer is over the
+panel. A line-based wheel steps one Tile per event. A trackpad gesture steps once after
+four accumulated vertical points, only when vertical movement exceeds horizontal movement;
+its remaining events and momentum do not step again. Precise wheel events without gesture
+phases step once per burst, with a new burst after 200 ms of quiet. The direction that pages miniatures
+forward also steps forward. The strip wraps as Tab does; the grid follows entry order and
+stops at either end. A wheel step re-arms the resting-pointer rule. The list scrolls its rows,
+and miniatures keeps its existing page turns. Scroll outside the panel is not handled.
+
 A Lens `keys` binding wins first: cmd-w closes the selected window while the Hold
 and strip stay open. You can also open `winmux lens recent --presentation list --tile text`
 explicitly for the text list drawn by the window mode's `r`; without `--tile text`, it draws the Lens's picture rows. A foreign modifier chord during a Hold closes the Lens and runs its
