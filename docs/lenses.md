@@ -154,6 +154,22 @@ command. A click in a strip or grid gap does nothing. `lens --presentation list`
 keeps selection, marks, Search and the snapshot of eligible windows. Reloading config preserves
 an open Lens's entries and actions until it closes.
 
+Picture and card Tiles in strips and grids show close, minimize and native-fullscreen circles
+on the Tile under a moving pointer. They appear only after the pointer moves more than one point;
+a pointer resting where the panel opened shows none. Moving into a gap, onto panel chrome or
+out of the panel hides them. Keyboard and wheel selection leave them on the hovered Tile.
+Close is hidden without a close button; minimize is hidden without a minimize button or when
+already minimized; fullscreen is hidden without a zoom/fullscreen button. Hidden buttons keep
+their slots. Fullscreen toggles native fullscreen, including turning it off. Text Tiles, list rows
+and miniatures have no controls.
+
+A control acts only on its own window, regardless of selection, marks or held modifiers. It never
+selects, commits or closes the Lens. Closing removes the Tile and reflows the layout; minimizing
+keeps it with a minimized badge and hides its minimize control. Failures leave it in place and
+are logged under `lens`. After any control action, controls stay hidden until the pointer moves
+more than one point again, preventing a second close on a window that slid under it. An ordinary
+Tile click keeps its Enter action, and a held strip still commits on release.
+
 Focus restores a minimized row on its origin workspace and focuses it there, recreating that
 workspace if cleanup removed it. A row with no known origin uses the current workspace.
 Summon restores it on the current workspace. Workspace moves restore minimized and hidden
@@ -196,22 +212,6 @@ let W = import "winmux/winmux.ncl" in
 Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup window`
 and moves nothing, because a popup has no workspace.
 
-
-Picture and card Tiles in strips and grids show close, minimize and native-fullscreen circles
-on the Tile under a moving pointer. They appear only after the pointer moves more than one point;
-a pointer resting where the panel opened shows none. Moving into a gap, onto panel chrome or
-out of the panel hides them. Keyboard and wheel selection leave them on the hovered Tile.
-Close is hidden without a close button; minimize is hidden without a minimize button or when
-already minimized; fullscreen is hidden without a zoom/fullscreen button. Hidden buttons keep
-their slots. Fullscreen toggles native fullscreen, including turning it off. Text Tiles, list rows
-and miniatures have no controls.
-
-A control acts only on its own window, regardless of selection, marks or held modifiers. It never
-selects, commits or closes the Lens. Closing removes the Tile and reflows the layout; minimizing
-keeps it with a minimized badge and hides its minimize control. Failures leave it in place and
-are logged under `lens`. After any control action, controls stay hidden until the pointer moves
-more than one point again, preventing a second close on a window that slid under it. An ordinary
-Tile click keeps its Enter action, and a held strip still commits on release.
 
 ## The Hold
 

@@ -37,11 +37,30 @@ Two parts of the Tile that make a Lens quicker to read and to act in.
 
 ## Done when
 
-- [ ] Typing a Search highlights the matched characters in every remaining Tile, in the list, the strip and the grid.
-- [ ] Hovering a Tile in the grid or the strip shows three controls; moving off hides them.
-- [ ] Each control acts on its own Tile's window, whichever Tile is selected.
-- [ ] A click on a control does not close the Lens.
-- [ ] A matcher test covers the reported spans for a prefix, a mid-word and a multi-word Search.
+- [x] Typing a Search highlights the matched characters in every remaining Tile, in the list, the strip and the grid.
+- [x] Hovering a Tile in the grid or the strip shows three controls; moving off hides them.
+- [x] Each control acts on its own Tile's window, whichever Tile is selected.
+- [x] A click on a control does not close the Lens.
+- [x] A matcher test covers the reported spans for a prefix, a mid-word and a multi-word Search.
+
+## Build details
+
+- Search spans come from the tier and field that scored each word, as character offsets in the original displayed string. Several words' ranges merge; workspace/project matches mark no displayed text. Ranking tests remain unchanged. Matcher regressions assert original substrings for prefix, mid-word, multi-word title/app, contains, initials, subsequence, workspace-only and length-changing lowercase.
+- The session caches each applied Search's spans. Explicit Search applies at opening in every Presentation, including strips; Search-starting strips also apply recalled Search at opening. This replaces the older strip exception. Inline Search has no highlight. An empty title uses the app name's ranges.
+- Attributed text runs use the prototype's `#ffd54a` background and `#111111` foreground, with 13.37:1 contrast in light and dark. They preserve truncation and omit the prototype's rounded corners. Card bars, text Tiles, list rows and the selection footer draw the runs. Picture Tiles have no title bar, as `.tile.k-picture .bar { display: none }` in the prototype specifies; their strip/grid highlight is the footer's. Miniatures are unchanged.
+- Picture/card controls share pure picture and control rectangles with hit testing, including the selected Tile's lift. They scale from the prototype's 16-point circles, 6-point gaps and 8-point insets. Uniform shrinking stops at an actual 10-point diameter; below that, no controls draw. Hidden controls keep their slots.
+- Hover is a window id separate from selection. One pointer-motion decision feeds hover and selection. A resting pointer reveals nothing until it moves more than one point; gaps, chrome and outside-frame movement clear hover while preserving selection. Key/wheel steps retain the hovered controls. Results removal, Presentation conversion and dismissal clear hover. Every control re-arms the pointer, preventing a following close on a Tile that slid under it.
+- Button presence is carried beside the Filter record from its existing AX read; the schema is unchanged. Minimize hides on minimized windows; native fullscreen still offers its toggle. Controls use the shared command/restoration path with one explicit window id, ignoring marks, selection and held modifiers. They never commit or dismiss; successful minimize updates the open Tile's badge and missing control immediately. Failures use the `lens` unified log. The hosting view accepts the first mouse click after native fullscreen takes key focus.
+- Host and pinned-version guest checks cover matcher spans, cached/applied Search, existing hit cases and ordinary clicks, strip/grid control geometry, narrow pictures, hidden slots, hover lifetime, targeting, native fullscreen, failure and trace behavior. Disabling spans, hover, first-click acceptance or the physical size floor makes the corresponding regressions fail.
+- The four-window standing-desk debug run checked typed list/card/text highlights, an explicit held-strip Search, both appearances, inline exclusion, resting/moving/gap/outside hover, all three controls on an unselected Tile, marked-window isolation, minimize's immediate badge and missing slot, close/reflow and pointer suppression, native fullscreen on/off, held-strip release and a missing close button. The same script against an untouched base and the feature preserves strip/grid picture commits and Search order. Native fullscreen fills its Space behind the still-open Lens; first-click acceptance keeps its follow-up control usable. The trace reads the hovered window id in text and JSON.
+
+## Checks for Prateek
+
+- [ ] Installed-build behavior.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
+
+The builder publishes no release. The driver cuts the dogfood release after landing.
 
 ## Sources
 
