@@ -144,6 +144,29 @@ final class GridSessionTest: SerialClockTestCase {
         session.send(.modifiersChanged([]))
         XCTAssertNil(session.miniatureLanding)
     }
+    func testStripShowingHintsFromItsFirstFrameDrawsItsLanding() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = ["1", "2", "1"].enumerated().map { index, name in
+            let workspace = Workspace.get(byName: name)
+            let window = TestWindow.new(id: UInt32(index + 1), parent: workspace.rootTilingContainer)
+            let size = CGSize(width: 1200, height: 900)
+            return SwitcherPaletteItem(id: window.windowId, title: "Document", appName: "Editor", icon: nil, workspaceName: name, isFocused: index == 0,
+                miniature: MiniatureWindow(workspace: name, frame: CGRect(origin: .zero, size: size), tray: false,
+                                           frozen: false, accessory: false, floating: false, window: window),
+                tile: TileEntry(title: "Document", appName: "Editor", aspect: 4.0 / 3, realSize: size))
+        }
+        let session = LensSession(name: "strip", settings: settings, items: items, search: "")
+        session.miniatureSize = CGSize(width: 1920, height: 1080)
+        session.miniatureWorkspaces = ["1", "2"].map { MiniatureWorkspace(name: $0, title: $0, source: CGRect(x: 0, y: 0, width: 1920, height: 1080), current: $0 == "1") }
+        let owner = LensLifecycle(dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .option }),
+                                  emit: { _ in }, show: { _ in }, hide: {})
+        defer { owner.dismiss() }
+        let ticket = owner.begin(session.name, toggle: false, strip: StripGesture(keyCode: 48, invoking: .option))!
+        owner.complete(session, ticket: ticket)
+        XCTAssertEqual(session.selectedId, 2)
+        XCTAssertTrue(session.hintsShown)
+        XCTAssertNotNil(session.miniatureLanding, "An Option-held strip shows its landing with its label, without another key")
+    }
     func testGridPictureAllocationAndSelectionLiftNeverUpscaleADialog() {
         let entry = TileEntry(title: "Dialog", appName: "Editor", aspect: 1.5, realSize: CGSize(width: 300, height: 200))
         let metrics = TileMetrics(visibleSize: CGSize(width: 1920, height: 1080))

@@ -250,7 +250,8 @@ final class LensLifecycle {
                 presented(model, restartEffects: true, conversion: true)
                 return
             case .modifiersChanged:
-                guard oldHints != model.hintsShown else { return }
+                // A strip that opens with hints shown has no landing until a modifier event computes it.
+                guard oldHints != model.hintsShown || (model.summonHintsShown && landingKey != model.selectedId) else { return }
             default: break
         }
         updateMiniatureLanding()
