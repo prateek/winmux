@@ -33,6 +33,49 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertFalse(model.searchEdited)
     }
 
+    func testReleaseEndingAHoldLeavesNoSummonHintFromTheTriggersModifiers() {
+        let model = LensSession(name: "early-release", settings: LensConfig(), items: [], search: "")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        model.endHold(flags: [])
+        XCTAssertEqual(model.inputState, .search)
+        XCTAssertFalse(model.summonHeld)
+    }
+
+    func testShiftDuringAStripHoldShowsNoSummonHint() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let model = LensSession(name: "reverse", settings: settings, items: [], search: "")
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        model.beginStrip(gesture)
+        model.startHold(gesture)
+        model.apply(.modifiersChanged([.command, .shift]))
+        XCTAssertFalse(model.summonHeld, "A strip's release ignores Shift, so reverse stepping promises no Summon")
+        model.apply(.modifiersChanged([.command, .option]))
+        XCTAssertTrue(model.summonHeld)
+    }
+
+    func testSearchStartingStripOpensUnfilteredByRememberedSearch() {
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2)].map { title, id in
+            SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "strip-recall", settings: settings, items: items, search: "saf")
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.results.count, 2)
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertEqual(model.results.count, 2)
+        model.enterSearch()
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.map(\.id), [1])
+    }
+
+    func testReleasedOpeningStripIsCancelledByAnotherBinding() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        _ = owner.begin("released", toggle: false, strip: gesture)
+        owner.openingFlagsChanged([])
+        XCTAssertEqual(owner.openingStripKey(keyCode: 18, flags: .option, source: .carbon), .cancel)
+    }
+
     func testEnteringRecalledSearchKeepsAnyMatchingSelection() {
         for presentation in ["list", "grid", "strip", "miniatures"] {
             var settings = LensConfig(); settings.presentation = presentation; settings.startsIn = "normal"
@@ -253,7 +296,7 @@ final class LensHoldTest: SerialClockTestCase {
                 let model = LensSession(name: "start", settings: settings, items: [], search: "saved")
                 let expected: LensInputState = configured == "search" || (configured == nil && presentation == "list") ? .search : .normal
                 XCTAssertEqual(model.inputState, expected)
-                XCTAssertEqual(model.query, expected == .search ? "saved" : "")
+                XCTAssertEqual(model.query, expected == .search && presentation != "strip" ? "saved" : "")
                 model.changePresentation(presentation == "list" ? "grid" : "list")
                 XCTAssertEqual(model.inputState, expected)
                 if expected == .normal {
@@ -397,13 +440,13 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertFalse(panel.session!.searchEdited)
     }
 
-    func testSearchStartingStripReleaseCommitsAmongRecalledMatches() {
+    func testSearchStartingStripReleaseCommitsWithoutApplyingRecalledSearch() {
         let owner = testLensLifecycle(); defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
         let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
         let model = LensSession(name: "release-search", settings: settings, items: items, search: "saf")
         owner.complete(model, ticket: owner.begin("release-search", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!)
-        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.query, "")
         model.hover(3)
         var focused: UInt32?
         model.onAction = { _ in focused = model.selectedId }

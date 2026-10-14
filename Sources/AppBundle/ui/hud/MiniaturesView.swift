@@ -38,7 +38,7 @@ struct MiniaturesView: View {
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                    LensSearchRow(model: model)
+                    LensSearchRow(model: model, placeholder: "\(model.name) • / to Search")
                     Spacer()
                     Text("\(page + 1) / \(layout.pageCount)").monospacedDigit()
                 }

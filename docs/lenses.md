@@ -250,7 +250,9 @@ release enters Search with its text selected and the selection unchanged. The fi
 letter replaces that text. Opening in normal mode leaves it inactive and unapplied.
 At `/` it appears selected and is applied, and the first letter replaces it.
 Applying remembered Search keeps the selected window if it matches, and selects
-the best match otherwise. A Search-starting strip also keeps a matching selected
+the best match otherwise. A strip has no Search row, so it never opens filtered by a
+remembered Search, whatever its `starts-in`: the Search is applied when the strip
+becomes a list. A Search-starting strip also keeps a matching selected
 window through conversion at the Hold-ending letter, using the typed Search.
 Leaving Search with Escape preserves its matches.
 

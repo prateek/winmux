@@ -335,7 +335,8 @@ final class LensLifecycle {
                 if opening.release == nil { opening.pending.append(.meaning(.step(step))); state = .opening(opening) }
                 return .consumed
             }
-            return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
+            // Another binding drops the strip before it runs, so a settled release cannot undo it.
+            return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .cancel
         }
         let meaning = lensKeyMeaning(state: opening.pendingState, hold: gesture, keys: opening.keys,
                                      code: keyCode, characters: opening.pendingState == .hold ? holdCharacters ?? characters : characters,

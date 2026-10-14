@@ -54,6 +54,7 @@ final class LensSession: ObservableObject {
                     let selected = selectedId
                     query = rememberedSearch
                     keepSelectionOrSelectBest(selected)
+                    if settings.presentation == "miniatures" { revealMiniatureSelection() }
                 }
             case .searchChanged(let text):
                 guard text != query else { return }
@@ -157,8 +158,6 @@ final class LensSession: ObservableObject {
         invokingGesture = gesture
         hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
         if hold != nil {
-            rememberedSearch = query.isEmpty ? rememberedSearch : query
-            if !query.isEmpty, startingState == .normal, !searchIsExplicit { query = ""; selection = initialSelection() }
             currentModifiers = gesture?.invoking ?? []
             inputState = .hold
         }
@@ -166,6 +165,7 @@ final class LensSession: ObservableObject {
     func endHold(flags: NSEvent.ModifierFlags, committing: Bool = false) {
         if hold?.holdEnded(flags: flags) == true {
             hold = nil
+            currentModifiers = flags
             send(.inputStateChanged(committing ? .normal : startingState))
         }
     }
@@ -212,7 +212,8 @@ final class LensSession: ObservableObject {
         inputState = startingState
         rememberedSearch = search
         self.searchIsExplicit = searchIsExplicit && settings.presentation != "strip"
-        query = startingState == .search || self.searchIsExplicit ? search : ""
+        // A strip has no Search row to show a recalled Search in: it waits for the list.
+        query = (startingState == .search && settings.presentation != "strip") || self.searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
     }
@@ -308,7 +309,8 @@ final class LensSession: ObservableObject {
 
     private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
         let held: NSEvent.ModifierFlags
-        if let hold { held = modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
+        if let hold, settings.presentation == "strip" { held = hold.releaseModifiers(modifiers) }
+        else if let hold { held = modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
         else if settings.presentation == "strip", !holdEndedByKey { held = stripGesture?.releaseModifiers(modifiers) ?? [] }
         else { held = modifiers.intersection([.control, .option, .shift, .command]) }
         return !held.isEmpty && keyBindings.contains { binding in
