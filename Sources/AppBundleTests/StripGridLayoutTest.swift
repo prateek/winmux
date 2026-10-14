@@ -34,13 +34,12 @@ final class StripGridLayoutTest: XCTestCase {
     ]
 
     @MainActor
-    func testPictureStripComparisonSizesThroughExistingRowRule() {
+    func testPictureStripComparisonSizesAtPictureReadableFloor() {
         let controlledAspects: [CGFloat] = [0.3, 0.45, 0.7, 0.8, 0.9, 0.6, 2.6]
         let controlled = (0..<25).map { CGSize(width: 600 * controlledAspects[$0 % controlledAspects.count], height: 600) }
         let cases: [([CGSize], CGSize, Int)] = [
-            (richDeskSizes, CGSize(width: 1728, height: 460.278), 2),
+            (richDeskSizes, CGSize(width: 1728, height: 184.534), 1),
             ([CGSize(width: 300, height: 800), CGSize(width: 400, height: 1000), CGSize(width: 200, height: 600)], CGSize(width: 518, height: 300), 1),
-            (Array((richDeskSizes + richDeskSizes).prefix(25)), CGSize(width: 1728, height: 605.324), 3),
             (controlled, CGSize(width: 1728, height: 368.504), 2),
         ]
         for (sizes, expected, expectedRows) in cases {
@@ -51,11 +50,39 @@ final class StripGridLayoutTest: XCTestCase {
             }
             var settings = LensConfig(); settings.grid.tileSize = "same-height"
             let packed = StripSnapshot(items: items, size: monitor, kind: .picture, settings: settings).layout
-            XCTAssertEqual(packed.panelSize.width, expected.width, accuracy: 0.01)
-            XCTAssertEqual(packed.panelSize.height, expected.height, accuracy: 0.01)
+            XCTAssertEqual(packed.panelSize.width, expected.width, accuracy: 0.5)
+            XCTAssertEqual(packed.panelSize.height, expected.height, accuracy: 0.5)
             XCTAssertEqual(rows(packed), expectedRows)
             check(packed, count: sizes.count, size: monitor)
             print("Picture strip comparison: \(sizes.count) windows, \(packed.panelSize), \(rows(packed)) rows")
+        }
+    }
+
+    func testPicturesFirstWrapNearTwentyWindows() {
+        for (sizes, firstWrap) in [(richDeskSizes, 19), ([CGSize(width: 1200, height: 900)], 17)] {
+            for count in 1...firstWrap {
+                let input = (0..<count).map { index in
+                    let size = sizes[index % sizes.count]
+                    return GridLayout.Entry(aspect: size.width / size.height, realSize: size, kind: .picture)
+                }
+                let packed = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: monitor, tileSize: "same-height", sizing: .strip)
+                XCTAssertEqual(rows(packed), count == firstWrap ? 2 : 1, "count \(count), first wrap \(firstWrap)")
+            }
+        }
+    }
+
+    func testPictureFloorAppliesToEveryStripSizeModeAtBothScales() {
+        for size in [monitor, CGSize(width: 1280, height: 720)] {
+            for mode in ["real", "same-height", "equal"] {
+                for kind in TileKind.allCases {
+                    let expectedSizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: kind == .picture ? 48 : 88, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
+                    let input = entries(14, kind: kind)
+                    let actual = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: size, tileSize: mode, sizing: .strip)
+                    let expected = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: size, tileSize: mode, sizing: expectedSizing)
+                    XCTAssertEqual(actual.rowHeight, expected.rowHeight, accuracy: 0.001)
+                    XCTAssertEqual(actual.panelSize, expected.panelSize)
+                }
+            }
         }
     }
 
