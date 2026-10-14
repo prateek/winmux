@@ -30,7 +30,7 @@ Nothing.
 ## Done when
 
 - [x] On the staged desk with the shipped config, the `recent` strip is one row of fourteen pictures. In the comparison it measured 1730 by 202 points.
-- [ ] Three windows and twenty-five windows are shown in the pull request beside it. They measured 506 by 298 in one row and 1730 by 384 in two.
+- [x] Three windows and twenty-five windows are shown in the pull request beside it. They measured 506 by 298 in one row and 1730 by 384 in two.
 - [x] `docs/lenses.md` and `docs/default-config.md` show the new defaults and how to get cards back.
 
 ## Departures
