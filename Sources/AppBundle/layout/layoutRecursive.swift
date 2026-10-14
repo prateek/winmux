@@ -175,14 +175,36 @@ extension TilingContainer {
             }
             return
         }
-        let frames = tilingSplitFrames(in: CGRect(origin: point, size: CGSize(width: width, height: height)), virtual: virtual.cgRect,
-                                       weights: children.map { $0.getWeight(orientation) }, orientation: orientation,
-                                       gap: context.resolvedGaps.inner.get(orientation).toDouble())
-        for (child, frame) in zip(children, frames) {
-            child.setWeight(orientation, frame.weight)
-            let virtual = frame.virtual
-            try await child.layoutRecursive(frame.physical.origin, width: frame.physical.size.width, height: frame.physical.size.height,
-                                            virtual: Rect(topLeftX: virtual.origin.x, topLeftY: virtual.origin.y, width: virtual.size.width, height: virtual.size.height), context)
+        var point = point
+        var virtualPoint = virtual.topLeftCorner
+
+        guard let delta = ((orientation == .h ? width : height) - CGFloat(children.sumOfDouble { $0.getWeight(orientation) }))
+            .div(children.count) else { return }
+
+        let lastIndex = children.indices.last
+        for (i, child) in children.enumerated() {
+            child.setWeight(orientation, child.getWeight(orientation) + delta)
+            let rawGap = context.resolvedGaps.inner.get(orientation).toDouble()
+            // Gaps. Consider 4 cases:
+            // 1. Multiple children. Layout first child
+            // 2. Multiple children. Layout last child
+            // 3. Multiple children. Layout child in the middle
+            // 4. Single child   let rawGap = gaps.inner.get(orientation).toDouble()
+            let gap = rawGap - (i == 0 ? rawGap / 2 : 0) - (i == lastIndex ? rawGap / 2 : 0)
+            try await child.layoutRecursive(
+                i == 0 ? point : point.addingOffset(orientation, rawGap / 2),
+                width: orientation == .h ? child.hWeight - gap : width,
+                height: orientation == .v ? child.vWeight - gap : height,
+                virtual: Rect(
+                    topLeftX: virtualPoint.x,
+                    topLeftY: virtualPoint.y,
+                    width: orientation == .h ? child.hWeight : width,
+                    height: orientation == .v ? child.vWeight : height,
+                ),
+                context,
+            )
+            virtualPoint = orientation == .h ? virtualPoint.addingXOffset(child.hWeight) : virtualPoint.addingYOffset(child.vWeight)
+            point = orientation == .h ? point.addingXOffset(child.hWeight) : point.addingYOffset(child.vWeight)
         }
     }
 

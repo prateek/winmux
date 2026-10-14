@@ -483,11 +483,11 @@ Four workspaces form two rows of two on both a 16:9 display and an ultrawide dis
 values use the same largest arrangement on one page. Below it, `page` keeps the readable
 floor and lays out every page at the full page's size; `shrink` keeps all workspaces on one page.
 
-A tab group fans out inside its shared frame. The active tab is in front at the group's origin;
+A window tab group whose tabs are all windows fans out inside its shared frame; with window tabs off, a group keeps its accordion positions. The active tab is in front at the group's origin;
 other tabs follow their group order, offset right and down behind it. The offset scales from
 16 points per 820-point workspace and shrinks when the total fan would exceed a quarter of
 the group's smaller side. Every tab has a selectable edge and uses its cached picture or app
-icon. Standalone windows, floating windows and tray entries keep their existing positions.
+icon. Standalone windows, floating windows and tray entries keep their existing positions. A group not laid out since WinMux started fans from its active tab's remembered frame.
 
 Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
 with an 800 ms per-window throttle and at most two captures in flight. Hidden apps retain their

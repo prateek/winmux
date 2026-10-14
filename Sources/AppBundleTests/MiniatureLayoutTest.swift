@@ -105,11 +105,6 @@ final class MiniatureLayoutTest: XCTestCase {
         XCTAssertEqual(layout.workspaceHeight, 116)
     }
 
-    func testPointerCoordinatesUsePanelOriginAndScreenYAxis() {
-        XCTAssertEqual(MiniatureLayout.panelPoint(fromScreen: CGPoint(x: 1494, y: 780), screenMaxY: 1080, origin: CGPoint(x: 50, y: 30)), CGPoint(x: 1444, y: 270))
-        XCTAssertEqual(MiniatureLayout.panelPoint(fromScreen: CGPoint(x: -1800, y: 2400), screenMaxY: 1080, origin: CGPoint(x: -1920, y: -1440)), CGPoint(x: 120, y: 120))
-    }
-
     func testDirectionalMovementUsesGeometryAndOnlyMatches() {
         let frames: [UInt32: CGRect] = [1: CGRect(x: 0, y: 0, width: 20, height: 20), 2: CGRect(x: 50, y: 0, width: 20, height: 20), 3: CGRect(x: 0, y: 50, width: 20, height: 20)]
         XCTAssertEqual(MiniatureLayout.nearest(from: 1, direction: .right, frames: frames, matches: [1, 2, 3]), 2)

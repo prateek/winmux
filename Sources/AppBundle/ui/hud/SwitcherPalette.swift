@@ -245,7 +245,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         let root: AnyView
         if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
             model.miniatureSize = rect.size
-            model.miniatureOrigin = rect.cgRect.origin
             model.revealMiniatureSelection()
             frame = NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height)
             root = model.settings.presentation == "strip" ? AnyView(StripView(model: model)) : AnyView(MiniaturesView(model: model))
@@ -434,7 +433,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 }
 
 @MainActor
-func appKitScreenMaxY() -> CGFloat {
+private func appKitScreenMaxY() -> CGFloat {
     NSScreen.screens.first?.frame.maxY ?? 0
 }
 
@@ -560,13 +559,12 @@ func miniatureWorkspaceSnapshot(_ entries: [LensWindow]) -> [MiniatureWorkspace]
 private func miniatureEntry(_ entry: LensWindow, onscreen: Set<UInt32>) -> MiniatureWindow {
     let window = entry.window
     let tray = window.parent is MacosMinimizedWindowsContainer || window.parent is MacosHiddenAppsWindowsContainer
-    let source = window.nodeWorkspace?.workspaceMonitor.visibleRect.cgRect ?? focus.workspace.workspaceMonitor.visibleRect.cgRect
-    let frame = window.isFloating ? (window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source) : (window.lastAppliedLayoutPhysicalRect?.cgRect ?? window.miniatureFrame ?? window.lastKnownActualRect?.cgRect ?? source)
+    let frame = miniatureWindowFrame(window)
     let nativeFullscreen = window.parent is MacosFullscreenWindowsContainer
     let frozen = miniatureIsFrozen(tray: tray, fullscreen: nativeFullscreen && !onscreen.contains(window.windowId),
                                    workspaceVisible: nativeFullscreen ? onscreen.contains(window.windowId) : window.nodeWorkspace?.isVisible == true, parked: (window as? MacWindow)?.isHiddenInCorner == true)
     return MiniatureWindow(workspace: entry.record.workspace, frame: frame, tray: tray, frozen: frozen,
-                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window, tab: miniatureTabSnapshot(window, tray: tray))
+                           accessory: entry.record.app.accessory, floating: window.isFloating, window: window, tab: miniatureTabSnapshot(window))
 }
 
 @MainActor

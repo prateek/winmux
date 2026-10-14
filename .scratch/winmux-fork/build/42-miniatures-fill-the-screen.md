@@ -39,13 +39,19 @@ Prateek chose `overview` as WinMux's view that stays open, the counterpart of Mi
 - [x] Layout tests cover one, two, four and seven workspaces on a 16:9 monitor and on an ultrawide one.
 - [ ] The pull request shows `overview` before and after on the staged desk.
 
-## Build results
+## Sources
+
+- Prateek, 2026-10-13, choosing who owns Cmd-Tab and the open view.
+- [the Lens look prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/31-lens-look/index.html), Presentation set to Miniatures.
+
+## Build record
 
 Both fit values use the same largest-workspace arrangement, centred below Search, with the
 560-point drawing cap removed. Page mode keeps its readable floor and full-page geometry.
 The three-tab fan uses the group's frame, active tab in front, and clamps its total offset.
-Restored groups without an applied frame use a read-only projection of the tree; the projection
-and real tiling share split geometry. No window or tree weight changes while opening.
+A group not laid out since launch fans from its active tab's own frame. Only a window tab group
+whose tabs are all windows fans; accordion groups keep their own frames. No window or tree
+weight changes while opening.
 
 Host and pinned-version guest `make check` pass with 1,119 Swift tests each, plus helper and
 script tests. Baseline preservation tests passed before changing layout. Regressions were seen
@@ -54,21 +60,16 @@ paging test is unchanged. Guest checks cover the fourteen-window desk, rear-tab 
 Return, both arrow modes, Search, Summon, trays and current-workspace treatments. Full-screen
 before/after evidence is captured for the pull request's demo pass.
 
-The capture tool raised a private-picker permission prompt at cleanup after the required
-captures. It was left unanswered; the debug build and staged apps were closed.
-
-No named default changed. The cache stays capped at 582.4 points; a full-width window's picture
-at 1920 × 1080 in two-by-two stretches by about 1.24×. `by-workspace` up/down retains its reading-order
+No named default changed. The cache stays capped at 582.4 points, so a full-width window's picture
+at 1920 × 1080 stretches about 1.24× with four workspaces, 1.6× with two and 2.7× with one,
+until **A picture as sharp as the Tile that draws it** lands. `by-workspace` up/down retains its reading-order
 meaning even when the next workspace is to the right. The existing Option-Shift-O binding is
 unchanged; only this draft's stale chord sentence is corrected.
 
-## Checks for Prateek
+## Checks remaining for Prateek
 
-- [ ] Check an installed build.
-- [ ] Check a real ultrawide monitor and a second display.
-- [ ] Check real sleep, wake and unlock.
-
-## Sources
-
-- Prateek, 2026-10-13, choosing who owns Cmd-Tab and the open view.
-- [the Lens look prototype](https://github.com/prateek/winmux/blob/fork/.scratch/winmux-fork/prototypes/31-lens-look/index.html), Presentation set to Miniatures.
+- [ ] Installed build: Option-Shift-O on his own desk with four workspaces draws them two by two, filling most of the screen.
+- [ ] A three-tab Safari group on the installed build fans with the active tab in front; a click on a rear tab's edge selects it, and Return focuses it.
+- [ ] A real ultrawide monitor: the arrangement matches the layout tests (four workspaces two by two at 3440 by 1440).
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.

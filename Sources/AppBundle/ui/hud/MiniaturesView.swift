@@ -55,11 +55,7 @@ struct MiniaturesView: View {
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
-            if case .active = phase {
-                let location = NSEvent.mouseLocation
-                let point = MiniatureLayout.panelPoint(fromScreen: location, screenMaxY: appKitScreenMaxY(), origin: model.miniatureOrigin)
-                model.hoverMiniature(at: point, pointerLocation: location)
-            }
+            if case .active(let point) = phase { model.hoverMiniature(at: point, pointerLocation: NSEvent.mouseLocation) }
         }
     }
 
