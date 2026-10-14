@@ -1,6 +1,13 @@
 @testable import AppBundle
 import XCTest
 import SwiftUI
+import AppKit
+
+private final class LensRecordAxElement: AxUiElementMock {
+    var values: [String: Any] = [:]
+    func get<Attr: ReadableAttr>(_ attr: Attr) -> Attr.T? { values[attr.key] as? Attr.T }
+    func containingWindowId() -> CGWindowID? { 1 }
+}
 
 @MainActor
 final class LensSearchHighlightTest: XCTestCase {
@@ -48,6 +55,22 @@ final class LensSearchHighlightTest: XCTestCase {
         XCTAssertEqual(entries.first { $0.record.id == 93 }?.controls.fullscreen, true)
         XCTAssertEqual(entries.first { $0.record.id == 91 }?.controls, TileControlAvailability(close: false, minimize: true, fullscreen: true))
         XCTAssertEqual(entries.first { $0.record.id == 92 }?.controls, TileControlAvailability(close: true, minimize: false, fullscreen: true))
+    }
+
+    func testAXRecordReadAcceptsEitherFullscreenOrZoomButtonWithoutAddingFilterFields() {
+        for (fullscreen, zoom) in [(false, false), (true, false), (false, true), (true, true)] {
+            let window = LensRecordAxElement(), button = LensRecordAxElement()
+            window.values[Ax.titleAttr.key] = "Title"
+            window.values[Ax.closeButtonAttr.key] = button
+            window.values[Ax.minimizeButtonAttr.key] = button
+            if fullscreen { window.values[Ax.fullscreenButtonAttr.key] = button }
+            if zoom { window.values[Ax.zoomButtonAttr.key] = button }
+            let attributes = WindowAxRecordAttributes.read(from: window)
+            XCTAssertEqual(attributes.title, "Title")
+            XCTAssertTrue(attributes.hasCloseButton)
+            XCTAssertTrue(attributes.hasMinimizeButton)
+            XCTAssertEqual(attributes.hasFullscreenButton, fullscreen || zoom)
+        }
     }
 
     private func substrings(_ text: String, _ ranges: [Range<Int>]) -> [String] {

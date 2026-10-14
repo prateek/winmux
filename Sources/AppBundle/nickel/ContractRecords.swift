@@ -26,6 +26,14 @@ struct WindowAxRecordAttributes: Equatable, Sendable {
     var hasFullscreenButton = false
 
     static let unknown = WindowAxRecordAttributes(title: "", subrole: "", hasCloseButton: false, document: "")
+
+    static func read(from window: any AxUiElementMock) -> Self {
+        Self(title: window.get(Ax.titleAttr) ?? "", subrole: window.get(Ax.subroleAttr) ?? "",
+             hasCloseButton: window.get(Ax.closeButtonAttr) != nil, document: window.get(Ax.documentAttr) ?? "",
+             hasMinimizeButton: window.get(Ax.minimizeButtonAttr) != nil,
+             hasFullscreenButton: window.get(Ax.fullscreenButtonAttr) != nil || window.get(Ax.zoomButtonAttr) != nil)
+    }
+
 }
 
 struct MonitorRecord: Equatable, Sendable {

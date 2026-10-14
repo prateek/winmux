@@ -314,14 +314,7 @@ final class MacApp: AbstractApp {
     /// Everything a Window record takes from the window's AX element, in one round-trip.
     func getAxRecordAttributes(_ windowId: UInt32) async throws -> WindowAxRecordAttributes? {
         try await withWindow(windowId) { window, job in
-            WindowAxRecordAttributes(
-                title: window.get(Ax.titleAttr) ?? "",
-                subrole: window.get(Ax.subroleAttr) ?? "",
-                hasCloseButton: window.get(Ax.closeButtonAttr) != nil,
-                document: window.get(Ax.documentAttr) ?? "",
-                hasMinimizeButton: window.get(Ax.minimizeButtonAttr) != nil,
-                hasFullscreenButton: window.get(Ax.zoomButtonAttr) != nil,
-            )
+            WindowAxRecordAttributes.read(from: window)
         }
     }
 
