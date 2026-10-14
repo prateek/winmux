@@ -24,6 +24,12 @@ struct MiniaturesView: View {
                                  selected: selectedId == item.id, marked: model.marks.contains(item.id),
                                  hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
                                  pictureSize: item.miniature?.tab == nil ? nil : frame.size)
+                            // A dimmed Frozen picture would otherwise show the tabs behind it through the front tab
+                            .background {
+                                if item.miniature?.tab != nil {
+                                    RoundedRectangle(cornerRadius: model.tileMetrics.miniaturePictureRadius).fill(Color.black)
+                                }
+                            }
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onTapGesture {
                                 model.hover(item.id)
