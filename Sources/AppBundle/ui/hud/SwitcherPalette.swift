@@ -111,7 +111,7 @@ final class SwitcherPalettePanel: NSPanelHud {
             "project": workspaceProjects().map { LensSectionIdentity(key: $0.id.rawValue, label: $0.name, current: $0.id == focus.workspace.projectId) },
             "monitor": sortedMonitors.map { LensSectionIdentity(key: $0.displayUuid, label: $0.name, current: $0.displayUuid == focus.workspace.workspaceMonitor.displayUuid) },
         ]
-        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search), eventFilter: eventFilter, sectionIdentities: identities)
+        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search), searchIsExplicit: search != nil, eventFilter: eventFilter, sectionIdentities: identities)
         model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
             model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))

@@ -110,6 +110,8 @@ final class LensSession: ObservableObject {
     private(set) var invokingGesture: StripGesture?
     private let startingState: LensInputState
     private var rememberedSearch: String
+    /// A Search the caller asked for is applied in every state; a recalled one waits for Search.
+    private let searchIsExplicit: Bool
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
     func enterSearch() {
@@ -145,7 +147,7 @@ final class LensSession: ObservableObject {
         hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
         if hold != nil {
             rememberedSearch = query.isEmpty ? rememberedSearch : query
-            if !query.isEmpty { query = ""; selection = initialSelection() }
+            if !query.isEmpty, !searchIsExplicit { query = ""; selection = initialSelection() }
             currentModifiers = gesture?.invoking ?? []
             inputState = .hold
         }
@@ -163,7 +165,7 @@ final class LensSession: ObservableObject {
     var onAction: ((String) -> Void)?
     var onGlobalKey: ((UInt16, NSEvent.ModifierFlags, Double) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
@@ -199,7 +201,8 @@ final class LensSession: ObservableObject {
         startingState = settings.startsIn == "search" || (settings.startsIn == nil && settings.presentation == "list") ? .search : .normal
         inputState = startingState
         rememberedSearch = search
-        query = startingState == .search ? search : ""
+        self.searchIsExplicit = searchIsExplicit && settings.presentation != "strip"
+        query = startingState == .search || self.searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
     }

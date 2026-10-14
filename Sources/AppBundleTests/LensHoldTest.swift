@@ -356,6 +356,30 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertEqual(model.query, "Safari")
     }
 
+    func testExplicitSearchIsAppliedToALensThatStartsInNormalMode() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2), ("Zed", 3)].map { title, id in
+            SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "explicit", settings: settings, items: items, search: "Safari", searchIsExplicit: true)
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(model.query, "Safari")
+        XCTAssertEqual(model.results.map(\.id), [1])
+        // A Hold does not put the asked-for Search away.
+        model.startHold(StripGesture(keyCode: 31, invoking: .option))
+        XCTAssertEqual(model.query, "Safari")
+        model.endHold(flags: [])
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(model.results.map(\.id), [1])
+        model.enterSearch()
+        XCTAssertEqual(model.query, "Safari")
+        XCTAssertFalse(model.searchEdited)
+
+        let recalled = LensSession(name: "recalled", settings: settings, items: items, search: "Safari")
+        XCTAssertEqual(recalled.query, "")
+        XCTAssertEqual(recalled.results.count, 3)
+    }
+
     func testRetainedMatchingLetterKeepsCaretThroughInitialFocusCallback() async throws {
         let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
         await panel.openLens(name: "initial-same-letter", settings: LensConfig(), entries: [], search: "s", banner: nil, context: .null, ticket: panel.beginLens("initial-same-letter", toggle: false)!)

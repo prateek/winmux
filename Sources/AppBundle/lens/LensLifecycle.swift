@@ -200,7 +200,7 @@ final class LensLifecycle {
         let firstNonStrip = !conversion && model.settings.presentation != "strip"
         finishShow(model, ShowInstruction(activate: firstNonStrip, focusSearch: firstNonStrip && model.inputState == .search))
         guard session === model, ticket == generation else { return }
-        if !wasPresented, !conversion, model.inputState == .search { startSearch(model) }
+        if !wasPresented, !conversion, model.inputState == .search || !model.query.isEmpty { startSearch(model) }
         if !wasPresented || restartEffects { startPresentationEffects(model) }
     }
 

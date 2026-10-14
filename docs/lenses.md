@@ -102,7 +102,9 @@ Each word uses the field with the highest tier times field weight, with title/ap
 weighted ties. Tiers run from 6 to 1; title/app have weight 2 and workspace/project weight 1.
 Equal title/app scores prefer title; equal workspace/project scores prefer workspace. Empty Search preserves
 the Lens's sort; Search ties use that order. Search is remembered per named Lens and selected
-on reopening in Search. In normal mode it waits for `/`. `--search` overrides it.
+on reopening in Search. In normal mode it waits for `/`. `--search` overrides it, and is
+applied at once in either state: a grid opened with `--search` starts in normal mode over its
+matches. A strip ignores it until `/`.
 
 A leading `=` makes the whole Search box a Nickel function body, with `w`, `ctx` and `filters`
 bound. For example, `= filters.floating w ctx`. Evaluation starts after 150 ms without typing.
