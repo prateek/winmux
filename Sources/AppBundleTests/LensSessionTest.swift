@@ -191,6 +191,36 @@ final class LensActionTest: XCTestCase {
         }
     }
 
+    func testExplicitWindowActionClosesOnlyItsTargetAndFailureLeavesOtherWindows() async throws {
+        let workspace = Workspace.get(byName: "1")
+        let windows = (1...3).map { TestWindow.new(id: UInt32($0), parent: workspace.rootTilingContainer) }
+        let io = CmdIo(stdin: .emptyStdin)
+        let closed = try await runLensWindowAction("close", windowId: 1, io: io)
+        XCTAssertTrue(closed)
+        XCTAssertFalse(windows[0].isBound)
+        XCTAssertTrue(windows[1].isBound)
+        XCTAssertTrue(windows[2].isBound)
+        let failed = try await runLensWindowAction("close", windowId: 99, io: io)
+        XCTAssertFalse(failed)
+        XCTAssertTrue(windows[1].isBound)
+        XCTAssertTrue(windows[2].isBound)
+    }
+
+    func testExplicitWindowActionTogglesOnlyItsTargetsNativeFullscreen() async throws {
+        let workspace = Workspace.get(byName: "1")
+        let target = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let other = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        let io = CmdIo(stdin: .emptyStdin)
+        let entered = try await runLensWindowAction("macos-native-fullscreen", windowId: 1, io: io)
+        XCTAssertTrue(entered)
+        XCTAssertTrue(target.nativeIsMacosFullscreen)
+        XCTAssertFalse(other.nativeIsMacosFullscreen)
+        let exited = try await runLensWindowAction("macos-native-fullscreen", windowId: 1, io: io)
+        XCTAssertTrue(exited)
+        XCTAssertFalse(target.nativeIsMacosFullscreen)
+        XCTAssertTrue(other.isBound)
+    }
+
     func testCmdOneMovesInsteadOfQuickSelectingAndCustomKeyUsesSelection() async throws {
         let current = Workspace.get(byName: "1")
         let other = Workspace.get(byName: "2")

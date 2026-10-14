@@ -123,7 +123,14 @@ Equal title/app scores prefer title; equal workspace/project scores prefer works
 the Lens's sort; Search ties use that order. Search is remembered per named Lens and selected
 on reopening in Search. In normal mode it waits for `/`. `--search` overrides it, and is
 applied at once in either state: a grid opened with `--search` starts in normal mode over its
-matches. A strip ignores it until `/`.
+matches. An explicit Search also filters a strip at opening; a Search-starting strip applies recalled Search then.
+
+Matched characters in the title and app name use yellow (`#ffd54a`) behind dark text (`#111111`),
+in light and dark appearances. List rows, text Tiles and card bars show the match in their text;
+picture Tiles in strips and grids show it in the selection footer, since pictures have no title bar.
+An empty title uses the app name and its matches. Workspace-only and project-only matches mark
+no text. Highlights follow the session's applied Search, including explicit and applied recalled
+Search, without changing ranking or truncation. Inline Search has no highlights.
 
 A leading `=` makes the whole Search box a Nickel function body, with `w`, `ctx` and `filters`
 bound. For example, `= filters.floating w ctx`. Evaluation starts after 150 ms without typing.
@@ -189,6 +196,22 @@ let W = import "winmux/winmux.ncl" in
 Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup window`
 and moves nothing, because a popup has no workspace.
 
+
+Picture and card Tiles in strips and grids show close, minimize and native-fullscreen circles
+on the Tile under a moving pointer. They appear only after the pointer moves more than one point;
+a pointer resting where the panel opened shows none. Moving into a gap, onto panel chrome or
+out of the panel hides them. Keyboard and wheel selection leave them on the hovered Tile.
+Close is hidden without a close button; minimize is hidden without a minimize button or when
+already minimized; fullscreen is hidden without a zoom/fullscreen button. Hidden buttons keep
+their slots. Fullscreen toggles native fullscreen, including turning it off. Text Tiles, list rows
+and miniatures have no controls.
+
+A control acts only on its own window, regardless of selection, marks or held modifiers. It never
+selects, commits or closes the Lens. Closing removes the Tile and reflows the layout; minimizing
+keeps it with a minimized badge and hides its minimize control. Failures leave it in place and
+are logged under `lens`. After any control action, controls stay hidden until the pointer moves
+more than one point again, preventing a second close on a window that slid under it. An ordinary
+Tile click keeps its Enter action, and a held strip still commits on release.
 
 ## The Hold
 
@@ -274,9 +297,9 @@ release enters Search with its text selected and the selection unchanged. The fi
 letter replaces that text. Opening in normal mode leaves it inactive and unapplied.
 At `/` it appears selected and is applied, and the first letter replaces it.
 Applying remembered Search keeps the selected window if it matches, and selects
-the best match otherwise. A strip has no Search row, so it never opens filtered by a
-remembered Search, whatever its `starts-in`: the Search is applied when the strip
-becomes a list. A Search-starting strip also keeps a matching selected
+the best match otherwise. A normal-starting strip leaves recalled Search dormant until `/`;
+a Search-starting strip applies it at opening, and an explicit `--search` always applies.
+A Search-starting strip also keeps a matching selected
 window through conversion at the Hold-ending letter, using the typed Search.
 Leaving Search with Escape preserves its matches.
 
@@ -336,7 +359,8 @@ monitor-height fraction with a 28-point picture floor, in every size mode. The g
 this Accessory size setting. Hidden apps
 and minimized windows remain eligible. Removing an earlier entry keeps the selected window; removing
 the selection chooses its surviving successor, or the last entry. Hover selects with the
-one-point movement rule used by every Presentation; click selects the Tile under the pointer
+one-point movement rule used by every Presentation. Hover also reveals the picture/card controls
+described above; those actions keep the strip open. A click elsewhere selects the Tile under the pointer
 and runs the
 corresponding Enter action immediately. During a Hold it subtracts the invoking
 modifiers as release does: Cmd-click focuses and cmd-Option-click Summons. After a

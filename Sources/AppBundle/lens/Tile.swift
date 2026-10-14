@@ -105,6 +105,11 @@ struct TileEntry {
     var accessory = false
     var monitorHeightFraction: CGFloat = 1
     var appCount: Int?
+    var controls = TileControlAvailability()
+    var titleRanges: [Range<Int>] = []
+    var appRanges: [Range<Int>] = []
+
+    var displayTitleRanges: [Range<Int>] { title.isEmpty ? appRanges : titleRanges }
 
     var displayTitle: String { title.isEmpty ? appName : title }
     var footerAppName: String? { displayTitle == appName ? nil : appName }

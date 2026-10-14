@@ -388,7 +388,10 @@ final class LensLifecycle {
     func dismiss() {
         if case .closed = state { return }
         let model = session
-        if let model { trace?.session(model, active: false) }
+        if let model {
+            model.hoveredTileId = nil
+            trace?.session(model, active: false)
+        }
         trace?.cancel()
         trace = nil
         let wasPresented: Bool

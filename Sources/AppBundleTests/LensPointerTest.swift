@@ -397,7 +397,7 @@ final class LensPointerTest: XCTestCase {
                 if sizing.pointerTopInset > 0 {
                     XCTAssertNil(session.tileHitTest(at: CGPoint(x: x, y: sizing.pointerTopInset * scale - 0.1)))
                 }
-                XCTAssertEqual(session.tileHitTest(at: CGPoint(x: x, y: tile.midY)), session.selection)
+                XCTAssertEqual(session.tileHitTest(at: CGPoint(x: x, y: tile.midY))?.index, session.selection)
             }
         }
     }

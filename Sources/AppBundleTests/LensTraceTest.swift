@@ -29,6 +29,25 @@ final class LensTraceTest: SerialClockTestCase {
         XCTAssertEqual(trace.snapshot.session?.active, false)
     }
 
+    func testSessionTraceReadsHoveredWindowAndNoneInTextAndJSON() throws {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let item = SwitcherPaletteItem(id: 7, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        let model = LensSession(name: "hover", settings: settings, items: [item], search: "", pointerLocation: { .zero })
+        let store = LensTraceStore(stamp: { 0 })
+        let trace = store.begin(presentation: "grid", origin: .init(start: 0, received: 0, source: "test"))
+        trace.session(model)
+        let frame = model.gridLayout.tiles[0].frame
+        model.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: 2, y: 0))
+        XCTAssertEqual(trace.snapshot.session?.hoveredTileId, 7)
+        XCTAssertTrue(store.text(last: 1).contains("hovered=7"))
+        let hovered = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8))
+        XCTAssertEqual(hovered[0].session?.hoveredTileId, 7)
+        model.hoverTile(at: nil, pointerLocation: CGPoint(x: 4, y: 0))
+        XCTAssertTrue(store.text(last: 1).contains("hovered=none"))
+        let cleared = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8))
+        XCTAssertNil(cleared[0].session?.hoveredTileId)
+    }
+
     func testKeysContinueAfterFirstFrameWithoutChangingStagesAndStayBounded() {
         var now = 10.0
         let store = LensTraceStore(stamp: { now })

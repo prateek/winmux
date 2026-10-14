@@ -45,6 +45,19 @@ struct LensSessionRecord: Codable, Equatable {
     let search: String
     let selectedId: UInt32?
     let active: Bool
+    var hoveredTileId: UInt32? = nil
+
+    enum CodingKeys: String, CodingKey { case presentation, state, hold, search, selectedId, active, hoveredTileId }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(presentation, forKey: .presentation)
+        try container.encode(state, forKey: .state)
+        try container.encode(hold, forKey: .hold)
+        try container.encode(search, forKey: .search)
+        try container.encodeIfPresent(selectedId, forKey: .selectedId)
+        try container.encode(active, forKey: .active)
+        try container.encode(hoveredTileId, forKey: .hoveredTileId)
+    }
 }
 struct LensTraceSnapshot: Codable, Equatable {
     let id: Int
@@ -98,7 +111,7 @@ final class LensTraceStore {
             var lines = [opening, "Stage                                Start ms  Duration ms", stages,
                          "Keys: code text flags boot-seconds received-seconds recorded-seconds Presentation state Hold path destination Search selection field-editor", keys]
             if let session = trace.session {
-                lines.append("Session: \(session.presentation) state=\(session.state.rawValue) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) active=\(session.active)")
+                lines.append("Session: \(session.presentation) state=\(session.state.rawValue) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") active=\(session.active)")
             }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
@@ -179,7 +192,7 @@ final class LensOpeningTrace {
     }
     private static func record(_ model: LensSession, active: Bool) -> LensSessionRecord {
         LensSessionRecord(presentation: model.settings.presentation, state: model.inputState, hold: model.hold != nil,
-                          search: model.query, selectedId: model.selectedId, active: active)
+                          search: model.query, selectedId: model.selectedId, active: active, hoveredTileId: model.hoveredTileId)
     }
     func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
              presentation: String, state: LensInputState, hold: Bool, path: String, destination: String,

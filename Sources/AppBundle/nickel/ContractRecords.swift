@@ -22,6 +22,8 @@ struct WindowAxRecordAttributes: Equatable, Sendable {
     var subrole: String
     var hasCloseButton: Bool
     var document: String
+    var hasMinimizeButton = false
+    var hasFullscreenButton = false
 
     static let unknown = WindowAxRecordAttributes(title: "", subrole: "", hasCloseButton: false, document: "")
 }
@@ -150,6 +152,10 @@ extension Window {
 
     /// The Window record, or `nil` for a window that is in no tree or whose AX element is gone.
     @MainActor func windowRecord(initialClass: WindowClass? = nil) async throws -> WindowRecord? {
+        try await windowRecordWithAttributes(initialClass: initialClass)?.record
+    }
+
+    @MainActor func windowRecordWithAttributes(initialClass: WindowClass? = nil) async throws -> (record: WindowRecord, attributes: WindowAxRecordAttributes)? {
         // Everything the tree says is read before the AX round-trip, during which the window can
         // move to another node. The record then describes one moment.
         guard let windowClass = initialClass ?? windowClass else { return nil }
@@ -163,7 +169,7 @@ extension Window {
         try Task.checkCancellation()
         guard let ax = try await axRecordAttributes else { return nil }
         try Task.checkCancellation()
-        return WindowRecord(
+        return (WindowRecord(
             id: Int(windowId),
             title: ax.title,
             windowClass: windowClass,
@@ -176,7 +182,7 @@ extension Window {
             monitor: monitor,
             lastFocusedSeq: lastFocusedSeq,
             app: appRecord,
-        )
+        ), ax)
     }
 }
 

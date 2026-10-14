@@ -79,7 +79,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         guard isVisible, let model = session,
               model.settings.presentation == "strip" || model.settings.presentation == "grid" else { return }
         let contentPoint = hostingView.convert(convertPoint(fromScreen: screenPoint), from: nil)
-        guard let point = lensTilePoint(contentPoint, in: model.tilesFrameInWindow) else { return }
+        let point = lensTilePoint(contentPoint, in: model.tilesFrameInWindow)
         model.hoverTile(at: point, pointerLocation: screenPoint)
     }
 
@@ -127,6 +127,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
+        model.onControl = { [weak self, weak model] control, id in
+            guard let model else { return }
+            self?.performControl(control, windowId: id, model: model)
+        }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
@@ -355,6 +359,24 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
+    private func performControl(_ control: TileWindowControl, windowId: UInt32, model: LensSession) {
+        Task { @MainActor in
+            guard let token: RunSessionGuard = .isServerEnabled else { return }
+            do {
+                try await runLightSession(.menuBarButton, token) {
+                    let io = CmdIo(stdin: .emptyStdin)
+                    if try await runLensWindowAction(control.command, windowId: windowId, io: io) {
+                        model.controlSucceeded(control, windowId: windowId)
+                    } else {
+                        lensLog.error("Lens \(model.name, privacy: .public): \(control.command, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+                    }
+                }
+            } catch {
+                lensLog.error("Lens \(model.name, privacy: .public): \(control.command, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
     private func routeKey(_ event: NSEvent, path: String, carbon: Bool = false) -> Bool {
         guard let model = session else { return false }
         let receivedAt = LensTimebase.now()
@@ -453,10 +475,19 @@ private func appKitScreenMaxY() -> CGFloat {
 // MARK: - Search
 
 func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -> [SwitcherPaletteItem] {
-    if query.allSatisfy(\.isWhitespace) { return items }
+    if query.allSatisfy(\.isWhitespace) || query.hasPrefix("=") {
+        return items.map { item in
+            var item = item; item.tile.titleRanges = []; item.tile.appRanges = []; return item
+        }
+    }
     let ranked: [(Int, SwitcherPaletteItem, Int)] = items.enumerated().compactMap { index, item in
         LensSearchFields(title: item.title, app: item.appName, workspace: item.workspaceName, project: item.projectName)
-            .match(query).map { (index, item, $0.score) }
+            .match(query).map { match in
+                var item = item
+                item.tile.titleRanges = item.tile.appCount == nil ? match.titleRanges : match.appRanges
+                item.tile.appRanges = match.appRanges
+                return (index, item, match.score)
+            }
     }
     return ranked.sorted { $0.2 == $1.2 ? $0.0 < $1.0 : $0.2 > $1.2 }.map { $0.1 }
 }
@@ -615,7 +646,7 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
-                     monitorHeightFraction: frame.height / max(1, monitorHeight))
+                     monitorHeightFraction: frame.height / max(1, monitorHeight), controls: entry.controls)
 }
 
 @MainActor

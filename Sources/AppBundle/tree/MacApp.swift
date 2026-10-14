@@ -319,6 +319,8 @@ final class MacApp: AbstractApp {
                 subrole: window.get(Ax.subroleAttr) ?? "",
                 hasCloseButton: window.get(Ax.closeButtonAttr) != nil,
                 document: window.get(Ax.documentAttr) ?? "",
+                hasMinimizeButton: window.get(Ax.minimizeButtonAttr) != nil,
+                hasFullscreenButton: window.get(Ax.zoomButtonAttr) != nil,
             )
         }
     }
