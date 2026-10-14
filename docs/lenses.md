@@ -137,10 +137,11 @@ Search field editing, including Cut and Close. Tab toggles marks; commands act o
 in mark order, while focus acts only on the selection. Escape, Tab and the four arrow keys,
 including their modifier variants, are reserved for Lens navigation and rejected in `keys`
 at load. In every Presentation, moving the pointer over a Tile selects it after it moves
-more than one point from its anchor (Euclidean distance). Opening a Lens, a keyboard or
+more than one point from its anchor (Euclidean distance). First presentation, a keyboard or
 wheel step, Search reselection and a miniature page turn anchor the pointer again. A Tile
 sliding under a resting pointer cannot replace the default or keyboard selection. Leaving
-the panel keeps the last selection; release uses the last input, key or pointer. Click selects
+the panel keeps the last selection. The strip commits the last input, key or pointer, on
+release; the grid stays open until Return or a click. Click selects
 the Tile under the pointer and runs enter; modifier-click runs the corresponding modifier-enter
 command. A click in a strip or grid gap does nothing. `lens --presentation list`
 keeps selection, marks, Search and the snapshot of eligible windows. Reloading config preserves
