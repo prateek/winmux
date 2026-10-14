@@ -180,7 +180,8 @@ During a Hold, the Lens reads keys in this order:
    window and keeps the Hold, and `cmd-g` changes grouping in a list or grid.
 2. The Trigger's own key steps, with Shift reversing. Tab and backtick with the
    invoking modifiers keep their existing stepping behavior; the other Trigger's
-   key is consumed without stepping.
+   key is consumed without stepping. In a held list, Tab also steps through the
+   matches (Shift-Tab reverses), including during Option-slash’s Hold.
 3. Arrows move and Escape dismisses, with the Hold's modifiers removed.
 4. The first unbound letter, or `/`, ends the Hold. Shift with a letter still counts.
    The letter is identified by what the current keyboard layout types with the
@@ -206,7 +207,9 @@ Arrows move, `/` enters Search, Return runs its binding, Escape dismisses, and T
 marks as before. All other plain keys are consumed without typing. An unbound
 Command, Control or Option chord belongs to its global binding. After a letter
 ends the Hold, repeating the Trigger's chord with its modifiers still down toggles
-the named Lens closed in every Presentation; it does not step or start another Hold.
+the same Lens closed in every Presentation, named or ad hoc; it does not step or start
+another Hold. An ad-hoc Lens is the same when its Filter text, resolved opening
+settings (including Presentation overrides) and explicit `--search` are equal.
 
 In Search the field editor owns letters, Backspace and clipboard shortcuts,
 including Command-A and Command-V while the Trigger's modifiers are still down.
@@ -220,7 +223,16 @@ The Search row is muted and shows `/` during a Hold and in normal mode. The pane
 owns the keyboard in those states; clicking that row enters Search and gives the
 keyboard to its field. A strip has no Search row. Letters arriving in Search
 before its editor is ready are retained in order. Queued opening keys use the same
-state decisions: the first letter ends the Hold and later keys use the resulting state.
+state decisions: the first letter ends the Hold and later Carbon presses are decided
+in the resulting state. Only the Lens's own keys are queued. Other Carbon bindings
+run immediately; they dismiss an opening Lens exactly where they would dismiss
+that Presentation once shown. No global binding is replayed later.
+
+Known limit: before the panel becomes key, an unregistered key goes to the app
+in front and the Lens never sees it. This covers opening (including dispatch and
+Filter evaluation) and the strip's 100 ms before it is drawn. Only chords WinMux
+has registered with Carbon can reach an opening Lens. There is no keyDown monitor
+capture or replay of other apps' typing.
 
 ### `starts-in`
 
@@ -232,9 +244,14 @@ starts in Search. There is no CLI flag, and converting an open Lens keeps its st
 A Lens with a Hold enters its starting state when the Hold ends.
 `list-lenses --json` reports the configured value, or `null` when it is omitted.
 
-A remembered Search is selected and applied on opening in Search; the first
-letter replaces it. Opening in normal mode leaves it inactive and unapplied.
+A Lens that starts in Search shows and applies its remembered Search from opening,
+including during a Hold. Stepping during the Hold moves among those matches;
+release enters Search with its text selected and the selection unchanged. The first
+letter replaces that text. Opening in normal mode leaves it inactive and unapplied.
 At `/` it appears selected and is applied, and the first letter replaces it.
+Applying remembered Search keeps the selected window if it matches, and selects
+the best match otherwise. A Search-starting strip also keeps a matching selected
+window through conversion at the Hold-ending letter, using the typed Search.
 Leaving Search with Escape preserves its matches.
 
 A binding mode's Carbon keys take priority as before. A Lens opened from the CLI

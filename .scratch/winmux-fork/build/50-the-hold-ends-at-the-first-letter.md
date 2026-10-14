@@ -21,6 +21,7 @@ The first letter typed during a Hold ends the Hold. The Lens stays open, modal, 
 - **During the Hold, a key is read in this order**, the same in every Presentation:
   1. Return first removes the Trigger’s own modifiers before matching its Enter binding. Extra Shift on an Option Hold Summons; Return on an Option-Shift Hold focuses. Every other chord the Lens binds in `keys` runs as pressed (`cmd-w`, `cmd-1`).
   2. The Trigger's own key, and Tab and backtick, with exactly the Hold's modifiers, step the selection; Shift reverses. Unchanged.
+     In a held list, Tab steps among the matches and Shift-Tab reverses, including after Option-slash, as required by the recalled-Search live check.
   3. An arrow moves the selection and Escape dismisses, read with the Hold's modifiers taken off. Unchanged.
   4. **A letter that is not bound ends the Hold**, and so does `/`. The Lens stays open as if `on-release` were `'stay`: the later release of the modifiers does nothing. The key is then read in the Lens’s starting state with the Hold’s modifiers taken off: in normal mode `j` moves down; in Search the letter is typed. `/` starts Search in either case. Shift not used by the Hold remains available to normal-mode bindings.
   5. A key with a modifier that is not the Hold's is not the Lens's. Unchanged.
@@ -54,10 +55,10 @@ Prateek's words settle the Decisions above. These he has not spoken to; build th
 
 - **Which state a modal Lens starts in** is a setting of the Lens, `starts-in`, `'normal` or `'search`. A grid, a strip and miniatures default to `'normal`. A list defaults to `'search`, so the shipped `search` and `floating` Lenses still take typing the moment they open. A Lens opened with a Hold starts where its setting says once the Hold ends. The contract inserts no default; Swift resolves the explicit value or the opening Presentation after CLI overrides. `when.default` and `list-lenses --json` include the setting; omitted values report `null`. Conversion keeps the current input state, and there is no CLI flag.
 - **A strip whose Hold ends by a letter stays a strip**, modal, in normal mode. It becomes a list at `/`, as it does today at the first letter.
-- **A remembered Search** is shown when the Lens opens in Search, selected, and the first typed letter replaces it. In normal mode it is neither applied nor shown as active until `/`. Applying recalled text selects its best match in lists and grids; a strip keeps its selected window through `/` when it remains a match.
+- **A remembered Search** is shown when the Lens opens in Search, selected, and the first typed letter replaces it. In normal mode it is neither applied nor shown as active until `/`. A Search-starting Lens applies it during the Hold too; release preserves the stepped-to match. Applying recalled text keeps the selected window when it matches and selects the best match otherwise, in every Presentation.
 - **`h` and `l` in a list** do nothing. `j` and `k` in a one-row strip step as the arrows do.
 - **Where it lives.** `lensKeyMeaning` is the one decision for the panel, key equivalents, Carbon and queued opening keys. The change is there and in the lifecycle's release path, which already ends the Hold. The Search field takes the keyboard only in Search.
-- **Queued keys.** A letter that arrives while the Lens is opening ends the Hold when it is replayed, and the keys queued after it are read with no Hold.
+- **Queued keys.** Only registered Carbon chords reach an opening Lens before its panel is key. A queued letter ends the Hold when replayed. Later Carbon presses are decided in the resulting state: queue only Lens keys and run global bindings immediately, dismissing only where that Presentation would dismiss when shown. Escape drops only later queued Lens keys.
 - **The stuck Hold.** A release that lands before the Lens begins opening leaves a list's Hold on until the next modifier event. With this change the first letter ends it anyway. Say in the pull request whether anything of that edge is left.
 - **Showing the state.** The Search row reads as inactive in normal mode and shows a `/` hint; say what you drew.
 - **The live run** is the Hold's own, in a guest, with posted keys, on a release build as the `vm` skill describes: the gesture, the letter that ends it, movement by `hjkl`, `/` and a Search, Escape back to normal, a paste in Search, and a bound chord in each state.
@@ -95,12 +96,12 @@ Built with one `LensSession` input state and one pure `lensKeyMeaning` decision 
 Host `make check` and guest Swift 6.2.4 `make check` pass. The debug guest checks every Done-when item, the same gesture on the base tree, layout arrows versus hjkl, modifier Holds, clipboard shortcuts, recalled Search, bound keys, repeated Triggers, opening keys and the binding mode. `saf` matches the desk’s Safari window; `n` matches Notes, Zed and Safari and is used for observable movement among matches. A mode’s plain keys still win, while bound Lens modifier chords win in all three states, including Carbon delivery.
 
 Decided: Identify letters, `/` and hjkl by layout-derived characters; retain physical codes for reserved navigation and configured binding matching.
-Decided: Preserve the selected matching window through strip-to-list `/`; applying recalled Search in lists and grids uses the existing best-match ranking.
-Decided: Retain raw opening events across the short dispatch gap and hidden strip interval, then replay every later key in the resulting state, including Escape and global Triggers.
+Decided: An ad-hoc Lens identity is its exact Filter text, resolved opening settings and explicit Search. Changing any of these opens a different Lens.
+Known limit: an unregistered key pressed before the panel is key goes to the app in front and the Lens never sees it. This includes opening and the strip’s 100 ms before drawing. No global/local keyDown capture or global replay remains.
 
 Release behavior is unchanged: only a strip commits, and a CLI strip with no held modifier commits immediately. No `on-release` setting is implemented.
 
-No named default was changed beyond the driver's rulings. The early-release-before-opening list Hold remains until a modifier event or the first letter ends it. No-wait posted keys at the driver's normal cadence pass. A zero-duration strip key pulse did not appear in the Lens trace; that extra probe is not accepted as evidence of received input.
+No named default was changed beyond the driver's rulings. The early-release-before-opening list Hold remains until a modifier event or the first letter ends it. The no-wait Trigger-plus-letter requirement is withdrawn; input before the panel is key follows the known limit above.
 
 ## Checks remaining for Prateek
 
