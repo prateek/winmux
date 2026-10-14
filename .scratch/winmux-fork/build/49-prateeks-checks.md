@@ -63,6 +63,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] With three Safari pages in a tab group, the overview shows three cards fanned right and down, the active page in front with no text from the others showing through it. Move the pointer onto the edge of a card behind: it is selected. Return focuses that page, and it is the group's active tab afterwards.
 - [ ] On the ultrawide, `alt-shift-o` with four workspaces gives two by two, and with two workspaces one row. Say here if the pictures are too blurry to read at that size.
 
+**The strip draws pictures at one height**
+- [ ] With the Cmd-Tab opt-in, hold Cmd-Tab on your own desk. The strip is one row of pictures at one height with the selected window's title in the footer, not two rows of cards. Say here if a strip of fifteen or more windows reads as a row of icons.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
