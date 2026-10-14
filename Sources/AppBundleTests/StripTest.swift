@@ -61,7 +61,7 @@ final class StripSessionTest: SerialClockTestCase {
             XCTAssertEqual(session.stripSnapshot.layout.tiles.map(\.frame), frames)
         }
         session.hover(8)
-        session.updateSummonModifiers(.option)
+        session.updateHintModifiers(.option)
         XCTAssertEqual(session.stripSnapshot.layout.tiles.map(\.frame), frames)
     }
 

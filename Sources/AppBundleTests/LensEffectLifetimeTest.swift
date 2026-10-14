@@ -176,7 +176,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         let observation = session.objectWillChange.sink { changes += 1 }
         session.send(.modifiersChanged([]))
         XCTAssertEqual(changes, 0)
-        session.send(.summonChanged(true))
+        session.send(.modifiersChanged(.option))
         changes = 0
         session.send(.modifiersChanged(.option))
         session.send(.modifiersChanged([.option, .capsLock]))
@@ -196,12 +196,12 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys["alt-enter"] = ["summon"]
         let session = LensSession(name: "recent", settings: settings, items: [], search: "")
         owner.complete(session, ticket: owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!)
-        XCTAssertFalse(session.summonHeld)
+        XCTAssertFalse(session.hintsShown)
         var changes = 0
         let observation = session.objectWillChange.sink { changes += 1 }
         flags = [.command, .option]
         await clock.advance(by: .milliseconds(100))
-        XCTAssertFalse(session.summonHeld, "The display deadline only rechecks the release key")
+        XCTAssertFalse(session.hintsShown, "The display deadline only rechecks the release key")
         XCTAssertEqual(changes, 0, "First strip display does not recompute landing")
         withExtendedLifetime(observation) {}
         owner.dismiss()
@@ -263,7 +263,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var actions = 0
         session.onAction = { _ in actions += 1 }
         owner.complete(session, ticket: ticket)
-        session.updateSummonModifiers([])
+        session.updateHintModifiers([])
         XCTAssertEqual(actions, 0, "The panel's own flagsChanged only updates Summon")
         owner.stripFlagsChanged([], from: session)
         XCTAssertEqual(actions, 1)

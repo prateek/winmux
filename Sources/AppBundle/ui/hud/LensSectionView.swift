@@ -47,8 +47,7 @@ struct LensGroupingControl: View {
 }
 
 func lensGroupingKeyLabel(_ name: String) -> String {
-    name.replacingOccurrences(of: "cmd-", with: "⌘").replacingOccurrences(of: "alt-", with: "⌥")
-        .replacingOccurrences(of: "ctrl-", with: "⌃").replacingOccurrences(of: "shift-", with: "⇧").uppercased()
+    displayBindingNotation(name)
 }
 
 struct LensSelectionFooter: View {

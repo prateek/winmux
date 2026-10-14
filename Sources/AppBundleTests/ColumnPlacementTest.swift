@@ -183,7 +183,7 @@ final class ColumnPlacementTest: XCTestCase {
             window.beforeAxRecord = { reads += 1 }
             let owner = ownLens(model)
             defer { owner.dismiss() }
-            model.send(.summonChanged(true))
+            model.send(.modifiersChanged(.option))
             await owner.landingTask?.value
             let hint = model.miniatureLanding
             let initialReads = reads
@@ -220,7 +220,7 @@ final class ColumnPlacementTest: XCTestCase {
         }
         let model = session(workspace, window: window, rect: rect)
         let owner = ownLens(model)
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged(.option))
         await started.wait()
         let pending = owner.landingTask
         owner.dismiss()
@@ -247,7 +247,7 @@ final class ColumnPlacementTest: XCTestCase {
             let model = session(workspace, window: window, rect: rect)
             let owner = ownLens(model)
             defer { owner.dismiss() }
-            model.send(.summonChanged(true))
+            model.send(.modifiersChanged(.option))
             await started.wait()
             let pending = owner.landingTask
             workspace.columns = nil
@@ -272,13 +272,13 @@ final class ColumnPlacementTest: XCTestCase {
         model.miniatureWorkspaces = []
         var changes = 0
         let observation = model.objectWillChange.sink { changes += 1 }
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged(.option))
         let before = changes
         for _ in 0..<3 { owner.updateMiniatureLanding() }
         XCTAssertEqual(changes, before)
         XCTAssertNil(model.miniatureLanding)
-        model.send(.summonChanged(false))
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged([]))
+        model.send(.modifiersChanged(.option))
         XCTAssertGreaterThan(changes, before)
         let afterSummon = changes
         XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace())
@@ -298,7 +298,7 @@ final class ColumnPlacementTest: XCTestCase {
         let model = session(workspace, window: window, rect: rect)
         let owner = ownLens(model)
         defer { owner.dismiss() }
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged(.option))
         await owner.landingTask?.value
         XCTAssertNil(model.miniatureLanding)
         XCTAssertNil(owner.landingTask)
@@ -333,7 +333,7 @@ final class ColumnPlacementTest: XCTestCase {
             weak var dismissed = model
             var owner: LensLifecycle? = ownLens(model!)
             weak var dismissedOwner = owner
-            model!.send(.summonChanged(true))
+            model!.send(.modifiersChanged(.option))
             await started.wait()
             let pending = owner?.landingTask
             owner?.dismiss()
@@ -360,7 +360,7 @@ final class ColumnPlacementTest: XCTestCase {
             let model = session(workspace, window: window, rect: rect)
             let owner = ownLens(model)
             defer { owner.dismiss() }
-            model.send(.summonChanged(true))
+            model.send(.modifiersChanged(.option))
             await started.wait()
             if change == "destination" { XCTAssertTrue(Workspace.get(byName: "Elsewhere").focusWorkspace()) }
             else { workspace.columns = ColumnState(count: 2) }
@@ -402,7 +402,7 @@ final class ColumnPlacementTest: XCTestCase {
         let model = session(workspace, window: window, rect: rect)
         let owner = ownLens(model)
         defer { owner.dismiss() }
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged(.option))
         await owner.landingTask?.value
         XCTAssertEqual(model.miniatureLanding, CGRect(x: 760, y: 0, width: 240, height: 799))
         workspace.columns!.widths = [0.4, 0.2, 0.4]

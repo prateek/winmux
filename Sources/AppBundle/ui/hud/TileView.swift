@@ -13,6 +13,7 @@ struct TileView: View {
     let hint: String?
     var pictureSize: CGSize? = nil
     var controlsVisible = false
+    var workspaceHint: String? = nil
 
     private var miniature: Bool { presentation == "miniatures" }
     private var row: Bool { presentation == "list" }
@@ -146,6 +147,14 @@ struct TileView: View {
                     }
                     if entry.accessory && !line { label("menu-bar app") }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if let workspaceHint, !line && !miniature {
+                    Text(workspaceHint).font(.system(size: 13 * metrics.scale, weight: .bold))
+                        .padding(.vertical, 2 * metrics.scale).padding(.horizontal, 8 * metrics.scale)
+                        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
+                        .padding(8 * metrics.scale)
+                }
             }
             .overlay(alignment: .topLeading) {
                 if controlsVisible && !line && !miniature {

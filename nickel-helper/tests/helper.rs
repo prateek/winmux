@@ -1327,3 +1327,23 @@ fn shipped_picture_lens_can_override_presentation_to_miniatures() {
     let error = evaluate_to_json(source, &library()).unwrap_err();
     assert!(error.contains("miniatures rejects tile"), "{error}");
 }
+
+#[test]
+fn hints_contract_defaults_choices_profiles_and_miniatures() {
+    let source = r#"let W = import "winmux/winmux.ncl" in (import "winmux/defaults.ncl") & { lenses.user = {} } | W.Config"#;
+    let value = evaluate_to_json(source, &library()).unwrap();
+    for lens in ["search", "user"] {
+        assert_eq!(value["lenses"][lens]["hints"], "held");
+        assert_eq!(value["lenses"][lens]["hints-key"], "alt");
+    }
+    for hints in ["'held", "'always", "\"held\"", "\"always\""] {
+        for key in ["'alt", "'cmd", "'ctrl", "'shift", "\"ctrl\""] {
+            let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ presentation = 'miniatures, hints = {hints}, hints-key = {key}, when.default = {{ hints = {hints}, hints-key = {key} }} }} }} | W.Config");
+            assert!(evaluate_to_json(&source, &library()).is_ok(), "rejected {hints}, {key}");
+        }
+    }
+    for body in ["hints = 'sometimes", "hints-key = 'option", "when.default.hints-key = 'fn", "presentation = 'miniatures, hints = 'always, miniatures.current-workspace = 'hide"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
+        assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
+    }
+}

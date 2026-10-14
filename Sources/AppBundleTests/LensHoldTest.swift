@@ -38,7 +38,7 @@ final class LensHoldTest: SerialClockTestCase {
         model.startHold(StripGesture(keyCode: 44, invoking: .option))
         model.endHold(flags: [])
         XCTAssertEqual(model.inputState, .search)
-        XCTAssertFalse(model.summonHeld)
+        XCTAssertFalse(model.hintsShown)
     }
 
     func testShiftDuringAStripHoldShowsNoSummonHint() {
@@ -48,9 +48,9 @@ final class LensHoldTest: SerialClockTestCase {
         model.beginStrip(gesture)
         model.startHold(gesture)
         model.apply(.modifiersChanged([.command, .shift]))
-        XCTAssertFalse(model.summonHeld, "A strip's release ignores Shift, so reverse stepping promises no Summon")
+        XCTAssertFalse(model.hintsShown, "A strip's release ignores Shift, so reverse stepping promises no Summon")
         model.apply(.modifiersChanged([.command, .option]))
-        XCTAssertTrue(model.summonHeld)
+        XCTAssertTrue(model.hintsShown)
     }
 
     func testSearchStartingStripOpensUnfilteredByRememberedSearch() {

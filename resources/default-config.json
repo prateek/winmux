@@ -43,6 +43,8 @@
         "sections-arrangement": "flow",
         "tile-size": "same-height"
       },
+      "hints": "held",
+      "hints-key": "alt",
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -91,6 +93,8 @@
         "sections-arrangement": "flow",
         "tile-size": "real"
       },
+      "hints": "held",
+      "hints-key": "alt",
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -137,6 +141,8 @@
         "sections-arrangement": "flow",
         "tile-size": "real"
       },
+      "hints": "held",
+      "hints-key": "alt",
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -183,6 +189,8 @@
         "sections-arrangement": "flow",
         "tile-size": "same-height"
       },
+      "hints": "held",
+      "hints-key": "alt",
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",
@@ -230,6 +238,8 @@
         "sections-arrangement": "flow",
         "tile-size": "real"
       },
+      "hints": "held",
+      "hints-key": "alt",
       "keys": {
         "alt-enter": "summon",
         "cmd-1": "move-node-to-workspace 1",

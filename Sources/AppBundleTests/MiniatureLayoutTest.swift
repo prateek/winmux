@@ -370,18 +370,19 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.selectedId, 2)
     }
 
-    func testSummonModifierComesFromConfiguredCommands() {
+    func testHintsModifierComesFromHintsKeyIndependentlyOfCommands() {
         let original = session()
         var settings = original.settings
         settings.keys["shift-enter"] = ["close"]
         settings.keys["ctrl-enter"] = ["summon"]
+        settings.hintsKey = "ctrl"
         let model = LensSession(name: "custom", settings: settings, items: original.items, search: "")
-        model.updateSummonModifiers(.shift)
-        XCTAssertFalse(model.summonHeld)
-        model.updateSummonModifiers(.control)
-        XCTAssertTrue(model.summonHeld)
-        model.updateSummonModifiers([])
-        XCTAssertFalse(model.summonHeld)
+        model.updateHintModifiers(.shift)
+        XCTAssertFalse(model.hintsShown)
+        model.updateHintModifiers(.control)
+        XCTAssertTrue(model.hintsShown)
+        model.updateHintModifiers([])
+        XCTAssertFalse(model.hintsShown)
     }
 
     func testLandingPreviewDoesNotMutateTabTreeAndIsOnlyComputedWhenHeld() {
@@ -393,11 +394,11 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertNil(model.miniatureLanding)
         let owner = ownLens(model)
         defer { owner.dismiss() }
-        model.send(.summonChanged(true))
+        model.send(.modifiersChanged(.option))
         XCTAssertNotNil(model.miniatureLanding)
         XCTAssertEqual(root.children, children)
         XCTAssertTrue(focus.workspace.rootTilingContainer === root)
-        model.send(.summonChanged(false))
+        model.send(.modifiersChanged([]))
         XCTAssertNil(model.miniatureLanding)
     }
 }

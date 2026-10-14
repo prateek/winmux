@@ -164,8 +164,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.trace?.advance("panel ordered front")
         lifecycle.trace?.startInterval("first frame presented")
         hostingView.observeFirstFrame()
-        if model.settings.presentation == "grid" {
+        if model.settings.presentation == "grid" || model.settings.presentation == "list" {
             gridLandingPanel.order(.below, relativeTo: windowNumber)
+        }
+        if model.settings.presentation == "grid" {
             // A view's layer is anchored at its corner, so the scale is about the centre by hand.
             let centre = CGPoint(x: hostingView.bounds.midX, y: hostingView.bounds.midY)
             let shrunk = CGAffineTransform(translationX: centre.x, y: centre.y).scaledBy(x: 0.97, y: 0.97).translatedBy(x: -centre.x, y: -centre.y)
@@ -277,6 +279,8 @@ final class SwitcherPalettePanel: NSPanelHud {
                            y: appKitScreenMaxY() - rect.minY - layout.topOffset - layout.panelHeight,
                            width: layout.width, height: layout.panelHeight)
             root = AnyView(SwitcherPaletteView(model: model))
+            gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
+            gridLandingPanel.contentView = NSHostingView(rootView: GridLandingView(model: model))
         }
         // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
@@ -445,7 +449,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
-        if event.type == .flagsChanged { model.updateSummonModifiers(event.modifierFlags) }
+        if event.type == .flagsChanged { model.updateHintModifiers(event.modifierFlags) }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
             if session === model, model.inputState != .search { return }
@@ -537,7 +541,7 @@ struct SwitcherPaletteView: View {
                                 TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
                                          size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
                                          settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
-                                         hint: index == model.selection && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil)
+                                         hint: model.summonLabel(for: item.id, destination: focus.workspace.name))
                                 .onContinuousHover { phase in
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }
@@ -569,6 +573,7 @@ struct SwitcherPaletteView: View {
                 style: config.workspaceSidebar.chromeStyle,
                 solidColor: config.workspaceSidebar.resolvedSolidChromeColor,
             )
+            .opacity(model.panelGlassOpacity)
         }
         .overlay {
             if model.searchError != nil { RoundedRectangle(cornerRadius: layout.radius).stroke(.orange, lineWidth: 1) }

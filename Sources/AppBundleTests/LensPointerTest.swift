@@ -351,8 +351,8 @@ final class LensPointerTest: XCTestCase {
                     timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 0))
                 session.hover(4)
                 XCTAssertEqual(session.key(for: event, click: true), expected, presentation)
-                session.updateSummonModifiers(flags)
-                XCTAssertEqual(session.summonHeld, flags.contains(.shift), presentation)
+                session.updateHintModifiers(flags)
+                XCTAssertFalse(session.hintsShown, "Shift is an action modifier, not the hints key: \(presentation)")
                 XCTAssertEqual(session.targets(for: expected), [4])
             }
         }

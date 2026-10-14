@@ -101,14 +101,47 @@ final class GridSessionTest: SerialClockTestCase {
         XCTAssertEqual(closed.count, 1)
         try await clock.checkSuspension()
     }
+    func testSummonHintsNeedAKeyAndOtherWorkspaceButMiniaturesKeepsSameWorkspaceLanding() {
+        for presentation in ["list", "grid", "strip", "miniatures"] {
+            let session = model()
+            session.changePresentation(presentation)
+            let owner = ownLens(session); defer { owner.dismiss() }
+            session.hover(10)
+            XCTAssertTrue(session.stripSummonAvailable(items: session.results), "Availability is independent of visibility")
+            XCTAssertFalse(session.summonHintsShown)
+            XCTAssertNil(session.summonLabel(for: 10, destination: "1"))
+            session.updateHintModifiers(.shift)
+            XCTAssertNil(session.miniatureLanding)
+            session.updateHintModifiers(.option)
+            XCTAssertTrue(session.summonHintsShown)
+            XCTAssertEqual(session.summonLabel(for: 10, destination: "1"), "⌥↩ Summon to 1")
+            XCTAssertNil(session.summonLabel(for: 9, destination: "1"))
+            XCTAssertNotNil(session.miniatureLanding)
+            session.updateHintModifiers([])
+            XCTAssertNil(session.miniatureLanding)
+            session.hover(1)
+            session.updateHintModifiers(.option)
+            XCTAssertFalse(session.stripSummonAvailable(items: session.results))
+            XCTAssertEqual(session.miniatureLanding != nil, presentation == "miniatures")
+            XCTAssertEqual(session.summonLabel(for: 1, destination: "1") != nil, presentation == "miniatures")
+        }
+        var settings = LensConfig(); settings.keys["alt-enter"] = []; settings.keys["shift-enter"] = []
+        let unbound = model(settings: settings)
+        let owner = ownLens(unbound); defer { owner.dismiss() }
+        unbound.hover(10); unbound.updateHintModifiers(.option)
+        XCTAssertTrue(unbound.hintsShown)
+        XCTAssertFalse(unbound.summonHintsShown)
+        XCTAssertNil(unbound.miniatureLanding)
+    }
+
     func testSummonLandingUsesLifecycleAndClearsOnRelease() {
         let session = model()
         let owner = ownLens(session)
         defer { owner.dismiss() }
         session.hover(10)
-        session.send(.summonChanged(true))
+        session.send(.modifiersChanged(.option))
         XCTAssertNotNil(session.miniatureLanding)
-        session.send(.summonChanged(false))
+        session.send(.modifiersChanged([]))
         XCTAssertNil(session.miniatureLanding)
     }
     func testGridPictureAllocationAndSelectionLiftNeverUpscaleADialog() {

@@ -111,8 +111,8 @@ extension LensSession {
         return ListLayout(count: count, kind: tileKind, visibleSize: miniatureSize, sectionStarts: starts, minimumWidth: listControlMinimumWidth)
     }
     func stripSummonAvailable(items: [SwitcherPaletteItem]) -> Bool {
-        guard summonHeld, let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
-        return item.miniature?.workspace != current.name
+        guard let item = items.first(where: { $0.id == selectedId }), let current = miniatureWorkspaces.first(where: \.current) else { return false }
+        return (item.miniature?.workspace ?? item.workspaceIdentity ?? item.workspaceName) != current.name
     }
 
     func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
