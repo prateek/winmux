@@ -78,9 +78,13 @@ struct MiniatureLayout {
         guard count > 1 else { return frame }
         let offset = min(cellWidth * 16 / 820, min(frame.width, frame.height) / (4 * CGFloat(count - 1)))
         let inset = CGFloat(count - 1) * offset
-        let depth = index == activeIndex ? 0 : (index < activeIndex ? index + 1 : index)
+        let depth = fanDepth(index: index, activeIndex: activeIndex)
         return CGRect(x: frame.minX + CGFloat(depth) * offset, y: frame.minY + CGFloat(depth) * offset,
                       width: frame.width - inset, height: frame.height - inset)
+    }
+
+    static func fanDepth(index: Int, activeIndex: Int) -> Int {
+        index == activeIndex ? 0 : (index < activeIndex ? index + 1 : index)
     }
 
     static func nearest(from id: UInt32, direction: Direction, frames: [UInt32: CGRect], matches: Set<UInt32>) -> UInt32? {

@@ -83,7 +83,6 @@ final class MiniatureLayoutTest: XCTestCase {
                     let right = cells.prefix(columns).map { $0.frame.maxX }.max()!
                     XCTAssertEqual((first.frame.minX + right) / 2, size.width / 2, accuracy: 0.001)
                     let last = try XCTUnwrap(cells.last)
-                    // Each row reserves 24 above the workspace and 60 below it.
                     XCTAssertEqual((first.frame.minY - 24 + last.frame.maxY + 60) / 2, (68 + size.height - 32) / 2, accuracy: 0.001)
                     for (index, cell) in cells.enumerated() {
                         XCTAssertGreaterThanOrEqual(cell.frame.minX, 24 - 0.001)
@@ -98,6 +97,12 @@ final class MiniatureLayoutTest: XCTestCase {
                 }
             }
         }
+    }
+
+    func testEqualWorkspaceWidthsChooseFewerRows() {
+        let layout = MiniatureLayout(workspaces: ["1", "2"], size: CGSize(width: 304, height: 500), aspect: 1, fit: "page")
+        XCTAssertEqual(layout.columns, 2)
+        XCTAssertEqual(layout.workspaceHeight, 116)
     }
 
     func testDirectionalMovementUsesGeometryAndOnlyMatches() {
@@ -187,6 +192,25 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.selectedId, 1)
     }
 
+    func testSelectionRevealsItsPageWithoutChangingLastPageCellSize() throws {
+        let original = session()
+        let window = original.items[3].miniature!.window
+        let item = SwitcherPaletteItem(id: 4, title: "Last", appName: "Demo", icon: nil, workspaceName: "50", isFocused: false,
+            miniature: MiniatureWindow(workspace: "50", frame: CGRect(x: 0, y: 0, width: 500, height: 500), tray: false, frozen: true, accessory: false, floating: false, window: window))
+        let model = LensSession(name: "pages", settings: original.settings, items: [original.items[0], item], search: "")
+        model.miniatureSize = CGSize(width: 800, height: 600)
+        model.miniatureWorkspaces = (1 ... 50).map { MiniatureWorkspace(name: String($0), title: String($0), source: CGRect(x: 0, y: 0, width: 1000, height: 500), current: $0 == 1) }
+        model.hover(4)
+        model.revealMiniatureSelection()
+        XCTAssertEqual(model.miniaturePage, 8)
+        XCTAssertEqual(model.miniatureCells(on: 8).map(\.frame), Array(model.miniatureCells(on: 0).prefix(2)).map(\.frame))
+        model.turnMiniaturePage(-1)
+        XCTAssertEqual(model.miniaturePage, 7)
+        model.turnMiniaturePage(-10)
+        XCTAssertEqual(model.miniaturePage, 0)
+        XCTAssertEqual(model.selectedId, 1)
+    }
+
     func testHiddenCurrentAndListOverridePreserveSelectionAndMarks() {
         let model = session()
         model.send(.excludedChanged([1, 2, 3]))
@@ -205,7 +229,7 @@ final class MiniatureSessionTest: XCTestCase {
         let source = CGRect(x: 0, y: 0, width: 1000, height: 500)
         let groupFrame = CGRect(x: 0, y: 0, width: 500, height: 500)
         let items = windows.enumerated().map { index, window in
-            let tab = index < 3 ? MiniatureTabSnapshot(group: 1, frame: groupFrame, index: index, count: 3, activeIndex: 1) : nil
+            let tab = index < 3 ? MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: groupFrame, index: index, count: 3, activeIndex: 1) : nil
             return SwitcherPaletteItem(id: window.windowId, title: "Tab \(index)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
                 miniature: MiniatureWindow(workspace: "1", frame: index == 3 ? CGRect(x: 500, y: 0, width: 500, height: 500) : .zero,
                     tray: false, frozen: false, accessory: false, floating: false, window: window, tab: tab))
@@ -223,6 +247,12 @@ final class MiniatureSessionTest: XCTestCase {
             let cell = try XCTUnwrap(model.miniatureCells(on: 0).first)
             XCTAssertEqual(frames[4], MiniatureLayout.scale(items[3].miniature!.frame, from: source, to: cell.frame))
             XCTAssertEqual(miniatureDrawOrder(items).filter { $0.id <= 3 }.map(\.id), [3, 1, 2])
+            let frontToBack = miniatureDrawOrder(items).reversed()
+            for id: UInt32 in [1, 2, 3] {
+                let frame = try XCTUnwrap(frames[id])
+                let exposedEdge = CGPoint(x: frame.maxX - 0.1, y: frame.midY)
+                XCTAssertEqual(frontToBack.first { frames[$0.id]?.contains(exposedEdge) == true }?.id, id)
+            }
             model.hover(2)
             model.moveMiniatureSelection(.right)
             XCTAssertEqual(model.selectedId, 1)

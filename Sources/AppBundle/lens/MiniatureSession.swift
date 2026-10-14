@@ -8,13 +8,13 @@ struct MiniatureWorkspace {
 }
 
 struct MiniatureTabSnapshot {
-    let group: UInt32
+    let group: ObjectIdentifier
     let frame: CGRect
     let index: Int
     let count: Int
     let activeIndex: Int
 
-    var depth: Int { index == activeIndex ? 0 : (index < activeIndex ? index + 1 : index) }
+    var depth: Int { MiniatureLayout.fanDepth(index: index, activeIndex: activeIndex) }
 }
 
 struct MiniatureWindow {
@@ -158,10 +158,8 @@ func appendingRetainedMiniatureWorkspaces(_ ordered: [MiniatureWorkspace], retai
     return snapshots
 }
 
-/// Floating windows stay above tiling windows. Each tab group draws back to front,
-/// with its active tab last, regardless of the Lens's sort order.
 func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem] {
-    var groupOrder: [UInt32: Int] = [:]
+    var groupOrder: [ObjectIdentifier: Int] = [:]
     for (index, item) in items.enumerated() {
         if let tab = item.miniature?.tab, groupOrder[tab.group] == nil { groupOrder[tab.group] = index }
     }
@@ -184,9 +182,9 @@ func miniatureTabSnapshot(_ window: Window, tray: Bool) -> MiniatureTabSnapshot?
           group.nodeWorkspace === window.nodeWorkspace else { return nil }
     let tabs = group.allLeafWindowsRecursive
     guard let frame = group.lastAppliedLayoutPhysicalRect?.cgRect ?? group.lastAppliedLayoutVirtualRect?.cgRect,
-          let first = tabs.first, let index = tabs.firstIndex(of: window),
+          let index = tabs.firstIndex(of: window),
           let active = group.tabActiveWindow, let activeIndex = tabs.firstIndex(of: active) else { return nil }
-    return MiniatureTabSnapshot(group: first.windowId, frame: frame, index: index, count: tabs.count, activeIndex: activeIndex)
+    return MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: frame, index: index, count: tabs.count, activeIndex: activeIndex)
 }
 
 @MainActor

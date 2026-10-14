@@ -67,7 +67,7 @@ final class MiniatureTabSnapshotTest: XCTestCase {
         XCTAssertNil(windows[0].lastAppliedLayoutPhysicalRect)
         for (index, window) in windows.enumerated() {
             let tab = try XCTUnwrap(miniatureTabSnapshot(window, tray: false))
-            XCTAssertEqual(tab.group, 1)
+            XCTAssertEqual(tab.group, ObjectIdentifier(group))
             XCTAssertEqual(tab.frame, CGRect(x: 40, y: 60, width: 400, height: 300))
             XCTAssertEqual(tab.index, index)
             XCTAssertEqual(tab.activeIndex, 1)
@@ -82,6 +82,22 @@ final class MiniatureTabSnapshotTest: XCTestCase {
         XCTAssertNil(miniatureTabSnapshot(floating, tray: false))
         let beside = TestWindow.new(id: 5, parent: root)
         XCTAssertNil(miniatureTabSnapshot(beside, tray: false))
+    }
+
+    func testNestedGroupsKeepDistinctIdentitiesAndUseNearestFrame() throws {
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let outer = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let inner = TilingContainer(parent: outer, adaptiveWeight: WEIGHT_AUTO, .v, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 1, parent: inner)
+        _ = TestWindow.new(id: 2, parent: inner)
+        let beside = TestWindow.new(id: 3, parent: outer)
+        inner.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 60, width: 400, height: 300)
+        outer.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 20, topLeftY: 20, width: 600, height: 400)
+        let innerTab = try XCTUnwrap(miniatureTabSnapshot(first, tray: false))
+        let outerTab = try XCTUnwrap(miniatureTabSnapshot(beside, tray: false))
+        XCTAssertNotEqual(innerTab.group, outerTab.group)
+        XCTAssertEqual(innerTab.frame, CGRect(x: 40, y: 60, width: 400, height: 300))
+        XCTAssertEqual(outerTab.frame, CGRect(x: 20, y: 20, width: 600, height: 400))
     }
 
     func testSingleChildTabContainerDoesNotFan() {
