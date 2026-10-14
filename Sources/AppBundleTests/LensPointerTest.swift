@@ -100,6 +100,12 @@ final class LensPointerTest: XCTestCase {
                 session.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: 10000, y: 10000))
                 if !pointerLast { session.perform(.step(1)) }
                 owner.stripFlagsChanged([], from: session)
+                if presentation == "grid" {
+                    // A grid stays open on release; Return commits the last input.
+                    XCTAssertEqual(targets, [], "grid, pointerLast=\(pointerLast)")
+                    XCTAssertTrue(owner.session === session)
+                    session.onAction?("enter")
+                }
                 XCTAssertEqual(targets, [pointerLast ? 1 : 2], "\(presentation), pointerLast=\(pointerLast)")
             }
         }
@@ -167,20 +173,18 @@ final class LensPointerTest: XCTestCase {
         XCTAssertEqual(session.selectedId, 2)
     }
 
-    func testGridReleaseWhileOpeningCommitsButLetterEndedHoldDoesNot() {
-        for endsByLetter in [false, true] {
-            let owner = testLensLifecycle(); defer { owner.dismiss() }
-            var settings = LensConfig(); settings.presentation = "grid"
-            let gesture = StripGesture(keyCode: 48, invoking: .command)
-            let ticket = owner.begin("early", toggle: false, invocation: gesture, settings: settings)!
-            if endsByLetter { _ = owner.openingStripKey(keyCode: 38, flags: .command, characters: "j", source: .carbon) }
-            owner.openingFlagsChanged([])
-            let session = LensSession(name: "early", settings: settings, items: items(), search: "")
-            var targets: [UInt32] = []
-            session.onAction = { targets += session.targets(for: $0) }
-            owner.complete(session, ticket: ticket)
-            XCTAssertEqual(targets, endsByLetter ? [] : [2])
-        }
+    func testGridReleaseWhileOpeningLeavesTheGridOpen() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "grid"
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("early", toggle: false, invocation: gesture, settings: settings)!
+        owner.openingFlagsChanged([])
+        let session = LensSession(name: "early", settings: settings, items: items(), search: "")
+        var targets: [UInt32] = []
+        session.onAction = { targets += session.targets(for: $0) }
+        owner.complete(session, ticket: ticket)
+        XCTAssertEqual(targets, [])
+        XCTAssertTrue(owner.session === session)
     }
 
     func testHeldGridClickSubtractsTriggerModifiersAndRunsFocus() throws {

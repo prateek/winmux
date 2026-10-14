@@ -172,11 +172,6 @@ final class LensSession: ObservableObject {
             inputState = .hold
         }
     }
-    func gridReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
-        guard settings.presentation == "grid", !holdEndedByKey, let hold, hold.holdEnded(flags: flags) else { return nil }
-        return enterKey(modifiers: hold.releaseModifiers(flags)) ?? "enter"
-    }
-
     func endHold(flags: NSEvent.ModifierFlags, committing: Bool = false) {
         if hold?.holdEnded(flags: flags) == true {
             hold = nil

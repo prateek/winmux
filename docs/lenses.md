@@ -218,8 +218,8 @@ During a Hold, the Lens reads keys in this order:
 
 Backspace, digits, Space, other punctuation and function keys do nothing during a
 Hold. They do not end it. Releasing its invoking Command, Control and Option
-modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip or a
-grid opened under a held Trigger; lists and miniatures remain open. **A Hold ended by a key never commits on release**,
+modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip;
+other Presentations remain open. **A Hold ended by a key never commits on release**,
 including a release received while opening. One session never starts a second Hold.
 The strip's display deadline remains 100 ms.
 

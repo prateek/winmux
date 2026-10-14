@@ -170,11 +170,7 @@ final class LensLifecycle {
             state = .opening(opening)
             presented(model)
             replay(opening.pending, to: model)
-            if let release = opening.release {
-                let key = model.gridReleaseKey(flags: release)
-                model.endHold(flags: release, committing: key != nil)
-                if let key { model.onAction?(key) }
-            }
+            if let release = opening.release { model.endHold(flags: release, committing: model.stripReleaseKey(flags: release) != nil) }
         }
         return true
     }
@@ -262,15 +258,13 @@ final class LensLifecycle {
         send(.modifiersChanged(flags), from: model)
         guard session === model else { return }
         let wasHeld = model.hold != nil
-        let gridKey = model.gridReleaseKey(flags: flags)
-        model.endHold(flags: flags, committing: gridKey != nil || model.stripReleaseKey(flags: flags) != nil)
+        model.endHold(flags: flags, committing: model.stripReleaseKey(flags: flags) != nil)
         trace?.key(code: 65535, characters: "", flags: flags, timestamp: LensTimebase.now(),
                    presentation: model.settings.presentation, state: wasHeld ? .hold : model.inputState, hold: model.hold != nil, path: "flagsChanged",
                    destination: wasHeld && model.hold == nil ? "Hold ended" : "modifiers changed",
                    search: model.query, selectedId: model.selectedId, fieldEditor: false)
         trace?.session(model)
-        if let gridKey { model.onAction?(gridKey) }
-        else { _ = commitStripRelease(flags, model: model) }
+        _ = commitStripRelease(flags, model: model)
     }
 
     /// `lens` with no arguments. A session that is already a list is put in front and made key again.
