@@ -821,6 +821,8 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
     let config = &reply["result"]["config"];
     for name in ["recent", "app-windows"] {
         assert_eq!(config["lenses"][name]["presentation"], "strip");
+        assert_eq!(config["lenses"][name]["tile"], "picture");
+        assert_eq!(config["lenses"][name]["grid"]["tile-size"], "same-height");
         assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
         assert_eq!(config["lenses"][name]["popups"], json!([]));
     }
@@ -1106,7 +1108,7 @@ fn tile_contract_defaults_overrides_and_miniatures_refusal() {
         assert!(value["lenses"]["demo"].get("tile").is_none());
         assert_eq!(value["lenses"]["demo"]["badges"], true);
     }
-    for body in ["presentation = 'miniatures, tile = 'picture", "presentation = 'miniatures, when.default.tile = 'card", "tile = 'text, when.default.presentation = 'miniatures"] {
+    for body in ["presentation = 'miniatures, tile = 'card", "presentation = 'miniatures, tile = 'text", "presentation = 'miniatures, when.default.tile = 'card", "tile = 'text, when.default.presentation = 'miniatures"] {
         let source = format!("let W = import \"winmux/winmux.ncl\" in {{ lenses.demo = {{ {body} }} }} | W.Config");
         let error = evaluate_to_json(&source, &library()).unwrap_err();
         assert!(error.contains("tile"), "{error}");
@@ -1201,8 +1203,8 @@ fn expected_window_bindings() -> Value {
         "n": "focus tab-next", "p": "focus tab-prev", "t": "layout floating tiling", "m": "fullscreen",
         "rightSquareBracket": "project next", "leftSquareBracket": "project prev",
         "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
-        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list"],
-        "a": ["mode main", "lens app-windows --presentation list"], "esc": "mode main", "alt-semicolon": "mode main"
+        "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list --tile text"],
+        "a": ["mode main", "lens app-windows --presentation list --tile text"], "esc": "mode main", "alt-semicolon": "mode main"
     });
     for n in 1..=9 {
         expected[n.to_string()] = json!(format!("workspace {n}"));
@@ -1271,4 +1273,57 @@ x = "focus left"
     assert_eq!(config["mode"]["main"]["binding"]["alt-semicolon"], "mode window");
     assert_eq!(config["mode"]["window"]["binding"], expected_window_bindings());
     assert!(neither.nickel.contains("windowing mode"));
+}
+
+#[test]
+fn shipped_picture_strips_allow_cards_back_and_partial_grid_overrides() {
+    let cards = loaded_source("cards-back", r#"
+        let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & {
+            lenses.recent.tile = 'card,
+            lenses.recent.grid.tile-size = 'real,
+            lenses.app-windows.tile = 'card,
+            lenses.app-windows.grid.tile-size = 'real,
+        }) | W.Config
+    "#);
+    for name in ["recent", "app-windows"] {
+        assert_eq!(cards["lenses"][name]["tile"], "card");
+        assert_eq!(cards["lenses"][name]["grid"]["tile-size"], "real");
+    }
+    let rows = loaded_source("strip-rows", r#"
+        let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & { lenses.recent.grid.sections-arrangement = 'rows }) | W.Config
+    "#);
+    assert_eq!(rows["lenses"]["recent"]["grid"]["sections-arrangement"], "rows");
+    assert_eq!(rows["lenses"]["recent"]["grid"]["tile-size"], "same-height");
+    let disabled = loaded_source("disable-recent-with-cards-back", r#"
+        let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & {
+            lenses.recent.enabled = false,
+            lenses.app-windows.tile = 'card,
+            lenses.app-windows.grid.tile-size = 'real,
+        }) | W.Config
+    "#);
+    assert_eq!(disabled["lenses"]["recent"]["enabled"], false);
+    assert_eq!(disabled["lenses"]["app-windows"]["tile"], "card");
+    assert_eq!(disabled["lenses"]["app-windows"]["grid"]["tile-size"], "real");
+}
+
+#[test]
+fn shipped_picture_lens_can_override_presentation_to_miniatures() {
+    for body in ["lenses.recent.presentation = 'miniatures", "lenses.recent.when.default.presentation = 'miniatures"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ {body} }}) | W.Config");
+        let value = loaded_source("picture-miniatures", &source);
+        assert_eq!(value["lenses"]["recent"]["tile"], "picture");
+        let presentation = if body.contains("when.default") { &value["lenses"]["recent"]["when"]["default"]["presentation"] } else { &value["lenses"]["recent"]["presentation"] };
+        assert_eq!(presentation, "miniatures");
+    }
+    for lens in ["{ presentation = 'miniatures, tile = 'picture }", "{ presentation = 'miniatures, when.default.tile = 'picture }"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ lenses.plain = {lens} }}) | W.Config");
+        let value = loaded_source("plain-picture-miniatures", &source);
+        assert_eq!(value["lenses"]["plain"]["presentation"], "miniatures");
+    }
+    let source = "let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & { lenses.recent.presentation = 'miniatures, lenses.recent.tile = 'card }) | W.Config";
+    let error = evaluate_to_json(source, &library()).unwrap_err();
+    assert!(error.contains("miniatures rejects tile"), "{error}");
 }

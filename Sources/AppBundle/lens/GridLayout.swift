@@ -3,6 +3,7 @@ import Foundation
 struct GridLayout {
     enum Direction { case left, right, up, down }
     static let stripReadableHeight: CGFloat = 88
+    static let stripPictureReadableHeight: CGFloat = 48
     struct Sizing {
         static let stripFooterHeight: CGFloat = 18
         let rowHeightCap: CGFloat
@@ -14,9 +15,10 @@ struct GridLayout {
         let bottom: CGFloat
         let minimumWidth: CGFloat
         let emptyHeight: CGFloat
+        var pictureReadableHeight: CGFloat? = nil
         static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, honoursAccessoryWindow: false, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
         static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26,
-                                 bottom: 24 + stripFooterHeight + 22, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + 22)
+                                 bottom: 24 + stripFooterHeight + 22, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + 22, pictureReadableHeight: stripPictureReadableHeight)
     }
     struct Entry: Equatable {
         let aspect: CGFloat
@@ -228,7 +230,9 @@ struct GridLayout {
         var relaxed = false
         var best = plan(height: height, chrome: chrome, titleFloor: true)
         if let readable = sizing.readableHeight {
-            let floor = readable * scale
+            // A strip has one Tile kind. Pictures drawn at the row height read at a lower floor; `real` scales pictures below the row, so it keeps the card floor.
+            let picturesAtRowHeight = tileSize != "real" && !entries.contains { $0.kind != .picture }
+            let floor = (picturesAtRowHeight ? sizing.pictureReadableHeight ?? readable : readable) * scale
             let atFloor = plan(height: floor, chrome: scale, titleFloor: true)
             if atFloor.size.width <= maxWidth && atFloor.size.height <= maxHeight {
                 let rowCount = Set(atFloor.tiles.map { $0.frame.minY }).count

@@ -77,7 +77,7 @@ let Miniatures = MiniatureFields & {
 let MiniatureRules = std.contract.from_validator (fun lens =>
   let presentation = std.record.get_or "presentation" 'list lens in
   if presentation == 'miniatures || presentation == "miniatures" then
-    if std.record.has_field "tile" lens then
+    if std.record.has_field "tile" lens && lens.tile != 'picture && lens.tile != "picture" then
       'Error { message = "miniatures rejects tile" }
     else if std.array.any (fun field => std.record.has_field field lens) ["sections", "entries", "sort"] then
       'Error { message = "miniatures rejects sections, entries and sort" }

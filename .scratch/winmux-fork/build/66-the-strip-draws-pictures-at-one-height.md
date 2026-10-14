@@ -15,7 +15,7 @@ The shipped strips change to pictures at one height. It is the nearest to the sy
 
 ## Not in this issue
 
-- A change to `StripLayout`'s row rule or to `'real` sizing, which stay available to a config.
+- A change to `StripLayout`'s row rule or the `'real` size calculation. The row rule stays; picture Tiles in a strip at `same-height` or `equal` read at 48 scaled points; card and text Tiles, and pictures at `'real`, at 88.
 - An icon-per-app Tile.
 
 ## Depends on
@@ -29,9 +29,20 @@ Nothing.
 
 ## Done when
 
-- [ ] On the staged desk with the shipped config, the `recent` strip is one row of fourteen pictures. In the comparison it measured 1730 by 202 points.
-- [ ] Three windows and twenty-five windows are shown in the pull request beside it. They measured 506 by 298 in one row and 1730 by 384 in two.
-- [ ] `docs/lenses.md` and `docs/default-config.md` show the new defaults and how to get cards back.
+- [x] On the staged desk with the shipped config, the `recent` strip is one row of fourteen pictures. In the comparison it measured 1730 by 202 points.
+- [x] Three windows and twenty-five windows are shown in the pull request beside it. They measured 506 by 298 in one row and 1730 by 384 in two.
+- [x] `docs/lenses.md` and `docs/default-config.md` show the new defaults and how to get cards back.
+
+## Departures
+
+- Picture Tiles in a strip at `same-height` or `equal` use a 48-point readable floor; cards, text and `'real` pictures keep 88.
+- The window mode's `r` and `a` use `--presentation list --tile text` to keep text rows.
+- `/` and CLI conversion keep the Lens's picture rows; the cards-back recipe converts to card rows.
+- Miniatures accepts `tile = 'picture` and rejects `card` and `text`, including in profiles.
+
+## Checks for Prateek
+
+- [ ] On an installed build with Cmd-Tab opted in, holding Cmd-Tab on his own desk draws one row of pictures at one height, with the selected title in the footer.
 
 ## Sources
 

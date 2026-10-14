@@ -21,6 +21,33 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertEqual(parsed.config.modes, defaultConfig.modes)
     }
 
+    func testShippedStripsUsePicturesAtOneHeightAndConversionKeepsPictures() throws {
+        for name in ["recent", "app-windows"] {
+            var settings = try XCTUnwrap(defaultConfig.lenses[name])
+            XCTAssertEqual(settings.presentation, "strip")
+            XCTAssertEqual(settings.tile, "picture")
+            XCTAssertEqual(settings.grid.tileSize, "same-height")
+            let session = LensSession(name: name, settings: settings, items: [], search: "")
+            XCTAssertEqual(session.tileKind, .picture)
+            session.enterSearch()
+            XCTAssertEqual(session.settings.presentation, "list")
+            XCTAssertEqual(session.tileKind, .picture)
+            XCTAssertEqual(session.listLayout.rowHeight, 74 * session.tileMetrics.scale)
+            let cliConversion = LensSession(name: name, settings: settings, items: [], search: "")
+            cliConversion.changePresentation("list")
+            XCTAssertEqual(cliConversion.tileKind, .picture)
+            settings.presentation = "list"; settings.tile = "text"
+            let textList = LensSession(name: name, settings: settings, items: [], search: "")
+            XCTAssertEqual(textList.tileKind, .text)
+            XCTAssertEqual(textList.listLayout.rowHeight, 46 * textList.tileMetrics.scale)
+        }
+        for name in ["overview", "search", "floating"] {
+            let settings = try XCTUnwrap(defaultConfig.lenses[name])
+            XCTAssertNil(settings.tile)
+            XCTAssertEqual(settings.grid.tileSize, "real")
+        }
+    }
+
     func testDefaultMainBindingsAreExactlyTheShortList() {
         let expected: Set<String> = Set(
             ["alt-h", "alt-j", "alt-k", "alt-l", "alt-shift-h", "alt-shift-j", "alt-shift-k", "alt-shift-l",
@@ -52,7 +79,7 @@ final class DefaultConfigTest: XCTestCase {
         for (key, name) in ["o": "overview", "f": "floating", "s": "search", "r": "recent", "a": "app-windows"] {
             let commands = try XCTUnwrap(leader.bindings[key]?.commands)
             XCTAssertEqual(commands.count, 2)
-            XCTAssertTrue(commands[1].equals(parseCommand("lens \(name)" + (["r", "a"].contains(key) ? " --presentation list" : "")).cmdOrDie))
+            XCTAssertTrue(commands[1].equals(parseCommand("lens \(name)" + (["r", "a"].contains(key) ? " --presentation list --tile text" : "")).cmdOrDie))
             XCTAssertTrue(commands[0].equals(parseCommand("mode main").cmdOrDie))
             var disabled = LensConfig(); disabled.enabled = false
             config.lenses = [name: disabled]

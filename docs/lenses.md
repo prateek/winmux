@@ -46,10 +46,29 @@ Every Presentation draws an entry through the same Tile. `tile` chooses its kind
 | `picture` | Picture with a corner icon; the selected title is in the Presentation's footer. |
 | `text` | Icon, title, app name and chips on one line, without a picture. |
 
-A strip defaults to `card`; a list defaults to `text`. Card and picture lists both keep the
+A config Lens with no explicit Tile defaults to `card` in a strip and `text` in a list. Card and picture lists both keep the
 one-line title bar and add a small picture at the left. Miniatures always uses `picture` and
-rejects an explicit `tile`, including in `when.default`. A grid defaults to `card`. Nickel leaves `tile` absent so Swift can
+accepts `tile = 'picture`, including in `when.default`, and rejects `card` and `text`. A grid defaults to `card`. The Lens contract leaves `tile` absent so Swift can
 resolve it after a Presentation override.
+
+The shipped `recent` and `app-windows` Lenses use `tile = 'picture` and
+`grid.tile-size = 'same-height`: pictures share a row height and the selected title stays
+in the footer. To get the previous card strips with relative window sizes back, merge:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  lenses.recent.tile = 'card,
+  lenses.recent.grid.tile-size = 'real,
+  lenses.app-windows.tile = 'card,
+  lenses.app-windows.grid.tile-size = 'real,
+}) | W.Config
+```
+
+With the cards-back recipe, `/` from the strip gives a list of card rows, since a Lens has one Tile kind; for text rows set `tile = 'text` on a list Lens of your own.
+
+A shipped picture strip converted with `/` or `winmux lens --presentation list` keeps
+its picture rows. The windowing mode's `r` and `a` explicitly choose `--tile text`.
 
 `badges` defaults to `true`. Chips show the sidebar's workspace label for another workspace: its number when it has one,
 otherwise its display name, truncated after twelve characters with an ellipsis. These are followed by
@@ -292,9 +311,12 @@ Releasing cmd with Option held runs `alt-enter`, whose default
 is `summon`; Shift affects cycling and does not change that release action. Summon hints appear
 only for a selection on another workspace. Escape cancels without changing focus.
 
-Every match is visible. The strip uses `grid.tile-size`, including its default `real`, and
+Every match is visible. The shipped strips use `grid.tile-size = 'same-height` and picture Tiles. A config Lens
+without a size setting uses the contract default `real`. The strip
 ignores sections and `grid.sections-arrangement`. Its row height grows up to 190 scaled points.
-It first fits one row at or above the 88-point readable floor; otherwise it uses the fewest
+It first fits one row at or above the readable floor: 48 scaled points for picture Tiles at
+`same-height` or `equal`, 88 for card and text Tiles and for pictures at `real`, which scales
+small windows well below the row. Otherwise it uses the fewest
 readable rows and the largest height those rows allow. Cards retain the grid's title-width
 floor, so they wrap sooner than pictures. When readable rows cannot fit vertically, Tiles
 shrink until every match fits, with title width and chrome yielding below 36 scaled points.
@@ -318,8 +340,8 @@ An unbound letter ends the Hold and keeps the strip modal in normal mode; `j` an
 selected window, and enters Search. With `starts-in = 'search`, a letter converts
 and types into Search instead. Later modifier release never commits either case.
 A Lens `keys` binding wins first: cmd-w closes the selected window while the Hold
-and strip stay open. You can also open `winmux lens recent --presentation list`
-explicitly. A foreign modifier chord during a Hold closes the Lens and runs its
+and strip stay open. You can also open `winmux lens recent --presentation list --tile text`
+explicitly for the text list drawn by the window mode's `r`; without `--tile text`, it draws the Lens's picture rows. A foreign modifier chord during a Hold closes the Lens and runs its
 global binding, whether drawn or still opening. After the Hold, unbound modifier
 chords again belong to global bindings; repeating its Trigger toggles the Lens closed.
 
@@ -439,6 +461,8 @@ let W = import "winmux/winmux.ncl" in
 | `same-height` | A common picture-row height with widths allocated from aspects clamped to 0.6–2.1. |
 | `equal` | Equal 1.5:1 picture boxes, with each picture fitted inside its box. |
 
+`real` is the contract default for a config Lens; the two shipped strips override it with `same-height`.
+
 | `grid.sections-arrangement` | Labelled sections |
 | --- | --- |
 | `flow` (default) | Sections run on in centred rows; a mid-row section starts 30 points beyond the normal gap. Every row reserves header space. |
@@ -464,7 +488,7 @@ the grid open.
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
 every Lens. Strips use `grid.tile-size`; on lists and miniatures the block loads and is reported
 but has no visual effect. `grid.sections-arrangement` controls labelled sections; `sections = 'none` keeps the original packed layout.
-The shipped Lenses keep their existing Presentations; use a config Lens or the CLI override.
+The shipped `recent` and `app-windows` remain strips, now with picture Tiles and `same-height` sizing; `overview` stays miniatures and `search` and `floating` stay lists. Use a config Lens or the CLI override for a grid.
 
 ## Overview and miniatures
 
@@ -542,6 +566,6 @@ placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 ## Leaving the windowing mode
 
-The shipped windowing bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent --presentation list`, and `a` opens `app-windows --presentation list`. Escape and Option-semicolon run only `mode main`. The HUD is hidden before a Lens opens. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
+The shipped windowing bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent --presentation list --tile text`, and `a` opens `app-windows --presentation list --tile text`. Escape and Option-semicolon run only `mode main`. The HUD is hidden before a Lens opens. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
 
 Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List, grid and miniatures panels appear immediately. See [subscription events](events.md).
