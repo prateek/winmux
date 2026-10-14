@@ -36,6 +36,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **One defect found while building the Hold's replacement** is with the follow-ups: keys queued while a Lens opens are decided by a copy of the session's rules, which loses a global chord pressed straight after Return.
 - **One defect found while building `'miniatures` filling the screen** is with the follow-ups: `overview` draws a workspace not yet shown since WinMux started at the wrong positions.
 - **Two defects found while building the strip's pictures at one height** are with the follow-ups: floating picture Tiles drawn at a fallback shape after an app resizes its windows, and WinMux dying when an app quits while a command reads its windows.
+- **One defect found while building the Search highlight and window controls** is with the follow-ups: Lens sections naming the wrong workspace right after a restart and quick workspace changes.
 - **Questions and checks that wait on Prateek** are children of **Open with Prateek: questions and checks that wait on him**, not of this umbrella.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
