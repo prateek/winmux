@@ -54,7 +54,7 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 
 **The Hold ends at the first letter**
 - [ ] With the Cmd-Tab opt-in, on a real keyboard: Cmd-Tab, then `j` with Command still down, release, wait a second, `j`, Return. The strip stays up after the release, each `j` moves the selection, and Return focuses the selected window. Then press `j` as fast after Cmd-Tab as you can: say here if the `j` goes to the app in front instead (anything within about 100 ms of the Tab does, before the strip is drawn).
-- [ ] `alt-slash`, then type "safari" at your normal speed. Search reads `safari`. Say here if it reads `sßfari`, `føø`-style, or loses the first letter: that means Option was still down after the first letter, which now types an Option character.
+- [ ] `alt-slash`, then type "safari" at your normal speed. Search reads `safari`. Say here if it reads `såfari` or loses the first letter: that means Option was still down after the first letter, which now types an Option character.
 - [ ] `alt-shift-o`, then `j` with both still down, release. The overview stays open with its selection moved, and Return focuses that window.
 - [ ] Tap Cmd-Tab and let go as fast as you can, five times. Each time it switches to the previous window, and no strip is left on screen.
 
