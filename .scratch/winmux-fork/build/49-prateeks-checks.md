@@ -52,6 +52,12 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] With a second display attached and the mode on, move focus to a window on the other display. The `window` label follows to that display.
 - [ ] After the build with this change arrives, run `winmux config check`. If it says "The default binding mode lens was renamed to window", change that read to `defaults.mode.window.binding`. A config converted earlier keeps its own five-letter `lens` mode until you replace it.
 
+**The Hold ends at the first letter**
+- [ ] With the Cmd-Tab opt-in, on a real keyboard: Cmd-Tab, then `j` with Command still down, release, wait a second, `j`, Return. The strip stays up after the release, each `j` moves the selection, and Return focuses the selected window. Then press `j` as fast after Cmd-Tab as you can: say here if the `j` goes to the app in front instead (anything within about 100 ms of the Tab does, before the strip is drawn).
+- [ ] `alt-slash`, then type "safari" at your normal speed. Search reads `safari`. Say here if it reads `såfari` or loses the first letter: that means Option was still down after the first letter, which now types an Option character.
+- [ ] `alt-shift-o`, then `j` with both still down, release. The overview stays open with its selection moved, and Return focuses that window.
+- [ ] Tap Cmd-Tab and let go as fast as you can, five times. Each time it switches to the previous window, and no strip is left on screen.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
