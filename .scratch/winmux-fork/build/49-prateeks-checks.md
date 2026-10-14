@@ -58,6 +58,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] `alt-shift-o`, then `j` with both still down, release. The overview stays open with its selection moved, and Return focuses that window.
 - [ ] Tap Cmd-Tab and let go as fast as you can, five times. Each time it switches to the previous window, and no strip is left on screen.
 
+**`'miniatures` fills the screen, and a tab group shows its windows**
+- [ ] On the installed build, with four workspaces in use, press `alt-shift-o` after each has been shown once. The four sit two by two and fill most of the screen. (Right after WinMux starts, a workspace not yet shown can draw its windows in the wrong places; that is a separate defect.)
+- [ ] With three Safari pages in a tab group, the overview shows three cards fanned right and down, the active page in front with no text from the others showing through it. Move the pointer onto the edge of a card behind: it is selected. Return focuses that page, and it is the group's active tab afterwards.
+- [ ] On the ultrawide, `alt-shift-o` with four workspaces gives two by two, and with two workspaces one row. Say here if the pictures are too blurry to read at that size.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

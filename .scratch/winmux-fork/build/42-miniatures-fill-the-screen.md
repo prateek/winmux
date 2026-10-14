@@ -37,7 +37,7 @@ Prateek chose `overview` as WinMux's view that stays open, the counterpart of Mi
 - [x] A tab group of three windows shows three selectable miniatures.
 - [x] Arrow keys, Search dimming, Summon and the tray work as before.
 - [x] Layout tests cover one, two, four and seven workspaces on a 16:9 monitor and on an ultrawide one.
-- [ ] The pull request shows `overview` before and after on the staged desk.
+- [x] The pull request shows `overview` before and after on the staged desk.
 
 ## Sources
 
