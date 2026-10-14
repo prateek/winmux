@@ -15,7 +15,7 @@ The shipped strips change to pictures at one height. It is the nearest to the sy
 
 ## Not in this issue
 
-- A change to `StripLayout`'s row rule or the `'real` size calculation. The row rule stays; picture Tiles in a strip read at 48 scaled points, card and text Tiles at 88, in every size mode.
+- A change to `StripLayout`'s row rule or the `'real` size calculation. The row rule stays; picture Tiles in a strip at `same-height` or `equal` read at 48 scaled points; card and text Tiles, and pictures at `'real`, at 88.
 - An icon-per-app Tile.
 
 ## Depends on
@@ -35,7 +35,7 @@ Nothing.
 
 ## Departures
 
-- Picture Tiles in a strip use a 48-point readable floor; card and text Tiles keep 88.
+- Picture Tiles in a strip at `same-height` or `equal` use a 48-point readable floor; cards, text and `'real` pictures keep 88.
 - The window mode's `r` and `a` use `--presentation list --tile text` to keep text rows.
 - `/` and CLI conversion keep the Lens's picture rows; the cards-back recipe converts to card rows.
 - Miniatures accepts `tile = 'picture` and rejects `card` and `text`, including in profiles.

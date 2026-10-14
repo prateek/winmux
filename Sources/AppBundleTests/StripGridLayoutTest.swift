@@ -41,6 +41,7 @@ final class StripGridLayoutTest: XCTestCase {
             (richDeskSizes, CGSize(width: 1728, height: 184.534), 1),
             ([CGSize(width: 300, height: 800), CGSize(width: 400, height: 1000), CGSize(width: 200, height: 600)], CGSize(width: 518, height: 300), 1),
             (controlled, CGSize(width: 1728, height: 368.504), 2),
+            (Array((richDeskSizes + richDeskSizes).prefix(25)), CGSize(width: 1728, height: 310.408), 2),
         ]
         for (sizes, expected, expectedRows) in cases {
             let items = sizes.enumerated().map { index, size in
@@ -71,11 +72,11 @@ final class StripGridLayoutTest: XCTestCase {
         }
     }
 
-    func testPictureFloorAppliesToEveryStripSizeModeAtBothScales() {
+    func testPictureFloorAppliesWherePicturesShareTheRowHeight() {
         for size in [monitor, CGSize(width: 1280, height: 720)] {
             for mode in ["real", "same-height", "equal"] {
                 for kind in TileKind.allCases {
-                    let expectedSizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: kind == .picture ? 48 : 88, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
+                    let expectedSizing = GridLayout.Sizing(rowHeightCap: 190, readableHeight: kind == .picture && mode != "real" ? 48 : 88, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26, bottom: 64, minimumWidth: 418, emptyHeight: 90)
                     let input = entries(14, kind: kind)
                     let actual = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: size, tileSize: mode, sizing: .strip)
                     let expected = GridLayout(sections: [.init(label: nil, current: false, entries: input)], visibleSize: size, tileSize: mode, sizing: expectedSizing)

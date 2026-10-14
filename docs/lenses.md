@@ -65,7 +65,7 @@ let W = import "winmux/winmux.ncl" in
 }) | W.Config
 ```
 
-With the cards-back recipe, `/` from the strip gives a list of card rows, since a Lens has one Tile kind; before this change it gave text rows.
+With the cards-back recipe, `/` from the strip gives a list of card rows, since a Lens has one Tile kind; for text rows set `tile = 'text` on a list Lens of your own.
 
 A shipped picture strip converted with `/` or `winmux lens --presentation list` keeps
 its picture rows. The windowing mode's `r` and `a` explicitly choose `--tile text`.
@@ -314,8 +314,9 @@ only for a selection on another workspace. Escape cancels without changing focus
 Every match is visible. The shipped strips use `grid.tile-size = 'same-height` and picture Tiles. A config Lens
 without a size setting uses the contract default `real`. The strip
 ignores sections and `grid.sections-arrangement`. Its row height grows up to 190 scaled points.
-It first fits one row at or above the readable floor: 48 scaled points for picture Tiles,
-88 for card and text Tiles. Otherwise it uses the fewest
+It first fits one row at or above the readable floor: 48 scaled points for picture Tiles at
+`same-height` or `equal`, 88 for card and text Tiles and for pictures at `real`, which scales
+small windows well below the row. Otherwise it uses the fewest
 readable rows and the largest height those rows allow. Cards retain the grid's title-width
 floor, so they wrap sooner than pictures. When readable rows cannot fit vertically, Tiles
 shrink until every match fits, with title width and chrome yielding below 36 scaled points.

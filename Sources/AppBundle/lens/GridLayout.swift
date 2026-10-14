@@ -230,7 +230,9 @@ struct GridLayout {
         var relaxed = false
         var best = plan(height: height, chrome: chrome, titleFloor: true)
         if let readable = sizing.readableHeight {
-            let floor = (entries.map { $0.kind == .picture ? (sizing.pictureReadableHeight ?? readable) : readable }.max() ?? readable) * scale
+            // A strip has one Tile kind. Pictures drawn at the row height read at a lower floor; `real` scales pictures below the row, so it keeps the card floor.
+            let picturesAtRowHeight = tileSize != "real" && !entries.contains { $0.kind != .picture }
+            let floor = (picturesAtRowHeight ? sizing.pictureReadableHeight ?? readable : readable) * scale
             let atFloor = plan(height: floor, chrome: scale, titleFloor: true)
             if atFloor.size.width <= maxWidth && atFloor.size.height <= maxHeight {
                 let rowCount = Set(atFloor.tiles.map { $0.frame.minY }).count

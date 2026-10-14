@@ -1318,6 +1318,11 @@ fn shipped_picture_lens_can_override_presentation_to_miniatures() {
         let presentation = if body.contains("when.default") { &value["lenses"]["recent"]["when"]["default"]["presentation"] } else { &value["lenses"]["recent"]["presentation"] };
         assert_eq!(presentation, "miniatures");
     }
+    for lens in ["{ presentation = 'miniatures, tile = 'picture }", "{ presentation = 'miniatures, when.default.tile = 'picture }"] {
+        let source = format!("let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & {{ lenses.plain = {lens} }}) | W.Config");
+        let value = loaded_source("plain-picture-miniatures", &source);
+        assert_eq!(value["lenses"]["plain"]["presentation"], "miniatures");
+    }
     let source = "let W = import \"winmux/winmux.ncl\" in ((import \"winmux/defaults.ncl\") & { lenses.recent.presentation = 'miniatures, lenses.recent.tile = 'card }) | W.Config";
     let error = evaluate_to_json(source, &library()).unwrap_err();
     assert!(error.contains("miniatures rejects tile"), "{error}");
