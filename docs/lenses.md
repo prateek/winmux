@@ -77,6 +77,40 @@ marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App ent
 app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
 strip or grid puts the selected entry's chips in its footer, and miniatures puts them after the selected
 title under its workspace cell, omitting the workspace chip that the cell already names.
+With the default `hints = 'held` and `hints-key = 'alt`, holding Option shows four hints:
+the selected window's Summon label and landing spot, a workspace-key chip at the bottom-right
+of each strip/grid picture or card, and the Lens's key legend below its panel. Releasing Option
+hides them. Text Tiles, list rows and miniatures have no workspace-key chip. A chip names the
+Lens key that sends a window to that workspace (for example `⌘2`); it is absent without that key.
+On a Frozen picture, it sits above the pause or age badge with the same inset.
+The label reads, for example, `⌥↩ Summon to 1`. A list, strip or grid shows it and the landing
+spot only for a window on another workspace, with a Summon key configured. Miniatures retains
+its same-workspace label and landing behavior. During a live Hold, the label uses only Summon
+keys whose modifiers do not overlap the Hold’s invoking modifiers. It prefers the hints key,
+then legend order; with none left, there is no label or landing spot. An Option-Tab Hold with
+the shipped keys therefore reads `⇧↩ Summon to 1`; Cmd-Tab reads `⌥↩ Summon to 1`.
+All Summon keys count again once the Hold ends. `summon-hints` chooses which Summon hints exist.
+
+The legend reads the open Lens's active `keys`: `focus`, `summon here`, `send to workspace`,
+`close`, `group`, then custom commands joined by `; `. Equal command lists share an entry.
+Workspace digit keys with the same modifiers collapse to a range such as `⌘1–9`; gaps show
+individual chords. Group is absent in Presentations without sections. Keys outside the Lens's
+`keys` are not listed. The legend sits below the painted panel, including any Filter banner
+or Search error rows, and stays at least 32 scaled points from each side of the screen,
+also clearing the resting sidebar. Long phrases truncate at their tails; chords and entries stay present. Reloading config affects the next
+opening, leaving an open Lens's keys intact.
+While hints show, the list, strip and grid glass thins to 55% opacity; their contents stay opaque.
+Dimmed pictures have an opaque backing inside the fitted picture while hints show, so the desk
+cannot show through them. Miniatures keeps its backdrop. `hints = 'always` keeps hints visible
+with no modifier down.
+`hints-key` also accepts `cmd`, `ctrl` and `shift`.
+
+A live Hold subtracts its invoking modifiers from hint detection. After release or the first
+letter ends the Hold, physically held modifiers count again. Other Triggers ignore their own
+modifiers until each has been released once. A strip whose Trigger holds the hints key is the
+exception: its hints show from its first frame. Shift alone no longer shows Summon hints with
+the default hints key; shift-enter still Summons.
+
 Pictures carry the corner icon, mark, Summon label and Frozen/Accessory treatments. List rows
 of every kind keep the mark, Summon label and Accessory tag at the trailing end of the line.
 
@@ -339,7 +373,7 @@ invoking Command, Control and Option modifiers runs the selection's enter bindin
 never a committing modifier. Release closes the strip even if its Enter binding has no commands.
 Releasing cmd with Option held runs `alt-enter`, whose default
 is `summon`; Shift affects cycling and does not change that release action. Summon hints appear
-only for a selection on another workspace. Escape cancels without changing focus.
+only while hints are shown and for a selection on another workspace. Escape cancels without changing focus.
 
 Every match is visible. The shipped strips use `grid.tile-size = 'same-height` and picture Tiles. A config Lens
 without a size setting uses the contract default `real`. The strip
@@ -525,7 +559,7 @@ Left and right move to the nearest Tile along the row, crossing section boundari
 Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9
 move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
 `badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label
-and a screen-space landing outline while the configured modifier is held. Trigger release leaves
+and a screen-space landing outline while the hints key is held (or `hints = 'always`). Trigger release leaves
 the grid open.
 
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
@@ -569,6 +603,8 @@ let W = import "winmux/winmux.ncl" in
   lenses.overview = {
     frozen-thumbnail = 'dimmed,
     accessory-window = 'enlarged,
+    hints = 'held,
+    hints-key = 'alt,
     summon-hints = ['label, 'landing-spot],
     miniatures = {
       fit = 'page,
@@ -591,10 +627,12 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. The panel remains non-opaque. |
 | `frozen-thumbnail` | `plain`, `dimmed` (default), `age-badge`, or `pause-badge`. Live thumbnails are unmarked. |
 | `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
-| `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the modifier of a configured Summon binding is held. |
+| `hints` | `held` (default) shows hints while the hints key is held; `always` keeps them visible. |
+| `hints-key` | `alt` (default), `cmd`, `ctrl`, or `shift`, using the chord modifier spellings. |
+| `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the hints key is held, or all the time with `hints = 'always`. |
 
-Miniatures keeps its own workspace arrangement and window entries; its contract rejects explicit
-`tile`, `sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
+Miniatures keeps its own workspace arrangement and window entries; its contract accepts `tile = 'picture` and rejects other explicit Tile kinds,
+`sections`, `entries` and `sort`. `current-workspace = 'hide` cannot be combined with a
 `landing-spot` hint. Backdrop darkness above 0.95 fails config checking.
 
 `by-workspace` up/down selects the previous/next workspace in reading order, even when the next cell is to the right.

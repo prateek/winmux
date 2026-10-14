@@ -13,6 +13,12 @@ struct TileView: View {
     let hint: String?
     var pictureSize: CGSize? = nil
     var controlsVisible = false
+    var workspaceHint: String? = nil
+    var hintsShown = false
+    @State private var frozenBadgeHeight: CGFloat = 0
+    var pictureBackingRequired: Bool {
+        hintsShown && ThumbnailAppearance(frozen: entry.frozen, look: settings.frozenThumbnail, capturedAt: nil, now: Date()).opacity < 1
+    }
 
     private var miniature: Bool { presentation == "miniatures" }
     private var row: Bool { presentation == "list" }
@@ -121,7 +127,7 @@ struct TileView: View {
         return ZStack {
             Group {
                 if let thumbnail = entry.picture {
-                    TilePicture(thumbnail: thumbnail, icon: entry.icon, frozen: entry.frozen, look: settings.frozenThumbnail, metrics: metrics)
+                    TilePicture(thumbnail: thumbnail, icon: entry.icon, frozen: entry.frozen, look: settings.frozenThumbnail, metrics: metrics, backed: pictureBackingRequired, badgeHeight: $frozenBadgeHeight)
                 } else { icon(size: min(fitted.width, fitted.height)) }
             }
             .frame(width: fitted.width, height: fitted.height)
@@ -147,6 +153,15 @@ struct TileView: View {
                     if entry.accessory && !line { label("menu-bar app") }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
             }
+            .overlay(alignment: .bottomTrailing) {
+                if let workspaceHint, !line && !miniature {
+                    Text(workspaceHint).font(.system(size: 13 * metrics.scale, weight: .bold))
+                        .padding(.vertical, 2 * metrics.scale).padding(.horizontal, 8 * metrics.scale)
+                        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
+                        .padding(.trailing, 8 * metrics.scale)
+                        .padding(.bottom, LensHintGeometry.workspaceChipBottomInset(badgeHeight: frozenBadgeHeight, scale: metrics.scale))
+                }
+            }
             .overlay(alignment: .topLeading) {
                 if controlsVisible && !line && !miniature {
                     TileWindowControls(entry: entry, pictureSize: fitted, scale: metrics.scale)
@@ -169,6 +184,9 @@ private struct TilePicture: View {
     let frozen: Bool
     let look: String
     let metrics: TileMetrics
+    /// An opaque plate behind a translucent picture, so thinned glass never shows the desk through it.
+    let backed: Bool
+    @Binding var badgeHeight: CGFloat
 
     var body: some View {
         let appearance = ThumbnailAppearance(frozen: frozen, look: look, capturedAt: thumbnail.capturedAt, now: Date())
@@ -176,17 +194,20 @@ private struct TilePicture: View {
             if let image = thumbnail.image {
                 Image(decorative: image, scale: 1).resizable().scaledToFit()
                     .saturation(appearance.saturation).colorMultiply(Color(white: appearance.brightness)).opacity(appearance.opacity)
+                    .background { if backed { config.workspaceSidebar.resolvedSolidChromeColor } }
             } else if let icon { Image(nsImage: icon).resizable().scaledToFit() }
             else { Image(systemName: "macwindow").resizable().scaledToFit() }
-            if appearance.badge == "pause" {
-                Image(systemName: "pause.fill").padding(4 * metrics.scale).background(.black.opacity(0.6))
+            Group {
+                if appearance.badge == "pause" {
+                    Image(systemName: "pause.fill").padding(4 * metrics.scale).background(.black.opacity(0.6))
+                } else if frozen && look == "age-badge", let date = thumbnail.capturedAt {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(ThumbnailAppearance(frozen: true, look: look, capturedAt: date, now: context.date).badge ?? "")
+                            .font(.system(size: 10 * metrics.scale)).padding(3 * metrics.scale).background(.black.opacity(0.6))
+                    }
+                } else { Color.clear.frame(width: 0, height: 0) }
             }
-            if frozen && look == "age-badge", let date = thumbnail.capturedAt {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(ThumbnailAppearance(frozen: true, look: look, capturedAt: date, now: context.date).badge ?? "")
-                        .font(.system(size: 10 * metrics.scale)).padding(3 * metrics.scale).background(.black.opacity(0.6))
-                }
-            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { badgeHeight = $0 }
         }
     }
 }

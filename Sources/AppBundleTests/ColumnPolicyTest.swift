@@ -410,7 +410,7 @@ final class ColumnPolicyTest: XCTestCase {
             session.miniatureWorkspaces = [MiniatureWorkspace(name: destination.name, title: "Destination", source: rect, current: true)]
             let owner = ownLens(session)
             defer { owner.dismiss() }
-            session.send(.summonChanged(true))
+            session.send(.modifiersChanged(.option))
             XCTAssertEqual(session.miniatureLanding, frame)
             XCTAssertNil(owner.landingTask)
             XCTAssertEqual(window.isFloating, floating)
@@ -744,7 +744,7 @@ final class ColumnPolicyTest: XCTestCase {
         session.send(.selectionChanged(0))
         let owner = ownLens(session)
         defer { owner.dismiss() }
-        session.send(.summonChanged(true))
+        session.send(.modifiersChanged(.option))
         await fulfillment(of: [started], timeout: 2)
         let oldTask = owner.landingTask
         session.send(.selectionChanged(1))

@@ -8,39 +8,39 @@ final class LensSessionTest: XCTestCase {
         SwitcherPaletteItem(id: id, title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: focused)
     }
 
-    func testSummonHintsSubtractHoldModifiersInEveryPresentation() {
+    func testHintsSubtractHoldModifiersExceptStripInEveryPresentation() {
         for presentation in ["list", "grid", "miniatures", "strip"] {
             for invoking: NSEvent.ModifierFlags in [.option, [.option, .shift]] {
                 var settings = LensConfig(); settings.presentation = presentation
-                settings.keys["ctrl-enter"] = ["summon"]
+                settings.hintsKey = "ctrl"
                 let session = LensSession(name: "demo", settings: settings, items: [item(1)], search: "")
                 let gesture = StripGesture(keyCode: 31, invoking: invoking)
                 session.startHold(gesture)
                 if presentation == "strip" { session.stripGesture = gesture }
                 for flags in [invoking, NSEvent.ModifierFlags.option] {
-                    session.updateSummonModifiers(flags)
-                    XCTAssertFalse(session.summonHeld, "\(presentation), \(invoking), \(flags)")
+                    session.updateHintModifiers(flags)
+                    XCTAssertFalse(session.hintsShown, "\(presentation), \(invoking), \(flags)")
                 }
-                session.updateSummonModifiers(invoking.union(.control))
-                XCTAssertTrue(session.summonHeld, "Control is an additional Summon modifier outside the Hold")
+                session.updateHintModifiers(invoking.union(.control))
+                XCTAssertTrue(session.hintsShown, "Control is an additional Summon modifier outside the Hold")
                 session.endHold(flags: [])
-                session.updateSummonModifiers(.option)
-                if presentation != "strip" { XCTAssertTrue(session.summonHeld) }
+                session.updateHintModifiers(.control)
+                XCTAssertTrue(session.hintsShown)
             }
         }
     }
 
-    func testSummonHintsReinterpretStillHeldModifiersWhenLetterEndsHold() {
+    func testHintsReinterpretStillHeldModifiersWhenLetterEndsHold() {
         for presentation in ["list", "grid", "miniatures", "strip"] {
             var settings = LensConfig(); settings.presentation = presentation
             let session = LensSession(name: "hints", settings: settings, items: [item(1)], search: "")
             session.startHold(StripGesture(keyCode: 44, invoking: .option))
-            session.updateSummonModifiers(.option)
-            XCTAssertFalse(session.summonHeld)
+            session.updateHintModifiers(.option)
+            XCTAssertEqual(session.hintsShown, presentation == "strip")
             session.endHoldByKey()
-            XCTAssertTrue(session.summonHeld)
-            session.updateSummonModifiers([])
-            XCTAssertFalse(session.summonHeld)
+            XCTAssertTrue(session.hintsShown)
+            session.updateHintModifiers([])
+            XCTAssertFalse(session.hintsShown)
         }
     }
 

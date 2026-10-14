@@ -22,7 +22,7 @@ struct MiniaturesView: View {
                         TileView(entry: item.tile, kind: .picture, presentation: "miniatures", metrics: model.tileMetrics,
                                  size: CGSize(width: max(1, frame.width), height: max(1, frame.height)), settings: model.settings,
                                  selected: selectedId == item.id, marked: model.marks.contains(item.id),
-                                 hint: selectedId == item.id && model.summonHeld && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
+                                 hint: model.summonLabel(for: item.id, destination: focus.workspace.name),
                                  pictureSize: item.miniature?.tab == nil ? nil : frame.size)
                             // A dimmed Frozen picture would otherwise show the tabs behind it through the front tab
                             .background {
@@ -39,6 +39,7 @@ struct MiniaturesView: View {
                     }
                 }
             }
+            LensHintOverlay(model: model, panelBottom: model.miniatureSize.height)
             VStack(spacing: 4) {
                 HStack {
                     Image(systemName: "magnifyingglass")
@@ -81,7 +82,7 @@ struct MiniaturesView: View {
                 .frame(width: cell.frame.width)
                 .position(x: cell.frame.midX, y: cell.tray.maxY + 12)
         }
-        if model.summonHeld, current {
+        if model.summonHintsShown, current {
             if model.settings.summonHints.contains("target-workspace") {
                 Rectangle().stroke(Color.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                     .frame(width: cell.frame.width, height: cell.frame.height).position(x: cell.frame.midX, y: cell.frame.midY)

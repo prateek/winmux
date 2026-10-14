@@ -6,6 +6,22 @@ import XCTest
 
 @MainActor
 final class LensTraceTest: SerialClockTestCase {
+    func testHintsReadbackInTextAndJSONTracksLiveStateAndDismissal() throws {
+        let store = LensTraceStore(stamp: { 0 })
+        let trace = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "test"))
+        let model = LensSession(name: "hints", settings: LensConfig(), items: [], search: "")
+        trace.session(model)
+        for (flags, expected): (NSEvent.ModifierFlags, String) in [([], "hidden"), (.option, "shown"), ([], "hidden")] {
+            model.updateHintModifiers(flags)
+            XCTAssertTrue(store.text(last: 1).contains("hints=\(expected)"))
+            let readback = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8))
+            XCTAssertEqual(readback[0].session?.hints, expected)
+        }
+        trace.session(model, active: false)
+        model.updateHintModifiers(.option)
+        XCTAssertEqual(trace.snapshot.session?.hints, "hidden")
+    }
+
     func testSessionReadbackIncludesFieldEditorEditsReleaseAndDismissal() {
         let store = LensTraceStore(stamp: { 10 })
         let trace = store.begin(presentation: "list", origin: .init(start: 10, received: 10, source: "test"))

@@ -101,15 +101,71 @@ final class GridSessionTest: SerialClockTestCase {
         XCTAssertEqual(closed.count, 1)
         try await clock.checkSuspension()
     }
+    func testSummonHintsNeedAKeyAndOtherWorkspaceButMiniaturesKeepsSameWorkspaceLanding() {
+        for presentation in ["list", "grid", "strip", "miniatures"] {
+            let session = model()
+            session.changePresentation(presentation)
+            let owner = ownLens(session); defer { owner.dismiss() }
+            session.hover(10)
+            XCTAssertTrue(session.stripSummonAvailable(items: session.results), "Availability is independent of visibility")
+            XCTAssertFalse(session.summonHintsShown)
+            XCTAssertNil(session.summonLabel(for: 10, destination: "1"))
+            session.updateHintModifiers(.shift)
+            XCTAssertNil(session.miniatureLanding)
+            session.updateHintModifiers(.option)
+            XCTAssertTrue(session.summonHintsShown)
+            XCTAssertEqual(session.summonLabel(for: 10, destination: "1"), "⌥↩ Summon to 1")
+            XCTAssertNil(session.summonLabel(for: 9, destination: "1"))
+            XCTAssertNotNil(session.miniatureLanding)
+            session.updateHintModifiers([])
+            XCTAssertNil(session.miniatureLanding)
+            session.hover(1)
+            session.updateHintModifiers(.option)
+            XCTAssertFalse(session.stripSummonAvailable(items: session.results))
+            XCTAssertEqual(session.miniatureLanding != nil, presentation == "miniatures")
+            XCTAssertEqual(session.summonLabel(for: 1, destination: "1") != nil, presentation == "miniatures")
+        }
+        var settings = LensConfig(); settings.keys["alt-enter"] = []; settings.keys["shift-enter"] = []
+        let unbound = model(settings: settings)
+        let owner = ownLens(unbound); defer { owner.dismiss() }
+        unbound.hover(10); unbound.updateHintModifiers(.option)
+        XCTAssertTrue(unbound.hintsShown)
+        XCTAssertFalse(unbound.summonHintsShown)
+        XCTAssertNil(unbound.miniatureLanding)
+    }
+
     func testSummonLandingUsesLifecycleAndClearsOnRelease() {
         let session = model()
         let owner = ownLens(session)
         defer { owner.dismiss() }
         session.hover(10)
-        session.send(.summonChanged(true))
+        session.send(.modifiersChanged(.option))
         XCTAssertNotNil(session.miniatureLanding)
-        session.send(.summonChanged(false))
+        session.send(.modifiersChanged([]))
         XCTAssertNil(session.miniatureLanding)
+    }
+    func testStripShowingHintsFromItsFirstFrameDrawsItsLanding() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = ["1", "2", "1"].enumerated().map { index, name in
+            let workspace = Workspace.get(byName: name)
+            let window = TestWindow.new(id: UInt32(index + 1), parent: workspace.rootTilingContainer)
+            let size = CGSize(width: 1200, height: 900)
+            return SwitcherPaletteItem(id: window.windowId, title: "Document", appName: "Editor", icon: nil, workspaceName: name, isFocused: index == 0,
+                miniature: MiniatureWindow(workspace: name, frame: CGRect(origin: .zero, size: size), tray: false,
+                                           frozen: false, accessory: false, floating: false, window: window),
+                tile: TileEntry(title: "Document", appName: "Editor", aspect: 4.0 / 3, realSize: size))
+        }
+        let session = LensSession(name: "strip", settings: settings, items: items, search: "")
+        session.miniatureSize = CGSize(width: 1920, height: 1080)
+        session.miniatureWorkspaces = ["1", "2"].map { MiniatureWorkspace(name: $0, title: $0, source: CGRect(x: 0, y: 0, width: 1920, height: 1080), current: $0 == "1") }
+        let owner = LensLifecycle(dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .option }),
+                                  emit: { _ in }, show: { _ in }, hide: {})
+        defer { owner.dismiss() }
+        let ticket = owner.begin(session.name, toggle: false, strip: StripGesture(keyCode: 48, invoking: .option))!
+        owner.complete(session, ticket: ticket)
+        XCTAssertEqual(session.selectedId, 2)
+        XCTAssertTrue(session.hintsShown)
+        XCTAssertNotNil(session.miniatureLanding, "An Option-held strip shows its landing with its label, without another key")
     }
     func testGridPictureAllocationAndSelectionLiftNeverUpscaleADialog() {
         let entry = TileEntry(title: "Dialog", appName: "Editor", aspect: 1.5, realSize: CGSize(width: 300, height: 200))

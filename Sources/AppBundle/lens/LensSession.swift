@@ -17,14 +17,17 @@ final class LensSession: ObservableObject {
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
     @Published var banner: String?
-    @Published private(set) var summonHeld = false
+    @Published private(set) var hintsShown = false
+    private var ignoredTriggerModifiers: NSEvent.ModifierFlags = []
     private var currentModifiers: NSEvent.ModifierFlags = []
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    @Published var listPanelHeight: CGFloat = 0
     var tilesFrameInWindow = CGRect.zero
+    var hintSnapshots: [Bool: LensHintSnapshot] = [:]
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?
@@ -35,7 +38,6 @@ final class LensSession: ObservableObject {
         case selectionChanged(Int)
         case pointerSelectionChanged(Int)
         case modifiersChanged(NSEvent.ModifierFlags)
-        case summonChanged(Bool)
         case presentationChanged(String)
         case sectionsChanged(String)
         case itemsRemoved(Set<UInt32>)
@@ -51,15 +53,15 @@ final class LensSession: ObservableObject {
     func apply(_ event: Event) {
         defer {
             switch event {
-                case .pointerSelectionChanged, .modifiersChanged, .summonChanged, .dismissed: break
+                case .pointerSelectionChanged, .modifiersChanged, .dismissed: break
                 default: reanchorPointer()
             }
         }
         switch event {
             case .inputStateChanged(let state):
                 inputState = state
-                let held = shouldSummon(currentModifiers)
-                if held != summonHeld { summonHeld = held }
+                let held = shouldShowHints(currentModifiers)
+                if held != hintsShown { hintsShown = held }
                 if state == .search, !searchEdited, !rememberedSearch.isEmpty {
                     let selected = selectedId
                     if query != rememberedSearch { query = rememberedSearch }
@@ -80,16 +82,17 @@ final class LensSession: ObservableObject {
                 selection = index
             case .pointerSelectionChanged(let index): selection = index
             case .modifiersChanged(let flags):
+                ignoredTriggerModifiers.formIntersection(flags)
                 currentModifiers = flags
-                let held = shouldSummon(flags)
-                if held != summonHeld { summonHeld = held }
-            case .summonChanged(let held):
-                if held != summonHeld { summonHeld = held }
+                let held = shouldShowHints(flags)
+                if held != hintsShown { hintsShown = held }
             case .presentationChanged(let presentation):
                 hoveredTileId = nil
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
+                let shown = shouldShowHints(currentModifiers)
+                if shown != hintsShown { hintsShown = shown }
                 // A strip never shows a remembered Search; the Presentation it becomes does.
                 if leftStrip, inputState == .search, !searchEdited, query.isEmpty, !rememberedSearch.isEmpty {
                     query = rememberedSearch
@@ -181,11 +184,12 @@ final class LensSession: ObservableObject {
         guard !holdInitialized else { return }
         holdInitialized = true
         invokingGesture = gesture
-        hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
-        if hold != nil {
-            currentModifiers = gesture?.invoking ?? []
-            inputState = .hold
-        }
+        currentModifiers = gesture?.invoking ?? []
+        hold = gesture?.keyCode != nil && gesture?.holdModifiers.isEmpty == false ? gesture : nil
+        ignoredTriggerModifiers = settings.presentation == "strip" || hold != nil ? [] : currentModifiers
+        if hold != nil { inputState = .hold }
+        let shown = shouldShowHints(currentModifiers)
+        if shown != hintsShown { hintsShown = shown }
     }
     func endHold(flags: NSEvent.ModifierFlags, committing: Bool = false) {
         if hold?.holdEnded(flags: flags) == true {
@@ -244,6 +248,7 @@ final class LensSession: ObservableObject {
         query = (startingState == .search && settings.presentation != "strip") || searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
+        hintsShown = shouldShowHints([])
     }
 
     /// The list opens on its second row when the first is the focused window. Miniatures are not
@@ -362,7 +367,7 @@ final class LensSession: ObservableObject {
         keyBindings.first { $0.code == 36 && $0.modifiers == modifiers }?.name
     }
 
-    func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
+    func updateHintModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
     private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         if let hold, settings.presentation == "strip" { return hold.releaseModifiers(modifiers) }
@@ -371,10 +376,22 @@ final class LensSession: ObservableObject {
         return modifiers.intersection([.control, .option, .shift, .command])
     }
 
-    private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
-        let held = clickModifiers(modifiers)
-        return !held.isEmpty && keyBindings.contains { binding in
-            binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
+    private func shouldShowHints(_ modifiers: NSEvent.ModifierFlags) -> Bool {
+        if settings.hints == "always" { return true }
+        // The strip's invoking hints key is deliberately visible from its first frame.
+        let counted: NSEvent.ModifierFlags
+        if settings.presentation == "strip" { counted = modifiers }
+        else if let hold { counted = modifiers.subtracting(hold.invoking) }
+        else { counted = modifiers.subtracting(ignoredTriggerModifiers) }
+        return counted.contains(hintsModifier)
+    }
+
+    var hintsModifier: NSEvent.ModifierFlags {
+        switch settings.hintsKey {
+            case "cmd": .command
+            case "ctrl": .control
+            case "shift": .shift
+            default: .option
         }
     }
 

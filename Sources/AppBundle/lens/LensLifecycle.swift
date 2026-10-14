@@ -137,7 +137,7 @@ final class LensLifecycle {
             model.stripReleasedWhileOpening = opening.release
         }
         let gesture = opening.gesture ?? invocation
-        model.startHold(gesture?.keyCode == nil ? nil : gesture)
+        model.startHold(gesture)
         trace?.advance("session ready")
         model.owner = self
         trace?.session(model)
@@ -171,6 +171,8 @@ final class LensLifecycle {
             presented(model)
             replay(opening.pending, to: model)
             if let release = opening.release { model.endHold(flags: release, committing: model.stripReleaseKey(flags: release) != nil) }
+            // The live flags win over a release recorded while opening.
+            if session === model { model.send(.modifiersChanged(dependencies.flags())) }
         }
         return true
     }
@@ -227,7 +229,7 @@ final class LensLifecycle {
         if case .dismissed = event { dismiss(); return }
         let oldSearch = model.query
         let oldPresentation = model.settings.presentation
-        let oldSummon = model.summonHeld
+        let oldHints = model.hintsShown
         let oldInputState = model.inputState
         model.apply(event)
         trace?.session(model)
@@ -248,16 +250,15 @@ final class LensLifecycle {
                 presented(model, restartEffects: true, conversion: true)
                 return
             case .modifiersChanged:
-                guard oldSummon != model.summonHeld else { return }
-            case .summonChanged:
-                guard oldSummon != model.summonHeld else { return }
+                // A strip that opens with hints shown has no landing until a modifier event computes it.
+                guard oldHints != model.hintsShown || (model.summonHintsShown && landingKey != model.selectedId) else { return }
             default: break
         }
         updateMiniatureLanding()
     }
 
     /// Modifier changes from the global and local monitors. Only these commit a strip's release;
-    /// the panel's own `flagsChanged` events update Summon alone.
+    /// the panel's own `flagsChanged` events update hints alone.
     func stripFlagsChanged(_ flags: NSEvent.ModifierFlags, from model: LensSession) {
         send(.modifiersChanged(flags), from: model)
         guard session === model else { return }
@@ -438,7 +439,7 @@ final class LensLifecycle {
     func updateMiniatureLanding() {
         guard let model = session else { return }
         // The pointer moving inside one miniature re-assigns the same selection.
-        let key = model.summonHeld ? model.selectedId : nil
+        let key = model.summonHintsShown && model.settings.summonHints.contains("landing-spot") ? model.selectedId : nil
         if key != nil, key == landingKey, evaluatedDestination === focus.workspace, evaluatedColumns === focus.workspace.columns { return }
         landingRequest += 1
         let request = landingRequest
@@ -448,7 +449,7 @@ final class LensLifecycle {
         landingTask?.cancel()
         landingTask = nil
         model.setMiniatureLanding(nil)
-        guard model.summonHeld, (model.settings.presentation == "miniatures" || model.settings.presentation == "strip" || model.settings.presentation == "grid"), model.settings.summonHints.contains("landing-spot"),
+        guard model.summonHintsShown, model.settings.summonHints.contains("landing-spot"),
               let id = model.selectedId, let entry = model.items.first(where: { $0.id == id })?.miniature,
               let workspace = model.miniatureWorkspaces.first(where: { $0.current }) else { model.setMiniatureLanding(nil); return }
         if entry.workspace == workspace.name {
@@ -505,7 +506,7 @@ final class LensLifecycle {
                     let decision = await ColumnPolicy.decision(window: entry.window, workspace: destination, columnsSnapshot: .array(records))
                     do {
                         guard let self, let model, !Task.isCancelled, request == self.landingRequest, self.session === model,
-                              model.summonHeld, model.selectedId == id, focus.workspace === destination else { return }
+                              model.hintsShown, model.selectedId == id, focus.workspace === destination else { return }
                         guard destination.columns === columns else { continue }
                         let rect = destination.rootTilingContainer.lastAppliedLayoutPhysicalRect?.cgRect ?? workspace.source
                         let placement = ColumnPlacement.resolve(decision, columns: columns,
