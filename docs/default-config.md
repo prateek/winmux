@@ -29,6 +29,16 @@ let without-search = defaults & {
 (without-search & { gaps.inner.horizontal = 4 }) | W.Config
 ```
 
+To remove a shipped Lens, replace the Lens record after removing its field:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+let defaults = import "winmux/defaults.ncl" in
+(defaults & {
+  lenses | force = std.record.remove "recent" defaults.lenses,
+}) | W.Config
+```
+
 Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports the five default Lenses. If the TOML has a `mode` table, conversion replaces the default modes with the TOML's modes and adds two `main` Triggers, `alt-slash` and `alt-shift-o`, only where the TOML has no binding for those keys. It adds the `window` binding mode together with its `alt-semicolon` Trigger only when the TOML has neither a mode named `window` nor a binding for `alt-semicolon` in `main`; otherwise it adds neither, so a mode you wrote gains no keys and no mode arrives that nothing enters. Modifier order, keyboard presets and key aliases are resolved as in the Swift loader. Omitted upstream bindings stay omitted, and a user's `alt-slash` command wins over the added Search Trigger. A TOML's own Cmd-Tab bindings are preserved as explicit opt-ins. Duplicate user spellings of the same chord fail conversion with a binding redeclaration diagnostic, and so does a `mode` table with no `main` mode. The converted modes are merged at normal priority, so a record merged over the converted file later can still add or change a binding. With no `mode` table, conversion keeps all default modes and bindings. A comment in the converted file describes the retained defaults and how to remove them.
 
 `config-version` is optional, accepted and ignored for compatibility with earlier Nickel conversions, like `contract-version`. It is absent from shipped defaults and new conversions; both version keys are removed before the Swift settings parser runs. Nickel uses an explicit `persistent-workspaces` list, defaulting to empty. For TOML version 1 or lower, or an absent version, conversion preserves the old inferred persistence when the file sets no list: it writes workspace targets from every mode's `workspace` and `move-node-to-workspace` bindings, followed by force-assignment keys, in first-seen order, and prints a warning. A quoted name is one target. When nothing is inferred it writes no list and prints no warning. Relative `next` and `prev` targets declare no workspace. Version 2 and an explicit list suppress inference.
@@ -70,8 +80,8 @@ Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and 
 | `o` | `mode main`, `lens overview` |
 | `f` | `mode main`, `lens floating` |
 | `s` | `mode main`, `lens search` |
-| `r` | `mode main`, `lens recent --presentation list` |
-| `a` | `mode main`, `lens app-windows --presentation list` |
+| `r` | `mode main`, `lens recent --presentation list --tile text` |
+| `a` | `mode main`, `lens app-windows --presentation list --tile text` |
 | `esc` | `mode main` |
 | `alt-semicolon` | `mode main` |
 
@@ -99,6 +109,19 @@ Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sect
 their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
 that binding and keeps its Hold; in a strip it ends the Hold and stays in normal mode. `/` converts the strip to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
 
+The shipped `recent` and `app-windows` Lenses use `tile = 'picture` and
+`grid.tile-size = 'same-height`: pictures share a row height and the selected title stays
+in the footer. To get the previous card strips with relative window sizes back, merge:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  lenses.recent.tile = 'card,
+  lenses.recent.grid.tile-size = 'real,
+  lenses.app-windows.tile = 'card,
+  lenses.app-windows.grid.tile-size = 'real,
+}) | W.Config
+```
 
 ## Opt in to Cmd-Tab
 
