@@ -35,7 +35,7 @@ struct LensGroupingControl: View {
                 .accessibilityValue(model.settings.sections == value ? "Selected" : "")
             }
             if let key = model.sectionsKey {
-                Text(lensGroupingKeyLabel(key)).font(.system(size: 12 * scale, weight: .semibold))
+                Text(displayBindingNotation(key)).font(.system(size: 12 * scale, weight: .semibold))
                     .padding(.horizontal, 6 * scale).padding(.vertical, scale)
                     .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 5 * scale))
                     .padding(.leading, 8 * scale)
@@ -44,10 +44,6 @@ struct LensGroupingControl: View {
         .font(.system(size: 14 * scale)).foregroundStyle(.white.opacity(0.62))
         .fixedSize()
     }
-}
-
-func lensGroupingKeyLabel(_ name: String) -> String {
-    displayBindingNotation(name)
 }
 
 struct LensSelectionFooter: View {

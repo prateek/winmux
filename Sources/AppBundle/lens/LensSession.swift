@@ -25,7 +25,15 @@ final class LensSession: ObservableObject {
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    @Published var listPanelHeight: CGFloat = 0
     var tilesFrameInWindow = CGRect.zero
+    var hintSnapshots: [Bool: LensHintSnapshot] = [:]
+    lazy var firstAppWorkspaces: [String: String] = {
+        Dictionary(grouping: items, by: \.appIdentity).mapValues { entries in
+            let first = entries[0]
+            return first.miniature?.workspace ?? first.workspaceIdentity ?? first.workspaceName
+        }
+    }()
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?

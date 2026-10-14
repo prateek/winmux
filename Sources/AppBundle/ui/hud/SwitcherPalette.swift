@@ -541,7 +541,7 @@ struct SwitcherPaletteView: View {
                                 TileView(entry: item.tile, kind: model.tileKind, presentation: "list", metrics: model.tileMetrics,
                                          size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
                                          settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
-                                         hint: model.summonLabel(for: item.id, destination: focus.workspace.name))
+                                         hint: model.summonLabel(for: item.id, destination: focus.workspace.name), hintsShown: model.hintsShown)
                                 .onContinuousHover { phase in
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }
@@ -567,6 +567,7 @@ struct SwitcherPaletteView: View {
         }
         .frame(width: layout.width)
         .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.listPanelHeight = $0 }
         .background {
             GlassSurface(
                 shape: RoundedRectangle(cornerRadius: layout.radius, style: .continuous),

@@ -138,6 +138,7 @@ final class LensLifecycle {
         }
         let gesture = opening.gesture ?? invocation
         model.startHold(gesture)
+        if model.settings.presentation != "strip" { model.send(.modifiersChanged(dependencies.flags())) }
         trace?.advance("session ready")
         model.owner = self
         trace?.session(model)

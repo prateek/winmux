@@ -2,6 +2,7 @@
 import AppKit
 import Common
 import XCTest
+import SwiftUI
 
 @MainActor
 final class LensHintsTest: XCTestCase {
@@ -9,6 +10,104 @@ final class LensHintsTest: XCTestCase {
         var settings = LensConfig(); settings.presentation = presentation
         settings.hints = hints; settings.hintsKey = key
         return LensSession(name: "test", settings: settings, items: [], search: "")
+    }
+
+    func testSummonChordExcludesInvokingModifiersUntilLetterEndsHold() {
+        for (modifier, expected): (NSEvent.ModifierFlags, String) in [(.option, "⇧↩ Summon to 1"), (.command, "⌥↩ Summon to 1")] {
+            let model = session("strip")
+            model.startHold(StripGesture(keyCode: 48, invoking: modifier))
+            model.updateHintModifiers(modifier.union(.option))
+            XCTAssertEqual(model.summonHint(destination: "1"), expected)
+            XCTAssertTrue(model.summonHintsShown)
+            XCTAssertEqual(model.hintLegend.first { $0.phrase == "summon here" }?.chords, ["⌥↩", "⇧↩"])
+            model.endHoldByKey()
+            XCTAssertEqual(model.summonHint(destination: "1"), "⌥↩ Summon to 1")
+        }
+        var settings = LensConfig(); settings.presentation = "strip"; settings.keys = ["alt-enter": ["summon"]]
+        let model = LensSession(name: "only-option", settings: settings, items: [], search: "")
+        model.startHold(StripGesture(keyCode: 48, invoking: .option))
+        XCTAssertTrue(model.hintsShown)
+        XCTAssertFalse(model.summonHintsShown)
+        XCTAssertNil(model.summonHint(destination: "1"))
+        model.endHoldByKey()
+        XCTAssertTrue(model.summonHintsShown)
+        XCTAssertEqual(model.summonHint(destination: "1"), "⌥↩ Summon to 1")
+    }
+
+    func testReleasedTriggerDuringOpeningAllowsFirstHintsPress() {
+        for presentation in ["list", "grid", "miniatures"] {
+            for liveFlags: NSEvent.ModifierFlags in [[], .option] {
+                let model = session(presentation)
+                let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { liveFlags })
+                let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
+                defer { owner.dismiss() }
+                let gesture = StripGesture(keyCode: nil, invoking: .option)
+                let ticket = owner.begin("test", toggle: false, invocation: gesture)!
+                owner.complete(model, ticket: ticket)
+                XCTAssertFalse(model.hintsShown)
+                model.updateHintModifiers(.option)
+                XCTAssertEqual(model.hintsShown, liveFlags.isEmpty, presentation)
+                model.updateHintModifiers([])
+                model.updateHintModifiers(.option)
+                XCTAssertTrue(model.hintsShown)
+            }
+        }
+    }
+
+    func testListLegendUsesPaintedHeightIncludingDiagnosticRows() {
+        let model = session("list")
+        model.listPanelHeight = 350
+        XCTAssertEqual(model.hintPanelBottom, model.listLayout.topOffset + 350)
+        model.listPanelHeight = 380
+        XCTAssertEqual(model.hintPanelBottom, model.listLayout.topOffset + 380)
+        XCTAssertEqual(LensHintGeometry.legendTop(panelBottom: model.hintPanelBottom, screenHeight: 1080, legendHeight: 36, scale: 1), model.hintPanelBottom + 14)
+    }
+
+    func testLegendWidthLeavesScaledScreenInsets() {
+        XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 1920, scale: 1), 1856)
+        XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 960, scale: 0.5), 928)
+        XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 1280, scale: 2.0 / 3), 1280 - 128.0 / 3, accuracy: 0.001)
+    }
+
+    func testWorkspaceChipClearsFrozenBadgeWithItsUsualInset() {
+        XCTAssertEqual(LensHintGeometry.workspaceChipBottomInset(badgeHeight: 0, scale: 1), 8)
+        XCTAssertEqual(LensHintGeometry.workspaceChipBottomInset(badgeHeight: 18, scale: 1), 26)
+        XCTAssertEqual(LensHintGeometry.workspaceChipBottomInset(badgeHeight: 9, scale: 0.5), 13)
+    }
+
+    func testDimmedPictureRendersOpaqueOverDeskOnlyWhenHintsShow() throws {
+        let context = try XCTUnwrap(CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        let thumbnail = WindowThumbnail()
+        thumbnail.accept(try XCTUnwrap(context.makeImage()))
+        var entry = TileEntry(title: "Note", appName: "Notes", aspect: 1)
+        entry.picture = thumbnail; entry.frozen = true
+        for presentation in ["grid", "strip"] {
+            for shown in [false, true] {
+                let tile = TileView(entry: entry, kind: .picture, presentation: presentation, metrics: TileMetrics(scale: 1), size: CGSize(width: 300, height: 200), settings: LensConfig(), selected: false, marked: false, hint: nil, hintsShown: shown)
+                let renderer = ImageRenderer(content: tile)
+                let image = try XCTUnwrap(renderer.cgImage)
+                let bitmap = NSBitmapImageRep(cgImage: image)
+                let alpha = try XCTUnwrap(bitmap.colorAt(x: image.width / 2, y: image.height / 2)).alphaComponent
+                if shown { XCTAssertEqual(alpha, 1, accuracy: 0.01, presentation) }
+                else { XCTAssertLessThan(alpha, 0.9, "Hidden hints preserve the original translucent picture") }
+                XCTAssertLessThan(try XCTUnwrap(bitmap.colorAt(x: 0, y: 0)).alphaComponent, 0.1, "Backing stays inside the fitted picture")
+            }
+        }
+    }
+
+    func testDimmedPicturesHaveBackingOnlyWhileHintsShow() {
+        for look in ["dimmed", "pause-badge", "age-badge"] {
+            for frozen in [false, true] {
+                var entry = TileEntry(title: "Note", appName: "Notes"); entry.frozen = frozen
+                var settings = LensConfig(); settings.frozenThumbnail = look
+                for shown in [false, true] {
+                    let tile = TileView(entry: entry, kind: .picture, presentation: "grid", metrics: TileMetrics(scale: 1), size: CGSize(width: 300, height: 200), settings: settings, selected: false, marked: false, hint: nil, hintsShown: shown)
+                    XCTAssertEqual(tile.pictureBackingRequired, shown && frozen && look == "dimmed")
+                }
+            }
+        }
     }
 
     func testEnterAndModifiedClicksKeepTheirCommandsWithAndWithoutHoldInEveryPresentation() {
@@ -74,7 +173,7 @@ final class LensHintsTest: XCTestCase {
         }
     }
 
-    func testOnlyStripSamplesPhysicalModifiersAtOpening() {
+    func testReadinessSamplesPhysicalModifiersInEveryPresentation() {
         for presentation in ["strip", "list", "grid", "miniatures"] {
             let model = session(presentation)
             let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { [.command, .option] })
@@ -83,7 +182,7 @@ final class LensHintsTest: XCTestCase {
             let gesture = StripGesture(keyCode: 48, invoking: .command)
             let ticket = owner.begin("test", toggle: false, strip: presentation == "strip" ? gesture : nil, invocation: gesture)!
             owner.complete(model, ticket: ticket)
-            XCTAssertEqual(model.hintsShown, presentation == "strip", "Only the strip reads the physical Option pressed during opening")
+            XCTAssertTrue(model.hintsShown, "Readiness reads physical Option; the live Command Hold still subtracts only Command")
         }
     }
 
@@ -107,6 +206,22 @@ final class LensHintsTest: XCTestCase {
             model.updateHintModifiers([]); XCTAssertFalse(model.hintsShown)
             model.updateHintModifiers(.option); XCTAssertTrue(model.hintsShown)
         }
+    }
+
+    func testHintSnapshotsAreReusedAcrossSectionAndPresentationChanges() {
+        let model = session("grid")
+        let grouped = model.hintSnapshot
+        XCTAssertTrue(model.hintSnapshot === grouped)
+        model.changeSections("app")
+        XCTAssertTrue(model.hintSnapshot === grouped)
+        model.changePresentation("strip")
+        let ungrouped = model.hintSnapshot
+        XCTAssertFalse(ungrouped === grouped)
+        XCTAssertFalse(ungrouped.legend.contains { $0.phrase == "group" })
+        XCTAssertTrue(model.hintSnapshot === ungrouped)
+        model.changePresentation("list")
+        XCTAssertTrue(model.hintSnapshot === grouped)
+        XCTAssertTrue(model.hintLegend.contains { $0.phrase == "group" })
     }
 
     func testLegendUsesActiveSnapshotAndAnotherLensOwnKeys() {

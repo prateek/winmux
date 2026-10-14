@@ -71,14 +71,43 @@ func lensHintLegend(keys: [LensKeyBinding], commands: [String: [String]]) -> [Le
     return entries.sorted { ($0.rank, $0.sort) < ($1.rank, $1.sort) }.map(\.entry)
 }
 
-extension LensSession {
-    var panelGlassOpacity: Double { hintsShown && settings.presentation != "miniatures" ? 0.55 : 1 }
-    var hintLegend: [LensHintEntry] { lensHintLegend(keys: activeKeyBindings, commands: settings.keys) }
-    var summonBindings: [LensKeyBinding] {
-        let bindings = Dictionary(uniqueKeysWithValues: activeKeyBindings.map { ($0.name, $0) })
-        return hintLegend.flatMap(\.bindingNames).compactMap { bindings[$0] }.filter { key in
-            commands(for: key.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
+final class LensHintSnapshot {
+    let legend: [LensHintEntry]
+    let summonBindings: [LensKeyBinding]
+    let workspaceChords: [String: String]
+
+    init(keys: [LensKeyBinding], commands: [String: [String]]) {
+        legend = lensHintLegend(keys: keys, commands: commands)
+        let bindings = Dictionary(uniqueKeysWithValues: keys.map { ($0.name, $0) })
+        summonBindings = legend.flatMap(\.bindingNames).compactMap { bindings[$0] }.filter { key in
+            (commands[key.name] ?? []).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }
+        var workspaces: [String: String] = [:]
+        let prefix = "move-node-to-workspace "
+        for key in keys {
+            guard let actions = commands[key.name], actions.count == 1, actions[0].hasPrefix(prefix) else { continue }
+            let workspace = String(actions[0].dropFirst(prefix.count))
+            if workspaces[workspace] == nil { workspaces[workspace] = displayBindingNotation(key.name) }
+        }
+        workspaceChords = workspaces
+    }
+}
+
+extension LensSession {
+    var hintPanelBottom: CGFloat {
+        settings.presentation == "list" ? listLayout.topOffset + listPanelHeight : (miniatureSize.height + gridLayout.panelSize.height) / 2
+    }
+    var panelGlassOpacity: Double { hintsShown && settings.presentation != "miniatures" ? 0.55 : 1 }
+    var hintSnapshot: LensHintSnapshot {
+        if let snapshot = hintSnapshots[drawsSections] { return snapshot }
+        let snapshot = LensHintSnapshot(keys: activeKeyBindings, commands: settings.keys)
+        hintSnapshots[drawsSections] = snapshot
+        return snapshot
+    }
+    var hintLegend: [LensHintEntry] { hintSnapshot.legend }
+    var summonBindings: [LensKeyBinding] {
+        let invoking = inputState == .hold ? hold?.invoking ?? [] : []
+        return hintSnapshot.summonBindings.filter { $0.modifiers.intersection(invoking).isEmpty }
     }
     var summonHintsShown: Bool { hintsShown && !summonBindings.isEmpty }
     func summonHint(destination: String) -> String? {
@@ -91,17 +120,20 @@ extension LensSession {
         return summonHint(destination: destination)
     }
     func workspaceHint(workspace: String) -> String? {
-        activeKeyBindings.first { commands(for: $0.name) == ["move-node-to-workspace \(workspace)"] }.map { displayBindingNotation($0.name) }
+        hintSnapshot.workspaceChords[workspace]
     }
     func workspaceHint(for item: SwitcherPaletteItem) -> String? {
         guard hintsShown, settings.presentation == "strip" || settings.presentation == "grid", tileKind != .text else { return nil }
-        let window = settings.entries == "app" ? items.first { $0.appIdentity == item.appIdentity } : item
-        guard let workspace = window?.miniature?.workspace ?? window?.workspaceIdentity ?? window?.workspaceName, !workspace.isEmpty else { return nil }
+        let workspace = settings.entries == "app" ? firstAppWorkspaces[item.appIdentity] : item.miniature?.workspace ?? item.workspaceIdentity ?? item.workspaceName
+        guard let workspace, !workspace.isEmpty else { return nil }
         return workspaceHint(workspace: workspace)
     }
 }
 
 struct LensHintGeometry {
+    static func legendMaxWidth(screenWidth: CGFloat, scale: CGFloat) -> CGFloat { max(0, screenWidth - 64 * scale) }
+    static func workspaceChipBottomInset(badgeHeight: CGFloat, scale: CGFloat) -> CGFloat { 8 * scale + badgeHeight }
+
     static func legendTop(panelBottom: CGFloat, screenHeight: CGFloat, legendHeight: CGFloat, scale: CGFloat) -> CGFloat {
         min(panelBottom + 14 * scale, screenHeight - 52 * scale - legendHeight)
     }

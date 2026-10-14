@@ -20,7 +20,7 @@ struct GridView: View {
                 TileView(entry: item.tile, kind: model.tileKind, presentation: "grid", metrics: metrics, size: tile.frame.size,
                          settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
                          hint: model.summonLabel(for: item.id, destination: focus.workspace.name),
-                         pictureSize: tile.pictureSize, controlsVisible: model.hoveredTileId == item.id, workspaceHint: model.workspaceHint(for: item))
+                         pictureSize: tile.pictureSize, controlsVisible: model.hoveredTileId == item.id, workspaceHint: model.workspaceHint(for: item), hintsShown: model.hintsShown)
                     .position(x: tile.frame.midX, y: tile.frame.midY)
                     .zIndex(index == model.selection ? 1 : 0)
                     .allowsHitTesting(false)
@@ -71,7 +71,7 @@ struct GridLandingView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear
-            LensHintOverlay(model: model, panelBottom: model.settings.presentation == "list" ? model.listLayout.topOffset + model.listLayout.height : (model.miniatureSize.height + model.gridLayout.panelSize.height) / 2)
+            LensHintOverlay(model: model, panelBottom: model.hintPanelBottom)
             if model.summonHintsShown, model.stripSummonAvailable(items: model.results), let landing = model.miniatureLanding,
                let current = model.miniatureWorkspaces.first(where: \.current) {
                 Rectangle().stroke(.orange, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
