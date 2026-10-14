@@ -29,6 +29,7 @@ struct LensPointerMotion {
 
 struct LensTileHit {
     let index: Int
+    let windowId: UInt32
     let control: TileWindowControl?
 }
 
@@ -52,22 +53,28 @@ extension LensSession {
             let frame = layout.tiles[selection].frame
             let scale = tileKind == .text ? 1 : TileMetrics(scale: layout.tileScale).selectionScale
             if frame.insetBy(dx: -frame.width * (scale - 1) / 2, dy: -frame.height * (scale - 1) / 2).contains(point) {
-                return tileHit(index: selection, point: point, layout: layout)
+                return tileHit(index: selection, point: point, layout: layout, item: items[selection])
             }
         }
         return layout.tiles.indices.reversed().first { layout.tiles[$0].frame.contains(point) }
-            .map { tileHit(index: $0, point: point, layout: layout) }
+            .map { tileHit(index: $0, point: point, layout: layout, item: items[$0]) }
     }
 
-    private func tileHit(index: Int, point: CGPoint, layout: GridLayout) -> LensTileHit {
-        let control = hoveredTileId == results[index].id ? controlRects(index: index, layout: layout)
+    private func tileHit(index: Int, point: CGPoint, layout: GridLayout, item: SwitcherPaletteItem) -> LensTileHit {
+        let control = hoveredTileId == item.id ? controlRects(index: index, layout: layout, entry: item.tile)
             .first { $0.1.contains(point) }?.0 : nil
-        return LensTileHit(index: index, control: control)
+        return LensTileHit(index: index, windowId: item.id, control: control)
     }
 
     func controlRects(index: Int, layout: GridLayout) -> [(TileWindowControl, CGRect)] {
-        guard tileKind != .text, layout.tiles.indices.contains(index), results.indices.contains(index) else { return [] }
-        let tile = layout.tiles[index], entry = results[index].tile
+        let items = results
+        guard items.indices.contains(index) else { return [] }
+        return controlRects(index: index, layout: layout, entry: items[index].tile)
+    }
+
+    private func controlRects(index: Int, layout: GridLayout, entry: TileEntry) -> [(TileWindowControl, CGRect)] {
+        guard tileKind != .text, layout.tiles.indices.contains(index) else { return [] }
+        let tile = layout.tiles[index]
         let metrics = TileMetrics(scale: layout.tileScale)
         let picture = tilePictureRect(entry: entry, kind: tileKind, size: tile.frame.size, pictureSize: tile.pictureSize,
                                       metrics: metrics, presentation: settings.presentation, selected: index == selection)
@@ -80,7 +87,7 @@ extension LensSession {
     func hoverTile(at point: CGPoint?, pointerLocation: CGPoint) {
         let armed = pointerMoved(to: pointerLocation)
         let hit = point.flatMap { tileHitTest(at: $0) }
-        if armed { hoveredTileId = hit.map { results[$0.index].id } }
+        if armed { hoveredTileId = hit?.windowId }
         else if hit == nil { hoveredTileId = nil }
         hoverIndex(armed: armed) { hit?.index }
     }
@@ -88,7 +95,7 @@ extension LensSession {
     func clickTile(at point: CGPoint, event: NSEvent?) {
         guard let hit = tileHitTest(at: point) else { return }
         if let control = hit.control {
-            let id = results[hit.index].id
+            let id = hit.windowId
             hoveredTileId = nil
             reanchorPointer()
             onControl?(control, id)

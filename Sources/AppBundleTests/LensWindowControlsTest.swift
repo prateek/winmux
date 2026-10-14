@@ -13,7 +13,9 @@ final class LensWindowControlsTest: XCTestCase {
             return SwitcherPaletteItem(id: UInt32(id), title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
                 tile: entry)
         }
-        return LensSession(name: "controls", settings: settings, items: items, search: "", pointerLocation: pointer)
+        let session = LensSession(name: "controls", settings: settings, items: items, search: "", pointerLocation: pointer)
+        session.miniatureSize = CGSize(width: 1920, height: 1080)
+        return session
     }
     private func layout(_ session: LensSession) -> GridLayout {
         session.settings.presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
@@ -64,7 +66,21 @@ final class LensWindowControlsTest: XCTestCase {
             XCTAssertEqual(narrow.controlRects(index: 0, layout: layout).count, 0)
             XCTAssertNil(narrow.tileHitTest(at: centre(layout.tiles[0].frame))?.control)
         }
+        let prototypeSlots = tileControlRects(in: CGRect(x: 100, y: 200, width: 192, height: 108), scale: 1)
+        XCTAssertEqual(prototypeSlots.map { $0.1 }, [CGRect(x: 108, y: 208, width: 16, height: 16),
+                                                   CGRect(x: 130, y: 208, width: 16, height: 16),
+                                                   CGRect(x: 152, y: 208, width: 16, height: 16)])
+        let entry = TileEntry(title: "Card", appName: "Demo", aspect: 4 / 3)
+        XCTAssertEqual(tilePictureRect(entry: entry, kind: .card, size: CGSize(width: 420, height: 356), pictureSize: nil,
+                                       metrics: TileMetrics(scale: 1), presentation: "grid", selected: false),
+                       CGRect(x: 10, y: 46, width: 400, height: 300))
         XCTAssertEqual(tileControlRects(in: CGRect(x: 0, y: 0, width: 45, height: 30), scale: 1).count, 0)
+        XCTAssertEqual(tileControlRects(in: CGRect(x: 0, y: 0, width: 100, height: 30), scale: 0.5).count, 0)
+        for presentation in ["strip", "grid"] {
+            let small = session(presentation)
+            small.miniatureSize = CGSize(width: 800, height: 600)
+            XCTAssertEqual(small.controlRects(index: 0, layout: layout(small)).count, 0)
+        }
         let shrunk = tileControlRects(in: CGRect(x: 0, y: 0, width: 60, height: 30), scale: 1)
         XCTAssertEqual(shrunk.count, 3)
         XCTAssertLessThan(shrunk[0].1.width, 16)
@@ -98,6 +114,12 @@ final class LensWindowControlsTest: XCTestCase {
             pointer.x += 2
             session.hoverTile(at: centre(layout.tiles[0].frame), pointerLocation: pointer)
             session.send(.searchChanged("Window 4"))
+            XCTAssertNil(session.hoveredTileId)
+            session.send(.searchChanged(""))
+            pointer.x += 2
+            session.hoverTile(at: centre(layout.tiles[0].frame), pointerLocation: pointer)
+            session.send(.searchChanged("= true"))
+            session.acceptInlineResult([4])
             XCTAssertNil(session.hoveredTileId)
             session.send(.searchChanged(""))
             pointer.x += 2

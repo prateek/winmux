@@ -112,7 +112,11 @@ final class LensSession: ObservableObject {
                 selection = initialSelection()
             case .dismissed: hoveredTileId = nil
         }
-        if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
+        switch event {
+            case .searchChanged, .inputStateChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
+                if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
+            default: break
+        }
     }
 
     private var pointerMotion: LensPointerMotion
@@ -405,6 +409,7 @@ final class LensSession: ObservableObject {
         inlineIds = Set(ids)
         searchError = nil
         let results = results
+        if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
         send(.selectionChanged(results.firstIndex { $0.id == selected } ?? min(selection, max(results.count - 1, 0))))
         if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()

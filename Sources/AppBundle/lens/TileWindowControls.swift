@@ -49,7 +49,7 @@ func tileControlRects(in picture: CGRect, scale: CGFloat) -> [(TileWindowControl
     guard scale > 0 else { return [] }
     let fit = min(1, picture.width / (76 * scale))
     let diameter = 16 * scale * fit
-    guard diameter >= 10 * scale else { return [] }
+    guard diameter >= 10 else { return [] }
     let inset = 8 * scale * fit, gap = 6 * scale * fit
     return TileWindowControl.allCases.enumerated().map { index, control in
         (control, CGRect(x: picture.minX + inset + CGFloat(index) * (diameter + gap),
