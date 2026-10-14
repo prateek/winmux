@@ -212,10 +212,10 @@ final class StripSessionTest: SerialClockTestCase {
             XCTAssertEqual(model.settings.presentation, "strip")
             XCTAssertEqual(model.query, "")
         }
-        XCTAssertEqual(model.stripInput(try key([.command, .shift])), .list)
+        XCTAssertEqual(model.stripInput(try key([.command, .shift])), .consumed)
         let plain = self.model()
         plain.beginStrip(StripGesture(keyCode: 48, invoking: .command))
-        XCTAssertEqual(plain.stripInput(try key([])), .list)
+        XCTAssertEqual(plain.stripInput(try key([])), .consumed)
     }
 
     func testClickUsesReleaseBindingWhileInvokingModifiersAreHeld() throws {
@@ -263,8 +263,8 @@ final class StripSessionTest: SerialClockTestCase {
         model.onAction = { action = $0 }
         XCTAssertEqual(model.stripInput(try key(13, "w")), .consumed)
         XCTAssertEqual(action, "cmd-w")
-        XCTAssertEqual(model.stripInput(try key(2, "d")), .list)
-        XCTAssertEqual(model.query, "d")
+        XCTAssertEqual(model.stripInput(try key(2, "d")), .consumed)
+        XCTAssertEqual(model.query, "")
     }
 
     func testReleaseChoosesEnterBindingWithoutShiftAndLetterBindingWins() throws {
@@ -281,8 +281,8 @@ final class StripSessionTest: SerialClockTestCase {
         XCTAssertEqual(model.settings.presentation, "strip")
         let search = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil, characters: "d", charactersIgnoringModifiers: "d", isARepeat: false, keyCode: 2))
         XCTAssertTrue(model.handleStripLetter(search))
-        XCTAssertEqual(model.settings.presentation, "list")
-        XCTAssertEqual(model.query, "d")
+        XCTAssertEqual(model.settings.presentation, "strip")
+        XCTAssertEqual(model.query, "")
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertNil(model.stripReleaseKey(flags: []))
         model.changePresentation("strip")

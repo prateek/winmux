@@ -1,6 +1,8 @@
 @testable import AppBundle
 import AppKit
 import Clocks
+import Combine
+import Common
 import XCTest
 
 @MainActor
@@ -13,93 +15,644 @@ final class LensHoldTest: SerialClockTestCase {
                         isARepeat: false, keyCode: code)!
     }
 
-    func testPureMeaningTable() {
+    func testRememberedSearchIsAppliedDuringHoldAndReleaseKeepsSteppedMatch() {
+        let items: [SwitcherPaletteItem] = (1...5).map { id in
+            let title = id == 5 ? "Other" : "Safari \(id)"
+            return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: id == 1)
+        }
+        let model = LensSession(name: "recall", settings: LensConfig(), items: items, search: "saf")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.count, 4)
+        model.perform(model.meaning(for: key(48, "\t", .option)))
+        model.perform(model.meaning(for: key(48, "\t", .option)))
+        XCTAssertEqual(model.selectedId, 4)
+        let selected = model.selectedId
+        model.endHold(flags: [])
+        XCTAssertEqual(model.selectedId, selected)
+        XCTAssertFalse(model.searchEdited)
+    }
+
+    func testReleaseEndingAHoldLeavesNoSummonHintFromTheTriggersModifiers() {
+        let model = LensSession(name: "early-release", settings: LensConfig(), items: [], search: "")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        model.endHold(flags: [])
+        XCTAssertEqual(model.inputState, .search)
+        XCTAssertFalse(model.summonHeld)
+    }
+
+    func testShiftDuringAStripHoldShowsNoSummonHint() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let model = LensSession(name: "reverse", settings: settings, items: [], search: "")
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        model.beginStrip(gesture)
+        model.startHold(gesture)
+        model.apply(.modifiersChanged([.command, .shift]))
+        XCTAssertFalse(model.summonHeld, "A strip's release ignores Shift, so reverse stepping promises no Summon")
+        model.apply(.modifiersChanged([.command, .option]))
+        XCTAssertTrue(model.summonHeld)
+    }
+
+    func testSearchStartingStripOpensUnfilteredByRememberedSearch() {
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2)].map { title, id in
+            SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "strip-recall", settings: settings, items: items, search: "saf")
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.results.count, 2)
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertEqual(model.results.count, 2)
+        model.enterSearch()
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.map(\.id), [1])
+    }
+
+    func testReleasedOpeningStripIsCancelledByAnotherBinding() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        _ = owner.begin("released", toggle: false, strip: gesture)
+        owner.openingFlagsChanged([])
+        XCTAssertEqual(owner.openingStripKey(keyCode: 18, flags: .option, source: .carbon), .cancel)
+    }
+
+    func testEnteringRecalledSearchKeepsAnyMatchingSelection() {
+        for presentation in ["list", "grid", "strip", "miniatures"] {
+            var settings = LensConfig(); settings.presentation = presentation; settings.startsIn = "normal"
+            let items: [SwitcherPaletteItem] = (1...3).map { id in
+                let title = id == 3 ? "Other" : "Safari \(id)"
+                return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+            }
+            for selected: UInt32 in [2, 3] {
+                let model = LensSession(name: "recall", settings: settings, items: items, search: "saf")
+                model.hover(selected)
+                model.enterSearch()
+                XCTAssertEqual(model.selectedId, selected == 2 ? 2 : 1, presentation)
+            }
+        }
+    }
+
+    func testSearchStartingStripLetterChangesStateOnceAndKeepsTypedMatch() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let model = LensSession(name: "once", settings: settings, items: items, search: "saf")
+        owner.complete(model, ticket: owner.begin("once", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!)
+        model.hover(3)
+        var states: [LensInputState] = []
+        let observation = model.$inputState.dropFirst().sink { states.append($0) }
+        defer { withExtendedLifetime(observation) {} }
+        model.perform(.endHold(1, "s"))
+        XCTAssertEqual(states, [.search], "one input transition per key")
+        XCTAssertEqual(model.selectedId, 3)
+        XCTAssertEqual(model.query, "s")
+    }
+
+    func testAdHocModalTriggerClosesWithoutStartingAnotherHold() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let gesture = StripGesture(keyCode: 3, invoking: .command)
+        let model = LensSession(name: "<ad-hoc>", settings: settings, items: [], search: "")
+        owner.complete(model, ticket: owner.begin("<ad-hoc>", toggle: false, strip: gesture)!)
+        model.perform(.endHold(38, "j"))
+        XCTAssertNil(owner.begin("<ad-hoc>", toggle: false, strip: gesture))
+        XCTAssertNil(owner.session)
+    }
+
+    func testOpeningAfterLetterOnlyQueuesLensOwnedCarbonPresses() {
+        for strip in [false, true] {
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            let gesture = StripGesture(keyCode: 48, invoking: .command)
+            _ = owner.begin("queue", toggle: false, strip: strip ? gesture : nil,
+                            keys: [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command)], invocation: gesture)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 38, flags: .command, characters: "j", source: .carbon), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 13, flags: .command, characters: "w", source: .carbon), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 4, flags: .control, characters: "h", source: .carbon), strip ? .cancel : .ignored)
+        }
+    }
+
+    func testSelectionAndModifiersDoNotStealKeyboardOutsideStateChanges() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        await panel.openLens(name: "focus-events", settings: LensConfig(), entries: [], search: "", banner: nil, context: .null, ticket: panel.beginLens("focus-events", toggle: false)!)
+        for _ in 0..<20 { await Task.yield() }
+        _ = panel.makeFirstResponder(panel)
+        panel.session?.send(.selectionChanged(0))
+        panel.session?.send(.modifiersChanged(.option))
+        await Task.yield()
+        XCTAssertTrue(panel.firstResponder === panel)
+        panel.session?.leaveSearch()
+        XCTAssertTrue(panel.firstResponder === panel)
+        panel.session?.enterSearch()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertTrue(panel.firstResponder is NSTextView)
+    }
+
+    func testOpeningSearchStripUsesListBindingsAfterLetterConversion() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        _ = owner.begin("convert", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command), keys: LensSession.openingBindings(settings), settings: settings)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 1, flags: .command, characters: "s", source: .carbon), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 5, flags: .command, characters: "g", source: .carbon), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 4, flags: .control, characters: "h", source: .carbon), .ignored)
+    }
+
+    func testQueuedEscapeDropsOnlyLaterLensKeysAndGlobalCarbonRunsNow() async {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = panel.beginLens("escape-global", toggle: false, strip: gesture, keys: LensSession.openingBindings(settings), settings: settings)!
+        XCTAssertTrue(panel.handleStripHotkey(keyCode: 38, modifiers: .command, characters: "j"))
+        XCTAssertTrue(panel.handleStripHotkey(keyCode: 53, modifiers: [], characters: ""))
+        XCTAssertTrue(panel.handleStripHotkey(keyCode: 13, modifiers: .command, characters: "w"))
+        XCTAssertFalse(panel.handleStripHotkey(keyCode: 18, modifiers: .option, characters: "1"))
+        await panel.openLens(name: "escape-global", settings: settings, entries: [], search: "", banner: nil, context: .null, ticket: ticket, invocation: gesture)
+        XCTAssertNil(panel.session, "the old opening cannot revive after the global press dismisses it")
+    }
+
+    func testAdHocIdentityKeepsDifferentInvocationsDistinct() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let original = LensAdHocIdentity(filter: "fun c w => true", settings: settings, search: nil)
+        var grid = settings; grid.presentation = "grid"
+        for next in [original, LensAdHocIdentity(filter: "fun c w => false", settings: settings, search: nil),
+                     LensAdHocIdentity(filter: original.filter, settings: grid, search: nil),
+                     LensAdHocIdentity(filter: original.filter, settings: settings, search: "s")] {
+            let gesture = StripGesture(keyCode: 3, invoking: .command)
+            let ticket = owner.begin("<ad-hoc>", toggle: false, strip: gesture, settings: settings, identity: original)!
+            let model = LensSession(name: "<ad-hoc>", settings: settings, items: [], search: "")
+            owner.complete(model, ticket: ticket)
+            model.perform(.endHold(38, "j"))
+            let result = owner.begin("<ad-hoc>", toggle: false, strip: gesture, settings: next.settings, identity: next)
+            XCTAssertEqual(result == nil, next == original)
+            owner.dismiss()
+        }
+    }
+
+    func testPreservedHoldRoutingBeforeModalChange() {
+        let hold = StripGesture(keyCode: 48, invoking: .command)
+        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command)]
+        let cases: [(UInt16, String, NSEvent.ModifierFlags, LensKeyMeaning)] = [
+            (48, "\t", .command, .step(1)),
+            (48, "\t", [.command, .shift], .step(-1)),
+            (50, "`", .command, .step(0)),
+            (125, "", .command, .arrow(125)),
+            (53, "", .command, .dismiss),
+            (13, "w", .command, .command("cmd-w")),
+            (4, "h", [.command, .option], .global),
+        ]
+        for (code, text, flags, expected) in cases {
+            XCTAssertEqual(lensKeyMeaning(state: .hold, hold: hold, keys: keys, code: code, characters: text, flags: flags), expected)
+        }
+        let backtick = StripGesture(keyCode: 50, invoking: .command)
+        XCTAssertEqual(lensKeyMeaning(state: .hold, hold: backtick, keys: [], code: 50, characters: "`", flags: .command), .step(1))
+    }
+
+    func testPreservedStripReleaseCommitsSelection() {
+        let owner = testLensLifecycle()
+        defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let model = LensSession(name: "release", settings: settings, items: [], search: "")
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        owner.complete(model, ticket: owner.begin("release", toggle: false, strip: gesture)!)
+        var actions: [String] = []
+        model.onAction = { actions.append($0) }
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(actions, ["enter"])
+    }
+
+    func testFirstLetterMakesStripModalAndReleaseCannotCommit() {
+        let owner = testLensLifecycle()
+        defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = (1...4).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Safari", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let model = LensSession(name: "modal", settings: settings, items: items, search: "")
+        owner.complete(model, ticket: owner.begin("modal", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!)
+        var actions: [String] = []; model.onAction = { actions.append($0) }
+        XCTAssertTrue(model.perform(model.meaning(for: key(38, "j"))))
+        XCTAssertNil(model.hold)
+        XCTAssertEqual(model.settings.presentation, "strip")
+        XCTAssertEqual(model.query, "")
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(actions, [])
+        XCTAssertTrue(owner.session === model)
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertNil(model.hold)
+    }
+
+    func testTriggerAfterLetterUsesGlobalToggleAndCannotStartAnotherHold() async {
+        let panel = SwitcherPalettePanel.shared
+        defer { panel.dismiss() }
+        for presentation in ["strip", "list", "grid", "miniatures"] {
+            var settings = LensConfig(); settings.presentation = presentation == "strip" ? "list" : presentation
+            if presentation == "strip" { settings.startsIn = "normal" }
+            let gesture = StripGesture(keyCode: 48, invoking: .command)
+            let ticket = panel.beginLens("trigger", toggle: true)!
+            await panel.openLens(name: "trigger", settings: settings, entries: [], search: "", banner: nil, context: .null, ticket: ticket, invocation: gesture)
+            if presentation == "strip" { panel.session!.changePresentation("strip") }
+            panel.sendEvent(key(38, "j"))
+            let model = panel.session!
+            XCTAssertNil(model.hold)
+            XCTAssertFalse(panel.handleStripHotkey(keyCode: 48, modifiers: .command, characters: "tab"))
+            XCTAssertTrue(panel.session === model, "The global Trigger must see the open Lens to toggle it")
+            XCTAssertNil(panel.beginLens("trigger", toggle: true, strip: presentation == "strip" ? gesture : nil))
+            XCTAssertNil(panel.session)
+        }
+    }
+
+    func testNormalGridRequiresSlashAndEscapeKeepsMatches() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: $0 < 3 ? "Safari" : "Other", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false) }
+        let model = LensSession(name: "grid", settings: settings, items: items, search: "")
+        let owner = ownLens(model); defer { owner.dismiss() }
+        for (code, text) in [(UInt16(1), "s"), (0, "a"), (3, "f")] { XCTAssertTrue(model.perform(model.meaning(for: key(code, text, [])))) }
+        XCTAssertEqual(model.query, "")
+        XCTAssertTrue(model.perform(model.meaning(for: key(44, "/", []))))
+        for (code, text) in [(UInt16(1), "s"), (0, "a"), (3, "f")] { XCTAssertTrue(model.perform(model.meaning(for: key(code, text, [])))) }
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.count, 2)
+        XCTAssertTrue(model.perform(model.meaning(for: key(53, "", []))))
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.results.count, 2)
+        XCTAssertEqual(model.meaning(for: key(38, "j", [])), .arrow(125))
+        XCTAssertEqual(model.meaning(for: key(53, "", [])), .dismiss)
+    }
+
+    func testOptionReturnUsesReleaseMeaningBeforeAltEnterBinding() {
+        let model = LensSession(name: "option", settings: LensConfig(), items: [], search: "")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        XCTAssertEqual(model.meaning(for: key(36, "\r", .option)), .command("enter"))
+        XCTAssertEqual(model.meaning(for: key(36, "\r", [.option, .shift])), .command("shift-enter"))
+        let overview = LensSession(name: "overview", settings: LensConfig(), items: [], search: "")
+        overview.startHold(StripGesture(keyCode: 31, invoking: [.option, .shift]))
+        XCTAssertEqual(overview.meaning(for: key(36, "\r", [.option, .shift])), .command("enter"))
+        XCTAssertEqual(overview.meaning(for: key(36, "\r", [.option, .shift, .control])), .global)
+
+    }
+
+    func testStartsInResolutionProfilesJSONAndPresentationChanges() {
+        for presentation in ["list", "strip", "grid", "miniatures"] {
+            for configured: String? in [nil, "normal", "search"] {
+                var settings = LensConfig(); settings.presentation = presentation; settings.startsIn = configured
+                let model = LensSession(name: "start", settings: settings, items: [], search: "saved")
+                let expected: LensInputState = configured == "search" || (configured == nil && presentation == "list") ? .search : .normal
+                XCTAssertEqual(model.inputState, expected)
+                XCTAssertEqual(model.query, expected == .search && presentation != "strip" ? "saved" : "")
+                model.changePresentation(presentation == "list" ? "grid" : "list")
+                XCTAssertEqual(model.inputState, expected)
+                if expected == .normal {
+                    model.enterSearch()
+                    XCTAssertEqual(model.query, "saved")
+                }
+                XCTAssertFalse(model.searchEdited)
+                model.perform(.text("x"))
+                XCTAssertEqual(model.query, "x")
+            }
+        }
+        let settings = LensConfig(.object(["starts-in": .string("search"), "when": .object(["default": .object(["starts-in": .string("normal")])])]))
+        XCTAssertEqual(settings.startsIn, "normal")
+        XCTAssertEqual(settings.json["starts-in"], .string("normal"))
+        XCTAssertEqual(LensConfig().json["starts-in"], .null)
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var normal = LensConfig(); normal.startsIn = "normal"
+        let model = LensSession(name: "saved", settings: normal, items: [], search: "remembered")
+        owner.complete(model, ticket: owner.begin("saved", toggle: false)!)
+        owner.dismiss()
+        XCTAssertEqual(owner.search(for: "saved", override: nil), "remembered")
+    }
+
+    func testPlainBindingsWinInNormalAndAreTextInSearchAndHoldCommandsKeepHold() {
+        var settings = LensConfig(); settings.presentation = "grid"; settings.keys["j"] = ["close"]
+        let model = LensSession(name: "bound", settings: settings, items: [], search: "")
+        var actions: [String] = []; model.onAction = { actions.append($0) }
+        XCTAssertTrue(model.perform(model.meaning(for: key(38, "j", []))))
+        XCTAssertEqual(actions, ["j"])
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertTrue(model.perform(model.meaning(for: key(13, "w"))))
+        XCTAssertEqual(model.inputState, .hold)
+        XCTAssertTrue(model.keepsOpen(after: "cmd-w"))
+        XCTAssertFalse(model.keepsOpen(after: "enter"))
+        XCTAssertEqual(actions, ["j", "cmd-w"])
+        XCTAssertTrue(model.perform(model.meaning(for: key(38, "j"))))
+        XCTAssertEqual(actions, ["j", "cmd-w", "j"])
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertFalse(model.keepsOpen(after: "cmd-w"))
+        model.enterSearch()
+        XCTAssertEqual(model.meaning(for: key(38, "j", [])), .text("j"))
+        XCTAssertTrue(model.perform(model.meaning(for: key(38, "j", []))))
+        XCTAssertEqual(model.query, "j")
+        XCTAssertEqual(model.meaning(for: key(0, "a")), .fieldEditor)
+        XCTAssertEqual(model.meaning(for: key(9, "v")), .fieldEditorEdit)
+    }
+
+    func testNormalAndHoldKeepPanelResponderAndSearchGivesItToEditor() async {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        var settings = LensConfig(); settings.startsIn = "normal"
+        let gesture = StripGesture(keyCode: 44, invoking: .option)
+        await panel.openLens(name: "focus", settings: settings, entries: [], search: "remembered", banner: nil, context: .null, ticket: panel.beginLens("focus", toggle: false)!, invocation: gesture)
+        XCTAssertEqual(panel.session?.inputState, .hold)
+        XCTAssertFalse(panel.firstResponder is NSTextView)
+        panel.sendEvent(key(38, "j", .option))
+        XCTAssertEqual(panel.session?.inputState, .normal)
+        XCTAssertFalse(panel.firstResponder is NSTextView)
+        panel.session?.enterSearch()
+        await Task.yield()
+        XCTAssertEqual(panel.session?.inputState, .search)
+        XCTAssertTrue(panel.firstResponder is NSTextView)
+        panel.sendEvent(key(53, "", []))
+        XCTAssertEqual(panel.session?.inputState, .normal)
+        XCTAssertFalse(panel.firstResponder is NSTextView)
+        XCTAssertEqual(panel.session?.query, "remembered")
+    }
+
+    func testHeldFirstSearchLetterKeepsCaretAtEndAfterEditorAppears() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        let gesture = StripGesture(keyCode: 44, invoking: .option)
+        await panel.openLens(name: "first-letter", settings: LensConfig(), entries: [], search: "", banner: nil, context: .null, ticket: panel.beginLens("first-letter", toggle: false)!, invocation: gesture)
+        panel.sendEvent(key(1, "s", .option))
+        for _ in 0..<20 { await Task.yield() }
+        let editor = try XCTUnwrap(panel.firstResponder as? NSTextView)
+        XCTAssertEqual(editor.string, "s")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 1, length: 0), "The asynchronous field focus must not select the first typed letter")
+    }
+
+    func testQueuedEscapeUsesStateAfterFirstLetterAndSecondEscapeDismisses() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        let gesture = StripGesture(keyCode: 44, invoking: .option)
+        let ticket = owner.begin("queued-escape", toggle: false, invocation: gesture)!
+        XCTAssertEqual(owner.openingStripKey(keyCode: 1, flags: .option, characters: "s"), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 53, flags: [], characters: ""), .consumed)
+        let model = LensSession(name: "queued-escape", settings: LensConfig(), items: [], search: "")
+        owner.complete(model, ticket: ticket)
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(model.query, "s")
+        XCTAssertTrue(owner.session === model)
+        owner.dismiss()
+        let second = owner.begin("queued-escape", toggle: false, invocation: gesture)!
+        XCTAssertEqual(owner.openingStripKey(keyCode: 1, flags: .option, characters: "s"), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 53, flags: [], characters: ""), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 53, flags: [], characters: ""), .consumed)
+        owner.complete(LensSession(name: "queued-escape", settings: LensConfig(), items: [], search: ""), ticket: second)
+        XCTAssertNil(owner.session)
+    }
+
+    func testPreservedListSidewaysArrowsMoveDuringHold() {
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Window", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let model = LensSession(name: "arrows", settings: LensConfig(), items: items, search: "")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        XCTAssertEqual(model.selectedId, 2)
+        XCTAssertTrue(model.perform(model.meaning(for: key(123, "", .option))))
+        XCTAssertEqual(model.selectedId, 1)
+        XCTAssertTrue(model.perform(model.meaning(for: key(124, "", .option))))
+        XCTAssertEqual(model.selectedId, 2)
+    }
+
+    func testHoldEndingLetterKeepsShiftForNormalBindings() {
+        var settings = LensConfig(); settings.presentation = "grid"; settings.keys["shift-j"] = ["close"]
+        let model = LensSession(name: "shift-binding", settings: settings, items: [], search: "")
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        var actions: [String] = []; model.onAction = { actions.append($0) }
+        model.perform(model.meaning(for: key(38, "J", [.command, .shift])))
+        XCTAssertEqual(actions, ["shift-j"])
+        XCTAssertEqual(model.inputState, .normal)
+    }
+
+    func testSlashKeepsMatchingStripSelectionWhileApplyingRememberedSearch() {
+        var settings = LensConfig(); settings.presentation = "strip"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Safari", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let model = LensSession(name: "remembered-strip", settings: settings, items: items, search: "saf")
+        model.hover(3)
+        model.startHold(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertTrue(model.perform(model.meaning(for: key(44, "/"))))
+        XCTAssertEqual(model.query, "saf")
+        XCTAssertEqual(model.selectedId, 3)
+        XCTAssertEqual(model.settings.presentation, "list")
+    }
+
+    func testPanelStripKeepsDormantRememberedSearchUntilSlash() async {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        await panel.openLens(name: "remembered-strip", settings: LensConfig(), entries: [], search: "saf", banner: nil, context: .null, ticket: panel.beginLens("remembered-strip", toggle: false)!)
+        panel.dismiss()
+        var settings = LensConfig(); settings.presentation = "strip"
+        await panel.openLens(name: "remembered-strip", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: panel.beginLens("remembered-strip", toggle: false)!)
+        XCTAssertEqual(panel.session?.query, "")
+        panel.session?.enterSearch()
+        XCTAssertEqual(panel.session?.query, "saf")
+        XCTAssertFalse(panel.session!.searchEdited)
+    }
+
+    func testSearchStartingStripReleaseCommitsWithoutApplyingRecalledSearch() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Safari \($0)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let model = LensSession(name: "release-search", settings: settings, items: items, search: "saf")
+        owner.complete(model, ticket: owner.begin("release-search", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!)
+        XCTAssertEqual(model.query, "")
+        model.hover(3)
+        var focused: UInt32?
+        model.onAction = { _ in focused = model.selectedId }
+        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(focused, 3)
+        XCTAssertNil(model.hold)
+    }
+
+    func testQueuedTriggerAfterLetterIsNotConsumedOrReplayed() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
+        var settings = LensConfig(); settings.presentation = "strip"
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("queued-trigger", toggle: false, strip: gesture)!
+        XCTAssertEqual(owner.openingStripKey(keyCode: 38, flags: .command, characters: "j", source: .carbon), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 48, flags: .command, source: .carbon), .ignored)
+        let model = LensSession(name: "queued-trigger", settings: settings, items: [], search: "")
+        owner.complete(model, ticket: ticket)
+        XCTAssertNil(model.hold)
+        XCTAssertEqual(model.selection, 0)
+    }
+
+    func testFirstLetterMatchingRecalledSearchStillCountsAsAnEdit() {
+        let model = LensSession(name: "same-letter", settings: LensConfig(), items: [], search: "s")
+        model.startHold(StripGesture(keyCode: 44, invoking: .option))
+        model.perform(model.meaning(for: key(1, "s", .option)))
+        XCTAssertTrue(model.searchEdited)
+        model.perform(.text("a")); model.perform(.text("f"))
+        XCTAssertEqual(model.query, "saf")
+    }
+
+    func testPureDecisionPreservesPlainCarbonPriorityAndLensChordPrecedence() {
+        let hold = StripGesture(keyCode: 48, invoking: .command)
+        let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command), LensKeyBinding(name: "j", code: 38, modifiers: [])]
+        for presentation in ["list", "grid", "miniatures"] {
+            for state in [LensInputState.normal, .search] {
+                XCTAssertEqual(lensKeyMeaning(state: state, hold: nil, keys: keys, code: 13, characters: "w", flags: .command, presentation: presentation, source: .carbon), .command("cmd-w"))
+                XCTAssertEqual(lensKeyMeaning(state: state, hold: nil, keys: keys, code: 38, characters: "j", flags: [], presentation: presentation, source: .carbon), .globalBinding)
+            }
+            XCTAssertEqual(lensKeyMeaning(state: .hold, hold: hold, keys: keys, code: 13, characters: "w", flags: .command, presentation: presentation, source: .carbon), .command("cmd-w"))
+        }
+        XCTAssertEqual(lensKeyMeaning(state: .normal, hold: nil, keys: keys, code: 13, characters: "w", flags: .command, presentation: "strip", source: .carbon), .command("cmd-w"))
+    }
+
+    func testNormalGridApplyingRecalledSearchKeepsMatchingSelection() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let items: [SwitcherPaletteItem] = (1...3).map { id in
+            let title = id == 1 ? "Safari" : "Safari extra"
+            return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "recalled-ranking", settings: settings, items: items, search: "Safari")
+        model.hover(3)
+        model.enterSearch()
+        XCTAssertEqual(model.selectedId, 3)
+        XCTAssertEqual(model.query, "Safari")
+    }
+
+    func testExplicitSearchIsAppliedToALensThatStartsInNormalMode() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let items: [SwitcherPaletteItem] = [("Safari", 1), ("Notes", 2), ("Zed", 3)].map { title, id in
+            SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let model = LensSession(name: "explicit", settings: settings, items: items, search: "Safari", searchIsExplicit: true)
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(model.query, "Safari")
+        XCTAssertEqual(model.results.map(\.id), [1])
+        // A Hold does not put the asked-for Search away.
+        model.startHold(StripGesture(keyCode: 31, invoking: .option))
+        XCTAssertEqual(model.query, "Safari")
+        model.endHold(flags: [])
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(model.results.map(\.id), [1])
+        model.enterSearch()
+        XCTAssertEqual(model.query, "Safari")
+        XCTAssertFalse(model.searchEdited)
+
+        let recalled = LensSession(name: "recalled", settings: settings, items: items, search: "Safari")
+        XCTAssertEqual(recalled.query, "")
+        XCTAssertEqual(recalled.results.count, 3)
+    }
+
+    func testRetainedMatchingLetterKeepsCaretThroughInitialFocusCallback() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        await panel.openLens(name: "initial-same-letter", settings: LensConfig(), entries: [], search: "s", banner: nil, context: .null, ticket: panel.beginLens("initial-same-letter", toggle: false)!)
+        XCTAssertFalse(panel.session!.searchEdited)
+        _ = panel.makeFirstResponder(panel)
+        panel.sendEvent(key(1, "s", []))
+        for _ in 0..<20 { await Task.yield() }
+        let editor = try XCTUnwrap(panel.firstResponder as? NSTextView)
+        XCTAssertEqual(editor.string, "s")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 1, length: 0))
+        XCTAssertTrue(panel.session!.searchEdited)
+    }
+
+    func testStripSlashSelectsRecalledSearchForReplacement() async throws {
+        let panel = SwitcherPalettePanel.shared; defer { panel.dismiss() }
+        var settings = LensConfig(); settings.startsIn = "normal"
+        await panel.openLens(name: "strip-recall-focus", settings: settings, entries: [], search: "s", banner: nil, context: .null, ticket: panel.beginLens("strip-recall-focus", toggle: false)!)
+        panel.session!.changePresentation("strip")
+        panel.session!.enterSearch()
+        for _ in 0..<20 { await Task.yield() }
+        let editor = try XCTUnwrap(panel.firstResponder as? NSTextView)
+        XCTAssertEqual(editor.string, "s")
+        XCTAssertEqual(editor.selectedRange(), NSRange(location: 0, length: 1))
+        XCTAssertFalse(panel.session!.searchEdited)
+    }
+
+    func testPureMeaningTableOverThreeStates() {
         let hold = StripGesture(keyCode: 48, invoking: .command)
         let keys = [LensKeyBinding(name: "cmd-w", code: 13, modifiers: .command),
                     LensKeyBinding(name: "enter", code: 36, modifiers: []),
                     LensKeyBinding(name: "shift-enter", code: 36, modifiers: .shift)]
-        let cases: [(UInt16, String, NSEvent.ModifierFlags, LensKeyMeaning)] = [
-            (13, "w", .command, .command("cmd-w")),
-            (36, "\r", .command, .command("enter")),
-            (36, "\r", [.command, .shift], .command("shift-enter")),
-            (48, "\t", .command, .step(1)),
-            (48, "\t", [.command, .shift], .step(-1)),
-            (50, "`", .command, .step(0)),
-            (5, "g", .command, .text("g")),
-            (4, "H", [.command, .shift], .text("H")),
-            (4, "h", [], .text("h")),
-            (51, "", .command, .backspace),
-            (125, "", .command, .arrow(125)),
-            (53, "", .command, .dismiss),
-            (4, "h", [.command, .option], .global),
-            (0, "a", .command, .text("a")),
-            (9, "v", .command, .text("v")),
-            (122, "", .command, .dropped),
-            (117, "\u{F728}", .command, .dropped),
-            (116, "\u{F72C}", .command, .dropped),
+        let cases: [(LensInputState, UInt16, String, NSEvent.ModifierFlags, LensKeyMeaning)] = [
+            (.hold, 13, "w", .command, .command("cmd-w")),
+            (.hold, 36, "\r", .command, .command("enter")),
+            (.hold, 36, "\r", [.command, .shift], .command("shift-enter")),
+            (.hold, 48, "\t", .command, .step(1)),
+            (.hold, 48, "\t", [.command, .shift], .step(-1)),
+            (.hold, 50, "`", .command, .step(0)),
+            (.hold, 5, "g", .command, .endHold(5, "g")),
+            (.hold, 0, "a", .command, .endHold(0, "a")),
+            (.hold, 9, "v", .command, .endHold(9, "v")),
+            (.hold, 4, "H", [.command, .shift], .endHold(4, "H", .shift)),
+            (.hold, 4, "h", [], .endHold(4, "h")),
+            (.hold, 44, "/", .command, .endHold(44, "/")),
+            (.hold, 51, "", .command, .dropped),
+            (.hold, 18, "1", .command, .dropped),
+            (.hold, 49, " ", .command, .dropped),
+            (.hold, 47, ".", .command, .dropped),
+            (.hold, 125, "", .command, .arrow(125)),
+            (.hold, 53, "", .command, .dismiss),
+            (.hold, 4, "h", [.command, .option], .global),
+            (.hold, 122, "", .command, .dropped),
+            (.hold, 117, "\u{F728}", .command, .dropped),
+            (.hold, 116, "\u{F72C}", .command, .dropped),
+            (.normal, 38, "j", [], .arrow(125)),
+            (.normal, 37, "h", [], .arrow(123)),
+            (.hold, 37, "é", .command, .endHold(37, "é")),
+            (.normal, 4, "h", [], .arrow(123)),
+            (.normal, 40, "k", [], .arrow(126)),
+            (.normal, 37, "l", [], .arrow(124)),
+            (.normal, 7, "x", [], .dropped),
+            (.normal, 51, "", [], .dropped),
+            (.normal, 44, "/", [], .enterSearch),
+            (.normal, 53, "", [], .dismiss),
+            (.normal, 38, "j", .command, .fieldEditor),
+            (.search, 38, "j", [], .text("j")),
+            (.search, 0, "a", .command, .fieldEditor),
+            (.search, 9, "v", .command, .fieldEditorEdit),
+            (.search, 51, "", [], .backspace),
+            (.search, 53, "", [], .leaveSearch),
         ]
-        for (code, text, flags, expected) in cases {
-            XCTAssertEqual(lensKeyMeaning(hold: hold, keys: keys, code: code, characters: text, flags: flags), expected)
+        for (state, code, text, flags, expected) in cases {
+            XCTAssertEqual(lensKeyMeaning(state: state, hold: state == .hold ? hold : nil, keys: keys, code: code, characters: text, flags: flags), expected, "\(state) \(text) \(flags)")
         }
-        XCTAssertEqual(lensKeyMeaning(hold: nil, keys: keys, code: 4, characters: "h", flags: .command), .fieldEditor)
-        XCTAssertEqual(lensKeyMeaning(hold: nil, keys: keys, code: 5, characters: "g", flags: []), .text("g"))
         let alt = StripGesture(keyCode: 15, invoking: .option)
-        XCTAssertEqual(lensKeyMeaning(hold: alt, keys: [], code: 4, characters: "h", flags: .option), .text("h"))
-        XCTAssertEqual(lensKeyMeaning(hold: alt, keys: [], code: 4, characters: "h", flags: .command), .global)
+        XCTAssertEqual(lensKeyMeaning(state: .hold, hold: alt, keys: [], code: 4, characters: "h", flags: .option), .endHold(4, "h"))
+        XCTAssertEqual(lensKeyMeaning(state: .hold, hold: alt, keys: [], code: 4, characters: "h", flags: .command), .global)
     }
 
-    func testControlledLifecycleHoldSurvivesConversionAndEndsOnceWithoutCommit() async {
+    func testControlledLifecycleHoldEndsOnceAndSlashConvertsWithoutCommit() async {
         let clock = TestClock<Duration>()
-        let owner = testLensLifecycle(clock: clock)
-        defer { owner.dismiss() }
+        let owner = testLensLifecycle(clock: clock); defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys["cmd-w"] = []
-        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "gh Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
         let model = LensSession(name: "hold", settings: settings, items: items, search: "")
         let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-        let ticket = owner.begin("hold", toggle: false, strip: gesture)!
-        owner.complete(model, ticket: ticket)
+        owner.complete(model, ticket: owner.begin("hold", toggle: false, strip: gesture)!)
         await clock.advance(by: .milliseconds(100))
-        var actions: [String] = []
-        model.onAction = { actions.append($0) }
-        for event in [key(5, "g"), key(4, "h")] { XCTAssertTrue(model.perform(model.meaning(for: event))) }
-        XCTAssertEqual(model.query, "gh")
-        XCTAssertEqual(model.settings.presentation, "list")
-        XCTAssertNotNil(model.hold)
-        XCTAssertTrue(model.perform(model.meaning(for: key(51, ""))))
-        XCTAssertEqual(model.query, "g")
-        XCTAssertTrue(model.perform(model.meaning(for: key(125, ""))))
-        XCTAssertEqual(model.selection, 1)
+        var actions: [String] = []; model.onAction = { actions.append($0) }
         XCTAssertTrue(model.perform(model.meaning(for: key(13, "w"))))
+        XCTAssertNotNil(model.hold)
         XCTAssertEqual(actions, ["cmd-w"])
-        owner.stripFlagsChanged([], from: model)
+        XCTAssertTrue(model.perform(model.meaning(for: key(38, "j"))))
+        XCTAssertEqual(model.selection, 2)
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.settings.presentation, "strip")
         XCTAssertNil(model.hold)
+        owner.stripFlagsChanged([], from: model)
         XCTAssertTrue(owner.session === model)
         XCTAssertEqual(actions, ["cmd-w"])
-        owner.stripFlagsChanged(.command, from: model)
-        XCTAssertNil(model.hold)
-        model.startHold(gesture)
-        XCTAssertNil(model.hold)
-        XCTAssertEqual(model.meaning(for: key(4, "h")), .fieldEditor)
-        XCTAssertFalse(model.perform(model.meaning(for: key(4, "h"))))
-        XCTAssertEqual(model.query, "g")
+        model.startHold(gesture); XCTAssertNil(model.hold)
+        let selected = model.selectedId
+        XCTAssertTrue(model.perform(model.meaning(for: key(44, "/", []))))
+        XCTAssertEqual(model.settings.presentation, "list")
+        XCTAssertEqual(model.selectedId, selected)
+        XCTAssertEqual(model.inputState, .search)
     }
 
-    func testOpeningKeepsLettersAndStepsInTheirOriginalOrder() {
-        let owner = testLensLifecycle()
+    func testOpeningKeepsLetterAndFollowingKeysInTheirOriginalOrder() {
+        let owner = testLensLifecycle(); defer { owner.dismiss() }
         let gesture = StripGesture(keyCode: 48, invoking: .command)
-        let ticket = owner.begin("order", toggle: false, strip: gesture)!
-        XCTAssertEqual(owner.openingStripKey(keyCode: 5, flags: .command, characters: "g"), .consumed)
-        XCTAssertEqual(owner.openingStripKey(keyCode: 48, flags: [.command, .shift]), .consumed)
+        let store = LensTraceStore()
+        let trace = store.begin(presentation: "strip", origin: .init(start: 0, received: 0, source: "test"))
+        let ticket = owner.begin("order", toggle: false, strip: gesture, trace: trace)!
+        XCTAssertEqual(owner.openingStripKey(keyCode: 38, flags: .command, characters: "j"), .consumed)
+        XCTAssertEqual(owner.openingStripKey(keyCode: 38, flags: [], characters: "j"), .consumed)
         var settings = LensConfig(); settings.presentation = "strip"
-        let items: [SwitcherPaletteItem] = (1...3).map { id in
-            let title = id == 1 ? "Other" : "g Demo"
-            return SwitcherPaletteItem(id: UInt32(id), title: title, appName: "Demo", icon: nil, workspaceName: "1", isFocused: id == 1)
-        }
+        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
         let model = LensSession(name: "order", settings: settings, items: items, search: "")
         owner.complete(model, ticket: ticket)
-        XCTAssertEqual(model.query, "g")
-        XCTAssertEqual(model.selectedId, 3)
-        owner.dismiss()
+        XCTAssertEqual(model.query, "")
+        XCTAssertEqual(model.selectedId, 1)
+        XCTAssertEqual(model.inputState, .normal)
+        XCTAssertEqual(trace.snapshot.keys.map(\.state), [.hold, .normal])
+        XCTAssertTrue(trace.snapshot.keys[0].destination.contains("Hold ended by key"))
+        XCTAssertEqual(trace.snapshot.session?.state, .normal)
     }
 
     func testShiftOnlyChordHasAHoldWithoutChangingStripCommitModifiers() {
@@ -109,9 +662,9 @@ final class LensHoldTest: SerialClockTestCase {
         owner.complete(model, ticket: owner.begin("shift", toggle: false)!, invocation: gesture)
         owner.stripFlagsChanged(.shift, from: model)
         XCTAssertNotNil(model.hold)
-        XCTAssertEqual(model.meaning(for: key(4, "H", .shift)), .text("H"))
+        XCTAssertEqual(model.meaning(for: key(4, "H", .shift)), .endHold(4, "h"))
         XCTAssertTrue(model.perform(model.meaning(for: key(4, "H", .shift))))
-        XCTAssertEqual(model.query, "H")
+        XCTAssertEqual(model.query, "h")
         owner.stripFlagsChanged([], from: model)
         XCTAssertNil(model.hold)
         XCTAssertTrue(owner.session === model)
@@ -146,22 +699,21 @@ final class LensHoldTest: SerialClockTestCase {
         XCTAssertEqual(model.meaning(for: key(4, "h")), .fieldEditor)
     }
 
-    func testOpeningLettersAreQueuedAndAppliedInOrderBeforeReleaseCommit() {
+    func testOpeningLettersEndHoldBeforeAnyQueuedReleaseCommit() {
         for release in [false, true] {
-            let owner = testLensLifecycle()
-            let gesture = StripGesture(keyCode: 48, invoking: .command)
-            let ticket = owner.begin("queued", toggle: false, strip: gesture)!
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            let ticket = owner.begin("queued", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!
             XCTAssertEqual(owner.openingStripKey(keyCode: 5, flags: .command, characters: "g"), .consumed)
-            XCTAssertEqual(owner.openingStripKey(keyCode: 4, flags: .command, characters: "h"), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 4, flags: [], characters: "h"), .consumed)
             if release { owner.openingFlagsChanged([]) }
             var settings = LensConfig(); settings.presentation = "strip"
             let model = LensSession(name: "queued", settings: settings, items: [], search: "")
             owner.complete(model, ticket: ticket)
-            XCTAssertEqual(model.query, "gh")
-            XCTAssertEqual(model.settings.presentation, "list")
-            XCTAssertEqual(model.hold != nil, !release)
+            XCTAssertEqual(model.query, "")
+            XCTAssertEqual(model.settings.presentation, "strip")
+            XCTAssertNil(model.hold)
+            XCTAssertTrue(model.holdEndedByKey)
             XCTAssertTrue(owner.session === model)
-            owner.dismiss()
         }
     }
 
@@ -172,7 +724,7 @@ final class LensHoldTest: SerialClockTestCase {
             owner.complete(model, ticket: owner.begin("ordinary", toggle: false)!, invocation: invocation)
             XCTAssertNil(model.hold)
             XCTAssertEqual(model.meaning(for: key(5, "g", [])), .text("g"))
-            XCTAssertFalse(model.perform(model.meaning(for: key(5, "g", []))))
+            XCTAssertTrue(model.perform(model.meaning(for: key(5, "g", []))))
             XCTAssertEqual(model.meaning(for: key(4, "h")), .fieldEditor)
             XCTAssertEqual(model.meaning(for: key(13, "w")), .command("cmd-w"))
             owner.dismiss()
@@ -188,10 +740,11 @@ final class LensHoldTest: SerialClockTestCase {
             XCTAssertFalse(model.searchEdited)
             if backspace {
                 XCTAssertTrue(model.perform(model.meaning(for: key(51, "", .option))))
-                XCTAssertEqual(model.query, "")
+                XCTAssertEqual(model.query, "foo")
+                XCTAssertNotNil(model.hold)
             }
             XCTAssertTrue(model.perform(model.meaning(for: key(11, "b", .option))))
-            XCTAssertTrue(model.perform(model.meaning(for: key(0, "a", .option))))
+            XCTAssertTrue(model.perform(model.meaning(for: key(0, "a", []))))
             XCTAssertEqual(model.query, "ba")
             XCTAssertTrue(model.searchEdited)
             owner.dismiss()
@@ -251,24 +804,26 @@ final class LensHoldTest: SerialClockTestCase {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }
         for equivalent in [false, true] {
-            var settings = LensConfig(); settings.presentation = "list"
+            var settings = LensConfig(); settings.presentation = "list"; settings.startsIn = "search"
             let gesture = StripGesture(keyCode: 48, invoking: .command)
             let ticket = panel.beginLens("hold", toggle: false, strip: gesture)!
             await panel.openLens(name: "hold", settings: settings, entries: [], search: "", banner: nil, context: .null, ticket: ticket, invocation: gesture)
             let model = try! XCTUnwrap(panel.session)
             model.beginStrip(gesture)
             model.changePresentation("strip")
-            for event in [key(5, "g"), key(4, "h")] {
+            for event in [key(5, "g"), key(4, "h", [])] {
+                _ = panel.makeFirstResponder(panel)
                 if equivalent { XCTAssertTrue(panel.performKeyEquivalent(with: event)) }
                 else { panel.sendEvent(event) }
             }
             XCTAssertEqual(model.settings.presentation, "list")
             XCTAssertEqual(model.query, "gh")
-            if equivalent { XCTAssertTrue(panel.performKeyEquivalent(with: key(51, ""))) }
-            else { panel.sendEvent(key(51, "")) }
+            _ = panel.makeFirstResponder(panel)
+            if equivalent { XCTAssertTrue(panel.performKeyEquivalent(with: key(51, "", []))) }
+            else { panel.sendEvent(key(51, "", [])) }
             XCTAssertEqual(model.query, "g")
             panel.stripFlagsChanged([])
-            panel.sendEvent(key(4, "h"))
+            panel.sendEvent(key(4, "h", .command))
             XCTAssertTrue(panel.session === model)
             XCTAssertEqual(model.query, "g")
             panel.dismiss()
@@ -284,16 +839,17 @@ final class LensHoldTest: SerialClockTestCase {
             let ticket = panel.beginLens("direct", toggle: false, strip: gesture)!
             await panel.openLens(name: "direct", settings: settings, entries: [], search: "", banner: nil, context: .null, ticket: ticket, invocation: gesture)
             XCTAssertTrue(panel.handleStripHotkey(keyCode: 4, modifiers: .option, characters: "h"))
-            XCTAssertEqual(panel.session?.query, "h")
+            XCTAssertEqual(panel.session?.query, presentation == "list" ? "h" : "")
             XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.option, .control], characters: "l"))
-            XCTAssertNil(panel.session)
+            XCTAssertNotNil(panel.session)
+            panel.dismiss()
         }
     }
 
     func testLettersBeforeFieldEditorIsReadyAreRetainedWithoutModifiers() async {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }
-        var settings = LensConfig(); settings.presentation = "list"
+        var settings = LensConfig(); settings.presentation = "list"; settings.startsIn = "search"
         let gesture = StripGesture(keyCode: 48, invoking: .command)
         let ticket = panel.beginLens("gap", toggle: false, strip: gesture)!
         await panel.openLens(name: "gap", settings: settings, entries: [], search: "", banner: nil, context: .null, ticket: ticket, invocation: gesture)

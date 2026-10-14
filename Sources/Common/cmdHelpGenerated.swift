@@ -194,6 +194,10 @@ let lens_help_generated = """
            lens --presentation list
 
     Toggle a named Lens, open an ad-hoc Lens, or change the open Presentation.
+    Lists start in Search; strips, grids and miniatures start in normal mode unless
+    starts-in overrides it. In normal mode hjkl/arrows move and / enters Search.
+    Escape leaves Search keeping matches; another Escape dismisses.
+    A first unbound letter ends the Trigger's Hold; its later release never commits.
     Inline Filters bind w and ctx. Quote enum tags with double quotes:
       lens --filter "w.class == 'floating"
     --filter - reads a body from stdin.

@@ -1,11 +1,17 @@
 import AppKit
 import Common
 
+struct LensAdHocIdentity: Equatable {
+    let filter: String
+    let settings: LensConfig
+    let search: String?
+}
+
 @MainActor
 final class LensLifecycle {
     enum PendingKey {
         case meaning(LensKeyMeaning)
-        case key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, hold: StripGesture)
+        case key(code: UInt16, characters: String, holdCharacters: String?, flags: NSEvent.ModifierFlags, timestamp: Double, receivedAt: Double, source: LensKeySource)
     }
     struct Opening {
         let name: String
@@ -14,7 +20,11 @@ final class LensLifecycle {
         var release: NSEvent.ModifierFlags?
         var prepared: LensSession?
         var keys: [LensKeyBinding] = []
+        let listKeys: [LensKeyBinding]
         var pending: [PendingKey] = []
+        let startingState: LensInputState
+        var presentation: String
+        var pendingState: LensInputState = .hold
     }
     enum State {
         case closed
@@ -52,11 +62,16 @@ final class LensLifecycle {
             default: return nil
         }
     }
+    var openingGesture: StripGesture? {
+        if case .opening(let opening) = state { return opening.gesture }
+        return nil
+    }
     private let clock: any Clock<Duration>
     private let emit: (ServerEvent) -> Void
     private let dependencies: Dependencies
     private let inlineSearch: LensInlineSearch
     var prepare: (LensSession) -> Void = { _ in }
+    var inputStateChanged: (LensSession) -> Void = { _ in }
     var updatePresentation: (LensSession) -> Void = { _ in }
     var show: (LensSession) -> Void
     struct ShowInstruction: Equatable {
@@ -71,6 +86,7 @@ final class LensLifecycle {
     private var nextThumbnailToken = 0
     private(set) var searchInput: (context: JSONValue, windows: [JSONValue], ids: [UInt32]) = (.null, [], [])
     private var generation = 0
+    private var identity: LensAdHocIdentity?
     private var remembered: [String: String] = [:]
 
     init(clock: any Clock<Duration> = ContinuousClock(), dependencies: Dependencies, emit: @escaping (ServerEvent) -> Void,
@@ -95,13 +111,20 @@ final class LensLifecycle {
     }
     var searchTask: Task<Void, Never>? { inlineSearch.current }
 
-    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil) -> Int? {
+    func begin(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil, settings: LensConfig? = nil, identity: LensAdHocIdentity? = nil) -> Int? {
+        let modal: Bool
+        if case .opening(let opening) = state { modal = opening.pendingState != .hold }
+        else { modal = session?.holdEndedByKey == true }
+        let sameIdentity = self.identity == identity
         let previous: String?
         if case .opening(let opening) = state { previous = opening.name } else { previous = session?.name }
         dismiss()
-        if previous == name && toggle && strip == nil { trace?.cancel(); return nil }
+        if previous == name && sameIdentity && (modal || (toggle && strip == nil)) { trace?.cancel(); return nil }
         self.trace = trace
-        state = .opening(Opening(name: name, gesture: strip ?? invocation, isStrip: strip != nil, keys: keys))
+        self.identity = identity
+        let presentation = settings?.presentation ?? (strip != nil ? "strip" : "list")
+        let startingState = settings?.startingInputState ?? (presentation == "list" ? .search : .normal)
+        state = .opening(Opening(name: name, gesture: strip ?? invocation, isStrip: strip != nil, keys: keys, listKeys: settings.map { LensKeyBinding.resolve($0.keys) } ?? keys, startingState: startingState, presentation: presentation))
         return generation
     }
 
@@ -115,7 +138,6 @@ final class LensLifecycle {
         }
         let gesture = opening.gesture ?? invocation
         model.startHold(gesture?.keyCode == nil ? nil : gesture)
-        if let release = opening.release { model.endHold(flags: release) }
         trace?.advance("session ready")
         model.owner = self
         trace?.session(model)
@@ -123,6 +145,7 @@ final class LensLifecycle {
         if model.settings.presentation == "strip", let gesture = model.stripGesture {
             state = .ready(model)
             replay(opening.pending, to: model)
+            if let release = opening.release { model.endHold(flags: release, committing: model.stripReleaseKey(flags: release) != nil) }
             guard session === model, model.settings.presentation == "strip" else { return true }
             let flags = opening.release ?? dependencies.flags()
             // A release that came before readiness runs its action once; the strip is never drawn.
@@ -147,6 +170,7 @@ final class LensLifecycle {
             state = .opening(opening)
             presented(model)
             replay(opening.pending, to: model)
+            if let release = opening.release { model.endHold(flags: release, committing: model.stripReleaseKey(flags: release) != nil) }
         }
         return true
     }
@@ -154,13 +178,25 @@ final class LensLifecycle {
     private func replay(_ keys: [PendingKey], to model: LensSession) {
         for key in keys {
             guard session === model else { return }
-            let meaning: LensKeyMeaning
             switch key {
-                case .meaning(let queued): meaning = queued
-                case .key(let code, let characters, let flags, let hold):
-                    meaning = lensKeyMeaning(hold: hold, keys: model.activeKeyBindings, code: code, characters: characters, flags: flags)
+                case .meaning(let meaning): _ = model.perform(meaning)
+                case .key(let code, let characters, let holdCharacters, let flags, let timestamp, let receivedAt, let source):
+                    let state = model.inputState
+                    let held = model.hold != nil
+                    let presentation = model.settings.presentation
+                    let meaning = lensKeyMeaning(state: state, hold: model.hold ?? model.invokingGesture,
+                                                 keys: model.activeKeyBindings, code: code, characters: state == .hold ? holdCharacters ?? characters : characters, flags: flags, presentation: presentation, source: source)
+                    let trace = self.trace
+                    switch meaning {
+                        case .dismiss: dismiss()
+                        case .global, .triggerGlobal, .globalBinding, .fieldEditor: break
+                        default: _ = model.perform(meaning)
+                    }
+                    trace?.key(code: code, characters: characters, flags: flags, timestamp: timestamp,
+                               presentation: presentation, state: state, hold: held, path: "opening replay",
+                               destination: held && model.holdEndedByKey ? "Hold ended by key; " + model.inputState.rawValue : String(describing: meaning),
+                               search: model.query, selectedId: model.selectedId, fieldEditor: false, receivedAt: receivedAt)
             }
-            _ = model.perform(meaning, retainTyping: true)
         }
     }
 
@@ -179,9 +215,9 @@ final class LensLifecycle {
         }
         guard session === model, ticket == generation else { return }
         let firstNonStrip = !conversion && model.settings.presentation != "strip"
-        finishShow(model, ShowInstruction(activate: firstNonStrip, focusSearch: firstNonStrip))
+        finishShow(model, ShowInstruction(activate: firstNonStrip, focusSearch: firstNonStrip && model.inputState == .search))
         guard session === model, ticket == generation else { return }
-        if !wasPresented, !conversion, model.settings.presentation != "strip" { startSearch(model) }
+        if !wasPresented, !conversion, model.inputState == .search || !model.query.isEmpty { startSearch(model) }
         if !wasPresented || restartEffects { startPresentationEffects(model) }
     }
 
@@ -191,13 +227,17 @@ final class LensLifecycle {
         let oldSearch = model.query
         let oldPresentation = model.settings.presentation
         let oldSummon = model.summonHeld
+        let oldInputState = model.inputState
         model.apply(event)
         trace?.session(model)
         updatePresentation(model)
+        if oldInputState != model.inputState { inputStateChanged(model) }
         switch event {
             case .searchChanged:
                 guard oldSearch != model.query else { return }
                 startSearch(model)
+            case .inputStateChanged:
+                if model.inputState == .search { startSearch(model) }
             case .presentationChanged:
                 guard oldPresentation != model.settings.presentation else { return }
                 cancelPresentationEffects()
@@ -218,9 +258,9 @@ final class LensLifecycle {
         send(.modifiersChanged(flags), from: model)
         guard session === model else { return }
         let wasHeld = model.hold != nil
-        model.endHold(flags: flags)
+        model.endHold(flags: flags, committing: model.stripReleaseKey(flags: flags) != nil)
         trace?.key(code: 65535, characters: "", flags: flags, timestamp: LensTimebase.now(),
-                   presentation: model.settings.presentation, hold: model.hold != nil, path: "flagsChanged",
+                   presentation: model.settings.presentation, state: wasHeld ? .hold : model.inputState, hold: model.hold != nil, path: "flagsChanged",
                    destination: wasHeld && model.hold == nil ? "Hold ended" : "modifiers changed",
                    search: model.query, selectedId: model.selectedId, fieldEditor: false)
         trace?.session(model)
@@ -235,8 +275,9 @@ final class LensLifecycle {
     }
 
     private func commitStripRelease(_ flags: NSEvent.ModifierFlags, model: LensSession) -> Bool {
-        model.endHold(flags: flags)
-        guard let key = model.stripReleaseKey(flags: flags) else { return false }
+        let key = model.stripReleaseKey(flags: flags)
+        model.endHold(flags: flags, committing: key != nil)
+        guard let key else { return false }
         if let action = model.onAction { action(key) } else { dismiss() }
         return true
     }
@@ -275,15 +316,18 @@ final class LensLifecycle {
         cancelLanding()
     }
 
-    func cycleStrip(name: String, keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
+    func cycleStrip(name: String, keyCode: UInt16, flags: NSEvent.ModifierFlags, identity: LensAdHocIdentity? = nil) -> Bool {
+        guard self.identity == identity else { return false }
         if let session { return session.name == name && session.cycleStrip(keyCode: keyCode, flags: flags) }
         guard case .opening(let opening) = state, opening.name == name, opening.gesture?.step(keyCode: keyCode, flags: flags) != nil else { return false }
         return openingStripKey(keyCode: keyCode, flags: flags) == .consumed
     }
 
-    func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", timestamp: Double? = nil) -> StripInput? {
+    func openingStripKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, characters: String = "", holdCharacters: String? = nil, timestamp: Double? = nil, source: LensKeySource = .panel) -> StripInput? {
         guard case .opening(var opening) = state, opening.prepared == nil, let gesture = opening.gesture else { return nil }
-        guard opening.release == nil, gesture.keyCode != nil, !gesture.holdModifiers.isEmpty else {
+        let pending = PendingKey.key(code: keyCode, characters: characters, holdCharacters: holdCharacters,
+                                     flags: flags, timestamp: timestamp ?? LensTimebase.now(), receivedAt: LensTimebase.now(), source: source)
+        guard opening.pendingState != .hold || (opening.release == nil && gesture.keyCode != nil && !gesture.holdModifiers.isEmpty) else {
             // With no Hold, only a strip takes keys while it opens: its own steps, and Tab and backtick.
             guard opening.isStrip else { return nil }
             if let step = gesture.step(keyCode: keyCode, flags: flags) {
@@ -291,19 +335,35 @@ final class LensLifecycle {
                 if opening.release == nil { opening.pending.append(.meaning(.step(step))); state = .opening(opening) }
                 return .consumed
             }
-            return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .ignored
+            // Another binding drops the strip before it runs, so a settled release cannot undo it.
+            return (keyCode == 48 || keyCode == 50) && gesture.owns(flags) ? .consumed : .cancel
         }
-        let hold: StripGesture? = gesture
-        let meaning = lensKeyMeaning(hold: hold, keys: opening.keys,
-                                     code: keyCode, characters: characters, flags: flags)
-        trace?.key(code: keyCode, characters: characters, flags: flags, timestamp: timestamp ?? LensTimebase.now(),
-                   presentation: "opening", hold: hold != nil, path: "openingStripKey",
-                   destination: String(describing: meaning), search: "", selectedId: nil, fieldEditor: false)
+        let meaning = lensKeyMeaning(state: opening.pendingState, hold: gesture, keys: opening.keys,
+                                     code: keyCode, characters: opening.pendingState == .hold ? holdCharacters ?? characters : characters,
+                                     flags: flags, presentation: opening.presentation, source: source)
         switch meaning {
-            case .global, .fieldEditor: return .ignored
-            case .dismiss: return .cancel
-            default: opening.pending.append(.key(code: keyCode, characters: characters, flags: flags, hold: gesture))
+            case .global: return .cancel
+            case .triggerGlobal: return .ignored
+            case .globalBinding, .fieldEditor, .fieldEditorEdit:
+                return opening.presentation == "strip" ? .cancel : .ignored
+            case .dismiss:
+                if opening.pendingState == .hold { return .cancel }
+            case .endHold(_, let text, _):
+                opening.pendingState = text == "/" ? .search : opening.startingState
+                if opening.pendingState == .search, opening.presentation == "strip" {
+                    opening.presentation = "list"
+                    opening.keys = opening.listKeys
+                }
+            case .enterSearch:
+                opening.pendingState = .search
+                if opening.presentation == "strip" {
+                    opening.presentation = "list"
+                    opening.keys = opening.listKeys
+                }
+            case .leaveSearch: opening.pendingState = .normal
+            default: break
         }
+        opening.pending.append(pending)
         state = .opening(opening)
         return .consumed
     }
@@ -336,7 +396,7 @@ final class LensLifecycle {
         cancelPresentationEffects()
         if let model {
             model.setMiniatureLanding(nil)
-            remembered[model.name] = model.query
+            remembered[model.name] = model.searchToRemember
             // Keep its weak owner so late events cannot revive dismissed effects.
             if wasPresented { emit(.lensEvent(opened: false, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter)) }
         }

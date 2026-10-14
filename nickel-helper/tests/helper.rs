@@ -673,6 +673,26 @@ fn lens_contract_resolves_defaults_and_key_merge() {
 }
 
 #[test]
+fn lens_starts_in_is_optional_and_validated_in_base_and_profiles() {
+    let omitted = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in { lenses.demo = {} } | W.Config"#, &library()).unwrap();
+    assert!(omitted["lenses"]["demo"].get("starts-in").is_none());
+    for state in ["normal", "search"] {
+        for field in ["starts-in", "when.default.starts-in"] {
+            let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo.{field} = '{state} }} | W.Config"#);
+            let value = evaluate_to_json(&source, &library()).unwrap();
+            let lens = &value["lenses"]["demo"];
+            assert_eq!(if field == "starts-in" { &lens["starts-in"] } else { &lens["when"]["default"]["starts-in"] }, state);
+        }
+    }
+    for field in ["starts-in", "when.default.starts-in"] {
+        for invalid in ["'hold", "'other", "42"] {
+            let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo.{field} = {invalid} }} | W.Config"#);
+            assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {source}");
+        }
+    }
+}
+
+#[test]
 fn named_filter_and_default_profile_filter_are_evaluated() {
     let mut helper = loaded("lens-profile.ncl");
     let windows = json!([window("mail", "floating"), window("mail", "tiled")]);

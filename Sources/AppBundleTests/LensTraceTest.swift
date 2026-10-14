@@ -14,9 +14,11 @@ final class LensTraceTest: SerialClockTestCase {
         let model = LensSession(name: "direct", settings: LensConfig(), items: [], search: "")
         let ticket = owner.begin("direct", toggle: false, strip: gesture, trace: trace)!
         owner.complete(model, ticket: ticket)
-        model.send(.searchChanged("gh"))
+        model.perform(.endHold(5, "g"))
+        model.perform(.text("h"))
         XCTAssertEqual(trace.snapshot.session?.search, "gh")
-        XCTAssertEqual(trace.snapshot.session?.hold, true)
+        XCTAssertEqual(trace.snapshot.session?.hold, false)
+        XCTAssertEqual(trace.snapshot.session?.state, .search)
         owner.stripFlagsChanged([], from: model)
         XCTAssertEqual(trace.snapshot.session?.hold, false)
         XCTAssertEqual(trace.snapshot.session?.active, true)
@@ -36,7 +38,7 @@ final class LensTraceTest: SerialClockTestCase {
         now = 11
         for _ in 0..<300 {
             trace.key(code: 4, characters: "h", flags: .command, timestamp: 10.9,
-                      presentation: "list", hold: true, path: "sendEvent", destination: "Search",
+                      presentation: "list", state: .hold, hold: true, path: "sendEvent", destination: "Search",
                       search: "gh", selectedId: 7, fieldEditor: false)
         }
         XCTAssertEqual(trace.snapshot.stages, before.stages)
@@ -44,6 +46,7 @@ final class LensTraceTest: SerialClockTestCase {
         XCTAssertEqual(trace.snapshot.keys.count, 256)
         XCTAssertEqual(trace.snapshot.keys.last?.receivedAt, 11)
         XCTAssertEqual(trace.snapshot.keys.last?.search, "gh")
+        XCTAssertEqual(trace.snapshot.keys.last?.state, .hold)
         XCTAssertTrue(store.text(last: 1).contains("sendEvent Search"))
     }
 

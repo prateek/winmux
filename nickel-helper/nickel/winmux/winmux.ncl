@@ -96,6 +96,7 @@ let Grid = GridFields & { tile-size | default = 'real, sections-arrangement | de
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | Choice [| 'list, 'strip, 'miniatures, 'grid |] | optional,
+  starts-in | Choice [| 'normal, 'search |] | optional,
   tile | Choice [| 'card, 'picture, 'text |] | optional,
   badges | Bool | optional,
   entries | Choice [| 'window, 'app |] | optional,

@@ -19,6 +19,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
 
     private func model(_ name: String = "recent", presentation: String = "strip", id: UInt32 = 1, search: String = "") -> LensSession {
         var settings = LensConfig(); settings.presentation = presentation
+        if !search.isEmpty { settings.startsIn = "search" }
         let window = TestWindow.new(id: id, parent: focus.workspace.rootTilingContainer)
         let item = SwitcherPaletteItem(id: id, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
             miniature: MiniatureWindow(workspace: "1", frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window))
@@ -92,7 +93,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
             owner.complete(session, ticket: ticket)
             if !ready { await clock.advance(by: .milliseconds(100)) }
             session.send(.presentationChanged("list"))
-            XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false), "Conversion from ready and presented both preserve the base calls")
+            XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false), "Conversion preserves the normal input state and never focuses Search")
             session.send(.searchChanged("= true"))
             XCTAssertTrue(owner.ownedEffects.contains(.search))
             await clock.advance(by: .seconds(3))
@@ -275,10 +276,12 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var instructions: [LensLifecycle.ShowInstruction] = []
         let owner = testLensLifecycle(emit: { events.append($0) }, show: { _ in shown += 1 })
         owner.finishShow = { _, instruction in instructions.append(instruction) }
-        let session = model("search", presentation: "list")
+        var settings = LensConfig(); settings.startsIn = "normal"
+        let session = LensSession(name: "search", settings: settings, items: [], search: "")
         owner.complete(session, ticket: owner.begin("search", toggle: false)!)
         owner.changePresentationToList(session)
         XCTAssertEqual(shown, 2)
+        XCTAssertEqual(session.inputState, .normal)
         XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
         XCTAssertEqual(events.map(\.eventType), [.lensOpened])
         owner.dismiss()

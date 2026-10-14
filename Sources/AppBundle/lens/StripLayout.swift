@@ -58,7 +58,7 @@ extension LensSession {
 
     @discardableResult
     func cycleStrip(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-        guard settings.presentation == "strip", let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
+        guard inputState == .hold, settings.presentation == "strip", let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
         cycleStripSelection(step)
         return true
     }
@@ -77,7 +77,7 @@ extension LensSession {
     }
 
     func stripReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
-        guard settings.presentation == "strip", let gesture = stripGesture, gesture.shouldCommit(flags: flags) else { return nil }
+        guard !holdEndedByKey, settings.presentation == "strip", let gesture = stripGesture, gesture.shouldCommit(flags: flags) else { return nil }
         return enterKey(modifiers: gesture.releaseModifiers(flags)) ?? "enter"
     }
 
@@ -86,7 +86,7 @@ extension LensSession {
         guard settings.presentation == "strip" else { return false }
         let meaning = meaning(for: event)
         switch meaning {
-            case .command, .text: return perform(meaning)
+            case .command, .endHold: return perform(meaning)
             default: return false
         }
     }

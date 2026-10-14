@@ -38,11 +38,11 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
         let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
         // Another binding on the invoking key is not a step.
-        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .option), .ignored)
-        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: [.command, .control]), .ignored)
+        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .option), .cancel)
+        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: [.command, .control]), .cancel)
         // Backtick with the strip's modifiers does nothing in `recent`, as when the strip is ready.
         XCTAssertEqual(store.openingStripKey(keyCode: 50, flags: .command), .consumed)
-        XCTAssertEqual(store.openingStripKey(keyCode: 37, flags: [.command, .control]), .ignored)
+        XCTAssertEqual(store.openingStripKey(keyCode: 37, flags: [.command, .control]), .cancel)
         let model = stripSession()
         XCTAssertTrue(store.complete(model, ticket: ticket))
         XCTAssertEqual(model.selectedId, 2)
@@ -153,7 +153,7 @@ final class LensLifecycleTest: XCTestCase {
             let owner = testLensLifecycle()
             owner.finishShow = { _, instruction in instructions.append(instruction) }
             owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
-            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation != "strip")])
+            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation == "list")])
             model.send(.presentationChanged("list"))
             if presentation != "list" {
                 XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
@@ -231,7 +231,7 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertEqual(changes, 0)
         XCTAssertTrue(owner.complete(model, ticket: ticket, invocation: gesture))
         XCTAssertNotNil(model.stripGesture)
-        XCTAssertEqual(changes, 2, "One initialization and one application of accumulated steps")
+        XCTAssertEqual(changes, 3, "One Hold state change, one initialization and one application of accumulated steps")
         owner.dismiss()
         withExtendedLifetime(observation) {}
     }
