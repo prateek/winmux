@@ -82,17 +82,27 @@ the selected window's Summon label and landing spot, a workspace-key chip at the
 of each strip/grid picture or card, and the Lens's key legend below its panel. Releasing Option
 hides them. Text Tiles, list rows and miniatures have no workspace-key chip. A chip names the
 Lens key that sends a window to that workspace (for example `⌘2`); it is absent without that key.
+On a Frozen picture, it sits above the pause or age badge with the same inset.
 The label reads, for example, `⌥↩ Summon to 1`. A list, strip or grid shows it and the landing
 spot only for a window on another workspace, with a Summon key configured. Miniatures retains
-its same-workspace label and landing behavior. `summon-hints` chooses which Summon hints exist.
+its same-workspace label and landing behavior. During a live Hold, the label uses only Summon
+keys whose modifiers do not overlap the Hold’s invoking modifiers. It prefers the hints key,
+then legend order; with none left, there is no label or landing spot. An Option-Tab Hold with
+the shipped keys therefore reads `⇧↩ Summon to 1`; Cmd-Tab reads `⌥↩ Summon to 1`.
+All Summon keys count again once the Hold ends. `summon-hints` chooses which Summon hints exist.
 
 The legend reads the open Lens's active `keys`: `focus`, `summon here`, `send to workspace`,
 `close`, `group`, then custom commands joined by `; `. Equal command lists share an entry.
 Workspace digit keys with the same modifiers collapse to a range such as `⌘1–9`; gaps show
 individual chords. Group is absent in Presentations without sections. Keys outside the Lens's
-`keys` are not listed. Reloading config affects the next opening, leaving an open Lens's keys intact.
+`keys` are not listed. The legend sits below the painted panel, including any Filter banner
+or Search error rows, and stays at least 32 scaled points from each side of the screen,
+also clearing the resting sidebar. Long phrases truncate at their tails; chords and entries stay present. Reloading config affects the next
+opening, leaving an open Lens's keys intact.
 While hints show, the list, strip and grid glass thins to 55% opacity; their contents stay opaque.
-Miniatures keeps its backdrop. `hints = 'always` keeps hints visible with no modifier down.
+Dimmed pictures have an opaque backing inside the fitted picture while hints show, so the desk
+cannot show through them. Miniatures keeps its backdrop. `hints = 'always` keeps hints visible
+with no modifier down.
 `hints-key` also accepts `cmd`, `ctrl` and `shift`.
 
 A live Hold subtracts its invoking modifiers from hint detection. After release or the first
