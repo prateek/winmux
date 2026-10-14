@@ -66,6 +66,7 @@ final class LensHintsTest: XCTestCase {
     func testLegendWidthLeavesScaledScreenInsets() {
         XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 1920, scale: 1), 1856)
         XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 960, scale: 0.5), 928)
+        XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 1280, scale: 2.0 / 3, occupiedSideInset: 56), 1168)
         XCTAssertEqual(LensHintGeometry.legendMaxWidth(screenWidth: 1280, scale: 2.0 / 3), 1280 - 128.0 / 3, accuracy: 0.001)
     }
 

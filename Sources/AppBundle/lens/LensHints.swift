@@ -131,7 +131,7 @@ extension LensSession {
 }
 
 struct LensHintGeometry {
-    static func legendMaxWidth(screenWidth: CGFloat, scale: CGFloat) -> CGFloat { max(0, screenWidth - 64 * scale) }
+    static func legendMaxWidth(screenWidth: CGFloat, scale: CGFloat, occupiedSideInset: CGFloat = 0) -> CGFloat { max(0, screenWidth - 2 * max(32 * scale, occupiedSideInset)) }
     static func workspaceChipBottomInset(badgeHeight: CGFloat, scale: CGFloat) -> CGFloat { 8 * scale + badgeHeight }
 
     static func legendTop(panelBottom: CGFloat, screenHeight: CGFloat, legendHeight: CGFloat, scale: CGFloat) -> CGFloat {
