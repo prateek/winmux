@@ -7,16 +7,6 @@ struct MiniatureWorkspace {
     let current: Bool
 }
 
-struct MiniatureTabSnapshot {
-    let group: ObjectIdentifier
-    let frame: CGRect
-    let index: Int
-    let count: Int
-    let activeIndex: Int
-
-    var depth: Int { MiniatureLayout.fanDepth(index: index, activeIndex: activeIndex) }
-}
-
 struct MiniatureWindow {
     let workspace: String
     let frame: CGRect
@@ -106,7 +96,11 @@ extension LensSession {
                     self.items.first { $0.miniature?.workspace == name && matches.contains($0.id) }?.id
                 }.first
             }
-        } else { target = MiniatureLayout.nearest(from: id, direction: direction, frames: miniatureFrames, matches: matches) }
+        } else {
+            let group = items.first(where: { $0.id == id })?.miniature?.tab?.group
+            let tabs = group.map { group in Set(items.filter { $0.miniature?.tab?.group == group }.map(\.id)) } ?? []
+            target = MiniatureLayout.nearest(from: id, direction: direction, frames: miniatureFrames, matches: matches, adjacentTabs: tabs)
+        }
         if let target { hover(target); revealMiniatureSelection() }
     }
 
@@ -174,17 +168,6 @@ func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem]
         }
         return lhs.offset > rhs.offset
     }.map(\.element)
-}
-
-@MainActor
-func miniatureTabSnapshot(_ window: Window, tray: Bool) -> MiniatureTabSnapshot? {
-    guard !tray, !window.isFloating, let group = window.nearestWindowTabGroup,
-          group.nodeWorkspace === window.nodeWorkspace else { return nil }
-    let tabs = group.allLeafWindowsRecursive
-    guard let frame = group.lastAppliedLayoutPhysicalRect?.cgRect ?? group.lastAppliedLayoutVirtualRect?.cgRect,
-          let index = tabs.firstIndex(of: window),
-          let active = group.tabActiveWindow, let activeIndex = tabs.firstIndex(of: active) else { return nil }
-    return MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: frame, index: index, count: tabs.count, activeIndex: activeIndex)
 }
 
 @MainActor

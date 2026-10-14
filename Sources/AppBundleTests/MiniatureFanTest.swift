@@ -43,8 +43,14 @@ final class MiniatureFanTest: XCTestCase {
     func testNearestReachesTabsEvenWhenOffsetIsLessThanOnePoint() {
         let rects = frames(count: 3, active: 0, frame: CGRect(x: 0, y: 0, width: 10, height: 10), cellWidth: 20)
         let geometry = Dictionary(uniqueKeysWithValues: rects.enumerated().map { (UInt32($0.offset + 1), $0.element) })
-        XCTAssertEqual(MiniatureLayout.nearest(from: 1, direction: .right, frames: geometry, matches: [1, 2, 3]), 2)
-        XCTAssertEqual(MiniatureLayout.nearest(from: 2, direction: .down, frames: geometry, matches: [1, 2, 3]), 3)
+        XCTAssertEqual(MiniatureLayout.nearest(from: 1, direction: .right, frames: geometry, matches: [1, 2, 3], adjacentTabs: [1, 2, 3]), 2)
+        XCTAssertEqual(MiniatureLayout.nearest(from: 2, direction: .down, frames: geometry, matches: [1, 2, 3], adjacentTabs: [1, 2, 3]), 3)
+    }
+
+    func testOrdinaryWindowsKeepOnePointDirectionalThreshold() {
+        let geometry: [UInt32: CGRect] = [1: CGRect(x: 0, y: 0, width: 10, height: 10), 2: CGRect(x: 0.5, y: 0.5, width: 10, height: 10)]
+        XCTAssertNil(MiniatureLayout.nearest(from: 1, direction: .right, frames: geometry, matches: [1, 2]))
+        XCTAssertNil(MiniatureLayout.nearest(from: 1, direction: .down, frames: geometry, matches: [1, 2]))
     }
 
     func testSingleWindowBesideGroupKeepsItsFrame() {

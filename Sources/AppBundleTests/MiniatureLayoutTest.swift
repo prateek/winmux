@@ -234,11 +234,13 @@ final class MiniatureSessionTest: XCTestCase {
                 miniature: MiniatureWindow(workspace: "1", frame: index == 3 ? CGRect(x: 500, y: 0, width: 500, height: 500) : .zero,
                     tray: false, frozen: false, accessory: false, floating: false, window: window, tab: tab))
         }
-        for mode in ["nearest", "by-workspace"] {
+        for (mode, size) in [("nearest", CGSize(width: 1000, height: 700)), ("by-workspace", CGSize(width: 1000, height: 700)), ("nearest", CGSize(width: 60, height: 150))] {
             var settings = LensConfig()
             settings.presentation = "miniatures"
             settings.miniatures.arrowKeys = mode
+            settings.miniatures.fit = "shrink"
             let model = LensSession(name: "tabs", settings: settings, items: items, search: "")
+            model.miniatureSize = size
             model.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "One", source: source, current: true)]
             let frames = model.miniatureFrames
             XCTAssertNotEqual(frames[1], frames[2])

@@ -87,15 +87,16 @@ struct MiniatureLayout {
         index == activeIndex ? 0 : (index < activeIndex ? index + 1 : index)
     }
 
-    static func nearest(from id: UInt32, direction: Direction, frames: [UInt32: CGRect], matches: Set<UInt32>) -> UInt32? {
+    static func nearest(from id: UInt32, direction: Direction, frames: [UInt32: CGRect], matches: Set<UInt32>, adjacentTabs: Set<UInt32> = []) -> UInt32? {
         guard let source = frames[id] else { return nil }
         return frames.filter { candidate, rect in
             guard candidate != id, matches.contains(candidate) else { return false }
+            let threshold: CGFloat = adjacentTabs.contains(candidate) ? 0 : 1
             switch direction {
-                case .left: return rect.midX < source.midX
-                case .right: return rect.midX > source.midX
-                case .up: return rect.midY < source.midY
-                case .down: return rect.midY > source.midY
+                case .left: return rect.midX < source.midX - threshold
+                case .right: return rect.midX > source.midX + threshold
+                case .up: return rect.midY < source.midY - threshold
+                case .down: return rect.midY > source.midY + threshold
             }
         }.min { lhs, rhs in
             func distance(_ rect: CGRect) -> CGFloat { hypot(rect.midX - source.midX, rect.midY - source.midY) }
