@@ -23,6 +23,10 @@ struct StripView: View {
             // The panel includes 22 points below the footer; the banner completes its 24-point gap.
             VStack(spacing: 2 * scale) {
                 ZStack(alignment: .topLeading) {
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture(coordinateSpace: .local) { point in
+                            model.clickTile(at: point, event: NSApp.currentEvent)
+                        }
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         let tile = layout.tiles[index]
                         TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: metrics,
@@ -31,23 +35,22 @@ struct StripView: View {
                                  pictureSize: tile.pictureSize)
                             .position(x: tile.frame.midX, y: tile.frame.midY)
                             .zIndex(index == model.selection ? 1 : 0)
+                            .allowsHitTesting(false)
                     }
                     LensSelectionFooter(model: model, items: items)
                         .padding(.horizontal, 44 * scale)
                         .frame(width: layout.panelSize.width, height: footerHeight)
-                        .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 22 * scale - footerHeight / 2)
+                        .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - GridLayout.Sizing.stripFooterBottom * scale - footerHeight / 2)
                 }
                 .frame(width: layout.panelSize.width, height: layout.panelSize.height)
-                .contentShape(Rectangle())
-                .onContinuousHover { phase in
-                    if case .active(let point) = phase { model.hoverTile(at: point, pointerLocation: NSEvent.mouseLocation) }
-                }
-                .onTapGesture(coordinateSpace: .local) { point in
-                    model.clickTile(at: point, event: NSApp.currentEvent)
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named("lensWindow"))
+                } action: { frame in
+                    model.tilesFrameInWindow = frame
                 }
                 if let banner = model.banner {
                     Text(banner).font(.caption).foregroundStyle(.orange)
-                        .padding(.bottom, 22 * scale)
+                        .padding(.bottom, GridLayout.Sizing.stripFooterBottom * scale)
                 }
             }
             .foregroundStyle(.white)

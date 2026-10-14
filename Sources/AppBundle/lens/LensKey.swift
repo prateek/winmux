@@ -143,6 +143,7 @@ extension LensSession {
                 noteSearchEdit()
                 send(.searchChanged(updated))
             case .arrow(let code):
+                // Edge arrows can return without sending a selection event.
                 reanchorPointer()
                 if settings.presentation == "miniatures", let direction = [UInt16(123): MiniatureLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveMiniatureSelection(direction)

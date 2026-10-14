@@ -11,6 +11,10 @@ struct GridView: View {
         let metrics = TileMetrics(scale: layout.tileScale)
         let summonAvailable = model.stripSummonAvailable(items: items)
         ZStack(alignment: .topLeading) {
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture(coordinateSpace: .local) { point in
+                    model.clickTile(at: point, event: NSApp.currentEvent)
+                }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 let tile = layout.tiles[index]
                 TileView(entry: item.tile, kind: model.tileKind, presentation: "grid", metrics: metrics, size: tile.frame.size,
@@ -19,6 +23,7 @@ struct GridView: View {
                          pictureSize: tile.pictureSize)
                     .position(x: tile.frame.midX, y: tile.frame.midY)
                     .zIndex(index == model.selection ? 1 : 0)
+                    .allowsHitTesting(false)
             }
             ForEach(Array(layout.headers.enumerated()), id: \.offset) { _, header in
                 LensSectionHeader(label: header.label, current: header.current, scale: layout.tileScale)
@@ -32,7 +37,7 @@ struct GridView: View {
                 LensGroupingControl(model: model)
             }
             .font(.system(size: 16 * scale)).padding(.horizontal, 28 * scale)
-            .frame(width: layout.panelSize.width, height: 36 * scale)
+            .frame(width: layout.panelSize.width, height: GridLayout.Sizing.gridSearchHeight * scale)
             VStack(spacing: 3 * scale) {
                 LensSelectionFooter(model: model, items: items)
                 if let error = model.searchError ?? model.banner {
@@ -40,17 +45,15 @@ struct GridView: View {
                 }
             }
             .font(.system(size: 15 * scale)).padding(.horizontal, 28 * scale)
-            .frame(width: layout.panelSize.width, height: 46 * scale)
-            .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - 25 * scale)
+            .frame(width: layout.panelSize.width, height: GridLayout.Sizing.gridFooterHeight * scale)
+            .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - (GridLayout.Sizing.gridFooterHeight / 2 + GridLayout.Sizing.gridFooterBottom) * scale)
         }
         .foregroundStyle(.white)
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
-        .contentShape(Rectangle())
-        .onContinuousHover { phase in
-            if case .active(let point) = phase { model.hoverTile(at: point, pointerLocation: NSEvent.mouseLocation) }
-        }
-        .onTapGesture(coordinateSpace: .local) { point in
-            model.clickTile(at: point, event: NSApp.currentEvent)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named("lensWindow"))
+        } action: { frame in
+            model.tilesFrameInWindow = frame
         }
         .background {
             GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * scale), style: config.workspaceSidebar.chromeStyle,

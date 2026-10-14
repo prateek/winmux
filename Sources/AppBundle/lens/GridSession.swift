@@ -14,15 +14,16 @@ struct GridLayoutCache {
 
 extension LensSession {
     /// Packing steps the row height down until everything fits, so it is redone only when its inputs change.
-    var gridLayout: GridLayout {
-        let results = results
+    var gridLayout: GridLayout { gridLayout(items: results) }
+
+    func gridLayout(items results: [SwitcherPaletteItem]) -> GridLayout {
         let ids = results.map(\.id), realSizes = results.map(\.tile.realSize), kind = tileKind
         if let cache = gridLayoutCache, cache.ids == ids, cache.realSizes == realSizes, cache.kind == kind,
            cache.visibleSize == miniatureSize, cache.tileSize == settings.grid.tileSize, cache.grouping == settings.sections,
            cache.arrangement == settings.grid.sectionsArrangement, cache.sectionKeys == results.map { $0.sectionKey(settings.sections) } {
             return cache.layout
         }
-        let layout = GridLayout(sections: sections.map { section in
+        let layout = GridLayout(sections: sections(for: results).map { section in
             GridLayout.Section(label: section.label, current: section.current, entries: section.entries.map { GridLayout.Entry(aspect: $0.tile.aspect, realSize: $0.tile.realSize, kind: kind) })
         }, visibleSize: miniatureSize, tileSize: settings.grid.tileSize, arrangement: settings.grid.sectionsArrangement, minimumWidth: sectionControlMinimumWidth)
         gridLayoutCache = GridLayoutCache(ids: ids, realSizes: realSizes, kind: kind, visibleSize: miniatureSize, tileSize: settings.grid.tileSize, grouping: settings.sections, arrangement: settings.grid.sectionsArrangement, sectionKeys: results.map { $0.sectionKey(settings.sections) }, layout: layout)

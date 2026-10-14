@@ -22,6 +22,7 @@ final class LensSession: ObservableObject {
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    var tilesFrameInWindow = CGRect.zero
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?
@@ -246,11 +247,21 @@ final class LensSession: ObservableObject {
     }
 
     var drawsSections: Bool { settings.presentation == "list" || settings.presentation == "grid" }
-    var sections: [LensSection<SwitcherPaletteItem>] {
-        lensSections(rankedResults, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
+    var sections: [LensSection<SwitcherPaletteItem>] { sections(for: rankedResults) }
+    func sections(for entries: [SwitcherPaletteItem]) -> [LensSection<SwitcherPaletteItem>] {
+        lensSections(entries, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
                      key: { $0.sectionKey(self.settings.sections) }, label: { $0.sectionLabel(self.settings.sections) })
     }
-    var results: [SwitcherPaletteItem] { sections.flatMap(\.entries) }
+    #if DEBUG
+    /// Measures eager evaluations in pointer regressions without replacing the real Search.
+    private(set) var resultsReadCount = 0
+    #endif
+    var results: [SwitcherPaletteItem] {
+        #if DEBUG
+        resultsReadCount += 1
+        #endif
+        return sections.flatMap(\.entries)
+    }
     func selectBestResult() {
         let best = rankedResults.first?.id
         selection = results.firstIndex { $0.id == best } ?? 0
@@ -308,11 +319,8 @@ final class LensSession: ObservableObject {
         // Return / keypad enter share a binding; a click runs that Enter action too.
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
         let modifiers: NSEvent.ModifierFlags
-        if click, settings.presentation == "grid", let hold {
-            modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking)
-        } else if click, settings.presentation == "strip", !holdEndedByKey {
-            modifiers = stripGesture?.releaseModifiers(event.modifierFlags) ?? []
-        } else { modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command]) }
+        if click { modifiers = clickModifiers(event.modifierFlags) }
+        else { modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command]) }
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
@@ -322,12 +330,15 @@ final class LensSession: ObservableObject {
 
     func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
+    private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+        if let hold, settings.presentation == "strip" { return hold.releaseModifiers(modifiers) }
+        if let hold { return modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
+        if settings.presentation == "strip", !holdEndedByKey { return stripGesture?.releaseModifiers(modifiers) ?? [] }
+        return modifiers.intersection([.control, .option, .shift, .command])
+    }
+
     private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
-        let held: NSEvent.ModifierFlags
-        if let hold, settings.presentation == "strip" { held = hold.releaseModifiers(modifiers) }
-        else if let hold { held = modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
-        else if settings.presentation == "strip", !holdEndedByKey { held = stripGesture?.releaseModifiers(modifiers) ?? [] }
-        else { held = modifiers.intersection([.control, .option, .shift, .command]) }
+        let held = clickModifiers(modifiers)
         return !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }
@@ -343,6 +354,11 @@ final class LensSession: ObservableObject {
     func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }), index != selection { send(.selectionChanged(index)) } }
     func hover(_ id: UInt32?, at location: CGPoint) {
         guard pointerMotion.moved(to: location), let id, let index = results.firstIndex(where: { $0.id == id }), index != selection else { return }
+        send(.pointerSelectionChanged(index))
+    }
+
+    func hoverTileIndex(_ index: Int?, at location: CGPoint) {
+        guard pointerMotion.moved(to: location), let index, index != selection else { return }
         send(.pointerSelectionChanged(index))
     }
 

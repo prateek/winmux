@@ -1,6 +1,7 @@
 import AppKit
 
-struct MiniatureScrollPaging {
+/// Turns wheel events and trackpad gestures into selection or page steps, ignoring momentum.
+struct LensScrollStepper {
     private var delta: CGFloat = 0
     private var sideways: CGFloat = 0
     private var turned = false

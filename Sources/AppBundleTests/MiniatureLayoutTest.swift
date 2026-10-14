@@ -189,6 +189,9 @@ final class MiniatureSessionTest: XCTestCase {
         let point = CGPoint(x: top.midX, y: top.midY)
         XCTAssertEqual(model.miniatureHitTest(at: point), 2)
         pointer = CGPoint(x: 10000, y: 10000)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        pointer.x += 2
         model.hoverMiniature(at: point, pointerLocation: pointer)
         XCTAssertEqual(model.selectedId, 2)
         model.hover(1)

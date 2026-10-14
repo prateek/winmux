@@ -115,7 +115,7 @@ final class LensPointerTest: XCTestCase {
         for presentation in ["strip", "grid"] {
             var settings = LensConfig(); settings.presentation = presentation
             let session = LensSession(name: "wheel", settings: settings, items: items(), search: "")
-            var paging = MiniatureScrollPaging()
+            var paging = LensScrollStepper()
             for time in [0.0, 0.01, 0.02] {
                 session.scrollTiles(delta: -1, phase: [], momentum: [], time: time, precise: false, paging: &paging)
             }
@@ -131,7 +131,7 @@ final class LensPointerTest: XCTestCase {
             let session = LensSession(name: "trackpad", settings: settings, items: items(), search: "", pointerLocation: { pointer })
             pointer.x = 2
             session.hover(1, at: pointer)
-            var paging = MiniatureScrollPaging()
+            var paging = LensScrollStepper()
             session.scrollTiles(delta: -2, phase: .began, momentum: [], time: 0, precise: true, paging: &paging)
             XCTAssertEqual(session.selectedId, 1)
             session.scrollTiles(delta: -2, phase: .changed, momentum: [], time: 0.01, precise: true, paging: &paging)
@@ -287,6 +287,119 @@ final class LensPointerTest: XCTestCase {
             pointer.x += 0.5
             session.hover(1, at: pointer)
             XCTAssertEqual(session.selectedId, 4)
+        }
+    }
+
+    func testFirstPresentationReanchorsAfterDisplayDelayButRedisplayDoesNot() {
+        for presentation in ["strip", "grid", "list", "miniatures"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            var pointer = CGPoint.zero
+            let session = LensSession(name: "delay", settings: settings, items: items(), search: "", pointerLocation: { pointer })
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            let ticket = owner.begin(session.name, toggle: false, settings: settings)!
+            pointer = CGPoint(x: 10000, y: 10000)
+            owner.complete(session, ticket: ticket)
+            let initial = session.selectedId
+            session.hover(4, at: pointer)
+            XCTAssertEqual(session.selectedId, initial, presentation)
+            pointer.x += 1
+            session.hover(4, at: pointer)
+            XCTAssertEqual(session.selectedId, initial, presentation)
+            pointer.x += 0.1
+            session.hover(4, at: pointer)
+            XCTAssertEqual(session.selectedId, 4, presentation)
+            owner.presented(session)
+            pointer.x += 0.1
+            session.hover(1, at: pointer)
+            XCTAssertEqual(session.selectedId, 1, "Redisplay must not reanchor an armed pointer")
+        }
+    }
+
+    func testHeldListAndMiniatureClicksSubtractInvokingModifiers() throws {
+        for presentation in ["list", "miniatures"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            let session = LensSession(name: "held-click", settings: settings, items: items(), search: "")
+            session.startHold(StripGesture(keyCode: 48, invoking: .command))
+            for (flags, expected): (NSEvent.ModifierFlags, String) in [(.command, "enter"), ([.command, .shift], "shift-enter")] {
+                let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: flags,
+                    timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 0))
+                session.hover(4)
+                XCTAssertEqual(session.key(for: event, click: true), expected, presentation)
+                session.updateSummonModifiers(flags)
+                XCTAssertEqual(session.summonHeld, flags.contains(.shift), presentation)
+                XCTAssertEqual(session.targets(for: expected), [4])
+            }
+        }
+    }
+
+    func testTilePointerReadsResultsOnceWithColdAndWarmLayouts() {
+        for presentation in ["strip", "grid"] {
+            var settings = LensConfig(); settings.presentation = presentation; settings.sections = "workspace"
+            let session = LensSession(name: "reads", settings: settings, items: items(), search: "", pointerLocation: { .zero })
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            owner.updatePresentation = { model in
+                if model.settings.presentation == "grid" { _ = model.gridLayout }
+            }
+            let ticket = owner.begin(session.name, toggle: false, settings: settings)!
+            owner.complete(session, ticket: ticket)
+            let layout = presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
+            let frame = layout.tiles[3].frame
+            session.stripLayoutCache = nil; session.gridLayoutCache = nil
+            for x: CGFloat in [10000, 10010] {
+                let before = session.resultsReadCount
+                session.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: x, y: 10000))
+                XCTAssertEqual(session.resultsReadCount - before, 1, presentation)
+                XCTAssertEqual(session.selection, 3)
+            }
+        }
+    }
+
+    func testWindowPointConvertsToTilesAndOutsideDoesNothingAfterLayoutMoves() throws {
+        for presentation in ["strip", "grid"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            let session = LensSession(name: "coordinates", settings: settings, items: items(), search: "", pointerLocation: { .zero })
+            let layout = presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
+            let tile = layout.tiles[3].frame
+            for origin in [CGPoint(x: 100, y: 200), CGPoint(x: 210, y: 80)] {
+                let frame = CGRect(origin: origin, size: layout.panelSize)
+                let content = CGPoint(x: origin.x + tile.midX, y: origin.y + tile.midY)
+                let point = try XCTUnwrap(lensTilePoint(content, in: frame))
+                session.hoverTile(at: point, pointerLocation: content)
+                XCTAssertEqual(session.selection, 3)
+                XCTAssertNil(lensTilePoint(CGPoint(x: frame.minX - 1, y: frame.midY), in: frame))
+                XCTAssertNil(lensTilePoint(CGPoint(x: frame.midX, y: frame.maxY + 1), in: frame))
+            }
+        }
+    }
+
+    func testSharedPointerThresholdIsStrictEuclideanDistance() {
+        let anchor = CGPoint(x: 100, y: 200)
+        XCTAssertFalse(pointerMovedBeyondThreshold(from: anchor, to: anchor))
+        XCTAssertFalse(pointerMovedBeyondThreshold(from: anchor, to: CGPoint(x: 101, y: 200)))
+        XCTAssertFalse(pointerMovedBeyondThreshold(from: .zero, to: CGPoint(x: 0.6, y: 0.8)))
+        XCTAssertTrue(pointerMovedBeyondThreshold(from: anchor, to: CGPoint(x: 100.8, y: 200.8)))
+        XCTAssertTrue(pointerMovedBeyondThreshold(from: anchor, to: CGPoint(x: 101.01, y: 200)))
+    }
+
+    func testTileHitTestUsesDrawnChromeInsetsAtEveryPanelScale() {
+        for presentation in ["strip", "grid"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            let session = LensSession(name: "insets", settings: settings, items: items(), search: "")
+            for size in [CGSize(width: 800, height: 600), CGSize(width: 1920, height: 1080)] {
+                session.miniatureSize = size
+                let layout = presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
+                let scale = session.tileMetrics.scale
+                let sizing = presentation == "strip" ? GridLayout.Sizing.strip : .grid
+                let tile = layout.tiles[session.selection].frame
+                let x = tile.midX
+                let footerTop = layout.panelSize.height - sizing.pointerBottomInset * scale
+                XCTAssertNil(session.tileHitTest(at: CGPoint(x: x, y: footerTop)))
+                XCTAssertNil(session.tileHitTest(at: CGPoint(x: x, y: layout.panelSize.height - 1)))
+                if sizing.pointerTopInset > 0 {
+                    XCTAssertNil(session.tileHitTest(at: CGPoint(x: x, y: sizing.pointerTopInset * scale - 0.1)))
+                }
+                XCTAssertEqual(session.tileHitTest(at: CGPoint(x: x, y: tile.midY)), session.selection)
+            }
         }
     }
 

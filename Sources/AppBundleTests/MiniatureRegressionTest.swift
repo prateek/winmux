@@ -4,7 +4,7 @@ import XCTest
 
 final class MiniatureRegressionTest: XCTestCase {
     func testOnePagePerTrackpadGestureIncludingMomentumAndSlowStart() {
-        var paging = MiniatureScrollPaging()
+        var paging = LensScrollStepper()
         XCTAssertNil(paging.turn(delta: -0.2, phase: .began, momentum: [], time: 0))
         XCTAssertNil(paging.turn(delta: -2, phase: .changed, momentum: [], time: 0.01))
         XCTAssertEqual(paging.turn(delta: -2, phase: .changed, momentum: [], time: 0.02), 1)
@@ -16,13 +16,13 @@ final class MiniatureRegressionTest: XCTestCase {
     }
 
     func testSidewaysSwipeWithVerticalJitterTurnsNoPage() {
-        var paging = MiniatureScrollPaging()
+        var paging = LensScrollStepper()
         XCTAssertNil(paging.turn(delta: -2, sideways: 30, phase: .began, momentum: [], time: 0))
         XCTAssertNil(paging.turn(delta: -3, sideways: 40, phase: .changed, momentum: [], time: 0.01))
     }
 
     func testOnePagePerBurstOfWheelEvents() {
-        var paging = MiniatureScrollPaging()
+        var paging = LensScrollStepper()
         XCTAssertEqual(paging.turn(delta: -1, phase: [], momentum: [], time: 10), 1)
         XCTAssertNil(paging.turn(delta: -0.4, phase: [], momentum: [], time: 10.05))
         XCTAssertNil(paging.turn(delta: -0.4, phase: [], momentum: [], time: 10.2))
