@@ -181,16 +181,21 @@ final class MiniatureSessionTest: XCTestCase {
         let floating = original.items[1].miniature!.window
         items[1] = SwitcherPaletteItem(id: 2, title: "Beta", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
             miniature: MiniatureWindow(workspace: "1", frame: original.items[0].miniature!.frame, tray: false, frozen: false, accessory: false, floating: true, window: floating))
-        let model = LensSession(name: "pointer", settings: original.settings, items: items, search: "")
+        var pointer = CGPoint.zero
+        let model = LensSession(name: "pointer", settings: original.settings, items: items, search: "", pointerLocation: { pointer })
         model.miniatureWorkspaces = original.miniatureWorkspaces
         XCTAssertTrue(model.items.allSatisfy { $0.miniature?.tab == nil })
         let top = try XCTUnwrap(model.miniatureFrames[1])
         let point = CGPoint(x: top.midX, y: top.midY)
         XCTAssertEqual(model.miniatureHitTest(at: point), 2)
-        model.hoverMiniature(at: point, pointerLocation: CGPoint(x: 10000, y: 10000))
+        pointer = CGPoint(x: 10000, y: 10000)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        pointer.x += 2
+        model.hoverMiniature(at: point, pointerLocation: pointer)
         XCTAssertEqual(model.selectedId, 2)
         model.hover(1)
-        model.hoverMiniature(at: point, pointerLocation: CGPoint(x: 10000, y: 10000))
+        model.hoverMiniature(at: point, pointerLocation: pointer)
         XCTAssertEqual(model.selectedId, 1)
         let tray = try XCTUnwrap(model.miniatureFrames[3])
         XCTAssertEqual(model.miniatureHitTest(at: CGPoint(x: tray.midX, y: tray.midY)), 3)

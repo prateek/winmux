@@ -9,8 +9,9 @@ struct StripLayoutCache {
 }
 
 extension LensSession {
-    var stripSnapshot: StripSnapshot {
-        let items = results
+    var stripSnapshot: StripSnapshot { stripSnapshot(items: results) }
+
+    func stripSnapshot(items: [SwitcherPaletteItem]) -> StripSnapshot {
         let entries = StripSnapshot.entries(items, kind: tileKind, settings: settings)
         let ids = items.map(\.id)
         if let cache = stripLayoutCache, cache.ids == ids, cache.entries == entries,

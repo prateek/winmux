@@ -22,6 +22,7 @@ final class LensSession: ObservableObject {
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []
+    var tilesFrameInWindow = CGRect.zero
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?
@@ -30,6 +31,7 @@ final class LensSession: ObservableObject {
         case searchChanged(String)
         case inputStateChanged(LensInputState)
         case selectionChanged(Int)
+        case pointerSelectionChanged(Int)
         case modifiersChanged(NSEvent.ModifierFlags)
         case summonChanged(Bool)
         case presentationChanged(String)
@@ -45,6 +47,12 @@ final class LensSession: ObservableObject {
     }
 
     func apply(_ event: Event) {
+        defer {
+            switch event {
+                case .pointerSelectionChanged, .modifiersChanged, .summonChanged, .dismissed: break
+                default: reanchorPointer()
+            }
+        }
         switch event {
             case .inputStateChanged(let state):
                 inputState = state
@@ -66,7 +74,9 @@ final class LensSession: ObservableObject {
                 if !text.hasPrefix("=") { searchError = nil }
                 selectBestResult()
                 if settings.presentation == "miniatures" { revealMiniatureSelection() }
-            case .selectionChanged(let index): selection = index
+            case .selectionChanged(let index):
+                selection = index
+            case .pointerSelectionChanged(let index): selection = index
             case .modifiersChanged(let flags):
                 currentModifiers = flags
                 let held = shouldSummon(flags)
@@ -100,7 +110,8 @@ final class LensSession: ObservableObject {
         }
     }
 
-    private var lastPointerLocation = NSEvent.mouseLocation
+    private var pointerMotion: LensPointerMotion
+    private let pointerLocation: () -> CGPoint
     private var inlineIds: Set<UInt32>?
     let keyBindings: [LensKeyBinding]
     private let sectionsOnlyKeys: Set<String>
@@ -175,7 +186,9 @@ final class LensSession: ObservableObject {
     private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) {
+        self.pointerLocation = pointerLocation
+        pointerMotion = LensPointerMotion(anchor: pointerLocation())
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
@@ -234,8 +247,9 @@ final class LensSession: ObservableObject {
     }
 
     var drawsSections: Bool { settings.presentation == "list" || settings.presentation == "grid" }
-    var sections: [LensSection<SwitcherPaletteItem>] {
-        lensSections(rankedResults, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
+    var sections: [LensSection<SwitcherPaletteItem>] { sections(for: rankedResults) }
+    func sections(for entries: [SwitcherPaletteItem]) -> [LensSection<SwitcherPaletteItem>] {
+        lensSections(entries, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
                      key: { $0.sectionKey(self.settings.sections) }, label: { $0.sectionLabel(self.settings.sections) })
     }
     var results: [SwitcherPaletteItem] { sections.flatMap(\.entries) }
@@ -295,9 +309,9 @@ final class LensSession: ObservableObject {
     func key(for event: NSEvent, click: Bool = false) -> String? {
         // Return / keypad enter share a binding; a click runs that Enter action too.
         let code: UInt16 = click || event.keyCode == 76 ? 36 : event.keyCode
-        let modifiers = click && settings.presentation == "strip" && !holdEndedByKey
-            ? stripGesture?.releaseModifiers(event.modifierFlags) ?? []
-            : event.modifierFlags.intersection([.control, .option, .shift, .command])
+        let modifiers: NSEvent.ModifierFlags
+        if click { modifiers = clickModifiers(event.modifierFlags) }
+        else { modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command]) }
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
@@ -307,12 +321,15 @@ final class LensSession: ObservableObject {
 
     func updateSummonModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
+    private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+        if let hold, settings.presentation == "strip" { return hold.releaseModifiers(modifiers) }
+        if let hold { return modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
+        if settings.presentation == "strip", !holdEndedByKey { return stripGesture?.releaseModifiers(modifiers) ?? [] }
+        return modifiers.intersection([.control, .option, .shift, .command])
+    }
+
     private func shouldSummon(_ modifiers: NSEvent.ModifierFlags) -> Bool {
-        let held: NSEvent.ModifierFlags
-        if let hold, settings.presentation == "strip" { held = hold.releaseModifiers(modifiers) }
-        else if let hold { held = modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
-        else if settings.presentation == "strip", !holdEndedByKey { held = stripGesture?.releaseModifiers(modifiers) ?? [] }
-        else { held = modifiers.intersection([.control, .option, .shift, .command]) }
+        let held = clickModifiers(modifiers)
         return !held.isEmpty && keyBindings.contains { binding in
             binding.modifiers == held && commands(for: binding.name).contains { $0 == "summon" || $0.hasPrefix("summon ") }
         }
@@ -326,11 +343,17 @@ final class LensSession: ObservableObject {
 
     func moveSelection(_ delta: Int) { send(.selectionChanged(min(max(selection + delta, 0), max(results.count - 1, 0)))) }
     func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }), index != selection { send(.selectionChanged(index)) } }
-    func hover(_ id: UInt32, at location: CGPoint) {
-        guard location != lastPointerLocation else { return }
-        lastPointerLocation = location
-        hover(id)
+    func hover(_ id: UInt32?, at location: CGPoint) {
+        hoverIndex(at: location) { id.flatMap { id in self.results.firstIndex { $0.id == id } } }
     }
+
+    /// The pointer moved to `location`; `index` is the entry under it, looked up only when the pointer is armed.
+    func hoverIndex(at location: CGPoint, _ index: () -> Int?) {
+        guard pointerMotion.moved(to: location), let index = index(), index != selection else { return }
+        send(.pointerSelectionChanged(index))
+    }
+
+    func reanchorPointer() { pointerMotion = LensPointerMotion(anchor: pointerLocation()) }
 
     func toggleMark() {
         guard let id = selectedId else { return }

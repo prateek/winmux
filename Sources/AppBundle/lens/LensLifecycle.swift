@@ -207,6 +207,7 @@ final class LensLifecycle {
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         let ticket = generation
+        if !wasPresented { model.reanchorPointer() }
         show(model)
         guard ticket == generation else { return }
         state = .presented(model)
@@ -230,7 +231,10 @@ final class LensLifecycle {
         let oldInputState = model.inputState
         model.apply(event)
         trace?.session(model)
-        updatePresentation(model)
+        switch event {
+            case .pointerSelectionChanged: break
+            default: updatePresentation(model)
+        }
         if oldInputState != model.inputState { inputStateChanged(model) }
         switch event {
             case .searchChanged:

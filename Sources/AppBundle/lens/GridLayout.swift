@@ -6,6 +6,10 @@ struct GridLayout {
     static let stripPictureReadableHeight: CGFloat = 48
     struct Sizing {
         static let stripFooterHeight: CGFloat = 18
+        static let stripFooterBottom: CGFloat = 22
+        static let gridSearchHeight: CGFloat = 36
+        static let gridFooterHeight: CGFloat = 46
+        static let gridFooterBottom: CGFloat = 2
         let rowHeightCap: CGFloat
         let readableHeight: CGFloat?
         /// A strip sizes an Accessory window by the Lens's `accessory-window`; the grid does not.
@@ -16,9 +20,11 @@ struct GridLayout {
         let minimumWidth: CGFloat
         let emptyHeight: CGFloat
         var pictureReadableHeight: CGFloat? = nil
+        var pointerTopInset: CGFloat = gridSearchHeight
+        var pointerBottomInset: CGFloat = gridFooterHeight + gridFooterBottom
         static let grid = Sizing(rowHeightCap: 330, readableHeight: nil, honoursAccessoryWindow: false, horizontalChrome: 56, top: 40, bottom: 50, minimumWidth: 386, emptyHeight: 136)
         static let strip = Sizing(rowHeightCap: 190, readableHeight: stripReadableHeight, honoursAccessoryWindow: true, horizontalChrome: 88, top: 26,
-                                 bottom: 24 + stripFooterHeight + 22, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + 22, pictureReadableHeight: stripPictureReadableHeight)
+                                 bottom: 24 + stripFooterHeight + stripFooterBottom, minimumWidth: 418, emptyHeight: 26 + 24 + stripFooterHeight + stripFooterBottom, pictureReadableHeight: stripPictureReadableHeight, pointerTopInset: 0, pointerBottomInset: stripFooterHeight + stripFooterBottom)
     }
     struct Entry: Equatable {
         let aspect: CGFloat

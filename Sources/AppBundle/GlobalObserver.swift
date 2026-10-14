@@ -82,10 +82,12 @@ enum GlobalObserver {
 
     private static func onPointerActivity(_ event: NSEvent) {
         let isLeftMouseDownEvent = event.type == .leftMouseDown
+        let isHoverMove = event.type == .mouseMoved
         let timestamp = event.timestamp
         let screenPoint = NSEvent.mouseLocation
         let point = normalizeAppKitScreenPoint(screenPoint)
         runOnMainActor {
+            if isHoverMove { SwitcherPalettePanel.shared.notePointerMoved(at: screenPoint) }
             MousePointerTracker.shared.note(point: point, timestamp: timestamp)
             WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()
             WorkspaceSidebarPanel.noteHoverPointerActivityForVisiblePanels(timestamp: timestamp)

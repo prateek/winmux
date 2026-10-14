@@ -45,20 +45,34 @@ final class LensSessionTest: XCTestCase {
     }
 
     func testStationaryPointerCannotReplaceDefaultOrKeyboardSelection() {
-        let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1, focused: true), item(2), item(3)], search: "")
-        let pointer = NSEvent.mouseLocation
-        session.hover(1, at: pointer)
-        XCTAssertEqual(session.selectedId, 2)
-        session.moveSelection(1)
-        session.hover(2, at: pointer)
-        XCTAssertEqual(session.selectedId, 3)
-        session.hover(1, at: CGPoint(x: pointer.x + 1, y: pointer.y))
-        XCTAssertEqual(session.selectedId, 1)
-        session.moveSelection(1)
-        session.hover(3, at: CGPoint(x: pointer.x + 1, y: pointer.y))
-        XCTAssertEqual(session.selectedId, 2)
-        session.hover(3)
-        XCTAssertEqual(session.selectedId, 3)
+        for presentation in ["strip", "grid", "list", "miniatures"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            var pointer = CGPoint(x: 100, y: 100)
+            let session = LensSession(name: "demo", settings: settings, items: [item(1, focused: true), item(2), item(3)], search: "",
+                                      pointerLocation: { pointer })
+            session.hover(1, at: pointer)
+            XCTAssertEqual(session.selectedId, 2, presentation)
+            session.moveSelection(1)
+            session.hover(2, at: pointer)
+            XCTAssertEqual(session.selectedId, 3)
+            pointer.x += 1
+            session.hover(1, at: pointer)
+            XCTAssertEqual(session.selectedId, 3, "Exactly one point does not arm hover")
+            pointer.x += 0.1
+            session.hover(1, at: pointer)
+            XCTAssertEqual(session.selectedId, 1)
+            session.moveSelection(1)
+            session.hover(3, at: pointer)
+            XCTAssertEqual(session.selectedId, 2, "A Tile sliding under the still pointer after a key does not select")
+            pointer.x += 0.8; pointer.y += 0.8
+            session.hover(3, at: pointer)
+            XCTAssertEqual(session.selectedId, 3, "The threshold is Euclidean")
+            pointer.x -= 0.1
+            session.hover(1, at: pointer)
+            XCTAssertEqual(session.selectedId, 1, "Once armed, a move smaller than a point selects")
+            session.hover(3, at: pointer)
+            XCTAssertEqual(session.selectedId, 1, "Repeated callbacks at the same point do not select")
+        }
     }
 
     func testPrefilledSearchSelectsAVisibleRowEvenWhenTheUnfilteredFirstWindowIsFocused() {

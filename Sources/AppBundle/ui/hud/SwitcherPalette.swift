@@ -36,7 +36,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     private var preparedSession: LensSession?
     private let gridLandingPanel = NSPanelHud()
     private var gridMonitorRect = CGRect.zero
-    private var scrollPaging = MiniatureScrollPaging()
+    private var scrollPaging = LensScrollStepper()
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
 
@@ -73,6 +73,14 @@ final class SwitcherPalettePanel: NSPanelHud {
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
+    }
+
+    func notePointerMoved(at screenPoint: CGPoint) {
+        guard isVisible, let model = session,
+              model.settings.presentation == "strip" || model.settings.presentation == "grid" else { return }
+        let contentPoint = hostingView.convert(convertPoint(fromScreen: screenPoint), from: nil)
+        guard let point = lensTilePoint(contentPoint, in: model.tilesFrameInWindow) else { return }
+        model.hoverTile(at: point, pointerLocation: screenPoint)
     }
 
     func prepareAtStartup() async {
@@ -233,7 +241,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
-        scrollPaging = MiniatureScrollPaging()
+        scrollPaging = LensScrollStepper()
         gridLandingPanel.orderOut(nil)
         let monitor = focus.workspace.workspaceMonitor
         let visible = monitor.visibleRect
@@ -268,7 +276,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
-        hostingView.rootView = root
+        hostingView.rootView = AnyView(root.coordinateSpace(name: lensWindowCoordinateSpace))
         setFrame(frame, display: false)
         hostingView.arm()
         lifecycle.trace?.advance("view built")
@@ -423,6 +431,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
             if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
+            return
+        }
+        if event.type == .scrollWheel, model.settings.presentation == "strip" || model.settings.presentation == "grid" {
+            model.scrollTiles(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase,
+                              momentum: event.momentumPhase, time: event.timestamp, precise: event.hasPreciseScrollingDeltas, paging: &scrollPaging)
             return
         }
         super.sendEvent(event)

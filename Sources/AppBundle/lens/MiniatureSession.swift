@@ -86,7 +86,7 @@ extension LensSession {
     }
 
     func hoverMiniature(at point: CGPoint, pointerLocation: CGPoint) {
-        if let id = miniatureHitTest(at: point) { hover(id, at: pointerLocation) }
+        hover(miniatureHitTest(at: point), at: pointerLocation)
     }
 
     func miniatureOpacity(_ id: UInt32) -> Double { results.contains { $0.id == id } ? 1 : 0.18 }
@@ -130,6 +130,8 @@ extension LensSession {
     }
 
     func turnMiniaturePage(_ delta: Int) {
+        // An empty page or the same selection sends no selection event.
+        reanchorPointer()
         miniaturePage = miniatureLayout.turnedPage(miniaturePage, delta: delta)
         let names = Set(miniatureLayout.cells(on: miniaturePage).map(\.workspace))
         if let entry = results.first(where: { names.contains($0.miniature?.workspace ?? "") }) { hover(entry.id) }

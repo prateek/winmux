@@ -98,8 +98,6 @@ private func removeWorkspaceSidebarCommandMouseUnlockMonitor(_ panel: WorkspaceS
     panel.commandMouseUnlockPoint = nil
 }
 
-private let workspaceSidebarCommandMouseUnlockDistance: CGFloat = 1
-
 extension WorkspaceSidebarPanel {
     @MainActor
     func unlockCommandSidebarExpansionIfMouseMoved() {
@@ -107,7 +105,7 @@ extension WorkspaceSidebarPanel {
               let origin = commandMouseUnlockPoint
         else { return }
         let current = mouseLocation
-        guard hypot(current.x - origin.x, current.y - origin.y) > workspaceSidebarCommandMouseUnlockDistance else { return }
+        guard pointerMovedBeyondThreshold(from: origin, to: current) else { return }
         commandExpansionLocksCollapse = false
         shouldLockNextSidebarSearchExpansion = false
         inlineTextEditingLocksExpansion = false
