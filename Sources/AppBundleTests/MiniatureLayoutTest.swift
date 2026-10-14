@@ -195,7 +195,8 @@ final class MiniatureSessionTest: XCTestCase {
         let tray = try XCTUnwrap(model.miniatureFrames[3])
         XCTAssertEqual(model.miniatureHitTest(at: CGPoint(x: tray.midX, y: tray.midY)), 3)
         model.send(.searchChanged("Alpha"))
-        XCTAssertEqual(model.miniatureHitTest(at: point), 2)
+        // The dimmed floating window no longer takes the pointer from the match under it
+        XCTAssertEqual(model.miniatureHitTest(at: point), 1)
         XCTAssertEqual(model.selectedId, 1)
     }
 
@@ -246,6 +247,46 @@ final class MiniatureSessionTest: XCTestCase {
         XCTAssertEqual(model.selectedId, 4)
         XCTAssertEqual(model.marks, [4])
         XCTAssertEqual(model.results.count, 4)
+    }
+
+    private func tabSession(drawing indices: [Int], active: Int) -> LensSession {
+        let group = Workspace.get(byName: "1").rootTilingContainer
+        let items = indices.map { index in
+            let window = TestWindow.new(id: UInt32(index + 1), parent: group)
+            return SwitcherPaletteItem(id: window.windowId, title: "Tab \(index)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
+                miniature: MiniatureWindow(workspace: "1", frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window,
+                    tab: MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: CGRect(x: 0, y: 0, width: 500, height: 500), index: index, count: 3, activeIndex: active)))
+        }
+        var settings = LensConfig()
+        settings.presentation = "miniatures"
+        let model = LensSession(name: "tabs", settings: settings, items: items, search: "")
+        model.miniatureSize = CGSize(width: 1000, height: 700)
+        model.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "One", source: CGRect(x: 0, y: 0, width: 1000, height: 500), current: true)]
+        return model
+    }
+
+    func testAFilteredLensFansOnlyTheTabsItDraws() throws {
+        let all = tabSession(drawing: [0, 1, 2], active: 1).miniatureFrames
+        let model = tabSession(drawing: [0, 2], active: 1)
+        let frames = model.miniatureFrames
+        let cell = try XCTUnwrap(model.miniatureCells(on: 0).first)
+        let group = MiniatureLayout.scale(CGRect(x: 0, y: 0, width: 500, height: 500), from: CGRect(x: 0, y: 0, width: 1000, height: 500), to: cell.frame)
+        // With the active tab not drawn, the first drawn tab takes the front at the group's origin
+        XCTAssertEqual(frames[1]?.origin, group.origin)
+        XCTAssertEqual(frames[1], MiniatureLayout.fan(group, count: 2, index: 0, activeIndex: -1, cellWidth: cell.frame.width))
+        XCTAssertEqual(frames[3], MiniatureLayout.fan(group, count: 2, index: 1, activeIndex: -1, cellWidth: cell.frame.width))
+        XCTAssertGreaterThan(try XCTUnwrap(frames[1]).width, try XCTUnwrap(all[1]).width)
+    }
+
+    func testPointerOverADimmedFrontTabSelectsTheMatchingTabBehindIt() throws {
+        let model = tabSession(drawing: [0, 1, 2], active: 1)
+        model.send(.searchChanged("Tab 2"))
+        let behind = try XCTUnwrap(model.miniatureFrames[3])
+        let front = try XCTUnwrap(model.miniatureFrames[2])
+        let point = CGPoint(x: behind.midX, y: behind.midY)
+        XCTAssertTrue(front.contains(point))
+        model.hover(3)
+        XCTAssertEqual(model.miniatureHitTest(at: point), 3)
     }
 
     func testTabSessionFramesDrawOrderSearchAndBothArrowModes() throws {

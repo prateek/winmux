@@ -10,16 +10,16 @@ struct MiniatureTabSnapshot {
     var depth: Int { MiniatureLayout.fanDepth(index: index, activeIndex: activeIndex) }
 }
 
-/// A window tab group fans only when every tab is a window. Accordion groups and the two-sided
-/// layout already give each window a frame of its own, and a tab that is a container draws as today.
-/// The fan is drawn from the active tab's frame, which is where the group draws without a fan.
+/// A window tab group fans only when every tab is a window. Accordion groups already give each
+/// window a frame of its own, and a tab that is a container draws as today. The fan is drawn from
+/// the active tab's frame, where the group's windows sit below its tab bar.
 @MainActor
 func miniatureTabSnapshot(_ window: Window) -> MiniatureTabSnapshot? {
-    guard let group = window.parent as? TilingContainer, group.usesWindowTabBehavior, !group.usesDoubleSidedWindows,
+    guard let group = window.parent as? TilingContainer, group.usesWindowTabBehavior,
           group.children.allSatisfy({ $0 is Window }),
           let index = group.children.firstIndex(of: window),
           let active = group.tabActiveWindow, let activeIndex = group.children.firstIndex(of: active) else { return nil }
-    let frame = group.lastAppliedLayoutPhysicalRect?.cgRect ?? miniatureWindowFrame(active)
+    let frame = miniatureWindowFrame(active)
     return MiniatureTabSnapshot(group: ObjectIdentifier(group), frame: frame, index: index, count: group.children.count, activeIndex: activeIndex)
 }
 

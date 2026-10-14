@@ -53,7 +53,10 @@ extension LensSession {
                         let source = entry.tab?.frame ?? entry.frame
                         var scaled = MiniatureLayout.scale(source, from: workspace.source, to: cell.frame)
                         if let tab = entry.tab {
-                            scaled = MiniatureLayout.fan(scaled, count: tab.count, index: tab.index, activeIndex: tab.activeIndex, cellWidth: cell.frame.width)
+                            // Fan only the tabs this Lens draws; a missing active tab gives the front to the first one drawn
+                            let drawn = windows.compactMap(\.tab).filter { $0.group == tab.group }.map(\.index).sorted()
+                            scaled = MiniatureLayout.fan(scaled, count: drawn.count, index: drawn.firstIndex(of: tab.index) ?? 0,
+                                                         activeIndex: drawn.firstIndex(of: tab.activeIndex) ?? -1, cellWidth: cell.frame.width)
                         }
                         if entry.tab == nil && entry.accessory && settings.accessoryWindow == "enlarged" {
                             scaled.size.width = max(scaled.width, min(120, cell.frame.width))
@@ -75,8 +78,9 @@ extension LensSession {
         let page = min(miniaturePage, layout.pageCount - 1)
         let frames = miniatureFrames(layout: layout)
         let point = CGPoint(x: point.x, y: point.y + CGFloat(page) * miniatureSize.height)
+        let matches = Set(results.map(\.id))
         let drawn = miniatureCells(on: page, layout: layout).flatMap { cell in
-            miniatureDrawOrder(items.filter { $0.miniature?.workspace == cell.workspace })
+            miniatureDrawOrder(items.filter { $0.miniature?.workspace == cell.workspace && matches.contains($0.id) })
         }
         return drawn.reversed().first { frames[$0.id]?.contains(point) == true }?.id
     }

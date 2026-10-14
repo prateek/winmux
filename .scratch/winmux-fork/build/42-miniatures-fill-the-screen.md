@@ -48,17 +48,18 @@ Prateek chose `overview` as WinMux's view that stays open, the counterpart of Mi
 
 Both fit values use the same largest-workspace arrangement, centred below Search, with the
 560-point drawing cap removed. Page mode keeps its readable floor and full-page geometry.
-The three-tab fan uses the group's frame, active tab in front, and clamps its total offset.
-A group not laid out since launch fans from its active tab's own frame. Only a window tab group
-whose tabs are all windows fans; accordion groups keep their own frames. No window or tree
+The three-tab fan puts the active tab in front and clamps its total offset.
+The fan is drawn from the active tab's own frame, below the group's tab bar, and fans only the
+tabs the Lens draws. Only a window tab group whose tabs are all windows fans; accordion groups keep
+their own frames, and a group with a container tab draws as before. No window or tree
 weight changes while opening.
 
-Host and pinned-version guest `make check` pass with 1,119 Swift tests each, plus helper and
-script tests. Baseline preservation tests passed before changing layout. Regressions were seen
-failing before their fixes. The arrangement table includes both monitor sizes; the original
-paging test is unchanged. Guest checks cover the fourteen-window desk, rear-tab clicks and
-Return, both arrow modes, Search, Summon, trays and current-workspace treatments. Full-screen
-before/after evidence is captured for the pull request's demo pass.
+Host and pinned-version guest `make check` pass. Preservation tests of paging, `'shrink` with
+fifty workspaces, the tray and Search dimming passed before the arrangement changed, and each
+regression was seen failing before its fix. The arrangement table includes both monitor sizes; the
+original paging test is unchanged. Guest checks cover the fourteen-window desk, rear-tab clicks and
+Return, both arrow modes, Search, Summon, trays and current-workspace treatments, against the base
+build where the issue says behaviour stays.
 
 No named default changed. The cache stays capped at 582.4 points, so a full-width window's picture
 at 1920 × 1080 stretches about 1.24× with four workspaces, 1.6× with two and 2.7× with one,

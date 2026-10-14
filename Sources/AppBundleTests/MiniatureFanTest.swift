@@ -76,11 +76,13 @@ final class MiniatureFanTest: XCTestCase {
 final class MiniatureTabSnapshotTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
-    func testSnapshotUsesNearestGroupFrameAndActiveTabWhenInactiveFrameIsMissing() throws {
+    func testSnapshotUsesTheActiveTabsFrameNotTheGroupShell() throws {
         let root = Workspace.get(byName: "1").rootTilingContainer
         let group = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: INDEX_BIND_LAST)
         let windows = (1 ... 3).map { TestWindow.new(id: UInt32($0), parent: group) }
-        group.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 60, width: 400, height: 300)
+        // The group's own rect includes its tab bar; the windows sit below it
+        group.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 24, width: 400, height: 336)
+        windows[1].lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 60, width: 400, height: 300)
         windows[1].markAsMostRecentChild()
         XCTAssertNil(windows[0].lastAppliedLayoutPhysicalRect)
         for (index, window) in windows.enumerated() {
@@ -97,6 +99,8 @@ final class MiniatureTabSnapshotTest: XCTestCase {
         XCTAssertEqual(miniatureTabSnapshot(windows[0])?.activeIndex, 2)
         let floating = TestWindow.new(id: 4, parent: Workspace.get(byName: "1"))
         XCTAssertNil(miniatureTabSnapshot(floating))
+        let minimized = TestWindow.new(id: 6, parent: macosMinimizedWindowsContainer)
+        XCTAssertNil(miniatureTabSnapshot(minimized))
         let beside = TestWindow.new(id: 5, parent: root)
         XCTAssertNil(miniatureTabSnapshot(beside))
     }
@@ -108,7 +112,8 @@ final class MiniatureTabSnapshotTest: XCTestCase {
         let first = TestWindow.new(id: 1, parent: inner)
         _ = TestWindow.new(id: 2, parent: inner)
         let beside = TestWindow.new(id: 3, parent: outer)
-        inner.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 60, width: 400, height: 300)
+        first.markAsMostRecentChild()
+        first.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 40, topLeftY: 60, width: 400, height: 300)
         outer.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 20, topLeftY: 20, width: 600, height: 400)
         let innerTab = try XCTUnwrap(miniatureTabSnapshot(first))
         XCTAssertEqual(innerTab.frame, CGRect(x: 40, y: 60, width: 400, height: 300))

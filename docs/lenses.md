@@ -487,7 +487,7 @@ A window tab group whose tabs are all windows fans out inside its shared frame; 
 other tabs follow their group order, offset right and down behind it. The offset scales from
 16 points per 820-point workspace and shrinks when the total fan would exceed a quarter of
 the group's smaller side. Every tab has a selectable edge and uses its cached picture or app
-icon. Standalone windows, floating windows and tray entries keep their existing positions. A group not laid out since WinMux started fans from its active tab's remembered frame.
+icon. Standalone windows, floating windows and tray entries keep their existing positions. The fan is drawn from the active tab's frame, below the group's tab bar, and fans only the tabs the Lens draws.
 
 Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
 with an 800 ms per-window throttle and at most two captures in flight. Hidden apps retain their
