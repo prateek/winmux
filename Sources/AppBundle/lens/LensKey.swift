@@ -20,10 +20,12 @@ enum LensInputState: String, Codable, Equatable {
     case hold, normal, search
 }
 
+enum LensKeySource { case panel, carbon }
+
 enum LensKeyMeaning: Equatable {
     case command(String)
     case step(Int)
-    case endHold(UInt16, String)
+    case endHold(UInt16, String, NSEvent.ModifierFlags = [])
     case enterSearch
     case leaveSearch
     case text(String)
@@ -33,6 +35,7 @@ enum LensKeyMeaning: Equatable {
     case mark
     case global
     case triggerGlobal
+    case globalBinding
     case fieldEditor
     case dropped
 
@@ -45,13 +48,16 @@ enum LensKeyMeaning: Equatable {
 }
 
 func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
-                    characters: String, flags: NSEvent.ModifierFlags) -> LensKeyMeaning {
+                    characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", source: LensKeySource = .panel) -> LensKeyMeaning {
+    if source == .carbon, state != .hold, presentation != "strip" { return .globalBinding }
     let modifiers = flags.intersection([.command, .control, .option, .shift])
     let binding = { (flags: NSEvent.ModifierFlags) in
         keys.first { $0.code == (code == 76 ? 36 : code) && $0.modifiers == flags }
     }
     if state == .hold, let hold, code == 36 || code == 76 {
-        return binding(modifiers.subtracting(hold.holdModifiers)).map { .command($0.name) } ?? .dropped
+        let released = modifiers.subtracting(hold.invoking)
+        if let key = binding(released) { return .command(key.name) }
+        return released.intersection([.command, .control, .option]).isEmpty ? .dropped : .global
     }
     let chord = !modifiers.intersection([.command, .control, .option]).isEmpty
     if (state != .search || chord || code == 36 || code == 76), let key = binding(modifiers) {
@@ -64,7 +70,7 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
         if code == 53 { return .dismiss }
         if (123...126).contains(code) { return .arrow(code) }
         if characters == "/" || (!characters.isEmpty && characters.unicodeScalars.allSatisfy({ CharacterSet.letters.contains($0) })) {
-            return .endHold(code, characters)
+            return .endHold(code, characters, modifiers.subtracting(hold.holdModifiers))
         }
         return .dropped
     }
@@ -90,9 +96,13 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
 }
 
 extension LensSession {
-    func meaning(for event: NSEvent) -> LensKeyMeaning {
-        lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
-                       characters: hold.map { event.characters(byApplyingModifiers: event.modifierFlags.subtracting($0.holdModifiers)) ?? event.charactersIgnoringModifiers ?? "" } ?? event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags)
+    func meaning(for event: NSEvent, source: LensKeySource = .panel) -> LensKeyMeaning {
+        let characters: String
+        if let hold {
+            characters = event.characters(byApplyingModifiers: event.modifierFlags.subtracting(hold.holdModifiers)) ?? event.charactersIgnoringModifiers ?? ""
+        } else { characters = event.charactersIgnoringModifiers ?? "" }
+        return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
+                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source)
     }
 
     @discardableResult
@@ -100,11 +110,11 @@ extension LensSession {
         switch meaning {
             case .command(let key): if !performSectionsAction(key) { onAction?(key) }
             case .step(let delta): cycleStripSelection(delta)
-            case .endHold(let code, let text):
-                endHoldByKey()
+            case .endHold(let code, let text, let flags):
                 if text == "/" { enterSearch() }
                 else {
-                    let meaning = lensKeyMeaning(state: inputState, hold: nil, keys: activeKeyBindings, code: code, characters: text, flags: [])
+                    endHoldByKey()
+                    let meaning = lensKeyMeaning(state: inputState, hold: nil, keys: activeKeyBindings, code: code, characters: text, flags: flags)
                     return perform(meaning)
                 }
             case .enterSearch: enterSearch()
@@ -121,12 +131,11 @@ extension LensSession {
                 } else if settings.presentation == "grid", let direction = [UInt16(123): GridLayout.Direction.left, 124: .right, 125: .down, 126: .up][code] {
                     moveGridSelection(direction)
                 } else if settings.presentation == "strip" { moveStripSelection(code) }
-                // With no Hold, left and right move the caret in a list's Search field.
-                else if code == 123 || code == 124 { return inputState != .search }
+                else if inputState != .hold, code == 123 || code == 124 { return inputState != .search }
                 else { moveSelection(code == 123 || code == 126 ? -1 : 1) }
             case .mark: toggleMark()
             case .dropped: break
-            case .dismiss, .global, .triggerGlobal, .fieldEditor: return false
+            case .dismiss, .global, .triggerGlobal, .globalBinding, .fieldEditor: return false
         }
         return true
     }

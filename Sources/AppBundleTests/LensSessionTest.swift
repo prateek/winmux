@@ -30,6 +30,20 @@ final class LensSessionTest: XCTestCase {
         }
     }
 
+    func testSummonHintsReinterpretStillHeldModifiersWhenLetterEndsHold() {
+        for presentation in ["list", "grid", "miniatures", "strip"] {
+            var settings = LensConfig(); settings.presentation = presentation
+            let session = LensSession(name: "hints", settings: settings, items: [item(1)], search: "")
+            session.startHold(StripGesture(keyCode: 44, invoking: .option))
+            session.updateSummonModifiers(.option)
+            XCTAssertFalse(session.summonHeld)
+            session.endHoldByKey()
+            XCTAssertTrue(session.summonHeld)
+            session.updateSummonModifiers([])
+            XCTAssertFalse(session.summonHeld)
+        }
+    }
+
     func testStationaryPointerCannotReplaceDefaultOrKeyboardSelection() {
         let session = LensSession(name: "demo", settings: LensConfig(), items: [item(1, focused: true), item(2), item(3)], search: "")
         let pointer = NSEvent.mouseLocation

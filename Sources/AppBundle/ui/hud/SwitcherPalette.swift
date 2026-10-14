@@ -111,13 +111,14 @@ final class SwitcherPalettePanel: NSPanelHud {
             "project": workspaceProjects().map { LensSectionIdentity(key: $0.id.rawValue, label: $0.name, current: $0.id == focus.workspace.projectId) },
             "monitor": sortedMonitors.map { LensSectionIdentity(key: $0.displayUuid, label: $0.name, current: $0.displayUuid == focus.workspace.workspaceMonitor.displayUuid) },
         ]
-        let model = LensSession(name: name, settings: settings, items: items, search: settings.presentation == "strip" ? "" : lifecycle.search(for: name, override: search), eventFilter: eventFilter, sectionIdentities: identities)
+        let model = LensSession(name: name, settings: settings, items: items, search: lifecycle.search(for: name, override: search), eventFilter: eventFilter, sectionIdentities: identities)
         model.miniatureWorkspaces = workspaces
         if settings.miniatures.currentWorkspace == "hide" {
             model.send(.excludedChanged(Set(items.filter { $0.miniature?.workspace == focus.workspace.name }.map(\.id))))
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
+        model.onGlobalKey = replayLensGlobalKey
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
@@ -293,8 +294,72 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = model
     }
 
+    private struct AnticipatedInput {
+        let token: Int
+        let gesture: StripGesture
+        let timestamp: Double
+        var events: [NSEvent]
+    }
+    private var anticipatedInput: AnticipatedInput?
+    private var recentOpeningKeys: [NSEvent] = []
+    private var nextInputToken = 0
+
+    func anticipateLens(_ gesture: StripGesture, timestamp: Double) -> Int? {
+        guard gesture.keyCode != nil, !gesture.holdModifiers.isEmpty else { return nil }
+        nextInputToken += 1
+        let events = recentOpeningKeys.filter { $0.timestamp > timestamp }
+        recentOpeningKeys = []
+        anticipatedInput = AnticipatedInput(token: nextInputToken, gesture: gesture, timestamp: timestamp, events: events)
+        return nextInputToken
+    }
+
+    func finishAnticipatingLens(_ token: Int?) {
+        if anticipatedInput?.token == token { anticipatedInput = nil }
+    }
+
+    @discardableResult
+    func captureOpeningKey(_ event: NSEvent) -> Bool {
+        if var pending = anticipatedInput, event.timestamp >= pending.timestamp {
+            pending.events.append(event)
+            pending.events = Array(pending.events.suffix(32))
+            anticipatedInput = pending
+            return true
+        }
+        if case .opening = lifecycle.state {
+            if let gesture = lifecycle.openingGesture,
+               let input = lifecycle.openingStripKey(keyCode: event.keyCode, flags: event.modifierFlags,
+                                                     characters: event.charactersIgnoringModifiers ?? "", holdCharacters: openingCharacters(event, gesture: gesture), timestamp: event.timestamp) {
+                if input == .cancel || input == .ignored { dismiss() }
+                return input == .consumed || input == .cancel
+            }
+        }
+        if case .ready = lifecycle.state { return routeKey(event, path: "hidden strip") }
+        // Carbon dispatch can begin after the following event's global observation.
+        recentOpeningKeys.removeAll { event.timestamp - $0.timestamp > 0.1 }
+        if !event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
+            recentOpeningKeys.append(event)
+            recentOpeningKeys = Array(recentOpeningKeys.suffix(8))
+        }
+        return false
+    }
+
+    private func openingCharacters(_ event: NSEvent, gesture: StripGesture) -> String {
+        event.characters(byApplyingModifiers: event.modifierFlags.subtracting(gesture.holdModifiers)) ?? event.charactersIgnoringModifiers ?? ""
+    }
+
     func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil) -> Int? {
+        let pending = anticipatedInput
+        anticipatedInput = nil
         let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys, invocation: invocation)
+        if ticket != nil, let pending,
+           let gesture = strip ?? invocation,
+           gesture.keyCode == pending.gesture.keyCode, gesture.invoking == pending.gesture.invoking {
+            for event in pending.events {
+                let input = lifecycle.openingStripKey(keyCode: event.keyCode, flags: event.modifierFlags,
+                                                      characters: event.charactersIgnoringModifiers ?? "", holdCharacters: openingCharacters(event, gesture: gesture), timestamp: event.timestamp)
+                if input == .cancel || input == .ignored { dismiss(); return nil }
+            }
+        }
         return ticket
     }
 
@@ -363,12 +428,11 @@ final class SwitcherPalettePanel: NSPanelHud {
         let held = model.hold != nil
         let state = model.inputState
         let editor = firstResponder is NSTextView
-        let meaning = model.meaning(for: event)
+        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel)
         let handled: Bool
         let destination: String
         switch meaning {
-            // A global binding pressed over a list or miniatures with no Hold is not the Lens's key.
-            case _ where carbon && !held && presentation != "strip": handled = false; destination = "global binding"
+            case .globalBinding: handled = false; destination = "global binding"
             case .dismiss: dismiss(); handled = true; destination = "dismissed"
             case .triggerGlobal: handled = false; destination = "global Trigger"
             case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
@@ -407,17 +471,18 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String, timestamp: Double? = nil) -> Bool {
-        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers, characters: characters, timestamp: timestamp) {
+        let text = characters.count == 1 ? characters : keyCode == 49 ? " " : ""
+        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                                          timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
+                                          context: nil, characters: text, charactersIgnoringModifiers: text,
+                                          isARepeat: false, keyCode: keyCode) else { return false }
+        let heldText = lifecycle.openingGesture.map { openingCharacters(event, gesture: $0) }
+        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers, characters: text,
+                                                holdCharacters: heldText, timestamp: timestamp, source: .carbon) {
             if input == .consumed { return true }
             dismiss()
             return false
         }
-        // A binding's key is named, not typed: only a one-character name is text.
-        let characters = characters.count == 1 ? characters : keyCode == 49 ? " " : ""
-        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
-                                          timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
-                                          context: nil, characters: characters, charactersIgnoringModifiers: characters,
-                                          isARepeat: false, keyCode: keyCode) else { return false }
         return routeKey(event, path: "Carbon", carbon: true)
     }
 

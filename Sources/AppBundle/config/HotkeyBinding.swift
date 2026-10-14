@@ -113,9 +113,21 @@ extension HotKey {
     }
 }
 
+@MainActor func replayLensGlobalKey(code: UInt16, flags: NSEvent.ModifierFlags, timestamp: Double) {
+    let modifiers = flags.intersection([.command, .control, .option, .shift])
+    guard let mode = activeMode.flatMap({ config.modes[$0] }),
+          let binding = mode.bindings.values.first(where: { UInt16($0.keyCode.carbonKeyCode) == code && $0.modifiers == modifiers }) else { return }
+    let gesture = StripGesture(keyCode: code, invoking: modifiers)
+    let origin = LensTraceOrigin(start: timestamp, received: LensTimebase.now(), source: "queued Lens key")
+    triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture, origin: origin)
+}
+
 @MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
     if hotkeysSuspended { return }
+    let panel = SwitcherPalettePanel.shared
+    let inputToken = commands.contains { $0 is LensCommand } ? invocation.flatMap { panel.anticipateLens($0, timestamp: origin?.start ?? LensTimebase.now()) } : nil
     Task {
+        defer { panel.finishAnticipatingLens(inputToken) }
         if let activeMode {
             broadcastEvent(.bindingTriggered(
                 mode: activeMode,
