@@ -38,7 +38,8 @@ struct LensHintOverlay: View {
     let panelBottom: CGFloat
     var body: some View {
         let scale = model.tileMetrics.scale
-        let sidebarInset = config.workspaceSidebar.enabled ? workspaceSidebarRestingWidth(config.workspaceSidebar) + 8 * scale : 0
+        let sidebarInset = LensHintGeometry.sidebarClearance(presentation: model.settings.presentation,
+                                                            monitorInset: focus.workspace.workspaceMonitor.workspaceSidebarInset, scale: scale)
         VStack(spacing: 0) {
             if model.hintsShown, !model.hintLegend.isEmpty {
                 LensHintLegend(entries: model.hintLegend, scale: scale, maxWidth: LensHintGeometry.legendMaxWidth(screenWidth: model.miniatureSize.width, scale: scale, occupiedSideInset: sidebarInset))

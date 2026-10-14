@@ -127,13 +127,10 @@ struct TileView: View {
         return ZStack {
             Group {
                 if let thumbnail = entry.picture {
-                    TilePicture(thumbnail: thumbnail, icon: entry.icon, frozen: entry.frozen, look: settings.frozenThumbnail, metrics: metrics, badgeHeight: $frozenBadgeHeight)
+                    TilePicture(thumbnail: thumbnail, icon: entry.icon, frozen: entry.frozen, look: settings.frozenThumbnail, metrics: metrics, backed: pictureBackingRequired, badgeHeight: $frozenBadgeHeight)
                 } else { icon(size: min(fitted.width, fitted.height)) }
             }
             .frame(width: fitted.width, height: fitted.height)
-            .background {
-                if pictureBackingRequired { config.workspaceSidebar.resolvedSolidChromeColor }
-            }
             .clipShape(RoundedRectangle(cornerRadius: miniature ? metrics.miniaturePictureRadius : metrics.pictureRadius))
             .shadow(color: .black.opacity(miniature ? 0 : 0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
             .overlay {
@@ -187,6 +184,8 @@ private struct TilePicture: View {
     let frozen: Bool
     let look: String
     let metrics: TileMetrics
+    /// An opaque plate behind a translucent picture, so thinned glass never shows the desk through it.
+    let backed: Bool
     @Binding var badgeHeight: CGFloat
 
     var body: some View {
@@ -195,6 +194,7 @@ private struct TilePicture: View {
             if let image = thumbnail.image {
                 Image(decorative: image, scale: 1).resizable().scaledToFit()
                     .saturation(appearance.saturation).colorMultiply(Color(white: appearance.brightness)).opacity(appearance.opacity)
+                    .background { if backed { config.workspaceSidebar.resolvedSolidChromeColor } }
             } else if let icon { Image(nsImage: icon).resizable().scaledToFit() }
             else { Image(systemName: "macwindow").resizable().scaledToFit() }
             Group {

@@ -54,6 +54,45 @@ final class LensHintsTest: XCTestCase {
         }
     }
 
+    func testLiveFlagsWinOverAHoldReleaseRecordedWhileOpening() {
+        for presentation in ["list", "grid", "miniatures"] {
+            let model = session(presentation)
+            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .option })
+            let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
+            defer { owner.dismiss() }
+            let ticket = owner.begin("test", toggle: false, invocation: StripGesture(keyCode: 48, invoking: .command))!
+            owner.openingFlagsChanged([])
+            owner.complete(model, ticket: ticket)
+            XCTAssertNil(model.hold, presentation)
+            XCTAssertTrue(model.hintsShown, "Option went down after Cmd was released: \(presentation)")
+        }
+    }
+
+    func testListLegendFollowsLayoutUntilMeasuredAndStaysInsideTheWindow() {
+        let model = session("list")
+        XCTAssertEqual(model.hintPanelBottom, model.listLayout.topOffset + model.listLayout.height, "Before the first measurement")
+        model.listPanelHeight = model.listLayout.panelHeight + 50
+        XCTAssertEqual(model.hintPanelBottom, model.listLayout.topOffset + model.listLayout.panelHeight, "Content clipped by the window")
+    }
+
+    func testSidebarClearanceOnlyWhereTheSidebarCoversTheCanvas() {
+        XCTAssertEqual(LensHintGeometry.sidebarClearance(presentation: "grid", monitorInset: 56, scale: 1), 64)
+        XCTAssertEqual(LensHintGeometry.sidebarClearance(presentation: "strip", monitorInset: 56, scale: 0.5), 60)
+        XCTAssertEqual(LensHintGeometry.sidebarClearance(presentation: "miniatures", monitorInset: 56, scale: 1), 0)
+        XCTAssertEqual(LensHintGeometry.sidebarClearance(presentation: "grid", monitorInset: 0, scale: 1), 0)
+    }
+
+    func testIconFallbackGetsNoBackingWhileHintsShow() throws {
+        var entry = TileEntry(title: "Note", appName: "Notes", aspect: 1)
+        entry.picture = WindowThumbnail(); entry.frozen = true
+        let tile = TileView(entry: entry, kind: .picture, presentation: "grid", metrics: TileMetrics(scale: 1), size: CGSize(width: 300, height: 200), settings: LensConfig(), selected: false, marked: false, hint: nil, hintsShown: true)
+        let image = try XCTUnwrap(ImageRenderer(content: tile).cgImage)
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        let opaque = (0..<image.width).flatMap { x in (0..<image.height).map { (x, $0) } }
+            .filter { (try? XCTUnwrap(bitmap.colorAt(x: $0.0, y: $0.1)))?.alphaComponent ?? 0 > 0.99 }.count
+        XCTAssertLessThan(Double(opaque) / Double(image.width * image.height), 0.5, "An icon is not translucent and gets no plate")
+    }
+
     func testListLegendUsesPaintedHeightIncludingDiagnosticRows() {
         let model = session("list")
         model.listPanelHeight = 350
@@ -279,7 +318,7 @@ final class LensHintsTest: XCTestCase {
         XCTAssertEqual(ordered.summonHint(destination: "3"), "⌃S Summon to 3", "The dedicated Summon entry precedes custom command lists in the legend")
     }
 
-    func testWorkspaceChipOnlyOnPictureAndCardTilesWhileShownAndUsesFirstAppWindow() {
+    func testWorkspaceChipOnlyOnPictureAndCardTilesWhileShownAndUsesTheShownWindow() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "2", appIdentity: "app", isFocused: false)
         for presentation in ["strip", "grid", "list", "miniatures"] {
             for kind in ["picture", "card", "text"] {
@@ -294,7 +333,7 @@ final class LensHintsTest: XCTestCase {
         let second = SwitcherPaletteItem(id: 2, title: "Later", appName: "Demo", icon: nil, workspaceName: "3", appIdentity: "app", isFocused: false)
         let model = LensSession(name: "apps", settings: settings, items: [item, second], search: "")
         model.updateHintModifiers(.option)
-        XCTAssertEqual(model.workspaceHint(for: second), "⌘2")
+        XCTAssertEqual(model.workspaceHint(for: second), "⌘3", "An app entry's chip is its shown window's workspace")
         let empty = SwitcherPaletteItem(id: 3, title: "Empty", appName: "Empty", icon: nil, workspaceName: "", appIdentity: "empty", isFocused: false)
         XCTAssertNil(model.workspaceHint(for: empty))
     }

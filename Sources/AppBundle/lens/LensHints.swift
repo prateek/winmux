@@ -95,7 +95,7 @@ final class LensHintSnapshot {
 
 extension LensSession {
     var hintPanelBottom: CGFloat {
-        settings.presentation == "list" ? listLayout.topOffset + listPanelHeight : (miniatureSize.height + gridLayout.panelSize.height) / 2
+        settings.presentation == "list" ? listLayout.topOffset + min(max(listPanelHeight, listLayout.height), listLayout.panelHeight) : (miniatureSize.height + gridLayout.panelSize.height) / 2
     }
     var panelGlassOpacity: Double { hintsShown && settings.presentation != "miniatures" ? 0.55 : 1 }
     var hintSnapshot: LensHintSnapshot {
@@ -124,14 +124,18 @@ extension LensSession {
     }
     func workspaceHint(for item: SwitcherPaletteItem) -> String? {
         guard hintsShown, settings.presentation == "strip" || settings.presentation == "grid", tileKind != .text else { return nil }
-        let workspace = settings.entries == "app" ? firstAppWorkspaces[item.appIdentity] : item.miniature?.workspace ?? item.workspaceIdentity ?? item.workspaceName
-        guard let workspace, !workspace.isEmpty else { return nil }
+        let workspace = item.miniature?.workspace ?? item.workspaceIdentity ?? item.workspaceName
+        guard !workspace.isEmpty else { return nil }
         return workspaceHint(workspace: workspace)
     }
 }
 
 struct LensHintGeometry {
     static func legendMaxWidth(screenWidth: CGFloat, scale: CGFloat, occupiedSideInset: CGFloat = 0) -> CGFloat { max(0, screenWidth - 2 * max(32 * scale, occupiedSideInset)) }
+    /// Miniatures already start beside the sidebar; the other Presentations draw under it.
+    static func sidebarClearance(presentation: String, monitorInset: CGFloat, scale: CGFloat) -> CGFloat {
+        presentation == "miniatures" || monitorInset == 0 ? 0 : monitorInset + 8 * scale
+    }
     static func workspaceChipBottomInset(badgeHeight: CGFloat, scale: CGFloat) -> CGFloat { 8 * scale + badgeHeight }
 
     static func legendTop(panelBottom: CGFloat, screenHeight: CGFloat, legendHeight: CGFloat, scale: CGFloat) -> CGFloat {
