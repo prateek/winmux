@@ -5,8 +5,8 @@ struct GridView: View {
     @ObservedObject var model: LensSession
 
     var body: some View {
-        let layout = model.gridLayout
         let items = model.results
+        let layout = model.gridLayout(items: items)
         let scale = model.tileMetrics.scale
         let metrics = TileMetrics(scale: layout.tileScale)
         let summonAvailable = model.stripSummonAvailable(items: items)
@@ -51,7 +51,7 @@ struct GridView: View {
         .foregroundStyle(.white)
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
         .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named("lensWindow"))
+            proxy.frame(in: .named(lensWindowCoordinateSpace))
         } action: { frame in
             model.tilesFrameInWindow = frame
         }

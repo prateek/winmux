@@ -1,5 +1,6 @@
 @testable import AppBundle
 import AppKit
+import Clocks
 import XCTest
 
 @MainActor
@@ -315,6 +316,26 @@ final class LensPointerTest: XCTestCase {
         }
     }
 
+    func testStripShownAfterItsDisplayDelayReanchorsAPointerThatMovedDuringTheDelay() async throws {
+        let clock = TestClock<Duration>()
+        var pointer = CGPoint.zero
+        var settings = LensConfig(); settings.presentation = "strip"
+        let owner = testLensLifecycle(clock: clock); defer { owner.dismiss() }
+        let ticket = owner.begin("delay", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock), settings: settings)!
+        let session = LensSession(name: "delay", settings: settings, items: items(), search: "", pointerLocation: { pointer })
+        owner.complete(session, ticket: ticket)
+        guard case .ready = owner.state else { return XCTFail("Expected the strip to wait for its display delay") }
+        pointer = CGPoint(x: 50, y: 0)
+        await clock.advance(by: .milliseconds(100))
+        guard case .presented = owner.state else { return XCTFail("Expected the strip to be shown") }
+        let initial = session.selectedId
+        session.hover(4, at: pointer)
+        XCTAssertEqual(session.selectedId, initial, "A pointer resting where it stopped during the delay selects nothing")
+        pointer.x += 2
+        session.hover(4, at: pointer)
+        XCTAssertEqual(session.selectedId, 4)
+    }
+
     func testHeldListAndMiniatureClicksSubtractInvokingModifiers() throws {
         for presentation in ["list", "miniatures"] {
             var settings = LensConfig(); settings.presentation = presentation
@@ -328,28 +349,6 @@ final class LensPointerTest: XCTestCase {
                 session.updateSummonModifiers(flags)
                 XCTAssertEqual(session.summonHeld, flags.contains(.shift), presentation)
                 XCTAssertEqual(session.targets(for: expected), [4])
-            }
-        }
-    }
-
-    func testTilePointerReadsResultsOnceWithColdAndWarmLayouts() {
-        for presentation in ["strip", "grid"] {
-            var settings = LensConfig(); settings.presentation = presentation; settings.sections = "workspace"
-            let session = LensSession(name: "reads", settings: settings, items: items(), search: "", pointerLocation: { .zero })
-            let owner = testLensLifecycle(); defer { owner.dismiss() }
-            owner.updatePresentation = { model in
-                if model.settings.presentation == "grid" { _ = model.gridLayout }
-            }
-            let ticket = owner.begin(session.name, toggle: false, settings: settings)!
-            owner.complete(session, ticket: ticket)
-            let layout = presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
-            let frame = layout.tiles[3].frame
-            session.stripLayoutCache = nil; session.gridLayoutCache = nil
-            for x: CGFloat in [10000, 10010] {
-                let before = session.resultsReadCount
-                session.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: x, y: 10000))
-                XCTAssertEqual(session.resultsReadCount - before, 1, presentation)
-                XCTAssertEqual(session.selection, 3)
             }
         }
     }

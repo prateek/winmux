@@ -276,7 +276,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
-        hostingView.rootView = AnyView(root.coordinateSpace(name: "lensWindow"))
+        hostingView.rootView = AnyView(root.coordinateSpace(name: lensWindowCoordinateSpace))
         setFrame(frame, display: false)
         hostingView.arm()
         lifecycle.trace?.advance("view built")

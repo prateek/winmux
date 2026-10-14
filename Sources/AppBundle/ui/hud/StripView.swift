@@ -5,9 +5,9 @@ struct StripView: View {
     @ObservedObject var model: LensSession
 
     var body: some View {
-        let snapshot = model.stripSnapshot
-        let layout = snapshot.layout
         let items = model.results
+        let snapshot = model.stripSnapshot(items: items)
+        let layout = snapshot.layout
         let scale = model.tileMetrics.scale
         let metrics = TileMetrics(scale: layout.tileScale)
         let footerHeight = GridLayout.Sizing.stripFooterHeight * scale
@@ -44,7 +44,7 @@ struct StripView: View {
                 }
                 .frame(width: layout.panelSize.width, height: layout.panelSize.height)
                 .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .named("lensWindow"))
+                    proxy.frame(in: .named(lensWindowCoordinateSpace))
                 } action: { frame in
                     model.tilesFrameInWindow = frame
                 }

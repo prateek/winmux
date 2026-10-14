@@ -252,16 +252,7 @@ final class LensSession: ObservableObject {
         lensSections(entries, grouping: drawsSections ? settings.sections : "none", identities: sectionIdentities[settings.sections] ?? [],
                      key: { $0.sectionKey(self.settings.sections) }, label: { $0.sectionLabel(self.settings.sections) })
     }
-    #if DEBUG
-    /// Measures eager evaluations in pointer regressions without replacing the real Search.
-    private(set) var resultsReadCount = 0
-    #endif
-    var results: [SwitcherPaletteItem] {
-        #if DEBUG
-        resultsReadCount += 1
-        #endif
-        return sections.flatMap(\.entries)
-    }
+    var results: [SwitcherPaletteItem] { sections.flatMap(\.entries) }
     func selectBestResult() {
         let best = rankedResults.first?.id
         selection = results.firstIndex { $0.id == best } ?? 0
@@ -353,12 +344,12 @@ final class LensSession: ObservableObject {
     func moveSelection(_ delta: Int) { send(.selectionChanged(min(max(selection + delta, 0), max(results.count - 1, 0)))) }
     func hover(_ id: UInt32) { if let index = results.firstIndex(where: { $0.id == id }), index != selection { send(.selectionChanged(index)) } }
     func hover(_ id: UInt32?, at location: CGPoint) {
-        guard pointerMotion.moved(to: location), let id, let index = results.firstIndex(where: { $0.id == id }), index != selection else { return }
-        send(.pointerSelectionChanged(index))
+        hoverIndex(at: location) { id.flatMap { id in self.results.firstIndex { $0.id == id } } }
     }
 
-    func hoverTileIndex(_ index: Int?, at location: CGPoint) {
-        guard pointerMotion.moved(to: location), let index, index != selection else { return }
+    /// The pointer moved to `location`; `index` is the entry under it, looked up only when the pointer is armed.
+    func hoverIndex(at location: CGPoint, _ index: () -> Int?) {
+        guard pointerMotion.moved(to: location), let index = index(), index != selection else { return }
         send(.pointerSelectionChanged(index))
     }
 

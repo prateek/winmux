@@ -4,6 +4,9 @@ func pointerMovedBeyondThreshold(from anchor: CGPoint, to point: CGPoint) -> Boo
     hypot(point.x - anchor.x, point.y - anchor.y) > 1
 }
 
+/// The SwiftUI coordinate space at the root of a Lens panel, which is the panel's window.
+let lensWindowCoordinateSpace = "lensWindow"
+
 func lensTilePoint(_ contentPoint: CGPoint, in frame: CGRect) -> CGPoint? {
     guard frame.contains(contentPoint) else { return nil }
     return CGPoint(x: contentPoint.x - frame.minX, y: contentPoint.y - frame.minY)
@@ -51,7 +54,7 @@ extension LensSession {
     }
 
     func hoverTile(at point: CGPoint, pointerLocation: CGPoint) {
-        hoverTileIndex(tileHitTest(at: point), at: pointerLocation)
+        hoverIndex(at: pointerLocation) { tileHitTest(at: point) }
     }
 
     func clickTile(at point: CGPoint, event: NSEvent?) {
