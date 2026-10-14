@@ -316,13 +316,15 @@ final class LensSession: ObservableObject {
         }
     }
 
-    func controlSucceeded(_ control: TileWindowControl, windowId: UInt32) {
-        guard control == .minimize else { return }
+    /// A control changed the window's state: its Tile shows the new state while the Lens stays open.
+    func refreshTile(windowId: UInt32, windowClass: WindowClass, controls: TileControlAvailability) {
         func update(_ item: SwitcherPaletteItem) -> SwitcherPaletteItem {
             guard item.id == windowId else { return item }
             var item = item
-            item.tile.badges.minimized = true
-            item.tile.controls.minimize = false
+            item.tile.controls = controls
+            item.tile.badges.minimized = windowClass == .minimized
+            // A minimized window shows its last capture, as it does when a Lens opens over it.
+            if windowClass == .minimized { item.tile.frozen = true }
             return item
         }
         items = items.map(update)

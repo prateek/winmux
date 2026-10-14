@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 enum TileWindowControl: String, CaseIterable, Sendable {
     case close, minimize, fullscreen
@@ -16,6 +17,20 @@ struct TileControlAvailability: Equatable, Sendable {
     var minimize = false
     var fullscreen = false
     static let all = Self(close: true, minimize: true, fullscreen: true)
+
+    /// The controls a Tile offers: an enabled button whose command acts on that window alone.
+    /// macOS will not minimize a window in native fullscreen, and restoring a hidden app's window
+    /// before minimize or fullscreen would show every window of the app.
+    init(buttons: TileControlAvailability?, windowClass: WindowClass) {
+        let buttons = buttons ?? Self()
+        close = buttons.close
+        minimize = buttons.minimize && ![.minimized, .hiddenApp, .fullscreen].contains(windowClass)
+        fullscreen = buttons.fullscreen && windowClass != .hiddenApp
+    }
+
+    init(close: Bool = false, minimize: Bool = false, fullscreen: Bool = false) {
+        self.close = close; self.minimize = minimize; self.fullscreen = fullscreen
+    }
     func allows(_ control: TileWindowControl) -> Bool {
         switch control {
             case .close: close
@@ -60,4 +75,31 @@ func tileControlRects(in picture: CGRect, scale: CGFloat) -> [(TileWindowControl
 func scaledTileRect(_ rect: CGRect, about tile: CGRect, by scale: CGFloat) -> CGRect {
     CGRect(x: tile.midX + (rect.minX - tile.midX) * scale, y: tile.midY + (rect.minY - tile.midY) * scale,
            width: rect.width * scale, height: rect.height * scale)
+}
+
+struct TileWindowControls: View {
+    let entry: TileEntry
+    let pictureSize: CGSize
+    let scale: CGFloat
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(tileControlRects(in: CGRect(origin: .zero, size: pictureSize), scale: scale), id: \.0) { control, rect in
+                if entry.controls.allows(control) {
+                    Circle().fill(color(control))
+                        .frame(width: rect.width, height: rect.height)
+                        .shadow(color: .black.opacity(0.4), radius: 3 * scale, y: scale)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            }
+        }
+        .frame(width: pictureSize.width, height: pictureSize.height)
+        .allowsHitTesting(false)
+    }
+    private func color(_ control: TileWindowControl) -> Color {
+        switch control {
+            case .close: Color(red: 1, green: 95 / 255, blue: 87 / 255)
+            case .minimize: Color(red: 254 / 255, green: 188 / 255, blue: 46 / 255)
+            case .fullscreen: Color(red: 40 / 255, green: 200 / 255, blue: 64 / 255)
+        }
+    }
 }

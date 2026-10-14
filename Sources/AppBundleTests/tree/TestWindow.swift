@@ -60,13 +60,13 @@ final class TestWindow: Window, CustomStringConvertible {
     @MainActor var testAxRecordAttributes: WindowAxRecordAttributes? = nil
     @MainActor var testAxRecordError: (any Error)? = nil
     @MainActor var testAxElementIsGone = false
-    @MainActor override var axRecordAttributes: WindowAxRecordAttributes? {
-        get async throws {
-            await beforeAxRecord?()
-            if let testAxRecordError { throw testAxRecordError }
-            if testAxElementIsGone { return nil }
-            return testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
-        }
+    @MainActor override func readAxRecordAttributes(buttons: Bool) async throws -> WindowAxRecordAttributes? {
+        await beforeAxRecord?()
+        if let testAxRecordError { throw testAxRecordError }
+        if testAxElementIsGone { return nil }
+        var attributes = testAxRecordAttributes ?? WindowAxRecordAttributes(title: description, subrole: "", hasCloseButton: false, document: "")
+        if !buttons { attributes.buttons = nil }
+        return attributes
     }
 
     @MainActor var testAxRectError: (any Error)?

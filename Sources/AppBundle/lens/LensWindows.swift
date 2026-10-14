@@ -29,7 +29,7 @@ func lensWindows(popups: [String]) async throws -> [LensWindow] {
         for (index, window) in windows.enumerated() {
             guard let windowClass = window.windowClass, lensIncludes(windowClass, popups: popups) else { continue }
             group.addTask { @MainActor @Sendable in
-                (index, try? await window.windowRecordWithAttributes())
+                (index, try? await window.windowRecordWithAttributes(buttons: true))
             }
         }
         for await (index, record) in group { records[index] = record }
@@ -40,7 +40,7 @@ func lensWindows(popups: [String]) async throws -> [LensWindow] {
         return LensWindow(record: record, window: window, spatialIndex: index, workspaceIndex: indices[record.workspace] ?? Int.max,
                           workspaceSearchName: workspaceDisplayName(record.workspace),
                           projectSearchName: workspaceProjectDisplayName(WorkspaceProjectId(record.project), fallbackName: record.project),
-                          controls: TileControlAvailability(close: record.hasCloseButton, minimize: ax.hasMinimizeButton && record.windowClass != .minimized, fullscreen: ax.hasFullscreenButton))
+                          controls: TileControlAvailability(buttons: ax.buttons, windowClass: record.windowClass))
     }
     return entries
 }

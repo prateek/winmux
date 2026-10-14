@@ -182,10 +182,19 @@ final class LensWindowControlsTest: XCTestCase {
                 pointer.x += 0.1
                 session.hoverTile(at: centre(layout.tiles[0].frame), pointerLocation: pointer)
                 XCTAssertEqual(session.hoveredTileId, 1)
-                if control == .minimize {
-                    session.controlSucceeded(control, windowId: 1)
-                    XCTAssertTrue(session.results[0].tile.badges.minimized)
+                if control == .fullscreen {
+                    session.refreshTile(windowId: 1, windowClass: .fullscreen,
+                                        controls: TileControlAvailability(buttons: .all, windowClass: .fullscreen))
                     XCTAssertFalse(session.results[0].tile.controls.minimize)
+                    XCTAssertFalse(session.results[0].tile.badges.minimized)
+                }
+                if control == .minimize {
+                    session.refreshTile(windowId: 1, windowClass: .minimized,
+                                        controls: TileControlAvailability(buttons: .all, windowClass: .minimized))
+                    XCTAssertTrue(session.results[0].tile.badges.minimized)
+                    XCTAssertTrue(session.results[0].tile.frozen)
+                    XCTAssertFalse(session.results[0].tile.controls.minimize)
+                    XCTAssertTrue(session.results[0].tile.controls.fullscreen)
                 }
             }
         }

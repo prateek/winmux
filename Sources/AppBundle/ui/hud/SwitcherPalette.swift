@@ -344,35 +344,39 @@ final class SwitcherPalettePanel: NSPanelHud {
             return
         }
         let keepOpen = model.keepsOpen(after: key)
-        // An action can run from a timer or a command task, where the current event is unrelated.
-        let now = LensTimebase.now()
-        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
         if !keepOpen { dismiss() }
-        Task { @MainActor in
-            guard let token: RunSessionGuard = .isServerEnabled else { return }
-            try await runLightSession(.menuBarButton, token) {
-                let io = CmdIo(stdin: .emptyStdin)
-                if try await !($lensTraceOrigin.withValue(origin) { try await runLensAction(commands, session: model, io: io) }) {
-                    lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
-                }
-            }
-        }
+        runLensCommands(model, label: key) { io in try await runLensAction(commands, session: model, io: io) }
     }
 
     private func performControl(_ control: TileWindowControl, windowId: UInt32, model: LensSession) {
+        runLensCommands(model, label: control.command) { io in
+            guard try await runLensWindowAction(control.command, windowId: windowId, io: io) else { return false }
+            // A closed window leaves through the removal path; one still here shows its new state.
+            if let snapshot = try await Window.get(byId: windowId)?.windowRecordWithAttributes(buttons: true) {
+                let windowClass = snapshot.record.windowClass
+                model.refreshTile(windowId: windowId, windowClass: windowClass,
+                                  controls: TileControlAvailability(buttons: snapshot.attributes.buttons, windowClass: windowClass))
+            }
+            return true
+        }
+    }
+
+    /// Runs a Lens action's commands in a light session and logs a failure under `lens`.
+    private func runLensCommands(_ model: LensSession, label: String, _ body: @escaping @MainActor (CmdIo) async throws -> Bool) {
+        // An action can run from a timer or a command task, where the current event is unrelated.
+        let now = LensTimebase.now()
+        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             do {
                 try await runLightSession(.menuBarButton, token) {
                     let io = CmdIo(stdin: .emptyStdin)
-                    if try await runLensWindowAction(control.command, windowId: windowId, io: io) {
-                        model.controlSucceeded(control, windowId: windowId)
-                    } else {
-                        lensLog.error("Lens \(model.name, privacy: .public): \(control.command, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+                    if try await !($lensTraceOrigin.withValue(origin) { try await body(io) }) {
+                        lensLog.error("Lens \(model.name, privacy: .public): \(label, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
                     }
                 }
             } catch {
-                lensLog.error("Lens \(model.name, privacy: .public): \(control.command, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                lensLog.error("Lens \(model.name, privacy: .public): \(label, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             }
         }
     }

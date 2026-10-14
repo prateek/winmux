@@ -67,10 +67,11 @@ private func lensSearchTierMatch(_ word: String, in original: String) -> LensSea
     let text = original.lowercased()
     // Map lowercased scalar positions back to characters of the displayed string. In particular,
     // İ expands to two scalars; neither a later match nor a partial match may shift the highlight.
-    let scalarOwners = original.enumerated().flatMap { offset, character in
-        Array(repeating: offset, count: String(character).lowercased().unicodeScalars.count)
-    }
     func match(_ tier: Int, _ ranges: [Range<String.Index>]) -> LensSearchTierMatch {
+        // Built only for a field that matched; most fields miss on every keystroke.
+        let scalarOwners = original.enumerated().flatMap { offset, character in
+            Array(repeating: offset, count: String(character).lowercased().unicodeScalars.count)
+        }
         let offsets = ranges.flatMap { range -> [Range<Int>] in
             let start = text.unicodeScalars.distance(from: text.startIndex, to: range.lowerBound)
             let end = text.unicodeScalars.distance(from: text.startIndex, to: range.upperBound)

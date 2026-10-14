@@ -158,14 +158,15 @@ Picture and card Tiles in strips and grids show close, minimize and native-fulls
 on the Tile under a moving pointer. They appear only after the pointer moves more than one point;
 a pointer resting where the panel opened shows none. Moving into a gap, onto panel chrome or
 out of the panel hides them. Keyboard and wheel selection leave them on the hovered Tile.
-Close is hidden without a close button; minimize is hidden without a minimize button or when
-already minimized; fullscreen is hidden without a zoom/fullscreen button. Hidden buttons keep
-their slots. Fullscreen toggles native fullscreen, including turning it off. Text Tiles, list rows
+Each control needs the window's own button to be there and enabled; a green button that only
+zooms does not count for fullscreen. Minimize is also hidden on a window that is minimized or in
+native fullscreen, and minimize and fullscreen on a window of a hidden app, since restoring that
+window would show every window of the app. Hidden buttons keep their slots. Fullscreen toggles native fullscreen, including turning it off. Text Tiles, list rows
 and miniatures have no controls.
 
 A control acts only on its own window, regardless of selection, marks or held modifiers. It never
 selects, commits or closes the Lens. Closing removes the Tile and reflows the layout; minimizing
-keeps it with a minimized badge and hides its minimize control. Failures leave it in place and
+keeps it as a minimized Tile, frozen at its last picture, and hides its minimize control. Failures leave it in place and
 are logged under `lens`. After any control action, controls stay hidden until the pointer moves
 more than one point again, preventing a second close on a window that slid under it. An ordinary
 Tile click keeps its Enter action, and a held strip still commits on release.

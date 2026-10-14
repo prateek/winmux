@@ -312,9 +312,9 @@ final class MacApp: AbstractApp {
     }
 
     /// Everything a Window record takes from the window's AX element, in one round-trip.
-    func getAxRecordAttributes(_ windowId: UInt32) async throws -> WindowAxRecordAttributes? {
+    func getAxRecordAttributes(_ windowId: UInt32, buttons: Bool = false) async throws -> WindowAxRecordAttributes? {
         try await withWindow(windowId) { window, job in
-            WindowAxRecordAttributes.read(from: window)
+            WindowAxRecordAttributes.read(from: window, buttons: buttons)
         }
     }
 

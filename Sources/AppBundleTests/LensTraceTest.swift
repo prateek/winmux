@@ -48,6 +48,22 @@ final class LensTraceTest: SerialClockTestCase {
         XCTAssertNil(cleared[0].session?.hoveredTileId)
     }
 
+    func testDismissedSessionTraceKeepsTheHoveredWindow() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let item = SwitcherPaletteItem(id: 7, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        let model = LensSession(name: "hover", settings: settings, items: [item], search: "", pointerLocation: { .zero })
+        let store = LensTraceStore(stamp: { 0 })
+        let trace = store.begin(presentation: "grid", origin: .init(start: 0, received: 0, source: "test"))
+        let owner = testLensLifecycle()
+        owner.complete(model, ticket: owner.begin("hover", toggle: false, trace: trace, settings: settings)!)
+        let frame = model.gridLayout.tiles[0].frame
+        model.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: 2, y: 0))
+        owner.dismiss()
+        XCTAssertEqual(trace.snapshot.session?.active, false)
+        XCTAssertEqual(trace.snapshot.session?.hoveredTileId, 7)
+        XCTAssertNil(model.hoveredTileId)
+    }
+
     func testKeysContinueAfterFirstFrameWithoutChangingStagesAndStayBounded() {
         var now = 10.0
         let store = LensTraceStore(stamp: { now })

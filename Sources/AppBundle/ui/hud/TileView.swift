@@ -152,11 +152,6 @@ struct TileView: View {
                     TileWindowControls(entry: entry, pictureSize: fitted, scale: metrics.scale)
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
-                if kind == .picture && !line && !miniature && settings.badges && entry.badges.minimized {
-                    label("minimized").padding(metrics.gap)
-                }
-            }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {
                     if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill") }

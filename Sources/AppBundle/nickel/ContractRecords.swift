@@ -22,16 +22,23 @@ struct WindowAxRecordAttributes: Equatable, Sendable {
     var subrole: String
     var hasCloseButton: Bool
     var document: String
-    var hasMinimizeButton = false
-    var hasFullscreenButton = false
+    /// Whether each window button is there and enabled. Read only for a Lens, which draws them on a Tile.
+    var buttons: TileControlAvailability? = nil
 
     static let unknown = WindowAxRecordAttributes(title: "", subrole: "", hasCloseButton: false, document: "")
 
-    static func read(from window: any AxUiElementMock) -> Self {
-        Self(title: window.get(Ax.titleAttr) ?? "", subrole: window.get(Ax.subroleAttr) ?? "",
-             hasCloseButton: window.get(Ax.closeButtonAttr) != nil, document: window.get(Ax.documentAttr) ?? "",
-             hasMinimizeButton: window.get(Ax.minimizeButtonAttr) != nil,
-             hasFullscreenButton: window.get(Ax.fullscreenButtonAttr) != nil || window.get(Ax.zoomButtonAttr) != nil)
+    static func read(from window: any AxUiElementMock, buttons: Bool = false) -> Self {
+        let close = window.get(Ax.closeButtonAttr)
+        var result = Self(title: window.get(Ax.titleAttr) ?? "", subrole: window.get(Ax.subroleAttr) ?? "",
+                          hasCloseButton: close != nil, document: window.get(Ax.documentAttr) ?? "")
+        guard buttons else { return result }
+        // A green button that only zooms has no full-screen button and a zoom button with the zoom subrole.
+        let green = window.get(Ax.fullscreenButtonAttr)
+            ?? window.get(Ax.zoomButtonAttr).flatMap { $0.get(Ax.subroleAttr) == "AXFullScreenButton" ? $0 : nil }
+        result.buttons = TileControlAvailability(close: close?.get(Ax.enabledAttr) == true,
+                                                 minimize: window.get(Ax.minimizeButtonAttr)?.get(Ax.enabledAttr) == true,
+                                                 fullscreen: green?.get(Ax.enabledAttr) == true)
+        return result
     }
 
 }
@@ -163,7 +170,7 @@ extension Window {
         try await windowRecordWithAttributes(initialClass: initialClass)?.record
     }
 
-    @MainActor func windowRecordWithAttributes(initialClass: WindowClass? = nil) async throws -> (record: WindowRecord, attributes: WindowAxRecordAttributes)? {
+    @MainActor func windowRecordWithAttributes(initialClass: WindowClass? = nil, buttons: Bool = false) async throws -> (record: WindowRecord, attributes: WindowAxRecordAttributes)? {
         // Everything the tree says is read before the AX round-trip, during which the window can
         // move to another node. The record then describes one moment.
         guard let windowClass = initialClass ?? windowClass else { return nil }
@@ -175,7 +182,7 @@ extension Window {
         let level = cgWindowLevel
         let appRecord = AppRecord(app)
         try Task.checkCancellation()
-        guard let ax = try await axRecordAttributes else { return nil }
+        guard let ax = try await readAxRecordAttributes(buttons: buttons) else { return nil }
         try Task.checkCancellation()
         return (WindowRecord(
             id: Int(windowId),
