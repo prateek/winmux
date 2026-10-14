@@ -170,13 +170,9 @@ enum GlobalObserver {
             return event
         })
 
-        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            onKeyDown(event)
-            runOnMainActor { SwitcherPalettePanel.shared.captureOpeningKey(event) }
-        })
+        retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: onKeyDown))
         retainEventMonitor(NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             onKeyDown(event)
-            if SwitcherPalettePanel.shared.captureOpeningKey(event) { return nil }
             // Check if this key matches a recently-pressed prefix (sequence binding)
             if handleSequenceKeyDown(event: event) {
                 return nil // consume the event

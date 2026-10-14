@@ -128,7 +128,7 @@ extension SectionSessionTest {
         let owner = testLensLifecycle(clock: clock)
         var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
         let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-        let ticket = owner.begin("demo", toggle: false, strip: gesture, keys: [])!
+        let ticket = owner.begin("demo", toggle: false, strip: gesture, keys: LensSession.openingBindings(settings), settings: settings)!
         for (code, text, flags): (UInt16, String, NSEvent.ModifierFlags) in [(5, "g", .command), (4, "h", []), (5, "g", .command)] {
             XCTAssertEqual(owner.openingStripKey(keyCode: code, flags: flags, characters: text), .consumed)
         }

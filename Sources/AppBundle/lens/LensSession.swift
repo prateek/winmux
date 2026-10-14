@@ -51,8 +51,9 @@ final class LensSession: ObservableObject {
                 let held = shouldSummon(currentModifiers)
                 if held != summonHeld { summonHeld = held }
                 if state == .search, !searchEdited, !rememberedSearch.isEmpty {
+                    let selected = selectedId
                     query = rememberedSearch
-                    selectBestResult()
+                    keepSelectionOrSelectBest(selected)
                 }
             case .searchChanged(let text):
                 guard text != query else { return }
@@ -115,21 +116,31 @@ final class LensSession: ObservableObject {
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
     func enterSearch() {
-        let selected = settings.presentation == "strip" ? selectedId : nil
-        if inputState == .hold { endHoldByKey() }
+        clearHoldByKey()
         send(.inputStateChanged(.search))
         if settings.presentation == "strip" { changePresentation("list") }
-        if let selected { hover(selected) }
     }
 
     func leaveSearch() { send(.inputStateChanged(.normal)) }
 
-    func endHoldByKey() {
+    private func clearHoldByKey() {
         guard inputState == .hold else { return }
         holdEndedByKey = true
         hold = nil
-        send(.inputStateChanged(startingState))
+    }
+
+    func endHoldByKey() {
+        guard inputState == .hold else { return }
         if startingState == .search { enterSearch() }
+        else {
+            clearHoldByKey()
+            send(.inputStateChanged(.normal))
+        }
+    }
+
+    private func keepSelectionOrSelectBest(_ selected: UInt32?) {
+        if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+        else { selectBestResult() }
     }
 
     /// Untouched recalled Search is selected; its first edit replaces it.
@@ -147,7 +158,7 @@ final class LensSession: ObservableObject {
         hold = gesture?.holdModifiers.isEmpty == false ? gesture : nil
         if hold != nil {
             rememberedSearch = query.isEmpty ? rememberedSearch : query
-            if !query.isEmpty, !searchIsExplicit { query = ""; selection = initialSelection() }
+            if !query.isEmpty, startingState == .normal, !searchIsExplicit { query = ""; selection = initialSelection() }
             currentModifiers = gesture?.invoking ?? []
             inputState = .hold
         }
@@ -163,7 +174,6 @@ final class LensSession: ObservableObject {
     var stripReleasedWhileOpening: NSEvent.ModifierFlags?
     private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
-    var onGlobalKey: ((UInt16, NSEvent.ModifierFlags, Double) -> Void)?
 
     init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil) {
         self.name = name
@@ -198,7 +208,7 @@ final class LensSession: ObservableObject {
                 return false
             }
         }?.name
-        startingState = settings.startsIn == "search" || (settings.startsIn == nil && settings.presentation == "list") ? .search : .normal
+        startingState = settings.startingInputState
         inputState = startingState
         rememberedSearch = search
         self.searchIsExplicit = searchIsExplicit && settings.presentation != "strip"

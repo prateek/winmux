@@ -69,6 +69,7 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
     }
     if state == .hold, let hold {
         if let step = hold.step(keyCode: code, flags: flags) { return .step(step) }
+        if code == 48, presentation == "list", hold.owns(flags) { return .step(flags.contains(.shift) ? -1 : 1) }
         if (code == 48 || code == 50 || characters == "`"), hold.owns(flags) { return .step(0) }
         if !modifiers.subtracting(hold.invoking.union(.shift)).isEmpty { return .global }
         if code == 53 { return .dismiss }
@@ -100,12 +101,16 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
     return .fieldEditor
 }
 
+func lensCharacters(_ event: NSEvent, hold: StripGesture?) -> String {
+    if let hold {
+        return event.characters(byApplyingModifiers: event.modifierFlags.subtracting(hold.holdModifiers)) ?? event.charactersIgnoringModifiers ?? ""
+    }
+    return event.charactersIgnoringModifiers ?? ""
+}
+
 extension LensSession {
     func meaning(for event: NSEvent, source: LensKeySource = .panel) -> LensKeyMeaning {
-        let characters: String
-        if let hold {
-            characters = event.characters(byApplyingModifiers: event.modifierFlags.subtracting(hold.holdModifiers)) ?? event.charactersIgnoringModifiers ?? ""
-        } else { characters = event.charactersIgnoringModifiers ?? "" }
+        let characters = lensCharacters(event, hold: hold)
         return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
                               characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source)
     }
@@ -118,9 +123,12 @@ extension LensSession {
             case .endHold(let code, let text, let flags):
                 if text == "/" { enterSearch() }
                 else {
+                    let selected = settings.presentation == "strip" ? selectedId : nil
                     endHoldByKey()
                     let meaning = lensKeyMeaning(state: inputState, hold: nil, keys: activeKeyBindings, code: code, characters: text, flags: flags)
-                    return perform(meaning)
+                    let handled = perform(meaning)
+                    if inputState == .search, let selected { hover(selected) }
+                    return handled
                 }
             case .enterSearch: enterSearch()
             case .leaveSearch: leaveSearch()
@@ -147,5 +155,11 @@ extension LensSession {
             case .dismiss, .global, .triggerGlobal, .globalBinding, .fieldEditor, .fieldEditorEdit: return false
         }
         return true
+    }
+}
+
+extension LensConfig {
+    var startingInputState: LensInputState {
+        startsIn == "search" || (startsIn == nil && presentation == "list") ? .search : .normal
     }
 }

@@ -46,7 +46,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
-        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updateInputFocus(model) }
+        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model) }
+        lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
@@ -118,7 +119,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
-        model.onGlobalKey = replayLensGlobalKey
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
@@ -171,29 +171,20 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
         if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
         makeKey()
-        // A list that is shown again with Search already focused keeps its caret and selection.
-        guard model.inputState == .search else { _ = makeFirstResponder(self); return }
-        if model.settings.presentation != "strip", instruction.focusSearch || !(firstResponder is NSTextView) {
+        updateInputFocus(model, selectAll: instruction.focusSearch)
+    }
+
+    private func updateInputFocus(_ model: LensSession, selectAll: Bool = false) {
+        if model.inputState != .search {
+            if firstResponder !== self { _ = makeFirstResponder(self) }
+        } else if model.settings.presentation != "strip", selectAll || !(firstResponder is NSTextView) {
             let initialQuery = model.query
-            let selectAll = instruction.focusSearch || !model.searchEdited
+            let selectAll = selectAll || !model.searchEdited
             focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
                 guard let self, let model, self.session === model, model.inputState == .search,
                       !(self.firstResponder is NSTextView) else { return }
                 self.focusSearch(model, selectAll: selectAll && !model.searchEdited && model.query == initialQuery)
-            }
-        }
-    }
-
-    private func updateInputFocus(_ model: LensSession) {
-        if model.inputState != .search {
-            if firstResponder !== self { _ = makeFirstResponder(self) }
-        } else if !(firstResponder is NSTextView) {
-            focusSearch(model, selectAll: !model.searchEdited)
-            DispatchQueue.main.async { [weak self, weak model] in
-                guard let self, let model, self.session === model, model.inputState == .search,
-                      !(self.firstResponder is NSTextView) else { return }
-                self.focusSearch(model, selectAll: !model.searchEdited)
             }
         }
     }
@@ -211,9 +202,9 @@ final class SwitcherPalettePanel: NSPanelHud {
         editor.setSelectedRange(NSRange(location: (model.query as NSString).length, length: 0))
     }
 
-    func cycleStrip(name: String, invocation: StripGesture) -> Bool {
+    func cycleStrip(name: String, invocation: StripGesture, identity: LensAdHocIdentity? = nil) -> Bool {
         guard let code = invocation.keyCode else { return false }
-        return lifecycle.cycleStrip(name: name, keyCode: code, flags: invocation.invoking)
+        return lifecycle.cycleStrip(name: name, keyCode: code, flags: invocation.invoking, identity: identity)
     }
 
     func stripWindowClosed(_ id: UInt32) {
@@ -295,73 +286,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = model
     }
 
-    private struct AnticipatedInput {
-        let token: Int
-        let gesture: StripGesture
-        let timestamp: Double
-        var events: [NSEvent]
-    }
-    private var anticipatedInput: AnticipatedInput?
-    private var recentOpeningKeys: [NSEvent] = []
-    private var nextInputToken = 0
-
-    func anticipateLens(_ gesture: StripGesture, timestamp: Double) -> Int? {
-        guard gesture.keyCode != nil, !gesture.holdModifiers.isEmpty else { return nil }
-        nextInputToken += 1
-        let events = recentOpeningKeys.filter { $0.timestamp > timestamp }
-        recentOpeningKeys = []
-        anticipatedInput = AnticipatedInput(token: nextInputToken, gesture: gesture, timestamp: timestamp, events: events)
-        return nextInputToken
-    }
-
-    func finishAnticipatingLens(_ token: Int?) {
-        if anticipatedInput?.token == token { anticipatedInput = nil }
-    }
-
-    @discardableResult
-    func captureOpeningKey(_ event: NSEvent) -> Bool {
-        if var pending = anticipatedInput, event.timestamp >= pending.timestamp {
-            pending.events.append(event)
-            pending.events = Array(pending.events.suffix(32))
-            anticipatedInput = pending
-            return true
-        }
-        if case .opening = lifecycle.state {
-            if let gesture = lifecycle.openingGesture,
-               let input = lifecycle.openingStripKey(keyCode: event.keyCode, flags: event.modifierFlags,
-                                                     characters: event.charactersIgnoringModifiers ?? "", holdCharacters: openingCharacters(event, gesture: gesture), timestamp: event.timestamp) {
-                if input == .cancel || input == .ignored { dismiss() }
-                return input == .consumed || input == .cancel
-            }
-        }
-        if case .ready = lifecycle.state { return routeKey(event, path: "hidden strip") }
-        // Carbon dispatch can begin after the following event's global observation.
-        recentOpeningKeys.removeAll { event.timestamp - $0.timestamp > 0.1 }
-        if !event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
-            recentOpeningKeys.append(event)
-            recentOpeningKeys = Array(recentOpeningKeys.suffix(8))
-        }
-        return false
-    }
-
-    private func openingCharacters(_ event: NSEvent, gesture: StripGesture) -> String {
-        event.characters(byApplyingModifiers: event.modifierFlags.subtracting(gesture.holdModifiers)) ?? event.charactersIgnoringModifiers ?? ""
-    }
-
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil) -> Int? {
-        let pending = anticipatedInput
-        anticipatedInput = nil
-        let ticket = lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys, invocation: invocation)
-        if ticket != nil, let pending,
-           let gesture = strip ?? invocation,
-           gesture.keyCode == pending.gesture.keyCode, gesture.invoking == pending.gesture.invoking {
-            for event in pending.events {
-                let input = lifecycle.openingStripKey(keyCode: event.keyCode, flags: event.modifierFlags,
-                                                      characters: event.charactersIgnoringModifiers ?? "", holdCharacters: openingCharacters(event, gesture: gesture), timestamp: event.timestamp)
-                if input == .cancel || input == .ignored { dismiss(); return nil }
-            }
-        }
-        return ticket
+    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil, settings: LensConfig? = nil, identity: LensAdHocIdentity? = nil) -> Int? {
+        lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys, invocation: invocation, settings: settings, identity: identity)
     }
 
     func cancelLensOpening(ticket: Int) { lifecycle.cancelOpening(ticket: ticket) }
@@ -478,11 +404,11 @@ final class SwitcherPalettePanel: NSPanelHud {
                                           timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
                                           context: nil, characters: text, charactersIgnoringModifiers: text,
                                           isARepeat: false, keyCode: keyCode) else { return false }
-        let heldText = lifecycle.openingGesture.map { openingCharacters(event, gesture: $0) }
+        let heldText = lifecycle.openingGesture.map { lensCharacters(event, hold: $0) }
         if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers, characters: text,
                                                 holdCharacters: heldText, timestamp: timestamp, source: .carbon) {
             if input == .consumed { return true }
-            dismiss()
+            if input == .cancel { dismiss() }
             return false
         }
         return routeKey(event, path: "Carbon", carbon: true)
