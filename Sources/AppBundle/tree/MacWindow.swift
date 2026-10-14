@@ -147,8 +147,8 @@ final class MacWindow: Window {
 
     @MainActor override var title: String { get async throws { try await macApp.getAxTitle(windowId) ?? "" } }
     @MainActor override var cgWindowLevel: Int { getWindowLevel(for: windowId)?.cgWindowLevel ?? 0 }
-    @MainActor override var axRecordAttributes: WindowAxRecordAttributes? {
-        get async throws { try await macApp.getAxRecordAttributes(windowId) }
+    @MainActor override func readAxRecordAttributes(buttons: Bool) async throws -> WindowAxRecordAttributes? {
+        try await macApp.getAxRecordAttributes(windowId, buttons: buttons)
     }
     @MainActor override var isMacosFullscreen: Bool { get async throws { try await macApp.isMacosNativeFullscreen(windowId) == true } }
     @MainActor override var isMacosMinimized: Bool { get async throws { try await macApp.isMacosNativeMinimized(windowId) == true } }

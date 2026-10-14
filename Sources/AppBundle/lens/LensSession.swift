@@ -9,8 +9,10 @@ final class LensSession: ObservableObject {
     private(set) var settings: LensConfig
     let sectionIdentities: [String: [LensSectionIdentity]]
     let sectionCycle: [String]
-    let items: [SwitcherPaletteItem]
-    @Published private(set) var query: String
+    private(set) var items: [SwitcherPaletteItem]
+    private var searchResultsCache: [SwitcherPaletteItem]?
+    @Published var hoveredTileId: UInt32?
+    @Published private(set) var query: String { didSet { searchResultsCache = nil } }
     @Published private(set) var selection: Int
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
@@ -60,14 +62,14 @@ final class LensSession: ObservableObject {
                 if held != summonHeld { summonHeld = held }
                 if state == .search, !searchEdited, !rememberedSearch.isEmpty {
                     let selected = selectedId
-                    query = rememberedSearch
+                    if query != rememberedSearch { query = rememberedSearch }
                     keepSelectionOrSelectBest(selected)
                     if settings.presentation == "miniatures" { revealMiniatureSelection() }
                 }
             case .searchChanged(let text):
                 guard text != query else { return }
                 if text.hasPrefix("="), !query.hasPrefix("=") {
-                    inlineIds = Set(filterSwitcherPaletteItems(items, query: query).map(\.id))
+                    inlineIds = Set((searchResultsCache ?? filterSwitcherPaletteItems(items, query: query)).map(\.id))
                 }
                 query = text
                 searchEdited = true
@@ -84,9 +86,15 @@ final class LensSession: ObservableObject {
             case .summonChanged(let held):
                 if held != summonHeld { summonHeld = held }
             case .presentationChanged(let presentation):
+                hoveredTileId = nil
                 let selected = selectedId
+                let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
-                if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
+                // A strip never shows a remembered Search; the Presentation it becomes does.
+                if leftStrip, inputState == .search, !searchEdited, query.isEmpty, !rememberedSearch.isEmpty {
+                    query = rememberedSearch
+                    keepSelectionOrSelectBest(selected)
+                } else if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
                 objectWillChange.send()
             case .sectionsChanged(let value):
                 guard drawsSections else { return }
@@ -95,6 +103,7 @@ final class LensSession: ObservableObject {
                 if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
                 objectWillChange.send()
             case .itemsRemoved(let ids):
+                if let hoveredTileId, ids.contains(hoveredTileId) { self.hoveredTileId = nil }
                 let before = results
                 let selected = selectedId
                 let replacement = before.prefix(selection).filter { !ids.contains($0.id) }.count
@@ -106,7 +115,12 @@ final class LensSession: ObservableObject {
             case .excludedChanged(let ids):
                 miniatureExcludedIds = ids
                 selection = initialSelection()
-            case .dismissed: break
+            case .dismissed: hoveredTileId = nil
+        }
+        switch event {
+            case .searchChanged, .inputStateChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
+                if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
+            default: break
         }
     }
 
@@ -185,6 +199,7 @@ final class LensSession: ObservableObject {
     var stripReleasedWhileOpening: NSEvent.ModifierFlags?
     private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
+    var onControl: ((TileWindowControl, UInt32) -> Void)?
 
     init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) {
         self.pointerLocation = pointerLocation
@@ -224,9 +239,9 @@ final class LensSession: ObservableObject {
         startingState = settings.startingInputState
         inputState = startingState
         rememberedSearch = search
-        self.searchIsExplicit = searchIsExplicit && settings.presentation != "strip"
-        // A strip has no Search row to show a recalled Search in: it waits for the list.
-        query = (startingState == .search && settings.presentation != "strip") || self.searchIsExplicit ? search : ""
+        self.searchIsExplicit = searchIsExplicit
+        // A strip has no Search row to show a recalled Search in: it waits for the list. A Search the caller asked for applies.
+        query = (startingState == .search && settings.presentation != "strip") || searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
     }
@@ -290,9 +305,13 @@ final class LensSession: ObservableObject {
     }
 
     var rankedResults: [SwitcherPaletteItem] {
-        let items = removedIds.isEmpty ? items : items.filter { !removedIds.contains($0.id) }
+        if searchResultsCache == nil {
+            searchResultsCache = query.hasPrefix("=") ? items : filterSwitcherPaletteItems(items, query: query)
+        }
+        let searched = searchResultsCache!
+        let items = removedIds.isEmpty ? searched : searched.filter { !removedIds.contains($0.id) }
         let available = settings.presentation == "miniatures" ? items.filter { !miniatureExcludedIds.contains($0.id) && $0.miniature?.workspace.isEmpty != true } : items
-        let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : filterSwitcherPaletteItems(available, query: query)
+        let windows = query.hasPrefix("=") ? available.filter { inlineIds?.contains($0.id) ?? true } : available
         guard settings.entries == "app", settings.presentation != "miniatures" else { return windows }
         var seen: Set<String> = []
         return windows.filter { seen.insert($0.appIdentity).inserted }.map { representative in
@@ -300,6 +319,30 @@ final class LensSession: ObservableObject {
                 $0.lastFocusedSeq == $1.lastFocusedSeq ? $0.id > $1.id : $0.lastFocusedSeq < $1.lastFocusedSeq
             } ?? representative
         }
+    }
+
+    /// A control changed the window's state: its Tile shows the new state while the Lens stays open.
+    /// The tree's class is current at once; AX reports a window's buttons late after a state change,
+    /// so the buttons stay as read when the Lens opened.
+    func refreshTile(windowId: UInt32, windowClass: WindowClass) {
+        func update(_ item: SwitcherPaletteItem) -> SwitcherPaletteItem {
+            guard item.id == windowId else { return item }
+            var item = item
+            let wasMinimized = item.tile.badges.minimized
+            let minimized = windowClass == .minimized
+            item.tile.controls = TileControlAvailability(buttons: item.tile.buttons, windowClass: windowClass)
+            item.tile.badges.minimized = minimized
+            // A minimized window shows its last capture, as it does when a Lens opens over it, and
+            // one restored from the tray is captured again.
+            if minimized != wasMinimized {
+                item.tile.frozen = minimized
+                item.miniature = item.miniature?.with(frozen: minimized, tray: minimized || windowClass == .hiddenApp)
+            }
+            return item
+        }
+        items = items.map(update)
+        searchResultsCache = searchResultsCache?.map(update)
+        objectWillChange.send()
     }
 
     var miniatureSearchVisible: Bool { !query.isEmpty }
@@ -349,7 +392,13 @@ final class LensSession: ObservableObject {
 
     /// The pointer moved to `location`; `index` is the entry under it, looked up only when the pointer is armed.
     func hoverIndex(at location: CGPoint, _ index: () -> Int?) {
-        guard pointerMotion.moved(to: location), let index = index(), index != selection else { return }
+        hoverIndex(armed: pointerMotion.moved(to: location), index)
+    }
+
+    func pointerMoved(to location: CGPoint) -> Bool { pointerMotion.moved(to: location) }
+
+    func hoverIndex(armed: Bool, _ index: () -> Int?) {
+        guard armed, let index = index(), index != selection else { return }
         send(.pointerSelectionChanged(index))
     }
 
@@ -376,6 +425,7 @@ final class LensSession: ObservableObject {
         inlineIds = Set(ids)
         searchError = nil
         let results = results
+        if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
         send(.selectionChanged(results.firstIndex { $0.id == selected } ?? min(selection, max(results.count - 1, 0))))
         if settings.presentation == "miniatures" { revealMiniatureSelection() }
         objectWillChange.send()

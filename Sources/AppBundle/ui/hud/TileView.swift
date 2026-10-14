@@ -12,6 +12,7 @@ struct TileView: View {
     let marked: Bool
     let hint: String?
     var pictureSize: CGSize? = nil
+    var controlsVisible = false
 
     private var miniature: Bool { presentation == "miniatures" }
     private var row: Bool { presentation == "list" }
@@ -58,26 +59,30 @@ struct TileView: View {
             }
             .padding(.horizontal, metrics.rowHorizontalPadding)
         } else {
-            VStack(spacing: metrics.gap) {
-                if kind == .card { bar.frame(height: metrics.barHeight) }
-                picture(in: CGSize(width: max(1, size.width - 2 * metrics.padding), height: max(1, size.height - 2 * metrics.padding - (kind == .card ? metrics.barHeight + metrics.gap : 0))))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            let rect = tilePictureRect(entry: entry, kind: kind, size: size, pictureSize: pictureSize, metrics: metrics,
+                                       presentation: presentation, selected: selected)
+            ZStack(alignment: .topLeading) {
+                if kind == .card {
+                    bar.frame(width: max(1, size.width - 2 * metrics.padding), height: metrics.barHeight)
+                        .position(x: size.width / 2, y: metrics.padding + metrics.barHeight / 2)
+                }
+                picture(in: rect.size, fittedSize: rect.size)
+                    .position(x: rect.midX, y: rect.midY)
             }
-            .padding(metrics.padding)
         }
     }
 
     private var bar: some View {
         HStack(spacing: metrics.gap) {
             icon(size: metrics.icon)
-            Text(entry.displayTitle)
+            Text(lensHighlightedText(entry.displayTitle, ranges: entry.displayTitleRanges))
                 .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
                 .foregroundStyle(.white.opacity(selected ? 1 : 0.62))
                 .lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
             if line && entry.appCount == nil {
-                Text(entry.appName).font(.system(size: metrics.appFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                Text(lensHighlightedText(entry.appName, ranges: entry.appRanges)).font(.system(size: metrics.appFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
             TileChips(entry: entry, metrics: metrics, enabled: settings.badges)
@@ -107,15 +112,12 @@ struct TileView: View {
     }
 
     func fittedPicture(in available: CGSize) -> CGSize {
-        guard let pictureSize else { return metrics.fittedPicture(aspect: entry.aspect, in: available) }
-        if miniature || presentation == "strip" && entry.accessory { return pictureSize }
-        let lift = selected && !line && !miniature ? metrics.selectionScale : 1
-        let factor = min(1, entry.realSize.width / max(1, pictureSize.width * lift), entry.realSize.height / max(1, pictureSize.height * lift))
-        return CGSize(width: pictureSize.width * factor, height: pictureSize.height * factor)
+        tileFittedPicture(entry: entry, available: available, pictureSize: pictureSize, metrics: metrics,
+                          presentation: presentation, selected: selected, line: line)
     }
 
-    private func picture(in available: CGSize) -> some View {
-        let fitted = fittedPicture(in: available)
+    private func picture(in available: CGSize, fittedSize: CGSize? = nil) -> some View {
+        let fitted = fittedSize ?? fittedPicture(in: available)
         return ZStack {
             Group {
                 if let thumbnail = entry.picture {
@@ -144,6 +146,11 @@ struct TileView: View {
                     }
                     if entry.accessory && !line { label("menu-bar app") }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
+            }
+            .overlay(alignment: .topLeading) {
+                if controlsVisible && !line && !miniature {
+                    TileWindowControls(entry: entry, pictureSize: fitted, scale: metrics.scale)
+                }
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {

@@ -43,28 +43,34 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
             continue
         }
         for id in session.targets(forCommand: raw) {
-            guard let window = Window.get(byId: id) else { success = io.err("Window \(id) has closed"); continue }
-            if raw == "focus" {
-                try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
-                if ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
-                    success = window.focusWindow() && success
+            success = try await runLensWindowAction(raw, windowId: id, io: io) && success
+        }
+    }
+    return success
+}
+
+@MainActor
+func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async throws -> Bool {
+    var success = true
+    guard let window = Window.get(byId: id) else { return io.err("Window \(id) has closed") }
+    if raw == "focus" {
+        try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
+        if ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
+            success = window.focusWindow()
+        }
+        window.nativeFocus()
+    } else {
+        switch parseCommand(raw) {
+            case .cmd(let command):
+                if command.args is MoveNodeToWorkspaceCmdArgs, [WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
+                    return io.err("Cannot move a popup window to a workspace")
                 }
-                window.nativeFocus()
-            } else {
-                switch parseCommand(raw) {
-                    case .cmd(let command):
-                        if command.args is MoveNodeToWorkspaceCmdArgs, [WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
-                            success = io.err("Cannot move a popup window to a workspace")
-                            continue
-                        }
-                        if !(command.args is CloseCmdArgs), !(command.args is SummonCmdArgs) {
-                            try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
-                        }
-                        success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id), io) && success
-                    case .failure(let error): success = io.err(error)
-                    case .help(let help): success = io.err(help)
+                if !(command.args is CloseCmdArgs), !(command.args is SummonCmdArgs) {
+                    try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
                 }
-            }
+                success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id), io)
+            case .failure(let error): success = io.err(error)
+            case .help(let help): success = io.err(help)
         }
     }
     return success

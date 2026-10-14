@@ -79,7 +79,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         guard isVisible, let model = session,
               model.settings.presentation == "strip" || model.settings.presentation == "grid" else { return }
         let contentPoint = hostingView.convert(convertPoint(fromScreen: screenPoint), from: nil)
-        guard let point = lensTilePoint(contentPoint, in: model.tilesFrameInWindow) else { return }
+        let point = lensTilePoint(contentPoint, in: model.tilesFrameInWindow)
         model.hoverTile(at: point, pointerLocation: screenPoint)
     }
 
@@ -127,6 +127,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         model.banner = banner
         model.onAction = { [weak self] key in self?.performAction(key) }
+        model.onControl = { [weak self, weak model] control, id in
+            guard let model else { return }
+            self?.performControl(control, windowId: id, model: model)
+        }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
         lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
@@ -340,17 +344,34 @@ final class SwitcherPalettePanel: NSPanelHud {
             return
         }
         let keepOpen = model.keepsOpen(after: key)
-        // An action can run from a timer or a command task, where the current event is unrelated.
-        let now = LensTimebase.now()
-        let origin = LensTraceOrigin(start: now, received: now, source: "internal")
+        let origin = LensTraceOrigin.internalNow()
         if !keepOpen { dismiss() }
+        runLensCommands(model, label: key, origin: origin) { io in try await runLensAction(commands, session: model, io: io) }
+    }
+
+    private func performControl(_ control: TileWindowControl, windowId: UInt32, model: LensSession) {
+        runLensCommands(model, label: control.command) { io in
+            guard try await runLensWindowAction(control.command, windowId: windowId, io: io) else { return false }
+            // A closed window leaves through the removal path; one still here shows its new state.
+            if let windowClass = Window.get(byId: windowId)?.windowClass { model.refreshTile(windowId: windowId, windowClass: windowClass) }
+            return true
+        }
+    }
+
+    /// Runs a Lens action's commands in a light session and logs a failure under `lens`.
+    private func runLensCommands(_ model: LensSession, label: String, origin: LensTraceOrigin = .internalNow(),
+                                 _ body: @escaping @MainActor (CmdIo) async throws -> Bool) {
         Task { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
-            try await runLightSession(.menuBarButton, token) {
-                let io = CmdIo(stdin: .emptyStdin)
-                if try await !($lensTraceOrigin.withValue(origin) { try await runLensAction(commands, session: model, io: io) }) {
-                    lensLog.error("Lens \(model.name, privacy: .public): \(key, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+            do {
+                try await runLightSession(.menuBarButton, token) {
+                    let io = CmdIo(stdin: .emptyStdin)
+                    if try await !($lensTraceOrigin.withValue(origin) { try await body(io) }) {
+                        lensLog.error("Lens \(model.name, privacy: .public): \(label, privacy: .public) failed: \(io.stderr.joined(separator: "; "), privacy: .public)")
+                    }
                 }
+            } catch {
+                lensLog.error("Lens \(model.name, privacy: .public): \(label, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -453,10 +474,19 @@ private func appKitScreenMaxY() -> CGFloat {
 // MARK: - Search
 
 func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -> [SwitcherPaletteItem] {
-    if query.allSatisfy(\.isWhitespace) { return items }
+    if query.allSatisfy(\.isWhitespace) || query.hasPrefix("=") {
+        return items.map { item in
+            var item = item; item.tile.titleRanges = []; item.tile.appRanges = []; return item
+        }
+    }
     let ranked: [(Int, SwitcherPaletteItem, Int)] = items.enumerated().compactMap { index, item in
         LensSearchFields(title: item.title, app: item.appName, workspace: item.workspaceName, project: item.projectName)
-            .match(query).map { (index, item, $0.score) }
+            .match(query).map { match in
+                var item = item
+                item.tile.titleRanges = item.tile.appCount == nil ? match.titleRanges : match.appRanges
+                item.tile.appRanges = match.appRanges
+                return (index, item, match.score)
+            }
     }
     return ranked.sorted { $0.2 == $1.2 ? $0.0 < $1.0 : $0.2 > $1.2 }.map { $0.1 }
 }
@@ -615,11 +645,13 @@ func tileEntry(_ entry: LensWindow, miniature: MiniatureWindow, icon: NSImage?, 
                                         floating: miniature.floating, minimized: entry.window.parent is MacosMinimizedWindowsContainer,
                                         hidden: entry.window.parent is MacosHiddenAppsWindowsContainer),
                      frozen: miniature.frozen, accessory: miniature.accessory,
-                     monitorHeightFraction: frame.height / max(1, monitorHeight))
+                     monitorHeightFraction: frame.height / max(1, monitorHeight), buttons: entry.buttons, controls: entry.controls)
 }
 
 @MainActor
 private final class LensHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     var onFirstLayout: (() -> Void)?
     var onFirstFrame: ((_ refreshSeconds: Double) -> Void)?
     private var firstLayout = false

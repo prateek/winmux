@@ -32,7 +32,7 @@ struct StripView: View {
                         TileView(entry: item.tile, kind: model.tileKind, presentation: "strip", metrics: metrics,
                                  size: tile.frame.size, settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
                                  hint: index == model.selection && summonAvailable && model.settings.summonHints.contains("label") ? "Summon to \(focus.workspace.name)" : nil,
-                                 pictureSize: tile.pictureSize)
+                                 pictureSize: tile.pictureSize, controlsVisible: model.hoveredTileId == item.id)
                             .position(x: tile.frame.midX, y: tile.frame.midY)
                             .zIndex(index == model.selection ? 1 : 0)
                             .allowsHitTesting(false)

@@ -14,6 +14,11 @@ final class LensPointerTest: XCTestCase {
         }
     }
 
+    func testPanelContentAcceptsTheFirstClickAfterAControlTakesNativeFocus() {
+        let panel = SwitcherPalettePanel(emit: { _ in })
+        XCTAssertEqual(panel.contentView?.acceptsFirstMouse(for: nil), true)
+    }
+
     func testMovingPointerSelectsEveryStripAndGridTileAndIgnoresChrome() {
         for presentation in ["strip", "grid"] {
             var settings = LensConfig(); settings.presentation = presentation; settings.sections = "workspace"
@@ -397,7 +402,7 @@ final class LensPointerTest: XCTestCase {
                 if sizing.pointerTopInset > 0 {
                     XCTAssertNil(session.tileHitTest(at: CGPoint(x: x, y: sizing.pointerTopInset * scale - 0.1)))
                 }
-                XCTAssertEqual(session.tileHitTest(at: CGPoint(x: x, y: tile.midY)), session.selection)
+                XCTAssertEqual(session.tileHitTest(at: CGPoint(x: x, y: tile.midY))?.index, session.selection)
             }
         }
     }
