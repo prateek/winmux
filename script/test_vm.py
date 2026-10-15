@@ -1,4 +1,5 @@
 """Exercise the public vm commands against host-tool shims, without nested guests."""
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -258,3 +259,100 @@ class VMTest(unittest.TestCase):
 
 def guest(state='running', cpu=3, memory=5120):
     return dict(State=state, CPU=cpu, Memory=memory)
+
+
+class AutomationRecipeTest(unittest.TestCase):
+    def test_grants_only_observed_calendar_requester_and_five_automation_targets(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            user = root / 'Library/Application Support/com.apple.TCC/TCC.db'
+            user.parent.mkdir(parents=True)
+            system = root / 'system.db'
+            schema = """create table access (service text, client text, client_type integer,
+                auth_value integer, auth_reason integer, csreq blob,
+                indirect_object_identifier text, indirect_object_identifier_type integer,
+                primary key(service,client,indirect_object_identifier))"""
+            for path in [user, system]:
+                with contextlib.closing(sqlite3.connect(path)) as db, db:
+                    db.execute(schema)
+            client = '/usr/libexec/sshd-keygen-wrapper'
+            with contextlib.closing(sqlite3.connect(system)) as db, db:
+                db.execute('insert into access values (?,?,?,?,?,?,?,?)',
+                           ('kTCCServiceSystemPolicyAllFiles', client, 1, 2, 4, b'identity', 'UNUSED', 0))
+            binary = root / 'bin'
+            binary.mkdir()
+            shims = {
+                'sudo': '#!/bin/sh\nexec "$@"\n',
+                'killall': '#!/bin/sh\nexit 0\n',
+                'chown': '#!/bin/sh\nexit 0\n',
+                'sqlite3': '#!' + sys.executable + '\n' + r'''import contextlib, os, sqlite3, sys
+from pathlib import Path
+root = Path(os.environ['HOME'])
+path, query = sys.argv[1:]
+query = query.replace('/Library/Application Support/com.apple.TCC/TCC.db', str(root / 'system.db'))
+with contextlib.closing(sqlite3.connect(path)) as db, db:
+    for statement in query.split(';'):
+        if statement.strip():
+            cursor = db.execute(statement)
+            for row in cursor.fetchall():
+                print('|'.join('' if v is None else str(v) for v in row))
+'''
+            }
+            for name, body in shims.items():
+                (binary / name).write_text(body)
+                (binary / name).chmod(0o755)
+            subprocess.run(['bash', str(VM.parent / 'guest/automation.sh')], check=True,
+                           env=dict(os.environ, HOME=str(root), USER='test', PATH=str(binary) + ':' + os.environ['PATH']))
+            with contextlib.closing(sqlite3.connect(user)) as db, db:
+                rows = db.execute('select service,client,client_type,auth_value,auth_reason,csreq,indirect_object_identifier from access').fetchall()
+            self.assertEqual(len(rows), 6)
+            self.assertEqual({r[6] for r in rows if r[0] == 'kTCCServiceAppleEvents'},
+                             {'com.apple.Notes', 'com.apple.finder', 'com.apple.systemevents', 'com.apple.iCal', 'com.apple.Music'})
+            self.assertEqual([r[6] for r in rows if r[0] == 'kTCCServiceCalendar'], ['UNUSED'])
+            for row in rows:
+                self.assertEqual(row[1:6], (client, 1, 2, 4, b'identity'))
+            with contextlib.closing(sqlite3.connect(system)) as db, db:
+                self.assertEqual(db.execute('select count(*) from access').fetchone()[0], 1)
+
+
+class FirstRunRecipeTest(unittest.TestCase):
+    def test_initializes_local_props_and_preserves_notes_onboarding_settings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            binary = root / 'bin'
+            binary.mkdir()
+            vm = root / 'vm'
+            vm.mkdir()
+            (vm / 'quiet-desktop.py').write_text('')
+            (vm / 'dock-tile-registered').touch()
+            for tool in ['sleep', 'killall', 'pkill']:
+                (binary / tool).write_text('#!/bin/sh\nexit 0\n')
+                (binary / tool).chmod(0o755)
+            shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sys
+root = pathlib.Path(os.environ['HOME'])
+p = root / 'prefs.json'
+s = json.loads(p.read_text()) if p.exists() else {'opened': [], 'quit': [], 'prefs': {}}
+tool = pathlib.Path(sys.argv[0]).name
+a = sys.argv[1:]
+if tool == 'open': s['opened'].append(a[-1])
+elif tool == 'osascript': s['quit'].append(a[-1].split('"')[1])
+elif tool == 'defaults': s['prefs'][a[1] + ':' + a[2]] = a[3:]
+p.write_text(json.dumps(s))
+'''
+            for tool in ['open', 'osascript', 'defaults']:
+                (binary / tool).write_text(shim)
+                (binary / tool).chmod(0o755)
+            subprocess.run(['bash', str(VM.parent / 'guest/first-run.sh')], check=True,
+                           env=dict(os.environ, HOME=str(root), PATH=str(binary) + ':' + os.environ['PATH']))
+            state = json.loads((root / 'prefs.json').read_text())
+            self.assertEqual(state['opened'], ['Notes', 'Calendar', 'Music'])
+            self.assertEqual(state['quit'], ['Notes', 'Calendar', 'Music'])
+            prefs = state['prefs']
+            notes = str(root / 'Library/Containers/com.apple.Notes/Data/Library/Preferences/com.apple.Notes')
+            self.assertEqual(prefs[notes + ':hasShownWelcomeScreen'], ['-bool', 'true'])
+            self.assertEqual(prefs[notes + ':bypassICloudAlert'], ['-bool', 'true'])
+            self.assertIn(notes + ':lastShownStartupVersion-1', prefs)
+            self.assertEqual(prefs['com.apple.iCal:number of hours displayed'], ['-int', '24'])
+            self.assertEqual(prefs['com.apple.Music:showWelcomeScreenState'], ['-int', '2'])
+            self.assertEqual(prefs['com.apple.Music:showAppleMusic'], ['-bool', 'false'])

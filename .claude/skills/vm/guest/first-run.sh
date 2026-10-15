@@ -22,6 +22,21 @@ defaults write "$notes" bypassICloudAlert -bool true
 # The welcome is also gated by the last displayed OS version, not just hasShownWelcomeScreen.
 startup_version=$(python3 -c 'import platform; v=platform.mac_ver()[0].split("."); v += ["0"] * (3-len(v)); print("<array>" + "".join("<integer>" + n + "</integer>" for n in v) + "</array>")')
 defaults write "$notes" lastShownStartupVersion-1 "$startup_version"
+open -a Calendar
+sleep 5
+osascript -e 'tell application "Calendar" to quit'
+sleep 2
+defaults write com.apple.iCal "number of hours displayed" -int 24
+defaults write com.apple.iCal "first minute of work hours" -int 480
+defaults write com.apple.iCal "last minute of work hours" -int 1080
+open -a Music
+sleep 5
+osascript -e 'tell application "Music" to quit'
+sleep 2
+# Music persists the welcome state on quit, separately from its What’s New marker.
+defaults write com.apple.Music showWelcomeScreenState -int 2
+defaults write com.apple.Music whatsNewLevel -int 2
+defaults write com.apple.Music showAppleMusic -bool false
 killall cfprefsd 2>/dev/null || true
 # Register the Dock tile once in the image, so clones do not offer it on first launch. macOS shows
 # the notice once: the marker lets a resumed image build pass this step.
