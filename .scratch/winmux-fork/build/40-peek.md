@@ -68,7 +68,7 @@ and removal. Zoom blocks pointer selection and a click only ends it; follow perm
 both. Miniatures keeps a closed window's cell for the session, as it always has, so
 closing the zoomed window there ends the zoom. At most one full-size capture runs at a
 time, since ScreenCaptureKit cannot cancel one; only the latest request waits, and
-one still running after a second is abandoned to it.
+a capture still running after a second frees the slot for it.
 
 The prototype’s ring, corners, shadow, label, timings and whole-panel dimming are
 built, with cross-fades for Reduce Motion. The label sits 44 points below the real

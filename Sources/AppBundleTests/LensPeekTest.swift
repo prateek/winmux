@@ -335,6 +335,9 @@ final class LensPeekTest: XCTestCase {
         let click = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
                                                      windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         panel.sendEvent(click)
+        let release = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
+                                                       windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 0))
+        panel.sendEvent(release)
         XCTAssertNil(session.peekedId)
         XCTAssertEqual(session.selectedId, selected, "Nothing under the picture is selected")
         XCTAssertTrue(actions.isEmpty, "Nothing under the picture is focused")
@@ -366,6 +369,11 @@ final class LensPeekTest: XCTestCase {
         XCTAssertNotEqual(session.selectedId, closed)
         session.perform(.command("space"))
         XCTAssertEqual(session.peekedId, session.selectedId)
+        session.moveSelection(-1)
+        XCTAssertEqual(session.selectedId, closed)
+        XCTAssertNil(session.peekedId, "A closed cell has nothing to show")
+        session.moveSelection(1)
+        XCTAssertEqual(session.peekedId, session.selectedId, "Passing over a closed cell does not end the zoom")
     }
 
     func testOpeningCountsSpaceInAnEmptySearchAsPeekAndTextAfterTyping() {

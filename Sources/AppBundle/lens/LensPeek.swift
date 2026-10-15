@@ -8,57 +8,87 @@ final class LensPeekCapture: ObservableObject {
     @Published private(set) var image: CGImage?
     private(set) var windowId: UInt32?
     private var frozen = false
+    /// The capture running now. ScreenCaptureKit cannot cancel a screenshot, so one runs at a
+    /// time and only the latest request waits for it.
     private(set) var task: Task<Void, Never>?
-    private var running: (id: UInt32, started: TimeInterval)?
-    /// The capture asked for while another is still running. ScreenCaptureKit cannot cancel a
-    /// screenshot, so one runs at a time and only the latest request waits for it.
     private var waiting: (id: UInt32, pixelSize: CGSize)?
+    /// Captures given up on at their deadline that have not returned yet. While two are
+    /// outstanding ScreenCaptureKit is taken to be stuck and no more are started.
+    private(set) var abandoned = 0
+    private var lastPixelSize = CGSize.zero
     private let capture: Capture
-    private let now: () -> TimeInterval
-    /// After this long a running capture is abandoned to the next request, so one that never
-    /// returns cannot hold up every later picture.
-    let deadline: TimeInterval
+    let deadline: Duration
     var completed: (Double) -> Void = { _ in }
 
-    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) },
-         deadline: TimeInterval = 1, now: @escaping () -> TimeInterval = { LensTimebase.now() }) {
-        self.deadline = deadline
-        self.now = now
+    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) }, deadline: Duration = .seconds(1)) {
         self.capture = capture
+        self.deadline = deadline
     }
 
     func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero) {
-        // A window restored from the tray stops being Frozen and is captured then.
         guard id != windowId || frozen != self.frozen else { return }
-        if id != windowId { image = nil }
+        // A Frozen window shows its thumbnail; one restored from the tray is captured again.
+        if id != windowId || frozen { image = nil }
         windowId = id
         self.frozen = frozen
         waiting = nil
+        lastPixelSize = pixelSize
         guard let id, !frozen, image == nil else { return }
-        if let running, running.id == id { return }
-        if let running, now() - running.started < deadline { waiting = (id, pixelSize) }
-        else { start(id, pixelSize: pixelSize) }
+        if task != nil { waiting = (id, pixelSize) } else { start(id, pixelSize: pixelSize) }
     }
 
     private func start(_ id: UInt32, pixelSize: CGSize) {
-        let capture = capture
-        let started = now()
-        running = (id, started)
+        guard abandoned < 2 else { return }
+        let started = LensTimebase.now()
         task = Task { @MainActor [weak self] in
-            let image = try? await capture(id, pixelSize)
             guard let self else { return }
-            // An abandoned capture still finishes; only the current one owns the slot.
-            if self.running?.id == id, self.running?.started == started { self.running = nil; self.task = nil }
+            let image = await self.captureWithinDeadline(id, pixelSize: pixelSize)
+            self.task = nil
             if self.windowId == id, !self.frozen, self.image == nil, let image {
                 self.image = image
-                if self.waiting?.id == id { self.waiting = nil }
-                self.completed((self.now() - started) * 1000)
+                self.completed((LensTimebase.now() - started) * 1000)
             }
-            if self.running == nil, let next = self.waiting {
+            if let next = self.waiting {
                 self.waiting = nil
-                self.start(next.id, pixelSize: next.pixelSize)
+                if next.id == self.windowId, self.image == nil { self.start(next.id, pixelSize: next.pixelSize) }
             }
         }
+    }
+
+    /// ScreenCaptureKit answered again, so a picture still wanted is asked for.
+    private func abandonedCaptureReturned() {
+        abandoned -= 1
+        if task == nil, let id = windowId, !frozen, image == nil { start(id, pixelSize: lastPixelSize) }
+    }
+
+    /// The capture, or nil when it fails or outlasts the deadline. A capture given up on keeps
+    /// running and is counted in `abandoned` until it returns.
+    private func captureWithinDeadline(_ id: UInt32, pixelSize: CGSize) async -> CGImage? {
+        let capture = capture, deadline = deadline
+        return await withCheckedContinuation { (continuation: CheckedContinuation<CGImage?, Never>) in
+            let race = PeekCaptureRace(continuation)
+            Task { @MainActor [weak self] in
+                let image = try? await capture(id, pixelSize)
+                if !race.finish(image) { self?.abandonedCaptureReturned() }
+            }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: deadline)
+                if race.finish(nil) { self?.abandoned += 1 }
+            }
+        }
+    }
+}
+
+/// Whichever of the capture and its deadline finishes first resumes the caller.
+@MainActor
+private final class PeekCaptureRace {
+    private var continuation: CheckedContinuation<CGImage?, Never>?
+    init(_ continuation: CheckedContinuation<CGImage?, Never>) { self.continuation = continuation }
+    func finish(_ image: CGImage?) -> Bool {
+        guard let continuation else { return false }
+        self.continuation = nil
+        continuation.resume(returning: image)
+        return true
     }
 }
 

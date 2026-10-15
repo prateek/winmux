@@ -103,26 +103,41 @@ final class LensPeekCaptureTest: XCTestCase {
         XCTAssertTrue(times.isEmpty)
     }
 
-    func testACaptureThatNeverReturnsIsAbandonedAfterItsDeadline() async throws {
+    func testACaptureThatNeverReturnsFreesTheSlotAtItsDeadline() async throws {
         let replies = PeekCaptureReplies()
-        var clock: TimeInterval = 0
-        let slot = LensPeekCapture(capture: { try await replies.capture($0, size: $1) }, deadline: 1, now: { clock })
+        let slot = LensPeekCapture(capture: { try await replies.capture($0, size: $1) }, deadline: .milliseconds(50))
         let picture = try image()
         slot.select(1, pixelSize: CGSize(width: 100, height: 100))
         while !(await replies.ready(1)) { await Task.yield() }
-        clock = 0.5
         slot.select(2, pixelSize: CGSize(width: 100, height: 100))
-        for _ in 0 ..< 20 { await Task.yield() }
-        let early = await replies.requested(2)
-        XCTAssertFalse(early, "Inside the deadline the request waits")
-        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
-        clock = 2
-        slot.select(3, pixelSize: CGSize(width: 100, height: 100))
-        while !(await replies.ready(3)) { await Task.yield() }
+        // No further selection: the waiting request starts on its own once the deadline passes.
+        while !(await replies.ready(2)) { await Task.yield() }
+        XCTAssertEqual(slot.abandoned, 1)
         let current = slot.task
-        await replies.finish(3, image: picture)
+        await replies.finish(2, image: picture)
         await current?.value
         XCTAssertTrue(slot.image === picture, "A stuck capture does not hold up the next picture")
+        await replies.finish(1, image: try image())
+        while slot.abandoned != 0 { await Task.yield() }
+        XCTAssertTrue(slot.image === picture, "The abandoned capture's late image is not drawn")
+    }
+
+    func testTwoStuckCapturesStopFurtherCaptures() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture(capture: { try await replies.capture($0, size: $1) }, deadline: .milliseconds(20))
+        slot.select(1, pixelSize: CGSize(width: 10, height: 10))
+        while !(await replies.ready(1)) { await Task.yield() }
+        slot.select(2, pixelSize: CGSize(width: 10, height: 10))
+        while !(await replies.ready(2)) { await Task.yield() }
+        while slot.task != nil { await Task.yield() }
+        XCTAssertEqual(slot.abandoned, 2)
+        slot.select(3, pixelSize: CGSize(width: 10, height: 10))
+        try await Task.sleep(for: .milliseconds(60))
+        let third = await replies.requested(3)
+        XCTAssertFalse(third, "A wedged ScreenCaptureKit is not given more requests")
+        await replies.finish(1, image: try image())
+        // Once ScreenCaptureKit answers again, the window still selected is captured.
+        while !(await replies.ready(3)) { await Task.yield() }
     }
 
     func testAWindowThatStopsBeingFrozenIsCapturedThen() async throws {
@@ -132,6 +147,14 @@ final class LensPeekCaptureTest: XCTestCase {
         for _ in 0 ..< 20 { await Task.yield() }
         let frozenRequested = await replies.requested(1)
         XCTAssertFalse(frozenRequested)
+        slot.select(1, frozen: false, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+        let first = slot.task
+        await replies.finish(1, image: try image())
+        await first?.value
+        XCTAssertNotNil(slot.image)
+        slot.select(1, frozen: true, pixelSize: CGSize(width: 100, height: 100))
+        XCTAssertNil(slot.image, "A window minimized again shows its thumbnail, not the old capture")
         slot.select(1, frozen: false, pixelSize: CGSize(width: 100, height: 100))
         while !(await replies.ready(1)) { await Task.yield() }
     }

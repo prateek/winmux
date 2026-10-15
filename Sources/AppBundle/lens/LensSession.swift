@@ -71,7 +71,8 @@ final class LensSession: ObservableObject {
         }
         switch event {
             case .peekToggled:
-                if !followsPeek { peekZoom.toggle() }
+                // Space on a closed overview cell has nothing to grow.
+                if !followsPeek, peekZoom || !closedPeekIds.contains(targets(forCommand: "focus").first ?? 0) { peekZoom.toggle() }
                 // A Tile hovered before the zoom is under the picture now.
                 if peekZoom { hoveredTileId = nil }
             case .inputStateChanged(let state):
@@ -337,8 +338,10 @@ final class LensSession: ObservableObject {
     }
 
     func synchronizePeek() {
-        let target = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first.flatMap { closedPeekIds.contains($0) ? nil : $0 } : nil
-        if target == nil { peekZoom = false }
+        let selected = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first : nil
+        if selected == nil { peekZoom = false }
+        // A closed overview cell has nothing to show; the zoom waits for the next live one.
+        let target = selected.flatMap { closedPeekIds.contains($0) ? nil : $0 }
         if target != peekedId { peekedId = target }
     }
 
