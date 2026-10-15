@@ -13,7 +13,7 @@ class Strikes(HTMLParser):
         self.text = []
 
     def handle_starttag(self, tag, attrs):
-        marked = tag in ('strike', 's', 'del') or 'line-through' in dict(attrs).get('style', '')
+        marked = tag in ('strike', 's', 'del') or 'line-through' in (dict(attrs).get('style') or '')
         self.stack.append((tag, marked))
 
     def handle_endtag(self, tag):
@@ -53,7 +53,10 @@ def main():
         sys.exit('usage: strike <1..5|reset>')
     action = args[0]
     target = 'note "Grievances" of folder "Notes" of account "On My Mac"'
-    previous = '' if action == 'reset' else notes('tell application "Notes" to get body of ' + target)
+    try:
+        previous = '' if action == 'reset' else notes('tell application "Notes" to get body of ' + target)
+    except subprocess.CalledProcessError:
+        sys.exit('strike: no Grievances note in Notes; stage the desk with stage-desk.sh first')
     body = note_body(Path(__file__).with_name('grievance-lines.txt').read_text().splitlines(), action, previous)
     if args[1:]:
         print(body)

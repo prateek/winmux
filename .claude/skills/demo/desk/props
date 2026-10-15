@@ -36,11 +36,21 @@ if [[ $1 == calendar ]]; then osascript "$here/calendar.applescript"; fi
 focus_prop
 current_layout=$($W list-windows --all --format '%{window-id}|%{window-layout}' | awk -F'|' -v id="$ids[1]" '$1==id {print $2}')
 [[ "$current_layout" == floating ]] || $W layout floating --window-id "$ids[1]"
-osascript -e 'on run argv
+# Address the prop by its title: the standing editor is a second Zed window. WinMux applies its
+# floating frame after `layout floating` returns, so place the window again once that has landed.
+for pass in 1 2; do
+ osascript -e 'on run argv
  tell application "System Events" to tell process (item 1 of argv)
-  set size of window 1 to {(item 4 of argv as integer), (item 5 of argv as integer)}
-  set position of window 1 to {(item 2 of argv as integer), (item 3 of argv as integer)}
+  if item 2 of argv is "" then
+   set prop to window 1
+  else
+   set prop to first window whose name contains (item 2 of argv)
+  end if
+  set size of prop to {(item 5 of argv as integer), (item 6 of argv as integer)}
+  set position of prop to {(item 3 of argv as integer), (item 4 of argv as integer)}
  end tell
-end run' "$app" "$frame[@]"
+end run' "$app" "$prop_title" "$frame[@]"
+ sleep 0.5
+done
 $W focus --window-id "$ids[1]"
 $W list-windows --focused

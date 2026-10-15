@@ -23,7 +23,7 @@ class DemoRenderTest(unittest.TestCase):
         render = load_render()
         self.assertEqual(render.layout('card', 1920, 1080), dict(
             canvas=(960, 604), inner=(848, 476), at=(56, 64), radius=14,
-            title_at=(56, 22), title_size=22, keys_right=904, keys_y=555, key_h=34))
+            title_at=(56, 22), title_size=22, shadow_dy=10, shadow_blur=18, keys_right=904, keys_y=555, key_h=34))
         self.assertEqual(render.layout('claim', 1920, 1080), dict(
             canvas=(960, 584), inner=(960, 540), at=(0, 0), radius=0,
             title_at=(14, 550), title_size=20, keys_right=948, keys_y=547, key_h=30))
@@ -32,7 +32,7 @@ class DemoRenderTest(unittest.TestCase):
         render = load_render()
         self.assertEqual(render.layout('card', 1920, 1080, 1920), dict(
             canvas=(1920, 1210), inner=(1696, 954), at=(112, 128), radius=28,
-            title_at=(112, 44), title_size=44, keys_right=1808, keys_y=1112, key_h=68))
+            title_at=(112, 44), title_size=44, shadow_dy=20, shadow_blur=36, keys_right=1808, keys_y=1112, key_h=68))
         self.assertEqual(render.layout('claim', 1920, 1080, 1920), dict(
             canvas=(1920, 1168), inner=(1920, 1080), at=(0, 0), radius=0,
             title_at=(28, 1100), title_size=40, keys_right=1896, keys_y=1094, key_h=60))
@@ -108,8 +108,8 @@ class GrievanceTest(unittest.TestCase):
 
     def test_invalid_number_refuses_before_running_notes(self):
         desk = DEMO / 'desk'
-        for value in ['0', '9', '-1', '', 'reset extra']:
-            result = subprocess.run([str(desk / 'strike'), value], capture_output=True, text=True)
+        for args in [['0'], ['9'], ['-1'], [''], ['reset', 'extra'], ['1', '2']]:
+            result = subprocess.run([str(desk / 'strike'), *args], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('usage:', result.stderr)
 

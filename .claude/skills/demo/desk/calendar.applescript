@@ -9,7 +9,8 @@ with timeout of 30 seconds
   set titles to {"Standup (floating, do not tile)", "A meeting that could have been a window", "Display changes resolution for no reason", "Yell at the Dock"}
   set starts to {9 * hours, 11 * hours, 14 * hours, 16 * hours + 30 * minutes}
   repeat with i from 1 to 4
-   set begins to dayStart + item i of starts
+   set begins to current date
+   set time of begins to item i of starts
    set duration to 1 * hours
    if i is 4 then set duration to 30 * minutes
    make new event at end of events of deskCalendar with properties {summary:item i of titles, start date:begins, end date:begins + duration}

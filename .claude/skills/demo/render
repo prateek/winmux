@@ -55,7 +55,7 @@ def probe(video: Path) -> tuple[int, int, float]:
 def text_image(text: str, size: int, fill: tuple[int, int, int, int]) -> Image.Image:
     face = font(size)
     left, top, right, bottom = face.getbbox(text)
-    image = Image.new("RGBA", (right - left + 2, size + 8), (0, 0, 0, 0))
+    image = Image.new("RGBA", (right - left + 2, max(size + 8, bottom + 4)), (0, 0, 0, 0))
     ImageDraw.Draw(image).text((1 - left, 2), text, font=face, fill=fill)
     return image
 
@@ -70,7 +70,7 @@ def key_chip(label: str, height: int) -> Image.Image:
     x = 0
     for key, width in zip(label.split(), widths):
         draw.rounded_rectangle((x, 0, x + width - 1, height - 1), radius=height // 4,
-                               fill=CHIP, outline=CHIP_EDGE, width=2)
+                               fill=CHIP, outline=CHIP_EDGE, width=max(1, round(height / 16)))
         draw.text((x + width / 2, height / 2), key, font=face, fill=INK, anchor="mm")
         x += width + gap
     return image
@@ -100,7 +100,7 @@ def layout(style: str, src_w: int, src_h: int, width: int = WIDTH) -> dict:
     inner_h = round(inner_w * src_h / src_w / 2) * 2
     canvas_h = head + inner_h + foot
     return dict(canvas=(width, canvas_h), inner=(inner_w, inner_h), at=(pad, head),
-                radius=px(14), title_at=(pad, px(22)), title_size=px(22),
+                radius=px(14), title_at=(pad, px(22)), title_size=px(22), shadow_dy=px(10), shadow_blur=px(18),
                 keys_right=width - pad, keys_y=head + inner_h + px(15), key_h=px(34))
 
 
@@ -114,8 +114,8 @@ def background(style: str, geo: dict, title: str) -> Image.Image:
         w, h = geo["inner"]
         shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         ImageDraw.Draw(shadow).rounded_rectangle(
-            (x, y + 10, x + w, y + h + 10), radius=geo["radius"], fill=(0, 0, 0, 170))
-        image = Image.alpha_composite(image, shadow.filter(ImageFilter.GaussianBlur(18)))
+            (x, y + geo["shadow_dy"], x + w, y + h + geo["shadow_dy"]), radius=geo["radius"], fill=(0, 0, 0, 170))
+        image = Image.alpha_composite(image, shadow.filter(ImageFilter.GaussianBlur(geo["shadow_blur"])))
     label = text_image(title, geo["title_size"], INK if style == "card" else MUTED)
     image.alpha_composite(label, geo["title_at"])
     return image
