@@ -28,7 +28,8 @@ final class LensThemeTest: XCTestCase {
         let theme = LensTheme.light
         XCTAssertEqual(theme.text.chromeHex, "#16181D")
         XCTAssertEqual(theme.searchText.chromeHex, "#16181D")
-        XCTAssertEqual(theme.selectionRing.chromeHex, "#2F7BF6")
+        XCTAssertEqual(theme.selectionRing, .accentColor)
+        XCTAssertEqual(LensTheme.dark.selectionRing, .accentColor)
         XCTAssertEqual(theme.miniatureScrim.chromeHex, "#E8EAF0")
         XCTAssertEqual(theme.nsAppearance.name, .aqua)
         XCTAssertEqual(LensTheme.dark.nsAppearance.name, .darkAqua)

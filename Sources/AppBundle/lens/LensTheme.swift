@@ -27,7 +27,7 @@ struct LensTheme: Equatable, Sendable {
     var text: Color { isDark ? .white : Color(chromeHex: "16181d") }
     var searchText: Color { isDark ? .white.opacity(GlassToken.textPrimary) : text }
     var secondaryText: Color { isDark ? .white.opacity(0.62) : .black.opacity(0.55) }
-    var selectionRing: Color { Color(chromeHex: "2f7bf6") }
+    var selectionRing: Color { .accentColor }
     var selectionPlate: Color { selectionRing.opacity(isDark ? 0.26 : 0.2) }
     var chip: Color { isDark ? .white.opacity(0.16) : .black.opacity(0.1) }
     var miniatureScrim: Color { isDark ? .black : Color(chromeHex: "e8eaf0") }
