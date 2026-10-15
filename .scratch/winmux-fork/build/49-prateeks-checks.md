@@ -83,6 +83,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] With a Japanese or Chinese input method, `alt-slash`, type a word in kana or pinyin, press Space to convert and Return to commit. The text converts and commits, and nothing is peeked or focused.
 - [ ] With two displays, open a grid on one and peek a window that sits on the other, then click a Tile on the grid's display. The zoom ends and nothing else happens: no window is focused and the selection does not move.
 
+**Staying open on release, and light and dark**
+- [ ] On the installed build and a real keyboard, add `ctrl-alt-g = "lens committing-grid"` to `mode.main.binding` and `lenses.committing-grid = { presentation = 'grid, on-release = 'commit }` to your config. Tap Control-Option-G at your normal speed: focus moves to the next window and no grid flashes. Then hold Control-Option, press G twice and let go: the grid steps twice, and letting go focuses the selected window.
+- [ ] Switch macOS to Light in System Settings, Appearance, then open `alt-slash`, the Cmd-Tab strip and `winmux lens recent --presentation grid`. Each draws a pale panel with dark text over your wallpaper, and with Option held the labels over the pictures stay readable. Say here if the light panel reads too grey or too bright, then switch back.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
