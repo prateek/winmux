@@ -374,8 +374,12 @@ final class LensPeekTest: XCTestCase {
             try XCTUnwrap(NSEvent.mouseEvent(with: type, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
                                              windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         }
+        panel.sendEvent(try event(.rightMouseDown))
         panel.sendEvent(try event(.leftMouseDown))
         panel.sendEvent(try event(.leftMouseUp))
+        XCTAssertTrue(panel.eatsClicks, "The right button is still down, so the left click went the same way")
+        panel.sendEvent(try event(.rightMouseUp))
+        XCTAssertFalse(panel.eatsClicks)
         XCTAssertNil(session.peekedId)
         XCTAssertEqual(session.selectedId, selected)
         XCTAssertTrue(actions.isEmpty)
