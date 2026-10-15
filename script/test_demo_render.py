@@ -167,7 +167,13 @@ p.write_text(json.dumps(s))
 ''')
             cli.chmod(0o755)
             script = binary / 'osascript'
-            script.write_text('#!' + sys.executable + '\n' + '''import json, os, pathlib, sys
+            script.write_text('#!' + sys.executable + '\n' + '''import json, os, pathlib, subprocess, sys, tempfile
+# Every script the prop sends must compile, as the real osascript would require.
+lines = [sys.argv[i + 1] for i in range(1, len(sys.argv) - 1) if sys.argv[i] == '-e']
+source = ['-e' + x for x in lines] if lines else [sys.argv[1]]
+with tempfile.TemporaryDirectory() as out:
+ compiled = subprocess.run(['/usr/bin/osacompile', '-o', out + '/s.scpt', *source], capture_output=True, text=True)
+if compiled.returncode: raise SystemExit('does not compile: ' + compiled.stderr)
 p = pathlib.Path(os.environ['HOME']) / 'state.json'
 s = json.loads(p.read_text())
 if any('to activate' in a for a in sys.argv[1:]):
@@ -215,6 +221,7 @@ p.write_text(json.dumps(s))
             desk = root / 'desk'
             desk.mkdir()
             shutil.copy2(DEMO / 'desk/props', desk / 'props')
+            shutil.copy2(DEMO / 'desk/calendar.applescript', desk / 'calendar.applescript')
             if app == 'music':
                 shutil.copy2(DEMO / 'desk/Music.txt', desk / 'Music.txt')
             for _ in range(2):
