@@ -87,6 +87,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On the installed build and a real keyboard, add `ctrl-alt-g = "lens committing-grid"` to `mode.main.binding` and `lenses.committing-grid = { presentation = 'grid, on-release = 'commit }` to your config. Tap Control-Option-G at your normal speed: focus moves to the next window and no grid flashes. Then hold Control-Option, press G twice and let go: the grid steps twice, and letting go focuses the selected window.
 - [ ] Switch macOS to Light in System Settings, Appearance, then open `alt-slash`, the Cmd-Tab strip and `winmux lens recent --presentation grid`. Each draws a pale panel with dark text over your wallpaper, and with Option held the labels over the pictures stay readable. Say here if the light panel reads too grey or too bright, then switch back.
 
+**Shipped Lenses for the grid, and the docs**
+- [ ] With the Cmd-Tab opt-in, on the installed build and a real keyboard, with one app's windows on two workspaces: hold Cmd-backtick, press backtick twice and release. The grid shows only that app's windows, with no section headers, in the order you last used them; each backtick moves one card, and the window selected at release is focused. Then tap Cmd-backtick at your normal speed five times: each tap switches windows and no grid is left on screen.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
