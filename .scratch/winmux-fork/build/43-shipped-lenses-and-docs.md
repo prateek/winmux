@@ -46,12 +46,6 @@ The grid exists after the issues before this one, and no shipped Lens uses it. T
 - Host and pinned Swift 6.2.4 guest `make check` pass, including six-Lens conversion, key removal, disabled/overridden defaults, the shipped same-app gesture and every whole-config Nickel example in `docs/lenses.md`. One existing fragment was wrapped as a config; no error-example fence was relabelled. Escape counts and the 48-point strip picture floor stay unchanged.
 - The standing-desk live run checks fresh-install and import-only workspace grids against all four window IDs, plain/JSON six-Lens output, retained `a`/`r` text lists, a floated window in `floating`, held same-app stepping/reversal and release Focus, a silent quick tap, conversion and all four dark Presentation pictures. One unchanged-action script passes against the base and feature builds. The builder publishes no release.
 
-## Checks left to Prateek
-
-- [ ] Check an installed signed build.
-- [ ] Check a second display.
-- [ ] Check real sleep, wake and unlock.
-
 ## Sources
 
 - **Default config, Triggers, the `lens` leader mode, `subscribe` events**, which shipped the first five Lenses.
