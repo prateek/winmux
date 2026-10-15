@@ -76,7 +76,7 @@
       "peek": "zoom",
       "popups": [],
       "presentation": "grid",
-      "sections": "workspace",
+      "sections": "none",
       "sort": [
         "mru"
       ],

@@ -819,13 +819,12 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
     let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": null}));
     assert_eq!(reply["ok"], true, "{}", reply["error"]);
     let config = &reply["result"]["config"];
-    for name in ["recent"] {
-        assert_eq!(config["lenses"][name]["presentation"], "strip");
-        assert_eq!(config["lenses"][name]["tile"], "picture");
-        assert_eq!(config["lenses"][name]["grid"]["tile-size"], "same-height");
-        assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
-        assert_eq!(config["lenses"][name]["popups"], json!([]));
-    }
+    let recent = &config["lenses"]["recent"];
+    assert_eq!(recent["presentation"], "strip");
+    assert_eq!(recent["tile"], "picture");
+    assert_eq!(recent["grid"]["tile-size"], "same-height");
+    assert_eq!(recent["keys"]["alt-enter"], "summon");
+    assert_eq!(recent["popups"], json!([]));
     assert!(config["mode"]["main"]["binding"].get("cmd-tab").is_none());
     assert!(config["mode"]["main"]["binding"].get("cmd-shift-tab").is_none());
     assert!(config["mode"]["main"]["binding"].get("cmd-backtick").is_none());
@@ -1284,10 +1283,8 @@ fn shipped_recent_picture_strip_allows_cards_back_and_partial_grid_overrides() {
             lenses.recent.grid.tile-size = 'real,
         }) | W.Config
     "#);
-    for name in ["recent"] {
-        assert_eq!(cards["lenses"][name]["tile"], "card");
-        assert_eq!(cards["lenses"][name]["grid"]["tile-size"], "real");
-    }
+    assert_eq!(cards["lenses"]["recent"]["tile"], "card");
+    assert_eq!(cards["lenses"]["recent"]["grid"]["tile-size"], "real");
     let rows = loaded_source("strip-rows", r#"
         let W = import "winmux/winmux.ncl" in
         ((import "winmux/defaults.ncl") & { lenses.recent.grid.sections-arrangement = 'rows }) | W.Config
@@ -1417,7 +1414,7 @@ fn shipped_grids_and_windows_filter_follow_the_contract() {
     for name in ["windows", "app-windows", "floating"] {
         assert_eq!(lenses[name]["presentation"], "grid", "{name}");
         assert_eq!(lenses[name]["sort"], json!(["mru"]), "{name}");
-        assert_eq!(lenses[name]["sections"], "workspace", "{name}");
+        assert_eq!(lenses[name]["sections"], if name == "app-windows" { "none" } else { "workspace" }, "{name}");
         assert_eq!(lenses[name]["grid"]["tile-size"], "real", "{name}");
         assert_eq!(lenses[name]["grid"]["sections-arrangement"], "flow", "{name}");
         assert!(lenses[name].get("tile").is_none(), "{name}");
@@ -1436,6 +1433,7 @@ fn shipped_defaults_removal_and_presentation_recipes_load() {
     for key in ["t", "w"] {
         let mut helper = Helper::new(library());
         let reply = request(&mut helper, json!({"op": "load", "path": fixture(&format!("without-window-{key}.ncl"))}));
+        assert_eq!(reply["ok"], true, "{reply}");
         let mut expected = expected_window_bindings();
         expected.as_object_mut().unwrap().remove(key);
         assert_eq!(reply["result"]["config"]["mode"]["window"]["binding"], expected);
@@ -1444,6 +1442,7 @@ fn shipped_defaults_removal_and_presentation_recipes_load() {
         ("disable-windows.ncl", "windows", "enabled", json!(false)),
         ("windows-list.ncl", "windows", "presentation", json!("list")),
         ("app-windows-strip.ncl", "app-windows", "presentation", json!("strip")),
+        ("app-windows-strip.ncl", "app-windows", "tile", json!("picture")),
     ] {
         let mut helper = Helper::new(library());
         let reply = request(&mut helper, json!({"op": "load", "path": fixture(file)}));

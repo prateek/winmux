@@ -137,6 +137,7 @@
   lenses.windows.presentation | priority -1 = 'grid,
   lenses.app-windows.presentation | priority -1 = 'grid,
   lenses.app-windows.on-release | priority -1 = 'commit,
+  lenses.app-windows.sections | priority -1 = 'none,
   lenses.app-windows.filter | default = filters.same-app,
   lenses.overview.presentation | priority -1 = 'miniatures,
   lenses.search = {},

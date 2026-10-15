@@ -108,7 +108,7 @@ Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sect
 their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
 that binding and keeps its Hold; in a strip it ends the Hold and stays in normal mode. `/` converts the strip to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
 
-The shipped `recent` Lens uses `tile = 'picture` and `grid.tile-size = 'same-height`; see [Tiles](lenses.md#tiles) for the cards-back recipe. `windows`, `app-windows` and `floating` use grids with card Tiles at real relative sizes. `app-windows` explicitly commits on release; `windows` and `floating` stay open. A config's existing `windows` Lens receives the grid Presentation at priority -1, so its own values win.
+The shipped `recent` Lens uses `tile = 'picture` and `grid.tile-size = 'same-height`; see [Tiles](lenses.md#tiles) for the cards-back recipe. `windows`, `app-windows` and `floating` use grids with card Tiles at real relative sizes. `app-windows` explicitly commits on release and draws no sections, so it steps in MRU order; `windows` and `floating` stay open. A config's existing `windows` Lens receives the grid Presentation at priority -1, so its own values win.
 
 ## Opt in to Cmd-Tab
 

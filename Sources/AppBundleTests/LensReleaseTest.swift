@@ -21,12 +21,17 @@ final class LensReleaseTest: SerialClockTestCase {
         XCTAssertEqual(settings.presentation, "grid")
         XCTAssertEqual(settings.resolvedOnRelease, "commit")
         let gesture = StripGesture(keyCode: 50, invoking: .command)
-        let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Window \($0)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
+        // MRU order 1, 2, 3 across two workspaces: stepping follows MRU, not workspace sections.
+        let workspaces = ["1", "2", "1"]
+        let items: [SwitcherPaletteItem] = (1...3).map { (n: Int) in
+            SwitcherPaletteItem(id: UInt32(n), title: "Window \(n)", appName: "Demo", icon: nil, workspaceName: workspaces[n - 1], isFocused: n == 1)
+        }
         let session = LensSession(name: "app-windows", settings: settings, items: items, search: "")
         let owner = testLensLifecycle()
         defer { owner.dismiss() }
         owner.complete(session, ticket: owner.begin("app-windows", toggle: true, invocation: gesture, settings: settings)!)
         XCTAssertTrue(session.commitsOnRelease)
+        XCTAssertEqual(session.results.map { $0.id }, [1, 2, 3] as [UInt32])
         XCTAssertEqual(session.selectedId, 2)
         func press(_ code: UInt16, _ flags: NSEvent.ModifierFlags) throws {
             let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: code == 50 ? "`" : "\t", charactersIgnoringModifiers: code == 50 ? "`" : "\t", isARepeat: false, keyCode: code))

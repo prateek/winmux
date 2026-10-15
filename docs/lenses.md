@@ -284,6 +284,8 @@ under `when.default`. They resolve once for each opening.
   the named Lens's invoking chord after release toggles it closed.
 - With `on-release` omitted, a strip commits and every other Presentation stays.
   Swift resolves this after `--presentation`; shipped `app-windows` explicitly sets `on-release = 'commit`.
+  An explicit value holds for every Presentation, including one chosen with `--presentation`:
+  a held chord bound to `lens app-windows --presentation list` commits on release too.
   A committing Lens needs a chord with a physical key and held modifiers. CLI,
   menu, tap and modifier-free bindings stay open, including a strip.
 - `appearance = 'auto` (the default) reads the system appearance when the Lens
@@ -461,7 +463,8 @@ state, the key ending the Hold, focus and the final Search/selection.
 
 `recent` is a strip of every eligible window in Global MRU order. `app-windows` is a
 committing grid with the same sort and `filters.same-app`: the window's bundle id must equal
-the focused app's bundle id. With no focused app it matches nothing. Both omit popup classes.
+the focused app's bundle id. It draws no sections (`sections = 'none`), so its Tiles run in MRU
+order and backtick steps from the most recent window to the least, wherever they are. With no focused app it matches nothing. Both omit popup classes.
 They use the same Lens session, Filter evaluation and thumbnail cache as the list and miniatures.
 
 With the [Cmd-Tab opt-in](default-config.md#opt-in-to-cmd-tab), hold cmd and press Tab to select the previous window: the second entry when the first is
@@ -476,7 +479,7 @@ the last entry; releasing Shift alone does not commit. The opt-in's Cmd-backtick
 windows, with Shift reversing it. Backtick does nothing inside `recent`, and Tab does nothing
 inside `app-windows`.
 
-A committing held strip waits 100 ms before drawing. A faster release focuses the previous
+A committing held Lens, the `recent` strip or the `app-windows` grid, waits 100 ms before drawing. A faster release focuses the previous
 window immediately. `winmux lens recent` with no modifiers held draws at once and stays open. On a held invocation, releasing all
 invoking Command, Control and Option modifiers runs the selection's enter binding. Shift is
 never a committing modifier. Release closes the strip even if its Enter binding has no commands.
@@ -572,7 +575,7 @@ upstream build cannot repair this build's marker.
 ## Sections and the grouping control
 
 Every list and grid Lens draws workspace sections by default, including `search`, `floating`
-and a strip converted to a list. Set `sections = 'none` for an unlabelled run.
+and a strip converted to a list. Set `sections = 'none` for an unlabelled run, as the shipped `app-windows` does.
 
 | `sections` | Order and label |
 | --- | --- |
@@ -676,7 +679,7 @@ the grid open unless `on-release = 'commit`.
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
 every Lens. Strips use `grid.tile-size`; on lists and miniatures the block loads and is reported
 but has no visual effect. `grid.sections-arrangement` controls labelled sections; `sections = 'none` keeps the original packed layout.
-The shipped `windows`, `app-windows` and `floating` grids use card Tiles, `real` sizing and workspace sections in `flow`. `recent` stays a picture strip with `same-height` sizing; `overview` stays miniatures and `search` stays a text list.
+The shipped `windows`, `app-windows` and `floating` grids use card Tiles and `real` sizing; `windows` and `floating` draw workspace sections in `flow`, and `app-windows` draws none. `recent` stays a picture strip with `same-height` sizing; `overview` stays miniatures and `search` stays a text list.
 
 ## Overview and miniatures
 

@@ -22,25 +22,24 @@ final class DefaultConfigTest: XCTestCase {
     }
 
     func testShippedRecentStripUsesPicturesAtOneHeightAndConversionKeepsPictures() throws {
-        for name in ["recent"] {
-            var settings = try XCTUnwrap(defaultConfig.lenses[name])
-            XCTAssertEqual(settings.presentation, "strip")
-            XCTAssertEqual(settings.tile, "picture")
-            XCTAssertEqual(settings.grid.tileSize, "same-height")
-            let session = LensSession(name: name, settings: settings, items: [], search: "")
-            XCTAssertEqual(session.tileKind, .picture)
-            session.enterSearch()
-            XCTAssertEqual(session.settings.presentation, "list")
-            XCTAssertEqual(session.tileKind, .picture)
-            XCTAssertEqual(session.listLayout.rowHeight, 74 * session.tileMetrics.scale)
-            let cliConversion = LensSession(name: name, settings: settings, items: [], search: "")
-            cliConversion.changePresentation("list")
-            XCTAssertEqual(cliConversion.tileKind, .picture)
-            settings.presentation = "list"; settings.tile = "text"
-            let textList = LensSession(name: name, settings: settings, items: [], search: "")
-            XCTAssertEqual(textList.tileKind, .text)
-            XCTAssertEqual(textList.listLayout.rowHeight, 46 * textList.tileMetrics.scale)
-        }
+        let name = "recent"
+        var settings = try XCTUnwrap(defaultConfig.lenses[name])
+        XCTAssertEqual(settings.presentation, "strip")
+        XCTAssertEqual(settings.tile, "picture")
+        XCTAssertEqual(settings.grid.tileSize, "same-height")
+        let session = LensSession(name: name, settings: settings, items: [], search: "")
+        XCTAssertEqual(session.tileKind, .picture)
+        session.enterSearch()
+        XCTAssertEqual(session.settings.presentation, "list")
+        XCTAssertEqual(session.tileKind, .picture)
+        XCTAssertEqual(session.listLayout.rowHeight, 74 * session.tileMetrics.scale)
+        let cliConversion = LensSession(name: name, settings: settings, items: [], search: "")
+        cliConversion.changePresentation("list")
+        XCTAssertEqual(cliConversion.tileKind, .picture)
+        settings.presentation = "list"; settings.tile = "text"
+        let textList = LensSession(name: name, settings: settings, items: [], search: "")
+        XCTAssertEqual(textList.tileKind, .text)
+        XCTAssertEqual(textList.listLayout.rowHeight, 46 * textList.tileMetrics.scale)
         for name in ["overview", "search", "floating", "app-windows", "windows"] {
             let settings = try XCTUnwrap(defaultConfig.lenses[name])
             XCTAssertNil(settings.tile)
@@ -53,7 +52,7 @@ final class DefaultConfigTest: XCTestCase {
             let settings = try XCTUnwrap(defaultConfig.lenses[name])
             XCTAssertEqual(settings.presentation, "grid", name)
             XCTAssertEqual(settings.sort, ["mru"], name)
-            XCTAssertEqual(settings.sections, "workspace", name)
+            XCTAssertEqual(settings.sections, name == "app-windows" ? "none" : "workspace", name)
             XCTAssertEqual(settings.grid.sectionsArrangement, "flow", name)
             XCTAssertEqual(settings.grid.tileSize, "real", name)
             let session = LensSession(name: name, settings: settings, items: [], search: "")
