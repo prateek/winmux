@@ -42,12 +42,12 @@ for pass in 1 2; do
  osascript -e 'on run argv
  tell application "System Events" to tell process (item 1 of argv)
   if item 2 of argv is "" then
-   set prop to window 1
+   set propWindow to window 1
   else
-   set prop to first window whose name contains (item 2 of argv)
+   set propWindow to first window whose name contains (item 2 of argv)
   end if
-  set size of prop to {(item 5 of argv as integer), (item 6 of argv as integer)}
-  set position of prop to {(item 3 of argv as integer), (item 4 of argv as integer)}
+  set size of propWindow to {(item 5 of argv as integer), (item 6 of argv as integer)}
+  set position of propWindow to {(item 3 of argv as integer), (item 4 of argv as integer)}
  end tell
 end run' "$app" "$prop_title" "$frame[@]"
  sleep 0.5

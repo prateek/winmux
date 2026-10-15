@@ -2,6 +2,11 @@ with timeout of 30 seconds
  tell application "Calendar"
   activate
   if not (exists calendar "Desk") then make new calendar with properties {name:"Desk"}
+  -- A calendar made on Calendar's first run takes a moment to answer to its name.
+  repeat 40 times
+   if exists calendar "Desk" then exit repeat
+   delay 0.25
+  end repeat
   set deskCalendar to calendar "Desk"
   delete every event of deskCalendar
   set dayStart to current date
