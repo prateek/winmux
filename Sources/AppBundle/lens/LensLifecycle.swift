@@ -21,6 +21,9 @@ final class LensLifecycle {
         var prepared: LensSession?
         var keys: [LensKeyBinding] = []
         let listKeys: [LensKeyBinding]
+        var peekKeys: Set<String> = []
+        var peekZoom = false
+        var peekEnabled = true
         var pending: [PendingKey] = []
         let startingState: LensInputState
         var presentation: String
@@ -124,7 +127,7 @@ final class LensLifecycle {
         self.identity = identity
         let presentation = settings?.presentation ?? (strip != nil ? "strip" : "list")
         let startingState = settings?.startingInputState ?? (presentation == "list" ? .search : .normal)
-        state = .opening(Opening(name: name, gesture: strip ?? invocation, isStrip: strip != nil, keys: keys, listKeys: settings.map { LensKeyBinding.resolve($0.keys) } ?? keys, startingState: startingState, presentation: presentation))
+        state = .opening(Opening(name: name, gesture: strip ?? invocation, isStrip: strip != nil, keys: keys, listKeys: settings.map { LensKeyBinding.resolve($0.keys) } ?? keys, peekKeys: Set((settings?.keys ?? [:]).filter { $0.value == ["peek"] }.keys), peekEnabled: settings?.peek != "follow" || presentation == "miniatures", startingState: startingState, presentation: presentation))
         return generation
     }
 
@@ -187,7 +190,7 @@ final class LensLifecycle {
                     let held = model.hold != nil
                     let presentation = model.settings.presentation
                     let meaning = lensKeyMeaning(state: state, hold: model.hold ?? model.invokingGesture,
-                                                 keys: model.activeKeyBindings, code: code, characters: state == .hold ? holdCharacters ?? characters : characters, flags: flags, presentation: presentation, source: source)
+                                                 keys: model.activeKeyBindings, code: code, characters: state == .hold ? holdCharacters ?? characters : characters, flags: flags, presentation: presentation, source: source, searchEmpty: model.query.isEmpty, peekKeys: model.peekKeys, peeking: model.zoomPeeking)
                     let trace = self.trace
                     switch meaning {
                         case .dismiss: dismiss()
@@ -233,10 +236,7 @@ final class LensLifecycle {
         let oldInputState = model.inputState
         model.apply(event)
         trace?.session(model)
-        switch event {
-            case .pointerSelectionChanged: break
-            default: updatePresentation(model)
-        }
+        updatePresentation(model)
         if oldInputState != model.inputState { inputStateChanged(model) }
         switch event {
             case .searchChanged:
@@ -345,8 +345,11 @@ final class LensLifecycle {
         }
         let meaning = lensKeyMeaning(state: opening.pendingState, hold: gesture, keys: opening.keys,
                                      code: keyCode, characters: opening.pendingState == .hold ? holdCharacters ?? characters : characters,
-                                     flags: flags, presentation: opening.presentation, source: source)
+                                     flags: flags, presentation: opening.presentation, source: source, peekKeys: opening.peekKeys, peeking: opening.peekZoom)
         switch meaning {
+            case .command(let key) where opening.peekKeys.contains(key):
+                if opening.peekEnabled { opening.peekZoom.toggle() }
+            case .endPeek: opening.peekZoom = false
             case .global: return .cancel
             case .triggerGlobal: return .ignored
             case .globalBinding, .fieldEditor, .fieldEditorEdit:
@@ -390,6 +393,7 @@ final class LensLifecycle {
         if case .closed = state { return }
         let model = session
         if let model {
+            model.endPeekOnDismiss()
             trace?.session(model, active: false)
             model.hoveredTileId = nil
         }

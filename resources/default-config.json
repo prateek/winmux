@@ -58,8 +58,10 @@
         "cmd-9": "move-node-to-workspace 9",
         "cmd-g": "sections next",
         "cmd-w": "close",
+        "cmd-y": "peek",
         "enter": "focus",
-        "shift-enter": "summon"
+        "shift-enter": "summon",
+        "space": "peek"
       },
       "miniatures": {
         "arrow-keys": "nearest",
@@ -70,6 +72,7 @@
         "current-workspace": "highlight",
         "fit": "page"
       },
+      "peek": "zoom",
       "popups": [],
       "presentation": "strip",
       "sections": "workspace",
@@ -108,8 +111,10 @@
         "cmd-9": "move-node-to-workspace 9",
         "cmd-g": "sections next",
         "cmd-w": "close",
+        "cmd-y": "peek",
         "enter": "focus",
-        "shift-enter": "summon"
+        "shift-enter": "summon",
+        "space": "peek"
       },
       "miniatures": {
         "arrow-keys": "nearest",
@@ -120,6 +125,7 @@
         "current-workspace": "highlight",
         "fit": "page"
       },
+      "peek": "zoom",
       "popups": [],
       "presentation": "list",
       "sections": "workspace",
@@ -156,8 +162,10 @@
         "cmd-9": "move-node-to-workspace 9",
         "cmd-g": "sections next",
         "cmd-w": "close",
+        "cmd-y": "peek",
         "enter": "focus",
-        "shift-enter": "summon"
+        "shift-enter": "summon",
+        "space": "peek"
       },
       "miniatures": {
         "arrow-keys": "nearest",
@@ -168,6 +176,7 @@
         "current-workspace": "highlight",
         "fit": "page"
       },
+      "peek": "zoom",
       "popups": [],
       "presentation": "miniatures",
       "sections": "workspace",
@@ -204,8 +213,10 @@
         "cmd-9": "move-node-to-workspace 9",
         "cmd-g": "sections next",
         "cmd-w": "close",
+        "cmd-y": "peek",
         "enter": "focus",
-        "shift-enter": "summon"
+        "shift-enter": "summon",
+        "space": "peek"
       },
       "miniatures": {
         "arrow-keys": "nearest",
@@ -216,6 +227,7 @@
         "current-workspace": "highlight",
         "fit": "page"
       },
+      "peek": "zoom",
       "popups": [],
       "presentation": "strip",
       "sections": "workspace",
@@ -253,8 +265,10 @@
         "cmd-9": "move-node-to-workspace 9",
         "cmd-g": "sections next",
         "cmd-w": "close",
+        "cmd-y": "peek",
         "enter": "focus",
-        "shift-enter": "summon"
+        "shift-enter": "summon",
+        "space": "peek"
       },
       "miniatures": {
         "arrow-keys": "nearest",
@@ -265,6 +279,7 @@
         "current-workspace": "highlight",
         "fit": "page"
       },
+      "peek": "zoom",
       "popups": [],
       "presentation": "list",
       "sections": "workspace",

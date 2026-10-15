@@ -61,11 +61,12 @@ func lensHintLegend(keys: [LensKeyBinding], commands: [String: [String]]) -> [Le
                 case ["focus"]: phrase = "focus"; rank = 0
                 case ["summon"]: phrase = "summon here"; rank = 1
                 case ["close"]: phrase = "close"; rank = 3
-                case ["sections next"]: phrase = "group"; rank = 4
-                default: phrase = actions.joined(separator: "; "); rank = 5
+                case ["peek"]: phrase = "peek"; rank = 4
+                case ["sections next"]: phrase = "group"; rank = 5
+                default: phrase = actions.joined(separator: "; "); rank = 6
             }
         }
-        let chords = workspace ? workspaceChords(bindings, commands: commands) : names.map(displayBindingNotation)
+        let chords = workspace ? workspaceChords(bindings, commands: commands) : (actions == ["peek"] ? names.sorted { $0 == "space" && $1 != "space" } : names).map(displayBindingNotation)
         return (rank, names[0], LensHintEntry(chords: chords, bindingNames: names, phrase: phrase))
     }
     return entries.sorted { ($0.rank, $0.sort) < ($1.rank, $1.sort) }.map(\.entry)

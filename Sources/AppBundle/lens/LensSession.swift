@@ -17,6 +17,15 @@ final class LensSession: ObservableObject {
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
     @Published var banner: String?
+    @Published private(set) var peekedId: UInt32?
+    private var peekZoom = false
+    private var peekDismissed = false
+    var peekCaptureMs: Double?
+    var listRowRects: [UInt32: CGRect] = [:]
+    var followsPeek: Bool { settings.peek == "follow" && settings.presentation != "miniatures" }
+    var zoomPeeking: Bool { !followsPeek && peekedId != nil }
+    var peekKeys: Set<String> { Set(settings.keys.filter { $0.value == ["peek"] }.keys) }
+
     @Published private(set) var hintsShown = false
     private var ignoredTriggerModifiers: NSEvent.ModifierFlags = []
     private var currentModifiers: NSEvent.ModifierFlags = []
@@ -33,6 +42,7 @@ final class LensSession: ObservableObject {
     weak var owner: LensLifecycle?
 
     enum Event {
+        case peekToggled
         case searchChanged(String)
         case inputStateChanged(LensInputState)
         case selectionChanged(Int)
@@ -52,12 +62,15 @@ final class LensSession: ObservableObject {
 
     func apply(_ event: Event) {
         defer {
+            synchronizePeek()
             switch event {
                 case .pointerSelectionChanged, .modifiersChanged, .dismissed: break
                 default: reanchorPointer()
             }
         }
         switch event {
+            case .peekToggled:
+                if !followsPeek { peekZoom.toggle() }
             case .inputStateChanged(let state):
                 inputState = state
                 let held = shouldShowHints(currentModifiers)
@@ -118,7 +131,9 @@ final class LensSession: ObservableObject {
             case .excludedChanged(let ids):
                 miniatureExcludedIds = ids
                 selection = initialSelection()
-            case .dismissed: hoveredTileId = nil
+            case .dismissed:
+                hoveredTileId = nil
+                endPeekOnDismiss()
         }
         switch event {
             case .searchChanged, .inputStateChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
@@ -249,6 +264,7 @@ final class LensSession: ObservableObject {
         selection = 0
         selection = initialSelection()
         hintsShown = shouldShowHints([])
+        synchronizePeek()
     }
 
     /// The list opens on its second row when the first is the focused window. Miniatures are not
@@ -306,6 +322,25 @@ final class LensSession: ObservableObject {
         for raw in commands(for: key) {
             if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs { changeSections(args.value.val) }
         }
+        return true
+    }
+
+    func endPeekOnDismiss() {
+        peekDismissed = true
+        peekZoom = false
+        synchronizePeek()
+    }
+
+    func synchronizePeek() {
+        let target = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first : nil
+        if target == nil { peekZoom = false }
+        if target != peekedId { peekedId = target }
+    }
+
+    @discardableResult
+    func performPeekAction(_ key: String) -> Bool {
+        guard commands(for: key) == ["peek"] else { return false }
+        if !followsPeek { send(.peekToggled) }
         return true
     }
 
@@ -397,7 +432,7 @@ final class LensSession: ObservableObject {
 
     func performKeyAction(_ event: NSEvent) -> Bool {
         guard let key = key(for: event) else { return false }
-        onAction?(key)
+        if !performPeekAction(key) { onAction?(key) }
         return true
     }
 
@@ -415,7 +450,7 @@ final class LensSession: ObservableObject {
     func pointerMoved(to location: CGPoint) -> Bool { pointerMotion.moved(to: location) }
 
     func hoverIndex(armed: Bool, _ index: () -> Int?) {
-        guard armed, let index = index(), index != selection else { return }
+        guard !zoomPeeking, armed, let index = index(), index != selection else { return }
         send(.pointerSelectionChanged(index))
     }
 

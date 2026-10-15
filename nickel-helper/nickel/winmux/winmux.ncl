@@ -53,6 +53,15 @@ let WorkspaceSidebar = {
 let LensKeys = std.contract.Sequence [
   { _ | Commands },
   std.contract.from_validator (fun keys =>
+    let mixed = std.array.filter (fun key =>
+      let commands = std.record.get key keys in
+      if std.typeof commands == 'Array then
+        std.array.elem "peek" commands && commands != ["peek"]
+      else false
+    ) (std.record.fields keys) in
+    if std.array.length mixed == 0 then 'Ok
+    else 'Error { message = "%{std.array.first mixed}: peek runs alone" }),
+  std.contract.from_validator (fun keys =>
     if std.array.all (fun key =>
       !(std.array.elem (std.array.last (std.string.split "-" key)) ["esc", "tab", "up", "down", "left", "right"])
     ) (std.record.fields keys)
@@ -106,6 +115,7 @@ let LensFields = {
   popups | Array (Choice [| 'accessory-popup, 'app-popup |]) | optional,
   frozen-thumbnail | Choice [| 'plain, 'age-badge, 'pause-badge, 'dimmed |] | optional,
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
+  peek | Choice [| 'zoom, 'follow |] | optional,
   hints | Choice [| 'held, 'always |] | optional,
   hints-key | Choice [| 'alt, 'cmd, 'ctrl, 'shift |] | optional,
   summon-hints | Array (Choice [| 'label, 'landing-spot, 'target-workspace |]) | optional,
@@ -120,6 +130,8 @@ let LensDefaults = LensFields & {
   sections | default = 'workspace,
   sort | default = ['mru],
   keys = {
+    space | default = "peek",
+    cmd-y | default = "peek",
     enter | default = "focus",
     shift-enter | default = "summon",
     alt-enter | default = "summon",
@@ -138,6 +150,7 @@ let LensDefaults = LensFields & {
   popups | default = [],
   frozen-thumbnail | default = 'dimmed,
   accessory-window | default = 'enlarged,
+  peek | default = 'zoom,
   hints | default = 'held,
   hints-key | default = 'alt,
   summon-hints | default = ['label, 'landing-spot],

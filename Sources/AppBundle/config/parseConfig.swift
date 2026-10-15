@@ -168,6 +168,20 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     }
     if case .object(let lenses) = fields["lenses"] {
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
+        for (name, value) in lenses {
+            var layers = [value]
+            if case .object(let profiles) = value["when"] { layers += profiles.values }
+            var mixed: Set<String> = []
+            for layer in layers {
+                guard case .object(let keys) = layer["keys"] else { continue }
+                for (key, value) in keys {
+                    let commands = value.stringOrNil.map { [$0] } ?? value.arrayOrNil?.compactMap(\.stringOrNil) ?? []
+                    if commands.contains("peek"), commands != ["peek"], mixed.insert(key).inserted {
+                        parsed.errors.append(.syntax("lenses.\(name).keys.\(key): peek runs alone"))
+                    }
+                }
+            }
+        }
         for (name, lens) in parsed.config.lenses {
             for (key, commands) in lens.keys {
                 switch parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
@@ -178,7 +192,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
                     case .failure:
                         parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
                 }
-                for command in commands where command != "focus" {
+                for command in commands where command != "focus" && command != "peek" {
                     if case .failure(let error) = parseCommand(command) {
                         parsed.errors.append(.syntax("lenses.\(name).keys.\(key): \(error)"))
                     }

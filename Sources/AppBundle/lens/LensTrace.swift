@@ -52,8 +52,10 @@ struct LensSessionRecord: Codable, Equatable {
     let active: Bool
     var hoveredTileId: UInt32? = nil
     var hints: String = "hidden"
+    var peek: UInt32? = nil
+    var peekCaptureMs: Double? = nil
 
-    enum CodingKeys: String, CodingKey { case presentation, state, hold, search, selectedId, active, hoveredTileId, hints }
+    enum CodingKeys: String, CodingKey { case presentation, state, hold, search, selectedId, active, hoveredTileId, hints, peek, peekCaptureMs }
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(presentation, forKey: .presentation)
@@ -63,6 +65,8 @@ struct LensSessionRecord: Codable, Equatable {
         try container.encodeIfPresent(selectedId, forKey: .selectedId)
         try container.encode(active, forKey: .active)
         try container.encode(hints, forKey: .hints)
+        try container.encode(peek, forKey: .peek)
+        try container.encodeIfPresent(peekCaptureMs, forKey: .peekCaptureMs)
         try container.encode(hoveredTileId, forKey: .hoveredTileId)
     }
 }
@@ -118,7 +122,7 @@ final class LensTraceStore {
             var lines = [opening, "Stage                                Start ms  Duration ms", stages,
                          "Keys: code text flags boot-seconds received-seconds recorded-seconds Presentation state Hold path destination Search selection field-editor", keys]
             if let session = trace.session {
-                lines.append("Session: \(session.presentation) state=\(session.state.rawValue) hints=\(session.hints) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") active=\(session.active)")
+                lines.append("Session: \(session.presentation) state=\(session.state.rawValue) hints=\(session.hints) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") peek=\(session.peek.map(String.init) ?? "none")\(session.peekCaptureMs.map { String(format: " peek-capture=%.3fms", $0) } ?? "") active=\(session.active)")
             }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
@@ -199,7 +203,7 @@ final class LensOpeningTrace {
     }
     private static func record(_ model: LensSession, active: Bool) -> LensSessionRecord {
         LensSessionRecord(presentation: model.settings.presentation, state: model.inputState, hold: model.hold != nil,
-                          search: model.query, selectedId: model.selectedId, active: active, hoveredTileId: model.hoveredTileId, hints: model.hintsShown ? "shown" : "hidden")
+                          search: model.query, selectedId: model.selectedId, active: active, hoveredTileId: model.hoveredTileId, hints: model.hintsShown ? "shown" : "hidden", peek: model.peekedId, peekCaptureMs: model.peekCaptureMs)
     }
     func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
              presentation: String, state: LensInputState, hold: Bool, path: String, destination: String,

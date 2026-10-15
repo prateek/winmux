@@ -6,6 +6,23 @@ import XCTest
 
 @MainActor
 final class LensTraceTest: SerialClockTestCase {
+    func testPeekTextAndJSONReportWindowTimingAndClosedState() throws {
+        let store = LensTraceStore(stamp: { 0 })
+        let trace = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "test"))
+        let item = SwitcherPaletteItem(id: 9, title: "Window", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        let model = LensSession(name: "peek", settings: LensConfig(), items: [item], search: "")
+        trace.session(model)
+        XCTAssertTrue(store.text(last: 1).contains("peek=none"))
+        model.perform(.command("space")); model.peekCaptureMs = 12.5
+        XCTAssertTrue(store.text(last: 1).contains("peek=9 peek-capture=12.500ms"))
+        let decoded = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8))
+        XCTAssertEqual(decoded[0].session?.peek, 9)
+        XCTAssertEqual(decoded[0].session?.peekCaptureMs, 12.5)
+        model.endPeekOnDismiss(); trace.session(model, active: false)
+        XCTAssertNil(trace.snapshot.session?.peek)
+        XCTAssertEqual(trace.snapshot.session?.peekCaptureMs, 12.5)
+    }
+
     func testHintsReadbackInTextAndJSONTracksLiveStateAndDismissal() throws {
         let store = LensTraceStore(stamp: { 0 })
         let trace = store.begin(presentation: "list", origin: .init(start: 0, received: 0, source: "test"))

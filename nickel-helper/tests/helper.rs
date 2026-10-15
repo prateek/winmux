@@ -1347,3 +1347,42 @@ fn hints_contract_defaults_choices_profiles_and_miniatures() {
         assert!(evaluate_to_json(&source, &library()).is_err(), "accepted {body}");
     }
 }
+
+#[test]
+fn peek_defaults_choices_profiles_and_freed_keys() {
+    let defaults = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in (import "winmux/defaults.ncl") | W.Config"#, &library()).unwrap();
+    for lens in ["recent", "app-windows", "search", "overview", "floating"] {
+        assert_eq!(defaults["lenses"][lens]["peek"], "zoom");
+        assert_eq!(defaults["lenses"][lens]["keys"]["space"], "peek");
+        assert_eq!(defaults["lenses"][lens]["keys"]["cmd-y"], "peek");
+    }
+    let removed = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in ((import "winmux/defaults.ncl") & { lenses.recent.keys = { space = [], cmd-y = [], cmd-p = "peek" } }) | W.Config"#, &library()).unwrap();
+    assert_eq!(removed["lenses"]["recent"]["keys"]["space"], serde_json::json!([]));
+    assert_eq!(removed["lenses"]["recent"]["keys"]["cmd-y"], serde_json::json!([]));
+    assert_eq!(removed["lenses"]["recent"]["keys"]["cmd-p"], "peek");
+    for mode in ["'zoom", "'follow", "\"zoom\"", "\"follow\""] {
+        let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo = {{ peek = {mode}, when.default.peek = {mode}, keys = {{ space = [], cmd-y = [], cmd-p = "peek" }} }} }} | W.Config"#);
+        let value = evaluate_to_json(&source, &library()).unwrap();
+        assert_eq!(value["lenses"]["demo"]["keys"]["space"], serde_json::json!([]));
+        assert_eq!(value["lenses"]["demo"]["keys"]["cmd-p"], "peek");
+    }
+    for body in ["peek = 'other", "when.default.peek = 'other"] {
+        let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo = {{ {body} }} }} | W.Config"#);
+        assert!(evaluate_to_json(&source, &library()).is_err());
+    }
+}
+
+#[test]
+fn peek_must_run_alone_in_base_and_every_profile() {
+    for body in [
+        r#"keys.space = ["peek", "close"]"#,
+        r#"keys.cmd-p = ["focus", "peek"]"#,
+        r#"when.travel.keys.cmd-p = ["peek", "focus"]"#,
+    ] {
+        let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo = {{ {body} }} }} | W.Config"#);
+        let error = evaluate_to_json(&source, &library()).unwrap_err();
+        assert!(error.contains("peek runs alone"), "{error}");
+    }
+    let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo.keys.cmd-p = ["peek"] } | W.Config"#;
+    assert!(evaluate_to_json(source, &library()).is_ok());
+}

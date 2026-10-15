@@ -85,6 +85,7 @@ extension LensSession {
     }
 
     func hoverTile(at point: CGPoint?, pointerLocation: CGPoint) {
+        guard !zoomPeeking else { return }
         let armed = pointerMoved(to: pointerLocation)
         let hit = point.flatMap { tileHitTest(at: $0) }
         // Assigning a published value redraws the panel even when it is unchanged.

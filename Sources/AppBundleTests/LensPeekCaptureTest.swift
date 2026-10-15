@@ -1,0 +1,147 @@
+@testable import AppBundle
+import AppKit
+import XCTest
+import SwiftUI
+
+private actor PeekCaptureReplies {
+    private var replies: [UInt32: CheckedContinuation<CGImage, Error>] = [:]
+    private(set) var sizes: [UInt32: CGSize] = [:]
+    func capture(_ id: UInt32, size: CGSize) async throws -> CGImage {
+        sizes[id] = size
+        return try await withCheckedThrowingContinuation { replies[id] = $0 }
+    }
+    func ready(_ id: UInt32) -> Bool { replies[id] != nil }
+    func finish(_ id: UInt32, image: CGImage) { replies.removeValue(forKey: id)?.resume(returning: image) }
+}
+
+@MainActor
+final class LensPeekCaptureTest: XCTestCase {
+    private func image() throws -> CGImage {
+        try XCTUnwrap(CGContext(data: nil, width: 8, height: 4, bitsPerComponent: 8, bytesPerRow: 32,
+                               space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage())
+    }
+
+    func testOneSlotFrozenNoCaptureLateReplyDiscardedAndTiming() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        let first = try image(), second = try image()
+        var times: [Double] = []; slot.completed = { times.append($0) }
+        slot.select(1, pixelSize: CGSize(width: 1920, height: 1080))
+        while !(await replies.ready(1)) { await Task.yield() }
+        let firstCapture = slot.task
+        slot.select(2, frozen: true, pixelSize: CGSize(width: 1280, height: 720))
+        XCTAssertNil(slot.image)
+        let frozenRequested = await replies.ready(2)
+        XCTAssertFalse(frozenRequested)
+        await replies.finish(1, image: first)
+        await firstCapture?.value
+        XCTAssertNil(slot.image)
+        XCTAssertTrue(times.isEmpty)
+        slot.select(3, pixelSize: CGSize(width: 1280, height: 720))
+        while !(await replies.ready(3)) { await Task.yield() }
+        let currentCapture = slot.task
+        await replies.finish(3, image: second)
+        await currentCapture?.value
+        XCTAssertTrue(slot.image === second)
+        XCTAssertEqual(times.count, 1)
+        XCTAssertGreaterThanOrEqual(times[0], 0)
+        let sizes = await replies.sizes
+        XCTAssertEqual(sizes[1], CGSize(width: 1920, height: 1080))
+        XCTAssertEqual(sizes[3], CGSize(width: 1280, height: 720))
+        slot.select(nil)
+        XCTAssertNil(slot.image)
+        XCTAssertNil(slot.windowId)
+    }
+
+    func testLateReplyAfterLensCloseCannotRepopulateSlot() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        slot.select(4, pixelSize: CGSize(width: 400, height: 300))
+        while !(await replies.ready(4)) { await Task.yield() }
+        let pending = slot.task
+        slot.select(nil)
+        await replies.finish(4, image: try image())
+        await pending?.value
+        XCTAssertNil(slot.image)
+    }
+
+    func testOriginConvertsTopLeftAndAnotherScreenFades() {
+        let tile = CGRect(x: 20, y: 30, width: 100, height: 60)
+        let lens = CGRect(x: 300, y: 200, width: 500, height: 300)
+        let screen = CGRect(x: 0, y: 0, width: 1280, height: 720)
+        XCTAssertEqual(peekTileOnScreen(tile, lensFrame: lens, screen: screen), CGRect(x: 320, y: 250, width: 100, height: 60))
+        XCTAssertNil(peekTileOnScreen(tile, lensFrame: lens.offsetBy(dx: 1280, dy: 0), screen: screen))
+        XCTAssertNil(peekTileOnScreen(nil, lensFrame: lens, screen: screen))
+    }
+
+    func testOpeningGrowsFromTileAndFadesWithoutOriginOrWithReduceMotion() {
+        let tile = CGRect(x: 30, y: 40, width: 100, height: 60)
+        let destination = CGRect(x: 100, y: 100, width: 1000, height: 600)
+        let grow = PeekOpening(tile: tile, destination: destination, follow: false, reduceMotion: false)
+        XCTAssertEqual(grow.rect, tile); XCTAssertEqual(grow.opacity, 1)
+        let missing = PeekOpening(tile: nil, destination: destination, follow: false, reduceMotion: false)
+        XCTAssertEqual(missing.rect, destination); XCTAssertEqual(missing.opacity, 0)
+        let reduced = PeekOpening(tile: tile, destination: destination, follow: false, reduceMotion: true)
+        XCTAssertEqual(reduced.rect, destination); XCTAssertEqual(reduced.opacity, 0)
+        let follow = PeekOpening(tile: nil, destination: destination, follow: true, reduceMotion: false)
+        XCTAssertEqual(follow.rect, destination); XCTAssertEqual(follow.opacity, 1, "Follow is present from its first frame")
+    }
+
+    func testLabelNamesAutomaticAndNamedWorkspacesOnce() {
+        XCTAssertEqual(peekLabel(title: "Note", app: "Notes", workspace: "Workspace 1"), "Note · Notes · Workspace 1")
+        XCTAssertEqual(peekLabel(title: "File", app: "Zed", workspace: "Design"), "File · Zed · Workspace Design")
+    }
+
+    private func solid(_ color: CGColor) throws -> CGImage {
+        let context = try XCTUnwrap(CGContext(data: nil, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 64,
+                                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(color); context.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
+        return try XCTUnwrap(context.makeImage())
+    }
+
+    private func render(_ drawing: LensPeekDrawing) throws -> NSBitmapImageRep {
+        let slot = LensPeekCapture()
+        let view = LensPeekView(drawing: drawing, capture: slot).frame(width: 240, height: 140)
+        let renderer = ImageRenderer(content: view); renderer.scale = 1
+        return NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+    }
+
+    func testMissingThumbnailDrawsAppIconOnOpaquePlainPlate() throws {
+        let icon = NSImage(cgImage: try solid(CGColor(red: 1, green: 0, blue: 0, alpha: 1)), size: CGSize(width: 16, height: 16))
+        for thumbnail: WindowThumbnail? in [nil, WindowThumbnail()] {
+            let drawing = LensPeekDrawing()
+            drawing.rect = CGRect(x: 20, y: 20, width: 200, height: 100)
+            drawing.opacity = 1; drawing.follow = true; drawing.frozen = true
+            drawing.thumbnail = thumbnail; drawing.icon = icon
+            let bitmap = try render(drawing)
+            let center = try XCTUnwrap(bitmap.colorAt(x: 120, y: 70)).usingColorSpace(.deviceRGB)!
+            XCTAssertGreaterThan(center.redComponent, 0.8)
+            XCTAssertGreaterThan(center.redComponent - center.greenComponent, 0.5)
+            XCTAssertGreaterThan(center.redComponent - center.blueComponent, 0.5)
+            let plate = try XCTUnwrap(bitmap.colorAt(x: 40, y: 70)).usingColorSpace(.deviceRGB)!
+            XCTAssertEqual(plate.alphaComponent, 1, accuracy: 0.01)
+            XCTAssertLessThan(plate.redComponent, 0.25)
+            XCTAssertEqual(plate.redComponent, plate.greenComponent, accuracy: 0.01)
+        }
+    }
+
+    func testFrozenPeekUsesItsConfiguredAppearanceOverThePlate() throws {
+        let thumbnail = WindowThumbnail(); thumbnail.accept(try solid(CGColor(gray: 1, alpha: 1)))
+        let drawing = LensPeekDrawing()
+        drawing.rect = CGRect(x: 20, y: 20, width: 200, height: 100)
+        drawing.opacity = 1; drawing.follow = true; drawing.frozen = true; drawing.thumbnail = thumbnail
+        drawing.look = "plain"
+        let plain = try XCTUnwrap(render(drawing).colorAt(x: 120, y: 70)).usingColorSpace(.deviceRGB)!
+        drawing.look = "dimmed"
+        let dimmed = try XCTUnwrap(render(drawing).colorAt(x: 120, y: 70)).usingColorSpace(.deviceRGB)!
+        XCTAssertEqual(plain.alphaComponent, 1, accuracy: 0.01)
+        XCTAssertEqual(dimmed.alphaComponent, 1, accuracy: 0.01)
+        XCTAssertLessThan(dimmed.redComponent, plain.redComponent - 0.2)
+    }
+
+    func testPictureFitsItsOwnAspectInRealFrame() {
+        let frame = CGRect(x: 100, y: 200, width: 800, height: 600)
+        XCTAssertEqual(peekFittedRect(aspect: 2, in: frame), CGRect(x: 100, y: 300, width: 800, height: 400))
+        XCTAssertEqual(peekFittedRect(aspect: 0.5, in: frame), CGRect(x: 350, y: 200, width: 300, height: 600))
+    }
+}
