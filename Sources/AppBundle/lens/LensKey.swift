@@ -115,7 +115,7 @@ extension LensSession {
     func meaning(for event: NSEvent, source: LensKeySource = .panel) -> LensKeyMeaning {
         let characters = lensCharacters(event, hold: hold)
         return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
-                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty, peekKeys: peekKeys, peeking: zoomPeeking)
+                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty && !searchComposing, peekKeys: peekKeys, peeking: zoomPeeking)
     }
 
     @discardableResult
@@ -168,4 +168,8 @@ extension LensConfig {
     var startingInputState: LensInputState {
         startsIn == "search" || (startsIn == nil && presentation == "list") ? .search : .normal
     }
+    /// The keys bound to `peek`, which runs alone.
+    var peekKeys: Set<String> { Set(keys.filter { $0.value == ["peek"] }.keys) }
+    /// Miniatures has no room under its canvas, so it keeps the zoom.
+    func followsPeek(presentation: String) -> Bool { peek == "follow" && presentation != "miniatures" }
 }

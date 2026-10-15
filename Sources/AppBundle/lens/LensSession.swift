@@ -22,9 +22,11 @@ final class LensSession: ObservableObject {
     private var peekDismissed = false
     var peekCaptureMs: Double?
     var listRowRects: [UInt32: CGRect] = [:]
-    var followsPeek: Bool { settings.peek == "follow" && settings.presentation != "miniatures" }
+    /// Set by the panel while its field editor holds uncommitted IME text, which Space converts.
+    var searchComposing = false
+    var followsPeek: Bool { settings.followsPeek(presentation: settings.presentation) }
     var zoomPeeking: Bool { !followsPeek && peekedId != nil }
-    var peekKeys: Set<String> { Set(settings.keys.filter { $0.value == ["peek"] }.keys) }
+    var peekKeys: Set<String> { settings.peekKeys }
 
     @Published private(set) var hintsShown = false
     private var ignoredTriggerModifiers: NSEvent.ModifierFlags = []
@@ -71,6 +73,8 @@ final class LensSession: ObservableObject {
         switch event {
             case .peekToggled:
                 if !followsPeek { peekZoom.toggle() }
+                // A Tile hovered before the zoom is under the picture now.
+                if peekZoom { hoveredTileId = nil }
             case .inputStateChanged(let state):
                 inputState = state
                 let held = shouldShowHints(currentModifiers)
@@ -101,6 +105,7 @@ final class LensSession: ObservableObject {
                 if held != hintsShown { hintsShown = held }
             case .presentationChanged(let presentation):
                 hoveredTileId = nil
+                peekZoom = false
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
@@ -335,6 +340,19 @@ final class LensSession: ObservableObject {
         let target = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first : nil
         if target == nil { peekZoom = false }
         if target != peekedId { peekedId = target }
+    }
+
+    /// A click while zoomed would land on whatever Tile lies under the picture, so it only ends the zoom.
+    func endZoomForClick() -> Bool {
+        guard zoomPeeking else { return false }
+        send(.peekToggled)
+        return true
+    }
+
+    /// Miniatures keeps a closed window's cell for the session, so a zoom on it ends instead of moving on.
+    func peekedWindowClosed(_ id: UInt32) {
+        guard peekedId == id, zoomPeeking else { return }
+        send(.peekToggled)
     }
 
     @discardableResult

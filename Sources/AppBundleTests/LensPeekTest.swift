@@ -257,7 +257,7 @@ final class LensPeekTest: XCTestCase {
         XCTAssertNil(session.peekTileRect())
     }
 
-    func testWindowCloseReconcilesPeekInMiniaturesAndLastSelectionFades() async throws {
+    func testWindowCloseInMiniaturesEndsPeekAndKeepsCells() async throws {
         let current = Workspace.get(byName: "1"), other = Workspace.get(byName: "2")
         _ = TestWindow.new(id: 10, parent: current.rootTilingContainer).focusWindow()
         _ = TestWindow.new(id: 1, parent: other.rootTilingContainer)
@@ -270,13 +270,12 @@ final class LensPeekTest: XCTestCase {
         let session = try XCTUnwrap(panel.session)
         session.perform(.command("space"))
         let first = try XCTUnwrap(session.peekedId)
+        let count = session.results.count
         panel.stripWindowClosed(first)
-        let next = try XCTUnwrap(session.peekedId)
-        XCTAssertNotEqual(next, first)
-        panel.stripWindowClosed(next)
-        XCTAssertNil(session.selectedId)
-        XCTAssertNil(session.peekedId)
-        XCTAssertTrue(panel.session === session, "Losing the last selection ends peek, not the Lens")
+        XCTAssertNil(session.peekedId, "Closing the peeked window ends the zoom")
+        XCTAssertEqual(session.selectedId, first, "Miniatures keeps a closed window's cell and selection")
+        XCTAssertEqual(session.results.count, count)
+        XCTAssertTrue(panel.session === session, "Losing the peeked window ends peek, not the Lens")
     }
 
     func testFollowPictureCannotAppearBeforeItsLensIsVisible() {
@@ -316,6 +315,67 @@ final class LensPeekTest: XCTestCase {
         let picture = try XCTUnwrap(order.firstIndex(of: pictureWindow.windowNumber))
         XCTAssertLessThan(lens, legend)
         XCTAssertLessThan(legend, picture, "The follow picture belongs below all Lens content, including the separate legend")
+    }
+
+    func testClickDuringZoomOnlyEndsTheZoom() {
+        var settings = LensConfig(); settings.presentation = "grid"
+        let session = model(settings)
+        var actions: [String] = []; session.onAction = { actions.append($0) }
+        let selected = session.selectedId
+        let other = session.gridLayout.tiles[2].frame
+        session.perform(.command("space"))
+        session.clickTile(at: CGPoint(x: other.midX, y: other.midY), event: key(36, "\r"))
+        XCTAssertNil(session.peekedId)
+        XCTAssertEqual(session.selectedId, selected, "The Tile under the picture is not selected")
+        XCTAssertTrue(actions.isEmpty, "The Tile under the picture is not focused")
+        XCTAssertFalse(session.endZoomForClick(), "Without a zoom, a click acts as before")
+    }
+
+    func testSpaceConvertsImeTextInsteadOfPeeking() {
+        let session = model()
+        session.searchComposing = true
+        XCTAssertEqual(session.meaning(for: key(49, " ")), .text(" "))
+        session.searchComposing = false
+        XCTAssertEqual(session.meaning(for: key(49, " ")), .command("space"))
+    }
+
+    func testOpeningCountsSpaceInAnEmptySearchAsPeekAndTextAfterTyping() {
+        let settings = LensConfig()
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        do {
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            let ticket = owner.begin("peek", toggle: false, keys: LensSession.openingBindings(settings), invocation: gesture, settings: settings)!
+            XCTAssertEqual(owner.openingStripKey(keyCode: 44, flags: .command, characters: "/", source: .panel), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 49, flags: [], characters: " ", source: .panel), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 53, flags: [], source: .panel), .consumed)
+            let session = model(settings)
+            owner.complete(session, ticket: ticket)
+            XCTAssertNil(session.peekedId)
+            XCTAssertEqual(session.inputState, .search, "The Escape ended the peek, as the replay does, and stayed in Search")
+        }
+        do {
+            let owner = testLensLifecycle(); defer { owner.dismiss() }
+            let ticket = owner.begin("peek", toggle: false, keys: LensSession.openingBindings(settings), invocation: gesture, settings: settings)!
+            XCTAssertEqual(owner.openingStripKey(keyCode: 44, flags: .command, characters: "/", source: .panel), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 0, flags: [], characters: "a", source: .panel), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 49, flags: [], characters: " ", source: .panel), .consumed)
+            XCTAssertEqual(owner.openingStripKey(keyCode: 53, flags: [], source: .panel), .consumed)
+            let session = model(settings)
+            owner.complete(session, ticket: ticket)
+            XCTAssertNil(session.peekedId)
+            XCTAssertEqual(session.inputState, .normal, "After typing, Space is text and the Escape leaves Search")
+        }
+    }
+
+    func testPresentationChangeEndsAZoom() {
+        var settings = LensConfig(); settings.peek = "follow"; settings.presentation = "miniatures"
+        let session = model(settings)
+        session.perform(.command("space"))
+        XCTAssertTrue(session.zoomPeeking)
+        session.changePresentation("list")
+        XCTAssertFalse(session.zoomPeeking)
+        session.changePresentation("miniatures")
+        XCTAssertNil(session.peekedId, "A zoom does not come back by itself")
     }
 
     func testConfigAcceptsPeekAloneAndNamesMixedListError() throws {

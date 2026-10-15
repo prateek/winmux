@@ -226,6 +226,8 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func stripWindowClosed(_ id: UInt32) {
         guard let session else { return }
+        // Miniatures draws each window where it sits and keeps its cells for the session.
+        guard session.settings.presentation != "miniatures" else { return session.peekedWindowClosed(id) }
         session.removeStripItems([id])
     }
 
@@ -396,6 +398,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let held = model.hold != nil
         let state = model.inputState
         let editor = firstResponder is NSTextView
+        model.searchComposing = (firstResponder as? NSTextView)?.hasMarkedText() == true
         let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel)
         let handled: Bool
         let destination: String
@@ -562,6 +565,7 @@ struct SwitcherPaletteView: View {
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }
                                 .onTapGesture {
+                                    if model.endZoomForClick() { return }
                                     model.hover(item.id)
                                     if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                                 }

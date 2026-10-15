@@ -14,23 +14,37 @@ final class LensPeekCapture: ObservableObject {
 
     init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) }) { self.capture = capture }
 
+    /// The capture asked for while another is still running. ScreenCaptureKit cannot cancel a
+    /// screenshot, so at most one runs and only the latest request waits for it.
+    private var waiting: (id: UInt32, pixelSize: CGSize)?
+
     func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero) {
         guard id != windowId else { return }
         generation += 1
-        task?.cancel(); task = nil
         image = nil
         windowId = id
+        waiting = nil
         guard let id, !frozen else { return }
+        if task != nil { waiting = (id, pixelSize) }
+        else { start(id, pixelSize: pixelSize) }
+    }
+
+    private func start(_ id: UInt32, pixelSize: CGSize) {
         let ticket = generation
         let capture = capture
         let started = LensTimebase.now()
         task = Task { @MainActor [weak self] in
             let image = try? await capture(id, pixelSize)
-            guard let self, self.generation == ticket, self.windowId == id, !Task.isCancelled else { return }
-            let ms = (LensTimebase.now() - started) * 1000
-            self.image = image
+            guard let self else { return }
             self.task = nil
-            self.completed(ms)
+            if self.generation == ticket, self.windowId == id {
+                self.image = image
+                // A failed capture has no time to report.
+                if image != nil { self.completed((LensTimebase.now() - started) * 1000) }
+            } else if let next = self.waiting {
+                self.waiting = nil
+                self.start(next.id, pixelSize: next.pixelSize)
+            }
         }
     }
 }
@@ -38,6 +52,12 @@ final class LensPeekCapture: ObservableObject {
 func peekLabel(title: String, app: String, workspace: String) -> String {
     let place = workspace.hasPrefix("Workspace ") ? workspace : "Workspace \(workspace)"
     return "\(title) · \(app) · \(place)"
+}
+
+/// The label's bottom sits 44 points below the picture, as in the prototype, but never closer than
+/// 12 points to the bottom of the screen: a full-height window would otherwise push it off screen.
+func peekLabelOffset(pictureBottom: CGFloat, screenHeight: CGFloat) -> CGFloat {
+    min(44, screenHeight - 12 - pictureBottom)
 }
 
 func peekFittedRect(aspect: CGFloat, in frame: CGRect) -> CGRect {
@@ -132,7 +152,7 @@ final class LensPeekController {
     }
 
     func update(_ model: LensSession, relativeTo lens: NSWindow) {
-        guard lens.isVisible else { return }
+        guard lens.isVisible, model.peekedId != nil || showing != nil else { return }
         self.model = model
         self.lens = lens
         guard let item = model.peekItem, let window = item.miniature?.window ?? Window.get(byId: item.id) else {
@@ -240,7 +260,7 @@ struct LensPeekView: View {
     @ObservedObject var drawing: LensPeekDrawing
     @ObservedObject var capture: LensPeekCapture
     var body: some View {
-        GeometryReader { _ in
+        GeometryReader { proxy in
             let rect = drawing.rect
             PeekPicture(thumbnail: drawing.thumbnail, fullImage: capture.image, icon: drawing.icon, frozen: drawing.frozen, look: drawing.look)
                 .frame(width: max(1, rect.width), height: max(1, rect.height))
@@ -253,7 +273,7 @@ struct LensPeekView: View {
                         Text(drawing.label).font(.system(size: 16)).foregroundStyle(.white).lineLimit(1)
                             .padding(.vertical, 6).padding(.horizontal, 14)
                             .background(Color(red: 20.0 / 255, green: 22.0 / 255, blue: 28.0 / 255).opacity(0.86), in: RoundedRectangle(cornerRadius: 9))
-                            .fixedSize().offset(y: 44)
+                            .fixedSize().offset(y: peekLabelOffset(pictureBottom: rect.maxY, screenHeight: proxy.size.height))
                     }
                 }
                 .position(x: rect.midX, y: rect.midY)

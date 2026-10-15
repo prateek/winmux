@@ -32,6 +32,7 @@ struct MiniaturesView: View {
                             }
                             .opacity(matchedIds.contains(item.id) ? 1 : 0.18)
                             .onTapGesture {
+                                if model.endZoomForClick() { return }
                                 model.hover(item.id)
                                 if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                             }

@@ -11,7 +11,9 @@ private actor PeekCaptureReplies {
         return try await withCheckedThrowingContinuation { replies[id] = $0 }
     }
     func ready(_ id: UInt32) -> Bool { replies[id] != nil }
+    func requested(_ id: UInt32) -> Bool { sizes[id] != nil }
     func finish(_ id: UInt32, image: CGImage) { replies.removeValue(forKey: id)?.resume(returning: image) }
+    func fail(_ id: UInt32) { replies.removeValue(forKey: id)?.resume(throwing: CancellationError()) }
 }
 
 @MainActor
@@ -63,6 +65,47 @@ final class LensPeekCaptureTest: XCTestCase {
         await replies.finish(4, image: try image())
         await pending?.value
         XCTAssertNil(slot.image)
+    }
+
+    func testOneCaptureRunsAtATimeAndOnlyTheLatestWaits() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        let picture = try image()
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+        slot.select(2, pixelSize: CGSize(width: 200, height: 200))
+        slot.select(3, pixelSize: CGSize(width: 300, height: 300))
+        for _ in 0 ..< 20 { await Task.yield() }
+        var started = (await replies.requested(2), await replies.requested(3))
+        XCTAssertFalse(started.0 || started.1, "A capture that cannot be cancelled must finish before the next starts")
+        await replies.finish(1, image: try image())
+        while !(await replies.ready(3)) { await Task.yield() }
+        started.0 = await replies.requested(2)
+        XCTAssertFalse(started.0, "A request superseded while waiting never runs")
+        let current = slot.task
+        await replies.finish(3, image: picture)
+        await current?.value
+        XCTAssertTrue(slot.image === picture)
+        let sizes = await replies.sizes
+        XCTAssertEqual(sizes[3], CGSize(width: 300, height: 300))
+    }
+
+    func testFailedCaptureReportsNoTime() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        var times: [Double] = []; slot.completed = { times.append($0) }
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+        let pending = slot.task
+        await replies.fail(1)
+        await pending?.value
+        XCTAssertNil(slot.image)
+        XCTAssertTrue(times.isEmpty)
+    }
+
+    func testLabelStaysOnScreenUnderAFullHeightWindow() {
+        XCTAssertEqual(peekLabelOffset(pictureBottom: 500, screenHeight: 720), 44)
+        XCTAssertEqual(peekLabelOffset(pictureBottom: 714, screenHeight: 720), -6)
     }
 
     func testOriginConvertsTopLeftAndAnotherScreenFades() {
