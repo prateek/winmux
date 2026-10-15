@@ -37,7 +37,7 @@ explicit empty list survives that merge. A replacement such as
 
 To turn a shipped Lens off, set `lenses.recent.enabled = false` (using that Lens's name). Other Lens overrides continue to merge over the defaults. A binding that opens a disabled Lens then fails with exit 2, including the window mode's `r` for `recent` and `a` for `app-windows`, and a Cmd-Tab opt-in: remove or rebind those keys too.
 
-Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports the five default Lenses. If the TOML has a `mode` table, conversion replaces the default modes with the TOML's modes and adds two `main` Triggers, `alt-slash` and `alt-shift-o`, only where the TOML has no binding for those keys. It adds the `window` binding mode together with its `alt-semicolon` Trigger only when the TOML has neither a mode named `window` nor a binding for `alt-semicolon` in `main`; otherwise it adds neither, so a mode you wrote gains no keys and no mode arrives that nothing enters. Modifier order, keyboard presets and key aliases are resolved as in the Swift loader. Omitted upstream bindings stay omitted, and a user's `alt-slash` command wins over the added Search Trigger. A TOML's own Cmd-Tab bindings are preserved as explicit opt-ins. Duplicate user spellings of the same chord fail conversion with a binding redeclaration diagnostic, and so does a `mode` table with no `main` mode. The converted modes are merged at normal priority, so a record merged over the converted file later can still add or change a binding. With no `mode` table, conversion keeps all default modes and bindings. A comment in the converted file describes the retained defaults and how to remove them.
+Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports the six default Lenses. If the TOML has a `mode` table, conversion replaces the default modes with the TOML's modes and adds two `main` Triggers, `alt-slash` and `alt-shift-o`, only where the TOML has no binding for those keys. It adds the `window` binding mode together with its `alt-semicolon` Trigger only when the TOML has neither a mode named `window` nor a binding for `alt-semicolon` in `main`; otherwise it adds neither, so a mode you wrote gains no keys and no mode arrives that nothing enters. Modifier order, keyboard presets and key aliases are resolved as in the Swift loader. Omitted upstream bindings stay omitted, and a user's `alt-slash` command wins over the added Search Trigger. A TOML's own Cmd-Tab bindings are preserved as explicit opt-ins. Duplicate user spellings of the same chord fail conversion with a binding redeclaration diagnostic, and so does a `mode` table with no `main` mode. The converted modes are merged at normal priority, so a record merged over the converted file later can still add or change a binding. With no `mode` table, conversion keeps all default modes and bindings. A comment in the converted file describes the retained defaults and how to remove them.
 
 `config-version` is optional, accepted and ignored for compatibility with earlier Nickel conversions, like `contract-version`. It is absent from shipped defaults and new conversions; both version keys are removed before the Swift settings parser runs. Nickel uses an explicit `persistent-workspaces` list, defaulting to empty. For TOML version 1 or lower, or an absent version, conversion preserves the old inferred persistence when the file sets no list: it writes workspace targets from every mode's `workspace` and `move-node-to-workspace` bindings, followed by force-assignment keys, in first-seen order, and prints a warning. A quoted name is one target. When nothing is inferred it writes no list and prints no warning. Relative `next` and `prev` targets declare no workspace. Version 2 and an explicit list suppress inference.
 
@@ -62,7 +62,7 @@ Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and 
 
 ## The windowing mode
 
-`alt-semicolon` enters the `window` binding mode. It has exactly these 43 keys:
+`alt-semicolon` enters the `window` binding mode. It has exactly these 44 keys:
 
 | Key | Commands |
 | --- | --- |
@@ -75,6 +75,7 @@ Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and 
 | `t` | `layout floating tiling` |
 | `m` | `fullscreen` |
 | `rightSquareBracket`, `leftSquareBracket` | `project next`, `project prev` |
+| `w` | `mode main`, `lens windows` |
 | `o` | `mode main`, `lens overview` |
 | `f` | `mode main`, `lens floating` |
 | `s` | `mode main`, `lens search` |
@@ -83,13 +84,13 @@ Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and 
 | `esc` | `mode main` |
 | `alt-semicolon` | `mode main` |
 
-Only the five Lens letters, Escape and Option-semicolon leave the binding mode. Focus, movement, workspace changes and failed commands keep it on. `0` is unbound. Numeric workspace commands use the same workspace ordinals as `main`.
+Only the six Lens letters, Escape and Option-semicolon leave the binding mode. Focus, movement, workspace changes and failed commands keep it on. `0` is unbound. Numeric workspace commands use the same workspace ordinals as `main`.
 
 While it is on, `main`'s chords are off: Option-slash does not open Search, and Option-Shift-O does not open overview. Plain keys not bound in this binding mode reach the focused app; for example, `x` still types into a text field. WinMux does not swallow unbound keys.
 
 A small HUD at the bottom centre of the focused monitor's visible frame shows the active binding mode's name. It follows monitor focus, takes neither keyboard focus nor mouse clicks, and shows no key hints. It appears for every binding mode other than `main`, including user-defined ones, with no setting to hide it. Disabling WinMux hides it. CLI mode changes and config reloads update it too; the menu bar keeps its existing single-letter indicator.
 
-The five Lens values are ordered command lists: `mode main` runs and hides the HUD before the Lens starts opening. `winmux list-modes --current` reports `main` while the Lens is open, even if opening failed. A standalone `lens` command leaves the active binding mode alone, including a user's sticky binding mode named `lens`.
+The six Lens values are ordered command lists: `mode main` runs and hides the HUD before the Lens starts opening. `winmux list-modes --current` reports `main` while the Lens is open, even if opening failed. A standalone `lens` command leaves the active binding mode alone, including a user's sticky binding mode named `lens`.
 
 To remove a windowing key, merge this record over defaults:
 
@@ -107,7 +108,7 @@ Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sect
 their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
 that binding and keeps its Hold; in a strip it ends the Hold and stays in normal mode. `/` converts the strip to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
 
-The shipped `recent` and `app-windows` Lenses use `tile = 'picture` and `grid.tile-size = 'same-height`; see [Tiles](lenses.md#tiles) for the recipe to get the previous card strips back.
+The shipped `recent` Lens uses `tile = 'picture` and `grid.tile-size = 'same-height`; see [Tiles](lenses.md#tiles) for the cards-back recipe. `windows`, `app-windows` and `floating` use grids with card Tiles at real relative sizes. `app-windows` explicitly commits on release; `windows` and `floating` stay open. A config's existing `windows` Lens receives the grid Presentation at priority -1, so its own values win.
 
 ## Opt in to Cmd-Tab
 
@@ -119,7 +120,7 @@ mode.main.binding.cmd-shift-tab = "lens recent",
 mode.main.binding.cmd-backtick = "lens app-windows",
 ```
 
-Cmd-Tab and Cmd-Shift-Tab then open WinMux's recent-window strip instead of Apple's app switcher; Cmd-backtick opens the same-app strip. WinMux disables the matching enabled system Cmd-Tab pair while the mode listens to those chords. Native Cmd-backtick remains enabled; WinMux handles its registered chord. Removing the bindings, leaving their mode, disabling WinMux or quitting restores the shortcuts WinMux held. Signal exits restore them too. A hard kill cannot restore them: relaunch WinMux, then quit normally to repair and restore the saved system shortcuts. Wake and unlock repair remains in place for configs that opt in.
+Cmd-Tab and Cmd-Shift-Tab then open WinMux's recent-window strip instead of Apple's app switcher; Cmd-backtick opens the same-app grid, which commits on Command release. WinMux disables the matching enabled system Cmd-Tab pair while the mode listens to those chords. Native Cmd-backtick remains enabled; WinMux handles its registered chord. Removing the bindings, leaving their mode, disabling WinMux or quitting restores the shortcuts WinMux held. Signal exits restore them too. A hard kill cannot restore them: relaunch WinMux, then quit normally to repair and restore the saved system shortcuts. Wake and unlock repair remains in place for configs that opt in.
 
 ## For people upgrading
 
@@ -133,9 +134,9 @@ The windowing mode restores access to these removed chords' commands: tab-next/t
 
 An old removal such as `std.record.remove "ctrl-w" defaults.mode.main.binding` now fails with ``error: missing field `ctrl-w` ``: Ctrl-W is no longer a default binding. One-line fix: delete that removal, or replace it with `W.without-bindings ["ctrl-w"] defaults.mode.main.binding`. The helper prints this advice above the original Nickel error. A config that fails evaluation cannot load; on startup WinMux falls back to its built-in defaults.
 
-An earlier `config convert` wrote `mode.main.binding.cmd-tab = "lens recent"`, `mode.main.binding.cmd-shift-tab = "lens recent"` and `mode.main.binding.cmd-backtick = "lens app-windows"` as your own lines. They remain active after upgrading; delete those three lines to give Cmd-Tab back to macOS.
+An earlier `config convert` wrote `mode.main.binding.cmd-tab = "lens recent"`, `mode.main.binding.cmd-shift-tab = "lens recent"` and `mode.main.binding.cmd-backtick = "lens app-windows"` as your own lines. They remain active after upgrading; delete those three lines to give Cmd-Tab back to macOS. Their Cmd-backtick now opens a grid that commits on release; to restore the old picture strip, merge `lenses.app-windows.presentation = 'strip`, `lenses.app-windows.tile = 'picture` and `lenses.app-windows.grid.tile-size = 'same-height` over defaults; it needs no `on-release` line.
 
-The new defaults are `main`'s `alt-shift-o` and the windowing mode's `a`; an existing binding for either under another spelling, such as `shift-alt-o`, can fail with a binding redeclaration error, just as for other default chords.
+The new defaults are `main`'s `alt-shift-o` and the windowing mode's `a` and `w`; an existing binding for either under another spelling, such as `shift-alt-o`, can fail with a binding redeclaration error, just as for other default chords.
 
 Importing defaults now gives the short list above. Previously inherited chords disappear on upgrade; your own bindings remain. To retain any of the removed commands, paste the lines you want inside the record merged over defaults. This is also the migration block for this release.
 

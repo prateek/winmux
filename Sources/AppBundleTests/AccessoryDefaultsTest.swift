@@ -158,7 +158,7 @@ final class AccessoryDefaultsTest: XCTestCase {
         let result = try await XCTUnwrap(parseCommand("list-lenses --json").cmdOrNil).run(.defaultEnv, .emptyStdin)
         let json = try JSONDecoder().decode(JSONValue.self, from: Data(result.stdout.joined().utf8))
         XCTAssertEqual(json["floating"]?["filter"], .string("lenses.floating.filter"))
-        XCTAssertEqual(json["floating"]?["presentation"], .string("list"))
+        XCTAssertEqual(json["floating"]?["presentation"], .string("grid"))
         XCTAssertEqual(json["floating"]?["popups"], .array([]))
         XCTAssertEqual(config.lenses["floating"]?.keys["enter"], ["focus"])
         XCTAssertEqual(config.lenses["floating"]?.keys["shift-enter"], ["summon"])

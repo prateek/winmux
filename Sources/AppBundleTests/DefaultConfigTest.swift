@@ -21,8 +21,8 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertEqual(parsed.config.modes, defaultConfig.modes)
     }
 
-    func testShippedStripsUsePicturesAtOneHeightAndConversionKeepsPictures() throws {
-        for name in ["recent", "app-windows"] {
+    func testShippedRecentStripUsesPicturesAtOneHeightAndConversionKeepsPictures() throws {
+        for name in ["recent"] {
             var settings = try XCTUnwrap(defaultConfig.lenses[name])
             XCTAssertEqual(settings.presentation, "strip")
             XCTAssertEqual(settings.tile, "picture")
@@ -41,10 +41,27 @@ final class DefaultConfigTest: XCTestCase {
             XCTAssertEqual(textList.tileKind, .text)
             XCTAssertEqual(textList.listLayout.rowHeight, 46 * textList.tileMetrics.scale)
         }
-        for name in ["overview", "search", "floating"] {
+        for name in ["overview", "search", "floating", "app-windows", "windows"] {
             let settings = try XCTUnwrap(defaultConfig.lenses[name])
             XCTAssertNil(settings.tile)
             XCTAssertEqual(settings.grid.tileSize, "real")
+        }
+    }
+
+    func testShippedGridsResolveContractDefaultsAndReleasePolicy() throws {
+        for name in ["windows", "app-windows", "floating"] {
+            let settings = try XCTUnwrap(defaultConfig.lenses[name])
+            XCTAssertEqual(settings.presentation, "grid", name)
+            XCTAssertEqual(settings.sort, ["mru"], name)
+            XCTAssertEqual(settings.sections, "workspace", name)
+            XCTAssertEqual(settings.grid.sectionsArrangement, "flow", name)
+            XCTAssertEqual(settings.grid.tileSize, "real", name)
+            let session = LensSession(name: name, settings: settings, items: [], search: "")
+            XCTAssertEqual(session.tileKind, .card, name)
+            XCTAssertEqual(settings.resolvedOnRelease, name == "app-windows" ? "commit" : "stay", name)
+            XCTAssertEqual(settings.commitsOnRelease(for: StripGesture(keyCode: 50, invoking: .command)), name == "app-windows", name)
+            XCTAssertFalse(settings.commitsOnRelease(for: nil), name)
+            XCTAssertFalse(settings.commitsOnRelease(for: StripGesture(keyCode: 50, invoking: [])), name)
         }
     }
 
@@ -59,9 +76,9 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertEqual(Set(defaultConfig.modes["main"]!.bindings.keys), expected)
     }
 
-    func testFiveLensesTriggersAndLeaderEscape() async throws {
+    func testSixLensesTriggersAndLeaderEscape() async throws {
         let defaults = defaultConfig
-        XCTAssertEqual(Set(defaults.lenses.keys), ["recent", "app-windows", "overview", "floating", "search"])
+        XCTAssertEqual(Set(defaults.lenses.keys), ["recent", "app-windows", "overview", "floating", "search", "windows"])
         XCTAssertEqual(Set(defaults.modes.keys), ["main", "window"])
         XCTAssertNil(defaults.columns.resolved(workspace: "Demo"))
         let expected = ["alt-shift-o": "lens overview", "alt-slash": "lens search", "alt-semicolon": "mode window"]
@@ -72,11 +89,11 @@ final class DefaultConfigTest: XCTestCase {
         let leader = try XCTUnwrap(defaults.modes["window"])
         let windowKeys: Set<String> = Set(["h", "j", "k", "l", "shift-h", "shift-j", "shift-k", "shift-l",
             "ctrl-h", "ctrl-j", "ctrl-k", "ctrl-l", "n", "p", "t", "m", "rightSquareBracket", "leftSquareBracket",
-            "o", "f", "s", "r", "a", "esc", "alt-semicolon"] + (1...9).map { "\($0)" } + (1...9).map { "shift-\($0)" })
+            "o", "f", "s", "r", "a", "w", "esc", "alt-semicolon"] + (1...9).map { "\($0)" } + (1...9).map { "shift-\($0)" })
         XCTAssertEqual(Set(leader.bindings.keys), windowKeys)
         // Mode activation in these tests registers no desktop bindings.
         config.modes = ["main": .zero, "window": .zero]
-        for (key, name) in ["o": "overview", "f": "floating", "s": "search", "r": "recent", "a": "app-windows"] {
+        for (key, name) in ["w": "windows", "o": "overview", "f": "floating", "s": "search", "r": "recent", "a": "app-windows"] {
             let commands = try XCTUnwrap(leader.bindings[key]?.commands)
             XCTAssertEqual(commands.count, 2)
             XCTAssertTrue(commands[1].equals(parseCommand("lens \(name)" + (["r", "a"].contains(key) ? " --presentation list --tile text" : "")).cmdOrDie))
@@ -168,6 +185,13 @@ final class DefaultConfigTest: XCTestCase {
 
     func testListsPrintValidJSONAndRuntimeFailuresExitOne() async throws {
         config.lenses = defaultConfig.lenses
+        let names: Set<String> = ["app-windows", "floating", "overview", "recent", "search", "windows"]
+        let plain = try await parseCommand("list-lenses").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(plain.exitCode, 0)
+        XCTAssertEqual(Set(plain.stdout.map { String($0.prefix { $0 != " " }) }), names)
+        let json = try await parseCommand("list-lenses --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let lenses = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.stdout.joined().utf8)) as? [String: Any])
+        XCTAssertEqual(Set(lenses.keys), names)
         for raw in ["list-lenses --json", "list-columns --json"] {
             let result = try await parseCommand(raw).cmdOrDie.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(result.exitCode, 0)
