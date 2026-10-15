@@ -9,6 +9,18 @@
 
 https://github.com/user-attachments/assets/51983568-a168-494f-8ae3-5f50ca1efce1
 
+## What this fork adds
+
+This personal fork adds [Lenses](docs/lenses.md) and [fixed Columns](docs/columns.md).
+
+With [Cmd-Tab opted in](docs/default-config.md#opt-in-to-cmd-tab), hold Cmd and tap Tab through every workspace; release to focus the selected window.
+
+![The strip steps from Ghostty through Safari to Notes, then focuses Notes on workspace 2 with the first grievance struck out](docs/demos/strip-hero.gif)
+
+A new window lands in the nearest empty Column; the others keep their places.
+
+![Cmd-N opens a terminal in empty Column 2 between Ghostty in Column 1 and Zed in Column 3](docs/demos/columns-land.gif)
+
 ## Highlights
 ### Projects
 Projects are collection of workspaces. Think of it like a parent/child hiearchy, you can switch between projects. Each project has it's own set of workspaces.

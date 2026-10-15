@@ -14,7 +14,7 @@ let keyCodes: [String: CGKeyCode] = [
     "semicolon": 41, "slash": 44,
     "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26, "8": 28, "9": 25, "0": 29, "leftbracket": 33, "rightbracket": 30,
 ]
-let keyLabels = ["backspace": "⌫","tab": "Tab", "escape": "Esc", "return": "↩", "space": "Space", "backtick": "`", "left": "←", "right": "→", "down": "↓", "up": "↑", "semicolon": ";", "slash": "/", "leftbracket": "[", "rightbracket": "]"]
+let keyLabels = ["backspace": "⌫","tab": "Tab", "escape": "Esc", "return": "Return", "space": "Space", "backtick": "`", "left": "←", "right": "→", "down": "↓", "up": "↑", "semicolon": ";", "slash": "/", "leftbracket": "[", "rightbracket": "]"]
 let modifiers: [(name: String, code: CGKeyCode, flag: CGEventFlags, label: String)] = [
     ("ctrl", 59, .maskControl, "⌃"), ("alt", 58, .maskAlternate, "⌥"), ("shift", 56, .maskShift, "⇧"), ("cmd", 55, .maskCommand, "⌘"),
 ]

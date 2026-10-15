@@ -1,0 +1,35 @@
+#!/bin/zsh
+set -eu
+export PATH=/opt/homebrew/bin:$PATH
+take=$1; seconds=$2; shift 2
+here=${0:A:h}
+[[ ~/desk/keys -nt ~/desk/keys.swift ]] || swiftc -O ~/desk/keys.swift -o ~/desk/keys
+[[ $here/snapshot-recorder -nt $here/snapshot-recorder.swift ]] || swiftc -O "$here/snapshot-recorder.swift" -o "$here/snapshot-recorder"
+mkdir -p ~/takes
+W=$HOME/winmux/.build/debug/winmux
+{
+  $W list-workspaces --focused
+  $W list-windows --focused
+  $W list-windows --all
+  $W list-columns --json
+  $W debug-lens-trace --last 1
+} > ~/takes/$take.setup.txt
+if grep -q 'active=true' ~/takes/$take.setup.txt; then
+  print -u2 'Close the Lens before filming.'
+  exit 1
+fi
+cliclick ku:fn m:1240,714
+out=$HOME/takes/$take.raw.mov
+rm -f "$out" "$out.clock.json"
+"$here/snapshot-recorder" "$out" "$seconds" &
+recorder=$!
+trap 'kill $recorder 2>/dev/null || true' EXIT
+for i in {1..200}; do [[ ! -f "$out.clock.json" ]] || break; sleep .05; done
+[[ -f "$out.clock.json" ]]
+t0=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["epoch"])' "$out.clock.json")
+sleep 1.5
+~/desk/keys "$t0" ~/takes/$take.events.json "$@"
+wait $recorder
+trap - EXIT
+ffmpeg -y -v error -i "$out" -vf fps=15 -c:v libx264 -preset fast -crf 18 ~/takes/$take.mov
+"$here/readback.sh" "$take"

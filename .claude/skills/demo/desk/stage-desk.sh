@@ -17,10 +17,11 @@ killall NotificationCenter 2>/dev/null
 (open -a Zed ~/.config/winmux/winmux.ncl &); sleep 6
 (open -a Ghostty &); sleep 4
 # Safari shows the real docs page, rendered here so there is no site chrome around it.
+# The page leaves out the docs' demo GIFs, which ~/desk/docs does not serve.
 if [ ! -f ~/desk/docs/lenses.html ]; then
   mkdir -p ~/desk/docs
   { echo '<!doctype html><meta charset=utf-8><title>Lenses and Search</title><style>body{font:17px/1.6 -apple-system,sans-serif;max-width:46em;margin:40px auto;padding:0 28px;color:#1d1d1f}code{background:#f0f0f3;border-radius:4px;padding:1px 5px;font-size:.9em}pre{background:#f0f0f3;padding:14px;border-radius:8px;overflow:auto}pre code{padding:0}h1{font-size:34px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:5px 10px}</style>'
-    uv run --quiet --with markdown python -m markdown -x tables -x fenced_code ~/winmux/docs/lenses.md; } > ~/desk/docs/lenses.html
+    uv run --quiet --with markdown python -m markdown -x tables -x fenced_code <(grep -v '^!\[' ~/winmux/docs/lenses.md); } > ~/desk/docs/lenses.html
 fi
 # Safari shows whatever answers, so the page has to be there before it asks.
 pkill -f 'http.server 8765' 2>/dev/null; sleep 0.5
