@@ -9,33 +9,30 @@ final class LensPeekCapture: ObservableObject {
     private(set) var windowId: UInt32?
     private var frozen = false
     private var pixelSize = CGSize.zero
-    /// Bumped whenever a window turns Frozen, so a capture taken before cannot stand in for
-    /// one taken after it is restored.
-    private var freezes = 0
+    /// Bumped each time a window turns Frozen, so a capture taken before cannot stand in for one
+    /// taken after it is restored.
+    private var freezes: [UInt32: Int] = [:]
+    /// The selected window still needs a picture: no capture of it has returned since it was chosen.
     private var wanted = false
-    /// Captures not yet returned, oldest first. ScreenCaptureKit cannot cancel a screenshot, so a
-    /// new one starts only when none is out, or the one out has passed its deadline. Two out and
-    /// no more start.
-    private var outstanding: [(id: UInt32, freezes: Int, started: TimeInterval)] = []
+    /// Captures not yet returned. ScreenCaptureKit cannot cancel a screenshot, so a new capture
+    /// starts only when none is out, or the one out is past its deadline. Two out and none starts.
+    private var outstanding: [(serial: Int, id: UInt32, freezes: Int, expired: Bool)] = []
+    private var serial = 0
     private(set) var task: Task<Void, Never>?
-    private var deadlineTask: Task<Void, Never>?
     private let capture: Capture
-    private let now: () -> TimeInterval
     let deadline: Duration
     var completed: (Double) -> Void = { _ in }
 
-    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) },
-         deadline: Duration = .seconds(1), now: @escaping () -> TimeInterval = { LensTimebase.now() }) {
+    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) }, deadline: Duration = .seconds(1)) {
         self.capture = capture
         self.deadline = deadline
-        self.now = now
     }
 
     var outstandingCount: Int { outstanding.count }
 
     func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero) {
         guard id != windowId || frozen != self.frozen else { return }
-        if frozen { freezes += 1 }
+        if let id, frozen { freezes[id, default: 0] += 1 }
         image = nil
         windowId = id
         self.frozen = frozen
@@ -47,29 +44,33 @@ final class LensPeekCapture: ObservableObject {
 
     private func pump() {
         guard wanted, let id = windowId else { return }
-        let seconds = Double(deadline.components.seconds) + Double(deadline.components.attoseconds) / 1e18
+        let epoch = freezes[id] ?? 0
         // A capture of this window is already out and inside its deadline: its image will do.
-        if outstanding.contains(where: { $0.id == id && $0.freezes == freezes && now() - $0.started < seconds }) { wanted = false; return }
-        guard outstanding.isEmpty || (outstanding.count == 1 && now() - outstanding[0].started >= seconds) else { return }
-        wanted = false
-        let ticket = freezes, size = pixelSize, capture = capture
-        let started = now()
-        outstanding.append((id, ticket, started))
+        if outstanding.contains(where: { $0.id == id && $0.freezes == epoch && !$0.expired }) { return }
+        guard outstanding.isEmpty || (outstanding.count == 1 && outstanding[0].expired) else { return }
+        serial += 1
+        let ticket = serial, size = pixelSize, capture = capture
+        let started = LensTimebase.now()
+        outstanding.append((ticket, id, epoch, false))
         task = Task { @MainActor [weak self] in
             let image = try? await capture(id, size)
             guard let self else { return }
-            self.outstanding.removeAll { $0.started == started && $0.id == id }
-            if self.windowId == id, !self.frozen, self.freezes == ticket, self.image == nil, let image {
-                self.image = image
-                self.completed((self.now() - started) * 1000)
+            self.outstanding.removeAll { $0.serial == ticket }
+            if self.windowId == id, !self.frozen, self.freezes[id] ?? 0 == epoch {
+                // Whether it brought a picture or failed, this window has had its capture.
+                self.wanted = false
+                if self.image == nil, let image {
+                    self.image = image
+                    self.completed((LensTimebase.now() - started) * 1000)
+                }
             }
             self.pump()
         }
-        deadlineTask?.cancel()
-        deadlineTask = Task { @MainActor [weak self, deadline] in
+        Task { @MainActor [weak self, deadline] in
             try? await Task.sleep(for: deadline)
-            guard !Task.isCancelled else { return }
-            self?.pump()
+            guard let self, let index = self.outstanding.firstIndex(where: { $0.serial == ticket }) else { return }
+            self.outstanding[index].expired = true
+            self.pump()
         }
     }
 }
@@ -161,6 +162,12 @@ final class PeekPanel: NSPanelHud {
     }
 
     private func updateIgnoresMouse() { ignoresMouseEvents = !(takesMouse || buttonsDown > 0) }
+
+    /// Ordered out mid-click, the panel may never see that click's mouse-up.
+    func forgetButtons() {
+        buttonsDown = 0
+        updateIgnoresMouse()
+    }
 }
 
 @MainActor
@@ -198,6 +205,7 @@ final class LensPeekController {
         lens = nil
         drawing.thumbnail = nil
         panel.takesMouse = false
+        panel.forgetButtons()
         panel.orderOut(nil)
     }
 

@@ -351,6 +351,35 @@ final class LensPeekTest: XCTestCase {
         panel.sendEvent(try event(.rightMouseUp))
         XCTAssertTrue(panel.ignoresMouseEvents)
         XCTAssertEqual(downs, 2)
+        panel.sendEvent(try event(.leftMouseDown))
+        panel.forgetButtons()
+        XCTAssertTrue(panel.ignoresMouseEvents, "A panel hidden mid-click lets go of the mouse")
+    }
+
+    func testTheLensEndsAZoomOnAClickWhereThePeekPanelIsNot() async throws {
+        let current = Workspace.get(byName: "1"), other = Workspace.get(byName: "2")
+        _ = TestWindow.new(id: 10, parent: current.rootTilingContainer).focusWindow()
+        _ = TestWindow.new(id: 1, parent: other.rootTilingContainer)
+        _ = TestWindow.new(id: 2, parent: other.rootTilingContainer)
+        let entries = try await lensWindows(popups: [])
+        var settings = LensConfig(); settings.presentation = "grid"
+        let panel = SwitcherPalettePanel(emit: { _ in }); defer { panel.dismiss() }
+        let ticket = panel.beginLens("click", toggle: false, settings: settings)!
+        await panel.openLens(name: "click", settings: settings, entries: entries, search: "", banner: nil, context: .null, ticket: ticket)
+        let session = try XCTUnwrap(panel.session)
+        var actions: [String] = []; session.onAction = { actions.append($0) }
+        let selected = session.selectedId
+        session.perform(.command("space"))
+        func event(_ type: NSEvent.EventType) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
+                                             windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        panel.sendEvent(try event(.leftMouseDown))
+        panel.sendEvent(try event(.leftMouseUp))
+        XCTAssertNil(session.peekedId)
+        XCTAssertEqual(session.selectedId, selected)
+        XCTAssertTrue(actions.isEmpty)
+        XCTAssertTrue(panel.session === session)
     }
 
     func testEveryKeyGoesToTheInputMethodWhileComposing() {

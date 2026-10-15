@@ -38,6 +38,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let peekController = LensPeekController()
     private var gridMonitorRect = CGRect.zero
     private var scrollPaging = LensScrollStepper()
+    /// The rest of a click that ended a zoom, so none of it reaches a Tile.
+    private var eatsClick = false
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
 
@@ -334,6 +336,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func clearPresentation() {
         peekController.hide()
+        eatsClick = false
         gridLandingPanel.orderOut(nil)
         gridLandingPanel.contentView = nil
         hostingView.layer?.removeAllAnimations()
@@ -462,6 +465,19 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged { model.updateHintModifiers(event.modifierFlags) }
+        // The peek panel takes clicks over the screen it covers; a Lens on another screen, or one
+        // zoomed before that panel is up, ends the zoom here and eats the rest of the click.
+        switch event.type {
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+                eatsClick = model.endZoomForClick()
+                if eatsClick { return }
+            case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
+                if eatsClick { return }
+            case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+                if eatsClick { eatsClick = false; return }
+            case .scrollWheel where model.zoomPeeking: return
+            default: break
+        }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
             if session === model, model.inputState != .search { return }
