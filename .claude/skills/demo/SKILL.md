@@ -42,6 +42,10 @@ Film in a guest from the `vm` skill, on the build of the commit the pull request
 
 Stage the desk like a flat being shown: real apps doing plausible work, each different enough in look that "the terminal landed in Column 3" reads at a glance. The apps are real and every word on screen is ours. Jokes live in that content (a window title, a to-do list, a commit message) and never in what WinMux is shown doing. Push `desk/` to `~/desk` with `vm push`; one push supplies both sets. `desk/stage-desk.sh` dresses the standing set (Zed, Ghostty, Safari and Notes on two workspaces, with `desk/Updater` as the dialog that is not yours). Use it for a focused behavior demo. It serves the docs at localhost, lists exactly four windows, and checks both workspaces for extra CoreGraphics windows, AX sheets and first-run text that Zed does not expose through AX. A stranger is named and staging exits non-zero. `desk/stage-rich.sh` dresses the fourteen-window Lens set on four workspaces, with Columns, tab groups and a floating Calculator; use it at 1920 × 1080 for Tile geometry and comparisons with the Lens look prototype. Its config and text files are under `desk/rich/`; it compiles its tools and opens the real apps without AppleScript Automation. The image handles Notes onboarding, Ghostty updates and registration, widgets, wallpaper tips and notifications. Both sets copy Zed's `session.trust_all_worktrees` setting for the credential-free guest folders. Done when it prints fourteen windows and the Columns on workspaces 2 and 3. `stage.swift` puts up plain coloured windows for claims that need controlled shapes or many identical ones.
 
+For a demo that wants an extra prop, run `~/desk/props calendar` or `~/desk/props music` after staging. Calendar replaces the local `Desk` calendar's events with today's four appointments and shows Day view with only Desk checked. Music's cold-library welcome resists scripted setup, so its prop opens the album and track lines in a separate Zed workspace, reusing it on the next run. Each prop leaves one readable floating window on the focused workspace. Restaging closes both; the standing set stays four windows on two workspaces.
+
+After a take that fixes a grievance, run `~/desk/strike <n>` (1 to 5) to strike that line in the Notes note **Grievances**. Earlier strikes remain. `~/desk/strike reset` restores all five before another take; staging also resets them. The rich set's TextEdit file is separate.
+
 Film on a 16:9 guest display, 1280 × 720. Push `keys.swift` and `film` into the guest beside the desk, compile `keys`, and film each take there:
 
 ```sh
@@ -71,6 +75,8 @@ $SKILL/render <take> -o $OUT/demos/<id>.gif --title "<the claim in a few words>"
 ```
 
 A `screencapture` take has a variable frame rate, and `render` seeking into one can give blank opening frames: make a constant-frame-rate copy first. At 1920 by 1080 a whole-screen GIF comes out at 960 by 604 and about 1 MB at the 15 fps render; crop to the panel where the claim allows it.
+
+`--width <pixels>` scales the whole card; it accepts even widths from 320 to 1920. The default is 960, which remains the width for pull-request demos. Use 1280 for a larger exported card.
 
 Every demo is a card: the take with rounded corners on a dark gradient, the claim above it and the keys below. Crop when the subject is small in the frame. `render` refuses a demo over 8 seconds or 3 MB: a claim that needs longer is two claims, and one that needs more pixels wants a tighter crop.
 
