@@ -57,9 +57,16 @@ with (root / 'state.json').open('r+') as f:
     elif tool == 'nc':
         code = int(state['boots'] <= state.get('unreachable_boots', 0))
     elif tool == 'sshpass':
-        if 'shutdown' in args[-1]:
+        if 'scp' in args:
+            code = int(any(pathlib.Path(a).is_dir() for a in args if a.startswith('/')))
+        elif 'shutdown' in args[-1]:
             for g in guests.values():
                 g['State'] = 'stopped'
+        elif args[-1] == 'bash ~/vm/renew-approvals.sh':
+            code = state.get('renewal_failure', 0)
+            state['approvals_ready'] = code == 0
+        elif '~/vm/preflight' in args[-1] and state.get('require_approval_renewal'):
+            code = int(not state.get('approvals_ready'))
     f.seek(0); json.dump(state, f); f.truncate()
 if tool == 'sysctl' and args[-1] == 'hw.ncpu' and state.get('block_host'):
     with (root / 'ready').open('w') as ready:
@@ -136,6 +143,23 @@ class VMTest(unittest.TestCase):
         self.seed({'a': guest()})
         self.assert_started(self.run_vm('up', 'b'), 'b')
 
+    def test_boot_uses_ssh_without_contacting_the_guest_agent(self):
+        self.assert_started(self.run_vm('up', 'a'), 'a')
+        calls = self.state()['calls']
+        self.assertFalse(any(c[:2] == ['tart', 'exec'] for c in calls))
+        self.assertTrue(any(c[0] == 'sshpass' and c[-1] == 'true' for c in calls))
+
+    def test_up_renews_approvals_before_the_preflight(self):
+        self.seed(require_approval_renewal=True)
+        self.assert_started(self.run_vm('up', 'a'), 'a')
+
+    def test_up_stops_before_preflight_when_renewal_fails(self):
+        self.seed(renewal_failure=1)
+        result = self.run_vm('up', 'a')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(c[0] == 'sshpass' and '~/vm/preflight' in c[-1]
+                             for c in self.state()['calls']))
+
     def test_cpu_above_cap_is_refused_even_when_empty(self):
         self.assert_refused(self.run_vm('up', 'a', VM_CPU='8'), 'cap', '7 cores', '11264 MB', '8 cores')
 
@@ -173,6 +197,23 @@ class VMTest(unittest.TestCase):
                 result = self.run_vm('build-image', VM_GOLDEN='new-golden', **overrides)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(['tart', 'set', 'new-golden-build', '--cpu', str(cpu), '--memory', str(memory), '--display', '1280x720'], self.state()['calls'])
+
+    def test_image_transport_ignores_generated_directories_beside_recipe_files(self):
+        import shutil
+        recipe = self.root / 'recipe'
+        recipe.mkdir()
+        for name in ('vm', 'start_locked.py'):
+            shutil.copy2(VM.parent / name, recipe / name)
+        sources = recipe / 'guest'
+        sources.mkdir()
+        (sources / 'provision.sh').write_text('echo provisioned\n')
+        (sources / '__pycache__').mkdir()
+        result = subprocess.run([str(recipe / 'vm'), 'build-image'],
+                                env=dict(self.env, VM_GOLDEN='replacement'),
+                                capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        copies = [c for c in self.state()['calls'] if c[0] == 'sshpass' and 'scp' in c]
+        self.assertTrue(any(str(sources / 'provision.sh') in c for c in copies))
 
     def test_unreachable_guest_is_stopped_then_second_boot_succeeds(self):
         self.seed(unreachable_boots=1)

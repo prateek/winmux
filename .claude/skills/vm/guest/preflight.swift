@@ -13,6 +13,21 @@ let session = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
 check("unlocked", (session["CGSSessionScreenIsLocked"] as? Bool) != true)
 check("accessibility", AXIsProcessTrusted())
 check("screen recording", CGPreflightScreenCaptureAccess())
+let approvals = Process()
+approvals.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+approvals.arguments = [URL(fileURLWithPath: CommandLine.arguments[0])
+    .deletingLastPathComponent().appendingPathComponent("approvals.py").path, "check"]
+let approvalOutput = Pipe()
+approvals.standardOutput = approvalOutput
+approvals.standardError = approvalOutput
+do {
+    try approvals.run()
+    let detail = String(data: approvalOutput.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    approvals.waitUntilExit()
+    check("approvals", approvals.terminationStatus == 0, detail.trimmingCharacters(in: .whitespacesAndNewlines))
+} catch {
+    check("approvals", false, "rebuild the golden image: vm build-image (\(error.localizedDescription))")
+}
 if let mode = CGDisplayCopyDisplayMode(CGMainDisplayID()) {
     print("     display: \(mode.width)x\(mode.height)@\(mode.pixelWidth / max(mode.width, 1))")
 }

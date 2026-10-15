@@ -11,24 +11,5 @@ for service in kTCCServiceAccessibility kTCCServiceScreenCapture kTCCServicePost
 done
 sudo killall tccd 2>/dev/null || true
 
-# macOS re-asks whether a client may bypass the window picker for screen recording; this file
-# holds when. Push the date out of reach.
-approvals="$HOME/Library/Group Containers/group.com.apple.replayd/ScreenCaptureApprovals.plist"
-mkdir -p "$(dirname "$approvals")"
-now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-cat > "$approvals" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>$client</key>
-  <dict>
-    <key>kScreenCaptureAlertableUsageCount</key><integer>1</integer>
-    <key>kScreenCaptureApprovalLastAlerted</key><date>$now</date>
-    <key>kScreenCaptureApprovalLastUsed</key><date>$now</date>
-    <key>kScreenCapturePrivacyHintDate</key><date>2099-01-01T00:00:00Z</date>
-    <key>kScreenCapturePrivacyHintPolicy</key><integer>2592000</integer>
-  </dict>
-</dict></plist>
-PLIST
-plutil -convert binary1 "$approvals"
-killall replayd 2>/dev/null || true
+# ScreenCaptureKit's private-picker approval is separate from the TCC grant above.
+bash "$(dirname "$0")/renew-approvals.sh"
