@@ -95,7 +95,6 @@ extension LensSession {
     }
 
     func clickTile(at point: CGPoint, event: NSEvent?) {
-        if endZoomForClick() { return }
         guard let hit = tileHitTest(at: point) else { return }
         if let control = hit.control {
             let id = hit.windowId

@@ -103,6 +103,56 @@ final class LensPeekCaptureTest: XCTestCase {
         XCTAssertTrue(times.isEmpty)
     }
 
+    func testACaptureThatNeverReturnsIsAbandonedAfterItsDeadline() async throws {
+        let replies = PeekCaptureReplies()
+        var clock: TimeInterval = 0
+        let slot = LensPeekCapture(capture: { try await replies.capture($0, size: $1) }, deadline: 1, now: { clock })
+        let picture = try image()
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+        clock = 0.5
+        slot.select(2, pixelSize: CGSize(width: 100, height: 100))
+        for _ in 0 ..< 20 { await Task.yield() }
+        let early = await replies.requested(2)
+        XCTAssertFalse(early, "Inside the deadline the request waits")
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        clock = 2
+        slot.select(3, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(3)) { await Task.yield() }
+        let current = slot.task
+        await replies.finish(3, image: picture)
+        await current?.value
+        XCTAssertTrue(slot.image === picture, "A stuck capture does not hold up the next picture")
+    }
+
+    func testAWindowThatStopsBeingFrozenIsCapturedThen() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        slot.select(1, frozen: true, pixelSize: CGSize(width: 100, height: 100))
+        for _ in 0 ..< 20 { await Task.yield() }
+        let frozenRequested = await replies.requested(1)
+        XCTAssertFalse(frozenRequested)
+        slot.select(1, frozen: false, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+    }
+
+    func testAnImageForTheWindowSelectedAgainIsKept() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture { try await replies.capture($0, size: $1) }
+        let picture = try image()
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        while !(await replies.ready(1)) { await Task.yield() }
+        let first = slot.task
+        slot.select(2, pixelSize: CGSize(width: 100, height: 100))
+        slot.select(1, pixelSize: CGSize(width: 100, height: 100))
+        await replies.finish(1, image: picture)
+        await first?.value
+        XCTAssertTrue(slot.image === picture)
+        for _ in 0 ..< 20 { await Task.yield() }
+        let again = await replies.ready(1)
+        XCTAssertFalse(again, "The same window is not captured twice")
+    }
+
     func testLabelStaysOnScreenUnderAFullHeightWindow() {
         XCTAssertEqual(peekLabelOffset(pictureBottom: 500, screenHeight: 720), 44)
         XCTAssertEqual(peekLabelOffset(pictureBottom: 714, screenHeight: 720), -6)

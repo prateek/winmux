@@ -20,10 +20,9 @@ final class LensSession: ObservableObject {
     @Published private(set) var peekedId: UInt32?
     private var peekZoom = false
     private var peekDismissed = false
+    private var closedPeekIds: Set<UInt32> = []
     var peekCaptureMs: Double?
     var listRowRects: [UInt32: CGRect] = [:]
-    /// Set by the panel while its field editor holds uncommitted IME text, which Space converts.
-    var searchComposing = false
     var followsPeek: Bool { settings.followsPeek(presentation: settings.presentation) }
     var zoomPeeking: Bool { !followsPeek && peekedId != nil }
     var peekKeys: Set<String> { settings.peekKeys }
@@ -105,7 +104,8 @@ final class LensSession: ObservableObject {
                 if held != hintsShown { hintsShown = held }
             case .presentationChanged(let presentation):
                 hoveredTileId = nil
-                peekZoom = false
+                // A Presentation that follows has no zoom; a strip that becomes a list keeps it.
+                if settings.followsPeek(presentation: presentation) { peekZoom = false }
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
@@ -337,22 +337,22 @@ final class LensSession: ObservableObject {
     }
 
     func synchronizePeek() {
-        let target = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first : nil
+        let target = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first.flatMap { closedPeekIds.contains($0) ? nil : $0 } : nil
         if target == nil { peekZoom = false }
         if target != peekedId { peekedId = target }
     }
 
-    /// A click while zoomed would land on whatever Tile lies under the picture, so it only ends the zoom.
     func endZoomForClick() -> Bool {
         guard zoomPeeking else { return false }
         send(.peekToggled)
         return true
     }
 
-    /// Miniatures keeps a closed window's cell for the session, so a zoom on it ends instead of moving on.
+    /// Miniatures keeps a closed window's cell for the session, so a zoom on it ends instead of
+    /// moving on, and the cell is never peeked again.
     func peekedWindowClosed(_ id: UInt32) {
-        guard peekedId == id, zoomPeeking else { return }
-        send(.peekToggled)
+        closedPeekIds.insert(id)
+        if peekedId == id { send(.peekToggled) }
     }
 
     @discardableResult

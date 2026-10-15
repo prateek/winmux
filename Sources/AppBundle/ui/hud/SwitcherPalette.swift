@@ -398,8 +398,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let held = model.hold != nil
         let state = model.inputState
         let editor = firstResponder is NSTextView
-        model.searchComposing = (firstResponder as? NSTextView)?.hasMarkedText() == true
-        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel)
+        let composing = (firstResponder as? NSTextView)?.hasMarkedText() == true
+        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel, composing: composing)
         let handled: Bool
         let destination: String
         switch meaning {
@@ -462,6 +462,8 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged { model.updateHintModifiers(event.modifierFlags) }
+        // A click while zoomed would land on whatever lies under the picture, so it only ends the zoom.
+        if event.type == .leftMouseDown || event.type == .rightMouseDown, model.endZoomForClick() { return }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
             if session === model, model.inputState != .search { return }
@@ -565,7 +567,6 @@ struct SwitcherPaletteView: View {
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }
                                 .onTapGesture {
-                                    if model.endZoomForClick() { return }
                                     model.hover(item.id)
                                     if let event = NSApp.currentEvent, let key = model.key(for: event, click: true) { model.onAction?(key) }
                                 }

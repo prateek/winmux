@@ -112,10 +112,13 @@ func lensCharacters(_ event: NSEvent, hold: StripGesture?) -> String {
 }
 
 extension LensSession {
-    func meaning(for event: NSEvent, source: LensKeySource = .panel) -> LensKeyMeaning {
+    /// While the field editor holds uncommitted IME text, every key is the input method's:
+    /// Space converts, Return commits, the arrows pick a candidate and Escape cancels.
+    func meaning(for event: NSEvent, source: LensKeySource = .panel, composing: Bool = false) -> LensKeyMeaning {
+        if composing, source == .panel, inputState == .search { return .fieldEditor }
         let characters = lensCharacters(event, hold: hold)
         return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
-                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty && !searchComposing, peekKeys: peekKeys, peeking: zoomPeeking)
+                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty, peekKeys: peekKeys, peeking: zoomPeeking)
     }
 
     @discardableResult

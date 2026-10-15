@@ -317,26 +317,55 @@ final class LensPeekTest: XCTestCase {
         XCTAssertLessThan(legend, picture, "The follow picture belongs below all Lens content, including the separate legend")
     }
 
-    func testClickDuringZoomOnlyEndsTheZoom() {
+    func testClickDuringZoomOnlyEndsTheZoom() async throws {
+        let current = Workspace.get(byName: "1"), other = Workspace.get(byName: "2")
+        _ = TestWindow.new(id: 10, parent: current.rootTilingContainer).focusWindow()
+        _ = TestWindow.new(id: 1, parent: other.rootTilingContainer)
+        _ = TestWindow.new(id: 2, parent: other.rootTilingContainer)
+        let entries = try await lensWindows(popups: [])
         var settings = LensConfig(); settings.presentation = "grid"
-        let session = model(settings)
+        let panel = SwitcherPalettePanel(emit: { _ in }); defer { panel.dismiss() }
+        let ticket = panel.beginLens("click", toggle: false, settings: settings)!
+        await panel.openLens(name: "click", settings: settings, entries: entries, search: "", banner: nil, context: .null, ticket: ticket)
+        let session = try XCTUnwrap(panel.session)
         var actions: [String] = []; session.onAction = { actions.append($0) }
         let selected = session.selectedId
-        let other = session.gridLayout.tiles[2].frame
         session.perform(.command("space"))
-        session.clickTile(at: CGPoint(x: other.midX, y: other.midY), event: key(36, "\r"))
+        XCTAssertNotNil(session.peekedId)
+        let click = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
+                                                     windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        panel.sendEvent(click)
         XCTAssertNil(session.peekedId)
-        XCTAssertEqual(session.selectedId, selected, "The Tile under the picture is not selected")
-        XCTAssertTrue(actions.isEmpty, "The Tile under the picture is not focused")
+        XCTAssertEqual(session.selectedId, selected, "Nothing under the picture is selected")
+        XCTAssertTrue(actions.isEmpty, "Nothing under the picture is focused")
+        XCTAssertTrue(panel.session === session)
         XCTAssertFalse(session.endZoomForClick(), "Without a zoom, a click acts as before")
     }
 
-    func testSpaceConvertsImeTextInsteadOfPeeking() {
+    func testEveryKeyGoesToTheInputMethodWhileComposing() {
         let session = model()
-        session.searchComposing = true
-        XCTAssertEqual(session.meaning(for: key(49, " ")), .text(" "))
-        session.searchComposing = false
+        for (code, text) in [(UInt16(49), " "), (36, "\r"), (125, ""), (53, "")] {
+            XCTAssertEqual(session.meaning(for: key(code, text), composing: true), .fieldEditor)
+        }
         XCTAssertEqual(session.meaning(for: key(49, " ")), .command("space"))
+        session.leaveSearch()
+        XCTAssertEqual(session.meaning(for: key(49, " "), composing: true), .command("space"), "Only Search composes")
+    }
+
+    func testAClosedMiniatureIsNotPeekedAgain() {
+        var settings = LensConfig(); settings.presentation = "miniatures"
+        let session = model(settings)
+        session.perform(.command("space"))
+        let closed = try! XCTUnwrap(session.peekedId)
+        session.peekedWindowClosed(closed)
+        XCTAssertNil(session.peekedId)
+        session.perform(.command("space"))
+        XCTAssertNil(session.peekedId)
+        XCTAssertFalse(session.zoomPeeking)
+        session.moveSelection(1)
+        XCTAssertNotEqual(session.selectedId, closed)
+        session.perform(.command("space"))
+        XCTAssertEqual(session.peekedId, session.selectedId)
     }
 
     func testOpeningCountsSpaceInAnEmptySearchAsPeekAndTextAfterTyping() {
@@ -376,6 +405,11 @@ final class LensPeekTest: XCTestCase {
         XCTAssertFalse(session.zoomPeeking)
         session.changePresentation("miniatures")
         XCTAssertNil(session.peekedId, "A zoom does not come back by itself")
+        var strip = LensConfig(); strip.presentation = "strip"
+        let held = model(strip)
+        held.perform(.command("cmd-y"))
+        held.changePresentation("list")
+        XCTAssertTrue(held.zoomPeeking, "A strip that becomes a list keeps its zoom")
     }
 
     func testConfigAcceptsPeekAloneAndNamesMixedListError() throws {
