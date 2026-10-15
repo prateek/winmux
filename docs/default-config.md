@@ -18,7 +18,7 @@ let W = import "winmux/winmux.ncl" in
 }) | W.Config
 ```
 
-Remove bindings from the imported record with `W.without-bindings ["chord", …] bindings`. It ignores names that are already absent, so a later default change does not break your config. The replacement binding record must take precedence over the original record, otherwise Nickel's merge would put the removed field back:
+Remove mode bindings from the imported record with `W.without-bindings ["chord", …] bindings`. It ignores names that are already absent, so a later default change does not break your config. The replacement binding record must take precedence over the original record, otherwise Nickel's merge would put the removed field back:
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
@@ -28,6 +28,12 @@ let without-search = defaults & {
 } in
 (without-search & { gaps.inner.horizontal = 4 }) | W.Config
 ```
+
+For a Lens key, use an empty command list instead of removing the field:
+`lenses.recent.keys.space = []` frees Space, and `lenses.recent.keys.cmd-y = []`
+removes the other shipped peek key. Lens defaults restore omitted keys; this
+explicit empty list survives that merge. A replacement such as
+`lenses.recent.keys.cmd-p = "peek"` can be added alongside it.
 
 To turn a shipped Lens off, set `lenses.recent.enabled = false` (using that Lens's name). Other Lens overrides continue to merge over the defaults. A binding that opens a disabled Lens then fails with exit 2, including the window mode's `r` for `recent` and `a` for `app-windows`, and a Cmd-Tab opt-in: remove or rebind those keys too.
 

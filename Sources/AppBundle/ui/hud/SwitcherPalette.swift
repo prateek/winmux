@@ -35,8 +35,12 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let startupPreparation = LensStartupPreparation()
     private var preparedSession: LensSession?
     private let gridLandingPanel = NSPanelHud()
+    private let peekController = LensPeekController()
     private var gridMonitorRect = CGRect.zero
     private var scrollPaging = LensScrollStepper()
+    /// Buttons down since a click ended a zoom: every button's click is eaten until all are up.
+    private var eatenButtons = 0
+    var eatsClicks: Bool { eatenButtons > 0 }
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
 
@@ -46,7 +50,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
-        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model) }
+        lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
@@ -63,6 +67,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.onFirstFrame = { [weak self] refresh in
             self?.lifecycle.trace?.finish(signal: String(format: "third display-link tick at %.1f ms refresh", refresh * 1000))
         }
+        gridLandingPanel.identifier = NSUserInterfaceItemIdentifier("WinMux.lensLanding")
         gridLandingPanel.backgroundColor = .clear
         gridLandingPanel.isOpaque = false
         gridLandingPanel.hasShadow = false
@@ -167,6 +172,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         if model.settings.presentation == "grid" || model.settings.presentation == "list" {
             gridLandingPanel.order(.below, relativeTo: windowNumber)
         }
+        updatePeek(model)
         if model.settings.presentation == "grid" {
             // A view's layer is anchored at its corner, so the scale is about the centre by hand.
             let centre = CGPoint(x: hostingView.bounds.midX, y: hostingView.bounds.midY)
@@ -222,8 +228,9 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     func stripWindowClosed(_ id: UInt32) {
+        guard let session else { return }
         // Miniatures draws each window where it sits and keeps its cells for the session.
-        guard let session, session.settings.presentation != "miniatures" else { return }
+        guard session.settings.presentation != "miniatures" else { return session.peekedWindowClosed(id) }
         session.removeStripItems([id])
     }
 
@@ -272,7 +279,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                            width: size.width, height: size.height)
             root = AnyView(GridView(model: model))
             gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
-            gridLandingPanel.contentView = NSHostingView(rootView: GridLandingView(model: model))
+            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)))
         } else {
             let layout = model.listLayout
             frame = NSRect(x: rect.minX + (rect.width - layout.width) / 2,
@@ -280,11 +287,11 @@ final class SwitcherPalettePanel: NSPanelHud {
                            width: layout.width, height: layout.panelHeight)
             root = AnyView(SwitcherPaletteView(model: model))
             gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
-            gridLandingPanel.contentView = NSHostingView(rootView: GridLandingView(model: model))
+            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)))
         }
         // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
-        hostingView.rootView = AnyView(root.coordinateSpace(name: lensWindowCoordinateSpace))
+        hostingView.rootView = AnyView(LensPeekDim(model: model, content: root).coordinateSpace(name: lensWindowCoordinateSpace))
         setFrame(frame, display: false)
         hostingView.arm()
         lifecycle.trace?.advance("view built")
@@ -323,7 +330,14 @@ final class SwitcherPalettePanel: NSPanelHud {
         if frame != self.frame { setFrame(frame, display: true) }
     }
 
+    private func updatePeek(_ model: LensSession) {
+        let reference = model.followsPeek && (model.settings.presentation == "list" || model.settings.presentation == "grid") ? gridLandingPanel : self
+        peekController.update(model, relativeTo: reference)
+    }
+
     private func clearPresentation() {
+        peekController.hide()
+        eatenButtons = 0
         gridLandingPanel.orderOut(nil)
         gridLandingPanel.contentView = nil
         hostingView.layer?.removeAllAnimations()
@@ -340,7 +354,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func performAction(_ key: String) {
         guard let model = session else { return }
-        if model.performSectionsAction(key) { return }
+        if model.performPeekAction(key) || model.performSectionsAction(key) { return }
         let commands = model.commands(for: key)
         guard !commands.isEmpty else {
             // A release always closes the strip, even when its binding runs nothing.
@@ -388,7 +402,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let held = model.hold != nil
         let state = model.inputState
         let editor = firstResponder is NSTextView
-        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel)
+        let composing = (firstResponder as? NSTextView)?.hasMarkedText() == true
+        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel, composing: composing)
         let handled: Bool
         let destination: String
         switch meaning {
@@ -409,6 +424,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                     case .command(let key): destination = "Lens keys command " + key
                     case .step: destination = "step"
                     case .arrow, .mark: destination = "selection"
+                    case .endPeek: destination = "peek ended"
                     case .dropped: destination = "dropped"
                     default: destination = editor ? "passed to field editor" : "dropped"
                 }
@@ -450,6 +466,18 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged { model.updateHintModifiers(event.modifierFlags) }
+        // The peek panel takes clicks over the screen it covers; a Lens on another screen, or one
+        // zoomed before that panel is up, ends the zoom here and eats the rest of the click.
+        switch event.type {
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+                if eatenButtons > 0 || model.endZoomForClick() { eatenButtons += 1; return }
+            case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
+                if eatenButtons > 0 { return }
+            case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+                if eatenButtons > 0 { eatenButtons -= 1; return }
+            case .scrollWheel where model.zoomPeeking: return
+            default: break
+        }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
             if session === model, model.inputState != .search { return }
@@ -471,7 +499,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 }
 
 @MainActor
-private func appKitScreenMaxY() -> CGFloat {
+func appKitScreenMaxY() -> CGFloat {
     NSScreen.screens.first?.frame.maxY ?? 0
 }
 
@@ -542,6 +570,13 @@ struct SwitcherPaletteView: View {
                                          size: CGSize(width: layout.width - 40 * scale, height: layout.rowHeight),
                                          settings: model.settings, selected: index == model.selection, marked: model.marks.contains(item.id),
                                          hint: model.summonLabel(for: item.id, destination: focus.workspace.name), hintsShown: model.hintsShown)
+                                .onGeometryChange(for: CGRect.self) { proxy in
+                                    proxy.frame(in: .named(lensWindowCoordinateSpace))
+                                } action: { rect in
+                                    let viewport = CGRect(x: 0, y: layout.headerHeight, width: layout.width, height: layout.rowsHeight)
+                                    model.listRowRects[item.id] = viewport.intersects(rect) ? rect : nil
+                                }
+                                .onDisappear { model.listRowRects[item.id] = nil }
                                 .onContinuousHover { phase in
                                     if case .active = phase { model.hover(item.id, at: NSEvent.mouseLocation) }
                                 }

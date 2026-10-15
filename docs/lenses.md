@@ -92,7 +92,7 @@ the shipped keys therefore reads `⇧↩ Summon to 1`; Cmd-Tab reads `⌥↩ Sum
 All Summon keys count again once the Hold ends. `summon-hints` chooses which Summon hints exist.
 
 The legend reads the open Lens's active `keys`: `focus`, `summon here`, `send to workspace`,
-`close`, `group`, then custom commands joined by `; `. Equal command lists share an entry.
+`close`, `peek`, `group`, then custom commands joined by `; `. Equal command lists share an entry.
 Workspace digit keys with the same modifiers collapse to a range such as `⌘1–9`; gaps show
 individual chords. Group is absent in Presentations without sections. Keys outside the Lens's
 `keys` are not listed. The legend sits below the painted panel, including any Filter banner
@@ -172,7 +172,7 @@ An error keeps the last good rows and shows its first line with an amber border.
 deadline is 50 ms; the helper deadline is 100 ms.
 
 Enter focuses the selection, shift-enter and alt-enter Summon it, cmd-w closes it, and cmd-1
-through cmd-9 move it to that workspace of the window's own project. Custom keys merge over these
+through cmd-9 move it to that workspace of the window's own project. Space peeks before anything is typed; cmd-y peeks in every input state. Custom keys merge over these
 defaults and run against the selected window. Configured Command shortcuts take priority over
 Search field editing, including Cut and Close. Tab toggles marks; commands act on marked windows
 in mark order, while focus acts only on the selection. Escape, Tab and the four arrow keys,
@@ -248,6 +248,39 @@ Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup
 and moves nothing, because a popup has no workspace.
 
 
+## Peek
+
+Space grows the selected Tile’s picture to the window’s frame. In Search it peeks
+only when the visible query is empty; after typing, Space inserts a space. Cmd-Y
+peeks in every state. The same key or Escape shrinks the picture back. Escape ends
+only the peek: a list opened in Search then needs a second Escape to leave Search
+and a third to close. Arrows move the selection and its picture. Other keys keep
+their actions, including Enter, alt-enter, shift-enter and cmd-w. Releasing a held
+strip still commits. While zoomed, pointer motion leaves the selection alone and a
+click only ends the zoom, since the Tile under the pointer is hidden by the picture.
+
+Peek never changes focus or workspace and never raises or restores the real
+window. The cached thumbnail appears immediately, followed by one full-resolution
+capture for a visible window. A Frozen window keeps its configured Frozen look;
+a minimized window shows its cached thumbnail scaled up. Without a picture, the
+app icon appears on a plain plate. Only one full-resolution picture is retained.
+
+Set `peek = 'follow` on a Lens to show the selected picture under the panel from
+the first frame, without dimming, ring or label. Peek keys do nothing in this mode.
+Miniatures keeps `zoom` even when `follow` is configured. Reduce Motion cross-fades
+the zoom at the window’s frame.
+
+`peek` is a Lens-only action and must run alone in its key’s command list.
+`keys.space = []` frees Space to type in Search and do nothing elsewhere.
+`keys.cmd-y = []` removes the other shipped peek key; `keys.cmd-p = "peek"` binds
+a replacement. The field also works under `when.default`.
+
+| Lens action | Effect |
+| --- | --- |
+| `focus` | Focus the selected window. |
+| `summon` | Bring selected or marked windows here. |
+| `peek` | Toggle the selected picture while the Lens stays open. |
+
 ## The Hold
 
 A Lens session reads keys in exactly one state: the **Hold**, **normal**, or **Search**.
@@ -275,7 +308,8 @@ During a Hold, the Lens reads keys in this order:
 5. A chord with a foreign Command, Control or Option modifier belongs to its global
    binding and dismisses the Lens before that binding runs.
 
-Backspace, digits, Space, other punctuation and function keys do nothing during a
+A peek binding also matches with the Hold’s invoking modifiers removed: Space
+matches if the system delivers it. During Cmd-Tab use Cmd-Y: Cmd-Space belongs to Spotlight. WinMux never registers Space system-wide. Backspace, digits, unbound Space, other punctuation and function keys do nothing during a
 Hold. They do not end it. Releasing its invoking Command, Control and Option
 modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip;
 other Presentations remain open. **A Hold ended by a key never commits on release**,
@@ -603,6 +637,7 @@ let W = import "winmux/winmux.ncl" in
   lenses.overview = {
     frozen-thumbnail = 'dimmed,
     accessory-window = 'enlarged,
+    peek = 'zoom,
     hints = 'held,
     hints-key = 'alt,
     summon-hints = ['label, 'landing-spot],
@@ -627,6 +662,7 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. The panel remains non-opaque. |
 | `frozen-thumbnail` | `plain`, `dimmed` (default), `age-badge`, or `pause-badge`. Live thumbnails are unmarked. |
 | `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
+| `peek` | `zoom` (default) grows the selected picture on a key; `follow` always shows it under the panel. Miniatures always uses `zoom`. |
 | `hints` | `held` (default) shows hints while the hints key is held; `always` keeps them visible. |
 | `hints-key` | `alt` (default), `cmd`, `ctrl`, or `shift`, using the chord modifier spellings. |
 | `summon-hints` | Any of `label`, `landing-spot`, `target-workspace`; defaults to the first two. Shown while the hints key is held, or all the time with `hints = 'always`. |

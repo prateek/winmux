@@ -17,6 +17,16 @@ final class LensSession: ObservableObject {
     @Published private(set) var marks: [UInt32] = []
     @Published private(set) var searchError: String?
     @Published var banner: String?
+    @Published private(set) var peekedId: UInt32?
+    private var peekZoom = false
+    private var peekDismissed = false
+    private var closedPeekIds: Set<UInt32> = []
+    var peekCaptureMs: Double?
+    var listRowRects: [UInt32: CGRect] = [:]
+    var followsPeek: Bool { settings.followsPeek(presentation: settings.presentation) }
+    var zoomPeeking: Bool { !followsPeek && peekedId != nil }
+    var peekKeys: Set<String> { settings.peekKeys }
+
     @Published private(set) var hintsShown = false
     private var ignoredTriggerModifiers: NSEvent.ModifierFlags = []
     private var currentModifiers: NSEvent.ModifierFlags = []
@@ -33,6 +43,7 @@ final class LensSession: ObservableObject {
     weak var owner: LensLifecycle?
 
     enum Event {
+        case peekToggled
         case searchChanged(String)
         case inputStateChanged(LensInputState)
         case selectionChanged(Int)
@@ -52,12 +63,18 @@ final class LensSession: ObservableObject {
 
     func apply(_ event: Event) {
         defer {
+            synchronizePeek()
             switch event {
                 case .pointerSelectionChanged, .modifiersChanged, .dismissed: break
                 default: reanchorPointer()
             }
         }
         switch event {
+            case .peekToggled:
+                // Space on a closed overview cell has nothing to grow.
+                if !followsPeek, peekZoom || !closedPeekIds.contains(targets(forCommand: "focus").first ?? 0) { peekZoom.toggle() }
+                // A Tile hovered before the zoom is under the picture now.
+                if peekZoom { hoveredTileId = nil }
             case .inputStateChanged(let state):
                 inputState = state
                 let held = shouldShowHints(currentModifiers)
@@ -88,6 +105,8 @@ final class LensSession: ObservableObject {
                 if held != hintsShown { hintsShown = held }
             case .presentationChanged(let presentation):
                 hoveredTileId = nil
+                // A Presentation that follows has no zoom; a strip that becomes a list keeps it.
+                if settings.followsPeek(presentation: presentation) { peekZoom = false }
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
                 settings.presentation = presentation
@@ -118,7 +137,9 @@ final class LensSession: ObservableObject {
             case .excludedChanged(let ids):
                 miniatureExcludedIds = ids
                 selection = initialSelection()
-            case .dismissed: hoveredTileId = nil
+            case .dismissed:
+                hoveredTileId = nil
+                endPeekOnDismiss()
         }
         switch event {
             case .searchChanged, .inputStateChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
@@ -249,6 +270,7 @@ final class LensSession: ObservableObject {
         selection = 0
         selection = initialSelection()
         hintsShown = shouldShowHints([])
+        synchronizePeek()
     }
 
     /// The list opens on its second row when the first is the focused window. Miniatures are not
@@ -306,6 +328,40 @@ final class LensSession: ObservableObject {
         for raw in commands(for: key) {
             if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs { changeSections(args.value.val) }
         }
+        return true
+    }
+
+    func endPeekOnDismiss() {
+        peekDismissed = true
+        peekZoom = false
+        synchronizePeek()
+    }
+
+    func synchronizePeek() {
+        let selected = !peekDismissed && (followsPeek || peekZoom) ? targets(forCommand: "focus").first : nil
+        if selected == nil { peekZoom = false }
+        // A closed overview cell has nothing to show; the zoom waits for the next live one.
+        let target = selected.flatMap { closedPeekIds.contains($0) ? nil : $0 }
+        if target != peekedId { peekedId = target }
+    }
+
+    func endZoomForClick() -> Bool {
+        guard zoomPeeking else { return false }
+        send(.peekToggled)
+        return true
+    }
+
+    /// Miniatures keeps a closed window's cell for the session, so a zoom on it ends instead of
+    /// moving on, and the cell is never peeked again.
+    func peekedWindowClosed(_ id: UInt32) {
+        closedPeekIds.insert(id)
+        if peekedId == id { send(.peekToggled) }
+    }
+
+    @discardableResult
+    func performPeekAction(_ key: String) -> Bool {
+        guard commands(for: key) == ["peek"] else { return false }
+        if !followsPeek { send(.peekToggled) }
         return true
     }
 
@@ -397,7 +453,7 @@ final class LensSession: ObservableObject {
 
     func performKeyAction(_ event: NSEvent) -> Bool {
         guard let key = key(for: event) else { return false }
-        onAction?(key)
+        if !performPeekAction(key) { onAction?(key) }
         return true
     }
 
@@ -415,7 +471,7 @@ final class LensSession: ObservableObject {
     func pointerMoved(to location: CGPoint) -> Bool { pointerMotion.moved(to: location) }
 
     func hoverIndex(armed: Bool, _ index: () -> Int?) {
-        guard armed, let index = index(), index != selection else { return }
+        guard !zoomPeeking, armed, let index = index(), index != selection else { return }
         send(.pointerSelectionChanged(index))
     }
 

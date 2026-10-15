@@ -279,7 +279,7 @@ final class LensHintsTest: XCTestCase {
     func testLegendGroupsCommandsAndDigitsWithoutInventingKeys() {
         var settings = LensConfig()
         func legend() -> [LensHintEntry] { lensHintLegend(keys: LensKeyBinding.resolve(settings.keys), commands: settings.keys) }
-        XCTAssertEqual(legend().map(\.phrase), ["focus", "summon here", "send to workspace", "close", "group"])
+        XCTAssertEqual(legend().map(\.phrase), ["focus", "summon here", "send to workspace", "close", "peek", "group"])
         XCTAssertEqual(legend().first { $0.phrase == "summon here" }?.chords, ["⌥↩", "⇧↩"])
         XCTAssertEqual(legend().first { $0.phrase == "send to workspace" }?.chords, ["⌘1–9"])
         var stripSettings = settings; stripSettings.presentation = "strip"

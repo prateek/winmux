@@ -24,6 +24,7 @@ enum LensKeySource { case panel, carbon }
 
 enum LensKeyMeaning: Equatable {
     case command(String)
+    case endPeek
     case step(Int)
     case endHold(UInt16, String, NSEvent.ModifierFlags = [])
     case enterSearch
@@ -49,11 +50,12 @@ enum LensKeyMeaning: Equatable {
 }
 
 func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
-                    characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", source: LensKeySource = .panel) -> LensKeyMeaning {
+                    characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", source: LensKeySource = .panel, searchEmpty: Bool = false, peekKeys: Set<String> = [], peeking: Bool = false) -> LensKeyMeaning {
     let modifiers = flags.intersection([.command, .control, .option, .shift])
     let binding = { (flags: NSEvent.ModifierFlags) in
         keys.first { $0.code == (code == 76 ? 36 : code) && $0.modifiers == flags }
     }
+    if peeking, code == 53 { return .endPeek }
     if source == .carbon, state != .hold, presentation != "strip" {
         if !modifiers.intersection([.command, .control, .option]).isEmpty, let key = binding(modifiers) { return .command(key.name) }
         return .globalBinding
@@ -64,10 +66,11 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
         return released.intersection([.command, .control, .option]).isEmpty ? .dropped : .global
     }
     let chord = !modifiers.intersection([.command, .control, .option]).isEmpty
-    if (state != .search || chord || code == 36 || code == 76), let key = binding(modifiers) {
+    if (state != .search || chord || code == 36 || code == 76 || (searchEmpty && modifiers.isEmpty && binding(modifiers).map { peekKeys.contains($0.name) } == true)), let key = binding(modifiers) {
         return .command(key.name)
     }
     if state == .hold, let hold {
+        if let key = binding(modifiers.subtracting(hold.invoking)), peekKeys.contains(key.name) { return .command(key.name) }
         if let step = hold.step(keyCode: code, flags: flags) { return .step(step) }
         if code == 48, presentation == "list", hold.owns(flags) { return .step(flags.contains(.shift) ? -1 : 1) }
         if (code == 48 || code == 50 || characters == "`"), hold.owns(flags) { return .step(0) }
@@ -109,16 +112,20 @@ func lensCharacters(_ event: NSEvent, hold: StripGesture?) -> String {
 }
 
 extension LensSession {
-    func meaning(for event: NSEvent, source: LensKeySource = .panel) -> LensKeyMeaning {
+    /// While the field editor holds uncommitted IME text, every key is the input method's:
+    /// Space converts, Return commits, the arrows pick a candidate and Escape cancels.
+    func meaning(for event: NSEvent, source: LensKeySource = .panel, composing: Bool = false) -> LensKeyMeaning {
+        if composing, inputState == .search { return .fieldEditor }
         let characters = lensCharacters(event, hold: hold)
         return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
-                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source)
+                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty, peekKeys: peekKeys, peeking: zoomPeeking)
     }
 
     @discardableResult
     func perform(_ meaning: LensKeyMeaning) -> Bool {
         switch meaning {
-            case .command(let key): if !performSectionsAction(key) { onAction?(key) }
+            case .endPeek: send(.peekToggled)
+            case .command(let key): if !performPeekAction(key) && !performSectionsAction(key) { onAction?(key) }
             case .step(let delta): cycleStripSelection(delta)
             case .endHold(let code, let text, let flags):
                 if text == "/" { enterSearch() }
@@ -164,4 +171,8 @@ extension LensConfig {
     var startingInputState: LensInputState {
         startsIn == "search" || (startsIn == nil && presentation == "list") ? .search : .normal
     }
+    /// The keys bound to `peek`, which runs alone.
+    var peekKeys: Set<String> { Set(keys.filter { $0.value == ["peek"] }.keys) }
+    /// Miniatures has no room under its canvas, so it keeps the zoom.
+    func followsPeek(presentation: String) -> Bool { peek == "follow" && presentation != "miniatures" }
 }
