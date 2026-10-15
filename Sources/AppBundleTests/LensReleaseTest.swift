@@ -16,6 +16,75 @@ final class LensReleaseTest: SerialClockTestCase {
         return LensSession(name: "release", settings: settings, items: items, search: "")
     }
 
+    func testShippedAppWindowsGridStepsOnlyBacktickAndReleasesEnter() throws {
+        let settings = try XCTUnwrap(defaultConfig.lenses["app-windows"])
+        XCTAssertEqual(settings.presentation, "grid")
+        XCTAssertEqual(settings.resolvedOnRelease, "commit")
+        let gesture = StripGesture(keyCode: 50, invoking: .command)
+        // MRU order 1, 2, 3 across two workspaces: stepping follows MRU, not workspace sections.
+        let workspaces = ["1", "2", "1"]
+        let items: [SwitcherPaletteItem] = (1...3).map { (n: Int) in
+            SwitcherPaletteItem(id: UInt32(n), title: "Window \(n)", appName: "Demo", icon: nil, workspaceName: workspaces[n - 1], isFocused: n == 1)
+        }
+        let session = LensSession(name: "app-windows", settings: settings, items: items, search: "")
+        let owner = testLensLifecycle()
+        defer { owner.dismiss() }
+        owner.complete(session, ticket: owner.begin("app-windows", toggle: true, invocation: gesture, settings: settings)!)
+        XCTAssertTrue(session.commitsOnRelease)
+        XCTAssertEqual(session.results.map { $0.id }, [1, 2, 3] as [UInt32])
+        XCTAssertEqual(session.selectedId, 2)
+        func press(_ code: UInt16, _ flags: NSEvent.ModifierFlags) throws {
+            let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: code == 50 ? "`" : "\t", charactersIgnoringModifiers: code == 50 ? "`" : "\t", isARepeat: false, keyCode: code))
+            XCTAssertTrue(session.perform(session.meaning(for: event)))
+        }
+        try press(50, .command)
+        XCTAssertEqual(session.selectedId, 3)
+        try press(50, [.command, .shift])
+        XCTAssertEqual(session.selectedId, 2)
+        try press(48, .command)
+        XCTAssertEqual(session.selectedId, 2, "Tab is not this gesture")
+        var actions: [String] = []
+        session.onAction = { actions.append($0); owner.dismiss() }
+        owner.stripFlagsChanged([], from: session)
+        XCTAssertEqual(actions, ["enter"])
+        XCTAssertEqual(settings.keys["enter"], ["focus"])
+        let recent = LensSession(name: "recent", settings: try XCTUnwrap(defaultConfig.lenses["recent"]), items: items, search: "")
+        recent.beginStrip(StripGesture(keyCode: 48, invoking: .command))
+        XCTAssertEqual(lensKeyMeaning(state: recent.inputState, hold: recent.hold, keys: recent.activeKeyBindings, code: 50, characters: "`", flags: .command, presentation: recent.settings.presentation, commitsOnRelease: recent.commitsOnRelease), .step(0))
+    }
+
+    func testShippedAppWindowsTapIsSilentAndHoldWaitsOneHundredMilliseconds() async throws {
+        let settings = try XCTUnwrap(defaultConfig.lenses["app-windows"])
+        for (tap, beforeReady) in [(true, true), (true, false), (false, false)] {
+            let clock = TestClock<Duration>()
+            var events: [ServerEvent] = []
+            var frames = 0
+            let owner = testLensLifecycle(clock: clock, emit: { events.append($0) }, show: { _ in frames += 1 })
+            let gesture = StripGesture(keyCode: 50, invoking: .command, clock: clock)
+            let session = LensSession(name: "app-windows", settings: settings, items: [], search: "")
+            let ticket = owner.begin("app-windows", toggle: true, invocation: gesture, settings: settings)!
+            var actions: [String] = []
+            session.onAction = { actions.append($0); owner.dismiss() }
+            if tap && beforeReady { owner.openingFlagsChanged([]) }
+            owner.complete(session, ticket: ticket)
+            if tap && !beforeReady { owner.stripFlagsChanged([], from: session) }
+            await clock.advance(by: .milliseconds(99))
+            XCTAssertEqual(frames, 0)
+            await clock.advance(by: .milliseconds(1))
+            XCTAssertEqual(frames, tap ? 0 : 1)
+            if tap {
+                XCTAssertEqual(actions, ["enter"])
+                XCTAssertTrue(events.isEmpty)
+                XCTAssertNil(owner.session)
+            } else {
+                XCTAssertFalse(events.isEmpty)
+                owner.stripFlagsChanged([], from: session)
+                XCTAssertEqual(actions, ["enter"])
+            }
+            owner.dismiss()
+        }
+    }
+
     func testBaselineGridReleaseReturnsToStartingStateAndRepeatedTriggerTogglesClosed() {
         for startsIn in ["normal", "search"] {
             let owner = testLensLifecycle()

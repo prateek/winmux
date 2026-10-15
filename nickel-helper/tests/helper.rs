@@ -819,13 +819,12 @@ fn strip_defaults_and_same_app_filter_handle_missing_focus() {
     let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": null}));
     assert_eq!(reply["ok"], true, "{}", reply["error"]);
     let config = &reply["result"]["config"];
-    for name in ["recent", "app-windows"] {
-        assert_eq!(config["lenses"][name]["presentation"], "strip");
-        assert_eq!(config["lenses"][name]["tile"], "picture");
-        assert_eq!(config["lenses"][name]["grid"]["tile-size"], "same-height");
-        assert_eq!(config["lenses"][name]["keys"]["alt-enter"], "summon");
-        assert_eq!(config["lenses"][name]["popups"], json!([]));
-    }
+    let recent = &config["lenses"]["recent"];
+    assert_eq!(recent["presentation"], "strip");
+    assert_eq!(recent["tile"], "picture");
+    assert_eq!(recent["grid"]["tile-size"], "same-height");
+    assert_eq!(recent["keys"]["alt-enter"], "summon");
+    assert_eq!(recent["popups"], json!([]));
     assert!(config["mode"]["main"]["binding"].get("cmd-tab").is_none());
     assert!(config["mode"]["main"]["binding"].get("cmd-shift-tab").is_none());
     assert!(config["mode"]["main"]["binding"].get("cmd-backtick").is_none());
@@ -899,7 +898,7 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     assert!(config["mode"].get("lens").is_none());
     assert_eq!(config["columns"]["count"], "off");
     assert!(config.get("config-version").is_none());
-    assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search"]);
+    assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search", "windows"]);
     let imported = loaded_source("import-only", r#"(import "winmux/defaults.ncl") | (import "winmux/winmux.ncl").Config"#);
     assert_eq!(imported, *config);
     let changed = loaded_source("binding-override", r#"((import "winmux/defaults.ncl") & { mode.main.binding.alt-slash = "focus left" }) | (import "winmux/winmux.ncl").Config"#);
@@ -1202,7 +1201,7 @@ fn expected_window_bindings() -> Value {
         "ctrl-h": "join-with left", "ctrl-j": "join-with down", "ctrl-k": "join-with up", "ctrl-l": "join-with right",
         "n": "focus tab-next", "p": "focus tab-prev", "t": "layout floating tiling", "m": "fullscreen",
         "rightSquareBracket": "project next", "leftSquareBracket": "project prev",
-        "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
+        "w": ["mode main", "lens windows"], "o": ["mode main", "lens overview"], "f": ["mode main", "lens floating"],
         "s": ["mode main", "lens search"], "r": ["mode main", "lens recent --presentation list --tile text"],
         "a": ["mode main", "lens app-windows --presentation list --tile text"], "esc": "mode main", "alt-semicolon": "mode main"
     });
@@ -1276,20 +1275,16 @@ x = "focus left"
 }
 
 #[test]
-fn shipped_picture_strips_allow_cards_back_and_partial_grid_overrides() {
+fn shipped_recent_picture_strip_allows_cards_back_and_partial_grid_overrides() {
     let cards = loaded_source("cards-back", r#"
         let W = import "winmux/winmux.ncl" in
         ((import "winmux/defaults.ncl") & {
             lenses.recent.tile = 'card,
             lenses.recent.grid.tile-size = 'real,
-            lenses.app-windows.tile = 'card,
-            lenses.app-windows.grid.tile-size = 'real,
         }) | W.Config
     "#);
-    for name in ["recent", "app-windows"] {
-        assert_eq!(cards["lenses"][name]["tile"], "card");
-        assert_eq!(cards["lenses"][name]["grid"]["tile-size"], "real");
-    }
+    assert_eq!(cards["lenses"]["recent"]["tile"], "card");
+    assert_eq!(cards["lenses"]["recent"]["grid"]["tile-size"], "real");
     let rows = loaded_source("strip-rows", r#"
         let W = import "winmux/winmux.ncl" in
         ((import "winmux/defaults.ncl") & { lenses.recent.grid.sections-arrangement = 'rows }) | W.Config
@@ -1351,7 +1346,7 @@ fn hints_contract_defaults_choices_profiles_and_miniatures() {
 #[test]
 fn peek_defaults_choices_profiles_and_freed_keys() {
     let defaults = evaluate_to_json(r#"let W = import "winmux/winmux.ncl" in (import "winmux/defaults.ncl") | W.Config"#, &library()).unwrap();
-    for lens in ["recent", "app-windows", "search", "overview", "floating"] {
+    for lens in ["recent", "app-windows", "search", "overview", "floating", "windows"] {
         assert_eq!(defaults["lenses"][lens]["peek"], "zoom");
         assert_eq!(defaults["lenses"][lens]["keys"]["space"], "peek");
         assert_eq!(defaults["lenses"][lens]["keys"]["cmd-y"], "peek");
@@ -1390,7 +1385,7 @@ fn peek_must_run_alone_in_base_and_every_profile() {
 #[test]
 fn lens_release_and_appearance_are_optional_validated_choices_in_all_profiles() {
     let defaults = evaluate_to_json(r#"import "winmux/defaults.ncl""#, &library()).unwrap();
-    for lens in ["recent", "app-windows", "search", "floating", "overview"] {
+    for lens in ["recent", "search", "floating", "overview", "windows"] {
         assert!(defaults["lenses"][lens].get("on-release").is_none());
         assert!(defaults["lenses"][lens].get("appearance").is_none());
     }
@@ -1408,4 +1403,87 @@ fn lens_release_and_appearance_are_optional_validated_choices_in_all_profiles() 
             assert!(evaluate_to_json(&source, &library()).is_err(), "{source}");
         }
     }
+}
+
+#[test]
+fn shipped_grids_and_windows_filter_follow_the_contract() {
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"op": "load"}));
+    assert_eq!(reply["ok"], true);
+    let lenses = &reply["result"]["config"]["lenses"];
+    for name in ["windows", "app-windows", "floating"] {
+        assert_eq!(lenses[name]["presentation"], "grid", "{name}");
+        assert_eq!(lenses[name]["sort"], json!(["mru"]), "{name}");
+        assert_eq!(lenses[name]["sections"], if name == "app-windows" { "none" } else { "workspace" }, "{name}");
+        assert_eq!(lenses[name]["grid"]["tile-size"], "real", "{name}");
+        assert_eq!(lenses[name]["grid"]["sections-arrangement"], "flow", "{name}");
+        assert!(lenses[name].get("tile").is_none(), "{name}");
+        assert_eq!(lenses[name]["popups"], json!([]), "{name}");
+    }
+    assert_eq!(lenses["app-windows"]["on-release"], "commit");
+    assert!(lenses["windows"].get("on-release").is_none());
+    assert!(lenses["windows"].get("filter").is_none());
+    let reply = request(&mut helper, json!({"op": "filter", "lens": "windows", "ctx": context(), "windows": [window("demo", "tiled"), window("other", "floating"), window("hidden", "hidden-app"), window("mini", "minimized")]}));
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["result"], json!([true, true, true, true]));
+}
+
+#[test]
+fn shipped_defaults_removal_and_presentation_recipes_load() {
+    for key in ["t", "w"] {
+        let mut helper = Helper::new(library());
+        let reply = request(&mut helper, json!({"op": "load", "path": fixture(&format!("without-window-{key}.ncl"))}));
+        assert_eq!(reply["ok"], true, "{reply}");
+        let mut expected = expected_window_bindings();
+        expected.as_object_mut().unwrap().remove(key);
+        assert_eq!(reply["result"]["config"]["mode"]["window"]["binding"], expected);
+    }
+    for (file, lens, field, expected) in [
+        ("disable-windows.ncl", "windows", "enabled", json!(false)),
+        ("windows-list.ncl", "windows", "presentation", json!("list")),
+        ("app-windows-strip.ncl", "app-windows", "presentation", json!("strip")),
+        ("app-windows-strip.ncl", "app-windows", "tile", json!("picture")),
+    ] {
+        let mut helper = Helper::new(library());
+        let reply = request(&mut helper, json!({"op": "load", "path": fixture(file)}));
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["result"]["config"]["lenses"][lens][field], expected);
+    }
+}
+
+#[test]
+fn conversion_describes_and_imports_six_lenses_with_or_without_modes() {
+    for source in ["", "[mode.main.binding]\nalt-h = \"focus left\"\n"] {
+        let converted = converted_toml(if source.is_empty() { "six-no-modes" } else { "six-modes" }, source).unwrap();
+        assert!(converted.nickel.contains("six Lenses"), "{}", converted.nickel);
+        let config = loaded_source(if source.is_empty() { "six-no-modes" } else { "six-modes" }, &converted.nickel);
+        assert_eq!(config["lenses"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["app-windows", "floating", "overview", "recent", "search", "windows"]);
+    }
+}
+
+#[test]
+fn every_lenses_document_nickel_example_loads_as_a_whole_config() {
+    let doc = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/lenses.md")).unwrap();
+    let mut block = None;
+    let mut count = 0;
+    for (index, line) in doc.lines().enumerate() {
+        if line.trim() == "```nickel" {
+            assert!(block.is_none());
+            block = Some((index + 1, String::new()));
+        } else if line.trim() == "```" {
+            if let Some((start, source)) = block.take() {
+                let file = std::env::temp_dir().join(format!("winmux-lenses-doc-{}-{start}.ncl", std::process::id()));
+                std::fs::write(&file, source).unwrap();
+                let output = run_helper(&["check", &file.to_string_lossy()]);
+                std::fs::remove_file(file).unwrap();
+                assert!(output.status.success(), "docs/lenses.md:{start}: {}", String::from_utf8_lossy(&output.stderr));
+                count += 1;
+            }
+        } else if let Some((_, source)) = &mut block {
+            source.push_str(line);
+            source.push('\n');
+        }
+    }
+    assert!(block.is_none(), "unclosed Nickel fence");
+    assert!(count > 0, "no Nickel examples found");
 }

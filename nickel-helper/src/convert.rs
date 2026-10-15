@@ -70,7 +70,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
     nickel.push_str("let defaults = import \"winmux/defaults.ncl\" in\n");
     if let Some(modes) = converted_modes {
         nickel
-            .push_str("# Kept from defaults: the five Lenses, and main Triggers alt-slash and alt-shift-o where unbound.\n");
+            .push_str("# Kept from defaults: the six Lenses, and main Triggers alt-slash and alt-shift-o where unbound.\n");
         nickel.push_str("# The windowing mode and alt-semicolon are kept only when the TOML had neither.\n");
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
@@ -78,7 +78,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         nickel.push_str("} in\n((std.record.remove \"mode\" defaults) & {\n  mode = converted-modes,\n");
     } else {
         nickel
-            .push_str("# No TOML mode table: kept all default modes, bindings and five Lenses.\n");
+            .push_str("# No TOML mode table: kept all default modes, bindings and six Lenses.\n");
         nickel.push_str("# To drop one, remove its field from defaults before merging.\n");
         nickel.push_str("(defaults & {\n");
     }
