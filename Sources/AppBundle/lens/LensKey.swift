@@ -50,13 +50,13 @@ enum LensKeyMeaning: Equatable {
 }
 
 func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBinding], code: UInt16,
-                    characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", source: LensKeySource = .panel, searchEmpty: Bool = false, peekKeys: Set<String> = [], peeking: Bool = false) -> LensKeyMeaning {
+                    characters: String, flags: NSEvent.ModifierFlags, presentation: String = "list", commitsOnRelease: Bool = false, source: LensKeySource = .panel, searchEmpty: Bool = false, peekKeys: Set<String> = [], peeking: Bool = false) -> LensKeyMeaning {
     let modifiers = flags.intersection([.command, .control, .option, .shift])
     let binding = { (flags: NSEvent.ModifierFlags) in
         keys.first { $0.code == (code == 76 ? 36 : code) && $0.modifiers == flags }
     }
     if peeking, code == 53 { return .endPeek }
-    if source == .carbon, state != .hold, presentation != "strip" {
+    if source == .carbon, state != .hold, !commitsOnRelease {
         if !modifiers.intersection([.command, .control, .option]).isEmpty, let key = binding(modifiers) { return .command(key.name) }
         return .globalBinding
     }
@@ -72,7 +72,7 @@ func lensKeyMeaning(state: LensInputState, hold: StripGesture?, keys: [LensKeyBi
     if state == .hold, let hold {
         if let key = binding(modifiers.subtracting(hold.invoking)), peekKeys.contains(key.name) { return .command(key.name) }
         if let step = hold.step(keyCode: code, flags: flags) { return .step(step) }
-        if code == 48, presentation == "list", hold.owns(flags) { return .step(flags.contains(.shift) ? -1 : 1) }
+        if code == 48, presentation == "list", !commitsOnRelease, hold.owns(flags) { return .step(flags.contains(.shift) ? -1 : 1) }
         if (code == 48 || code == 50 || characters == "`"), hold.owns(flags) { return .step(0) }
         if !modifiers.subtracting(hold.invoking.union(.shift)).isEmpty { return .global }
         if code == 53 { return .dismiss }
@@ -118,7 +118,7 @@ extension LensSession {
         if composing, inputState == .search { return .fieldEditor }
         let characters = lensCharacters(event, hold: hold)
         return lensKeyMeaning(state: inputState, hold: hold ?? invokingGesture, keys: activeKeyBindings, code: event.keyCode,
-                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, source: source, searchEmpty: query.isEmpty, peekKeys: peekKeys, peeking: zoomPeeking)
+                              characters: characters, flags: event.modifierFlags, presentation: settings.presentation, commitsOnRelease: commitsOnRelease, source: source, searchEmpty: query.isEmpty, peekKeys: peekKeys, peeking: zoomPeeking)
     }
 
     @discardableResult
@@ -168,6 +168,10 @@ extension LensSession {
 }
 
 extension LensConfig {
+    func commitsOnRelease(for gesture: StripGesture?) -> Bool {
+        resolvedOnRelease == "commit" && gesture?.isHeldChord == true
+    }
+
     var startingInputState: LensInputState {
         startsIn == "search" || (startsIn == nil && presentation == "list") ? .search : .normal
     }

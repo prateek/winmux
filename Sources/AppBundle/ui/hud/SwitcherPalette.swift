@@ -357,8 +357,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         if model.performPeekAction(key) || model.performSectionsAction(key) { return }
         let commands = model.commands(for: key)
         guard !commands.isEmpty else {
-            // A release always closes the strip, even when its binding runs nothing.
-            if model.settings.presentation == "strip", key.hasSuffix("enter") { dismiss() }
+            if model.commitsOnRelease, key.hasSuffix("enter") { dismiss() }
             return
         }
         let keepOpen = model.keepsOpen(after: key)
@@ -434,7 +433,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                         default: break
                     }
                 }
-                if carbon, !handled, presentation == "strip" { dismiss() }
+                if carbon, !handled, model.commitsOnRelease { dismiss() }
         }
         trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
                    timestamp: event.timestamp, presentation: presentation, state: state, hold: held, path: path,

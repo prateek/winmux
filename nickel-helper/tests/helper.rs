@@ -1386,3 +1386,26 @@ fn peek_must_run_alone_in_base_and_every_profile() {
     let source = r#"let W = import "winmux/winmux.ncl" in { lenses.demo.keys.cmd-p = ["peek"] } | W.Config"#;
     assert!(evaluate_to_json(source, &library()).is_ok());
 }
+
+#[test]
+fn lens_release_and_appearance_are_optional_validated_choices_in_all_profiles() {
+    let defaults = evaluate_to_json(r#"import "winmux/defaults.ncl""#, &library()).unwrap();
+    for lens in ["recent", "app-windows", "search", "floating", "overview"] {
+        assert!(defaults["lenses"][lens].get("on-release").is_none());
+        assert!(defaults["lenses"][lens].get("appearance").is_none());
+    }
+    for release in ["commit", "stay"] {
+        for appearance in ["auto", "dark", "light"] {
+            let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo = {{ on-release = '{release}, appearance = '{appearance}, when.default = {{ on-release = '{release}, appearance = '{appearance} }} }} }} | W.Config"#);
+            let value = evaluate_to_json(&source, &library()).unwrap();
+            assert_eq!(value["lenses"]["demo"]["on-release"], release);
+            assert_eq!(value["lenses"]["demo"]["appearance"], appearance);
+        }
+    }
+    for field in ["on-release", "appearance"] {
+        for profile in ["", "when.default.", "when.travel."] {
+            let source = format!(r#"let W = import "winmux/winmux.ncl" in {{ lenses.demo.{profile}{field} = 'invalid }} | W.Config"#);
+            assert!(evaluate_to_json(&source, &library()).is_err(), "{source}");
+        }
+    }
+}

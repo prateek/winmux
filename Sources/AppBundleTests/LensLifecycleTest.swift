@@ -153,7 +153,7 @@ final class LensLifecycleTest: XCTestCase {
             let owner = testLensLifecycle()
             owner.finishShow = { _, instruction in instructions.append(instruction) }
             owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
-            XCTAssertEqual(instructions, [.init(activate: presentation != "strip", focusSearch: presentation == "list")])
+            XCTAssertEqual(instructions, [.init(activate: true, focusSearch: presentation == "list")])
             model.send(.presentationChanged("list"))
             if presentation != "list" {
                 XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))

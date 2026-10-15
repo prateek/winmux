@@ -112,10 +112,10 @@ final class StripSessionTest: SerialClockTestCase {
         _ = NSApplication.shared
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }
-        let ticket = panel.beginLens("global-handoff", toggle: false)!
-        await panel.openLens(name: "global-handoff", settings: LensConfig(), entries: [], search: nil, banner: nil, context: .null, ticket: ticket)
-        panel.session?.changePresentation("strip")
-        panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command))
+        var settings = LensConfig(); settings.presentation = "strip"
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = panel.beginLens("global-handoff", toggle: false, strip: gesture)!
+        await panel.openLens(name: "global-handoff", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: gesture)
         XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
         XCTAssertNil(panel.session)
         XCTAssertFalse(panel.isVisible)
@@ -169,8 +169,10 @@ final class StripSessionTest: SerialClockTestCase {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys = [:]
-        let ticket = panel.beginLens("empty-action", toggle: false)!
-        await panel.openLens(name: "empty-action", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: StripGesture(keyCode: nil, invoking: []))
+        let gesture = StripGesture(keyCode: 48, invoking: .command)
+        let ticket = panel.beginLens("empty-action", toggle: false, strip: gesture)!
+        panel.stripFlagsChanged([])
+        await panel.openLens(name: "empty-action", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: gesture)
         XCTAssertNil(panel.session)
         XCTAssertFalse(panel.isVisible)
     }

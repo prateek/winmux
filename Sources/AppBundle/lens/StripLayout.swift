@@ -21,12 +21,13 @@ struct StripGesture {
 
     // Test observation of the gesture deadline.
     var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
+    var isHeldChord: Bool { keyCode != nil && !holdModifiers.isEmpty }
     var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
     var holdModifiers: NSEvent.ModifierFlags {
         committingModifiers.isEmpty ? invoking.intersection(.shift) : committingModifiers
     }
     func holdEnded(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(holdModifiers).isEmpty }
-    func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(committingModifiers).isEmpty }
+    func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { holdEnded(flags: flags) }
     func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .control, .option]).subtracting(committingModifiers)
     }
@@ -58,13 +59,13 @@ extension LensSession {
 
     @discardableResult
     func cycleStrip(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-        guard inputState == .hold, settings.presentation == "strip", let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
+        guard inputState == .hold, commitsOnRelease, let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
         cycleStripSelection(step)
         return true
     }
 
     func stripInput(_ event: NSEvent) -> StripInput {
-        guard settings.presentation == "strip" else { return .ignored }
+        guard commitsOnRelease else { return .ignored }
         let meaning = meaning(for: event)
         if meaning == .dismiss { return .cancel }
         if perform(meaning) { return settings.presentation == "list" ? .list : .consumed }
@@ -77,13 +78,13 @@ extension LensSession {
     }
 
     func stripReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
-        guard !holdEndedByKey, settings.presentation == "strip", let gesture = stripGesture, gesture.shouldCommit(flags: flags) else { return nil }
+        guard !holdEndedByKey, commitsOnRelease, let gesture = stripGesture, gesture.shouldCommit(flags: flags) else { return nil }
         return enterKey(modifiers: gesture.releaseModifiers(flags)) ?? "enter"
     }
 
     @discardableResult
     func handleStripLetter(_ event: NSEvent) -> Bool {
-        guard settings.presentation == "strip" else { return false }
+        guard commitsOnRelease else { return false }
         let meaning = meaning(for: event)
         switch meaning {
             case .command, .endHold: return perform(meaning)

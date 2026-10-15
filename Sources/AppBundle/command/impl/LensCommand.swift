@@ -42,13 +42,13 @@ struct LensCommand: Command {
         }
         let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings, search: args.search) } : nil
         let panel = SwitcherPalettePanel.shared
-        if settings.presentation == "strip", panel.cycleStrip(name: name, invocation: invocation, identity: identity) { return true }
+        if settings.commitsOnRelease(for: invocation), panel.cycleStrip(name: name, invocation: invocation, identity: identity) { return true }
         let now = LensTimebase.now()
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
         trace.advance("binding resolved")
         trace.startInterval("windows collected")
         guard let ticket = panel.beginLens(name, toggle: args.name != nil,
-                                          strip: settings.presentation == "strip" ? invocation : nil,
+                                          strip: settings.commitsOnRelease(for: invocation) ? invocation : nil,
                                           trace: trace, keys: LensSession.openingBindings(settings), invocation: lensInvocation, settings: settings, identity: identity) else {
             LensTraceStore.shared.discard(trace)
             return true

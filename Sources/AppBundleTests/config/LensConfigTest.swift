@@ -87,3 +87,29 @@ final class TileConfigTest: XCTestCase {
         XCTAssertEqual(LensConfig(value).json["badges"], .bool(false))
     }
 }
+
+@MainActor
+final class LensReleaseConfigTest: XCTestCase {
+    func testUnsetReleaseResolvesFromOverriddenPresentationAndAppearanceReportsAuto() {
+        var settings = LensConfig()
+        for presentation in ["strip", "grid", "list", "miniatures"] {
+            settings.presentation = presentation
+            XCTAssertNil(settings.onRelease)
+            XCTAssertNil(settings.appearance)
+            XCTAssertEqual(settings.json["on-release"], .string(presentation == "strip" ? "commit" : "stay"))
+            XCTAssertEqual(settings.json["appearance"], .string("auto"))
+        }
+    }
+
+    func testFieldsMergeFromDefaultProfileWithoutResolvingMissingValuesEarly() throws {
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data("""
+        {"presentation":"strip","on-release":"commit","appearance":"dark","when":{"default":{"on-release":"stay","appearance":"light"},"travel":{"on-release":"commit","appearance":"auto"}}}
+        """.utf8))
+        var settings = LensConfig(json)
+        XCTAssertEqual(settings.onRelease, "stay")
+        XCTAssertEqual(settings.appearance, "light")
+        settings.presentation = "grid"
+        XCTAssertEqual(settings.json["on-release"], .string("stay"))
+        XCTAssertEqual(settings.json["appearance"], .string("light"))
+    }
+}
