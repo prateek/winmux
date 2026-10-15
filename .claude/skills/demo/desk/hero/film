@@ -3,6 +3,7 @@ set -eu
 export PATH=/opt/homebrew/bin:$PATH
 take=$1; seconds=$2; shift 2
 here=${0:A:h}
+[[ ~/desk/keys -nt ~/desk/keys.swift ]] || swiftc -O ~/desk/keys.swift -o ~/desk/keys
 [[ $here/snapshot-recorder -nt $here/snapshot-recorder.swift ]] || swiftc -O "$here/snapshot-recorder.swift" -o "$here/snapshot-recorder"
 mkdir -p ~/takes
 W=$HOME/winmux/.build/debug/winmux

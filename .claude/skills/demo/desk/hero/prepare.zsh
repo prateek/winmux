@@ -3,7 +3,6 @@
 set -eu
 mkdir -p ~/desk/repo
 touch ~/.hushlogin
-cp ~/desk/hero/zshrc ~/.zshrc
 mkdir -p ~/.config/ghostty
-cp ~/desk/hero/ghostty.config ~/.config/ghostty/config
+{ cat ~/desk/hero/ghostty.config; print -r -- "command = $HOME/desk/term.sh"; } > ~/.config/ghostty/config
 ~/desk/make-repo.sh

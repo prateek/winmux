@@ -6,7 +6,7 @@ A new window lands in the nearest empty Column; the others keep their places.
 
 ![Cmd-N opens a terminal in empty Column 2 between Ghostty in Column 1 and Zed in Column 3](demos/columns-land.gif)
 
-`column-width next` steps the focused Column through its width presets; the others give up room in proportion.
+`column-width next`, bound to Option-W in this demo's config, steps the focused Column through its width presets; the others give up room in proportion.
 
 ![Option-W twice grows Column 1 from a third to a half to two thirds while the other Columns shrink](demos/column-width.gif)
 

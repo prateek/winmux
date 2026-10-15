@@ -32,17 +32,19 @@ writer.add(input)
 writer.startWriting()
 writer.startSession(atSourceTime: .zero)
 let start = Date().timeIntervalSince1970
-try JSONSerialization.data(withJSONObject: ["epoch": start]).write(to: URL(fileURLWithPath: args[1] + ".clock.json"))
+let uptime0 = ProcessInfo.processInfo.systemUptime
+func elapsedSeconds() -> Double { ProcessInfo.processInfo.systemUptime - uptime0 }
+try JSONSerialization.data(withJSONObject: ["epoch": start]).write(to: URL(fileURLWithPath: args[1] + ".clock.json"), options: .atomic)
 var frames = 0
 var stamps: [Double] = []
-while Date().timeIntervalSince1970 - start < seconds {
+while elapsedSeconds() < seconds {
+    let elapsed = elapsedSeconds()
     let image: CGImage = try await withCheckedThrowingContinuation { continuation in
         SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) { image, error in
             if let image { continuation.resume(returning: image) }
             else { continuation.resume(throwing: error ?? NSError(domain: "filming", code: 1)) }
         }
     }
-    let elapsed = Date().timeIntervalSince1970 - start
     var pixel: CVPixelBuffer?
     CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &pixel)
     guard let pixel else { fatalError("pixel allocation failed") }
@@ -60,11 +62,11 @@ while Date().timeIntervalSince1970 - start < seconds {
         stamps.append(elapsed)
     }
     let next = Double(frames) / 15
-    let wait = next - (Date().timeIntervalSince1970 - start)
+    let wait = next - elapsedSeconds()
     if wait > 0 { try await Task.sleep(for: .seconds(wait)) }
 }
 input.markAsFinished()
 await writer.finishWriting()
 guard writer.status == .completed else { fatalError(String(describing: writer.error)) }
-try JSONSerialization.data(withJSONObject: ["epoch": start, "sampleSeconds": stamps]).write(to: URL(fileURLWithPath: args[1] + ".clock.json"))
+try JSONSerialization.data(withJSONObject: ["epoch": start, "sampleSeconds": stamps]).write(to: URL(fileURLWithPath: args[1] + ".clock.json"), options: .atomic)
 print("Recorded \(frames) full-screen snapshots")

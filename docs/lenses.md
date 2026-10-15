@@ -17,7 +17,7 @@ Option-Slash opens Search: two letters narrow four windows to one, and Enter goe
 
 ![Typing l leaves four windows; le leaves Safari, and Enter focuses it on workspace 2](demos/search-two-letters.gif)
 
-Hold Option in the strip to see the landing spot; Option-Return brings the selected window here.
+Hold Option in the strip to see the landing spot; Option-Return brings the selected window here. Safari's minimum width is wider than its spot, so it runs past the outline.
 
 ![An outline previews the selected window’s landing spot, then Option-Return brings it to workspace 1](demos/summon-landing.gif)
 
