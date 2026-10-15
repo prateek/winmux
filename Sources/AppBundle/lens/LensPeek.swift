@@ -213,8 +213,10 @@ final class LensPeekController {
         guard lens.isVisible, model.peekedId != nil || showing != nil else { return }
         self.model = model
         self.lens = lens
-        panel.appearance = model.theme.nsAppearance
-        drawing.theme = model.theme
+        if drawing.theme != model.theme || panel.appearance == nil {
+            panel.appearance = model.theme.nsAppearance
+            drawing.theme = model.theme
+        }
         guard let item = model.peekItem, let window = item.miniature?.window ?? Window.get(byId: item.id) else {
             if showing != nil { shrink(model, lens: lens) }
             return

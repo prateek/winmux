@@ -289,7 +289,9 @@ later release from committing. Conversion to a list, including `winmux lens
 --presentation list`, ends the committing gesture. A committing release hides a
 peek at once; a staying release leaves a zoom as it is.
 
-Light uses the prototype's pale panel over blur, dark text and blue selection.
+Light uses the prototype's pale panel over blur and dark text; the selection keeps
+the system accent colour in both appearances. With solid chrome, light is an opaque
+pale panel. Labels drawn over window pictures keep their dark plate.
 The panels, Search, grouping, Tile chrome, badges and peek follow the opening's
 appearance. The hint legend keeps its dark plate and white text; window pictures,
 app icons and Frozen treatment keep their existing look. The sidebar and other

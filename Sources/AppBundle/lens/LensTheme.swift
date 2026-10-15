@@ -34,9 +34,10 @@ struct LensTheme: Equatable, Sendable {
     var peekPlate: Color { isDark ? Color(white: 34 / 255) : Color(red: 236 / 255, green: 238 / 255, blue: 243 / 255) }
     var peekLabel: Color { isDark ? Color(red: 20 / 255, green: 22 / 255, blue: 28 / 255).opacity(0.86) : panelFill }
 
-    func ink(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : (darkOpacity == 1 ? text : secondaryText) }
-    func fill(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : .black.opacity(0.1) }
-    func line(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : .black.opacity(0.12) }
+    // Light scales dark's white opacities onto black, anchored on the prototype: secondary text 0.62 → 0.55, chip 0.16 → 0.1, line 0.3 → 0.12.
+    func ink(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : (darkOpacity == 1 ? text : .black.opacity(darkOpacity * 0.55 / 0.62)) }
+    func fill(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : .black.opacity(darkOpacity * 0.1 / 0.16) }
+    func line(_ darkOpacity: Double) -> Color { isDark ? .white.opacity(darkOpacity) : .black.opacity(darkOpacity * 0.12 / 0.3) }
     func badgePlate(_ darkOpacity: Double) -> Color { isDark ? .black.opacity(darkOpacity) : chip }
 }
 
@@ -60,10 +61,16 @@ struct LensPanelSurface<S: Shape>: View {
                          solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
         } else {
             ZStack {
-                MiniatureBackdrop(material: .underWindowBackground)
-                shape.fill(theme.panelFill)
+                if config.workspaceSidebar.chromeStyle == .solid {
+                    shape.fill(Color(red: 236 / 255, green: 238 / 255, blue: 243 / 255))
+                } else {
+                    MiniatureBackdrop(material: .underWindowBackground)
+                    shape.fill(theme.panelFill)
+                }
                 shape.stroke(theme.panelLine, lineWidth: StrokeToken.hairline)
             }
+            // The behind-window blur is a rectangular layer; clip the composed result.
+            .compositingGroup()
             .clipShape(shape)
         }
     }

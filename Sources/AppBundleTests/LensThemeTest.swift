@@ -44,6 +44,16 @@ final class LensThemeTest: XCTestCase {
         XCTAssertEqual(theme.colorScheme, .light)
         XCTAssertEqual(LensTheme.dark.colorScheme, .dark)
     }
+    func testLightKeepsDarkEmphasisSteps() {
+        let light = LensTheme.light
+        XCTAssertEqual(NSColor(light.ink(0.62)).alphaComponent, 0.55, accuracy: 0.001)
+        XCTAssertLessThan(NSColor(light.ink(0.45)).alphaComponent, NSColor(light.ink(0.62)).alphaComponent)
+        XCTAssertEqual(NSColor(light.fill(0.16)).alphaComponent, 0.1, accuracy: 0.001)
+        XCTAssertLessThan(NSColor(light.fill(0.035)).alphaComponent, NSColor(light.fill(0.16)).alphaComponent)
+        XCTAssertEqual(NSColor(light.line(0.3)).alphaComponent, 0.12, accuracy: 0.001)
+        XCTAssertLessThan(NSColor(light.line(0.07)).alphaComponent, NSColor(light.line(0.3)).alphaComponent)
+    }
+
     func testPanelSetsNativeAppearanceForEachOpening() async {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }

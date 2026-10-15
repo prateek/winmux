@@ -390,8 +390,8 @@ final class LensLifecycle {
     /// press that follows it cannot hide it from the live modifier state.
     func openingFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         guard case .opening(var opening) = state, let gesture = opening.gesture, opening.release == nil else { return }
-        guard opening.commitsOnRelease || !gesture.holdModifiers.isEmpty else { return }
-        if gesture.holdEnded(flags: flags) || (opening.commitsOnRelease && gesture.shouldCommit(flags: flags)) { opening.release = flags; state = .opening(opening) }
+        guard !gesture.holdModifiers.isEmpty else { return }
+        if gesture.holdEnded(flags: flags) { opening.release = flags; state = .opening(opening) }
     }
 
     func cancelOpening(ticket: Int) {

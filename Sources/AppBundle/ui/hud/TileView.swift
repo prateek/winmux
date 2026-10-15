@@ -105,10 +105,13 @@ struct TileView: View {
         TileChip(text: text, metrics: metrics)
     }
 
-    private func label(_ text: String) -> some View {
-        Text(text).font(.system(size: metrics.chipFont))
+    /// A label over a window picture keeps the dark plate in both appearances: the picture under it can be any colour.
+    private func label(_ text: String, onPicture: Bool = false) -> some View {
+        let plate = onPicture ? LensTheme.dark : theme
+        return Text(text).font(.system(size: metrics.chipFont))
+            .foregroundStyle(plate.text)
             .padding(.vertical, metrics.labelVerticalPadding).padding(.horizontal, metrics.labelHorizontalPadding)
-            .background(theme.badgePlate(0.72), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
+            .background(plate.badgePlate(0.72), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
             .fixedSize()
     }
 
@@ -151,14 +154,15 @@ struct TileView: View {
                         icon(size: miniature ? metrics.miniatureIcon : metrics.pictureIcon)
                             .shadow(color: .black.opacity(0.5), radius: metrics.iconShadowRadius, y: metrics.iconShadowY)
                     }
-                    if entry.accessory && !line { label("menu-bar app") }
+                    if entry.accessory && !line { label("menu-bar app", onPicture: true) }
                 }.padding(miniature ? metrics.miniatureIconInset : metrics.pictureIconInset)
             }
             .overlay(alignment: .bottomTrailing) {
                 if let workspaceHint, !line && !miniature {
                     Text(workspaceHint).font(.system(size: 13 * metrics.scale, weight: .bold))
                         .padding(.vertical, 2 * metrics.scale).padding(.horizontal, 8 * metrics.scale)
-                        .background(theme.badgePlate(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
+                        .foregroundStyle(LensTheme.dark.text)
+                        .background(LensTheme.dark.badgePlate(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
                         .padding(.trailing, 8 * metrics.scale)
                         .padding(.bottom, LensHintGeometry.workspaceChipBottomInset(badgeHeight: frozenBadgeHeight, scale: metrics.scale))
                 }
@@ -170,8 +174,8 @@ struct TileView: View {
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {
-                    if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill") }
-                    if let hint, !line { label(hint) }
+                    if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill").foregroundStyle(LensTheme.dark.text) }
+                    if let hint, !line { label(hint, onPicture: true) }
                 }.padding(metrics.gap)
             }
         }
