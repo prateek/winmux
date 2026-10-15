@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LensHintLegend: View {
+    private let theme = LensTheme.dark
     let entries: [LensHintEntry]
     let scale: CGFloat
     let maxWidth: CGFloat
@@ -21,13 +22,13 @@ struct LensHintLegend: View {
                     ForEach(Array(entry.chords.enumerated()), id: \.offset) { _, chord in
                         Text(chord).fixedSize().font(.system(size: 13 * scale, weight: .semibold))
                             .padding(.vertical, 2 * scale).padding(.horizontal, 7 * scale)
-                            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 5 * scale))
+                            .background(theme.fill(0.18), in: RoundedRectangle(cornerRadius: 5 * scale))
                     }
                     Text(entry.phrase).font(.system(size: 15 * scale)).lineLimit(1).truncationMode(.tail)
                 }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(theme.text)
         .padding(.vertical, 9 * scale).padding(.horizontal, 18 * scale)
         .background(Color(red: 10 / 255, green: 12 / 255, blue: 16 / 255).opacity(0.82), in: RoundedRectangle(cornerRadius: 12 * scale))
     }

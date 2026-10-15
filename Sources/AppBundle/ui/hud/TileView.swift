@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct TileView: View {
+    @Environment(\.lensTheme) private var theme
     let entry: TileEntry
     let kind: TileKind
     let presentation: String
@@ -33,13 +34,13 @@ struct TileView: View {
             .overlay {
                 drawing
                     .frame(width: size.width, height: size.height)
-                    .background(selected && !miniature && !extremeAspect ? (line ? Color.accentColor.opacity(0.26) : Color.white.opacity(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
+                    .background(selected && !miniature && !extremeAspect ? (line ? theme.selectionPlate : theme.fill(0.16)) : .clear, in: RoundedRectangle(cornerRadius: radius))
                     .overlay {
                         if selected && !line && !extremeAspect {
-                            RoundedRectangle(cornerRadius: radius).inset(by: -selectionRing / 2).stroke(Color.accentColor, lineWidth: selectionRing)
+                            RoundedRectangle(cornerRadius: radius).inset(by: -selectionRing / 2).stroke(theme.selectionRing, lineWidth: selectionRing)
                         }
                         if entry.accessory && !extremeAspect {
-                            RoundedRectangle(cornerRadius: radius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
+                            RoundedRectangle(cornerRadius: radius).stroke(theme.line(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
                         }
                     }
                     .shadow(color: .black.opacity(selected && !line ? (miniature ? 0.5 : 0.4) : 0), radius: miniature ? metrics.miniatureShadowRadius : metrics.selectionShadowRadius, y: miniature ? metrics.miniatureShadowY : metrics.selectionShadowY)
@@ -47,7 +48,7 @@ struct TileView: View {
                     .animation(.easeOut(duration: 0.16), value: selected)
                     .allowsHitTesting(false)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.text)
             .contentShape(Rectangle())
     }
 
@@ -83,12 +84,12 @@ struct TileView: View {
             icon(size: metrics.icon)
             Text(lensHighlightedText(entry.displayTitle, ranges: entry.displayTitleRanges))
                 .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
-                .foregroundStyle(.white.opacity(selected ? 1 : 0.62))
+                .foregroundStyle(theme.ink(selected ? 1 : 0.62))
                 .lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
             if line && entry.appCount == nil {
-                Text(lensHighlightedText(entry.appName, ranges: entry.appRanges)).font(.system(size: metrics.appFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                Text(lensHighlightedText(entry.appName, ranges: entry.appRanges)).font(.system(size: metrics.appFont)).foregroundStyle(theme.ink(0.62)).lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
             TileChips(entry: entry, metrics: metrics, enabled: settings.badges)
@@ -107,7 +108,7 @@ struct TileView: View {
     private func label(_ text: String) -> some View {
         Text(text).font(.system(size: metrics.chipFont))
             .padding(.vertical, metrics.labelVerticalPadding).padding(.horizontal, metrics.labelHorizontalPadding)
-            .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
+            .background(theme.badgePlate(0.72), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
             .fixedSize()
     }
 
@@ -135,13 +136,13 @@ struct TileView: View {
             .shadow(color: .black.opacity(miniature ? 0 : 0.35), radius: metrics.pictureShadowRadius, y: metrics.pictureShadowY)
             .overlay {
                 if selected && !line && extremeAspect {
-                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(Color.accentColor, lineWidth: selectionRing)
+                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(theme.selectionRing, lineWidth: selectionRing)
                 }
                 if entry.accessory && extremeAspect {
-                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(.white.opacity(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
+                    RoundedRectangle(cornerRadius: metrics.pictureRadius).stroke(theme.line(0.65), style: StrokeStyle(lineWidth: metrics.scale, dash: [4 * metrics.scale, 3 * metrics.scale]))
                 }
                 if miniature {
-                    RoundedRectangle(cornerRadius: metrics.miniaturePictureRadius).stroke(.white.opacity(0.35), lineWidth: metrics.scale)
+                    RoundedRectangle(cornerRadius: metrics.miniaturePictureRadius).stroke(theme.line(0.35), lineWidth: metrics.scale)
                 }
             }
             .overlay(alignment: .bottomLeading) {
@@ -157,7 +158,7 @@ struct TileView: View {
                 if let workspaceHint, !line && !miniature {
                     Text(workspaceHint).font(.system(size: 13 * metrics.scale, weight: .bold))
                         .padding(.vertical, 2 * metrics.scale).padding(.horizontal, 8 * metrics.scale)
-                        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
+                        .background(theme.badgePlate(0.72), in: RoundedRectangle(cornerRadius: 6 * metrics.scale))
                         .padding(.trailing, 8 * metrics.scale)
                         .padding(.bottom, LensHintGeometry.workspaceChipBottomInset(badgeHeight: frozenBadgeHeight, scale: metrics.scale))
                 }
@@ -207,6 +208,7 @@ private struct TilePicture: View {
                     }
                 } else { Color.clear.frame(width: 0, height: 0) }
             }
+            .foregroundStyle(LensTheme.dark.text)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { badgeHeight = $0 }
         }
     }
@@ -228,13 +230,14 @@ struct TileChips: View {
 }
 
 private struct TileChip: View {
+    @Environment(\.lensTheme) private var theme
     let text: String
     let metrics: TileMetrics
 
     var body: some View {
         Text(text).font(.system(size: metrics.chipFont, weight: .semibold))
             .padding(.vertical, metrics.chipVerticalPadding).padding(.horizontal, metrics.chipHorizontalPadding)
-            .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: metrics.chipRadius))
+            .background(theme.chip, in: RoundedRectangle(cornerRadius: metrics.chipRadius))
             .fixedSize()
     }
 }

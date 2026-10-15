@@ -6,6 +6,7 @@ import HotKey
 final class LensSession: ObservableObject {
     let name: String
     let eventFilter: String?
+    let theme: LensTheme
     private(set) var settings: LensConfig
     let sectionIdentities: [String: [LensSectionIdentity]]
     let sectionCycle: [String]
@@ -229,12 +230,13 @@ final class LensSession: ObservableObject {
     var onAction: ((String) -> Void)?
     var onControl: ((TileWindowControl, UInt32) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }, systemIsDark: () -> Bool = { LensTheme.systemIsDark }) {
         self.pointerLocation = pointerLocation
         pointerMotion = LensPointerMotion(anchor: pointerLocation())
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
+        theme = LensTheme.resolve(settings.appearance, systemIsDark: systemIsDark)
         let focused = items.first(where: \.isFocused)
         var identities: [String: [LensSectionIdentity]] = [:]
         for grouping in ["workspace", "project", "monitor"] {

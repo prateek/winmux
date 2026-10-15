@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MiniaturesView: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
 
     var body: some View {
@@ -12,8 +13,8 @@ struct MiniaturesView: View {
         let matchedIds = Set(results.map(\.id))
         let selectedId = results.indices.contains(model.selection) ? results[model.selection].id : nil
         ZStack(alignment: .topLeading) {
-            if model.settings.miniatures.blur { MiniatureBackdrop().allowsHitTesting(false) }
-            Color.black.opacity(model.settings.miniatures.darkness).allowsHitTesting(false)
+            if model.settings.miniatures.blur { MiniatureBackdrop(material: theme.isDark ? .hudWindow : .underWindowBackground).allowsHitTesting(false) }
+            theme.miniatureScrim.opacity(model.settings.miniatures.darkness).allowsHitTesting(false)
             ForEach(model.miniatureCells(on: page, layout: layout), id: \.workspace) { cell in
                 workspaceCell(cell, selectedId: selectedId)
                 let entries = miniatureDrawOrder(model.items.filter { $0.miniature?.workspace == cell.workspace })
@@ -49,10 +50,10 @@ struct MiniaturesView: View {
                 }
                 if let error = model.searchError ?? model.banner { Text(error).foregroundStyle(.orange).font(.caption) }
             }
-            .padding(14).background(.black.opacity(0.3)).frame(width: min(560, model.miniatureSize.width - 48))
+            .padding(14).background(theme.badgePlate(0.3)).frame(width: min(560, model.miniatureSize.width - 48))
             .position(x: model.miniatureSize.width / 2, y: 28)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(theme.text)
         .frame(width: model.miniatureSize.width, height: model.miniatureSize.height)
         .contentShape(Rectangle())
         .onContinuousHover { phase in
@@ -65,10 +66,10 @@ struct MiniaturesView: View {
         let workspace = model.miniatureWorkspaces.first { $0.name == cell.workspace }
         let current = workspace?.current == true
         RoundedRectangle(cornerRadius: 5)
-            .fill(Color.white.opacity(0.035))
+            .fill(theme.fill(0.035))
             .overlay {
                 RoundedRectangle(cornerRadius: 5).stroke(
-                    current && model.settings.miniatures.currentWorkspace != "plain" ? Color.accentColor : Color.white.opacity(0.3), lineWidth: current ? 2 : 1)
+                    current && model.settings.miniatures.currentWorkspace != "plain" ? theme.selectionRing : theme.line(0.3), lineWidth: current ? 2 : 1)
             }
             .frame(width: cell.frame.width, height: cell.frame.height)
             .position(x: cell.frame.midX, y: cell.frame.midY)
@@ -96,13 +97,14 @@ struct MiniaturesView: View {
     }
 }
 
-private struct MiniatureBackdrop: NSViewRepresentable {
+struct MiniatureBackdrop: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .hudWindow
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.blendingMode = .behindWindow
-        view.material = .hudWindow
+        view.material = material
         view.state = .active
         return view
     }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) { nsView.material = material }
 }

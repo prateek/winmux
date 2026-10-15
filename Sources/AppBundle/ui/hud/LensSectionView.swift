@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LensSectionHeader: View {
+    @Environment(\.lensTheme) private var theme
     let label: String
     let current: Bool
     let scale: CGFloat
@@ -8,7 +9,7 @@ struct LensSectionHeader: View {
         Text(label + (current ? "  · here" : ""))
             .font(.system(size: 15 * scale, weight: .semibold))
             .tracking(0.3 * scale)
-            .foregroundStyle(.white.opacity(current ? 1 : 0.62))
+            .foregroundStyle(theme.ink(current ? 1 : 0.62))
             .lineLimit(1).truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
             .allowsHitTesting(false)
@@ -16,6 +17,7 @@ struct LensSectionHeader: View {
 }
 
 struct LensGroupingControl: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
     var body: some View {
         let scale = model.tileMetrics.scale
@@ -25,9 +27,9 @@ struct LensGroupingControl: View {
                 Button { model.changeSections(value) } label: {
                     Text(value)
                         .fontWeight(model.settings.sections == value ? .semibold : .regular)
-                        .foregroundStyle(.white.opacity(model.settings.sections == value ? 1 : 0.62))
+                        .foregroundStyle(theme.ink(model.settings.sections == value ? 1 : 0.62))
                         .padding(.horizontal, 11 * scale).padding(.vertical, 4 * scale)
-                        .background(model.settings.sections == value ? Color.white.opacity(0.16) : .clear,
+                        .background(model.settings.sections == value ? theme.fill(0.16) : .clear,
                                     in: RoundedRectangle(cornerRadius: 8 * scale))
                 }
                 .buttonStyle(.plain).focusable(false)
@@ -37,32 +39,33 @@ struct LensGroupingControl: View {
             if let key = model.sectionsKey {
                 Text(displayBindingNotation(key)).font(.system(size: 12 * scale, weight: .semibold))
                     .padding(.horizontal, 6 * scale).padding(.vertical, scale)
-                    .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 5 * scale))
+                    .background(theme.fill(0.16), in: RoundedRectangle(cornerRadius: 5 * scale))
                     .padding(.leading, 8 * scale)
             }
         }
-        .font(.system(size: 14 * scale)).foregroundStyle(.white.opacity(0.62))
+        .font(.system(size: 14 * scale)).foregroundStyle(theme.ink(0.62))
         .fixedSize()
     }
 }
 
 struct LensSelectionFooter: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
     let items: [SwitcherPaletteItem]
     var body: some View {
         if items.indices.contains(model.selection) {
             let selected = items[model.selection]
             HStack(spacing: model.tileMetrics.gap) {
-                Text(lensHighlightedText(selected.tile.displayTitle, ranges: selected.tile.displayTitleRanges)).fontWeight(.semibold).foregroundStyle(.white).lineLimit(1)
+                Text(lensHighlightedText(selected.tile.displayTitle, ranges: selected.tile.displayTitleRanges)).fontWeight(.semibold).foregroundStyle(theme.text).lineLimit(1)
                 if model.tileKind == .picture {
                     TileChips(entry: selected.tile, metrics: model.tileMetrics, enabled: model.settings.badges)
                 }
                 if let app = selected.tile.footerAppName {
                     (Text("· ") + Text(lensHighlightedText(app, ranges: selected.tile.appRanges)))
-                        .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                        .foregroundStyle(theme.ink(0.62)).lineLimit(1)
                 }
                 Text("· \(model.selection + 1) of \(items.count)")
-                    .foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+                    .foregroundStyle(theme.ink(0.62)).lineLimit(1)
             }
             .font(.system(size: 15 * model.tileMetrics.scale))
         } else {

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct GridView: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
 
     var body: some View {
@@ -31,7 +32,7 @@ struct GridView: View {
                     .position(x: header.frame.midX, y: header.frame.midY)
             }
             HStack(spacing: 8 * scale) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.62))
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.secondaryText)
                 LensSearchRow(model: model)
                     .frame(minWidth: 180 * scale)
                 LensGroupingControl(model: model)
@@ -48,7 +49,7 @@ struct GridView: View {
             .frame(width: layout.panelSize.width, height: GridLayout.Sizing.gridFooterHeight * scale)
             .position(x: layout.panelSize.width / 2, y: layout.panelSize.height - (GridLayout.Sizing.gridFooterHeight / 2 + GridLayout.Sizing.gridFooterBottom) * scale)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(theme.text)
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .named(lensWindowCoordinateSpace))
@@ -56,8 +57,7 @@ struct GridView: View {
             model.tilesFrameInWindow = frame
         }
         .background {
-            GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * scale), style: config.workspaceSidebar.chromeStyle,
-                         solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
+            LensPanelSurface(shape: RoundedRectangle(cornerRadius: 30 * scale))
                     .opacity(model.panelGlassOpacity)
         }
         .overlay {
