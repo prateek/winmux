@@ -13,7 +13,7 @@ The README shows upstream's screenshots and says nothing a reader can watch abou
 - One demo per claim. A page gets the few claims that explain the feature, not one for every setting.
 - The set is the staged desk: real apps doing plausible work, every word on screen ours, jokes in that content only.
 - The GIFs are committed to the repository, so the pages do not depend on an attachment's URL.
-- Each demo sits above a one-line caption stating its claim, and has alt text that says what happens in it.
+- Each demo has a one-line caption directly above it stating its claim, and alt text that says what happens in it.
 
 ## Not in this issue
 
@@ -44,13 +44,21 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] The storyboard lists each demo with its claim, setup, action, what to watch and crop.
+- [x] The storyboard lists each demo with its claim, setup, action, what to watch and crop.
 - [ ] The README shows the two demos, each under its caption, and they play on the repository's front page.
-- [ ] `docs/lenses.md` shows its four demos and `docs/columns.md` its four, each under its caption.
-- [ ] Every demo passes the `demo` skill's check: the result is on screen and held at the end, the title and keys are legible, and nothing shows a username, a home path, a machine name or a window that is not staged.
-- [ ] After each take, what WinMux reported matches the storyboard's **Watch**.
-- [ ] Every GIF is within 8 seconds and 3 MB, and the committed demos total under 12 MB.
-- [ ] The Nickel examples in the docs still pass `winmux-nickel check`.
+- [x] `docs/lenses.md` shows its four demos and `docs/columns.md` its four, each under its caption.
+- [x] Every demo passes the `demo` skill's check: the result is on screen and held at the end, the title and keys are legible, and nothing shows a username, a home path, a machine name or a window that is not staged.
+- [x] After each take, what WinMux reported matches the storyboard's **Watch**.
+- [x] Every GIF is within 8 seconds and 3 MB, and the committed demos total under 12 MB.
+- [x] The Nickel examples in the docs still pass `winmux-nickel check`.
+
+## Built
+
+Eight GIFs and the storyboard as filmed live in `docs/demos/`. The README reuses `strip-hero` and `columns-land`; the two guides each show four demos. Cmd-Tab captions explicitly link the opt-in recipe. The Place caption includes the exact hook expression, checked in the whole `desk/hero/columns-place.ncl` config.
+
+The reproducible configs and capture tools are in `.claude/skills/demo/desk/hero/`. The width take uses Ghostty in Column 3 because Zed’s measured 360-point minimum will not fit one sixth of the display. The Summon outline draws with Columns off; Safari lands at its origin, but its native minimum extends beyond the outline and the screen edge. WinMux behavior is unchanged. Stream filming missed settled workspace redraws, so these takes use the hero desk’s timed full-screen snapshot recorder. Each accepted take has a key log and matching read-back, and every rendered GIF has been checked at its start, key chips and held result. The eight total less than 12 MB. All twelve fenced Nickel configs in the two guides and both hero configs pass the real helper; host and guest `make check` pass.
+
+The README’s front-page playback checkbox stays open for the driver’s check on GitHub.
 
 ## Sources
 
