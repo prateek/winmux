@@ -336,6 +336,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func clearPresentation() {
         peekController.hide()
+        swallowsMouseUp = false
         gridLandingPanel.orderOut(nil)
         gridLandingPanel.contentView = nil
         hostingView.layer?.removeAllAnimations()

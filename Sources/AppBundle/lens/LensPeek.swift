@@ -42,12 +42,9 @@ final class LensPeekCapture: ObservableObject {
         let started = LensTimebase.now()
         task = Task { @MainActor [weak self] in
             guard let self else { return }
-            let image = await self.captureWithinDeadline(id, pixelSize: pixelSize)
+            let image = await self.captureWithinDeadline(id, pixelSize: pixelSize, started: started)
             self.task = nil
-            if self.windowId == id, !self.frozen, self.image == nil, let image {
-                self.image = image
-                self.completed((LensTimebase.now() - started) * 1000)
-            }
+            self.accept(image, for: id, started: started)
             if let next = self.waiting {
                 self.waiting = nil
                 if next.id == self.windowId, self.image == nil { self.start(next.id, pixelSize: next.pixelSize) }
@@ -55,21 +52,30 @@ final class LensPeekCapture: ObservableObject {
         }
     }
 
-    /// ScreenCaptureKit answered again, so a picture still wanted is asked for.
-    private func abandonedCaptureReturned() {
+    private func accept(_ image: CGImage?, for id: UInt32, started: TimeInterval) {
+        guard windowId == id, !frozen, self.image == nil, let image else { return }
+        self.image = image
+        if waiting?.id == id { waiting = nil }
+        completed((LensTimebase.now() - started) * 1000)
+    }
+
+    /// A capture given up on at its deadline returned. Its image is kept when that window is
+    /// still wanted; otherwise the picture still wanted is asked for again.
+    private func abandonedCaptureReturned(_ image: CGImage?, for id: UInt32, started: TimeInterval) {
         abandoned -= 1
-        if task == nil, let id = windowId, !frozen, image == nil { start(id, pixelSize: lastPixelSize) }
+        accept(image, for: id, started: started)
+        if task == nil, let id = windowId, !frozen, self.image == nil { start(id, pixelSize: lastPixelSize) }
     }
 
     /// The capture, or nil when it fails or outlasts the deadline. A capture given up on keeps
     /// running and is counted in `abandoned` until it returns.
-    private func captureWithinDeadline(_ id: UInt32, pixelSize: CGSize) async -> CGImage? {
+    private func captureWithinDeadline(_ id: UInt32, pixelSize: CGSize, started: TimeInterval) async -> CGImage? {
         let capture = capture, deadline = deadline
         return await withCheckedContinuation { (continuation: CheckedContinuation<CGImage?, Never>) in
             let race = PeekCaptureRace(continuation)
             Task { @MainActor [weak self] in
                 let image = try? await capture(id, pixelSize)
-                if !race.finish(image) { self?.abandonedCaptureReturned() }
+                if !race.finish(image) { self?.abandonedCaptureReturned(image, for: id, started: started) }
             }
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: deadline)

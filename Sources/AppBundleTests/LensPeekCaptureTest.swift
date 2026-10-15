@@ -8,10 +8,13 @@ private actor PeekCaptureReplies {
     private(set) var sizes: [UInt32: CGSize] = [:]
     func capture(_ id: UInt32, size: CGSize) async throws -> CGImage {
         sizes[id] = size
+        countRequest(id)
         return try await withCheckedThrowingContinuation { replies[id] = $0 }
     }
     func ready(_ id: UInt32) -> Bool { replies[id] != nil }
     func requested(_ id: UInt32) -> Bool { sizes[id] != nil }
+    private(set) var count: [UInt32: Int] = [:]
+    func countRequest(_ id: UInt32) { count[id, default: 0] += 1 }
     func finish(_ id: UInt32, image: CGImage) { replies.removeValue(forKey: id)?.resume(returning: image) }
     func fail(_ id: UInt32) { replies.removeValue(forKey: id)?.resume(throwing: CancellationError()) }
 }
@@ -120,6 +123,23 @@ final class LensPeekCaptureTest: XCTestCase {
         await replies.finish(1, image: try image())
         while slot.abandoned != 0 { await Task.yield() }
         XCTAssertTrue(slot.image === picture, "The abandoned capture's late image is not drawn")
+    }
+
+    func testASlowCaptureForTheWindowStillWantedIsKept() async throws {
+        let replies = PeekCaptureReplies()
+        let slot = LensPeekCapture(capture: { try await replies.capture($0, size: $1) }, deadline: .milliseconds(20))
+        var times: [Double] = []; slot.completed = { times.append($0) }
+        let picture = try image()
+        slot.select(1, pixelSize: CGSize(width: 10, height: 10))
+        while !(await replies.ready(1)) { await Task.yield() }
+        while slot.abandoned != 1 { await Task.yield() }
+        await replies.finish(1, image: picture)
+        while slot.abandoned != 0 { await Task.yield() }
+        for _ in 0 ..< 20 { await Task.yield() }
+        XCTAssertTrue(slot.image === picture, "A capture that outlasts its deadline still shows")
+        XCTAssertEqual(times.count, 1)
+        let count = await replies.count[1]
+        XCTAssertEqual(count, 1, "The same window is not captured again")
     }
 
     func testTwoStuckCapturesStopFurtherCaptures() async throws {
