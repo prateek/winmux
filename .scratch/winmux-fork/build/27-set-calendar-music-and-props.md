@@ -50,7 +50,6 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - Both props float and size their one window, returning it to the workspace focused before the command. Restaging stops Calendar and Music and preserves the four-window standing set.
 - `desk/grievance-lines.txt` supplies Notes staging and `desk/strike`; strike reads the note's current body to retain earlier strikes. `strike reset` restores the five lines. The rich set's `Grievances.txt` remains separate and unchanged.
 - Width accepts even values from 320 to 1920 and scales geometry from the exact 960 baseline. Tests run with plain Python without Pillow or media tools; duration and size caps remain 8 seconds and 3 MB.
-- Installed-build checks, a second display and real sleep/wake/unlock remain Prateek's. The builder publishes no release.
 
 ## Done when
 
@@ -66,13 +65,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 Host and fresh-clone `make check` pass: 1,257 Swift, 82 Rust/helper and 87 Python tests. The clone passes preflight on Swift 6.2.4 at 1280×720. Calendar and the Music fallback pass twice with focused-workspace readbacks; the standing set returns to four windows and its original editor. Native Notes bodies and the trace-recorder clip prove strike 1, retained 1/3, reset and unchanged body on invalid 9. Host rendering reads back 1280×806 and 960×604 GIFs; nine seconds and 3,000,001 bytes are refused. The exact default geometry matches `9bfda201` for both styles.
 
-The rich set reaches fourteen windows with three/two Columns at the fixed display size. Its cold Safari failure and extra plain Ghostty terminal need the documented retry/cleanup. Repeating staging also exposed `Value is already destroyed` on Preview's AX thread; stopping the old debug app before Preview teardown allowed staging to pass. The runtime diagnostic is retained; its underlying WinMux defect is outside this tooling-only change. The system video recorder held stale/inconsistently timed frames, so the existing trace recorder supplies the strike clip. No permission was granted and no release was published. Final pull-request demos belong to the demo pass.
-
-## Checks for Prateek
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+The rich set reaches fourteen windows with three/two Columns at the fixed display size. Its cold Safari failure and extra plain Ghostty terminal need the documented retry/cleanup. Repeating staging also hit `Value is already destroyed` on Preview's AX thread, the defect **WinMux dies when an app quits while a command reads its windows** tracks; stopping the old debug app before Preview teardown let staging pass. The system video recorder held stale/inconsistently timed frames, so the existing trace recorder supplies the strike clip.
 
 ## Sources
 

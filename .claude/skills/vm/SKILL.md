@@ -65,4 +65,4 @@ A release build itself does run in a guest. The guest's compiler is not the rele
 
 A newer Cirrus image is a trap: Xcode 27 cannot build WinMux, even with the 6.2.4 toolchain installed over it.
 
-Build replacements alongside the current image with `VM_GOLDEN=winmux-golden-replacement vm build-image`, and use the same override for fresh proof clones. Keep the old image until the preflight, guest `make check` and both desk sets pass. Then rename the old image to `winmux-golden-prev` and the passing replacement to `winmux-golden`; the lander removes the previous image. An existing stopped guest can boot without a golden image; cloning needs one.
+Build replacements alongside the current image with `VM_GOLDEN=winmux-golden-next vm build-image`, and use the same override for fresh proof clones. Keep the old image until the preflight, guest `make check` and both desk sets pass. Then rename the old image to `winmux-golden-prev` and the passing replacement to `winmux-golden`; the lander removes the previous image. An existing stopped guest can boot without a golden image; cloning needs one.
