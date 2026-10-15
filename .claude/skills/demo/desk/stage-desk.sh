@@ -3,7 +3,7 @@
 setopt nonomatch
 export PATH=/opt/homebrew/bin:$PATH
 W=$HOME/winmux/.build/debug/winmux
-for app in Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Updater osascript WinMuxApp; do pkill -x $app; done
+for app in Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Music Updater osascript WinMuxApp; do pkill -x $app; done
 sleep 1
 mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes
 cp ~/desk/zed/settings.json ~/.config/zed/settings.json

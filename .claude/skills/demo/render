@@ -15,8 +15,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
-
 WIDTH = 960
 FPS = 15
 MAX_SECONDS = 8.0
@@ -87,21 +85,23 @@ def gradient(width: int, height: int) -> Image.Image:
     return column.resize((width, height)).convert("RGBA")
 
 
-def layout(style: str, src_w: int, src_h: int) -> dict:
+def layout(style: str, src_w: int, src_h: int, width: int = WIDTH) -> dict:
     """Canvas geometry. 'card' floats the take on a gradient; 'claim' is the take over a plain strip."""
+    scale = width / WIDTH
+    px = lambda n: round(n * scale)
     if style == "claim":
-        inner_w, strip = WIDTH, 44
+        inner_w, strip = width, px(44)
         inner_h = round(inner_w * src_h / src_w / 2) * 2
-        return dict(canvas=(WIDTH, inner_h + strip), inner=(inner_w, inner_h), at=(0, 0),
-                    radius=0, title_at=(14, inner_h + 10), title_size=20,
-                    keys_right=WIDTH - 12, keys_y=inner_h + 7, key_h=30)
-    pad, head, foot = 56, 64, 64
-    inner_w = WIDTH - 2 * pad
+        return dict(canvas=(width, inner_h + strip), inner=(inner_w, inner_h), at=(0, 0),
+                    radius=0, title_at=(px(14), inner_h + px(10)), title_size=px(20),
+                    keys_right=width - px(12), keys_y=inner_h + px(7), key_h=px(30))
+    pad, head, foot = px(56), px(64), px(64)
+    inner_w = width - 2 * pad
     inner_h = round(inner_w * src_h / src_w / 2) * 2
     canvas_h = head + inner_h + foot
-    return dict(canvas=(WIDTH, canvas_h), inner=(inner_w, inner_h), at=(pad, head),
-                radius=14, title_at=(pad, 22), title_size=22,
-                keys_right=WIDTH - pad, keys_y=head + inner_h + 15, key_h=34)
+    return dict(canvas=(width, canvas_h), inner=(inner_w, inner_h), at=(pad, head),
+                radius=px(14), title_at=(pad, px(22)), title_size=px(22),
+                keys_right=width - pad, keys_y=head + inner_h + px(15), key_h=px(34))
 
 
 def background(style: str, geo: dict, title: str) -> Image.Image:
@@ -154,7 +154,24 @@ def chip_windows(times: list[float]) -> list[tuple[float, float]]:
     return windows
 
 
-def main() -> None:
+def check_duration(length: float) -> None:
+    if length > MAX_SECONDS:
+        sys.exit(f"render: {length:.1f}s is over the {MAX_SECONDS:.0f}s cap; cut the claim in two or trim")
+
+
+def check_size(size: int) -> None:
+    if size > MAX_BYTES:
+        sys.exit(f"render: {size / 1e6:.2f} MB is over the {MAX_BYTES / 1e6:.0f} MB budget; tighten the crop or trim")
+
+
+def card_width(value: str) -> int:
+    width = int(value)
+    if width < 320 or width > 1920 or width % 2:
+        raise argparse.ArgumentTypeError("width must be even and between 320 and 1920 pixels")
+    return width
+
+
+def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("video", type=Path, help="the take: a 30 fps screen recording")
     parser.add_argument("-o", "--out", type=Path, required=True)
@@ -165,16 +182,22 @@ def main() -> None:
     parser.add_argument("--end", type=float)
     parser.add_argument("--events", type=Path,
                         help='the take\'s event log: [{"t": seconds, "keys": "cmd tab"}, ...]')
-    args = parser.parse_args()
+    parser.add_argument("--width", type=card_width, default=WIDTH, help="card width in pixels (default 960)")
+    return parser
 
+
+def main() -> None:
+    args = argument_parser().parse_args()
     src_w, src_h, duration = probe(args.video)
     crop = [int(n) for n in args.crop.split(":")] if args.crop else [0, 0, src_w, src_h]
     end = args.end if args.end is not None else duration
     length = end - args.start
-    if length > MAX_SECONDS:
-        sys.exit(f"render: {length:.1f}s is over the {MAX_SECONDS:.0f}s cap; cut the claim in two or trim")
+    check_duration(length)
 
-    geo = layout(args.style, crop[2], crop[3])
+    global Image, ImageDraw, ImageFilter, ImageFont
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+    geo = layout(args.style, crop[2], crop[3], args.width)
     events = json.loads(args.events.read_text()) if args.events else []
 
     with tempfile.TemporaryDirectory() as tmp_name:
@@ -215,8 +238,7 @@ def main() -> None:
     size = args.out.stat().st_size
     width, height = geo["canvas"]
     print(f"{args.out.name}: {width}x{height}, {length:.1f}s, {FPS} fps, {size / 1e6:.2f} MB")
-    if size > MAX_BYTES:
-        sys.exit(f"render: {size / 1e6:.2f} MB is over the {MAX_BYTES / 1e6:.0f} MB budget; tighten the crop or trim")
+    check_size(size)
 
 
 if __name__ == "__main__":

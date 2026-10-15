@@ -1,0 +1,46 @@
+#!/bin/zsh
+# Optional props; stage-desk.sh keeps its four-window standing set.
+set -eu
+export PATH=$PATH:/opt/homebrew/bin
+here=${0:A:h}
+W=$HOME/winmux/.build/debug/winmux
+[[ $# == 1 ]] || { print -u2 'usage: props calendar|music'; exit 2; }
+case $1 in
+ calendar) app=Calendar; prop_title="" ;;
+ music) app=Zed; prop_title=Music.txt ;;
+ *) print -u2 'usage: props calendar|music'; exit 2 ;;
+esac
+frame=(100 40 1080 640)
+workspace=$($W list-workspaces --focused)
+prop_ids() {
+ $W list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' | awk -F'|' -v app="$app" -v title="$prop_title" '$2==app && (title=="" || index($3,title)) {print $1}'
+}
+focus_prop() {
+ for attempt in {1..120}; do
+  ids=("${(@f)$(prop_ids)}")
+  [[ ${#ids} == 1 && -n $ids[1] ]] && break
+  sleep 0.25
+ done
+ [[ ${#ids} == 1 && -n $ids[1] ]] || { print -u2 "props: expected one $app prop window"; exit 1; }
+ $W move-node-to-workspace --window-id "$ids[1]" "$workspace"
+ $W focus --window-id "$ids[1]"
+}
+if [[ $1 == music ]]; then
+ [[ -n "$(prop_ids)" ]] || zed --new "$here/Music.txt"
+else
+ open -a Calendar
+ osascript -e 'with timeout of 15 seconds' -e 'tell application "Calendar" to activate' -e 'end timeout'
+fi
+focus_prop
+if [[ $1 == calendar ]]; then osascript "$here/calendar.applescript"; fi
+focus_prop
+current_layout=$($W list-windows --all --format '%{window-id}|%{window-layout}' | awk -F'|' -v id="$ids[1]" '$1==id {print $2}')
+[[ "$current_layout" == floating ]] || $W layout floating --window-id "$ids[1]"
+osascript -e 'on run argv
+ tell application "System Events" to tell process (item 1 of argv)
+  set size of window 1 to {(item 4 of argv as integer), (item 5 of argv as integer)}
+  set position of window 1 to {(item 2 of argv as integer), (item 3 of argv as integer)}
+ end tell
+end run' "$app" "$frame[@]"
+$W focus --window-id "$ids[1]"
+$W list-windows --focused
