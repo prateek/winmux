@@ -38,7 +38,7 @@ Two settings every Presentation takes.
 - [x] A strip with `on-release = 'stay` stays open after release and commits on Enter.
 - [x] A quick tap on a committing grid switches without drawing and emits no Lens events, as the strip does.
 - [x] With the system in light mode a Lens draws light; `appearance = 'dark` keeps it dark.
-- [ ] The pull request shows the strip, the grid and the list in both appearances.
+- [x] The pull request shows the strip, the grid and the list in both appearances.
 
 ## Sources
 
@@ -50,12 +50,10 @@ Two settings every Presentation takes.
 
 A chord needs a key and held modifiers. CLI, tap, menu and modifier-free openings stay open, including strips. This deliberately changes the old CLI strip, which committed without drawing. Repeating a named staying strip's invoking chord after release toggles it closed, matching a grid. Shift-only committing chords wait for Shift release.
 
-The theme is snapshotted once per opening through a test seam, applied to the native panels and shared through SwiftUI's environment. Light uses the prototype's pale fill over blur; dark retains the existing glass recipe. The hint legend keeps its dark plate and white text. Pictures, app icons and Frozen treatment remain unchanged. Miniatures uses the same darkness opacity over black or pale grey; peek retains its 28% dimming.
+The theme is snapshotted once per opening through a test seam, applied to the native panels and shared through SwiftUI's environment. Light uses the prototype's pale fill over blur, or an opaque pale panel with solid chrome; dark retains the existing glass recipe. The selection keeps the system accent colour in both. The hint legend, and the labels drawn over window pictures, keep their dark plate and white text. Pictures, app icons and Frozen treatment remain unchanged. Miniatures uses the same darkness opacity over black or pale grey; peek retains its 28% dimming.
 
 Baseline seam tests pass before the split. Host and pinned-toolchain guest checks cover the optional fields, defaults/profiles, held and no-chord paths, step/reverse, release actions, silent quick taps, conversion, letters, peek and appearance snapshots. Owned-window live readbacks cover the first four Done-when items, six Presentation/appearance combinations, forced dark under a light system, light peek and miniatures, and native Cmd-Tab ownership. The same unchanged-action script passes against the actual base tree and the feature tree. PR media is checked separately from the final commit in the demo pass.
 
 ## Owner checks
 
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+A quick tap and a held chord on a real keyboard, and both appearances on an installed build, are in **Prateek's checks on an installed build and real hardware**.
