@@ -5,6 +5,22 @@ Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent`, 
 Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `window` binding mode: `w` opens `windows`, `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app grid. See [default Triggers](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
+With [Cmd-Tab opted in](default-config.md#opt-in-to-cmd-tab), hold Cmd and tap Tab through every workspace; release to focus the selected window.
+
+![The strip steps from Ghostty through Safari to Notes, then focuses Notes on workspace 2 with the first grievance struck out](demos/strip-hero.gif)
+
+Option-Shift-O shows every workspace at once; Enter focuses the selected window.
+
+![The overview shows both workspaces, selects Safari, then closes with Safari focused on workspace 2](demos/overview-enter.gif)
+
+Option-Slash opens Search: two letters narrow four windows to one, and Enter goes to it.
+
+![Typing l leaves four windows; le leaves Safari, and Enter focuses it on workspace 2](demos/search-two-letters.gif)
+
+Hold Option in the strip to see the landing spot; Option-Return brings the selected window here.
+
+![An outline previews the selected window’s landing spot, then Option-Return brings it to workspace 1](demos/summon-landing.gif)
+
 The six shipped Lenses resolve as follows. A CLI opening always stays open; the
 release column applies to a held Trigger.
 

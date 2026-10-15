@@ -2,6 +2,22 @@
 
 A workspace with Columns has a fixed number of positions across its monitor. Each position keeps its width when empty. A Column can hold one window, a tab group, or splits. Columns are off by default.
 
+A new window lands in the nearest empty Column; the others keep their places.
+
+![Cmd-N opens a terminal in empty Column 2 between Ghostty in Column 1 and Zed in Column 3](demos/columns-land.gif)
+
+`column-width next` steps the focused Column through its width presets; the others give up room in proportion.
+
+![Option-W twice grows Column 1 from a third to a half to two thirds while the other Columns shrink](demos/column-width.gif)
+
+Moving into an occupied Column joins its tab group and leaves an empty gap behind.
+
+![Ghostty moves right into Zed’s Column 2 tab group, leaving Columns 1 and 3 empty](demos/move-join.gif)
+
+A `place` hook sends the new terminal to Column 3: `place = fun w ctx cols => if w.app.name == "Ghostty" then { column = 3, overflow = 'tab-group } else { column = 'nearest-empty, overflow = 'tab-group }`.
+
+![Cmd-N opens a terminal in Column 3 while Column 2 stays empty](demos/place-hook.gif)
+
 ## Enable Columns on a workspace
 
 ```nickel
