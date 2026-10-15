@@ -37,7 +37,7 @@ Prateek confirmed this design from the prototype on 2026-10-04.
 - **A window that is not on screen** shows its Frozen thumbnail look, since the picture is of when it was last painted.
 - **A minimized window** has no full-resolution capture and shows its thumbnail scaled up.
 - **Where a window on a hidden workspace is shown.** At the frame it would have on the monitor that would show its workspace.
-- **The panel.** One panel that ignores the mouse and never becomes key, above the Lens for the zoom and below it for `'follow`.
+- **The panel.** One panel that never becomes key, above the Lens for the zoom and below it for `'follow`. It ignores the mouse except during a zoom, when a click anywhere only ends the zoom.
 - **Timing.** About a quarter of a second, with the prototype's easing. With Reduce Motion on, it cross-fades.
 
 ## Done when
@@ -59,7 +59,7 @@ Space as text. Escape is intercepted before the input-state branches, so a
 Search-starting list takes three Escapes when zoomed. Opening keys are replayed.
 Other actions keep their selected/marked targets and Hold release behavior.
 
-The session publishes `peekedId`; a single non-key, mouse-transparent panel draws
+The session publishes `peekedId`; a single non-key panel draws
 its cached picture at `miniatureWindowFrame`, then one asynchronous full-size
 capture for a non-Frozen window. Frozen and minimized entries keep their cached
 look; a missing picture gets an app icon on a plate. Selection changes discard
@@ -68,7 +68,10 @@ and removal. Zoom blocks pointer selection and a click only ends it; follow perm
 both. Miniatures keeps a closed window's cell for the session, as it always has, so
 closing the zoomed window there ends the zoom. At most one full-size capture runs at a
 time, since ScreenCaptureKit cannot cancel one; only the latest request waits, and
-a capture still running after a second frees the slot for it.
+a capture still running after a second no longer holds it up. A late capture is kept
+while its window is still selected. **Default changed: the panel.** It takes the mouse
+during a zoom, so a click anywhere ends the zoom instead of reaching the Lens or an app
+under the picture.
 
 The prototype’s ring, corners, shadow, label, timings and whole-panel dimming are
 built, with cross-fades for Reduce Motion. The label sits 44 points below the real

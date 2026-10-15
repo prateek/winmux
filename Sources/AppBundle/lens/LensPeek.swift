@@ -8,93 +8,69 @@ final class LensPeekCapture: ObservableObject {
     @Published private(set) var image: CGImage?
     private(set) var windowId: UInt32?
     private var frozen = false
-    /// The capture running now. ScreenCaptureKit cannot cancel a screenshot, so one runs at a
-    /// time and only the latest request waits for it.
+    private var pixelSize = CGSize.zero
+    /// Bumped whenever a window turns Frozen, so a capture taken before cannot stand in for
+    /// one taken after it is restored.
+    private var freezes = 0
+    private var wanted = false
+    /// Captures not yet returned, oldest first. ScreenCaptureKit cannot cancel a screenshot, so a
+    /// new one starts only when none is out, or the one out has passed its deadline. Two out and
+    /// no more start.
+    private var outstanding: [(id: UInt32, freezes: Int, started: TimeInterval)] = []
     private(set) var task: Task<Void, Never>?
-    private var waiting: (id: UInt32, pixelSize: CGSize)?
-    /// Captures given up on at their deadline that have not returned yet. While two are
-    /// outstanding ScreenCaptureKit is taken to be stuck and no more are started.
-    private(set) var abandoned = 0
-    private var lastPixelSize = CGSize.zero
+    private var deadlineTask: Task<Void, Never>?
     private let capture: Capture
+    private let now: () -> TimeInterval
     let deadline: Duration
     var completed: (Double) -> Void = { _ in }
 
-    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) }, deadline: Duration = .seconds(1)) {
+    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) },
+         deadline: Duration = .seconds(1), now: @escaping () -> TimeInterval = { LensTimebase.now() }) {
         self.capture = capture
         self.deadline = deadline
+        self.now = now
     }
+
+    var outstandingCount: Int { outstanding.count }
 
     func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero) {
         guard id != windowId || frozen != self.frozen else { return }
-        // A Frozen window shows its thumbnail; one restored from the tray is captured again.
-        if id != windowId || frozen { image = nil }
+        if frozen { freezes += 1 }
+        image = nil
         windowId = id
         self.frozen = frozen
-        waiting = nil
-        lastPixelSize = pixelSize
-        guard let id, !frozen, image == nil else { return }
-        if task != nil { waiting = (id, pixelSize) } else { start(id, pixelSize: pixelSize) }
+        self.pixelSize = pixelSize
+        // A Frozen window shows its thumbnail; one restored from the tray is captured again.
+        wanted = id != nil && !frozen
+        pump()
     }
 
-    private func start(_ id: UInt32, pixelSize: CGSize) {
-        guard abandoned < 2 else { return }
-        let started = LensTimebase.now()
+    private func pump() {
+        guard wanted, let id = windowId else { return }
+        let seconds = Double(deadline.components.seconds) + Double(deadline.components.attoseconds) / 1e18
+        // A capture of this window is already out and inside its deadline: its image will do.
+        if outstanding.contains(where: { $0.id == id && $0.freezes == freezes && now() - $0.started < seconds }) { wanted = false; return }
+        guard outstanding.isEmpty || (outstanding.count == 1 && now() - outstanding[0].started >= seconds) else { return }
+        wanted = false
+        let ticket = freezes, size = pixelSize, capture = capture
+        let started = now()
+        outstanding.append((id, ticket, started))
         task = Task { @MainActor [weak self] in
+            let image = try? await capture(id, size)
             guard let self else { return }
-            let image = await self.captureWithinDeadline(id, pixelSize: pixelSize, started: started)
-            self.task = nil
-            self.accept(image, for: id, started: started)
-            if let next = self.waiting {
-                self.waiting = nil
-                if next.id == self.windowId, self.image == nil { self.start(next.id, pixelSize: next.pixelSize) }
+            self.outstanding.removeAll { $0.started == started && $0.id == id }
+            if self.windowId == id, !self.frozen, self.freezes == ticket, self.image == nil, let image {
+                self.image = image
+                self.completed((self.now() - started) * 1000)
             }
+            self.pump()
         }
-    }
-
-    private func accept(_ image: CGImage?, for id: UInt32, started: TimeInterval) {
-        guard windowId == id, !frozen, self.image == nil, let image else { return }
-        self.image = image
-        if waiting?.id == id { waiting = nil }
-        completed((LensTimebase.now() - started) * 1000)
-    }
-
-    /// A capture given up on at its deadline returned. Its image is kept when that window is
-    /// still wanted; otherwise the picture still wanted is asked for again.
-    private func abandonedCaptureReturned(_ image: CGImage?, for id: UInt32, started: TimeInterval) {
-        abandoned -= 1
-        accept(image, for: id, started: started)
-        if task == nil, let id = windowId, !frozen, self.image == nil { start(id, pixelSize: lastPixelSize) }
-    }
-
-    /// The capture, or nil when it fails or outlasts the deadline. A capture given up on keeps
-    /// running and is counted in `abandoned` until it returns.
-    private func captureWithinDeadline(_ id: UInt32, pixelSize: CGSize, started: TimeInterval) async -> CGImage? {
-        let capture = capture, deadline = deadline
-        return await withCheckedContinuation { (continuation: CheckedContinuation<CGImage?, Never>) in
-            let race = PeekCaptureRace(continuation)
-            Task { @MainActor [weak self] in
-                let image = try? await capture(id, pixelSize)
-                if !race.finish(image) { self?.abandonedCaptureReturned(image, for: id, started: started) }
-            }
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: deadline)
-                if race.finish(nil) { self?.abandoned += 1 }
-            }
+        deadlineTask?.cancel()
+        deadlineTask = Task { @MainActor [weak self, deadline] in
+            try? await Task.sleep(for: deadline)
+            guard !Task.isCancelled else { return }
+            self?.pump()
         }
-    }
-}
-
-/// Whichever of the capture and its deadline finishes first resumes the caller.
-@MainActor
-private final class PeekCaptureRace {
-    private var continuation: CheckedContinuation<CGImage?, Never>?
-    init(_ continuation: CheckedContinuation<CGImage?, Never>) { self.continuation = continuation }
-    func finish(_ image: CGImage?) -> Bool {
-        guard let continuation else { return false }
-        self.continuation = nil
-        continuation.resume(returning: image)
-        return true
     }
 }
 
@@ -159,14 +135,37 @@ extension LensSession {
     }
 }
 
-private final class PeekPanel: NSPanelHud {
+final class PeekPanel: NSPanelHud {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+    var onMouseDown: () -> Void = {}
+    /// While a zoom covers the screen the panel takes the mouse, so a click lands on nothing
+    /// underneath, the Lens or another app.
+    var takesMouse = false { didSet { updateIgnoresMouse() } }
+    private var buttonsDown = 0
+
+    /// Each button's down ends the zoom, and the whole click is eaten: the panel keeps the mouse
+    /// until the last button is up, so no up or drag reaches what was under the picture.
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+            case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+                buttonsDown += 1
+                updateIgnoresMouse()
+                onMouseDown()
+            case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+                buttonsDown = max(0, buttonsDown - 1)
+                updateIgnoresMouse()
+            case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged: break
+            default: super.sendEvent(event)
+        }
+    }
+
+    private func updateIgnoresMouse() { ignoresMouseEvents = !(takesMouse || buttonsDown > 0) }
 }
 
 @MainActor
 final class LensPeekController {
-    let panel: NSPanelHud = PeekPanel()
+    let panel = PeekPanel()
     private let drawing = LensPeekDrawing()
     private let capture = LensPeekCapture()
     private var hideTask: Task<Void, Never>?
@@ -179,10 +178,11 @@ final class LensPeekController {
     init() {
         panel.identifier = NSUserInterfaceItemIdentifier("WinMux.lensPeek")
         panel.hasShadow = false
-        panel.ignoresMouseEvents = true
+        panel.takesMouse = false
         panel.applyWinMuxLayer(.overlay)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = NSHostingView(rootView: LensPeekView(drawing: drawing, capture: capture))
+        panel.onMouseDown = { [weak self] in _ = self?.model?.endZoomForClick() }
         capture.completed = { [weak self] ms in
             guard let self, let model = self.model, let lens = self.lens else { return }
             model.peekCaptureMs = ms
@@ -197,6 +197,7 @@ final class LensPeekController {
         model = nil
         lens = nil
         drawing.thumbnail = nil
+        panel.takesMouse = false
         panel.orderOut(nil)
     }
 
@@ -245,6 +246,7 @@ final class LensPeekController {
             drawing.opacity = 0
         }
         panel.order(follows ? .below : .above, relativeTo: lens.windowNumber)
+        panel.takesMouse = !follows
         follow = follows
         showing = item.id
         capture.select(item.id, frozen: drawing.frozen, pixelSize: CGSize(width: real.width * screen.backingScaleFactor, height: real.height * screen.backingScaleFactor))
@@ -267,6 +269,7 @@ final class LensPeekController {
 
     private func shrink(_ model: LensSession, lens: NSWindow) {
         showing = nil
+        panel.takesMouse = false
         capture.select(nil)
         drawing.labelShown = false
         let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion

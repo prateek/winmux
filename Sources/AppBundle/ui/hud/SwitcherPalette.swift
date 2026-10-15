@@ -38,8 +38,6 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let peekController = LensPeekController()
     private var gridMonitorRect = CGRect.zero
     private var scrollPaging = LensScrollStepper()
-    /// The mouse-up of a click that ended a zoom, so no tap completes on what was under it.
-    private var swallowsMouseUp = false
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
 
@@ -336,7 +334,6 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     private func clearPresentation() {
         peekController.hide()
-        swallowsMouseUp = false
         gridLandingPanel.orderOut(nil)
         gridLandingPanel.contentView = nil
         hostingView.layer?.removeAllAnimations()
@@ -465,9 +462,6 @@ final class SwitcherPalettePanel: NSPanelHud {
     override func sendEvent(_ event: NSEvent) {
         guard let model = session else { super.sendEvent(event); return }
         if event.type == .flagsChanged { model.updateHintModifiers(event.modifierFlags) }
-        // A click while zoomed would land on whatever lies under the picture, so it only ends the zoom.
-        if event.type == .leftMouseDown || event.type == .rightMouseDown, model.endZoomForClick() { swallowsMouseUp = true; return }
-        if event.type == .leftMouseUp || event.type == .rightMouseUp, swallowsMouseUp { swallowsMouseUp = false; return }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
             if session === model, model.inputState != .search { return }

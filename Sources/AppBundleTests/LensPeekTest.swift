@@ -317,32 +317,40 @@ final class LensPeekTest: XCTestCase {
         XCTAssertLessThan(legend, picture, "The follow picture belongs below all Lens content, including the separate legend")
     }
 
-    func testClickDuringZoomOnlyEndsTheZoom() async throws {
-        let current = Workspace.get(byName: "1"), other = Workspace.get(byName: "2")
-        _ = TestWindow.new(id: 10, parent: current.rootTilingContainer).focusWindow()
-        _ = TestWindow.new(id: 1, parent: other.rootTilingContainer)
-        _ = TestWindow.new(id: 2, parent: other.rootTilingContainer)
-        let entries = try await lensWindows(popups: [])
+    func testClickDuringZoomOnlyEndsTheZoom() {
         var settings = LensConfig(); settings.presentation = "grid"
-        let panel = SwitcherPalettePanel(emit: { _ in }); defer { panel.dismiss() }
-        let ticket = panel.beginLens("click", toggle: false, settings: settings)!
-        await panel.openLens(name: "click", settings: settings, entries: entries, search: "", banner: nil, context: .null, ticket: ticket)
-        let session = try XCTUnwrap(panel.session)
+        let session = model(settings)
         var actions: [String] = []; session.onAction = { actions.append($0) }
         let selected = session.selectedId
         session.perform(.command("space"))
-        XCTAssertNotNil(session.peekedId)
-        let click = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
-                                                     windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
-        panel.sendEvent(click)
-        let release = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: CGPoint(x: 10, y: 10), modifierFlags: [], timestamp: 0,
-                                                       windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 0))
-        panel.sendEvent(release)
+        XCTAssertTrue(session.endZoomForClick())
         XCTAssertNil(session.peekedId)
         XCTAssertEqual(session.selectedId, selected, "Nothing under the picture is selected")
         XCTAssertTrue(actions.isEmpty, "Nothing under the picture is focused")
-        XCTAssertTrue(panel.session === session)
         XCTAssertFalse(session.endZoomForClick(), "Without a zoom, a click acts as before")
+    }
+
+    func testPeekPanelEatsEveryButtonsWholeClickWhileZoomed() throws {
+        let panel = PeekPanel()
+        var downs = 0; panel.onMouseDown = { downs += 1; panel.takesMouse = false }
+        panel.takesMouse = false
+        XCTAssertTrue(panel.ignoresMouseEvents, "Without a zoom the panel ignores the mouse")
+        panel.takesMouse = true
+        XCTAssertFalse(panel.ignoresMouseEvents)
+        func event(_ type: NSEvent.EventType) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber,
+                                             context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        panel.sendEvent(try event(.rightMouseDown))
+        XCTAssertEqual(downs, 1)
+        XCTAssertFalse(panel.ignoresMouseEvents, "The zoom ended, but the panel keeps the mouse until the button is up")
+        panel.sendEvent(try event(.leftMouseDown))
+        panel.sendEvent(try event(.leftMouseDragged))
+        panel.sendEvent(try event(.leftMouseUp))
+        XCTAssertFalse(panel.ignoresMouseEvents, "The right button is still down")
+        panel.sendEvent(try event(.rightMouseUp))
+        XCTAssertTrue(panel.ignoresMouseEvents)
+        XCTAssertEqual(downs, 2)
     }
 
     func testEveryKeyGoesToTheInputMethodWhileComposing() {
