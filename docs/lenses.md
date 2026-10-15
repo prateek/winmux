@@ -256,8 +256,8 @@ peeks in every state. The same key or Escape shrinks the picture back. Escape en
 only the peek: a list opened in Search then needs a second Escape to leave Search
 and a third to close. Arrows move the selection and its picture. Other keys keep
 their actions, including Enter, alt-enter, shift-enter and cmd-w. Releasing a held
-strip still commits. Pointer motion leaves selection alone while zoomed; clicks
-keep their usual action.
+strip still commits. While zoomed, pointer motion leaves the selection alone and a
+click only ends the zoom, since the Tile under the pointer is hidden by the picture.
 
 Peek never changes focus or workspace and never raises or restores the real
 window. The cached thumbnail appears immediately, followed by one full-resolution

@@ -64,13 +64,14 @@ its cached picture at `miniatureWindowFrame`, then one asynchronous full-size
 capture for a non-Frozen window. Frozen and minimized entries keep their cached
 look; a missing picture gets an app icon on a plate. Selection changes discard
 old full-size images and late replies. The picture follows keys, Search, grouping
-and removal. Zoom blocks pointer selection; follow permits it. Miniatures keeps
-its layout cells when a closed entry leaves the selectable results, so closing
-the last matching window fades peek without closing the Lens.
+and removal. Zoom blocks pointer selection and a click only ends it; follow permits
+both. Miniatures keeps a closed window's cell for the session, as it always has, so
+closing the zoomed window there ends the zoom. At most one full-size capture runs at a
+time, since ScreenCaptureKit cannot cancel one; only the latest request waits.
 
 The prototype’s ring, corners, shadow, label, timings and whole-panel dimming are
-built, with cross-fades for Reduce Motion. The label stays below the real frame;
-for a full-height frame it can fall outside the screen. `peek = 'follow` starts
+built, with cross-fades for Reduce Motion. The label sits 44 points below the real
+frame, and moves up over the picture's bottom edge when that would leave the screen. `peek = 'follow` starts
 under the panel without dimming, ring or label, and consumes peek keys without
 changing pointer state. Miniatures uses zoom even when follow is configured.
 Follow waits until the Lens is visible and stays below the separate list/grid legend.
@@ -99,7 +100,7 @@ excluding the menu bar. Five samples per app and output size, after warming:
 | Zed | 1280×720 | 18.750 ms | 17.317–20.880 ms |
 | Zed | 1920×1080 | 18.539 ms | 17.859–20.050 ms |
 
-Host and pinned-toolchain guest `make check` pass: 1,216 Swift, 77 Rust/helper and
+Host and pinned-toolchain guest `make check` pass: 1,223 Swift, 77 Rust/helper and
 75 Python tests, with no skips. GitHub CI is the driver’s separate merge gate.
 
 The standing-desk runs cover grid grow/shrink and following, empty/text Search,
