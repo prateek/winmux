@@ -48,7 +48,7 @@ Prateek confirmed this design from the prototype on 2026-10-04.
 - [x] The focused window is the same before, during and after a peek that is dismissed.
 - [x] A window on a hidden workspace peeks with its Frozen look; a minimized window peeks from its thumbnail.
 - [x] `peek = 'follow` on a strip shows the selection under the panel.
-- [ ] The pull request shows peek in the grid, the strip and `overview`, and says how long a full-resolution capture took on the build machine's display.
+- [x] The pull request shows peek in the grid, the strip and `overview`, and says how long a full-resolution capture took on the build machine's display.
 
 ## Built
 
