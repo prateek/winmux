@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct StripView: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
 
     var body: some View {
@@ -53,9 +54,9 @@ struct StripView: View {
                         .padding(.bottom, GridLayout.Sizing.stripFooterBottom * scale)
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.text)
             .background {
-                GlassSurface(shape: RoundedRectangle(cornerRadius: 30 * scale), style: config.workspaceSidebar.chromeStyle, solidColor: config.workspaceSidebar.resolvedSolidChromeColor)
+                LensPanelSurface(shape: RoundedRectangle(cornerRadius: 30 * scale))
                     .opacity(model.panelGlassOpacity)
             }
             .frame(width: layout.panelSize.width)

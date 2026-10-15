@@ -213,6 +213,10 @@ final class LensPeekController {
         guard lens.isVisible, model.peekedId != nil || showing != nil else { return }
         self.model = model
         self.lens = lens
+        if drawing.theme != model.theme || panel.appearance == nil {
+            panel.appearance = model.theme.nsAppearance
+            drawing.theme = model.theme
+        }
         guard let item = model.peekItem, let window = item.miniature?.window ?? Window.get(byId: item.id) else {
             if showing != nil { shrink(model, lens: lens) }
             return
@@ -305,6 +309,7 @@ final class LensPeekController {
 
 @MainActor
 final class LensPeekDrawing: ObservableObject {
+    @Published var theme = LensTheme.dark
     @Published var rect = CGRect.zero
     @Published var opacity = 0.0
     @Published var thumbnail: WindowThumbnail?
@@ -324,26 +329,29 @@ struct LensPeekView: View {
             let rect = drawing.rect
             PeekPicture(thumbnail: drawing.thumbnail, fullImage: capture.image, icon: drawing.icon, frozen: drawing.frozen, look: drawing.look)
                 .frame(width: max(1, rect.width), height: max(1, rect.height))
-                .background(Color(white: 34.0 / 255))
+                .background(drawing.theme.peekPlate)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay { if !drawing.follow { RoundedRectangle(cornerRadius: 12).stroke(Color.accentColor, lineWidth: 4) } }
+                .overlay { if !drawing.follow { RoundedRectangle(cornerRadius: 12).stroke(drawing.theme.selectionRing, lineWidth: 4) } }
                 .shadow(color: .black.opacity(0.6), radius: 55, y: 40)
                 .overlay(alignment: .bottom) {
                     if drawing.labelShown {
-                        Text(drawing.label).font(.system(size: 16)).foregroundStyle(.white).lineLimit(1)
+                        Text(drawing.label).font(.system(size: 16)).foregroundStyle(drawing.theme.text).lineLimit(1)
                             .padding(.vertical, 6).padding(.horizontal, 14)
-                            .background(Color(red: 20.0 / 255, green: 22.0 / 255, blue: 28.0 / 255).opacity(0.86), in: RoundedRectangle(cornerRadius: 9))
+                            .background(drawing.theme.peekLabel, in: RoundedRectangle(cornerRadius: 9))
                             .fixedSize().offset(y: peekLabelOffset(pictureBottom: rect.maxY, screenHeight: proxy.size.height))
                     }
                 }
                 .position(x: rect.midX, y: rect.midY)
                 .opacity(drawing.opacity)
         }
+        .environment(\.lensTheme, drawing.theme)
+        .environment(\.colorScheme, drawing.theme.colorScheme)
         .allowsHitTesting(false)
     }
 }
 
 private struct PeekPicture: View {
+    @Environment(\.lensTheme) private var theme
     let thumbnail: WindowThumbnail?
     let fullImage: CGImage?
     let icon: NSImage?
@@ -352,11 +360,12 @@ private struct PeekPicture: View {
     var body: some View {
         if let thumbnail { PeekThumbnail(thumbnail: thumbnail, fullImage: fullImage, icon: icon, frozen: frozen, look: look) }
         else if let icon { Image(nsImage: icon).resizable().scaledToFit().padding(30) }
-        else { Image(systemName: "macwindow").resizable().scaledToFit().padding(30).foregroundStyle(.white) }
+        else { Image(systemName: "macwindow").resizable().scaledToFit().padding(30).foregroundStyle(theme.text) }
     }
 }
 
 private struct PeekThumbnail: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var thumbnail: WindowThumbnail
     let fullImage: CGImage?
     let icon: NSImage?
@@ -369,10 +378,10 @@ private struct PeekThumbnail: View {
                 Image(decorative: image, scale: 1).resizable().scaledToFit()
                     .saturation(appearance.saturation).colorMultiply(Color(white: appearance.brightness)).opacity(appearance.opacity)
             } else if let icon { Image(nsImage: icon).resizable().scaledToFit().padding(30) }
-            else { Image(systemName: "macwindow").resizable().scaledToFit().padding(30).foregroundStyle(.white) }
+            else { Image(systemName: "macwindow").resizable().scaledToFit().padding(30).foregroundStyle(theme.text) }
             if let badge = appearance.badge {
                 Group { if badge == "pause" { Image(systemName: "pause.fill") } else { Text(badge) } }
-                    .font(.system(size: 12)).foregroundStyle(.white).padding(6).background(.black.opacity(0.6)).padding(8)
+                    .font(.system(size: 12)).foregroundStyle(LensTheme.dark.text).padding(6).background(.black.opacity(0.6)).padding(8)
             }
         }
     }

@@ -6,6 +6,7 @@ import HotKey
 final class LensSession: ObservableObject {
     let name: String
     let eventFilter: String?
+    let theme: LensTheme
     private(set) var settings: LensConfig
     let sectionIdentities: [String: [LensSectionIdentity]]
     let sectionCycle: [String]
@@ -109,6 +110,7 @@ final class LensSession: ObservableObject {
                 if settings.followsPeek(presentation: presentation) { peekZoom = false }
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
+                if presentation == "list" { commitsOnRelease = false }
                 settings.presentation = presentation
                 let shown = shouldShowHints(currentModifiers)
                 if shown != hintsShown { hintsShown = shown }
@@ -196,6 +198,7 @@ final class LensSession: ObservableObject {
     /// Untouched recalled Search is selected; its first edit replaces it.
     private(set) var searchEdited = false
     private var holdInitialized = false
+    private(set) var commitsOnRelease = false
     func noteSearchEdit() {
         if inputState == .search { searchEdited = true }
     }
@@ -207,7 +210,8 @@ final class LensSession: ObservableObject {
         invokingGesture = gesture
         currentModifiers = gesture?.invoking ?? []
         hold = gesture?.keyCode != nil && gesture?.holdModifiers.isEmpty == false ? gesture : nil
-        ignoredTriggerModifiers = settings.presentation == "strip" || hold != nil ? [] : currentModifiers
+        commitsOnRelease = settings.commitsOnRelease(for: gesture)
+        ignoredTriggerModifiers = hold != nil ? [] : currentModifiers
         if hold != nil { inputState = .hold }
         let shown = shouldShowHints(currentModifiers)
         if shown != hintsShown { hintsShown = shown }
@@ -226,12 +230,13 @@ final class LensSession: ObservableObject {
     var onAction: ((String) -> Void)?
     var onControl: ((TileWindowControl, UInt32) -> Void)?
 
-    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) {
+    init(name: String, settings: LensConfig, items: [SwitcherPaletteItem], search: String, searchIsExplicit: Bool = false, eventFilter: String? = nil, sectionIdentities: [String: [LensSectionIdentity]]? = nil, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }, systemIsDark: () -> Bool = { LensTheme.systemIsDark }) {
         self.pointerLocation = pointerLocation
         pointerMotion = LensPointerMotion(anchor: pointerLocation())
         self.name = name
         self.eventFilter = eventFilter
         self.settings = settings
+        theme = LensTheme.resolve(settings.appearance, systemIsDark: systemIsDark)
         let focused = items.first(where: \.isFocused)
         var identities: [String: [LensSectionIdentity]] = [:]
         for grouping in ["workspace", "project", "monitor"] {
@@ -426,9 +431,9 @@ final class LensSession: ObservableObject {
     func updateHintModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
     private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
-        if let hold, settings.presentation == "strip" { return hold.releaseModifiers(modifiers) }
+        if let hold, commitsOnRelease { return hold.releaseModifiers(modifiers) }
         if let hold { return modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
-        if settings.presentation == "strip", !holdEndedByKey { return stripGesture?.releaseModifiers(modifiers) ?? [] }
+        if commitsOnRelease, !holdEndedByKey { return stripGesture?.releaseModifiers(modifiers) ?? [] }
         return modifiers.intersection([.control, .option, .shift, .command])
     }
 
@@ -482,7 +487,7 @@ final class LensSession: ObservableObject {
         if let index = marks.firstIndex(of: id) { marks.remove(at: index) } else { marks.append(id) }
     }
     func keepsOpen(after key: String) -> Bool {
-        (inputState == .hold || settings.presentation == "strip") && !key.hasSuffix("enter") &&
+        (inputState == .hold || commitsOnRelease) && !key.hasSuffix("enter") &&
             !commands(for: key).contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") }
     }
     func commands(for key: String) -> [String] { settings.keys[key] ?? [] }

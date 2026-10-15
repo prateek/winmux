@@ -115,6 +115,8 @@ let LensFields = {
   popups | Array (Choice [| 'accessory-popup, 'app-popup |]) | optional,
   frozen-thumbnail | Choice [| 'plain, 'age-badge, 'pause-badge, 'dimmed |] | optional,
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
+  on-release | Choice [| 'commit, 'stay |] | optional,
+  appearance | Choice [| 'auto, 'dark, 'light |] | optional,
   peek | Choice [| 'zoom, 'follow |] | optional,
   hints | Choice [| 'held, 'always |] | optional,
   hints-key | Choice [| 'alt, 'cmd, 'ctrl, 'shift |] | optional,

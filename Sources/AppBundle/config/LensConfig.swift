@@ -12,6 +12,9 @@ struct LensConfig: Equatable, Sendable {
     var popups: [String] = []
     var frozenThumbnail = "dimmed"
     var accessoryWindow = "enlarged"
+    var onRelease: String?
+    var appearance: String?
+    var resolvedOnRelease: String { onRelease ?? (presentation == "strip" ? "commit" : "stay") }
     var peek = "zoom"
     var hints = "held"
     var hintsKey = "alt"
@@ -45,6 +48,8 @@ struct LensConfig: Equatable, Sendable {
         popups = value["popups"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? popups
         frozenThumbnail = value["frozen-thumbnail"]?.stringOrNil ?? frozenThumbnail
         accessoryWindow = value["accessory-window"]?.stringOrNil ?? accessoryWindow
+        onRelease = value["on-release"]?.stringOrNil ?? onRelease
+        appearance = value["appearance"]?.stringOrNil ?? appearance
         peek = value["peek"]?.stringOrNil ?? peek
         hints = value["hints"]?.stringOrNil ?? hints
         hintsKey = value["hints-key"]?.stringOrNil ?? hintsKey
@@ -67,6 +72,7 @@ struct LensConfig: Equatable, Sendable {
             "presentation": .string(presentation), "entries": .string(entries), "sections": .string(sections),
             "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),
+            "on-release": .string(resolvedOnRelease), "appearance": .string(appearance ?? "auto"),
             "peek": .string(peek), "hints": .string(hints), "hints-key": .string(hintsKey),
             "summon-hints": .array(summonHints.map(JSONValue.string)), "enabled": .bool(enabled),
             "miniatures": miniatures.json, "grid": grid.json,

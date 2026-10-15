@@ -262,6 +262,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)
         model.miniatureSize = visible.size
         isOpaque = false
+        appearance = model.theme.nsAppearance
+        gridLandingPanel.appearance = model.theme.nsAppearance
         let frame: NSRect
         let root: AnyView
         if model.settings.presentation == "miniatures" || model.settings.presentation == "strip" {
@@ -279,7 +281,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                            width: size.width, height: size.height)
             root = AnyView(GridView(model: model))
             gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
-            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)))
+            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)).environment(\.lensTheme, model.theme).environment(\.colorScheme, model.theme.colorScheme))
         } else {
             let layout = model.listLayout
             frame = NSRect(x: rect.minX + (rect.width - layout.width) / 2,
@@ -287,11 +289,11 @@ final class SwitcherPalettePanel: NSPanelHud {
                            width: layout.width, height: layout.panelHeight)
             root = AnyView(SwitcherPaletteView(model: model))
             gridLandingPanel.setFrame(NSRect(x: rect.minX, y: appKitScreenMaxY() - rect.maxY, width: rect.width, height: rect.height), display: false)
-            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)))
+            gridLandingPanel.contentView = NSHostingView(rootView: LensPeekDim(model: model, content: GridLandingView(model: model)).environment(\.lensTheme, model.theme).environment(\.colorScheme, model.theme.colorScheme))
         }
         // The real root goes in before the frame is set, so the first layout is of the Presentation.
         lifecycle.trace?.startInterval("view built")
-        hostingView.rootView = AnyView(LensPeekDim(model: model, content: root).coordinateSpace(name: lensWindowCoordinateSpace))
+        hostingView.rootView = AnyView(LensPeekDim(model: model, content: root).environment(\.lensTheme, model.theme).environment(\.colorScheme, model.theme.colorScheme).coordinateSpace(name: lensWindowCoordinateSpace))
         setFrame(frame, display: false)
         hostingView.arm()
         lifecycle.trace?.advance("view built")
@@ -357,8 +359,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         if model.performPeekAction(key) || model.performSectionsAction(key) { return }
         let commands = model.commands(for: key)
         guard !commands.isEmpty else {
-            // A release always closes the strip, even when its binding runs nothing.
-            if model.settings.presentation == "strip", key.hasSuffix("enter") { dismiss() }
+            if model.commitsOnRelease, key.hasSuffix("enter") { dismiss() }
             return
         }
         let keepOpen = model.keepsOpen(after: key)
@@ -434,7 +435,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                         default: break
                     }
                 }
-                if carbon, !handled, presentation == "strip" { dismiss() }
+                if carbon, !handled, model.commitsOnRelease { dismiss() }
         }
         trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
                    timestamp: event.timestamp, presentation: presentation, state: state, hold: held, path: path,
@@ -526,6 +527,7 @@ func filterSwitcherPaletteItems(_ items: [SwitcherPaletteItem], query: String) -
 // MARK: - View
 
 struct SwitcherPaletteView: View {
+    @Environment(\.lensTheme) private var theme
     @ObservedObject var model: LensSession
 
     var body: some View {
@@ -537,7 +539,7 @@ struct SwitcherPaletteView: View {
             HStack(spacing: 8 * scale) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14 * scale, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(GlassToken.textTertiary))
+                    .foregroundStyle(theme.ink(GlassToken.textTertiary))
                 LensSearchRow(model: model)
                     .font(.system(size: 16 * scale, weight: .medium))
                     .frame(minWidth: 180 * scale)
@@ -548,7 +550,7 @@ struct SwitcherPaletteView: View {
             .padding(.top, 26 * scale)
 
             Rectangle()
-                .fill(Color.white.opacity(GlassToken.separatorOpacity))
+                .fill(theme.line(GlassToken.separatorOpacity))
                 .frame(height: StrokeToken.hairline)
 
             if let error = model.searchError {
@@ -604,11 +606,7 @@ struct SwitcherPaletteView: View {
         .fixedSize(horizontal: false, vertical: true)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.listPanelHeight = $0 }
         .background {
-            GlassSurface(
-                shape: RoundedRectangle(cornerRadius: layout.radius, style: .continuous),
-                style: config.workspaceSidebar.chromeStyle,
-                solidColor: config.workspaceSidebar.resolvedSolidChromeColor,
-            )
+            LensPanelSurface(shape: RoundedRectangle(cornerRadius: layout.radius, style: .continuous))
             .opacity(model.panelGlassOpacity)
         }
         .overlay {
