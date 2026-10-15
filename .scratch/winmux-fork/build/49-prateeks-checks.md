@@ -77,6 +77,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] With the Cmd-Tab opt-in, on the installed build and a real keyboard: hold Cmd-Tab until the strip is up, then press Option too. Within a frame the selected picture shows `⌥↩ Summon to <workspace>` when it is on another workspace, a dashed orange landing spot appears where it would land, each picture shows `⌘<n>` for its workspace, and a legend sits under the strip. Let go of Option: all of it goes, the strip stays. Let go of Cmd: the selected window is focused.
 - [ ] Press `alt-slash` at your normal speed and keep Option down a moment before letting go. No label, landing spot or legend flashes while the chord's Option is down. Press Option again: they appear. Say here if the thinner panel makes the list hard to read on your wallpaper.
 - [ ] Hold Shift in an open list or grid: nothing appears, and Shift-Return still Summons the selected window.
+**Peek: see the selected window at full size before switching**
+- [ ] On the installed build, on your Retina display: `winmux lens recent --presentation grid`, Space, then `winmux debug-lens-trace --last 1`. Its `Session:` line ends with `peek-capture=<ms>ms`. Say here what it reads, and whether the picture sharpens from blurry to crisp quickly enough not to notice. The guest's 1x virtual display read about 19 ms warmed and 46 to 69 ms in a running Lens.
+- [ ] With the Cmd-Tab opt-in, on a real keyboard: hold Cmd-Tab, press Cmd-Y, Tab twice, release Cmd. The selected window grows to its real place, the picture moves with each Tab, and release focuses the last one. Say here if you would rather have Space work in a Cmd-held strip too (Cmd-Space opens Spotlight, so it cannot without rebinding Spotlight).
+- [ ] With a Japanese or Chinese input method, `alt-slash`, type a word in kana or pinyin, press Space to convert and Return to commit. The text converts and commits, and nothing is peeked or focused.
+- [ ] With two displays, open a grid on one and peek a window that sits on the other, then click a Tile on the grid's display. The zoom ends and nothing else happens: no window is focused and the selection does not move.
 
 ## From the first build
 
