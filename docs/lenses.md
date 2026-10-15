@@ -181,8 +181,8 @@ at load. In every Presentation, moving the pointer over a Tile selects it after 
 more than one point from its anchor (Euclidean distance). First presentation, a keyboard or
 wheel step, Search reselection and a miniature page turn anchor the pointer again. A Tile
 sliding under a resting pointer cannot replace the default or keyboard selection. Leaving
-the panel keeps the last selection. The strip commits the last input, key or pointer, on
-release; the grid stays open until Return or a click. Click selects
+the panel keeps the last selection. A committing Lens acts on the last input, key or pointer, on
+release; a staying Lens remains open until Return or a click. Click selects
 the Tile under the pointer and runs enter; modifier-click runs the corresponding modifier-enter
 command. A click in a strip or grid gap does nothing. `lens --presentation list`
 keeps selection, marks, Search and the snapshot of eligible windows. Reloading config preserves
@@ -203,7 +203,7 @@ selects, commits or closes the Lens. Closing removes the Tile and reflows the la
 keeps it as a minimized Tile, frozen at its last picture, and hides its minimize control. Failures leave it in place and
 are logged under `lens`. After any control action, controls stay hidden until the pointer moves
 more than one point again, preventing a second close on a window that slid under it. An ordinary
-Tile click keeps its Enter action, and a held strip still commits on release.
+Tile click keeps its Enter action, and a committing Hold still commits on release.
 
 Focus restores a minimized row on its origin workspace and focuses it there, recreating that
 workspace if cleanup removed it. A row with no known origin uses the current workspace.
@@ -248,6 +248,54 @@ Popup Focus raises the native window. Summon refuses with `Cannot Summon a popup
 and moves nothing, because a popup has no workspace.
 
 
+## Release and appearance
+
+`on-release` and `appearance` are optional Lens fields, like `peek`, and also work
+under `when.default`. They resolve once for each opening.
+
+- `on-release = 'commit` runs the Enter binding when the invoking modifiers are
+  released. The invoking key steps, Shift reverses, and the panel waits 100 ms
+  before drawing. A quick tap switches without drawing or emitting Lens events.
+- `on-release = 'stay` ends the Hold on release and keeps the Lens open. Enter
+  runs its binding and Escape closes it; Tab marks once the Hold ends. Repeating
+  the named Lens's invoking chord after release toggles it closed.
+- With `on-release` omitted, a strip commits and every other Presentation stays.
+  Swift resolves this after `--presentation`; no shipped Lens sets the field.
+  A committing Lens needs a chord with a physical key and held modifiers. CLI,
+  menu, tap and modifier-free bindings stay open, including a strip.
+- `appearance = 'auto` (the default) reads the system appearance when the Lens
+  opens. `dark` and `light` force that appearance. A system change while the Lens
+  is open appears at the next opening.
+
+For a held Control-Option-G chord opening a committing grid:
+
+```nickel
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  lenses.documents = {
+    presentation = 'grid,
+    on-release = 'commit,
+    appearance = 'auto,
+    peek = 'zoom,
+  },
+  mode.main.binding.ctrl-alt-g = "lens documents",
+  lenses.recent.on-release = 'stay,
+}) | W.Config
+```
+
+The Presentation keeps its layout: a committing grid still draws a grid, and a
+staying strip still draws a strip. A letter or `/` ending the Hold prevents the
+later release from committing. Conversion to a list, including `winmux lens
+--presentation list`, ends the committing gesture. A committing release hides a
+peek at once; a staying release leaves a zoom as it is.
+
+Light uses the prototype's pale panel over blur, dark text and blue selection.
+The panels, Search, grouping, Tile chrome, badges and peek follow the opening's
+appearance. The hint legend keeps its dark plate and white text; window pictures,
+app icons and Frozen treatment keep their existing look. The sidebar and other
+non-Lens chrome have their own settings. `list-lenses --json` reports the resolved
+`on-release` and `appearance` (`auto` when omitted).
+
 ## Peek
 
 Space grows the selected Tile’s picture to the window’s frame. In Search it peeks
@@ -255,8 +303,8 @@ only when the visible query is empty; after typing, Space inserts a space. Cmd-Y
 peeks in every state. The same key or Escape shrinks the picture back. Escape ends
 only the peek: a list opened in Search then needs a second Escape to leave Search
 and a third to close. Arrows move the selection and its picture. Other keys keep
-their actions, including Enter, alt-enter, shift-enter and cmd-w. Releasing a held
-strip still commits. While zoomed, pointer motion leaves the selection alone and a
+their actions, including Enter, alt-enter, shift-enter and cmd-w. Releasing a committing
+Hold still commits and hides the peek; a staying release keeps the zoom. While zoomed, pointer motion leaves the selection alone and a
 click only ends the zoom, since the Tile under the pointer is hidden by the picture.
 
 Peek never changes focus or workspace and never raises or restores the real
@@ -295,7 +343,7 @@ During a Hold, the Lens reads keys in this order:
    window and keeps the Hold, and `cmd-g` changes grouping in a list or grid.
 2. The Trigger's own key steps, with Shift reversing. Tab and backtick with the
    invoking modifiers keep their existing stepping behavior; the other Trigger's
-   key is consumed without stepping. In a held list, Tab also steps through the
+   key is consumed without stepping. In a staying held list, Tab also steps through the
    matches (Shift-Tab reverses), including during Option-slash’s Hold.
 3. Arrows move and Escape dismisses, with the Hold's modifiers removed.
 4. The first unbound letter, or `/`, ends the Hold. Shift with a letter still counts.
@@ -311,10 +359,10 @@ During a Hold, the Lens reads keys in this order:
 A peek binding also matches with the Hold’s invoking modifiers removed: Space
 matches if the system delivers it. During Cmd-Tab use Cmd-Y: Cmd-Space belongs to Spotlight. WinMux never registers Space system-wide. Backspace, digits, unbound Space, other punctuation and function keys do nothing during a
 Hold. They do not end it. Releasing its invoking Command, Control and Option
-modifiers (or Shift for a Shift-only chord) ends it too. Release commits a strip;
-other Presentations remain open. **A Hold ended by a key never commits on release**,
+modifiers (or Shift for a Shift-only chord) ends it too. Release follows `on-release`, defaulting to commit for a strip and stay for
+other Presentations. **A Hold ended by a key never commits on release**,
 including a release received while opening. One session never starts a second Hold.
-The strip's display deadline remains 100 ms.
+Every committing Hold uses the 100 ms display deadline; staying panels draw immediately.
 
 In normal mode, a plain key or chord bound in Lens `keys` wins. Otherwise `h`, `j`,
 `k`, `l` move as left, down, up and right arrows in that Presentation. In a list
@@ -594,7 +642,7 @@ Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cm
 move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
 `badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label
 and a screen-space landing outline while the hints key is held (or `hints = 'always`). Trigger release leaves
-the grid open.
+the grid open unless `on-release = 'commit`.
 
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
 every Lens. Strips use `grid.tile-size`; on lists and miniatures the block loads and is reported
@@ -659,9 +707,11 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `miniatures.fit` | Below the 110-point readable floor, `page` keeps a fixed cell size and scrolling turns pages; `shrink` fits all workspaces. |
 | `miniatures.current-workspace` | `plain`, `highlight` (default), `enlarge`, or `hide`. |
 | `miniatures.arrow-keys` | `nearest` (default) uses geometry; `by-workspace` uses left/right within a workspace and up/down between workspaces. |
-| `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. The panel remains non-opaque. |
+| `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. Darkness is black in dark appearance and pale grey in light; its opacity stays the configured value. The panel remains non-opaque. |
 | `frozen-thumbnail` | `plain`, `dimmed` (default), `age-badge`, or `pause-badge`. Live thumbnails are unmarked. |
 | `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
+| `on-release` | `commit` or `stay`; omitted resolves to `commit` for strip and `stay` otherwise, after the Presentation override. Only a held chord can commit on release. |
+| `appearance` | `auto` (default), `dark` or `light`; system appearance is read once per opening. |
 | `peek` | `zoom` (default) grows the selected picture on a key; `follow` always shows it under the panel. Miniatures always uses `zoom`. |
 | `hints` | `held` (default) shows hints while the hints key is held; `always` keeps them visible. |
 | `hints-key` | `alt` (default), `cmd`, `ctrl`, or `shift`, using the chord modifier spellings. |
@@ -685,4 +735,4 @@ placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 The shipped windowing bindings run `mode main` before their Lens command: `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent --presentation list --tile text`, and `a` opens `app-windows --presentation list --tile text`. Escape and Option-semicolon run only `mode main`. The HUD is hidden before a Lens opens. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
 
-Lens subscription events describe visible panels. A strip released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented strip emits one pair; Search and handoff to the list keep that pair. List, grid and miniatures panels appear immediately. See [subscription events](events.md).
+Lens subscription events describe visible panels. A committing Lens released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented Lens emits one pair; Search and handoff to the list keep that pair. Staying panels appear immediately. See [subscription events](events.md).
