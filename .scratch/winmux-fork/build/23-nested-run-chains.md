@@ -46,15 +46,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 All Done-when items are met. The chain and Move-boundary chain regressions fail on `160dabd3` at width `0.4` and pass at `0.7`; the ping-pong test now asserts Ping, Column 2, three Place calls and two executed lists. `layout floating` followed by `layout tiling` is the same-workspace re-entry trigger, through `WindowRelayout`. The guard also covers overlapping tasks and shared global Place definitions without task tracking or a status counter. No default changed.
 
-The same owned-window guest script ran three chain trials per tree: the new build lands on workspace 3 with width `0.5` in all three; the base lands there with the configured `0.3` and the old suppression message in all three. The new loop ends on Ping, Column 2, with one path-named suppression; the base ends on Pong, Column 3. Dry-run preview and floating-to-tiling transfer checks pass on both. Numbered workspaces 2 and 3 are created before staging; a literal workspace named `3` created by Arrive is not itself the third automatic workspace. The proof config and script are in `.scratch/winmux-fork/proofs/nested-run-chains/`. All five fenced Columns-guide examples pass the real helper.
-
-The builder publishes no release.
-
-## Checks for Prateek
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+The same owned-window guest script ran three chain trials per tree: the new build lands on workspace 3 with width `0.5` in all three; the base lands there with the configured `0.3` and the old suppression message in all three. The new loop ends on Ping, Column 2, with one path-named suppression; the base ends on Pong, Column 3. Dry-run preview and floating-to-tiling transfer checks pass on both. The proof config and script are in `.scratch/winmux-fork/proofs/nested-run-chains/`. All five fenced Columns-guide examples pass the real helper.
 
 ## Sources
 

@@ -113,18 +113,17 @@ Place and Move-boundary resolve over `columns`, `columns.when.default`, `workspa
 
 All three result records may include `run`, an array of config-allowed command strings. Commands run after placement, target the hook's window, and execute in order. A command in `run` still invokes destination placement. A different hook definition's inner list runs to its end before the outer list's next command. A definition is its resolved config path: `arrive`, `columns.place` or, for example, `workspace.3.columns.place`. When that definition already has a list running for this window, only its list is suppressed; binding and placement still happen. This also applies to overlapping lists from separate commands or tasks. Different windows run independently. Each suppression records one hook failure, named by path, in `config status`'s `last-error`.
 
-For a chain, Arrive can move a new Ghostty window to workspace `3` through a command, with no `workspace` result field. Workspace `3`'s local Place sets Column 2 to half the width, then Arrive's next command steps it to `0.7`. Without the inner list the step would reach `0.4` from the configured third. On a fresh session, run `winmux workspace 2`, then `winmux workspace 3` before opening Ghostty. The persistent slots below keep those numbered workspaces available; numeric movement commands target automatic workspace numbers, while `workspace."3"` configures the internal name created by that fresh-session sequence:
+For a chain, Arrive can move a new Ghostty window to the workspace `Code` through a command, with no `workspace` result field. `Code`'s local Place puts it in Column 2 and sets that Column to half the width, then Arrive's next command steps it to `0.7`. Without the inner list the step would reach `0.4` from the configured third:
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
-  persistent-workspaces = ["1", "2", "3"],
   columns.width-presets = [0.25, 0.4, 0.5, 0.7],
   arrive = fun w ctx cols =>
     if w.app.name == "Ghostty" then {
-      run = ["move-node-to-workspace 3", "column-width next"],
+      run = ["move-node-to-workspace Code", "column-width next"],
     } else {},
-  workspace."3".columns = {
+  workspace.Code.columns = {
     count = 3,
     place = fun w ctx cols => {
       column = 2, overflow = 'tab-group, run = ["column-width 0.5"],
