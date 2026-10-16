@@ -76,8 +76,9 @@ boot() {
     sleep 10
     nohup tart run --no-graphics --no-audio --no-clipboard "$vm" 9>&- >"$log" 2>&1 &
     disown
-    local deadline=$((SECONDS + 60))
-    for _ in $(seq 1 20); do
+    # A cold macOS boot on a busy host can take a few minutes to reach sshd.
+    local deadline=$((SECONDS + 240))
+    for _ in $(seq 1 120); do
       [ "$SECONDS" -lt "$deadline" ] || break
       grep -q RuntimeFailed "$log" && break
       # Resolve again on each probe: softnet can report an old address during boot.

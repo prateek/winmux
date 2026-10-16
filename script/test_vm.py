@@ -226,7 +226,7 @@ class VMTest(unittest.TestCase):
         probes = [c for c in calls if c[0] == 'nc']
         self.assertGreater(len(probes), 1)
         self.assertGreater(len({c[-2] for c in probes}), 1, 're-read the IP on every probe')
-        self.assertLessEqual(len(probes), 21, 'about one minute per failed attempt')
+        self.assertLessEqual(len(probes), 121, 'about four minutes per failed attempt')
 
     def test_unreachable_guest_exhausts_three_tries_and_is_stopped(self):
         self.seed(unreachable_boots=3)
