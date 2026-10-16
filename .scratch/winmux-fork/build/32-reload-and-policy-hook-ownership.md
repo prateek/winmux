@@ -87,7 +87,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 **Config reload attempts**
 
-This part landed in its own pull request; Policy hook completion landed separately and the remaining timing work follows.
+This part landed in its own pull request; Policy hook completion and Time and cancellation landed separately.
 
 - [x] Tests exercise the real coordination interface with controlled loading and application and explicit completion signals, without touching real home files, login items, hotkeys or production helpers.
 - [x] The cases cover older and newer load completion in either order, an older failure, dry runs interleaved with reloads, requests during suspended application, and failure after adoption.
@@ -97,7 +97,7 @@ This part landed in its own pull request; Policy hook completion landed separate
 
 **Policy hook completion**
 
-This part landed in its own pull request; the timing part follows.
+This part landed in its own pull request; Time and cancellation landed separately.
 
 - [x] The shared completion rules have one owner, and commands no longer duplicate the corresponding lifecycle protocol.
 - [x] The existing races remain covered: closed, unbound or moved windows during record collection or helper evaluation, replacement Columns, abandoned destination placement, and suppressed follow-on commands where required.
@@ -106,15 +106,31 @@ This part landed in its own pull request; the timing part follows.
 
 **Time and cancellation**
 
-- [ ] The touched timing-policy tests use controlled time and finish without wall-clock sleeps. Necessary process and filesystem integration timing stays separate.
-- [ ] Deadline tests prove there is no early result and that a late result is rejected, including from a dependency that does not promptly honour cancellation.
-- [ ] Refresh-burst coverage shows the active pass completes and coalesced work drains, with no starvation and no lost work.
-- [ ] Effect-lifetime tests show that cancellation ends owned work and cannot clear or overwrite a newer operation's state.
+This part landed in its own pull request and completes the issue.
+
+- [x] The touched timing-policy tests use controlled time and finish without wall-clock sleeps. Necessary process and filesystem integration timing stays separate.
+- [x] Deadline tests prove there is no early result and that a late result is rejected, including from a dependency that does not promptly honour cancellation.
+- [x] Refresh-burst coverage shows the active pass completes and coalesced work drains, with no starvation and no lost work.
+- [x] Effect-lifetime tests show that cancellation ends owned work and cannot clear or overwrite a newer operation's state.
 
 **Overall**
 
-- [ ] CLI, config and helper contracts, subscription events, Column invariants and the cancellation distinctions keep their coverage.
-- [ ] The last pull request records the checks run, live evidence and remaining limits.
+- [x] CLI, config and helper contracts, subscription events, Column invariants and the cancellation distinctions keep their coverage.
+- [x] The last pull request records the checks run, live evidence and remaining limits.
+
+## Timing implementation and remaining checks
+
+`NickelSupervisor` and every helper it starts share one injected `Clock<Duration>`. `NickelByteChannel` separates the live process/pipes from request matching, deadlines and cancellation; controlled channels can answer even after kill. Policy coverage is in `NickelTimingPolicyTest`, separate from `NickelProcessIntegrationTest`'s retained Python process tests. Cancelled Filter/hook requests use `NickelFailure.cancelled`, remove their pending entry and leave the helper running; loads keep waiting for their own reply/deadline. `PolicyHookCompletion` treats cancellation as no result and no reported hook failure.
+
+`AppRefreshDeadlineTest` pins cancellation at 1500 ms, fallback after work yields, session cancellation and overshoot; no enumeration is abandoned. `RefreshBurstTest` pins the coalescing strategy and generation ownership. A crash cancels an obsolete recycle so it cannot install over the restarted helper. Cancelled reload waiters depart promptly; if the cancelled newest ordinary request displaced unadopted work, its owner reloads current file content once with the displaced trigger and `noGui`. Application after adoption keeps its caller's task and the partial-application contract.
+
+Host and pinned-version guest `make check` pass 1,346 Swift, 88 Rust/helper and 131 Python tests. The same script against the base and changed guest builds covers helper recovery, breaker/reload recovery, save bursts, eight burst windows and stopped-app readbacks. Five required mutations fail their named tests. The last pull request records this evidence and the remaining deadline/AX limits.
+
+These checks remain Prateek's, tracked with his installed-build and real-hardware checks:
+
+- [ ] Installed-build behavior.
+- [ ] A second physical display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
