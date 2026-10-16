@@ -60,7 +60,7 @@ For a release trace, the schema is `lens-opening-release-stages`. Input receipt 
 
 ## Check against a guest recording
 
-Use the `vm` skill to sync, build and stage the standing desk at 1280 × 720. Direct-display ScreenCaptureKit recording also needs the system private-picker bypass permission for its driving process; the ordinary Screen Recording preflight alone does not prove that grant. In an acceptance guest, a prompt is an image defect and stops the run. Push this repository's demo directory beside the desk. Park the pointer bottom-right. The standing desk opts in to Cmd-Tab. Start a fresh WinMux process and record five real Cmd-Tab openings; the first must be that process's first Lens:
+Use the `vm` skill to sync, build and stage the standing desk at 1280 × 720. Direct-display ScreenCaptureKit recording also needs the system private-picker bypass approval for its driving process. The golden image writes replayd’s approval for the observed ssh-wrapper identity; `vm up` renews it before the separate `approvals` preflight check. The ordinary Screen Recording preflight checks TCC alone. In an acceptance guest, a prompt is an image defect and stops the run. Push this repository's demo directory beside the desk. Park the pointer bottom-right. The standing desk opts in to Cmd-Tab. Start a fresh WinMux process and record five real Cmd-Tab openings; the first must be that process's first Lens:
 
 ```sh
 ~/desk/trace-film strip 14 \
