@@ -6,6 +6,71 @@ import XCTest
 
 @MainActor
 final class LensPreparationTest: SerialClockTestCase {
+    func testRealGridWarmWaitsForStableWindowsRunsOnceAndNeverDrawsForALens() async throws {
+        let clock = TestClock<Duration>()
+        let preparation = LensStartupPreparation(clock: clock)
+        var idle = true, draws = 0
+        let prepare: LensStartupPreparation.GridPreparation = { { draws += 1 } }
+        XCTAssertFalse(preparation.scheduleRealGrid(windowIds: [1], isIdle: { idle }, prepare: prepare))
+        preparation.run(idle: true) { _ in }
+        XCTAssertFalse(preparation.scheduleRealGrid(windowIds: [], isIdle: { idle }, prepare: prepare))
+        XCTAssertTrue(preparation.scheduleRealGrid(windowIds: [1], isIdle: { idle }, prepare: { nil }))
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(draws, 0)
+        XCTAssertTrue(preparation.needsRealGridPreparation)
+        XCTAssertTrue(preparation.scheduleRealGrid(windowIds: [1], isIdle: { idle }, prepare: prepare))
+        await clock.advance(by: .milliseconds(600))
+        XCTAssertTrue(preparation.scheduleRealGrid(windowIds: [1, 2], isIdle: { idle }, prepare: prepare))
+        XCTAssertFalse(preparation.scheduleRealGrid(windowIds: [2, 1], isIdle: { idle }, prepare: prepare))
+        await clock.advance(by: .milliseconds(999))
+        XCTAssertEqual(draws, 0)
+        idle = false
+        await clock.advance(by: .milliseconds(1))
+        XCTAssertEqual(draws, 0)
+        XCTAssertFalse(preparation.scheduleRealGrid(windowIds: [1, 2], isIdle: { idle }, prepare: prepare))
+        idle = true
+        XCTAssertTrue(preparation.scheduleRealGrid(windowIds: [1, 2], isIdle: { idle }, prepare: prepare))
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(draws, 1)
+        XCTAssertFalse(preparation.needsRealGridPreparation)
+        XCTAssertFalse(preparation.scheduleRealGrid(windowIds: [1, 2, 3], isIdle: { idle }, prepare: prepare))
+        await clock.advance(by: .seconds(2))
+        XCTAssertEqual(draws, 1)
+        try await clock.checkSuspension()
+    }
+
+    func testRealGridWarmRechecksOwnershipAndReplacementAfterPreparing() async throws {
+        let clock = TestClock<Duration>()
+        let preparation = LensStartupPreparation(clock: clock)
+        preparation.run(idle: true) { _ in }
+        var idle = true, draws = 0
+        var finish: CheckedContinuation<LensStartupPreparation.GridDraw?, Never>?
+        preparation.scheduleRealGrid(windowIds: [1], isIdle: { idle }) {
+            await withCheckedContinuation { finish = $0 }
+        }
+        await clock.advance(by: .seconds(1))
+        XCTAssertNotNil(finish)
+        idle = false
+        finish?.resume(returning: { draws += 1 })
+        finish = nil
+        await clock.advance()
+        XCTAssertEqual(draws, 0)
+        XCTAssertTrue(preparation.needsRealGridPreparation)
+        idle = true
+        preparation.scheduleRealGrid(windowIds: [1], isIdle: { idle }) {
+            await withCheckedContinuation { finish = $0 }
+        }
+        await clock.advance(by: .seconds(1))
+        preparation.scheduleRealGrid(windowIds: [1, 2], isIdle: { idle }) { { draws += 10 } }
+        finish?.resume(returning: { draws += 1 })
+        finish = nil
+        await clock.advance()
+        XCTAssertEqual(draws, 0)
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(draws, 10)
+        try await clock.checkSuspension()
+    }
+
     func testEmptyDesktopGridPreparationExercisesRealPicturesSectionsAndFrozenDrawing() {
         let model = LensStartupPreparation.gridModel(size: CGSize(width: 1920, height: 1050), existingItems: [], workspaces: [])
         XCTAssertEqual(model.settings.presentation, "grid")

@@ -98,7 +98,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         let started = LensTimebase.now()
         let entries = (try? await lensWindows(popups: [])) ?? []
         // A Lens that opened during the read owns the panel; drawing here would replace its view.
-        let idle = if case .closed = lifecycle.state { true } else { false }
+        let idle = idleForPreparation
         let workspaces = miniatureWorkspaceSnapshot(entries)
         let drew = startupPreparation.run(idle: idle) { presentation in
             var settings = LensConfig()
@@ -113,6 +113,32 @@ final class SwitcherPalettePanel: NSPanelHud {
         guard drew else { return }
         clearPresentation()
         lensLog.notice("Lens startup preparation took \(Int((LensTimebase.now() - started) * 1000)) ms")
+    }
+
+    private var idleForPreparation: Bool {
+        if case .closed = lifecycle.state { true } else { false }
+    }
+
+    func prepareRealGridWhenAvailable() {
+        guard startupPreparation.needsRealGridPreparation, idleForPreparation else { return }
+        let ids = Set(Window.all.filter(\.isBound).map(\.windowId))
+        startupPreparation.scheduleRealGrid(windowIds: ids, isIdle: { [weak self] in self?.idleForPreparation == true }) { [weak self] in
+            guard let self else { return nil }
+            let started = LensTimebase.now()
+            let entries = (try? await lensWindows(popups: [])) ?? []
+            let workspaces = miniatureWorkspaceSnapshot(entries)
+            var settings = LensConfig(); settings.presentation = "grid"
+            let items = self.presentationItems(entries, settings: settings, workspaces: workspaces)
+            guard items.contains(where: { $0.tile.picture?.image != nil }) else { return nil }
+            let model = LensStartupPreparation.gridModel(size: focus.workspace.workspaceMonitor.visibleRect.size, existingItems: items, workspaces: workspaces)
+            let count = items.count
+            return { [weak self] in
+                guard let self else { return }
+                self.prepare(model, startup: true)
+                self.clearPresentation()
+                lensLog.notice("Lens real-grid preparation took \(Int((LensTimebase.now() - started) * 1000)) ms, \(count) Tiles")
+            }
+        }
     }
 
     func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
@@ -355,6 +381,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.disarm()
         orderOut(nil)
         hostingView.rootView = AnyView(EmptyView())
+        prepareRealGridWhenAvailable()
     }
 
     func changePresentationToList() {
