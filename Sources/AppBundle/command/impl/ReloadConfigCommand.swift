@@ -51,48 +51,54 @@ struct ConfigReloadNotifications {
     }
 }
 
-@MainActor var configReloadNotifications = ConfigReloadNotifications()
-
 let configLog = Logger(subsystem: winMuxAppId, category: "config")
 
-@MainActor private let configReloadSequence = ConfigReloadSequence()
-/// A save that arrived before startup finished, to reload once it has.
-@MainActor private var saveArrivedDuringStartup = false
+extension LoadedConfig: ConfigReloadCandidate {
+    var warnings: [String] { helper.warnings }
+    var imports: [URL] { helper.imports }
+    var library: URL? { helper.library }
+}
+
+@MainActor let configReloader = ConfigReloader<LoadedConfig>(
+    load: { await readConfig(forceConfigUrl: $0) },
+    helper: .init(
+        adopt: { NickelSupervisor.shared.adopt($0.helper) },
+        dispose: { NickelSupervisor.shared.discard($0.helper) },
+        recordFailure: { NickelSupervisor.shared.recordFailedReload($0) },
+    ),
+    apply: { try await applyConfig($0.config, url: $0.url) },
+    report: .init(
+        show: { MessageModel.shared.message = Message(description: "WinMux Config Error", body: $0) },
+        clear: { MessageModel.shared.message = nil },
+        log: { level, text in
+            switch level {
+                case .notice: configLog.notice("\(text, privacy: .public)")
+                case .warning: configLog.warning("\(text, privacy: .public)")
+                case .error: configLog.error("\(text, privacy: .public)")
+            }
+        },
+    ),
+    watch: { syncConfigFileWatcher(after: $0) },
+    emit: broadcastEvent,
+    saves: .init(
+        runtimeReady: { isWinMuxRuntimeReady },
+        fileExists: { FileManager.default.fileExists(atPath: preferredEditableConfigUrl().path) },
+        session: {
+            guard let token: RunSessionGuard = .isServerEnabled else { return nil }
+            return { try await runLightSession(.configAutoReload, token, body: $0) }
+        },
+    ),
+    configPath: { preferredEditableConfigUrl().path },
+)
 
 @MainActor func reloadConfig(forceConfigUrl: URL? = nil) async throws -> Bool {
     var devNull = ""
     return try await reloadConfig(forceConfigUrl: forceConfigUrl, stdout: &devNull)
 }
 
-/// Reloads after a save. It is the same reload `reload-config` runs.
-@MainActor func reloadConfigAfterFileChange() async {
-    guard isWinMuxRuntimeReady else {
-        saveArrivedDuringStartup = true
-        return
-    }
-    guard let token: RunSessionGuard = .isServerEnabled else { return }
-    // Loading with no config file would put the shipped defaults in effect. A file that is moved
-    // away or briefly removed, as by a checkout, should not do that.
-    guard FileManager.default.fileExists(atPath: preferredEditableConfigUrl().path) else {
-        configLog.notice("The config file is gone, so the config in effect stays")
-        return
-    }
-    do {
-        _ = try await runLightSession(.configAutoReload, token) {
-            var devNull = ""
-            return try await reloadConfig(trigger: .fileChange, stdout: &devNull)
-        }
-    } catch {
-        configLog.error("A reload after a save failed: \(error.localizedDescription, privacy: .public)")
-    }
-}
+@MainActor func reloadConfigAfterFileChange() async { await configReloader.fileChanged() }
 
-/// Reloads for a save that arrived while WinMux was starting.
-@MainActor func reloadConfigIfSavedDuringStartup() async {
-    if !saveArrivedDuringStartup { return }
-    saveArrivedDuringStartup = false
-    await reloadConfigAfterFileChange()
-}
+@MainActor func reloadConfigIfSavedDuringStartup() async { await configReloader.startupFinished() }
 
 @MainActor func reloadConfig(
     args: ReloadConfigCmdArgs = ReloadConfigCmdArgs(rawArgs: []),
@@ -100,61 +106,9 @@ let configLog = Logger(subsystem: winMuxAppId, category: "config")
     trigger: ConfigReloadTrigger = .command,
     stdout: inout String,
 ) async throws -> Bool {
-    return try await configReloadSequence.run(
-        dryRun: args.dryRun,
-        configPath: (forceConfigUrl ?? preferredEditableConfigUrl()).path,
-        load: { await readConfig(forceConfigUrl: forceConfigUrl) },
-        overtaken: { read in
-            if case .success(let loaded) = read { NickelSupervisor.shared.discard(loaded.helper) }
-            stdout.append("A later reload replaced this one")
-            return false
-        },
-        rest: { read, result in
-            @MainActor func reportFailure(_ msg: String) {
-                stdout.append(msg)
-                result.eventError = msg
-                if !args.dryRun {
-                    NickelSupervisor.shared.recordFailedReload(msg)
-                    configLog.error("The config failed to load: \(msg, privacy: .public)")
-                }
-                if !args.noGui && configReloadNotifications.shouldNotify(msg, trigger: trigger) {
-                    Task { @MainActor in
-                        MessageModel.shared.message = Message(description: "WinMux Config Error", body: msg)
-                    }
-                }
-            }
-            switch read {
-                case .success(let loaded):
-                    result.eventPath = loaded.url.path
-                    for warning in loaded.helper.warnings {
-                        stdout.append("warning: \(warning)\n")
-                        configLog.warning("\(warning, privacy: .public)")
-                    }
-                    if args.dryRun {
-                        NickelSupervisor.shared.discard(loaded.helper)
-                        return true
-                    }
-                    // The settings and the helper that holds the config's functions change together.
-                    NickelSupervisor.shared.adopt(loaded.helper)
-                    result.outcome = .loaded(imports: loaded.helper.imports, library: loaded.helper.library)
-                    do {
-                        try await applyConfig(loaded.config, url: loaded.url)
-                    } catch {
-                        reportFailure("Loaded \(loaded.url.path), but applying it failed: \(error.localizedDescription)")
-                        throw error
-                    }
-                    MessageModel.shared.message = nil
-                    configReloadNotifications.loaded()
-                    configLog.notice("Loaded the config from \(loaded.url.path, privacy: .public)")
-                    return true
-                case .failure(let msg):
-                    reportFailure(msg)
-                    return false
-            }
-        },
-        syncWatcher: { syncConfigFileWatcher(after: $0) },
-        emit: broadcastEvent,
-    )
+    let completion = await configReloader.request(forceConfigUrl: forceConfigUrl, dryRun: args.dryRun, noGui: args.noGui, trigger: trigger)
+    stdout += completion.text
+    return try completion.result.get()
 }
 
 @MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
