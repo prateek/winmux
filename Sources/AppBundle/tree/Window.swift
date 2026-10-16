@@ -147,6 +147,8 @@ open class Window: TreeNode, Hashable {
     @MainActor var cgWindowLevel: Int { die("Not implemented") }
     var isMacosFullscreen: Bool { get async throws { false } }
     var isMacosMinimized: Bool { get async throws { false } } // todo replace with enum MacOsWindowNativeState { normal, fullscreen, invisible }
+    var savedProportionalPosition: CGPoint? { nil }
+
     var isHiddenInCorner: Bool { die("Not implemented") }
     @MainActor
     func nativeFocus() { die("Not implemented") }

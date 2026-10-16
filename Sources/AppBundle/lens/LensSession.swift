@@ -224,8 +224,6 @@ final class LensSession: ObservableObject {
         }
     }
     var stripGesture: StripGesture?
-    /// The modifiers held when the invoking ones were released before the session was ready.
-    var stripReleasedWhileOpening: NSEvent.ModifierFlags?
     private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
     var onControl: ((TileWindowControl, UInt32) -> Void)?

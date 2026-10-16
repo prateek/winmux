@@ -105,7 +105,9 @@ final class TestWindow: Window, CustomStringConvertible {
         }
     }
 
-    override var isHiddenInCorner: Bool { _isHiddenInCorner }
+    var testSavedProportionalPosition: CGPoint?
+    override var savedProportionalPosition: CGPoint? { testSavedProportionalPosition }
+    override var isHiddenInCorner: Bool { testSavedProportionalPosition != nil || _isHiddenInCorner }
 
     override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
         let currentRect = _rect ?? Rect(topLeftX: topLeft?.x ?? 0, topLeftY: topLeft?.y ?? 0, width: size?.width ?? 0, height: size?.height ?? 0)

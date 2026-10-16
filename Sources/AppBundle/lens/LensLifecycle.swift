@@ -9,6 +9,14 @@ struct LensAdHocIdentity: Equatable {
 
 @MainActor
 final class LensLifecycle {
+    private static weak var columnsObserver: LensLifecycle?
+
+    static func columnsChanged(on workspace: Workspace) {
+        // Workspaces are created while monitors are assigned, before `focus` can be resolved.
+        guard let observer = columnsObserver, workspace === focus.workspace else { return }
+        observer.updateMiniatureLanding()
+    }
+
     enum PendingKey {
         case meaning(LensKeyMeaning)
         case key(code: UInt16, characters: String, holdCharacters: String?, flags: NSEvent.ModifierFlags, timestamp: Double, receivedAt: Double, source: LensKeySource)
@@ -141,12 +149,12 @@ final class LensLifecycle {
         if model.settings.commitsOnRelease(for: opening.gesture ?? invocation), let gesture = opening.gesture ?? invocation {
             model.beginStrip(gesture)
             model.cycleStripSelection(0)
-            model.stripReleasedWhileOpening = opening.release
         }
         let gesture = opening.gesture ?? invocation
         model.startHold(gesture)
         trace?.advance("session ready")
         model.owner = self
+        Self.columnsObserver = self
         trace?.session(model)
         searchInput = (context, windows, ids)
         if model.commitsOnRelease, let gesture = model.stripGesture {
@@ -412,6 +420,7 @@ final class LensLifecycle {
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         state = .closed
+        if Self.columnsObserver === self { Self.columnsObserver = nil }
         generation += 1
         inlineSearch.cancel()
         searchInput = (.null, [], [])
@@ -434,7 +443,7 @@ final class LensLifecycle {
     /// The selection the landing spot on screen, or being computed, belongs to.
     private var landingKey: UInt32?
     private weak var evaluatedDestination: Workspace?
-    private weak var evaluatedColumns: ColumnState?
+    private var evaluatedColumns: ColumnState?
     private var landingRequest = 0
 
     func cancelLanding() {
@@ -471,8 +480,7 @@ final class LensLifecycle {
             return
         }
         if entry.floating {
-            let source = model.miniatureWorkspaces.first { $0.name == entry.workspace }?.source ?? workspace.source
-            model.setMiniatureLanding(miniatureFloatingLanding(entry.frame, from: source, to: workspace.source))
+            model.setMiniatureLanding(floatingLanding(entry))
             return
         }
         if focus.workspace.columns != nil {
@@ -526,8 +534,10 @@ final class LensLifecycle {
                         let placement = ColumnPlacement.resolve(decision, columns: columns,
                                                                 children: destination.rootTilingContainer.children, incoming: entry.window)
                         let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
-                        let frame = miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
-                                                           verticalGap: gaps.inner.get(.v).toDouble(), floatingFrame: entry.frame, source: workspace.source)
+                        let frame = placement.verticalRange == nil
+                            ? self.floatingLanding(entry)
+                            : miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
+                                                     verticalGap: gaps.inner.get(.v).toDouble())
                         model.setMiniatureLanding(frame)
                         return
                     }
@@ -536,6 +546,20 @@ final class LensLifecycle {
             return
         }
         columnsOffLanding(model, workspace: workspace)
+    }
+
+    private func floatingLanding(_ entry: MiniatureWindow) -> CGRect {
+        let destination = focus.workspace.workspaceMonitor
+        if let proportion = entry.window.savedProportionalPosition {
+            let size = entry.window.lastKnownActualRect?.size ?? entry.window.lastFloatingSize
+            let frame = restoredFloatingWindowFrame(proportion: proportion, size: size ?? .zero, in: destination.rect.cgRect)
+            // The restore clamps with no size when none was read; the window keeps its own.
+            return size == nil ? CGRect(origin: frame.origin, size: entry.frame.size) : frame
+        }
+        guard monitors.count > 1 else { return entry.frame }
+        let source = CGPoint(x: entry.frame.midX, y: entry.frame.midY).monitorApproximation
+        guard source.activeWorkspace !== focus.workspace else { return entry.frame }
+        return mappedFloatingWindowFrame(entry.frame, from: source.visibleRect.cgRect, to: destination.visibleRect.cgRect)
     }
 
     private func columnsOffLanding(_ model: LensSession, workspace: MiniatureWorkspace) {

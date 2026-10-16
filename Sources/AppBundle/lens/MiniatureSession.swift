@@ -161,14 +161,6 @@ func miniatureIsFrozen(tray: Bool, fullscreen: Bool, workspaceVisible: Bool, par
     tray || fullscreen || !workspaceVisible || parked
 }
 
-func miniatureFloatingLanding(_ frame: CGRect, from source: CGRect, to destination: CGRect) -> CGRect {
-    let x = destination.minX + (frame.minX - source.minX) / max(1, source.width) * destination.width
-    let y = destination.minY + (frame.minY - source.minY) / max(1, source.height) * destination.height
-    return CGRect(x: min(max(destination.minX, x), max(destination.minX, destination.maxX - frame.width)),
-                  y: min(max(destination.minY, y), max(destination.minY, destination.maxY - frame.height)),
-                  width: frame.width, height: frame.height)
-}
-
 func appendingRetainedMiniatureWorkspaces(_ ordered: [MiniatureWorkspace], retained: [MiniatureWorkspace]) -> [MiniatureWorkspace] {
     var snapshots = ordered
     for workspace in retained where !snapshots.contains(where: { $0.name == workspace.name }) {
@@ -197,8 +189,8 @@ func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem]
 
 @MainActor
 func miniatureColumnLanding(_ placement: ResolvedColumnPlacement, in rect: CGRect, horizontalGap: CGFloat,
-                            verticalGap: CGFloat, floatingFrame: CGRect, source: CGRect) -> CGRect {
-    guard let range = placement.verticalRange else { return miniatureFloatingLanding(floatingFrame, from: source, to: rect) }
+                            verticalGap: CGFloat) -> CGRect {
+    let range = placement.verticalRange.orDie("Floating placements use floating window geometry")
     var frame = ColumnState.frame(slot: placement.slot, widths: placement.widths, in: rect, gap: horizontalGap)
     let topGap = range.lowerBound > 0 ? verticalGap / 2 : 0
     let bottomGap = range.upperBound < 1 ? verticalGap / 2 : 0

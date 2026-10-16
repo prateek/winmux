@@ -26,6 +26,11 @@ struct ResolvedColumnPlacement {
 
 @MainActor
 enum ColumnPlacement {
+    static func isOccupied(_ node: TreeNode?, excluding incoming: TreeNode? = nil) -> Bool {
+        let incomingWindows = Set(incoming?.allLeafWindowsRecursive.map(ObjectIdentifier.init) ?? [])
+        return node?.allLeafWindowsRecursive.contains { !incomingWindows.contains(ObjectIdentifier($0)) } == true
+    }
+
     static func resolve(_ decision: PlacementDecision, columns: ColumnState, children: [TreeNode], incoming: TreeNode) -> ResolvedColumnPlacement {
         resolve(slot: decision.slot, overflow: decision.overflow, columns: columns, children: children, incoming: incoming)
     }
@@ -34,15 +39,13 @@ enum ColumnPlacement {
         var widths = columns.widths
         var slot = slot
         let existing = children.first { $0.columnSlot == slot && $0 !== incoming }
-        if let existing {
+        if let existing, isOccupied(existing, excluding: incoming) {
             switch overflow {
                 case .float:
                     return ResolvedColumnPlacement(slot: slot, effect: .float, widths: widths, verticalRange: nil)
                 case .split:
-                    let incomingWindows = Set(incoming.allLeafWindowsRecursive.map(ObjectIdentifier.init))
-                    let keepsExistingTile = existing.allLeafWindowsRecursive.contains { !incomingWindows.contains(ObjectIdentifier($0)) }
                     return ResolvedColumnPlacement(slot: slot, effect: .split(existing), widths: widths,
-                                                   verticalRange: keepsExistingTile ? 0.5...1 : 0...1)
+                                                   verticalRange: 0.5...1)
                 case .squeeze:
                     if widths.count == columns.count {
                         let width = 1 / CGFloat(columns.count + 1)

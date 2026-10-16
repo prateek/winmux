@@ -92,7 +92,7 @@ extension Workspace {
         }
         let root = rootTilingContainer
         if columns.slotCount > columns.count,
-           !root.children.contains(where: { $0.columnSlot == columns.slotCount && !$0.allLeafWindowsRecursive.isEmpty }) {
+           !root.children.contains(where: { $0.columnSlot == columns.slotCount && ColumnPlacement.isOccupied($0) }) {
             columns.widths = columns.declaredWidths
             columns.focusedSlot = columns.focusedSlot.map { min($0, columns.count) }
         }
@@ -179,7 +179,7 @@ extension Workspace {
         let root = rootTilingContainer
         let anchor = max(1, min(columns.slotCount, columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
             root.childrenByMostRecentUse.first?.columnSlot ?? 1))
-        let occupied = Set(root.children.filter { $0.allLeafWindowsRecursive.contains { $0 !== window } }.compactMap(\.columnSlot))
+        let occupied = Set(root.children.filter { ColumnPlacement.isOccupied($0, excluding: window) }.compactMap(\.columnSlot))
         return (1...columns.slotCount).filter { !occupied.contains($0) }.min {
             let left = abs($0 - anchor)
             let right = abs($1 - anchor)
@@ -188,8 +188,10 @@ extension Workspace {
     }
 
     @MainActor
-    func columnBinding(slot: Int) -> BindingData {
+    func columnBinding(slot: Int, incoming: TreeNode? = nil) -> BindingData {
         let root = rootTilingContainer
+        if let existing = root.children.first(where: { $0.columnSlot == slot }),
+           !ColumnPlacement.isOccupied(existing, excluding: incoming) { existing.unbindFromParent() }
         if let existing = root.children.first(where: { $0.columnSlot == slot }) {
             if let group = existing as? TilingContainer, group.layout == .tabGroup {
                 return BindingData(parent: group, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
@@ -233,7 +235,7 @@ extension Workspace {
             case .attach: break
         }
         if let group = node as? TilingContainer,
-           rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {
+           ColumnPlacement.isOccupied(rootTilingContainer.children.first { $0.columnSlot == slot }, excluding: node) {
             let windows = group.allLeafWindowsRecursive
             for window in windows {
                 window.unbindFromParent()
@@ -242,7 +244,7 @@ extension Workspace {
             if group.isBound { group.unbindFromParent() }
             return
         }
-        let binding = columnBinding(slot: slot)
+        let binding = columnBinding(slot: slot, incoming: node)
         node.columnSlot = nil
         node.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
         if let column = binding.parent as? TilingContainer, column.children.count == 1 {

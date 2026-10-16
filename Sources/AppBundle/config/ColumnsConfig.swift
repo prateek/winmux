@@ -47,6 +47,7 @@ private func columnNumber(_ value: JSONValue) -> CGFloat? {
 
 extension Workspace {
     @MainActor func applyColumns(_ settings: ColumnsConfig) {
+        let previous = columns
         columns = settings.resolved(workspace: name)
         if columns == nil {
             // `rootTilingContainer` creates the root, and its orientation, when there is none yet.
@@ -55,6 +56,9 @@ extension Workspace {
             }
         } else if !children.isEmpty {
             enforceColumnInvariant()
+        }
+        if previous?.count != columns?.count || previous?.widths != columns?.widths {
+            LensLifecycle.columnsChanged(on: self)
         }
     }
 }
