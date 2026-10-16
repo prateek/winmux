@@ -640,14 +640,203 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertFalse(restored.isFloating)
     }
 
+    func testArriveRunChainsDestinationPlaceBeforeItsNextCommand() async throws {
+        let supervisor = try await load("""
+            columns.width-presets = [0.25, 0.4, 0.5, 0.7],
+            arrive = fun w ctx cols => { run = ["move-node-to-workspace Three", "column-width next"] },
+            workspace.Three.columns.place = fun w ctx cols => {
+                column = 2, overflow = 'tab-group, run = ["column-width 0.5"]
+            }
+            """, shared: true)
+        let source = demo("Source"), three = demo("Three")
+        three.columns = ColumnState(count: 3, widths: [0.3, 0.3, 0.4])
+        let anchor = TestWindow.new(id: 1, parent: source.rootTilingContainer)
+        source.normalizeContainers(); XCTAssertTrue(anchor.focusWindow())
+        let window = TestWindow.new(id: 42, parent: source)
+        try await ColumnPolicy.arrive(window, on: source, floatingDefault: false, supervisor: supervisor)
+        XCTAssertTrue(window.nodeWorkspace === three)
+        XCTAssertEqual(three.columnSlot(containing: window), 2)
+        // Suppressed inner list gives 0.4; reversed command order gives 0.5.
+        XCTAssertEqual(three.columns!.widths[1], 0.7, accuracy: 0.000001)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testInvalidArriveColumnIsBlamedOnArriveNotDestinationPlace() async throws {
+        let supervisor = try await load("""
+            arrive = fun w ctx cols => { workspace = "Code", column = 9 },
+            workspace.Code.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group }
+            """, shared: true)
+        let source = demo("Source"), code = demo("Code")
+        let window = TestWindow.new(id: 42, parent: source)
+        try await ColumnPolicy.arrive(window, on: source, floatingDefault: false, supervisor: supervisor)
+        XCTAssertTrue(window.nodeWorkspace === code)
+        XCTAssertEqual(supervisor.status.lastError, "arrive: Column index 9 exceeds count 3")
+    }
+
     func testNestedRunPlacesWindowButTerminatesPingPong() async throws {
-        _ = try await load("workspace.Ping.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group, run = [\"move-node-to-workspace Pong\"] }, workspace.Pong.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"move-node-to-workspace Ping\"] }", shared: true)
+        let supervisor = try await load("""
+            columns.count = 3,
+            columns.width-presets = [0.2, 0.3, 0.4, 0.5],
+            workspace.Ping.columns.place = fun w ctx cols => {
+                column = 2, overflow = 'tab-group,
+                run = ["column-width next --window-id 99", "move-node-to-workspace Pong"]
+            },
+            workspace.Pong.columns.place = fun w ctx cols => {
+                column = 3, overflow = 'tab-group,
+                run = ["column-width next --window-id 99", "move-node-to-workspace Ping"]
+            }
+            """, shared: true)
+        let ping = demo("Ping"), pong = demo("Pong"), count = demo("Count")
+        TestWindow.new(id: 1, parent: ping.rootTilingContainer)
+        TestWindow.new(id: 2, parent: pong.rootTilingContainer)
+        ping.normalizeContainers(); pong.normalizeContainers()
+        count.columns = ColumnState(count: 3, widths: [0.2, 0.4, 0.4])
+        let counter = TestWindow.new(id: 99, parent: count.rootTilingContainer)
+        count.normalizeContainers()
+        XCTAssertEqual(count.columnSlot(containing: counter), 1)
+        let window = TestWindow.new(id: 42, parent: ping)
+        var placeCalls = 0
+        window.beforeAxRecord = { placeCalls += 1 }
+        try await ColumnPolicy.place(window, on: ping)
+        XCTAssertTrue(window.nodeWorkspace === ping)
+        XCTAssertEqual(ping.columnSlot(containing: window), 2)
+        XCTAssertEqual(pong.rootTilingContainer.allLeafWindowsRecursive.map(\.windowId), [2])
+        XCTAssertEqual(placeCalls, 3)
+        // Three returned lists, two executed: exactly one list was suppressed.
+        XCTAssertEqual(count.columns!.widths[0], 0.4, accuracy: 0.000001)
+        XCTAssertEqual(supervisor.status.lastError,
+            "Policy run: workspace.Ping.columns.place is already running for this window; its run list is suppressed")
+    }
+
+    func testPlaceRunLayoutFloatingThenTilingBindsInnerPlaceAndContinuesOuterList() async throws {
+        let supervisor = try await load("""
+            columns.count = 3,
+            workspace.Demo.columns.place = fun w ctx cols => {
+                column = if (std.array.at 0 cols).width < 0.3 then 3 else 2,
+                overflow = 'tab-group,
+                run = ["column-width 0.5", "layout floating", "layout tiling", "column-width 0.6"]
+            }
+            """, shared: true)
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        var placeCalls = 0
+        window.beforeAxRecord = { placeCalls += 1 }
+        try await ColumnPolicy.place(window, on: ws)
+        XCTAssertTrue(window.nodeWorkspace === ws)
+        XCTAssertFalse(window.isFloating)
+        XCTAssertEqual(placeCalls, 2)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+        XCTAssertEqual(ws.columns!.widths[2], 0.6, accuracy: 0.000001)
+        XCTAssertEqual(supervisor.status.lastError,
+            "Policy run: workspace.Demo.columns.place is already running for this window; its run list is suppressed")
+    }
+
+    func testMoveBoundaryRunChainsDestinationPlaceBeforeItsNextCommand() async throws {
+        let supervisor = try await load("""
+            columns.count = 3,
+            columns.width-presets = [0.25, 0.4, 0.5, 0.7],
+            columns.move-boundary = fun w ctx cols edge => {
+                action = 'stop, run = ["move-node-to-workspace Three", "column-width next"]
+            },
+            workspace.Three.columns.place = fun w ctx cols => {
+                column = 2, overflow = 'tab-group, run = ["column-width 0.5"]
+            }
+            """, shared: true)
+        let source = demo("Source"), three = demo("Three")
+        three.columns = ColumnState(count: 3, widths: [0.3, 0.3, 0.4])
+        let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        window.columnSlot = 3
+        source.normalizeContainers()
+        let result = try await command("move right --window-id 42")
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(window.nodeWorkspace === three)
+        XCTAssertEqual(three.columnSlot(containing: window), 2)
+        XCTAssertEqual(three.columns!.widths[1], 0.7, accuracy: 0.000001)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testGlobalPlaceSharedBetweenWorkspacesIsOneDefinition() async throws {
+        let supervisor = try await load("""
+            columns.count = 3,
+            columns.place = fun w ctx cols => {
+                column = if w.workspace == "Ping" then 2 else 3,
+                overflow = 'tab-group,
+                run = [if w.workspace == "Ping" then "move-node-to-workspace Pong" else "move-node-to-workspace Ping"]
+            }
+            """, shared: true)
         let ping = demo("Ping"), pong = demo("Pong")
         let window = TestWindow.new(id: 42, parent: ping)
+        var placeCalls = 0
+        window.beforeAxRecord = { placeCalls += 1 }
         try await ColumnPolicy.place(window, on: ping)
         XCTAssertTrue(window.nodeWorkspace === pong)
         XCTAssertEqual(pong.columnSlot(containing: window), 3)
-        XCTAssertTrue(NickelSupervisor.shared.status.lastError?.contains("nested run list suppressed") == true)
+        XCTAssertEqual(placeCalls, 2)
+        XCTAssertEqual(supervisor.status.lastError,
+            "Policy run: columns.place is already running for this window; its run list is suppressed")
+    }
+
+    func testOverlappingTasksShareTheGuardOnlyForTheSameWindowAndDefinition() async throws {
+        for sameWindow in [true, false] {
+            setUpWorkspacesForTests()
+            let supervisor = try await load("""
+                columns.count = 3,
+                workspace.Demo.columns.place = fun w ctx cols => {
+                    column = if w.id == 42 then 2 else 3, overflow = 'tab-group,
+                    run = ["layout floating", "layout tiling", "column-width 0.6"]
+                }
+                """, shared: true)
+            let ws = demo()
+            let first = TestWindow.new(id: 42, parent: ws)
+            let second = sameWindow ? first : TestWindow.new(id: 43, parent: ws)
+            let pending = expectation(description: "First list awaits its inner Place")
+            var resume: CheckedContinuation<Void, Never>?
+            var reads = 0
+            first.beforeAxRecord = {
+                reads += 1
+                if reads == 2 {
+                    await withCheckedContinuation { resume = $0; pending.fulfill() }
+                }
+            }
+            let task = Task { @MainActor in try await ColumnPolicy.place(first, on: ws) }
+            await fulfillment(of: [pending], timeout: 2)
+            try await ColumnPolicy.place(second, on: ws)
+            if !sameWindow {
+                XCTAssertEqual(ws.columns!.widths[2], 0.6, accuracy: 0.000001)
+            }
+            resume?.resume()
+            try await task.value
+            XCTAssertFalse(first.isFloating)
+            XCTAssertEqual(ws.columnSlot(containing: first), 2)
+            XCTAssertEqual(ws.columns!.widths[1], 0.6, accuracy: 0.000001)
+            XCTAssertEqual(supervisor.status.lastError,
+                "Policy run: workspace.Demo.columns.place is already running for this window; its run list is suppressed")
+        }
+    }
+
+    func testPlaceDryRunLeavesWindowWorkspaceAndWidthsUnchanged() async throws {
+        _ = try await load("""
+            workspace.Destination.columns.place = fun w ctx cols => {
+                column = 3, overflow = 'tab-group,
+                run = ["move-node-to-workspace Elsewhere", "column-width 0.5 --workspace Destination"]
+            }
+            """, shared: true)
+        let source = demo("Source"), destination = demo("Destination")
+        let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        source.normalizeContainers()
+        XCTAssertTrue(destination.focusWorkspace())
+        let parent = window.parent
+        let widths = destination.columns!.widths
+        let sourceWidths = source.columns!.widths
+        let command = try XCTUnwrap(parseCommand("place --dry-run --window-id 42 --json").cmdOrNil)
+        let result = try await command.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.stdout.joined().contains("workspace.Destination.columns.place"))
+        XCTAssertTrue(window.parent === parent)
+        XCTAssertTrue(window.nodeWorkspace === source)
+        XCTAssertEqual(source.columns!.widths, sourceWidths)
+        XCTAssertEqual(destination.columns!.widths, widths)
+        XCTAssertTrue(destination.rootTilingContainer.allLeafWindowsRecursive.isEmpty)
     }
 
     func testGlobalPlacePreservesColumnsOffDropAndFrozenRestore() async throws {
