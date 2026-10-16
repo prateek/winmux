@@ -27,8 +27,10 @@ import Foundation
         // that is missing or does not answer in time, leaves WinMux on its built-in defaults,
         // with the reason on screen.
         if try await !reloadConfig(forceConfigUrl: bootstrappedConfigUrl) {
-            try await applyConfig(defaultConfig, url: defaultConfigUrl)
-            syncConfigFileWatcher()
+            try await configReloader.applyStartupFallback {
+                try await applyConfig(defaultConfig, url: defaultConfigUrl)
+                syncConfigFileWatcher()
+            }
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 

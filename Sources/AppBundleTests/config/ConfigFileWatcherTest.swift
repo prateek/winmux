@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Common
+import Clocks
 import CoreServices
 import XCTest
 
@@ -217,52 +218,128 @@ final class ConfigFileWatcherTest: XCTestCase {
 }
 
 @MainActor
-final class ConfigReloadSchedulerTest: XCTestCase {
-    func testSeveralChangesWithinTheDelayCauseOneReload() async throws {
-        var reloads = 0
-        // The delay is far longer than the gaps between changes, so a slow runner cannot let it
-        // run out between two of them.
-        let scheduler = ConfigReloadScheduler(delay: .milliseconds(800)) { reloads += 1 }
-
+final class ConfigReloadSchedulerTest: SerialClockTestCase {
+    func testSeveralChangesWithinTheDelayCauseOneReloadAndNeverFireEarly() async throws {
+        let clock = TestClock<Duration>()
+        let probe = ReloadProbe()
+        let owner = probe.owner()
+        let scheduler = ConfigReloadScheduler(delay: .milliseconds(300), clock: clock) { await owner.fileChanged() }
         for _ in 0 ..< 5 {
             scheduler.fileChanged()
-            try await Task.sleep(for: .milliseconds(20))
+            await clock.advance(by: .milliseconds(20))
         }
-        try await eventually("the reload runs") { reloads > 0 }
-        // Long enough for a second reload to have run if one had been scheduled.
-        try await Task.sleep(for: .milliseconds(1200))
-
-        assertEquals(reloads, 1)
+        await clock.advance(by: .milliseconds(280) - .nanoseconds(1))
+        XCTAssertTrue(probe.adopted.isEmpty, "debounce must not fire one tick before its delay")
+        XCTAssertEqual(probe.activeConfig, "serving")
+        XCTAssertEqual(probe.activeHelper, "serving")
+        XCTAssertTrue(probe.events.isEmpty)
+        await clock.advance(by: .nanoseconds(1))
+        await probe.completions.wait()
+        await clock.advance(by: .seconds(2))
+        XCTAssertEqual(probe.activeConfig, "save")
+        XCTAssertEqual(probe.activeHelper, "save")
+        XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/save.ncl")])
+        XCTAssertEqual(probe.adopted, ["save"])
+        XCTAssertTrue(probe.disposed.isEmpty)
+        XCTAssertTrue(probe.shown.isEmpty)
+        XCTAssertEqual(probe.events.map(\.eventType), [.configReloaded])
+        XCTAssertEqual(probe.watches, 1)
+        XCTAssertEqual(probe.sessions, 1)
     }
 
     func testChangeDuringAReloadCausesOneMoreAfterIt() async throws {
-        var started = 0
-        var running = 0
-        var overlapped = false
-        var release: [CheckedContinuation<Void, Never>] = []
-        let scheduler = ConfigReloadScheduler(delay: .milliseconds(20)) {
-            started += 1
-            running += 1
-            if running > 1 { overlapped = true }
-            await withCheckedContinuation { release.append($0) }
-            running -= 1
+        let clock = TestClock<Duration>()
+        let probe = ReloadProbe(), gate = ReloadGate()
+        let owner = probe.owner()
+        probe.applyGates["save"] = gate
+        let scheduler = ConfigReloadScheduler(delay: .milliseconds(300), clock: clock) { await owner.fileChanged() }
+        scheduler.fileChanged()
+        await clock.advance(by: .milliseconds(300))
+        await gate.entered.wait()
+        probe.nextSave = "followup"
+        for _ in 0 ..< 5 { scheduler.fileChanged() }
+        await clock.advance(by: .milliseconds(300))
+        XCTAssertEqual(probe.adopted, ["save"])
+        XCTAssertTrue(probe.events.isEmpty)
+        XCTAssertEqual(probe.activeHelper, "save")
+        XCTAssertEqual(probe.activeConfig, "serving")
+        gate.release()
+        await probe.completions.wait(for: 2)
+        await clock.advance(by: .seconds(2))
+        XCTAssertEqual(probe.activeConfig, "followup")
+        XCTAssertEqual(probe.activeHelper, "followup")
+        XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/followup.ncl")])
+        XCTAssertEqual(probe.adopted, ["save", "followup"])
+        XCTAssertTrue(probe.disposed.isEmpty)
+        XCTAssertTrue(probe.shown.isEmpty)
+        XCTAssertFalse(probe.overlapped)
+        XCTAssertEqual(probe.events.map(\.eventType), [.configReloaded, .configReloaded])
+        XCTAssertEqual(probe.watches, 2)
+        XCTAssertEqual(probe.sessions, 2)
+    }
+}
+
+@MainActor
+final class ConfigReloadSaveEntryTest: SerialClockTestCase {
+    func testSaveBeforeRuntimeReadyIsDeferredUntilStartupAndRunsOnce() async throws {
+        let probe = ReloadProbe()
+        let owner = probe.owner()
+        probe.runtimeReady = false
+        await owner.fileChanged()
+        await owner.fileChanged()
+        XCTAssertEqual(probe.activeConfig, "serving")
+        XCTAssertEqual(probe.activeHelper, "serving")
+        XCTAssertTrue(probe.adopted.isEmpty)
+        XCTAssertTrue(probe.events.isEmpty)
+        probe.runtimeReady = true
+        await owner.startupFinished()
+        await owner.startupFinished()
+        XCTAssertEqual(probe.activeConfig, "save")
+        XCTAssertEqual(probe.activeHelper, "save")
+        XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/save.ncl")])
+        XCTAssertEqual(probe.adopted, ["save"])
+        XCTAssertEqual(probe.sessions, 1)
+        XCTAssertEqual(probe.events.map(\.eventType), [.configReloaded])
+        XCTAssertEqual(probe.watches, 1)
+        XCTAssertTrue(probe.shown.isEmpty)
+        XCTAssertTrue(probe.disposed.isEmpty)
+    }
+
+    func testMissingFileAndDisabledServerKeepTheServingConfig() async throws {
+        for missing in [true, false] {
+            let probe = ReloadProbe()
+            let owner = probe.owner()
+            probe.exists = !missing
+            probe.enabled = missing
+            await owner.fileChanged()
+            XCTAssertEqual(probe.activeConfig, "serving")
+            XCTAssertEqual(probe.activeHelper, "serving")
+            XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/serving.ncl")])
+            XCTAssertTrue(probe.adopted.isEmpty)
+            XCTAssertTrue(probe.disposed.isEmpty)
+            XCTAssertTrue(probe.events.isEmpty)
+            XCTAssertTrue(probe.shown.isEmpty)
+            XCTAssertEqual(probe.sessions, 0)
+            XCTAssertEqual(probe.watches, 0)
         }
+    }
 
-        scheduler.fileChanged()
-        try await eventually("the first reload starts") { started == 1 }
-        scheduler.fileChanged()
-        scheduler.fileChanged()
-        // Past the delay, so the changes have asked for their reload while the first still runs.
-        try await Task.sleep(for: .milliseconds(200))
-        let startedWhileTheFirstRan = started
-        release.removeFirst().resume()
-        try await eventually("the second reload starts") { started == 2 }
-        release.removeFirst().resume()
-        try await Task.sleep(for: .milliseconds(200))
-
-        assertEquals(startedWhileTheFirstRan, 1)
-        assertEquals(started, 2)
-        XCTAssertFalse(overlapped)
+    func testTwoIdenticalBrokenSavesThroughSessionRunnerNotifyOnceButEmitTwice() async throws {
+        let probe = ReloadProbe()
+        let owner = probe.owner()
+        probe.failures["save"] = "broken save"
+        await owner.fileChanged()
+        await owner.fileChanged()
+        XCTAssertEqual(probe.activeConfig, "serving")
+        XCTAssertEqual(probe.activeHelper, "serving")
+        XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/serving.ncl")])
+        XCTAssertEqual(probe.shown, ["broken save"])
+        XCTAssertEqual(probe.recordedFailures, ["broken save", "broken save"])
+        XCTAssertEqual(probe.sessions, 2)
+        XCTAssertEqual(probe.events.map(\.eventType), [.configReloaded, .configReloaded])
+        XCTAssertEqual(probe.watches, 2)
+        XCTAssertTrue(probe.adopted.isEmpty)
+        XCTAssertTrue(probe.disposed.isEmpty)
     }
 }
 

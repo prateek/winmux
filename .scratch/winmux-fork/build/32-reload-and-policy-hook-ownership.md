@@ -31,6 +31,8 @@ These are demonstrated ownership and testability problems, not a claim that ever
 - Preserved: the [subscription event contracts](https://github.com/prateek/winmux/blob/fork/docs/events.md). Each completed ordinary reload emits once. Superseded loads and dry runs emit nothing. Ignored or deferred saves emit only if they later become a completed reload. Payload paths and errors are unchanged.
 - #42 owns keyboard-layout parity and the narrow superseded-reload event test. This issue broadens reload testability and keeps or strengthens that coverage. Its rule against calling the live `reloadConfig` and `applyConfig` in tests holds until the effects are actually isolated.
 
+Implementation decision: an ordinary request from its own applying callback is refused before loading, returns false with `Cannot reload config from its own application`, and creates no attempt or event. This prevents a self-wait when `on-mode-changed` runs `reload-config`; dry runs remain independent. Other requests follow the ordering above.
+
 **Policy hook completion**
 
 - Placement and movement callers no longer each reconstruct the evaluate, recheck, mutate, normalize, run sequence. The shared rules have one owner.
@@ -83,11 +85,13 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 **Config reload attempts**
 
-- [ ] Tests exercise the real coordination interface with controlled loading and application and explicit completion signals, without touching real home files, login items, hotkeys or production helpers.
-- [ ] The cases cover older and newer load completion in either order, an older failure, dry runs interleaved with reloads, requests during suspended application, and failure after adoption.
-- [ ] Assertions cover the active config and helper, watched imports, the reported result, candidate disposal, notification behaviour and emitted events, not only a ticket counter or internal call order.
-- [ ] Save bursts, saves during reload, startup deferral, missing config and disabled-server behaviour keep coverage through their actual wiring.
-- [ ] The existing real-helper and filesystem watcher integration tests remain, and #42's reload guarantees are incorporated without weakening its regression test.
+This part landed in its own pull request; Policy hook completion and the remaining timing work follow.
+
+- [x] Tests exercise the real coordination interface with controlled loading and application and explicit completion signals, without touching real home files, login items, hotkeys or production helpers.
+- [x] The cases cover older and newer load completion in either order, an older failure, dry runs interleaved with reloads, requests during suspended application, and failure after adoption.
+- [x] Assertions cover the active config and helper, watched imports, the reported result, candidate disposal, notification behaviour and emitted events, not only a ticket counter or internal call order.
+- [x] Save bursts, saves during reload, startup deferral, missing config and disabled-server behaviour keep coverage through their actual wiring.
+- [x] The existing real-helper and filesystem watcher integration tests remain, and #42's reload guarantees are incorporated without weakening its regression test.
 
 **Policy hook completion**
 
