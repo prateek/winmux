@@ -85,8 +85,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         hostingView.autoresizingMask = [.width, .height]
     }
 
-    func updateMiniatureLanding() { lifecycle.updateMiniatureLanding() }
-
     func notePointerMoved(at screenPoint: CGPoint) {
         guard isVisible, let model = session,
               model.settings.presentation == "strip" || model.settings.presentation == "grid" else { return }
