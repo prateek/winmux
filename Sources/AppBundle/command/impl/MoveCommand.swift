@@ -25,9 +25,9 @@ struct MoveCommand: Command {
         if !edge && neighbour == nil { return try await runBuiltIn(env, io) }
         let path = ColumnPolicy.hook("move-boundary", on: workspace)
         if path == nil && (edge || ColumnPolicy.hook("place", on: workspace) == nil) { return try await runBuiltIn(env, io) }
-        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalize: workspace,
+        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true,
             evaluate: { await PolicyHookCompletion.call(path, window: window, workspace: workspace, edge: edge) },
-            runList: { PolicyHookCompletion.runList($0, path: path) },
+            runList: { (path, PolicyHookCompletion.commands($0)) },
             abandoned: { io.err("The window moved before the move could finish") }) { result, completion in
             if path != nil && result == nil { return .fallback(try await runBuiltIn(env, io)) }
             let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")

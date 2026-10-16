@@ -9,9 +9,8 @@ protocol PolicyHookHelper: Sendable {
 
 @MainActor
 enum PolicyHooks {
-    @TaskLocal static var scoped: (any PolicyHookHelper)?
     private static var testOverride: (any PolicyHookHelper)?
-    static var current: any PolicyHookHelper { scoped ?? testOverride ?? NickelSupervisor.shared }
+    static var current: any PolicyHookHelper { testOverride ?? NickelSupervisor.shared }
 
     static func setOverrideForTests(_ helper: (any PolicyHookHelper)?) {
         testOverride = helper

@@ -13,24 +13,23 @@ struct PolicyHookCompletion {
     private let location: ColumnPolicy.Location
     private let columns: ColumnState?
     private let checksColumns: Bool
+    private let helper: any PolicyHookHelper
 
-    private init(window: Window, workspace: Workspace, checksColumns: Bool) {
+    private init(window: Window, workspace: Workspace, checksColumns: Bool, helper: any PolicyHookHelper) {
         self.window = window
         self.workspace = workspace
         location = ColumnPolicy.Location(window)
-        columns = workspace.columns
+        columns = checksColumns ? workspace.columns : nil
         self.checksColumns = checksColumns
+        self.helper = helper
     }
 
     private var isCurrent: Bool {
         location.contains(window) && (!checksColumns || workspace.columns === columns)
     }
 
-    func arrivalFallback(to destination: Workspace) -> Bool {
-        guard location.contains(window) else { return false }
-        window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
-        return true
-    }
+    /// Whether the window is still where the snapshot found it, whatever happened to the Columns.
+    var isAtOrigin: Bool { location.contains(window) }
 
     private struct RunningHook: Hashable {
         let windowId: UInt32
@@ -101,62 +100,56 @@ struct PolicyHookCompletion {
         result?["run"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? []
     }
 
-    static func run(_ commands: [String], window: Window, path: String) async throws {
+    static func run(_ commands: [String], window: Window, path: String, helper: any PolicyHookHelper) async throws {
         guard !commands.isEmpty, window.isBound else { return }
         let key = RunningHook(windowId: window.windowId, path: path)
         guard runningWindows.insert(key).inserted else {
-            PolicyHooks.current.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
+            helper.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
             return
         }
         defer { runningWindows.remove(key) }
-        try await execute(commands, window: window)
+        try await execute(commands, window: window, helper: helper)
     }
 
-    private static func execute(_ commands: [String], window: Window) async throws {
+    private static func execute(_ commands: [String], window: Window, helper: any PolicyHookHelper) async throws {
         for raw in commands {
             guard window.isBound else { return }
             switch parseCommand(raw) {
                 case .cmd(let command) where command.info.allowInConfig:
                     _ = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: window.nodeWorkspace?.name ?? focus.workspace.name, windowId: window.windowId), .emptyStdin)
-                case .failure(let error): PolicyHooks.current.recordHookFailure("Policy run: \(error)")
-                default: PolicyHooks.current.recordHookFailure("Policy run: command is not allowed: \(raw)")
+                case .failure(let error): helper.recordHookFailure("Policy run: \(error)")
+                default: helper.recordHookFailure("Policy run: command is not allowed: \(raw)")
             }
         }
     }
 
-    static func runList(_ result: JSONValue?, path: String?) -> (String?, [String]) {
-        (path, commands(result))
-    }
-
     func overflow() async throws -> OverflowPolicy {
-        let decision = await ColumnPolicy.decision(window: window, workspace: workspace)
+        let decision = await ColumnPolicy.decision(window: window, workspace: workspace, supervisor: helper)
         guard isCurrent else { throw Abandoned() }
         return decision.overflow
     }
 
     static func perform<Value>(
         window: Window, workspace: Workspace, checksColumns: Bool = true,
-        normalize: Workspace? = nil, helper: any PolicyHookHelper = PolicyHooks.current,
+        normalizes: Bool, helper: any PolicyHookHelper = PolicyHooks.current,
         evaluate: @MainActor () async -> Value,
         runList: @MainActor (Value) -> (String?, [String]),
         abandoned: @MainActor () -> Bool,
         mutate: @MainActor (Value, PolicyHookCompletion) async throws -> Outcome
     ) async throws -> Bool {
-        let attempt = PolicyHookCompletion(window: window, workspace: workspace, checksColumns: checksColumns)
-        return try await PolicyHooks.$scoped.withValue(helper) { @MainActor in
-            let value = await evaluate()
-            guard attempt.isCurrent else { return abandoned() }
-            let outcome: Outcome
-            do { outcome = try await mutate(value, attempt) }
-            catch is Abandoned { return abandoned() }
-            switch outcome {
-                case .fallback(let result): return result
-                case .completed(let result):
-                    normalize?.normalizeContainers()
-                    let (path, commands) = runList(value)
-                    if result, let path { try await run(commands, window: window, path: path) }
-                    return result
-            }
+        let attempt = PolicyHookCompletion(window: window, workspace: workspace, checksColumns: checksColumns, helper: helper)
+        let value = await evaluate()
+        guard attempt.isCurrent else { return abandoned() }
+        let outcome: Outcome
+        do { outcome = try await mutate(value, attempt) }
+        catch is Abandoned { return abandoned() }
+        switch outcome {
+            case .fallback(let result): return result
+            case .completed(let result):
+                if normalizes { workspace.normalizeContainers() }
+                let (path, commands) = runList(value)
+                if result, let path { try await run(commands, window: window, path: path, helper: helper) }
+                return result
         }
     }
 }

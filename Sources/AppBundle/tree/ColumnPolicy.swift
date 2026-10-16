@@ -127,7 +127,7 @@ enum ColumnPolicy {
     static func place(_ window: Window, on workspace: Workspace, answer: JSONValue? = nil,
                       supervisor: any PolicyHookHelper = PolicyHooks.current) async throws -> Bool {
         guard workspace.columns != nil else { return false }
-        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalize: workspace, helper: supervisor,
+        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true, helper: supervisor,
             evaluate: { await decision(window: window, workspace: workspace, answer: answer, supervisor: supervisor) },
             runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
                 if window.isBound { window.unbindFromParent() }
@@ -163,9 +163,9 @@ enum ColumnPolicy {
                                      supervisor: any PolicyHookHelper) async throws {
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
         let path = config.arrive
-        _ = try await PolicyHookCompletion.perform(window: window, workspace: detected, checksColumns: false, helper: supervisor,
+        _ = try await PolicyHookCompletion.perform(window: window, workspace: detected, checksColumns: false, normalizes: false, helper: supervisor,
             evaluate: { await PolicyHookCompletion.call(path, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass) },
-            runList: { PolicyHookCompletion.runList($0, path: path) }, abandoned: { false }) { result, completion in
+            runList: { (path, PolicyHookCompletion.commands($0)) }, abandoned: { false }) { result, completion in
                 if window.parent === macosPopupWindowsContainer { return .completed(true) }
                 let destination = result?["workspace"]?.stringOrNil.map { Workspace.get(byName: $0) } ?? detected
                 destination.seedMonitorIfNeeded(detected.workspaceMonitor)
@@ -178,8 +178,12 @@ enum ColumnPolicy {
                     var placement = result?["column"] == nil ? nil : result
                     if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
                     if destination.columns != nil {
-                        if try await !place(window, on: destination, answer: placement, supervisor: supervisor),
-                           !completion.arrivalFallback(to: destination) { return .fallback(false) }
+                        if try await !place(window, on: destination, answer: placement, supervisor: supervisor) {
+                            // Abandoned: the window moved, or the workspace's Columns were replaced, during
+                            // the call. Only the second leaves it in the binding it was registered with.
+                            guard completion.isAtOrigin else { return .fallback(false) }
+                            window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+                        }
                     } else {
                         window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
                     }

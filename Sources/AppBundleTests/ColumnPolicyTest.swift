@@ -28,7 +28,10 @@ final class ColumnPolicyTest: XCTestCase {
         config.arrive = loaded.settings["arrive"]?.stringOrNil
         supervisor.adopt(loaded)
         PolicyHooks.setOverrideForTests(supervisor)
-        addTeardownBlock { try? FileManager.default.removeItem(at: path) }
+        addTeardownBlock {
+            await loaded.process.close()
+            try? FileManager.default.removeItem(at: path)
+        }
         return supervisor
     }
 
@@ -172,7 +175,6 @@ final class ColumnPolicyTest: XCTestCase {
     func testBoundaryJoinSwapStopWrapNextWorkspaceAndEmptyBypass() async throws {
         for action in ["join", "swap", "stop", "wrap", "next-workspace"] {
             setUpWorkspacesForTests()
-            PolicyHooks.setOverrideForTests(ControlledPolicyHooks())
             _ = try await load("columns = { move-boundary = fun w ctx cols edge => { action = '\(action), overflow = 'split } }")
             let ws = demo("Boundary", count: 2)
             let a = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
@@ -798,7 +800,6 @@ final class ColumnPolicyTest: XCTestCase {
     func testOverlappingTasksShareTheGuardOnlyForTheSameWindowAndDefinition() async throws {
         for sameWindow in [true, false] {
             setUpWorkspacesForTests()
-            PolicyHooks.setOverrideForTests(ControlledPolicyHooks())
             let supervisor = ControlledPolicyHooks()
             PolicyHooks.setOverrideForTests(supervisor)
             let path = "workspace.Demo.columns.place"
@@ -1224,10 +1225,6 @@ final class ColumnPolicyTest: XCTestCase {
 
     func testControlledCompletionRacesBeforeAndAfterOverflowLookup() async throws {
         try await completionRaces(["place", "arrive", "move-join", "move-swap", "move-wrap", "move-overflow"], ["closed", "workspace", "column", "columns"])
-    }
-
-    func testSecondAwaitRejectsMovedWindowAndReplacedColumns() async throws {
-        try await completionRaces(["move-overflow"], ["workspace", "column", "columns"])
     }
 
     private func completionRaces(_ operations: [String], _ changes: [String]) async throws {
