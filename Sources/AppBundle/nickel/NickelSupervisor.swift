@@ -50,6 +50,9 @@ final class NickelSupervisor {
     static let shared = NickelSupervisor()
 
     private let settings: Settings
+    private let clock: any Clock<Duration>
+    private let elapsed: @Sendable () -> Duration
+    private let channel: @MainActor (URL) throws -> any NickelByteChannel
     /// Called when the breaker opens, with what to tell the user.
     var onBreakerOpened: @MainActor (String) -> Void = { _ in }
 
@@ -59,15 +62,19 @@ final class NickelSupervisor {
     private var rss = 0
     private var recycles = 0
     private var lastError: String?
-    private var crashes: [ContinuousClock.Instant] = []
+    private var crashes: [Duration] = []
     private var crashStreak = 0
     private var restart: Task<Void, Never>?
     private var restartIsImmediate = false
     private var recycle: Task<Void, Never>?
-    private var lastRecycleAttempt: ContinuousClock.Instant?
+    private var lastRecycleAttempt: Duration?
 
-    init(settings: Settings = Settings()) {
+    init(settings: Settings = Settings(), clock: any Clock<Duration> = ContinuousClock(),
+         channel: @escaping @MainActor (URL) throws -> any NickelByteChannel = { try NickelProcessChannel(executable: $0) }) {
         self.settings = settings
+        self.clock = clock
+        self.elapsed = elapsedTime(clock)
+        self.channel = channel
     }
 
     var status: NickelStatus {
@@ -91,7 +98,7 @@ final class NickelSupervisor {
         }
         let process: NickelHelperProcess
         do {
-            process = try NickelHelperProcess(executable: executable) { [weak self] pid in
+            process = try NickelHelperProcess(channel: channel(executable), clock: clock) { [weak self] pid in
                 Task { @MainActor in self?.helperCrashed(pid: pid) }
             }
         } catch {
@@ -100,7 +107,7 @@ final class NickelSupervisor {
         let request: [String: JSONValue] = ["op": .string("load"), "path": path.map { .string($0.path) } ?? .null]
         switch await process.send(request, timeout: settings.loadTimeout) {
             case .success(let reply):
-                rss = reply.rss
+                if !Task.isCancelled { rss = reply.rss }
                 let imports = reply.result["imports"]?.arrayOrNil?.compactMap(\.stringOrNil).map { URL(filePath: $0) } ?? []
                 return .success(LoadedNickelConfig(
                     process: process,
@@ -114,7 +121,7 @@ final class NickelSupervisor {
                 await process.kill()
                 // With a helper serving, a failed load is the caller's to report. With none, it is
                 // why nothing is serving.
-                if current == nil, restart == nil { lastError = failure.message }
+                if !Task.isCancelled, current == nil, restart == nil { lastError = failure.message }
                 return .failure(failure)
         }
     }
@@ -189,12 +196,15 @@ final class NickelSupervisor {
         let result = await process.send(request, timeout: timeout)
         switch result {
             case .success(let reply):
+                guard current === process else { return .success(reply.result) }
                 rss = reply.rss
                 if reply.rss > settings.rssLimit { recycleInBackground() }
                 return .success(reply.result)
             case .failure(.timedOut):
-                lastError = NickelFailure.timedOut.message
                 if current === process {
+                    lastError = NickelFailure.timedOut.message
+                    recycle?.cancel()
+                    recycle = nil
                     current = nil
                     restartHelper(after: .zero)
                 }
@@ -207,7 +217,7 @@ final class NickelSupervisor {
     // MARK: - Replacing the helper
 
     private func recycleInBackground() {
-        let now = ContinuousClock.now
+        let now = elapsed()
         if recycle != nil { return }
         if let last = lastRecycleAttempt, now - last < settings.minIntervalBetweenRecycles { return }
         lastRecycleAttempt = now
@@ -228,13 +238,15 @@ final class NickelSupervisor {
 
     private func helperCrashed(pid: Int32) {
         guard current?.pid == pid else { return }
+        recycle?.cancel()
+        recycle = nil
         current = nil
         lastError = "The config helper exited unexpectedly"
         recordCrashAndRestart()
     }
 
     private func recordCrashAndRestart() {
-        let now = ContinuousClock.now
+        let now = elapsed()
         if let last = crashes.last, now - last > settings.crashStreakReset { crashStreak = 0 }
         crashStreak += 1
         crashes = crashes.filter { now - $0 <= settings.breakerWindow } + [now]
@@ -257,7 +269,7 @@ final class NickelSupervisor {
         restart?.cancel()
         restartIsImmediate = delay == .zero
         restart = Task {
-            if delay > .zero { try? await Task.sleep(for: delay) }
+            if delay > .zero { try? await clock.sleep(for: delay) }
             if Task.isCancelled { return }
             let result = await load(loadedPath)
             if Task.isCancelled {
@@ -283,4 +295,9 @@ private func matchBits(_ result: JSONValue) -> Result<[Bool], NickelFailure> {
 
 extension NickelSupervisor: PolicyHookHelper {
     var lastHookError: String? { status.lastError }
+}
+
+private func elapsedTime<C: Clock>(_ clock: C) -> @Sendable () -> Duration where C.Duration == Duration {
+    let origin = clock.now
+    return { @Sendable in origin.duration(to: clock.now) }
 }

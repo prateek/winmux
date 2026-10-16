@@ -1347,4 +1347,19 @@ final class ColumnPolicyTest: XCTestCase {
         }
     }
 
+    func testCancelledHookCallRecordsNoFailureOrResult() async throws {
+        let helper = ControlledPolicyHooks(), gate = ReloadGate()
+        let workspace = demo()
+        let window = TestWindow.new(id: 8701, parent: workspace.rootTilingContainer)
+        helper.answers["columns.place"] = .failure(.cancelled)
+        helper.gates["columns.place"] = gate
+        let task = Task { await PolicyHookCompletion.call("columns.place", window: window, workspace: workspace, supervisor: helper) }
+        await gate.entered.wait()
+        task.cancel()
+        gate.release()
+        let result = await task.value
+        XCTAssertNil(result)
+        XCTAssertTrue(helper.failures.isEmpty)
+    }
+
 }
