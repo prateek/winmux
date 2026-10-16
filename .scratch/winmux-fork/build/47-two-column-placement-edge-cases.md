@@ -86,8 +86,9 @@ restore function it calls, including the one-display x=-60 to x=0 case.
 Replacing Columns in `Workspace.applyColumns` notifies only the existing Lens
 through a weak lifecycle observer registered when its session completes and
 cleared on dismissal. Both config saves and the real `column-count off` command
-redraw without constructing a panel on startup. The config-load regression
-observes the optional shared-panel reference, without evaluating `shared`.
+redraw without constructing a panel on startup. An apply that leaves the count
+and widths unchanged does not notify, so an unrelated config save keeps the hint
+on screen, and with no Lens open applying Columns does not resolve focus.
 `evaluatedColumns` retains the old state until reevaluation; `landingColumns`
 remains weak. Controlled-clock saves check off/on with the same selection and
 held modifier. Lens hook records keep `empty` consistent with cached `windows`
@@ -134,9 +135,7 @@ changed.
 
 ## Checks for Prateek
 
-- [ ] Check the installed build.
-- [ ] Check the floating hint and Summon on a physical second display.
-- [ ] Check real sleep, wake and unlock.
+- [ ] On two displays with the installed build, give a workspace Columns with a `place` hook answering Overflow `float` into an occupied Column. Hold the Summon modifier over a floating window on the other display's visible workspace, then over one on a hidden workspace: each landing outline is where Summon then puts the window.
 
 ## Sources
 
