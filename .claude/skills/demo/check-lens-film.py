@@ -2,7 +2,7 @@
 """Compare a trace with a timestamped movie. Requires ffmpeg, ffprobe and Pillow.
 
 check-lens-film.py TAKE.mov TRACE.json --probe x,y,w,h --threshold .25
-The probe is chosen inside the strip after inspecting its first visible PNG.
+The probe is chosen inside the Presentation after inspecting its first visible PNG.
 A changed-pixel fraction detects the panel rather than waiting for fresh pictures.
 """
 import argparse
@@ -22,6 +22,14 @@ def require_presented(keys, traces):
         signal = trace.get('signal')
         if signal is None or 'cancelled' in signal:
             raise ValueError(f"opening {trace['id']} did not present a frame: {signal}")
+
+
+def opening_samples(events, traces, presentation='strip', opening_key='⌘ Tab'):
+    keys = [event for event in events if event['keys'] == opening_key]
+    traces = [trace for trace in traces if trace['presentation'] == presentation]
+    traces = traces[-len(keys):] if keys else []
+    require_presented(keys, traces)
+    return keys, traces
 
 
 def compare(frames, first_pts, keys, traces, visible):
@@ -45,7 +53,7 @@ def compare(frames, first_pts, keys, traces, visible):
 
 def print_comparison(rows):
     for row in rows:
-        print(f"Opening {row['opening']}: key {row['keySeconds']:.6f}s; strip frame {row['frame']} @ {row['frameSeconds']:.6f}s; visible {row['visibleMs']:.3f}ms; trace {row['traceMs']:.3f}ms; difference {row['differenceMs']:+.3f}ms / {row['differenceFrames']:+d} frames; input timestamp shift {row['inputOffsetMs']:+.3f}ms; endpoint difference {row['endpointDifferenceMs']:+.3f}ms")
+        print(f"Opening {row['opening']}: key {row['keySeconds']:.6f}s; frame {row['frame']} @ {row['frameSeconds']:.6f}s; visible {row['visibleMs']:.3f}ms; trace {row['traceMs']:.3f}ms; difference {row['differenceMs']:+.3f}ms / {row['differenceFrames']:+d} frames; input timestamp shift {row['inputOffsetMs']:+.3f}ms; endpoint difference {row['endpointDifferenceMs']:+.3f}ms")
 
 
 def comparison_passes(rows):
@@ -75,6 +83,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('movie', type=pathlib.Path)
     parser.add_argument('traces', type=pathlib.Path)
+    parser.add_argument('--presentation', choices=['strip', 'list', 'grid', 'miniatures'], default='strip')
+    parser.add_argument('--opening-key', default='⌘ Tab', help='event-log chord that opens this Presentation')
     parser.add_argument('--probe', required=True, help='x,y,width,height')
     parser.add_argument('--threshold', type=float, default=0.25, help='fraction of pixels changed by >20 levels')
     parser.add_argument('--strip-edge', help='x,y,width of the straight top border; reject background motion')
@@ -85,10 +95,7 @@ def main():
     raw_frames = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames", "-of", "json", str(raw)]))["frames"]
     validate_sample_times([float(frame["best_effort_timestamp_time"]) for frame in raw_frames], metadata)
     events = json.loads(movie.with_suffix('.events.json').read_text())
-    keys = [event for event in events if event['keys'] == '⌘ Tab']
-    traces = [trace for trace in json.loads(args.traces.read_text()) if trace['presentation'] == 'strip']
-    traces = traces[len(traces)-len(keys):]
-    require_presented(keys, traces)
+    keys, traces = opening_samples(events, json.loads(args.traces.read_text()), args.presentation, args.opening_key)
     probe = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames', '-show_streams', '-of', 'json', str(movie)]))
     frames = [float(frame['best_effort_timestamp_time']) for frame in probe['frames']]
     stream = probe['streams'][0]
