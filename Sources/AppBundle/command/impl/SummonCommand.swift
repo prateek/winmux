@@ -42,7 +42,10 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
             session.changeSections(args.value.val)
             continue
         }
+        let closes = if case .cmd(let command) = parseCommand(raw) { command.args is CloseCmdArgs } else { false }
         for id in session.targets(forCommand: raw) {
+            // An earlier marked close can take this window with it; for close, gone is done.
+            if closes, Window.get(byId: id) == nil { continue }
             success = try await runLensWindowAction(raw, windowId: id, io: io) && success
         }
     }
@@ -52,11 +55,7 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
 @MainActor
 func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async throws -> Bool {
     var success = true
-    guard let window = Window.get(byId: id) else {
-        // An earlier marked close can take this window with it; for close, gone is done.
-        if case .cmd(let command) = parseCommand(raw), command.args is CloseCmdArgs { return true }
-        return io.err("Window \(id) has closed")
-    }
+    guard let window = Window.get(byId: id) else { return io.err("Window \(id) has closed") }
     if raw == "focus" {
         try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
         if ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
