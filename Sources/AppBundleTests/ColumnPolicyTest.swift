@@ -5,7 +5,11 @@ import XCTest
 
 @MainActor
 final class ColumnPolicyTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws {
+        setUpWorkspacesForTests()
+        // A cancelled arrival schedules a refresh; a real one cannot run in a unit test.
+        setScheduledRefreshOverrideForTests { _, _ in }
+    }
 
     private func load(_ body: String, shared: Bool = false) async throws -> NickelSupervisor {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Run make helper") }
@@ -866,6 +870,153 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertTrue(window.nodeWorkspace === other)
         XCTAssertEqual(ws.columns?.count, 3)
         XCTAssertNil(supervisor.status.lastError)
+    }
+
+    private func cancelledArrival(_ window: TestWindow, on workspace: Workspace,
+                                  supervisor: NickelSupervisor, suspendRead: Int = 1,
+                                  whileSuspended: () -> Void = {},
+                                  observeRead: @escaping () -> Void = {}) async throws {
+        let gathering = expectation(description: "Arrival argument read suspended")
+        var release: CheckedContinuation<Void, Never>?
+        var reads = 0
+        defer { window.beforeAxRecord = nil }
+        window.beforeAxRecord = {
+            observeRead()
+            reads += 1
+            if reads == suspendRead {
+                await withCheckedContinuation { continuation in
+                    release = continuation
+                    gathering.fulfill()
+                }
+            }
+        }
+        let arrival = Task { @MainActor in
+            try await ColumnPolicy.arrive(window, on: workspace, floatingDefault: false, supervisor: supervisor)
+        }
+        await fulfillment(of: [gathering], timeout: 2)
+        arrival.cancel()
+        whileSuspended()
+        release?.resume()
+        try await arrival.value
+    }
+
+    func testCancelledArriveStillAppliesColumnAndRunsCommands() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { column = 3, run = [\"focus-column 2 --workspace Demo\"] }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+        XCTAssertEqual(ws.columns?.focusedSlot, 2)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testCancelledArriveStillFloatsAndRunsCommands() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { float = true, run = [\"focus-column 2 --workspace Demo\"] }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        XCTAssertTrue(window.isFloating)
+        XCTAssertTrue(window.nodeWorkspace === ws)
+        XCTAssertEqual(ws.columns?.focusedSlot, 2)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testCancelledArriveStillRoutesAndRunsCommands() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { workspace = \"Other\", run = [\"focus-column 2 --workspace Other\"] }, workspace.Other.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group }")
+        let ws = demo(), other = demo("Other")
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        XCTAssertTrue(window.nodeWorkspace === other)
+        XCTAssertEqual(other.columnSlot(containing: window), 3)
+        XCTAssertEqual(other.columns?.focusedSlot, 2)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testCancelledArriveShieldsFallThroughPlaceAndBothRunLists() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { run = [\"focus-column 2 --workspace Demo\"] }, columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"column-count 4 --workspace Demo\"] }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await cancelledArrival(window, on: ws, supervisor: supervisor, suspendRead: 2)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+        XCTAssertEqual(ws.columns?.count, 4)
+        XCTAssertEqual(ws.columns?.focusedSlot, 2)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
+    func testClosedDuringCancelledArriveStaysUnboundWithoutError() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { column = 3, run = [\"focus-column 2 --workspace Demo\"] }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        let lastError = supervisor.status.lastError
+        try await cancelledArrival(window, on: ws, supervisor: supervisor, whileSuspended: { window.unbindFromParent() })
+        XCTAssertFalse(window.isBound)
+        XCTAssertEqual(ws.allLeafWindowsRecursive.count, 0)
+        XCTAssertNil(ws.columns?.focusedSlot)
+        XCTAssertEqual(supervisor.status.lastError, lastError)
+    }
+
+    func testCancelledArriveStillTimesOutAndUsesBuiltInPlacement() async throws {
+        let path = FileManager.default.temporaryDirectory.appending(path: "arrive-timeout-\(UUID())")
+        try stubHelperScript.write(to: path, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path.path)
+        defer { try? FileManager.default.removeItem(at: path) }
+        var settings = NickelSupervisor.Settings()
+        settings.executable = { path }
+        settings.loadTimeout = .seconds(20)
+        let supervisor = NickelSupervisor(settings: settings)
+        supervisor.adopt(try await supervisor.load(URL(filePath: "/config/good.ncl")).get())
+        config.arrive = "hang"
+        let ws = demo()
+        ws.columns?.focusedSlot = 2
+        let window = TestWindow.new(id: 42, parent: ws)
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        XCTAssertEqual(ws.columnSlot(containing: window), 2)
+        XCTAssertTrue(supervisor.status.lastError?.contains(NickelFailure.timedOut.message) == true)
+    }
+
+    func testShieldKeepsRefreshTaskLocals() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { column = 3 }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        XCTAssertTrue(ws.focusWorkspace())
+        let snapshot = captureRefreshSessionFocusSnapshot()
+        var observed = false
+        try await $refreshSessionEvent.withValue(.startup) {
+            try await $_isStartup.withValue(true) {
+                try await $_refreshSessionFocusSnapshot.withValue(snapshot) {
+                    try await cancelledArrival(window, on: ws, supervisor: supervisor, observeRead: {
+                        observed = true
+                        XCTAssertTrue(isStartup)
+                        XCTAssertTrue(refreshSessionEvent?.isStartup == true)
+                        XCTAssertEqual(refreshSessionFocusSnapshot?.focus, snapshot.focus)
+                    })
+                }
+            }
+        }
+        XCTAssertTrue(observed)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+    }
+
+    func testCancelledArriveSchedulesARefreshForWhatItChanged() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { column = 3 }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        let refreshed = expectation(description: "Refresh scheduled after a cancelled arrival")
+        refreshed.assertForOverFulfill = false
+        setScheduledRefreshOverrideForTests { _, _ in refreshed.fulfill() }
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        await fulfillment(of: [refreshed], timeout: 2)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+    }
+
+    func testArriveWithoutHooksBindsBeforeYielding() async throws {
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        var boundWhenProbed: Int?
+        let probe = Task { @MainActor in boundWhenProbed = ws.columnSlot(containing: window) }
+        try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false)
+        await probe.value
+        XCTAssertNotNil(boundWhenProbed)
     }
 
 }

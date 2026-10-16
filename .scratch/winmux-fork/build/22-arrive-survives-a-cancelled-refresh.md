@@ -27,19 +27,27 @@ Nothing.
 
 No ticket settled these. Each is a starting default: change one if the code argues for it, and say so in the pull request.
 
-- **Where to shield.** The hook call in `Sources/AppBundle/tree/ColumnPolicy.swift` gathers the Window record, the Filter context and the Column records in a task group, then asks the supervisor. For `arrive`, run that whole call in a task that does not inherit the session's cancellation, and await its value.
+- **Where to shield.** The hook call in `Sources/AppBundle/tree/ColumnPolicy.swift` gathers the Window record, the Filter context and the Column records in a task group, then asks the supervisor. Shield the whole `ColumnPolicy.arrive` body in an unstructured `Task { @MainActor in … }`, including argument gathering, routing/placement, fall-through destination Place and the `run` lists, and await its value. Keep the refresh task-locals; do not use `Task.detached`.
 - **What the cancelled session does with the answer.** The placement is applied by the shielded task itself, so it does not depend on the cancelled session still running. The next refresh sees the window already placed.
-- **A window whose session is cancelled before `arrive` starts.** The next refresh that sees the window still unplaced runs `arrive` for it.
+- **A window whose session is cancelled before `arrive` starts.** Not built. The three awaits between registration and `arrive` (the debug recording and the two frozen-world restores) stay cancellable, so a restore still abandons with its session rather than racing the command that cancelled it. A window cancelled in that gap stays registered without `arrive`; it is a known limit. Running `arrive` again from the next refresh would need a mark on each window still owed one, and more registration test infrastructure than the change is worth.
 - **Recording.** A hook call that is cancelled anyway, such as at quit, records nothing, as today.
 
 ## Done when
 
-- [ ] A test cancels the refresh session while `arrive` gathers its arguments, and the window ends where the hook's result sends it, with its `run` list executed. The test fails without the change.
-- [ ] The same test for an `arrive` that returns `float = true`, and for one that returns a `workspace`.
-- [ ] A window that closes during the shielded call is not bound anywhere and raises no dialog.
-- [ ] A hook slower than 50 ms still gets the built-in placement.
-- [ ] The existing `ColumnPolicyTest` and `FixedColumnsTest` pass unchanged.
-- [ ] In a live run with an `arrive` hook that routes a window to another workspace, opening the window while pressing a bound hotkey repeatedly still routes it. The run is repeated ten times and every one routes.
+- [x] A test cancels the refresh session while `arrive` gathers its arguments, and the window ends where the hook's result sends it, with its `run` list executed. The test fails without the change.
+- [x] The same test for an `arrive` that returns `float = true`, and for one that returns a `workspace`.
+- [x] A window that closes during the shielded call is not bound anywhere and raises no dialog.
+- [x] A hook slower than 50 ms still gets the built-in placement.
+- [x] The existing `ColumnPolicyTest` and `FixedColumnsTest` pass unchanged.
+- [x] In a live run with an `arrive` hook that routes a window to another workspace, opening the window while pressing a bound hotkey repeatedly still routes it. The run is repeated ten times and every one routes.
+
+## Build evidence
+
+- The Column/run, float/run and workspace/run tests each fail on `e73672c6` and pass with the shield. Fall-through Place and timeout-recording regressions also fail without it. A continuation suspends an AX argument read; no sleep synchronizes the tests.
+- The close-during-call test keeps the window unbound and the supervisor's last error unchanged. The task-local test checks startup, refresh event and focus snapshot inheritance. Existing Column Policy and Fixed Columns tests are unchanged.
+- Ordinary live trials route 10/10 on both trees. With the owned app's AX title response delayed by 120 ms, `e73672c6` routes 3/10, while the shield routes 10/10 and executes all ten Run lists; both use the same script and fixture.
+- The guest debug build routes all ten hotkey-storm trials to the destination's Column 3; each Run list changes the destination to four Columns. The same float/move/retile command probe passes.
+- Host and pinned-version guest `make check` both pass: 1,276 Swift tests, 82 helper tests and 131 Python script tests, with no skipped Swift tests.
 
 ## Sources
 
