@@ -90,6 +90,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Shipped Lenses for the grid, and the docs**
 - [ ] With the Cmd-Tab opt-in, on the installed build and a real keyboard, with one app's windows on two workspaces: hold Cmd-backtick, press backtick twice and release. The grid shows only that app's windows, with no section headers, in the order you last used them; each backtick moves one card, and the window selected at release is focused. Then tap Cmd-backtick at your normal speed five times: each tap switches windows and no grid is left on screen.
 
+**Three landing and placement edge cases: a float hint across displays, an empty container, and Columns turned off**
+- [ ] On two displays, on the installed build: give a workspace Columns and a `place` hook that answers Overflow `float` into an occupied Column, and open a `miniatures` Lens there. Hold the Summon modifier over a floating window on the other display's shown workspace, then over one on a hidden workspace, and Summon each. Each window lands inside the outline the hint drew.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

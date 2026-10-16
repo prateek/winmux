@@ -47,6 +47,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **CI's swiftly is pinned** after the Xcode 27 move: Homebrew's cached swiftly 1.1.3 cannot fetch Swift 6.4.0.
 - **Two defects found while shielding `arrive`** are with the follow-ups: a window registered or restored during a cancelled refresh misses its placement hook, and a read-only command drops the refresh it cancels, so a new window stays unmanaged.
 - **One defect found while putting refresh timing under a controlled clock** is with the follow-ups: the per-app refresh deadline does not bound a stopped app.
+- **One defect found while fixing the landing and placement edge cases** is with the follow-ups: a strip or list landing hint uses a floating window's old frame.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
