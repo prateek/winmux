@@ -54,12 +54,6 @@ Decided: Swift removes the key in the shared table parser before `parseTable` an
 
 The transcript requirement uses debug guest `config check` for contracted and plain Nickel records and two extra fields; base/branch `config convert` output and warnings with a byte-for-byte diff; and the focused Swift test output quoting its exact expected error lists. TOML loading is reached only by tests through `parseConfig(_ rawToml: String)`. Runtime loading and `config check` always parse Nickel; conversion translates TOML without loading it. No runtime TOML load was introduced.
 
-## Checks left with Prateek
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
-
 ## Sources
 
 - The **Declined** list of pull request [#32](https://github.com/prateek/winmux/pull/32).
