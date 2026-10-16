@@ -39,12 +39,26 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] `winmux config check` on a Nickel config with `on-window-detected` fails with the message once.
-- [ ] Loading a TOML config with `[[on-window-detected]]` fails with the message once, and without "Unknown top-level key" for that key.
-- [ ] A TOML config with `[[on-window-detected]]` and a second, truly unknown key reports the removal once and "Unknown top-level key" for the other key.
-- [ ] The message text appears once in the helper's source and once in Swift's, and a test on each side holds it to the shared fixture.
-- [ ] `winmux config convert` output for such a config is unchanged.
-- [ ] The pull request's transcript shows the three commands above and their output from a debug build.
+- [x] `winmux config check` on a Nickel config with `on-window-detected` fails with the message once.
+- [x] Loading a TOML config with `[[on-window-detected]]` fails with the message once, and without "Unknown top-level key" for that key.
+- [x] A TOML config with `[[on-window-detected]]` and a second, truly unknown key reports the removal once and "Unknown top-level key" for the other key.
+- [x] The message text appears once in the helper's source and once in Swift's, and a test on each side holds it to the shared fixture.
+- [x] `winmux config convert` output for such a config is unchanged.
+- [x] The pull request's transcript shows the three commands above and their output from a debug build.
+
+## Implementation and validation
+
+The shared fixture is `nickel-helper/tests/fixtures/on-window-detected-removed.txt`, exactly the message followed by one newline. Each language has its own constant and a fixture-equality test; neither reads the fixture at runtime. The helper's two diagnostic exits share one append function, and the evaluated-key exit returns the constant directly. Its stderr printer adds a newline only when absent, preserving Nickel's own diagnostic bytes.
+
+Decided: Swift removes the key in the shared table parser before `parseTable` and emits a backtrace-less error. JSON null is mapped to an empty array before conversion to preserve key presence for that same check. No chosen default changed.
+
+The transcript requirement uses debug guest `config check` for contracted and plain Nickel records and two extra fields; base/branch `config convert` output and warnings with a byte-for-byte diff; and the focused Swift test output quoting its exact expected error lists. TOML loading is reached only by tests through `parseConfig(_ rawToml: String)`. Runtime loading and `config check` always parse Nickel; conversion translates TOML without loading it. No runtime TOML load was introduced.
+
+## Checks left with Prateek
+
+- [ ] Installed-build behavior.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
