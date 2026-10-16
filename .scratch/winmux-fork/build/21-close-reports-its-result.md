@@ -46,18 +46,26 @@ No ticket settled these. Each is a starting default: change one if the code argu
 - **The seam.** `MacApp.pressCloseButton` already presses the button and returns whether the press succeeded. `closeAxWindow` becomes a call that reports its result, and garbage collection follows a successful press instead of preceding the attempt.
 - **The other callers.** `AgentOperationApply` and `WorkspaceProjects` also call `closeAxWindow`. They get the same rule: a window that could not be closed stays in the model. Whether each reports the failure is the builder's call.
 - **The message.** `Can't close '<app name>': the window has no close button`, and `Can't close '<app name>': the app refused` for a failed press.
-- **A press the app accepts and then refuses**, such as an unsaved-changes sheet. The window is registered again on the next refresh, as today. The issue as reported did not check this case; check it in the live run and say what happens.
+- **A press the app accepts and then refuses**, such as an unsaved-changes sheet. The accepted press still removes the window immediately. The TextEdit live run, compared with the base build, found two outcomes: the held strip removed the entry and kept one row while the model re-registered the document on the same workspace by the readback about 1.4 seconds later; CLI close left it absent from the model while the sheet was open, and Cancel returned it on the same workspace. The open strip did not re-add the entry. This issue preserves that behavior; the CLI sheet case is a defect for a separate issue.
 - **Closing several marked windows from a Lens.** Each is tried; the ones that closed leave the row, the ones that did not stay, and the action reports failure if any failed.
 
 ## Done when
 
-- [ ] `winmux close --window-id <id>` on a window with no close button exits 1 with the message, and `winmux list-windows --all` lists the window before and after with the same workspace.
-- [ ] `winmux close` on an ordinary window exits 0 and the window is gone, as before.
-- [ ] In an open strip, `cmd-w` on a window with no close button leaves the row with the same entries and the same selection, and the window is still on screen.
-- [ ] In an open strip, `cmd-w` on an ordinary window closes it, removes its entry, and the row stays a row.
-- [ ] The same two results hold in the `'list` Presentation.
-- [ ] A test fails without the change: a window whose close fails is still in the model and the command returned failure.
-- [ ] The live run tried a window that answers the press with a sheet, and the pull request says what happened.
+- [x] `winmux close --window-id <id>` on a window with no close button exits 1 with the message, and `winmux list-windows --all` lists the window before and after with the same workspace.
+- [x] `winmux close` on an ordinary window exits 0 and the window is gone, as before.
+- [x] In an open strip, `cmd-w` on a window with no close button leaves the row with the same entries and the same selection, and the window is still on screen.
+- [x] In an open strip, `cmd-w` on an ordinary window closes it, removes its entry, and the row stays a row.
+- [x] The same two results hold in the `'list` Presentation.
+- [x] A test fails without the change: a window whose close fails is still in the model and the command returned failure.
+- [x] The live run tried a window that answers the press with a sheet, and the pull request says what happened.
+
+## Built behavior and checks
+
+`Window.closeAxWindow()` is async and returns closed or a reason. `MacWindow` presses first, unregisters its AX window only after success, then garbage collects with the closed-windows cache skipped. Project deletion shares the press but retains its existing wait for disappearance. The fire-and-forget close is removed. Agent apply awaits the result and leaves failed targets bound; it keeps the apply API's existing silent-failure behavior. The non-native project-deletion path awaits and checks whether a workspace remains.
+
+A disabled AX close button counts as no close button; unreadable `AXEnabled` still permits a press. A missing AX-map entry, failed/timed-out close-button lookup or rejected press reports that the app refused. Read-only `close` fails with `Can't close '<app name>': WinMux is read-only` and never calls the close seam; the quit-if-last-window branch is unchanged. CLI help states exit 1.
+
+Host and pinned-toolchain guest `make check` pass (1,266 Swift, 82 helper and 131 Python tests). Command regressions were red before result handling; the disabled-button regression was red before the enabled guard. Tests cover both messages, exact parent/order/workspace retention, successful removal, marked targets in every Presentation, close-all continuation, read-only, and agent/project routing. Native CLI, held strip and held list checks cover both absent and explicitly disabled buttons and ordinary closes. The unified `lens` log contains the failure reason. The same ordinary-close and quit-if-last-window script passes on base and fixed builds; both sheet paths were also compared with the base. No Lens code or keys changed. Installed-build and physical-device checks are outside this issue's builder run.
 
 ## Sources
 
