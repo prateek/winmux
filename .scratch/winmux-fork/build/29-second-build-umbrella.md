@@ -42,6 +42,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **One defect found while filming the hero demos** is with the follow-ups: Summon's landing outline ignores the window's minimum width.
 - **One defect found while settling the guest's private-picker prompt** is with the follow-ups: a macOS Tips banner can appear on a guest's desktop.
 - **Building on Xcode 27** is with the follow-ups. The build machine moved to Xcode 27.0, and CI, the guest and the lockfile move to its Swift 6.4 with it.
+- **CI's swiftly is pinned** after the Xcode 27 move: Homebrew's cached swiftly 1.1.3 cannot fetch Swift 6.4.0.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
