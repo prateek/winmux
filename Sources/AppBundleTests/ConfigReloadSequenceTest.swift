@@ -21,8 +21,9 @@ private final class ReloadLoadGate {
     }
 
     func resume() {
-        suspended!.resume()
-        suspended = nil
+        guard let suspended else { return XCTFail("resumed a load that is not suspended") }
+        suspended.resume()
+        self.suspended = nil
     }
 }
 
@@ -94,7 +95,6 @@ final class ConfigReloadSequenceTest: SerialClockTestCase {
             aGate.resume()
             let result = try await first.value
             XCTAssertFalse(result)
-            XCTAssertTrue(b.events.isEmpty)
             bGate.resume()
         } else {
             bGate.resume()

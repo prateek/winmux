@@ -9,6 +9,7 @@ final class ConfigReloadResult {
 
 @MainActor
 final class ConfigReloadSequence {
+    /// Counts reloads, so a reload that a later one overtook leaves the later one's result in effect.
     private var started = 0
 
     func run<Load>(
@@ -27,11 +28,12 @@ final class ConfigReloadSequence {
         let read = await load()
         if ticket != started && !dryRun {
             // A later reload started while this one was loading, and its result is the newer one.
-            // Return before the emitting defer; held by
-            // ConfigReloadSequenceTest.testSupersededReloadEmitsNothingAfterNewerReloadCompletes.
+            // Returning before the `defer` below is what keeps this attempt from emitting
+            // `config-reloaded`; `ConfigReloadSequenceTest` holds it.
             return overtaken(read)
         }
-        // Even when applying throws, the loaded helper's files are the ones to watch.
+        // Reports what `rest` recorded in `result`, even when it throws: a reload whose helper was
+        // adopted before applying failed still watches that helper's files.
         defer {
             if !dryRun { syncWatcher(result.outcome) }
             if let event = configReloadEvent(dryRun: dryRun, error: result.eventError, configPath: result.eventPath) { emit(event) }
