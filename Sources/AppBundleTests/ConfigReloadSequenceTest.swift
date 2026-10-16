@@ -68,6 +68,35 @@ private final class ReloadAttemptRecorder {
 
 @MainActor
 final class ConfigReloadSequenceTest: SerialClockTestCase {
+    func testCharacterizeApplicationOverlapOnBase() async throws {
+        let sequence = ConfigReloadSequence()
+        let gate = ReloadLoadGate()
+        var adopted = ""
+        var applied = ""
+        var events: [String] = []
+        func attempt(_ name: String, suspend: Bool) async throws -> Bool {
+            try await sequence.run(dryRun: false, configPath: name, load: { name }, overtaken: { _ in false }, rest: { _, result in
+                adopted = name
+                if suspend { await gate.load() }
+                applied = name
+                return true
+            }, syncWatcher: { _ in }, emit: { _ in events.append(name) })
+        }
+        let a = Task { try await attempt("A", suspend: true) }
+        await gate.waitUntilLoading()
+        let b = try await attempt("B", suspend: false)
+        XCTAssertEqual(adopted, "B")
+        XCTAssertEqual(applied, "B")
+        gate.resume()
+        let aResult = try await a.value
+        XCTAssertTrue(aResult)
+        XCTAssertTrue(b)
+        XCTAssertEqual(adopted, "B")
+        XCTAssertEqual(applied, "A")
+        XCTAssertEqual(events, ["B", "A"])
+        print("BASE CHARACTERIZATION: helper B adopted; application ends A; events B,A; callers A=true B=true")
+    }
+
     private func assertEvent(_ attempt: ReloadAttemptRecorder, path: String, error: String? = nil, file: StaticString = #filePath, line: UInt = #line) throws {
         XCTAssertEqual(attempt.events.map(\.eventType), [.configReloaded], file: file, line: line)
         let event = try XCTUnwrap(attempt.events.first, file: file, line: line)
