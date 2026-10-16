@@ -103,23 +103,32 @@ impl Helper {
     }
 }
 
+pub const ON_WINDOW_DETECTED_REMOVED: &str = "on-window-detected was removed. Rewrite it as an arrive hook;
+winmux config convert leaves each rule as a commented-out arrive branch.";
+
 /// Loads a config, checks its contracts and smoke-runs its functions. The result holds the
 /// static settings, every file the config was read from, and the directory of the shipped library.
 pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diagnostic> {
     let source = path.map_or(Source::Defaults, Source::File);
-    let mut engine = Engine::load(source, library).map_err(|error| {
-        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
-    })?;
-    let mut config = engine.static_json().map_err(|error| {
-        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
-    })?;
-    if config.get("on-window-detected").is_some() {
-        return Err("on-window-detected was removed; rewrite it using arrive".to_owned());
+    let mut engine = Engine::load(source, library).map_err(with_removal_message)?;
+    if engine.field_names(&[]).map_err(with_removal_message)?.iter().any(|name| name == "on-window-detected") {
+        return Err(ON_WINDOW_DETECTED_REMOVED.to_owned());
     }
+    let mut config = engine.static_json().map_err(with_removal_message)?;
     let warnings = normalize_columns(&mut config)?;
     smoke_run(&mut engine)?;
     let imports: Vec<String> = engine.imports().iter().map(|p| p.to_string_lossy().into_owned()).collect();
     Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy(), "warnings": warnings })))
+}
+
+/// A record contract such as `W.Config` rejects the key before its fields can be read, so the
+/// removal is recognised from the contract's own `extra field` line naming it.
+fn with_removal_message(error: Diagnostic) -> Diagnostic {
+    let names_key = error.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("extra field") && line.contains("`on-window-detected`")
+    });
+    if names_key { format!("{}\n\n{ON_WINDOW_DETECTED_REMOVED}", error.trim_end_matches('\n')) } else { error }
 }
 
 fn match_bits(

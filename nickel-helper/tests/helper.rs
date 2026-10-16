@@ -1487,3 +1487,92 @@ fn every_lenses_document_nickel_example_loads_as_a_whole_config() {
     assert!(block.is_none(), "unclosed Nickel fence");
     assert!(count > 0, "no Nickel examples found");
 }
+
+#[test]
+fn removed_detection_message_matches_shared_fixture() {
+    assert!(!removal_message().ends_with('\n'), "the fixture ends in exactly one newline");
+    assert_eq!(
+        winmux_nickel::protocol::ON_WINDOW_DETECTED_REMOVED,
+        removal_message(),
+    );
+}
+
+fn removal_message() -> &'static str {
+    include_str!("fixtures/on-window-detected-removed.txt").strip_suffix('\n').unwrap()
+}
+
+/// Loads `source` from a file named `name` through the helper protocol and returns the load error.
+fn removal_load_error(name: &str, source: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("winmux-removal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    std::fs::write(&path, source).unwrap();
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": path}));
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(reply["ok"], false, "{name}: {reply}");
+    reply["error"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn removed_detection_is_the_whole_error_when_the_record_has_the_key() {
+    // A plain record, and one whose value would fail to evaluate: the key is read from the record.
+    for (name, source) in [("plain.ncl", "{ on-window-detected = [] }"), ("static.ncl", "{ on-window-detected = 1 + true }")] {
+        assert_eq!(removal_load_error(name, source), removal_message(), "{name}");
+    }
+}
+
+#[test]
+fn removed_detection_follows_the_contract_diagnostic_after_one_blank_line() {
+    for (name, source) in [
+        ("contract.ncl", r#"let W = import "winmux/winmux.ncl" in { on-window-detected = [] } | W.Config"#),
+        ("two-extra.ncl", r#"let W = import "winmux/winmux.ncl" in { bogus-key = true, on-window-detected = [] } | W.Config"#),
+    ] {
+        let error = removal_load_error(name, source);
+        let message = removal_message();
+        assert!(error.contains("extra field"), "{name}: {error}");
+        assert_eq!(error.matches(message).count(), 1, "{name}: {error}");
+        assert!(error.ends_with(&format!("\n\n{message}")), "{name}: {error}");
+        assert!(!error.ends_with(&format!("\n\n\n{message}")), "{name}: {error}");
+    }
+}
+
+#[test]
+fn removed_detection_is_not_appended_when_only_the_text_mentions_the_key() {
+    let message = removal_message();
+    for (name, source) in [
+        ("comment.ncl", "let W = import \"winmux/winmux.ncl\" in\n{ start-at-login = 3, # moved off on-window-detected\n} | W.Config"),
+        ("on-window-detected-notes.ncl", r#"let W = import "winmux/winmux.ncl" in { start-at-login = 3 } | W.Config"#),
+        ("syntax.ncl", "{ on-window-detected = }"),
+    ] {
+        let error = removal_load_error(name, source);
+        assert!(!error.contains(message), "{name}: {error}");
+    }
+}
+
+#[test]
+fn stderr_diagnostics_add_a_missing_newline_and_preserve_nickels_newlines() {
+    let missing = "/nonexistent/winmux-config.ncl";
+    let output = run_helper(&["check", missing]);
+    assert_eq!(output.status.code(), Some(2));
+    let diagnostic = winmux_nickel::protocol::load(Some(Path::new(missing)), &library()).err().unwrap();
+    assert!(!diagnostic.ends_with('\n'));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), format!("{diagnostic}\n"));
+
+    let missing = Path::new("/nonexistent/winmux-config.toml");
+    let diagnostic = winmux_nickel::convert::convert(missing, &library()).err().unwrap();
+    assert!(diagnostic.ends_with('\n'));
+    let output = run_helper(&["convert", missing.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), diagnostic);
+
+    let missing_library = Path::new("/nonexistent/winmux-library");
+    let diagnostic = winmux_nickel::protocol::load(None, missing_library).err().unwrap();
+    assert!(diagnostic.ends_with('\n'));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_winmux-nickel"))
+        .arg("defaults")
+        .env("WINMUX_NICKEL_LIBRARY", missing_library)
+        .output().unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), diagnostic);
+}

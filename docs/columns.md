@@ -105,7 +105,7 @@ The Window's `class` describes its binding default before Arrive: a regular tili
 
 Arrive also observes newly detected popups. While a window is in the popup container, `workspace`, `float` and `column` are ignored; `run` still executes. When a popup becomes a real window, Arrive runs once more with its real binding-default class, then destination Place runs as for any tiling arrival.
 
-Arrive replaces `[[on-window-detected]]`. The old key fails loading in both the helper and Swift parser, with a diagnostic naming `arrive`. `winmux config convert` leaves the old callbacks as commented Arrive migration suggestions and warns that their matching and command order need translation; it does not silently preserve the callbacks. Define a single Arrive function with the desired branches instead.
+Arrive replaces `[[on-window-detected]]`. The old key fails loading in both the helper and Swift parser, with one message that names `arrive` and `winmux config convert`. `winmux config convert` leaves the old callbacks as commented Arrive migration suggestions and warns that their matching and command order need translation; it does not silently preserve the callbacks. Define a single Arrive function with the desired branches instead.
 
 Into an occupied neighbour, Move-boundary returns `'join` (with optional `overflow`) or `'swap`. At an edge it returns `'stop`, `'wrap`, `'next-workspace` or `'next-monitor`. An empty neighbouring Column accepts the move without calling the hook. If `overflow` is omitted for a join, Place supplies it. Without a Move-boundary hook, occupied moves join using Place's Overflow policy and the existing `--boundaries` / `--boundaries-action` options govern workspace edges.
 
