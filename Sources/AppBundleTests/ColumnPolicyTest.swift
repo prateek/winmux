@@ -640,14 +640,105 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertFalse(restored.isFloating)
     }
 
+    func testArriveRunChainsDestinationPlaceBeforeItsNextCommand() async throws {
+        let supervisor = try await load("""
+            columns.width-presets = [0.25, 0.4, 0.5, 0.7],
+            arrive = fun w ctx cols => { run = ["move-node-to-workspace Three", "column-width next"] },
+            workspace.Three.columns.place = fun w ctx cols => {
+                column = 2, overflow = 'tab-group, run = ["column-width 0.5"]
+            }
+            """, shared: true)
+        let source = demo("Source"), three = demo("Three")
+        three.columns = ColumnState(count: 3, widths: [0.3, 0.3, 0.4])
+        let anchor = TestWindow.new(id: 1, parent: source.rootTilingContainer)
+        source.normalizeContainers(); XCTAssertTrue(anchor.focusWindow())
+        let window = TestWindow.new(id: 42, parent: source)
+        try await ColumnPolicy.arrive(window, on: source, floatingDefault: false, supervisor: supervisor)
+        XCTAssertTrue(window.nodeWorkspace === three)
+        XCTAssertEqual(three.columnSlot(containing: window), 2)
+        // Suppressed inner list gives 0.4; reversed command order gives 0.5.
+        XCTAssertEqual(three.columns!.widths[1], 0.7, accuracy: 0.000001)
+        XCTAssertNil(supervisor.status.lastError)
+    }
+
     func testNestedRunPlacesWindowButTerminatesPingPong() async throws {
-        _ = try await load("workspace.Ping.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group, run = [\"move-node-to-workspace Pong\"] }, workspace.Pong.columns.place = fun w ctx cols => { column = 3, overflow = 'tab-group, run = [\"move-node-to-workspace Ping\"] }", shared: true)
-        let ping = demo("Ping"), pong = demo("Pong")
+        let supervisor = try await load("""
+            columns.count = 3,
+            columns.width-presets = [0.2, 0.3, 0.4, 0.5],
+            workspace.Ping.columns.place = fun w ctx cols => {
+                column = 2, overflow = 'tab-group,
+                run = ["column-width next --window-id 99", "move-node-to-workspace Pong"]
+            },
+            workspace.Pong.columns.place = fun w ctx cols => {
+                column = 3, overflow = 'tab-group,
+                run = ["column-width next --window-id 99", "move-node-to-workspace Ping"]
+            }
+            """, shared: true)
+        let ping = demo("Ping"), pong = demo("Pong"), count = demo("Count")
+        count.columns = ColumnState(count: 3, widths: [0.2, 0.4, 0.4])
+        let counter = TestWindow.new(id: 99, parent: count.rootTilingContainer)
+        count.normalizeContainers()
+        XCTAssertEqual(count.columnSlot(containing: counter), 1)
         let window = TestWindow.new(id: 42, parent: ping)
+        var placeCalls = 0
+        window.beforeAxRecord = { placeCalls += 1 }
         try await ColumnPolicy.place(window, on: ping)
-        XCTAssertTrue(window.nodeWorkspace === pong)
-        XCTAssertEqual(pong.columnSlot(containing: window), 3)
-        XCTAssertTrue(NickelSupervisor.shared.status.lastError?.contains("nested run list suppressed") == true)
+        XCTAssertTrue(window.nodeWorkspace === ping)
+        XCTAssertEqual(ping.columnSlot(containing: window), 2)
+        XCTAssertTrue(pong.rootTilingContainer.allLeafWindowsRecursive.isEmpty)
+        XCTAssertEqual(placeCalls, 3)
+        // Three returned lists, two executed: exactly one list was suppressed.
+        XCTAssertEqual(count.columns!.widths[0], 0.4, accuracy: 0.000001)
+        XCTAssertEqual(supervisor.status.lastError,
+            "Policy run: workspace.Ping.columns.place is already running for this window; its run list is suppressed")
+    }
+
+    func testPlaceRunLayoutFloatingThenTilingBindsInnerPlaceAndContinuesOuterList() async throws {
+        let supervisor = try await load("""
+            columns.count = 3,
+            workspace.Demo.columns.place = fun w ctx cols => {
+                column = if (std.array.at 0 cols).width < 0.3 then 3 else 2,
+                overflow = 'tab-group,
+                run = ["column-width 0.5", "layout floating", "layout tiling", "column-width 0.6"]
+            }
+            """, shared: true)
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        var placeCalls = 0
+        window.beforeAxRecord = { placeCalls += 1 }
+        try await ColumnPolicy.place(window, on: ws)
+        XCTAssertTrue(window.nodeWorkspace === ws)
+        XCTAssertFalse(window.isFloating)
+        XCTAssertEqual(placeCalls, 2)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+        XCTAssertEqual(ws.columns!.widths[2], 0.6, accuracy: 0.000001)
+        XCTAssertEqual(supervisor.status.lastError,
+            "Policy run: workspace.Demo.columns.place is already running for this window; its run list is suppressed")
+    }
+
+    func testPlaceDryRunLeavesWindowWorkspaceAndWidthsUnchanged() async throws {
+        _ = try await load("""
+            workspace.Destination.columns.place = fun w ctx cols => {
+                column = 3, overflow = 'tab-group,
+                run = ["move-node-to-workspace Elsewhere", "column-width 0.5 --workspace Destination"]
+            }
+            """, shared: true)
+        let source = demo("Source"), destination = demo("Destination")
+        let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        source.normalizeContainers()
+        XCTAssertTrue(destination.focusWorkspace())
+        let parent = window.parent
+        let widths = destination.columns!.widths
+        let sourceWidths = source.columns!.widths
+        let command = try XCTUnwrap(parseCommand("place --dry-run --window-id 42 --json").cmdOrNil)
+        let result = try await command.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.stdout.joined().contains("workspace.Destination.columns.place"))
+        XCTAssertTrue(window.parent === parent)
+        XCTAssertTrue(window.nodeWorkspace === source)
+        XCTAssertEqual(source.columns!.widths, sourceWidths)
+        XCTAssertEqual(destination.columns!.widths, widths)
+        XCTAssertTrue(destination.rootTilingContainer.allLeafWindowsRecursive.isEmpty)
     }
 
     func testGlobalPlacePreservesColumnsOffDropAndFrozenRestore() async throws {
