@@ -42,6 +42,8 @@ Implementation decision: an ordinary request from its own applying callback is r
 - The decisions and tests from #39 and #40 are preserved. Arrival work survives the cancellation of the refresh that detected the window, including popup promotion, while command-owned `place` and `move-boundary` work follows its command. Nested `run` chains and loop suppression by window and hook definition stay as #40 defines them.
 - The helper process and its real and controlled adapters stay. Movement scenarios may use the same controlled dependency seam as placement scenarios, and do not adopt a helper into `NickelSupervisor.shared` only for a test.
 
+Implementation: `PolicyHookCompletion` owns snapshots, evaluation, stale-result checks (including movement's overflow lookup), normalization and guarded run execution. Operations supply fallback, abandonment, routing and cancellation behavior. Plain-tree and floating Arrive retain their existing normalization boundary. A MainActor helper override is reset by test teardown; the selected helper propagates through nested commands with a task-local. Real-helper contracts install fresh supervisors through that seam; controlled race tests suspend hook calls on continuations.
+
 **Controlled time and cancellation**
 
 - Clocks are injected into save scheduling, and into helper retry and backoff policy where deterministic policy tests add value. Process integration tests for real timeout, kill and recovery behaviour stay.
@@ -85,7 +87,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 **Config reload attempts**
 
-This part landed in its own pull request; Policy hook completion and the remaining timing work follow.
+This part landed in its own pull request; Policy hook completion landed separately and the remaining timing work follows.
 
 - [x] Tests exercise the real coordination interface with controlled loading and application and explicit completion signals, without touching real home files, login items, hotkeys or production helpers.
 - [x] The cases cover older and newer load completion in either order, an older failure, dry runs interleaved with reloads, requests during suspended application, and failure after adoption.
@@ -95,10 +97,12 @@ This part landed in its own pull request; Policy hook completion and the remaini
 
 **Policy hook completion**
 
-- [ ] The shared completion rules have one owner, and commands no longer duplicate the corresponding lifecycle protocol.
-- [ ] The existing races remain covered: closed, unbound or moved windows during record collection or helper evaluation, replacement Columns, abandoned destination placement, and suppressed follow-on commands where required.
-- [ ] Real-helper contract coverage, no-hook behaviour, popup promotion and the #39 and #40 regression scenarios pass.
-- [ ] The pull request says which rules were unified and which intentionally stay operation-specific.
+This part landed in its own pull request; the timing part follows.
+
+- [x] The shared completion rules have one owner, and commands no longer duplicate the corresponding lifecycle protocol.
+- [x] The existing races remain covered: closed, unbound or moved windows during record collection or helper evaluation, replacement Columns, abandoned destination placement, and suppressed follow-on commands where required.
+- [x] Real-helper contract coverage, no-hook behaviour, popup promotion and the #39 and #40 regression scenarios pass.
+- [x] The pull request says which rules were unified and which intentionally stay operation-specific.
 
 **Time and cancellation**
 
