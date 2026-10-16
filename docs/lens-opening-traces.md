@@ -108,3 +108,37 @@ For a true zero-gap pair in the guest driver, use `delay:0` before the two taps 
 `wait:0.005`, `wait:0.020` or `wait:0.050` between them for the other samples. The
 ordinary driver adds 15 ms after each posted key-down and key-up. With zero-duration pulses, verify both taps reached the Lens in its key rows; a posting log alone does not prove receipt. The event log's
 `bootSeconds` is the actual posting clock. `tap:backspace` deletes a character in Search and does nothing in normal mode or during a Hold.
+
+## Session refresh measurements
+
+The session record also reports `capturesRequested`, `capturesCompleted` and
+`presentedMs`. Text prints these on a `Captures:` line. Requested counts eligible
+thumbnail refresh requests, including requests the capture gate coalesces.
+Completed counts successful screenshot calls started for this Lens token; failures,
+departure captures and another session's in-flight captures do not count. A request
+that coalesces into another token's capture cannot claim its completion.
+
+Presented duration starts after the panel's show callback returns and ends at
+dismissal. It excludes hidden preparation and the strip's display delay. Counters
+and duration remain readable after dismissal; a capture returning afterwards
+cannot change them. Presentation conversion retains the session totals.
+
+Launch the application with `WINMUX_DEBUG_LENS_FRAMES=1` to sample display-link
+callback intervals while a Lens is presented. This creates a separate display link
+only for those sessions; the opening's third-tick observation is unchanged. JSON
+then includes `droppedFrames` and `longestFrameIntervalMs`; text adds a `Frames:`
+line. `droppedFrames` counts intervals exceeding 1.5 times that tick's refresh
+interval, rather than estimating the number of missing frames. The longest
+interval includes ordinary intervals. With the flag off, neither field is present
+and no sampling link is created. Callback intervals include main-thread stalls;
+they are not hardware scanout measurements.
+
+For a refresh-cost comparison, hold the same grid open without input for thirty
+seconds, dismiss, then read the session. Divide completed captures by thirty.
+Measure process CPU time separately with `ps -o cputime= -p <pid>` before and
+after each interval, and compare with a thirty-second interval with no Lens.
+Report WinMux alone as the threshold's CPU cost; report replayd and WindowServer
+alongside it for context. Sample guest-wide idle CPU at the start, middle and end;
+rerun a set if any sample is below 25%. Do not query WinMux during the interval:
+until the read-only-command refresh defect is fixed, a query can cancel unrelated
+refresh work.

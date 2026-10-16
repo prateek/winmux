@@ -54,8 +54,13 @@ struct LensSessionRecord: Codable, Equatable {
     var hints: String = "hidden"
     var peek: UInt32? = nil
     var peekCaptureMs: Double? = nil
+    var capturesRequested = 0
+    var capturesCompleted = 0
+    var presentedMs: Double = 0
+    var droppedFrames: Int? = nil
+    var longestFrameIntervalMs: Double? = nil
 
-    enum CodingKeys: String, CodingKey { case presentation, state, hold, search, selectedId, active, hoveredTileId, hints, peek, peekCaptureMs }
+    enum CodingKeys: String, CodingKey { case presentation, state, hold, search, selectedId, active, hoveredTileId, hints, peek, peekCaptureMs, capturesRequested, capturesCompleted, presentedMs, droppedFrames, longestFrameIntervalMs }
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(presentation, forKey: .presentation)
@@ -68,6 +73,11 @@ struct LensSessionRecord: Codable, Equatable {
         try container.encode(peek, forKey: .peek)
         try container.encodeIfPresent(peekCaptureMs, forKey: .peekCaptureMs)
         try container.encode(hoveredTileId, forKey: .hoveredTileId)
+        try container.encode(capturesRequested, forKey: .capturesRequested)
+        try container.encode(capturesCompleted, forKey: .capturesCompleted)
+        try container.encode(presentedMs, forKey: .presentedMs)
+        try container.encodeIfPresent(droppedFrames, forKey: .droppedFrames)
+        try container.encodeIfPresent(longestFrameIntervalMs, forKey: .longestFrameIntervalMs)
     }
 }
 struct LensTraceSnapshot: Codable, Equatable {
@@ -123,6 +133,10 @@ final class LensTraceStore {
                          "Keys: code text flags boot-seconds received-seconds recorded-seconds Presentation state Hold path destination Search selection field-editor", keys]
             if let session = trace.session {
                 lines.append("Session: \(session.presentation) state=\(session.state.rawValue) hints=\(session.hints) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") peek=\(session.peek.map(String.init) ?? "none")\(session.peekCaptureMs.map { String(format: " peek-capture=%.3fms", $0) } ?? "") active=\(session.active)")
+                lines.append("Captures: captures-requested=\(session.capturesRequested) captures-completed=\(session.capturesCompleted) presented=\(String(format: "%.3f", session.presentedMs))ms")
+                if let dropped = session.droppedFrames, let longest = session.longestFrameIntervalMs {
+                    lines.append("Frames: dropped=\(dropped) longest-interval=\(String(format: "%.3f", longest))ms")
+                }
             }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
@@ -132,6 +146,7 @@ final class LensTraceStore {
 
 @MainActor
 final class LensOpeningTrace {
+    let statistics: LensSessionStatistics
     private let id: Int
     private let presentation: String
     private let origin: LensTraceOrigin
@@ -149,6 +164,7 @@ final class LensOpeningTrace {
     private var poster: OSSignposter { lensOpeningSignposter }
 
     init(id: Int, presentation: String, origin: LensTraceOrigin, stamp: @escaping () -> Double) {
+        statistics = LensSessionStatistics(stamp: stamp)
         self.id = id; self.presentation = presentation; self.origin = origin; self.stamp = stamp
         last = origin.start
         advance("event reaching WinMux", at: origin.received)
@@ -216,7 +232,13 @@ final class LensOpeningTrace {
         if keys.count > 256 { keys.removeFirst(keys.count - 256) }
     }
     var snapshot: LensTraceSnapshot {
-        LensTraceSnapshot(id: id, presentation: presentation, source: origin.source, startedAt: origin.start,
-                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages, keys: keys, session: sessionRecord ?? liveSession.map { Self.record($0, active: true) })
+        var session = sessionRecord ?? liveSession.map { Self.record($0, active: true) }
+        session?.capturesRequested = statistics.capturesRequested
+        session?.capturesCompleted = statistics.capturesCompleted
+        session?.presentedMs = statistics.presentedMs
+        session?.droppedFrames = statistics.droppedFrames
+        session?.longestFrameIntervalMs = statistics.longestFrameIntervalMs
+        return LensTraceSnapshot(id: id, presentation: presentation, source: origin.source, startedAt: origin.start,
+                          totalMs: (last - origin.start) * 1000, signal: signal, signposting: signposting, stages: stages, keys: keys, session: session)
     }
 }

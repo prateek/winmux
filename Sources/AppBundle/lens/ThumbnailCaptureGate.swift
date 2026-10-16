@@ -3,14 +3,14 @@ import Foundation
 struct ThumbnailCaptureGate {
     private struct Request { let id: UInt32; let lens: Int? }
     private var queued: [Request] = []
-    private var active: Set<UInt32> = []
+    private var active: [UInt32: Request] = [:]
     private var lastStarted: [UInt32: TimeInterval] = [:]
 
     var inFlight: Int { active.count }
     var isIdle: Bool { queued.isEmpty && active.isEmpty }
 
     mutating func enqueue(_ id: UInt32, lens: Int? = nil, now: TimeInterval, force: Bool = false) {
-        guard !active.contains(id) else { return }
+        guard active[id] == nil else { return }
         if let index = queued.firstIndex(where: { $0.id == id }) {
             guard lens == nil, force || queued[index].lens != nil else { return }
             queued.remove(at: index)
@@ -28,14 +28,15 @@ struct ThumbnailCaptureGate {
         var ids: [UInt32] = []
         while active.count < 2, !queued.isEmpty {
             let request = queued.removeFirst()
-            active.insert(request.id)
+            active[request.id] = request
             lastStarted[request.id] = now
             ids.append(request.id)
         }
         return ids
     }
 
-    mutating func finish(_ id: UInt32) { active.remove(id) }
+    func activeLens(_ id: UInt32) -> Int? { active[id]?.lens }
+    mutating func finish(_ id: UInt32) { active.removeValue(forKey: id) }
     mutating func closeLens(_ lens: Int) { queued.removeAll { $0.lens == lens } }
     mutating func closeWindow(_ id: UInt32) {
         queued.removeAll { $0.id == id }

@@ -53,6 +53,12 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
+        lifecycle.observeFrames = { [weak self] statistics in
+            statistics.observeFrames(enabled: ProcessInfo.processInfo.environment["WINMUX_DEBUG_LENS_FRAMES"] == "1") { [weak self] tick in
+                self?.hostingView.observeSessionFrames(tick)
+                return { [weak self] in self?.hostingView.stopSessionFrames() }
+            }
+        }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
         isFloatingPanel = true
@@ -696,6 +702,25 @@ private final class LensHostingView: NSHostingView<AnyView> {
     private var firstLayout = false
     private var displayTicks = 0
     private var firstFrameLink: CADisplayLink?
+    private var sessionFrameLink: CADisplayLink?
+    private var onSessionFrame: LensSessionStatistics.Tick?
+
+    func observeSessionFrames(_ tick: @escaping LensSessionStatistics.Tick) {
+        stopSessionFrames()
+        onSessionFrame = tick
+        let link = displayLink(target: self, selector: #selector(sessionFrameTick(_:)))
+        sessionFrameLink = link
+        link.add(to: .main, forMode: .common)
+    }
+    func stopSessionFrames() {
+        sessionFrameLink?.invalidate()
+        sessionFrameLink = nil
+        onSessionFrame = nil
+    }
+    @objc private func sessionFrameTick(_ link: CADisplayLink) {
+        guard link === sessionFrameLink else { return }
+        onSessionFrame?(LensTimebase.now(), link.duration)
+    }
 
     func disarm() {
         firstLayout = false
