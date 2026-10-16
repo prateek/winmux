@@ -4,6 +4,7 @@ import Common
 enum WindowCloseFailure: String, Sendable {
     case noCloseButton = "the window has no close button"
     case appRefused = "the app refused"
+    case readOnly = "WinMux is read-only"
 }
 
 /// An accepted press counts as closed, including a press that opens a confirmation sheet.

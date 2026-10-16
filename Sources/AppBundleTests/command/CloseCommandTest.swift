@@ -99,19 +99,55 @@ final class CloseCommandTest: XCTestCase {
         }
     }
 
-    func testReadOnlyCloseFailsWithoutAttemptingOrRemovingTheWindow() async throws {
+    func testReadOnlyCloseReportsReadOnlyAndKeepsTheWindow() async throws {
         let parent = Workspace.get(byName: "1").rootTilingContainer
         let window = TestWindow.new(id: 1, parent: parent)
+        window.closeResult = .notClosed(.readOnly)
         _ = window.focusWindow()
         let io = CmdIo(stdin: .emptyStdin)
 
-        let success = try await CloseCommand(args: CloseCmdArgs(rawArgs: []), isReadOnly: true).run(.defaultEnv, io)
+        let success = try await CloseCommand(args: CloseCmdArgs(rawArgs: [])).run(.defaultEnv, io)
 
         XCTAssertFalse(success)
         XCTAssertEqual(io.stderr, ["Can't close '\(window.app.name!)': WinMux is read-only"])
-        XCTAssertEqual(window.closeAttempts, 0)
         XCTAssertTrue(window.parent === parent)
         XCTAssertTrue(Window.get(byId: 1) === window)
+    }
+
+    func testCloseAllSucceedsWhenAnEarlierCloseTakesAnotherWindowWithIt() async throws {
+        let parent = Workspace.get(byName: "1").rootTilingContainer
+        let current = TestWindow.new(id: 1, parent: parent)
+        let main = TestWindow.new(id: 2, parent: parent)
+        let companion = TestWindow.new(id: 3, parent: parent)
+        main.onClose = { companion.unbindFromParent() }
+        _ = current.focusWindow()
+        let io = CmdIo(stdin: .emptyStdin)
+
+        let result = try await parseCommand("close-all-windows-but-current").cmdOrDie.run(.defaultEnv, io)
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(io.stderr, [])
+        XCTAssertEqual(parent.children.map { ($0 as! Window).windowId }, [1])
+    }
+
+    func testMarkedLensCloseSucceedsWhenAnEarlierCloseTakesAMarkedWindowWithIt() async throws {
+        let parent = Workspace.get(byName: "1").rootTilingContainer
+        let main = TestWindow.new(id: 1, parent: parent)
+        let companion = TestWindow.new(id: 2, parent: parent)
+        main.onClose = { companion.unbindFromParent() }
+        let items = [main, companion].map {
+            SwitcherPaletteItem(id: $0.windowId, title: "Window", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
+        }
+        let session = LensSession(name: "close", settings: LensConfig(), items: items, search: "")
+        session.hover(1); session.toggleMark()
+        session.hover(2); session.toggleMark()
+        let io = CmdIo(stdin: .emptyStdin)
+
+        let result = try await runLensAction(["close"], session: session, io: io)
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(io.stderr, [])
+        XCTAssertEqual(companion.closeAttempts, 0)
     }
 
     func testAgentCloseRetainsFailedWindowAndClosesAnOrdinaryWindow() async throws {

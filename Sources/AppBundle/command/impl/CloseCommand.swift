@@ -3,7 +3,6 @@ import Common
 
 struct CloseCommand: Command {
     let args: CloseCmdArgs
-    var isReadOnly: Bool = serverArgs.isReadOnly
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
@@ -27,7 +26,6 @@ struct CloseCommand: Command {
                 }
             } else {
                 let appName = window.app.name ?? "Unknown app"
-                if isReadOnly { return io.err("Can't close '\(appName)': WinMux is read-only") }
                 switch await window.closeAxWindow() {
                     case .closed: return true
                     case .notClosed(let reason): return io.err("Can't close '\(appName)': \(reason.rawValue)")

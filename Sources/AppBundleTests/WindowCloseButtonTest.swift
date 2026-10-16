@@ -15,22 +15,37 @@ final class WindowCloseButtonTest: XCTestCase {
     func testAbsentAndDisabledButtonsAreNotPressed() {
         for button in [nil, CloseButtonElement(enabled: false)] {
             var pressed = false
-            let result = pressWindowCloseButton(button) { _ in pressed = true; return .success }
+            let result = pressWindowCloseButton(lookup: .success, button: button) { _ in pressed = true; return .success }
             XCTAssertEqual(result, .notClosed(.noCloseButton))
+            XCTAssertFalse(pressed)
+        }
+    }
+
+    func testTheLookupDecidesBeforeAnythingIsPressed() {
+        let expected: [(AXError, WindowCloseResult)] = [
+            (.noValue, .notClosed(.noCloseButton)),
+            (.attributeUnsupported, .notClosed(.noCloseButton)),
+            (.invalidUIElement, .closed),
+            (.cannotComplete, .notClosed(.appRefused)),
+            (.failure, .notClosed(.appRefused)),
+        ]
+        for (lookup, result) in expected {
+            var pressed = false
+            XCTAssertEqual(pressWindowCloseButton(lookup: lookup, button: CloseButtonElement(enabled: true)) { _ in pressed = true; return .success }, result, "\(lookup)")
             XCTAssertFalse(pressed)
         }
     }
 
     func testEnabledAndUnreadableButtonsReportTheActualPressResult() {
         for enabled in [true, nil] as [Bool?] {
-            for error in [AXError.success, .cannotComplete, .actionUnsupported, .failure] {
+            for error in [AXError.success, .invalidUIElement, .cannotComplete, .actionUnsupported, .failure] {
                 var pressed = false
-                let result = pressWindowCloseButton(CloseButtonElement(enabled: enabled)) { _ in
+                let result = pressWindowCloseButton(lookup: .success, button: CloseButtonElement(enabled: enabled)) { _ in
                     pressed = true
                     return error
                 }
                 XCTAssertTrue(pressed)
-                XCTAssertEqual(result, error == .success ? .closed : .notClosed(.appRefused))
+                XCTAssertEqual(result, [.success, .invalidUIElement].contains(error) ? .closed : .notClosed(.appRefused))
             }
         }
     }

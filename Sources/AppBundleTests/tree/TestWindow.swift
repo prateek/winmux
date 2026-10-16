@@ -40,6 +40,8 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     @MainActor var closeResult: WindowCloseResult = .closed
+    /// Runs after a close that succeeded, as an app closing a companion window along with this one.
+    @MainActor var onClose: (@MainActor () -> Void)?
     @MainActor private(set) var closeAttempts = 0
 
     @MainActor
@@ -47,6 +49,7 @@ final class TestWindow: Window, CustomStringConvertible {
         closeAttempts += 1
         guard closeResult == .closed else { return closeResult }
         unbindFromParent()
+        onClose?()
         return .closed
     }
 

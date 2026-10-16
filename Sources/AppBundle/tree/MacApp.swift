@@ -104,27 +104,25 @@ final class MacApp: AbstractApp {
     }
 
     func pressCloseButton(_ windowId: UInt32, unregisterOnSuccess: Bool = false) async -> WindowCloseResult {
-        if serverArgs.isReadOnly { return .notClosed(.appRefused) }
+        if serverArgs.isReadOnly { return .notClosed(.readOnly) }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        return (try? await withWindow(windowId) { [windows] window, _ -> WindowCloseResult in
-            var rawButton: CFTypeRef?
-            switch AXUIElementCopyAttributeValue(window, Ax.closeButtonAttr.key as CFString, &rawButton) {
-                case .noValue, .attributeUnsupported:
-                    return .notClosed(.noCloseButton)
-                case .success:
-                    guard let rawButton else { return .notClosed(.noCloseButton) }
-                    guard CFGetTypeID(rawButton) == AXUIElementGetTypeID() else { return .notClosed(.appRefused) }
-                    let result = pressWindowCloseButton(rawButton as! AXUIElement) { button in
-                        AXUIElementPerformAction(button.cast, kAXPressAction as CFString)
-                    }
-                    if result == .closed, unregisterOnSuccess {
-                        windows.threadGuarded.removeValue(forKey: windowId)
-                    }
-                    return result
-                default:
-                    return .notClosed(.appRefused)
-            }
-        }) ?? .notClosed(.appRefused)
+        do {
+            // A window the app no longer lists is already gone.
+            return try await withWindow(windowId) { [windows] window, _ -> WindowCloseResult in
+                let (button, lookup) = window.getWithError(Ax.closeButtonAttr)
+                // Fresh elements use the 6s global default; bound the button like its window.
+                if let button { AXUIElementSetMessagingTimeout(button.cast, 1.0) }
+                let result = pressWindowCloseButton(lookup: lookup, button: button) { button in
+                    AXUIElementPerformAction(button.cast, kAXPressAction as CFString)
+                }
+                if result == .closed, unregisterOnSuccess {
+                    windows.threadGuarded.removeValue(forKey: windowId)
+                }
+                return result
+            } ?? .closed
+        } catch {
+            return .notClosed(.appRefused)
+        }
     }
 
     func containsAxWindow(_ windowId: UInt32) async throws -> Bool {
