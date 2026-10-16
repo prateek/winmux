@@ -37,6 +37,10 @@ elif pathlib.Path(sys.argv[0]).name == 'osascript':
 elif pathlib.Path(sys.argv[0]).name == 'rich-app':
     pass
 elif args[0] == 'list-windows':
+    if data.get('list_fail_first') and not data.get('list_failed'):
+        data['list_failed'] = True
+        p.write_text(json.dumps(data))
+        sys.exit(1)
     if 'appear_delay' in data and 'appears' not in data:
         data['appears'] = time.time() + data['appear_delay']
         p.write_text(json.dumps(data))
@@ -228,29 +232,61 @@ elif args[0] == 'layout' and data.get('already_tiled'):
         self.assertEqual(result.returncode, 1)
         self.assertIn('1920x1080', result.stderr)
 
+    def test_display_refuses_a_larger_desk(self):
+        result = self.run_helper('display', '2560x1440@1')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('needs a 1920x1080 display; got 2560x1440@1', result.stderr)
+
+    def test_display_accepts_the_prescribed_size(self):
+        self.assertEqual(self.run_helper('display', '1920x1080@1').returncode, 0)
+
+    def test_column_survives_one_failed_window_read(self):
+        result = self.run_helper('column', '7', '2', '2', list_fail_first=True,
+                                 windows='7|Safari|Lenses and Search|2\n',
+                                 columns=[{'index': 2, 'window-ids': []}])
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def inventory(self):
-        return '\n'.join(f'{i}|{app}|{title}|1' for i, (app, title) in enumerate([
-            ('Zed', 'winmux.ncl — winmux.ncl'), ('Ghostty', 'desk'), ('Ghostty', 'desk'),
-            ('Safari', 'Lenses and Search'), ('Safari', 'Fixed Columns'),
-            ('Safari', 'Subscription events'), ('Notes', 'Notes – No notes'),
-            ('TextEdit', 'Grievances.rtf'), ('TextEdit', 'Soft language.rtf'),
-            ('TextEdit', 'Things I will get to.rtf'), ('Finder', 'desk'),
-            ('Preview', 'wallpaper.jpg'), ('Calculator', 'Calculator'),
-            ('Updater', 'A dialog that is not yours')], 1)) + '\n'
+        return '\n'.join(f'{i}|{app}|{title}|{ws}|{layout}' for i, (app, title, ws, layout) in enumerate([
+            ('Zed', 'winmux.ncl — winmux.ncl', 1, 'h_tiles'), ('Ghostty', 'desk', 1, 'v_tiles'),
+            ('Ghostty', 'desk', 1, 'v_tiles'), ('Safari', 'Lenses and Search', 2, 'v_tab_group'),
+            ('Safari', 'Fixed Columns', 2, 'v_tab_group'), ('Safari', 'Subscription events', 2, 'v_tab_group'),
+            ('Notes', 'Notes – No notes', 2, 'h_tiles'), ('TextEdit', 'Grievances.rtf', 3, 'v_tab_group'),
+            ('TextEdit', 'Soft language.rtf', 3, 'v_tab_group'),
+            ('TextEdit', 'Things I will get to.rtf', 2, 'h_tiles'), ('Finder', 'desk', 3, 'h_tiles'),
+            ('Preview', 'wallpaper.jpg', 4, 'h_tiles'), ('Calculator', 'Calculator', 4, 'floating'),
+            ('Updater', 'A dialog that is not yours', 1, 'floating')], 1)) + '\n'
+
+    def test_window_in_the_wrong_layout_is_named(self):
+        windows = self.inventory().replace('Calculator|4|floating', 'Calculator|4|h_tiles')
+        result = self.run_helper('inventory', windows=windows)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('missing Calculator window titled "Calculator" (floating on workspace 4)', result.stderr)
+        self.assertIn('extra Calculator window titled "Calculator" (h_tiles on workspace 4)', result.stderr)
+
+    def test_terminals_not_stacked_are_named(self):
+        windows = self.inventory().replace('Ghostty|desk|1|v_tiles', 'Ghostty|desk|1|h_tiles')
+        result = self.run_helper('inventory', windows=windows)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('missing Ghostty window titled "desk" (v_tiles on workspace 1)', result.stderr)
+
+    def test_inventory_survives_one_failed_window_read(self):
+        result = self.run_helper('inventory', windows=self.inventory(), list_fail_first=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_exact_fourteen_windows_pass(self):
         result = self.run_helper('inventory', windows=self.inventory())
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_equal_count_with_replacement_names_missing_and_extra(self):
-        windows = self.inventory().replace('4|Safari|Lenses and Search|1', '4|Ghostty|~|1')
+        windows = self.inventory().replace('4|Safari|Lenses and Search|2|v_tab_group', '4|Ghostty|~|1|h_tiles')
         result = self.run_helper('inventory', windows=windows)
         self.assertEqual(result.returncode, 1)
         self.assertIn('missing Safari window titled "Lenses and Search"', result.stderr)
         self.assertIn('extra Ghostty window titled "~"', result.stderr)
 
     def test_duplicate_window_is_extra_even_with_known_title(self):
-        result = self.run_helper('inventory', windows=self.inventory() + '15|Ghostty|desk|1\n')
+        result = self.run_helper('inventory', windows=self.inventory() + '15|Ghostty|desk|1|v_tiles\n')
         self.assertEqual(result.returncode, 1)
         self.assertIn('extra Ghostty window titled "desk"', result.stderr)
 

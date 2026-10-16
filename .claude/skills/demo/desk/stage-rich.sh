@@ -4,13 +4,15 @@ set -e
 export PATH=/opt/homebrew/bin:$PATH
 W=${WINMUX_CLI:-$HOME/winmux/.build/debug/winmux}
 ready() { python3 ~/desk/rich-ready.py "$@"; }
-swiftc -O ~/desk/rich-app.swift -o ~/desk/rich-app
+[[ ~/desk/rich-app -nt ~/desk/rich-app.swift ]] || swiftc -O ~/desk/rich-app.swift -o ~/desk/rich-app
 ready display "$(~/desk/rich-app display)"
 # Stop the observer before its apps, then wait until open --args can start new instances.
 ready stop WinMuxApp
 ready stop Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Music Preview Calculator Updater osascript
 mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes ~/desk/docs ~/desk/repo
 (cd ~/desk && swiftc -O wallpaper.swift -o wallpaper && swiftc -O dialog.swift -o Updater)
+# film and the probes run ~/desk/keys without building it.
+swiftc -O ~/winmux/.claude/skills/demo/keys.swift -o ~/desk/keys
 zsh ~/desk/make-repo.sh
 cp ~/desk/zed/settings.json ~/.config/zed/settings.json
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
@@ -96,7 +98,8 @@ ready workspace "4"; ready horizontal "$(need Preview "")"
 # Workspace 1, no Columns: the editor beside two terminals stacked, and a dialog that is not yours.
 put "$(need Zed "")" "1"; put "${ghostty[1]}" "1"; put "${ghostty[2]}" "1"
 ready workspace "1"; ready horizontal "$(need Zed "")"
-$W focus --window-id ${ghostty[2]} >/dev/null; $W join-with left >/dev/null 2>&1
+# A join that fails or pairs the wrong windows is caught by the inventory's layout check.
+$W focus --window-id ${ghostty[2]} >/dev/null; $W join-with left >/dev/null 2>&1 || true
 (nohup ~/desk/Updater >/dev/null 2>&1 &)
 ready front Updater "A dialog that is not yours"
 put "$(need Updater "")" "1"; $W workspace "1" >/dev/null

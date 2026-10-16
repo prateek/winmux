@@ -13,15 +13,18 @@ import urllib.request
 
 
 EMPTY_NOTES_TITLE = 'Notes – No notes'
+# App, title, workspace and layout of each window the set lists.
 EXPECTED = Counter([
-    ('Zed', 'winmux.ncl — winmux.ncl'),
-    ('Ghostty', 'desk'), ('Ghostty', 'desk'),
-    ('Safari', 'Lenses and Search'), ('Safari', 'Fixed Columns'),
-    ('Safari', 'Subscription events'), ('Notes', EMPTY_NOTES_TITLE),
-    ('TextEdit', 'Grievances.rtf'), ('TextEdit', 'Soft language.rtf'),
-    ('TextEdit', 'Things I will get to.rtf'), ('Finder', 'desk'),
-    ('Preview', 'wallpaper.jpg'), ('Calculator', 'Calculator'),
-    ('Updater', 'A dialog that is not yours'),
+    ('Zed', 'winmux.ncl — winmux.ncl', '1', 'h_tiles'),
+    ('Ghostty', 'desk', '1', 'v_tiles'), ('Ghostty', 'desk', '1', 'v_tiles'),
+    ('Updater', 'A dialog that is not yours', '1', 'floating'),
+    ('Notes', EMPTY_NOTES_TITLE, '2', 'h_tiles'),
+    ('Safari', 'Lenses and Search', '2', 'v_tab_group'), ('Safari', 'Fixed Columns', '2', 'v_tab_group'),
+    ('Safari', 'Subscription events', '2', 'v_tab_group'),
+    ('TextEdit', 'Things I will get to.rtf', '2', 'h_tiles'),
+    ('TextEdit', 'Grievances.rtf', '3', 'v_tab_group'), ('TextEdit', 'Soft language.rtf', '3', 'v_tab_group'),
+    ('Finder', 'desk', '3', 'h_tiles'),
+    ('Preview', 'wallpaper.jpg', '4', 'h_tiles'), ('Calculator', 'Calculator', '4', 'floating'),
 ])
 
 
@@ -124,8 +127,11 @@ class Readiness:
                   lambda: self.layout(window, 'h_tiles', ('h_tiles',)))
 
     def column(self, window, workspace, slot):
-        label = next((f'{row[1]} window "{row[2]}"' for row in self.windows()
-                      if row[0] == window), f'window {window}')
+        try:
+            label = next((f'{row[1]} window "{row[2]}"' for row in self.windows()
+                          if row[0] == window), f'window {window}')
+        except (subprocess.SubprocessError, OSError):
+            label = f'window {window}'
         self.put(window, workspace)
         self.workspace(workspace)
 
@@ -164,14 +170,16 @@ class Readiness:
         self.wait('docs page not served at localhost:8765/lenses.html', served)
 
     def inventory(self, notes_title=EMPTY_NOTES_TITLE):
-        expected = EXPECTED.copy()
-        del expected[('Notes', EMPTY_NOTES_TITLE)]
-        expected[('Notes', notes_title)] = 1
-        actual = Counter((row[1], row[2]) for row in self.windows())
+        expected = Counter({(app, notes_title if app == 'Notes' else title, ws, layout): n
+                            for (app, title, ws, layout), n in EXPECTED.items()})
+        text = self.wait('WinMux window list not readable', lambda: self.winmux(
+            'list-windows', '--all', '--format',
+            '%{window-id}|%{app-name}|%{window-title}|%{workspace}|%{window-layout}'))
+        actual = Counter(tuple(line.split('|', 4)[1:]) for line in text.splitlines() if line)
         differences = []
         for kind, windows in [('missing', expected - actual), ('extra', actual - expected)]:
-            for (app, title), count in windows.items():
-                differences.extend([f'{kind} {app} window titled "{title}"'] * count)
+            for (app, title, ws, layout), count in windows.items():
+                differences.extend([f'{kind} {app} window titled "{title}" ({layout} on workspace {ws})'] * count)
         if differences:
             raise StageError('\n'.join(differences))
 
@@ -181,8 +189,8 @@ def main(args):
     command, *args = args
     if command == 'display':
         match = re.fullmatch(r'(\d+)x(\d+)@\d+', args[0])
-        if not match or int(match[1]) < 1920 or int(match[2]) < 1080:
-            raise StageError(f'rich desk needs at least 1920x1080 points; got {args[0]}')
+        if not match or (match[1], match[2]) != ('1920', '1080'):
+            raise StageError(f'rich desk needs a 1920x1080 display; got {args[0]}')
     elif command == 'window':
         print(ready.window(*args))
     elif command == 'notes':
