@@ -27,11 +27,19 @@ Nothing.
 
 - **The cause.** Safari's first launch in a clone is slower than the five seconds the script allows before it opens the second page. Check that before changing anything else.
 
+## Built
+
+The cold reproduction confirmed **The cause**: Cmd-N reached Ghostty before Safari became frontmost, and the next URL replaced the Lenses page. The second unchanged run also sent Cmd-N to Ghostty and reported Column errors despite exiting 0.
+
+The script now sets Safari’s sandboxed `TabCreationPolicy` to open external URLs in windows. It sends no window-creation keystrokes and closes no extra windows. One polling function bounds process shutdown, CLI readiness, native activation and Focus, named windows, the local Notes list and its matching window title, the docs server, workspaces and Column membership. Each condition has 60 seconds by default, overridable with `STAGE_RICH_TIMEOUT`; the poll interval is 0.25 seconds. `WINMUX_CLI` selects the CLI, defaulting to the guest debug build, so plain-Python tests can use a stub. Final validation compares the fourteen app/title entries including duplicate titles, and names every missing or extra window. Notes’ exact expected title follows its existing local note count; the script changes no note content.
+
+The rich set requires at least 1920×1080 points before it stops any apps. Its bootstrap config disables automatic reload while the original rich config is restored and explicitly loaded, then waits for the three/two Columns. The rich config and the standing set are unchanged. Host and pinned-version guest `make check` pass (1,257 Swift, 82 helper and 125 Python tests). Three consecutive fresh clones each stage fourteen windows on their first run, with the original workspace, Column, tab-group and floating layout checked by CLI readback and screenshots. A live unavailable-Calculator run fails by name after its 60-second wait; plain-Python tests cover delayed appearance and bounded absence through the same CLI seam.
+
 ## Done when
 
-- [ ] In three fresh clones in a row, the first run of `stage-rich.sh` exits 0 with fourteen windows and no other.
-- [ ] A missing window fails the run with its name within the bound.
-- [ ] The `demo` skill and the handoff no longer tell a driver to run it twice, restage Notes or close a terminal.
+- [x] In three fresh clones in a row, the first run of `stage-rich.sh` exits 0 with fourteen windows and no other.
+- [x] A missing window fails the run with its name within the bound.
+- [x] The `demo` skill and the handoff no longer tell a driver to run it twice, restage Notes or close a terminal.
 
 ## Sources
 
