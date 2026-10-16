@@ -58,3 +58,9 @@ extension Workspace {
         }
     }
 }
+
+@MainActor
+func applyColumnsConfiguration(_ settings: ColumnsConfig, updateLanding: () -> Void) {
+    for workspace in Workspace.all { workspace.applyColumns(settings) }
+    updateLanding()
+}

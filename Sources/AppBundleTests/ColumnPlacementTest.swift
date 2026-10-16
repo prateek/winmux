@@ -7,6 +7,8 @@ import XCTest
 final class ColumnPlacementTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
+    override func tearDown() async throws { config.enableNormalizationFlattenContainers = true }
+
     struct Case {
         let occupied: Bool
         let overflow: String
@@ -28,9 +30,10 @@ final class ColumnPlacementTest: XCTestCase {
              Case(occupied: true, overflow: "split", group: true),
              Case(occupied: true, overflow: "squeeze", group: true),
              Case(occupied: true, overflow: "split", alreadyHere: true),
-             Case(occupied: true, overflow: "float", alreadyHere: true, soleNested: true),
-             Case(occupied: true, overflow: "squeeze", alreadyHere: true, soleNested: true),
-             Case(occupied: true, overflow: "split", alreadyHere: true, soleNested: true)]
+             Case(occupied: false, overflow: "float", alreadyHere: true, soleNested: true),
+             Case(occupied: false, overflow: "squeeze", alreadyHere: true, soleNested: true),
+             Case(occupied: false, overflow: "split", alreadyHere: true, soleNested: true),
+             Case(occupied: false, overflow: "tab-group", alreadyHere: true, soleNested: true)]
     }
 
     private func fixture(_ row: Case) async throws -> (Workspace, TreeNode, CGRect) {

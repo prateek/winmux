@@ -58,16 +58,21 @@ final class LensLifecycleTest: XCTestCase {
         // A press after the release is consumed and does not move the selection.
         XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .command), .consumed)
         let model = stripSession()
+        var committed: String?
+        model.onAction = { committed = $0 }
         XCTAssertTrue(store.complete(model, ticket: ticket))
         XCTAssertEqual(model.selectedId, 2)
-        XCTAssertEqual(model.stripReleasedWhileOpening, [.option])
+        XCTAssertEqual(committed, "alt-enter")
+        XCTAssertNil(model.hold)
         XCTAssertEqual(model.stripReleaseKey(flags: [.option]), "alt-enter")
 
         let held = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
         store.openingFlagsChanged([.command, .option])
         let second = stripSession()
         XCTAssertTrue(store.complete(second, ticket: held))
-        XCTAssertNil(second.stripReleasedWhileOpening)
+        XCTAssertTrue(store.session === second)
+        XCTAssertNotNil(second.hold)
+        XCTAssertNil(second.stripReleaseKey(flags: [.command, .option]))
     }
 
     func testCancelledOpeningDoesNotTransferPendingSteps() {

@@ -197,15 +197,16 @@ enum ColumnPolicy {
 extension Workspace {
     @MainActor func mruColumnSlot(excluding window: Window?) -> Int {
         rootTilingContainer.childrenByMostRecentUse.first { child in
-            child.allLeafWindowsRecursive.contains { $0 !== window }
+            ColumnPlacement.isOccupied(child, excluding: window)
         }?.columnSlot ?? 1
     }
 
     @MainActor func columnRecords(excluding window: Window? = nil) async throws -> JSONValue {
         guard let columns else { return .array([]) }
-        let slots = (1...columns.slotCount).map { slot in
-            rootTilingContainer.children.first { $0.columnSlot == slot }?.allLeafWindowsRecursive.filter { $0 !== window } ?? []
+        let nodes = (1...columns.slotCount).map { slot in
+            rootTilingContainer.children.first { $0.columnSlot == slot }
         }
+        let slots = nodes.map { $0?.allLeafWindowsRecursive.filter { $0 !== window } ?? [] }
         let widths = columns.widths
         let windows = slots.flatMap { $0 }
         var values: [UInt32: JSONValue] = [:]
@@ -217,7 +218,8 @@ extension Workspace {
         }
         let records = slots.enumerated().map { index, windows in
             JSONValue.object(["index": .int(index + 1), "width": .double(Double(widths[index])),
-                              "empty": .bool(windows.isEmpty), "windows": .array(windows.compactMap { values[$0.windowId] })])
+                              "empty": .bool(!ColumnPlacement.isOccupied(nodes[index], excluding: window)),
+                              "windows": .array(windows.compactMap { values[$0.windowId] })])
         }
         return .array(records)
     }
