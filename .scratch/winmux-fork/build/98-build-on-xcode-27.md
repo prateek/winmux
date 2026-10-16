@@ -22,12 +22,12 @@ Nothing.
 
 ## Done when
 
-- [ ] `make check` passes on the build machine on its Xcode 27.0 and leaves `Package.resolved` unchanged.
-- [ ] `make check` passes in a fresh clone of the new golden image, whose preflight passes and reports Swift 6.4.
-- [ ] `Build and test` is green in CI on Swift 6.4.0.
-- [ ] `script/dogfood-release --next --dry-run` completes on the build machine with the tree unchanged.
-- [ ] Both desk sets stage in a fresh clone of the new image.
-- [ ] The `vm` skill and the relay skill name Swift 6.4 and the new base, and no longer call Xcode 27 a trap.
+- [x] `make check` passes on the build machine on its Xcode 27.0 and leaves `Package.resolved` unchanged.
+- [x] `make check` passes in a fresh clone of the new golden image, whose preflight passes and reports Swift 6.4.
+- [x] `Build and test` is green in CI on Swift 6.4.0.
+- [x] `script/dogfood-release --next --dry-run` completes on the build machine with the tree unchanged.
+- [x] Both desk sets stage in a fresh clone of the new image.
+- [x] The `vm` skill and the relay skill name Swift 6.4 and the new base, and no longer call Xcode 27 a trap.
 
 ## Sources
 
