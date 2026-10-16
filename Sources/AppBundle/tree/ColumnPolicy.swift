@@ -1,18 +1,12 @@
 import AppKit
 import Common
 
-struct PolicyRun: Equatable {
-    let path: String
-    let commands: [String]
-}
-
 struct PlacementDecision: Equatable {
     let slot: Int
     let target: String
     let overflow: OverflowPolicy
     let hook: String?
-    var runList: PolicyRun?
-    var run: [String] { runList?.commands ?? [] }
+    var run: [String] = []
     var failure: String?
 
     var json: JSONValue {
@@ -149,6 +143,8 @@ enum ColumnPolicy {
         var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
+        // An Arrive answer is Arrive's result: name Arrive in its failures and as its source.
+        let source = answer == nil ? path : config.arrive
         let result: JSONValue?
         if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
         builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
@@ -166,31 +162,30 @@ enum ColumnPolicy {
                 case "nearest-empty": slot = builtIn.slot
                 case "last": slot = columns.count
                 default:
-                    supervisor.recordHookFailure("\(path ?? "arrive"): invalid Column target")
+                    supervisor.recordHookFailure("\(source ?? "arrive"): invalid Column target")
                     builtIn.failure = supervisor.status.lastError
                     return builtIn
             }
         } else if case .int(let value) = result["column"] {
             guard (1...columns.count).contains(value) else {
-                supervisor.recordHookFailure("\(path ?? "arrive"): Column index \(value) exceeds count \(columns.count)")
+                supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(value) exceeds count \(columns.count)")
                 builtIn.failure = supervisor.status.lastError
                 return builtIn
             }
             slot = value
             target = String(value)
         } else {
-            supervisor.recordHookFailure("\(path ?? "arrive"): missing Column target")
+            supervisor.recordHookFailure("\(source ?? "arrive"): missing Column target")
             builtIn.failure = supervisor.status.lastError
             return builtIn
         }
         guard (1...columns.slotCount).contains(slot) else {
-            supervisor.recordHookFailure("\(path ?? "arrive"): Column index \(slot) exceeds count \(columns.slotCount)")
+            supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(slot) exceeds count \(columns.slotCount)")
             builtIn.failure = supervisor.status.lastError
             return builtIn
         }
         return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
-                                 hook: answer == nil ? path : config.arrive,
-                                 runList: (answer == nil ? path : config.arrive).map { PolicyRun(path: $0, commands: commands(result)) })
+                                 hook: source, run: commands(result))
     }
 
     @discardableResult
@@ -204,7 +199,7 @@ enum ColumnPolicy {
         if window.isBound { window.unbindFromParent() }
         workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
         workspace.normalizeContainers()
-        if let list = decision.runList { try await run(list.commands, window: window, path: list.path) }
+        if let path = decision.hook { try await run(decision.run, window: window, path: path) }
         return true
     }
 

@@ -661,6 +661,18 @@ final class ColumnPolicyTest: XCTestCase {
         XCTAssertNil(supervisor.status.lastError)
     }
 
+    func testInvalidArriveColumnIsBlamedOnArriveNotDestinationPlace() async throws {
+        let supervisor = try await load("""
+            arrive = fun w ctx cols => { workspace = "Code", column = 9 },
+            workspace.Code.columns.place = fun w ctx cols => { column = 2, overflow = 'tab-group }
+            """, shared: true)
+        let source = demo("Source"), code = demo("Code")
+        let window = TestWindow.new(id: 42, parent: source)
+        try await ColumnPolicy.arrive(window, on: source, floatingDefault: false, supervisor: supervisor)
+        XCTAssertTrue(window.nodeWorkspace === code)
+        XCTAssertEqual(supervisor.status.lastError, "arrive: Column index 9 exceeds count 3")
+    }
+
     func testNestedRunPlacesWindowButTerminatesPingPong() async throws {
         let supervisor = try await load("""
             columns.count = 3,
