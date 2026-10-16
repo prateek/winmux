@@ -41,6 +41,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Questions and checks that wait on Prateek** are children of **Open with Prateek: questions and checks that wait on him**, not of this umbrella.
 - **One defect found while filming the hero demos** is with the follow-ups: Summon's landing outline ignores the window's minimum width.
 - **One defect found while settling the guest's private-picker prompt** is with the follow-ups: a macOS Tips banner can appear on a guest's desktop.
+- **One defect found while landing the fourteen-window desk** is with the follow-ups: the standing desk does not stage after the rich desk in the same guest.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
