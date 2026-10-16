@@ -1487,3 +1487,87 @@ fn every_lenses_document_nickel_example_loads_as_a_whole_config() {
     assert!(block.is_none(), "unclosed Nickel fence");
     assert!(count > 0, "no Nickel examples found");
 }
+
+#[test]
+fn removed_detection_message_matches_shared_fixture() {
+    assert_eq!(
+        winmux_nickel::protocol::ON_WINDOW_DETECTED_REMOVED,
+        include_str!("fixtures/on-window-detected-removed.txt").trim_end_matches('\n'),
+    );
+}
+
+fn assert_removal_error(name: &str, source: &str, phase: &str) {
+    let message = include_str!("fixtures/on-window-detected-removed.txt").trim_end_matches('\n');
+    let path = std::env::temp_dir().join(format!("winmux-removal-{name}-{}.ncl", std::process::id()));
+    std::fs::write(&path, source).unwrap();
+    match Engine::load(Source::File(&path), &library()) {
+        Err(_) => assert!(phase == "engine" || phase == "contract", "{name}: unexpected Engine failure"),
+        Ok(mut engine) => {
+            assert_ne!(phase, "engine", "{name}: expected Engine load failure");
+            let result = engine.static_json();
+            if phase == "key" { assert!(result.is_ok(), "{name}: {result:?}"); }
+            else { assert!(result.is_err(), "{name}: expected static evaluation failure"); }
+        }
+    }
+    let mut helper = Helper::new(library());
+    let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": path}));
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(reply["ok"], false, "{name}: {reply}");
+    let error = reply["error"].as_str().unwrap();
+    assert_eq!(error.matches(message).count(), 1, "{name}: {error}");
+    assert!(error.ends_with(message), "{name}: {error}");
+    if phase == "key" { assert_eq!(error, message); }
+    if phase == "contract" { assert!(error.contains("extra field"), "{name}: {error}"); }
+}
+
+#[test]
+fn removed_detection_reports_once_at_the_end_when_engine_load_fails() {
+    assert_removal_error("engine", "{ on-window-detected = }", "engine");
+}
+
+#[test]
+fn removed_detection_reports_once_at_the_end_when_static_json_fails() {
+    assert_removal_error("static", "{ on-window-detected = 1 + true }", "static");
+}
+
+#[test]
+fn removed_detection_reports_once_for_an_evaluated_plain_record() {
+    assert_removal_error("plain", "{ on-window-detected = [] }", "key");
+}
+
+#[test]
+fn removed_detection_preserves_contract_diagnostics_with_one_or_two_extra_fields() {
+    for (name, source) in [
+        ("contract", r#"let W = import "winmux/winmux.ncl" in { on-window-detected = [] } | W.Config"#),
+        ("two-extra", r#"let W = import "winmux/winmux.ncl" in { bogus-key = true, on-window-detected = [] } | W.Config"#),
+    ] {
+        assert_removal_error(name, source, "contract");
+    }
+}
+
+#[test]
+fn stderr_diagnostics_add_a_missing_newline_and_preserve_nickels_newlines() {
+    let missing = "/nonexistent/winmux-config.ncl";
+    let output = run_helper(&["check", missing]);
+    assert_eq!(output.status.code(), Some(2));
+    let diagnostic = winmux_nickel::protocol::load(Some(Path::new(missing)), &library()).err().unwrap();
+    assert!(!diagnostic.ends_with('\n'));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), format!("{diagnostic}\n"));
+
+    let missing = Path::new("/nonexistent/winmux-config.toml");
+    let diagnostic = winmux_nickel::convert::convert(missing, &library()).err().unwrap();
+    assert!(diagnostic.ends_with('\n'));
+    let output = run_helper(&["convert", missing.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), diagnostic);
+
+    let missing_library = Path::new("/nonexistent/winmux-library");
+    let diagnostic = winmux_nickel::protocol::load(None, missing_library).err().unwrap();
+    assert!(diagnostic.ends_with('\n'));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_winmux-nickel"))
+        .arg("defaults")
+        .env("WINMUX_NICKEL_LIBRARY", missing_library)
+        .output().unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), diagnostic);
+}

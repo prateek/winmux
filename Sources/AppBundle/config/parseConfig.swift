@@ -56,6 +56,8 @@ func readConfig(forceConfigUrl: URL? = nil) async -> Result<LoadedConfig, String
 }
 
 
+let onWindowDetectedRemovedMessage = "on-window-detected was removed. Rewrite it as an arrive hook; winmux config convert leaves each rule as a commented-out arrive branch."
+
 private let keyMappingConfigRootKey = "key-mapping"
 private let modeConfigRootKey = "mode"
 private let persistentWorkspacesKey = "persistent-workspaces"
@@ -162,10 +164,11 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     guard case .object(let fields) = settings else {
         return (Config(), [.syntax("The config must be a record")])
     }
-    var parsed = parseConfig(tomlTable(fields.filter { !nonTomlRootKeys.contains($0.key) }))
-    if fields.keys.contains("on-window-detected"), !parsed.errors.contains(where: { $0.description.contains("arrive") }) {
-        parsed.errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
+    let table = tomlTable(fields.filter { !nonTomlRootKeys.contains($0.key) })
+    if case .null = fields["on-window-detected"] {
+        table["on-window-detected"] = TOMLArray([])
     }
+    var parsed = parseConfig(table)
     if case .object(let lenses) = fields["lenses"] {
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
         for (name, value) in lenses {
@@ -227,7 +230,8 @@ private func tomlValue(_ value: JSONValue) -> TOMLValueConvertible? {
 @MainActor private func parseConfig(_ rawTable: TOMLTable) -> (config: Config, errors: [TomlParseError]) {
     var errors: [TomlParseError] = []
     if rawTable.contains(key: "on-window-detected") {
-        errors.append(.semantic(.rootKey("on-window-detected"), "Removed; rewrite window detection using arrive"))
+        errors.append(.semantic(.emptyRoot, onWindowDetectedRemovedMessage))
+        rawTable.remove(at: "on-window-detected")
     }
 
     var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &errors)

@@ -103,23 +103,29 @@ impl Helper {
     }
 }
 
+pub const ON_WINDOW_DETECTED_REMOVED: &str = "on-window-detected was removed. Rewrite it as an arrive hook; winmux config convert leaves each rule as a commented-out arrive branch.";
+
 /// Loads a config, checks its contracts and smoke-runs its functions. The result holds the
 /// static settings, every file the config was read from, and the directory of the shipped library.
 pub fn load(path: Option<&Path>, library: &Path) -> Result<(Engine, Value), Diagnostic> {
     let source = path.map_or(Source::Defaults, Source::File);
-    let mut engine = Engine::load(source, library).map_err(|error| {
-        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
-    })?;
-    let mut config = engine.static_json().map_err(|error| {
-        if error.contains("on-window-detected") { format!("{error}\non-window-detected was removed; rewrite it using arrive") } else { error }
-    })?;
+    let mut engine = Engine::load(source, library).map_err(with_removal_message)?;
+    let mut config = engine.static_json().map_err(with_removal_message)?;
     if config.get("on-window-detected").is_some() {
-        return Err("on-window-detected was removed; rewrite it using arrive".to_owned());
+        return Err(ON_WINDOW_DETECTED_REMOVED.to_owned());
     }
     let warnings = normalize_columns(&mut config)?;
     smoke_run(&mut engine)?;
     let imports: Vec<String> = engine.imports().iter().map(|p| p.to_string_lossy().into_owned()).collect();
     Ok((engine, json!({ "config": config, "imports": imports, "library": library.to_string_lossy(), "warnings": warnings })))
+}
+
+fn with_removal_message(error: Diagnostic) -> Diagnostic {
+    if error.contains("on-window-detected") {
+        format!("{error}\n{ON_WINDOW_DETECTED_REMOVED}")
+    } else {
+        error
+    }
 }
 
 fn match_bits(

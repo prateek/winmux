@@ -206,13 +206,42 @@ extension ConfigTest {
         assertEquals(parsed.modes[mainModeId]?.bindings[explicitBinding.descriptionWithKeyCode], explicitBinding)
     }
 
-    func testRemovedDetectionKeyNamesArriveInMigrationError() {
+    private func removalMessageFixture() throws -> String {
+        let url = projectRootUrl.appending(path: "nickel-helper/tests/fixtures/on-window-detected-removed.txt")
+        return try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .newlines)
+    }
+
+    func testRemovedDetectionMessageMatchesSharedFixture() throws {
+        XCTAssertEqual(onWindowDetectedRemovedMessage, try removalMessageFixture())
+    }
+
+    func testRemovedDetectionKeyNamesArriveInMigrationError() throws {
+        let message = try removalMessageFixture()
         let (_, errors) = parseConfig("[[on-window-detected]]\nrun = []")
-        XCTAssertTrue(errors.descriptions.contains { $0.contains("on-window-detected") && $0.contains("arrive") })
+        XCTAssertEqual(errors.descriptions, [message])
         let (_, jsonErrors) = parseConfig(.object(["on-window-detected": .array([])]))
-        XCTAssertTrue(jsonErrors.descriptions.contains { $0.contains("arrive") })
+        XCTAssertEqual(jsonErrors.descriptions, [message])
         let (_, nullErrors) = parseConfig(.object(["on-window-detected": .null]))
-        XCTAssertTrue(nullErrors.descriptions.contains { $0.contains("arrive") })
+        XCTAssertEqual(nullErrors.descriptions, [message])
+    }
+
+    func testRemovedDetectionDoesNotHideOtherUnknownKeys() throws {
+        let message = try removalMessageFixture()
+        let (_, errors) = parseConfig("bogus-key = true\n[[on-window-detected]]\nrun = []")
+        XCTAssertEqual(errors.descriptions, [message, "bogus-key: Unknown top-level key"])
+        let (_, jsonErrors) = parseConfig(.object(["bogus-key": .bool(true), "on-window-detected": .null]))
+        XCTAssertEqual(jsonErrors.descriptions, [message, "bogus-key: Unknown top-level key"])
+    }
+
+    func testConfigWithoutRemovedDetectionPreservesSettingsAndUnknownKeys() {
+        let (toml, errors) = parseConfig("start-at-login = true")
+        XCTAssertEqual(errors.descriptions, [])
+        XCTAssertTrue(toml.startAtLogin)
+        let (json, jsonErrors) = parseConfig(.object(["start-at-login": .bool(true)]))
+        XCTAssertEqual(jsonErrors.descriptions, [])
+        XCTAssertTrue(json.startAtLogin)
+        let (_, unknownErrors) = parseConfig("bogus-key = true")
+        XCTAssertEqual(unknownErrors.descriptions, ["bogus-key: Unknown top-level key"])
     }
 
     func testRegex() {

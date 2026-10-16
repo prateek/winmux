@@ -38,7 +38,7 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(diagnostic) => {
-                eprint!("{diagnostic}");
+                print_diagnostic(&diagnostic);
                 ExitCode::from(1)
             }
         },
@@ -51,7 +51,7 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(diagnostic) => {
-                eprint!("{diagnostic}");
+                print_diagnostic(&diagnostic);
                 ExitCode::from(1)
             }
         },
@@ -67,6 +67,13 @@ fn print(text: &str) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn print_diagnostic(diagnostic: &str) {
+    eprint!("{diagnostic}");
+    if !diagnostic.ends_with('\n') {
+        eprintln!();
+    }
+}
+
 fn check(file: Option<&Path>, library: &Path) -> ExitCode {
     match protocol::load(file, library) {
         Ok((_, result)) => {
@@ -76,7 +83,7 @@ fn check(file: Option<&Path>, library: &Path) -> ExitCode {
             ExitCode::SUCCESS
         },
         Err(diagnostic) => {
-            eprint!("{diagnostic}");
+            print_diagnostic(&diagnostic);
             ExitCode::from(2)
         }
     }
