@@ -101,12 +101,13 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     private var state = ConfigReloadState()
     private var notifications = ConfigReloadNotifications()
     private var savedDuringStartup = false
-    /// Whether any attempt has adopted a candidate. Startup's fallback to the shipped defaults
+    /// Whether any attempt has applied a candidate. Startup's fallback to the shipped defaults
     /// does not replace a config a later reload put in effect.
-    private var hasAdopted = false
+    private var hasApplied = false
     private var waitingForIdle: [CheckedContinuation<Void, Never>] = []
-    /// Attempts whose load returned while another applied, each waiting for its turn.
-    private var waitingToApply: [Int: CheckedContinuation<Bool, Never>] = [:]
+    /// The pending attempt of `state`, waiting for its turn: resumed with true to apply, or false
+    /// when a newer request supersedes it.
+    private var waitingToApply: (id: Int, turn: CheckedContinuation<Bool, Never>)?
 
     private struct Attempt {
         let dryRun: Bool
@@ -135,8 +136,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.configPath = configPath
     }
 
-    /// The application runs in the caller's task, so it keeps the caller's task-locals and
-    /// cancellation, as it did when `reloadConfig` applied the config itself.
+    /// The application runs in the caller's task, with the caller's task-locals and cancellation.
     func request(
         forceConfigUrl: URL? = nil,
         dryRun: Bool = false,
@@ -151,14 +151,14 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         }
         let attempt = Attempt(dryRun: dryRun, noGui: noGui, trigger: trigger, path: forceConfigUrl?.path ?? configPath())
         let request = state.requested(dryRun: dryRun)
-        if let id = request.superseded { waitingToApply.removeValue(forKey: id)?.resume(returning: false) }
+        if let id = request.superseded { takeWaiter(id).resume(returning: false) }
         let read = await load(forceConfigUrl)
         if dryRun { return completeDryRun(attempt, read) }
         let proceed: Bool
         switch state.loaded(request.id) {
             case .supersede: proceed = false
             case .begin: proceed = true
-            case .wait: proceed = await withCheckedContinuation { waitingToApply[request.id] = $0 }
+            case .wait: proceed = await withCheckedContinuation { waitingToApply = (request.id, $0) }
         }
         guard proceed else {
             if case .success(let candidate) = read { helper.dispose(candidate) }
@@ -186,12 +186,12 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         if case .success(let candidate) = read {
             // Adopt without suspending; only application may yield to newer requests.
             helper.adopt(candidate)
-            hasAdopted = true
             reporting.outcome = .loaded(imports: candidate.imports, library: candidate.library)
             do {
                 try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in
                     try await apply(candidate)
                 }
+                hasApplied = true
                 report.clear()
                 notifications.loaded()
                 report.log(.notice, "Loaded the config from \(reporting.path)")
@@ -209,10 +209,16 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
 
     private func applicationFinished(_ id: Int) {
         if let next = state.applicationFinished(id) {
-            waitingToApply.removeValue(forKey: next).orDie("Missing reload attempt \(next)").resume(returning: true)
+            takeWaiter(next).resume(returning: true)
         } else {
             becameIdle()
         }
+    }
+
+    private func takeWaiter(_ id: Int) -> CheckedContinuation<Bool, Never> {
+        guard let waiter = waitingToApply, waiter.id == id else { preconditionFailure("Reload attempt \(id) is not waiting for its turn") }
+        waitingToApply = nil
+        return waiter.turn
     }
 
     private func failure(_ message: String, _ attempt: Attempt, _ reporting: inout Reporting) {
@@ -268,13 +274,13 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     }
 
     /// Applies the shipped defaults when startup's own load did not put a config in effect. It
-    /// waits for an application under way, and does nothing once any reload has adopted a
+    /// waits for an application under way, and does nothing once any reload has applied a
     /// candidate: a reload that replaced startup's own wins over the defaults.
     func applyStartupFallback(_ application: @MainActor () async throws -> Void) async rethrows {
         while state.applying != nil {
             await withCheckedContinuation { waitingForIdle.append($0) }
         }
-        if hasAdopted { return }
+        if hasApplied { return }
         let id = state.beginFallback()
         defer { applicationFinished(id) }
         try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in

@@ -494,4 +494,21 @@ final class ConfigReloaderTest: SerialClockTestCase {
         XCTAssertTrue(try c.result.get(), "the cancelled caller releases its turn")
         assertServing(probe, "c")
     }
+
+    func testStartupFallbackAppliesWhenTheReloadThatReplacedStartupFailedToApply() async throws {
+        let probe = ReloadProbe(), startupGate = ReloadGate()
+        let owner = probe.owner()
+        probe.loadGates["startup"] = startupGate
+        probe.applyFailure = ReloadTestError.apply
+        let startup = Task { await self.request(owner, "startup") }
+        await startupGate.entered.wait()
+        let a = await request(owner, "a")
+        XCTAssertThrowsError(try a.result.get())
+        startupGate.release()
+        let startupResult = await startup.value
+        XCTAssertFalse(try startupResult.result.get())
+        var fallbackRan = false
+        await owner.applyStartupFallback { fallbackRan = true }
+        XCTAssertTrue(fallbackRan, "a reload that failed to apply leaves startup's fallback to the shipped defaults")
+    }
 }
