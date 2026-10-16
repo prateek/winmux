@@ -3,7 +3,6 @@ import Foundation
 enum NickelFailure: Error, Equatable, Sendable {
     /// The helper answered with an error. The text is Nickel's own diagnostic.
     case diagnostic(String)
-    case cancelled
     /// The helper did not answer in time, which means it is hung. It has been killed.
     case timedOut
     /// No helper could take the request: not found, not running, or stopped by the breaker.
@@ -12,7 +11,6 @@ enum NickelFailure: Error, Equatable, Sendable {
     var message: String {
         switch self {
             case .diagnostic(let text): text
-            case .cancelled: "The config helper request was cancelled"
             case .timedOut: "The config helper did not answer in time and was restarted"
             case .unavailable(let reason): reason
         }
@@ -38,6 +36,7 @@ actor NickelHelperProcess {
     private var stopRequested = false
     private let onCrash: @Sendable (Int32) -> Void
 
+    /// - Parameter onCrash: Called with the pid when the helper exits without having been asked to.
     init(channel: any NickelByteChannel, clock: any Clock<Duration> = ContinuousClock(),
          onCrash: @escaping @Sendable (Int32) -> Void) {
         self.channel = channel
@@ -70,18 +69,7 @@ actor NickelHelperProcess {
             try await clock.sleep(for: timeout)
             self.timeOut(id)
         }
-        let cancellable = request["op"] != .string("load")
-        let result: Result<NickelReply, NickelFailure> = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if cancellable && Task.isCancelled {
-                    continuation.resume(returning: .failure(.cancelled))
-                } else {
-                    pending[id] = continuation
-                }
-            }
-        } onCancel: {
-            if cancellable { Task { await self.cancelRequest(id) } }
-        }
+        let result = await withCheckedContinuation { pending[id] = $0 }
         timer.cancel()
         return result
     }
@@ -95,10 +83,6 @@ actor NickelHelperProcess {
     func kill() {
         stopRequested = true
         if !hasExited { channel.kill() }
-    }
-
-    private func cancelRequest(_ id: Int) {
-        pending.removeValue(forKey: id)?.resume(returning: .failure(.cancelled))
     }
 
     private func timeOut(_ id: Int) {

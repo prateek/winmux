@@ -14,7 +14,7 @@ final class AppRefreshDeadlineTest: SerialClockTestCase {
         XCTAssertEqual(result, [1])
     }
 
-    func testDeadlineCancelsWorkAndRejectsItsLateResultButWaitsForItToYield() async throws {
+    func testDeadlineCancelsWorkAndWaitsForWorkThatIgnoresIt() async throws {
         let clock = TestClock(), gate = ReloadGate()
         var completed = false, wasCancelled = false, cancellationObserved = false
         let cancellation = ReloadSignal()
@@ -45,13 +45,34 @@ final class AppRefreshDeadlineTest: SerialClockTestCase {
         gate.release()
         let result = try await task.value
         XCTAssertTrue(wasCancelled)
-        XCTAssertEqual(result, [2], "deadline returns model windows, never the cancelled enumeration's late result")
+        XCTAssertEqual(result, [1], "work that ignored the cancellation and finished anyway is used, as on the base")
+    }
+
+    func testDeadlineFallsBackToModelWindowsWhenWorkHonoursCancellation() async throws {
+        let clock = TestClock(), gate = ReloadGate()
+        var completed = false
+        let task = Task { @MainActor in
+            let result = try await appRefreshWithDeadline(clock: clock, work: {
+                await gate.hold()
+                try Task.checkCancellation()
+                return [1]
+            }, fallback: { [2] })
+            completed = true
+            return result
+        }
+        await gate.entered.wait()
+        await clock.advance(by: .milliseconds(1500) - .nanoseconds(1))
+        XCTAssertFalse(completed, "no result before 1500 ms")
+        await clock.advance(by: .nanoseconds(1))
+        gate.release()
+        let result = try await task.value
+        XCTAssertEqual(result, [2], "deadline returns the model's windows for the app")
     }
 
     func testCancellingRefreshSessionPropagatesCancellation() async throws {
         let clock = TestClock(), gate = ReloadGate()
         var fallback = false
-        let task = Task { try await appRefreshWithDeadline(clock: clock, work: { await gate.hold(); return [1] }, fallback: { fallback = true; return [2] }) }
+        let task = Task { try await appRefreshWithDeadline(clock: clock, work: { await gate.hold(); try Task.checkCancellation(); return [1] }, fallback: { fallback = true; return [2] }) }
         await gate.entered.wait()
         task.cancel()
         gate.release()

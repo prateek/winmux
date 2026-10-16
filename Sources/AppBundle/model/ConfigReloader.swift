@@ -204,10 +204,26 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
 
     private func replaceCancelledNewest(_ id: Int) {
         guard state.newest == id, let displaced = supersededWork else { return }
+        let noGui = displaced.noGui, trigger = displaced.trigger
+        // Not the cancelled caller's application: the save's session rebinds the refresh
+        // task-locals, and the reload is a save's, run as a save runs.
         Task { @MainActor in
-            guard self.state.newest == id, self.supersededWork != nil else { return }
-            self.supersededWork = nil
-            _ = await self.request(noGui: displaced.noGui, trigger: displaced.trigger)
+            await ConfigReloadApplication.$current.withValue(nil) {
+                await self.replaceDisplacedWork(id, noGui: noGui, trigger: trigger)
+            }
+        }
+    }
+
+    private func replaceDisplacedWork(_ id: Int, noGui: Bool, trigger: ConfigReloadTrigger) async {
+        guard state.newest == id, supersededWork != nil else { return }
+        supersededWork = nil
+        guard saves.serverEnabled() else { return }
+        do {
+            _ = try await saves.session { @MainActor in
+                try await self.request(noGui: noGui, trigger: trigger).result.get()
+            }
+        } catch {
+            report.log(.error, "A reload that replaced a cancelled one failed: \(error.localizedDescription)")
         }
     }
 

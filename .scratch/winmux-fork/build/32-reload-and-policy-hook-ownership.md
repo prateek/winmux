@@ -118,20 +118,6 @@ This part landed in its own pull request and completes the issue.
 - [x] CLI, config and helper contracts, subscription events, Column invariants and the cancellation distinctions keep their coverage.
 - [x] The last pull request records the checks run, live evidence and remaining limits.
 
-## Timing implementation and remaining checks
-
-`NickelSupervisor` and every helper it starts share one injected `Clock<Duration>`. `NickelByteChannel` separates the live process/pipes from request matching, deadlines and cancellation; controlled channels can answer even after kill. Policy coverage is in `NickelTimingPolicyTest`, separate from `NickelProcessIntegrationTest`'s retained Python process tests. Cancelled Filter/hook requests use `NickelFailure.cancelled`, remove their pending entry and leave the helper running; loads keep waiting for their own reply/deadline. `PolicyHookCompletion` treats cancellation as no result and no reported hook failure.
-
-`AppRefreshDeadlineTest` pins cancellation at 1500 ms, fallback after work yields, session cancellation and overshoot; no enumeration is abandoned. `RefreshBurstTest` pins the coalescing strategy and generation ownership. A crash cancels an obsolete recycle so it cannot install over the restarted helper. Cancelled reload waiters depart promptly; if the cancelled newest ordinary request displaced unadopted work, its owner reloads current file content once with the displaced trigger and `noGui`. Application after adoption keeps its caller's task and the partial-application contract.
-
-Host and pinned-version guest `make check` pass 1,346 Swift, 88 Rust/helper and 131 Python tests. The same script against the base and changed guest builds covers helper recovery, breaker/reload recovery, save bursts, eight burst windows and stopped-app readbacks. Five required mutations fail their named tests. The last pull request records this evidence and the remaining deadline/AX limits.
-
-These checks remain Prateek's, tracked with his installed-build and real-hardware checks:
-
-- [ ] Installed-build behavior.
-- [ ] A second physical display.
-- [ ] Real sleep, wake and unlock.
-
 ## Sources
 
 - [Issue #53](https://github.com/prateek/winmux/issues/53), workstreams 2 and 3 and the non-Lens parts of workstream 5.

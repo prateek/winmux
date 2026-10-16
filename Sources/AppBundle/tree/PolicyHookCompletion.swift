@@ -77,17 +77,13 @@ struct PolicyHookCompletion {
             try Task.checkCancellation()
             if let edge { args.append(.bool(edge)) }
             argumentDuration = started.duration(to: .now)
-            let reply = await supervisor.hook(path, args: args)
-            try Task.checkCancellation()
-            switch reply {
+            switch await supervisor.hook(path, args: args) {
                 case .success(let result):
                     guard ColumnPolicy.accepts(result, hook: path.split(separator: ".").last.map(String.init) ?? path) else {
                         supervisor.recordHookFailure("\(path): helper returned an invalid hook result")
                         return nil
                     }
                     return result
-                case .failure(.cancelled):
-                    return nil
                 case .failure(let failure):
                     supervisor.recordHookFailure("\(path): \(failure.message)")
                     return nil

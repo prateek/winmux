@@ -80,40 +80,40 @@ final class NickelTimingPolicyTest: SerialClockTestCase {
     }
     private func drain(_ clock: TestClock<Duration>) async { await clock.advance() }
 
-    func testCancelledFilterAndHookReturnImmediatelyWithoutKillingHelper() async throws {
+    func testCancelledFilterAndHookCallersStillGetTheirAnswerOrTheDeadline() async throws {
         for op in ["filter", "hook"] {
-            let clock = TestClock(), factory = ControlledNickelFactory()
-            let channel = factory.prepare()
-            let supervisor = supervisor(clock, factory)
-            try await adopt(supervisor)
-            channel.expect(op)
-            var finished = false
-            let task = Task { @MainActor in
-                let result: Result<JSONValue, NickelFailure>
-                if op == "filter" {
-                    result = await supervisor.filter(lens: "all", context: .null, windows: []).map { .array($0.map(JSONValue.bool)) }
-                } else { result = await supervisor.hook("arrive", args: []) }
-                assertEquals(result, .failure(.cancelled))
-                finished = true
+            for answers in [true, false] {
+                let clock = TestClock(), factory = ControlledNickelFactory()
+                let channel = factory.prepare()
+                if !answers { _ = factory.prepare() }
+                let supervisor = supervisor(clock, factory)
+                try await adopt(supervisor)
+                channel.expect(op)
+                var result: Result<JSONValue, NickelFailure>?
+                let task = Task { @MainActor in
+                    if op == "filter" {
+                        result = await supervisor.filter(lens: "all", context: .null, windows: []).map { .array($0.map(JSONValue.bool)) }
+                    } else { result = await supervisor.hook("arrive", args: []) }
+                }
+                await drain(clock)
+                let held = channel.lines.last!
+                task.cancel()
+                await drain(clock)
+                XCTAssertNil(result, "a cancelled \(op) caller keeps waiting, as on the base")
+                if answers {
+                    let answer: JSONValue = op == "filter" ? .array([]) : .string("hooked")
+                    channel.reply(to: held, result: answer)
+                    await task.value
+                    assertEquals(result, .success(answer))
+                    XCTAssertFalse(channel.wasKilled)
+                } else {
+                    await clock.advance(by: op == "filter" ? .milliseconds(100) : .milliseconds(50))
+                    await task.value
+                    assertEquals(result, .failure(.timedOut))
+                    XCTAssertTrue(channel.wasKilled, "the deadline still catches a helper hung on a cancelled caller's request")
+                }
+                channel.close()
             }
-            await drain(clock)
-            let held = channel.lines.last!
-            task.cancel()
-            await drain(clock)
-            XCTAssertTrue(finished, "cancelled \(op) caller must return before any reply or deadline")
-            XCTAssertFalse(channel.wasKilled)
-            channel.expect("hook")
-            var next: Result<JSONValue, NickelFailure>?
-            let nextTask = Task { next = await supervisor.hook("next", args: []) }
-            await drain(clock)
-            channel.reply(to: held, result: .string("late"), rss: 99999)
-            await drain(clock)
-            XCTAssertNil(next, "late reply cannot reach the next caller")
-            channel.reply(to: channel.lines.last!, result: .string("next"))
-            await nextTask.value
-            assertEquals(next, .success(.string("next")))
-            await task.value
-            channel.close()
         }
     }
 

@@ -568,8 +568,36 @@ final class ConfigReloaderTest: SerialClockTestCase {
             await clock.advance()
             XCTAssertEqual(probe.adopted, ["a", "save"], "owner reloads current content once after the newest cancellation")
             XCTAssertEqual(probe.events.count, 2)
+            XCTAssertEqual(probe.sessions, 1, "the replacement runs in the session a save runs in")
             XCTAssertEqual(probe.disposed.sorted(), (["save"] + (0 ..< cancelledCount).map { "new\($0)" }).sorted())
         }
+    }
+
+    func testReplacementIsSkippedWhileTheServerIsDisabled() async throws {
+        let probe = ReloadProbe(), applyGate = ReloadGate(), newGate = ReloadGate(), clock = TestClock<Duration>()
+        let owner = probe.owner()
+        probe.applyGates["a"] = applyGate
+        let a = Task { await self.request(owner, "a") }
+        await applyGate.entered.wait()
+        let save = Task { await owner.request(noGui: true, trigger: .fileChange) }
+        await probe.loadsFinished.wait(for: 2)
+        await clock.advance()
+        probe.loadGates["new"] = newGate
+        let newer = Task { await self.request(owner, "new") }
+        await newGate.entered.wait()
+        let superseded = await save.value
+        XCTAssertFalse(try superseded.result.get())
+        probe.enabled = false
+        newer.cancel()
+        newGate.release()
+        _ = await newer.value
+        await clock.advance()
+        applyGate.release()
+        _ = await a.value
+        await clock.advance()
+        XCTAssertEqual(probe.adopted, ["a"], "a disabled server takes no replacement reload, as it takes no save")
+        XCTAssertEqual(probe.sessions, 0)
+        XCTAssertEqual(probe.events.count, 1)
     }
 
     func testCancelledAttemptThatSupersededNothingStartsNoReplacement() async throws {
