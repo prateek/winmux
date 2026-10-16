@@ -62,7 +62,7 @@ with (root / 'state.json').open('r+') as f:
         elif 'shutdown' in args[-1]:
             for g in guests.values():
                 g['State'] = 'stopped'
-        elif args[-1] == 'bash ~/vm/renew-approvals.sh':
+        elif args[-1].endswith('bash ~/vm/renew-approvals.sh'):
             code = state.get('renewal_failure', 0)
             state['approvals_ready'] = code == 0
         elif '~/vm/preflight' in args[-1] and state.get('require_approval_renewal'):
@@ -147,7 +147,7 @@ class VMTest(unittest.TestCase):
         self.assert_started(self.run_vm('up', 'a'), 'a')
         calls = self.state()['calls']
         self.assertFalse(any(c[:2] == ['tart', 'exec'] for c in calls))
-        self.assertTrue(any(c[0] == 'sshpass' and c[-1] == 'true' for c in calls))
+        self.assertTrue(any(c[0] == 'sshpass' and c[-1] == 'pgrep -xq Dock' for c in calls))
 
     def test_up_renews_approvals_before_the_preflight(self):
         self.seed(require_approval_renewal=True)
@@ -226,7 +226,7 @@ class VMTest(unittest.TestCase):
         probes = [c for c in calls if c[0] == 'nc']
         self.assertGreater(len(probes), 1)
         self.assertGreater(len({c[-2] for c in probes}), 1, 're-read the IP on every probe')
-        self.assertLessEqual(len(probes), 121, 'about four minutes per failed attempt')
+        self.assertLessEqual(len(probes), 61, 'a bounded wait per failed attempt')
 
     def test_unreachable_guest_exhausts_three_tries_and_is_stopped(self):
         self.seed(unreachable_boots=3)

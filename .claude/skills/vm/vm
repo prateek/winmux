@@ -76,19 +76,21 @@ boot() {
     sleep 10
     nohup tart run --no-graphics --no-audio --no-clipboard "$vm" 9>&- >"$log" 2>&1 &
     disown
-    # A cold macOS boot on a busy host can take a few minutes to reach sshd.
+    # A cold macOS boot on a busy host can take a few minutes. sshd answers before the login
+    # session exists, so ready means the Dock is running too. The count bounds the loop when
+    # `sleep` is faked; with a real one the deadline ends it first.
     local deadline=$((SECONDS + 240))
-    for _ in $(seq 1 120); do
+    for _ in $(seq 1 60); do
       [ "$SECONDS" -lt "$deadline" ] || break
       grep -q RuntimeFailed "$log" && break
       # Resolve again on each probe: softnet can report an old address during boot.
       local ip
       ip=$(tart ip "$vm" 2>/dev/null) || ip=""
-      if [ -n "$ip" ] && nc -z -G 1 -w 1 "$ip" 22 2>/dev/null && sshpass -p admin ssh -o ConnectTimeout=5 "${ssh_opts[@]}" "admin@$ip" true 2>/dev/null; then
+      if [ -n "$ip" ] && nc -z -G 1 -w 1 "$ip" 22 2>/dev/null && sshpass -p admin ssh -o ConnectTimeout=5 "${ssh_opts[@]}" "admin@$ip" 'pgrep -xq Dock' 2>/dev/null; then
         rm -f "$log"
         return 0
       fi
-      sleep 2
+      sleep 4
     done
     echo "vm: rebooting unreachable guest $vm (ssh did not answer)" >&2
     # A guest whose `tart run` failed is not running, and `tart stop` fails on it.
@@ -144,7 +146,7 @@ cmd_up() {
   exec 9>&-
   # The image opens Terminal at login.
   guest "$vm" "pkill -x Terminal; sleep 1; ~/vm/display ${size%x*} ${size#*x} 1"
-  guest "$vm" 'bash ~/vm/renew-approvals.sh'
+  guest "$vm" 'test -f ~/vm/renew-approvals.sh || { echo "vm: this guest predates the approval renewal; rebuild the golden image: vm build-image" >&2; exit 1; }; bash ~/vm/renew-approvals.sh'
   cmd_preflight "$vm"
 }
 

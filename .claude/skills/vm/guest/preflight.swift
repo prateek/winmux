@@ -15,7 +15,7 @@ check("accessibility", AXIsProcessTrusted())
 check("screen recording", CGPreflightScreenCaptureAccess())
 let approvals = Process()
 approvals.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-approvals.arguments = [URL(fileURLWithPath: CommandLine.arguments[0])
+approvals.arguments = [(Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
     .deletingLastPathComponent().appendingPathComponent("approvals.py").path, "check"]
 let approvalOutput = Pipe()
 approvals.standardOutput = approvalOutput

@@ -50,9 +50,11 @@ def main():
     path = Path.home() / 'Library/Group Containers/group.com.apple.replayd/ScreenCaptureApprovals.plist'
     try:
         data = plistlib.loads(path.read_bytes())
-    except (OSError, ValueError, plistlib.InvalidFileException):
+    except Exception:
+        # An unreadable file is a missing one: check fails, renew writes a fresh file.
         data = None
-    now = dt.datetime.utcnow()
+    # plistlib reads and writes naive UTC dates.
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     if verb == 'check':
         error = validate(data, now)
         if error:

@@ -92,6 +92,12 @@ class CaptureApprovalsTest(unittest.TestCase):
             self.assertEqual(run('check').returncode, 1)
             self.assertEqual(run('renew').returncode, 0)
             self.assertEqual(run('check').returncode, 0)
+            self.assertEqual(run('check').stderr, '', 'a passing check prints nothing to merge into preflight')
+            path.write_bytes(b'<?xml version="1.0"?><plist version="1.0"><dict><key>')
+            truncated = run('check')
+            self.assertEqual((truncated.returncode, truncated.stderr), (1, ''))
+            self.assertEqual(run('renew').returncode, 0)
+            self.assertEqual(run('check').returncode, 0)
 
 
 GRANT = SCRIPT.parent / 'grant.sh'
