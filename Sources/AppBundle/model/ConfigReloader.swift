@@ -175,6 +175,12 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     }
 
     private func run(_ id: Int, _ attempt: Attempt, _ read: Result<Candidate, String>) async -> ConfigReloadCompletion {
+        // A caller cancelled before adoption, as while it waited for its turn, adopts nothing.
+        if Task.isCancelled, case .success(let candidate) = read {
+            helper.dispose(candidate)
+            applicationFinished(id)
+            return .init(result: .failure(CancellationError()), text: "")
+        }
         var reporting = prepare(attempt, read)
         var result: Result<Bool, Error> = .success(false)
         if case .success(let candidate) = read {

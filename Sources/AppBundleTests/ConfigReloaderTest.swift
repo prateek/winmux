@@ -471,4 +471,27 @@ final class ConfigReloaderTest: SerialClockTestCase {
         XCTAssertEqual(cancelled, ["a": true, "b": false], "cancelling a caller reaches its own application only")
         assertServing(probe, "b")
     }
+
+    func testCallerCancelledWhileWaitingForItsTurnAdoptsNothing() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate()
+        let owner = probe.owner()
+        probe.applyGates["a"] = gate
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        let b = Task { await self.request(owner, "b") }
+        await probe.loadsFinished.wait(for: 2)
+        b.cancel()
+        gate.release()
+        let aResult = await a.value, bResult = await b.value
+        XCTAssertTrue(try aResult.result.get())
+        XCTAssertThrowsError(try bResult.result.get()) { XCTAssertTrue($0 is CancellationError) }
+        assertServing(probe, "a")
+        XCTAssertEqual(probe.adopted, ["a"])
+        XCTAssertEqual(probe.disposed, ["b"])
+        XCTAssertEqual(probe.events.count, 1)
+        try assertEvent(probe.events[0], path: "/config/a.ncl")
+        let c = await request(owner, "c")
+        XCTAssertTrue(try c.result.get(), "the cancelled caller releases its turn")
+        assertServing(probe, "c")
+    }
 }
