@@ -64,7 +64,7 @@ struct MoveCommand: Command {
             default: break
         }
         workspace.normalizeContainers()
-        if success { try await ColumnPolicy.run(ColumnPolicy.commands(result), window: window) }
+        if success, let path { try await ColumnPolicy.run(ColumnPolicy.commands(result), window: window, path: path) }
         return success
     }
     @MainActor private func runBuiltIn(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {

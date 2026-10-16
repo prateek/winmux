@@ -1,12 +1,18 @@
 import AppKit
 import Common
 
+struct PolicyRun: Equatable {
+    let path: String
+    let commands: [String]
+}
+
 struct PlacementDecision: Equatable {
     let slot: Int
     let target: String
     let overflow: OverflowPolicy
     let hook: String?
-    var run: [String] = []
+    var runList: PolicyRun?
+    var run: [String] { runList?.commands ?? [] }
     var failure: String?
 
     var json: JSONValue {
@@ -38,9 +44,15 @@ enum ColumnPolicy {
         }
     }
 
-    /// Windows whose `run` list is executing. Keyed by window, not by task: an unstructured
-    /// `Task` inherits task-locals, so a task-local guard would leak into later refresh sessions.
-    private static var runningWindows: Set<UInt32> = []
+    private struct RunningHook: Hashable {
+        let windowId: UInt32
+        let path: String
+    }
+
+    /// Hook definitions whose `run` list is executing for a window. Keyed by window and path,
+    /// not by task: an unstructured `Task` inherits task-locals, so a task-local guard would
+    /// leak into later refresh sessions.
+    private static var runningWindows: Set<RunningHook> = []
 
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
                      supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
@@ -177,7 +189,8 @@ enum ColumnPolicy {
             return builtIn
         }
         return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
-                                 hook: answer == nil ? path : "arrive", run: commands(result))
+                                 hook: answer == nil ? path : config.arrive,
+                                 runList: (answer == nil ? path : config.arrive).map { PolicyRun(path: $0, commands: commands(result)) })
     }
 
     @discardableResult
@@ -191,7 +204,7 @@ enum ColumnPolicy {
         if window.isBound { window.unbindFromParent() }
         workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
         workspace.normalizeContainers()
-        try await run(decision.run, window: window)
+        if let list = decision.runList { try await run(list.commands, window: window, path: list.path) }
         return true
     }
 
@@ -222,10 +235,11 @@ enum ColumnPolicy {
                                      supervisor: NickelSupervisor) async throws {
         let location = Location(window)
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
-        let result = await call(config.arrive, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass)
+        let path = config.arrive
+        let result = await call(path, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass)
         guard location.contains(window) else { return }
         if window.parent === macosPopupWindowsContainer {
-            try await run(commands(result), window: window)
+            if let path { try await run(commands(result), window: window, path: path) }
             return
         }
         let destination = result?["workspace"]?.stringOrNil.map { Workspace.get(byName: $0) } ?? detected
@@ -250,20 +264,21 @@ enum ColumnPolicy {
                 window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
             }
         }
-        try await run(commands(result), window: window)
+        if let path { try await run(commands(result), window: window, path: path) }
     }
 
     static func commands(_ result: JSONValue?) -> [String] {
         result?["run"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? []
     }
 
-    static func run(_ commands: [String], window: Window) async throws {
+    static func run(_ commands: [String], window: Window, path: String) async throws {
         guard !commands.isEmpty, window.isBound else { return }
-        guard runningWindows.insert(window.windowId).inserted else {
-            NickelSupervisor.shared.recordHookFailure("Policy run: nested run list suppressed")
+        let key = RunningHook(windowId: window.windowId, path: path)
+        guard runningWindows.insert(key).inserted else {
+            NickelSupervisor.shared.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
             return
         }
-        defer { runningWindows.remove(window.windowId) }
+        defer { runningWindows.remove(key) }
         try await execute(commands, window: window)
     }
 
