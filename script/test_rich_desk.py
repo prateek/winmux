@@ -33,7 +33,7 @@ if pathlib.Path(sys.argv[0]).name == 'pkill':
 elif pathlib.Path(sys.argv[0]).name == 'pgrep':
     sys.exit(0 if time.time() < data.get('gone_at', 0) else 1)
 elif pathlib.Path(sys.argv[0]).name == 'osascript':
-    print('0')
+    print(data.get('notes_count', 0))
 elif pathlib.Path(sys.argv[0]).name == 'rich-app':
     pass
 elif args[0] == 'list-windows':
@@ -159,6 +159,25 @@ elif args[0] == 'layout' and data.get('already_tiled'):
         result = self.run_helper('notes', windows='', wait_bound='1')
         self.assertEqual(result.returncode, 1)
         self.assertIn('no frontmost Notes window', result.stderr)
+
+    def test_notes_empty_screen_is_not_ready_when_the_store_has_notes(self):
+        result = self.run_helper('notes', notes_count=2,
+                                 windows='7|Notes|Notes – No notes|1\n', wait_bound='1')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Notes – 2 notes', result.stderr)
+
+    def test_existing_notes_are_retained_in_the_exact_inventory(self):
+        result = self.run_helper('notes', notes_count=2,
+                                 windows='7|Notes|Notes – 2 notes|1\n')
+        self.assertEqual((result.returncode, result.stdout), (0, 'Notes – 2 notes\n'))
+        result = self.run_helper('inventory', result.stdout.strip(),
+                                 windows=self.inventory().replace('Notes – No notes', 'Notes – 2 notes'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_single_note_has_the_native_singular_title(self):
+        result = self.run_helper('notes', notes_count=1,
+                                 windows='7|Notes|Notes – 1 note|1\n')
+        self.assertEqual((result.returncode, result.stdout), (0, 'Notes – 1 note\n'))
 
     def test_column_wait_checks_membership_and_retries_only_that_placement(self):
         result = self.run_helper('column', '7', '2', '2',

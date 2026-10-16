@@ -12,11 +12,12 @@ import time
 import urllib.request
 
 
+EMPTY_NOTES_TITLE = 'Notes – No notes'
 EXPECTED = Counter([
     ('Zed', 'winmux.ncl — winmux.ncl'),
     ('Ghostty', 'desk'), ('Ghostty', 'desk'),
     ('Safari', 'Lenses and Search'), ('Safari', 'Fixed Columns'),
-    ('Safari', 'Subscription events'), ('Notes', 'Notes – No notes'),
+    ('Safari', 'Subscription events'), ('Notes', EMPTY_NOTES_TITLE),
     ('TextEdit', 'Grievances.rtf'), ('TextEdit', 'Soft language.rtf'),
     ('TextEdit', 'Things I will get to.rtf'), ('Finder', 'desk'),
     ('Preview', 'wallpaper.jpg'), ('Calculator', 'Calculator'),
@@ -146,9 +147,14 @@ class Readiness:
 
     def notes(self):
         # Notes Automation is granted in the image; Safari Automation is never used.
-        self.wait('Notes local note list not ready', lambda: self.run(
-            'osascript', '-e', 'tell application "Notes" to count notes of folder "Notes" of account "On My Mac"').isdigit())
-        self.front('Notes', '')
+        def note_count():
+            value = self.run('osascript', '-e',
+                             'tell application "Notes" to count notes of folder "Notes" of account "On My Mac"')
+            return value if value.isdecimal() else None
+        count = int(self.wait('Notes local note list not ready', note_count))
+        title = EMPTY_NOTES_TITLE if count == 0 else f'Notes – {count} ' + ('note' if count == 1 else 'notes')
+        self.front('Notes', title)
+        return title
 
     def http(self):
         def served():
@@ -157,10 +163,13 @@ class Readiness:
                 return b'Lenses and Search' in page.read()
         self.wait('docs page not served at localhost:8765/lenses.html', served)
 
-    def inventory(self):
+    def inventory(self, notes_title=EMPTY_NOTES_TITLE):
+        expected = EXPECTED.copy()
+        del expected[('Notes', EMPTY_NOTES_TITLE)]
+        expected[('Notes', notes_title)] = 1
         actual = Counter((row[1], row[2]) for row in self.windows())
         differences = []
-        for kind, windows in [('missing', EXPECTED - actual), ('extra', actual - EXPECTED)]:
+        for kind, windows in [('missing', expected - actual), ('extra', actual - expected)]:
             for (app, title), count in windows.items():
                 differences.extend([f'{kind} {app} window titled "{title}"'] * count)
         if differences:
@@ -176,6 +185,8 @@ def main(args):
             raise StageError(f'rich desk needs at least 1920x1080 points; got {args[0]}')
     elif command == 'window':
         print(ready.window(*args))
+    elif command == 'notes':
+        print(ready.notes())
     elif command == 'ready':
         ready.wait('WinMux CLI not ready', lambda: ready.winmux('list-workspaces', '--focused'))
     elif command == 'stop':

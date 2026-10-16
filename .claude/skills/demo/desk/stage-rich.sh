@@ -60,7 +60,7 @@ ready front Safari "Fixed Columns"
 open -a Safari http://localhost:8765/events.html
 ready front Safari "Subscription events"
 open -a Notes
-ready notes
+notes_title=$(ready notes)
 open -a TextEdit ~/desk/Grievances.rtf ~/desk/"Soft language".rtf ~/desk/"Things I will get to".rtf
 for title in Grievances "Soft language" "Things I will get to"; do ready front TextEdit "$title"; done
 open ~/desk
@@ -101,6 +101,6 @@ $W focus --window-id ${ghostty[2]} >/dev/null; $W join-with left >/dev/null 2>&1
 ready front Updater "A dialog that is not yours"
 put "$(need Updater "")" "1"; $W workspace "1" >/dev/null
 $W focus --window-id "$(need Zed "")" >/dev/null
-ready inventory
+ready inventory "$notes_title"
 $W list-windows --all --format '%{window-id} | %{app-name} | %{window-title} | %{window-layout} | ws %{workspace}'
 for n in 2 3; do echo "columns on $n:"; ready workspace "$n"; $W list-columns; done; $W workspace "1" >/dev/null
