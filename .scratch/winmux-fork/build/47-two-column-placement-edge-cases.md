@@ -53,11 +53,64 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Done when
 
-- [ ] With two monitors in a test, the landing hint for a window that will float on arrival equals the frame Summon gives it, for monitors of the same size and of different sizes.
-- [ ] With flattening off, a window alone in a container that is placed again stays in its Column under every Overflow policy: not floated, no extra slot.
-- [ ] One function decides occupancy, and slot selection, the hook records and the resolver call it.
-- [ ] Turning the destination's Columns off while a hint is shown replaces the hint with the ordinary landing.
-- [ ] The existing Column placement and landing tests pass unchanged.
+- [x] With two monitors in a test, the landing hint for a window that will float on arrival equals the frame Summon gives it, for monitors of the same size and of different sizes.
+- [x] With flattening off, a window alone in a container that is placed again stays in its Column under every Overflow policy: not floated, no extra slot.
+- [x] One function decides occupancy, and slot selection, the hook records and the resolver call it.
+- [x] Turning the destination's Columns off while a hint is shown replaces the hint with the ordinary landing.
+- [x] The existing flattening-on Column placement and landing tests pass unchanged. The driver-authorized flattening-off `soleNested` float/squeeze rows now expect attach in Column 2 at unchanged widths; split uses the same corrected occupancy and tab-group is covered too.
+
+## Built and checked
+
+`ColumnPlacement.isOccupied` excludes all of an arriving node's leaf windows.
+Slot selection, MRU selection, hook records, squeeze-slot release and resolution
+use it; Lens records and binding use it too. A slot holding no other window
+attaches under every Overflow policy, discarding the empty wrapper before
+binding. With flattening off the arriving window becomes the Column's top-level
+node, with its original slot and widths.
+
+Both floating-hint paths share the source-workspace lookup and floating geometry.
+Synthetic equal-size and unequal-size side-by-side monitors compare the hint
+with the frame from the real Summon command and following layout, including an
+already-floating window. The gapped layout rectangle failed that comparison;
+the hint now uses the destination monitor's visible rectangle. Summon is
+unchanged, including its size preservation, clamping and single-monitor no-op.
+
+Config application now explicitly notifies the open Lens after applying Columns.
+`evaluatedColumns` retains the old state until reevaluation; `landingColumns`
+remains weak. Controlled-clock saves through the reload scheduler/owner and the
+production Columns application step check both off and on with the same
+selection and held modifier. Removing either the notification or the strong
+reference fails the off regression. The unused `stripReleasedWhileOpening`
+field is deleted; its test observes the committed action and Hold behavior.
+
+Host and pinned-version guest `make check` pass. The dedicated tree tests cover
+all four policies, deeper wrappers and incoming groups, plus the no-hook
+selection, records, extra-slot release and new-window binding paths. Existing
+flattening-on placement and landing expectations are unchanged.
+
+The one-display guest live run compares the base and changed trees using the
+same scripts in `.scratch/winmux-fork/proofs/landing-placement/`. Both stage a
+survivor alone in a tab group and record float/squeeze hook decisions; dry run
+reports the hook's answer, not its resolved effect. The bounded path search
+found `layout tiling` declines the tiled survivor before relayout; relayout's
+other callers restore floating/native/cache state, drag/drop requires a
+workspace/floating/slot change, and shake's Place branch requires a floating
+window. No reliable path to actual Place in that exact staged state was found,
+so the permitted transcript fallback is used and the tree tests carry the fix's
+claim. The flattening-on Columns/decision transcripts agree across the builds.
+
+Both recordings select the one Search match, Orange on workspace 2, and hold
+Option through a config save turning Columns off. The base keeps its squeeze
+hint; the changed build redraws the ordinary landing. Config status, Columns,
+Lens traces and final windows were read back. The debug app and owned windows
+were closed. No permission was granted and no builder release was published.
+No chosen default changed.
+
+## Checks for Prateek
+
+- [ ] Check the installed build.
+- [ ] Check the floating hint and Summon on a physical second display.
+- [ ] Check real sleep, wake and unlock.
 
 ## Sources
 
