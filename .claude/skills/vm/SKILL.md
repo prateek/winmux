@@ -17,7 +17,7 @@ $SKILL/vm up <name> [WxH]      # default 1280x720
 
 `up` and `build-image` start at 3 cores and 5120 MB. `VM_CPU` (cores) and `VM_MEMORY` (MB) override both. At most two guests may run: every running guest in `tart list` counts, including Tartelet, sized by `tart get`; stopped guests do not. `vm stop <name>` shuts a guest down and keeps it, and `up` on a stopped guest boots it at the size asked for. `up` refuses a guest that is already running: `vm stop` it first to change its display size or cores. `build-image` takes one of the two slots while it runs. Starts are serialized: a second `up` says it is waiting while another guest boots. A start is refused before cloning if it would exceed two guests or 70% of host cores and memory, rounded down (memory to whole GB). On a 10-core, 16-GB host that is 7 cores and 11264 MB. The refusal names the running sizes, request and cap.
 
-Done when the preflight prints `ok` for unlocked, accessibility, screen recording, approvals and clean desktop, and Swift 6.4. A `FAIL` is a defect in the golden image: stop and report it. A missing golden image is built once with `$SKILL/vm build-image`, which takes about fifteen minutes.
+Done when the preflight prints `ok` for unlocked, accessibility, screen recording, approvals and clean desktop, and Swift 6.4. A `FAIL` is a defect in the golden image: stop and report it. The one exception is a `loginwindow` stranger on the clean-desktop line just after boot, which clears within seconds: run `$SKILL/vm preflight <name>` again before calling it a defect. A missing golden image is built once with `$SKILL/vm build-image`, which takes about fifteen minutes.
 
 ## 2. Put the source in and build it
 
