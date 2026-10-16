@@ -184,13 +184,15 @@ private final class DirectoryEventStream {
 @MainActor
 final class ConfigReloadScheduler {
     private let delay: Duration
+    private let clock: any Clock<Duration>
     private let reload: @MainActor () async -> Void
     private var debounce: Task<Void, Never>?
     private var isReloading = false
     private var changedDuringReload = false
 
-    init(delay: Duration, reload: @escaping @MainActor () async -> Void) {
+    init(delay: Duration, clock: any Clock<Duration> = ContinuousClock(), reload: @escaping @MainActor () async -> Void) {
         self.delay = delay
+        self.clock = clock
         self.reload = reload
     }
 
@@ -198,7 +200,7 @@ final class ConfigReloadScheduler {
     func fileChanged() {
         debounce?.cancel()
         debounce = Task {
-            do { try await Task.sleep(for: delay) } catch { return }
+            do { try await clock.sleep(for: delay) } catch { return }
             startReload()
         }
     }
