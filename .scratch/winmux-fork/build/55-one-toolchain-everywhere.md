@@ -6,9 +6,11 @@ Part of {{UMBRELLA}}.
 
 WinMux is built in three places, by three toolchains, and no check runs on the one that builds what is installed.
 
-- **CI** installs swift.org's Swift 6.2.4 through swiftly, from `.swift-version`, and takes whatever Rust the runner has for the `winmux-nickel` helper.
-- **The guest** uses the Swift 6.2.4 inside Xcode 26.3, from the Cirrus base image, and the Rust the image recipe installed.
-- **The release** is built on the build machine with whatever Xcode and Rust are selected there. Its Swift is newer than the other two.
+- **CI** installs swift.org's Swift 6.4.0 through swiftly, from `.swift-version`, builds against the `macos-26` runner's default Xcode SDK, and takes whatever Rust the runner has for the `winmux-nickel` helper.
+- **The guest** uses the Swift 6.4 inside Xcode 27.0, from the Cirrus base image, and the Rust the image recipe installed.
+- **The release** is built on the build machine with whatever Xcode and Rust are selected there, Xcode 27.0 since **Build on Xcode 27**. Nothing checks that it stays the same Swift as the other two.
+
+GitHub offers Xcode 27 only as the preview `xcode-27` runner label, on macOS 27; the `macos-26` runner's newest is Xcode 26.6.
 
 The first two disagreed once already: CI's compiler crashed with "Failed to reconstruct type" on a struct declared inside a function, which the guest's built. It cost two CI runs. The third has never been compared with anything.
 

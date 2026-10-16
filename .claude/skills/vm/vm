@@ -4,7 +4,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 golden=${VM_GOLDEN:-winmux-golden}
-base=${VM_BASE_IMAGE:-ghcr.io/cirruslabs/macos-tahoe-xcode:26.3}
+base=${VM_BASE_IMAGE:-ghcr.io/cirruslabs/macos-tahoe-xcode:27}
 # `admin`/`admin` is the Cirrus images' published login; the guest holds nothing of ours.
 ssh_opts=(-o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=no
   -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10)
