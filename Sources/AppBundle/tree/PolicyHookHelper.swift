@@ -7,10 +7,6 @@ protocol PolicyHookHelper: Sendable {
     var lastHookError: String? { get }
 }
 
-extension NickelSupervisor: PolicyHookHelper {
-    var lastHookError: String? { status.lastError }
-}
-
 @MainActor
 enum PolicyHooks {
     @TaskLocal static var scoped: (any PolicyHookHelper)?

@@ -280,3 +280,7 @@ private func matchBits(_ result: JSONValue) -> Result<[Bool], NickelFailure> {
     guard let values = result.arrayOrNil else { return .failure(.diagnostic("The config helper did not return match bits")) }
     return .success(values.map { $0 == .bool(true) })
 }
+
+extension NickelSupervisor: PolicyHookHelper {
+    var lastHookError: String? { status.lastError }
+}
