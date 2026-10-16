@@ -1,6 +1,17 @@
 import AppKit
 import Common
 
+enum WindowCloseFailure: String, Sendable {
+    case noCloseButton = "the window has no close button"
+    case appRefused = "the app refused"
+}
+
+/// An accepted press counts as closed, including a press that opens a confirmation sheet.
+enum WindowCloseResult: Equatable, Sendable {
+    case closed
+    case notClosed(WindowCloseFailure)
+}
+
 open class Window: TreeNode, Hashable {
     @MainActor let thumbnail = WindowThumbnail()
     @MainActor var miniatureFrame: CGRect?
@@ -117,7 +128,7 @@ open class Window: TreeNode, Hashable {
     @MainActor var nativeWindowType: AxUiElementWindowType { get async throws { die("Not implemented") } }
     @MainActor func setNativeFullscreen(_ value: Bool) { die("Not implemented") }
 
-    @MainActor func closeAxWindow() { die("Not implemented") }
+    @MainActor func closeAxWindow() async -> WindowCloseResult { die("Not implemented") }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)

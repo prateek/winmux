@@ -103,24 +103,28 @@ final class MacApp: AbstractApp {
         }
     }
 
-    func closeAndUnregisterAxWindow(_ windowId: UInt32) {
-        if serverArgs.isReadOnly { return }
+    func pressCloseButton(_ windowId: UInt32, unregisterOnSuccess: Bool = false) async -> WindowCloseResult {
+        if serverArgs.isReadOnly { return .notClosed(.appRefused) }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        _ = withWindowAsync(windowId) { [windows] window, job in
-            guard let closeButton = window.get(Ax.closeButtonAttr) else { return }
-            if AXUIElementPerformAction(closeButton.cast, kAXPressAction as CFString) == .success {
-                windows.threadGuarded.removeValue(forKey: windowId)
+        return (try? await withWindow(windowId) { [windows] window, _ -> WindowCloseResult in
+            var rawButton: CFTypeRef?
+            switch AXUIElementCopyAttributeValue(window, Ax.closeButtonAttr.key as CFString, &rawButton) {
+                case .noValue, .attributeUnsupported:
+                    return .notClosed(.noCloseButton)
+                case .success:
+                    guard let rawButton else { return .notClosed(.noCloseButton) }
+                    guard CFGetTypeID(rawButton) == AXUIElementGetTypeID() else { return .notClosed(.appRefused) }
+                    let result = pressWindowCloseButton(rawButton as! AXUIElement) { button in
+                        AXUIElementPerformAction(button.cast, kAXPressAction as CFString)
+                    }
+                    if result == .closed, unregisterOnSuccess {
+                        windows.threadGuarded.removeValue(forKey: windowId)
+                    }
+                    return result
+                default:
+                    return .notClosed(.appRefused)
             }
-        }
-    }
-
-    func pressCloseButton(_ windowId: UInt32) async throws -> Bool {
-        if serverArgs.isReadOnly { return false }
-        setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        return try await withWindow(windowId) { window, job in
-            guard let closeButton = window.get(Ax.closeButtonAttr) else { return false }
-            return AXUIElementPerformAction(closeButton.cast, kAXPressAction as CFString) == .success
-        } ?? false
+        }) ?? .notClosed(.appRefused)
     }
 
     func containsAxWindow(_ windowId: UInt32) async throws -> Bool {

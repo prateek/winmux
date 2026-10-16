@@ -40,7 +40,8 @@ private final class StubTitleWindow: Window {
         super.init(id: id, TestApp.shared, lastFloatingSize: nil, parent: Workspace.get(byName: "cache-test"), adaptiveWeight: 1, index: INDEX_BIND_LAST)
     }
 
-    override func closeAxWindow() {}
+    @MainActor
+    override func closeAxWindow() async -> WindowCloseResult { .closed }
 
     @MainActor
     override var title: String {

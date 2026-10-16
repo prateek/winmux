@@ -160,7 +160,7 @@ final class MacWindow: Window {
 
     @MainActor
     func requestCloseForProjectDeletion(timeout: TimeInterval = 1.5) async -> Bool {
-        guard (try? await macApp.pressCloseButton(windowId)) == true else { return false }
+        guard await macApp.pressCloseButton(windowId) == .closed else { return false }
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if (try? await macApp.containsAxWindow(windowId)) == false {
@@ -172,9 +172,11 @@ final class MacWindow: Window {
         return false
     }
 
-    override func closeAxWindow() {
-        garbageCollect(skipClosedWindowsCache: true)
-        macApp.closeAndUnregisterAxWindow(windowId)
+    @MainActor
+    override func closeAxWindow() async -> WindowCloseResult {
+        let result = await macApp.pressCloseButton(windowId, unregisterOnSuccess: true)
+        if result == .closed { garbageCollect(skipClosedWindowsCache: true) }
+        return result
     }
 
     // todo it's part of the window layout and should be moved to layoutRecursive.swift

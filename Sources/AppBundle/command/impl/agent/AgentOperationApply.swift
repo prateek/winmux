@@ -144,7 +144,7 @@ extension AgentOperation {
             args.quitIfLastWindow = true
             _ = try await CloseCommand(args: args).run(.defaultEnv, .emptyStdin)
         } else {
-            Window.get(byId: windowId)?.closeAxWindow()
+            _ = await Window.get(byId: windowId)?.closeAxWindow()
         }
     }
 

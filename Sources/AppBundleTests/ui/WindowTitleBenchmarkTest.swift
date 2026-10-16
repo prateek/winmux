@@ -109,8 +109,10 @@ private final class BenchmarkTitleWindow: Window {
         titleDelayNanoseconds = delayNanoseconds
     }
 
-    override func closeAxWindow() {
+    @MainActor
+    override func closeAxWindow() async -> WindowCloseResult {
         unbindFromParent()
+        return .closed
     }
 
     @MainActor

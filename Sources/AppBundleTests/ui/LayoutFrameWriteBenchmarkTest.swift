@@ -87,8 +87,10 @@ private final class BenchmarkFrameWindow: Window {
         frameDelayNanoseconds = delayNanoseconds
     }
 
-    override func closeAxWindow() {
+    @MainActor
+    override func closeAxWindow() async -> WindowCloseResult {
         unbindFromParent()
+        return .closed
     }
 
     @MainActor

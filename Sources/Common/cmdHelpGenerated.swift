@@ -9,6 +9,8 @@ let close_all_windows_but_current_help_generated = """
     """
 let close_help_generated = """
     USAGE: close [-h|--help] [--quit-if-last-window] [--window-id <window-id>]
+
+    Exits 1 when the window cannot be closed.
     """
 let config_help_generated = """
     USAGE: config [-h|--help] --get <name> [--json] [--keys]
