@@ -332,40 +332,18 @@ final class MacApp: AbstractApp {
         }
     }
 
-    /// Upper bound on how long one app may hold up the window-refresh barrier. A CPU-starved
-    /// app answers each AX message only at the messaging timeout, so its enumeration can take
-    /// (windows × timeout); every other app's layout would wait behind it. On deadline the app
-    /// falls back to the model's current windows (equivalent to "nothing changed"), and a later
-    /// refresh reconciles once the app responds.
-    private static let singleAppRefreshDeadline: Duration = .milliseconds(1500)
-
     @MainActor
     private static func refreshAppAndGetAliveWindowIdsWithDeadline(
         _ nsApp: NSRunningApplication,
         frontmostAppBundleId: String?,
     ) async throws -> [UInt32] {
         let pid = nsApp.processIdentifier
-        let work = Task { @MainActor () -> [UInt32] in
+        return try await appRefreshWithDeadline(work: {
             guard let app = try await MacApp.getOrRegister(nsApp) else { return [] }
             return try await app.refreshAndGetAliveWindowIds(frontmostAppBundleId: frontmostAppBundleId)
-        }
-        let deadline = Task { @MainActor in
-            try? await Task.sleep(for: singleAppRefreshDeadline)
-            work.cancel()
-        }
-        defer { deadline.cancel() }
-        return try await withTaskCancellationHandler {
-            do {
-                return try await work.value
-            } catch is CancellationError {
-                // Propagate if the whole refresh session was cancelled; otherwise the deadline
-                // fired — report the model's current windows for this app as alive.
-                try checkCancellation()
-                return MacWindow.allWindows.filter { $0.macApp.pid == pid }.map(\.windowId)
-            }
-        } onCancel: {
-            work.cancel()
-        }
+        }, fallback: {
+            MacWindow.allWindows.filter { $0.macApp.pid == pid }.map(\.windowId)
+        })
     }
 
     @MainActor

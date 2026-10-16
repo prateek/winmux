@@ -270,7 +270,6 @@ func waitForScheduledRefreshForTests() async throws {
     // A completing session may schedule a coalesced follow-up session; drain until quiet.
     for _ in 0 ..< 100 {
         guard let task = activeRefreshTask else { return }
-        activeRefreshTask = nil
         try await task.value
     }
 }

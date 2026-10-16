@@ -46,6 +46,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Building on Xcode 27** is with the follow-ups. The build machine moved to Xcode 27.0, and CI, the guest and the lockfile move to its Swift 6.4 with it.
 - **CI's swiftly is pinned** after the Xcode 27 move: Homebrew's cached swiftly 1.1.3 cannot fetch Swift 6.4.0.
 - **Two defects found while shielding `arrive`** are with the follow-ups: a window registered or restored during a cancelled refresh misses its placement hook, and a read-only command drops the refresh it cancels, so a new window stays unmanaged.
+- **One defect found while putting refresh timing under a controlled clock** is with the follow-ups: the per-app refresh deadline does not bound a stopped app.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek

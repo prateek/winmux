@@ -27,8 +27,8 @@ struct NickelReply: Sendable {
 /// back on its stdout in the same order, each carrying the id of its request.
 actor NickelHelperProcess {
     nonisolated let pid: Int32
-    private let process: Process
-    private let stdin: FileHandle
+    private let channel: any NickelByteChannel
+    private let clock: any Clock<Duration>
     private var nextId = 1
     private var pending: [Int: CheckedContinuation<Result<NickelReply, NickelFailure>, Never>] = [:]
     private var buffer = Data()
@@ -37,34 +37,13 @@ actor NickelHelperProcess {
     private let onCrash: @Sendable (Int32) -> Void
 
     /// - Parameter onCrash: Called with the pid when the helper exits without having been asked to.
-    init(executable: URL, onCrash: @escaping @Sendable (Int32) -> Void) throws {
-        // Writing to a helper that has died must fail with an error, not end WinMux.
-        signal(SIGPIPE, SIG_IGN)
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = ["serve"]
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        let (chunks, chunkSink) = AsyncStream.makeStream(of: Data.self)
-        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                chunkSink.finish()
-            } else {
-                chunkSink.yield(data)
-            }
-        }
-        try process.run()
-        // The child holds its own copies. While ours stay open, its stdout never reaches end of file.
-        try? stdoutPipe.fileHandleForWriting.close()
-        try? stdinPipe.fileHandleForReading.close()
-        self.process = process
-        self.stdin = stdinPipe.fileHandleForWriting
-        self.pid = process.processIdentifier
+    init(channel: any NickelByteChannel, clock: any Clock<Duration> = ContinuousClock(),
+         onCrash: @escaping @Sendable (Int32) -> Void) {
+        self.channel = channel
+        self.clock = clock
+        self.pid = channel.pid
         self.onCrash = onCrash
+        let chunks = channel.chunks
         Task {
             for await chunk in chunks {
                 await self.receive(chunk)
@@ -82,12 +61,12 @@ actor NickelHelperProcess {
         do {
             var line = try JSONEncoder().encode(request)
             line.append(0x0A)
-            try stdin.write(contentsOf: line)
+            try channel.write(line)
         } catch {
             return .failure(.unavailable("Cannot write to the config helper: \(error.localizedDescription)"))
         }
         let timer = Task {
-            try await Task.sleep(for: timeout)
+            try await clock.sleep(for: timeout)
             self.timeOut(id)
         }
         let result = await withCheckedContinuation { pending[id] = $0 }
@@ -98,12 +77,12 @@ actor NickelHelperProcess {
     /// Lets the helper finish the requests it already has, then exit.
     func close() {
         stopRequested = true
-        try? stdin.close()
+        channel.close()
     }
 
     func kill() {
         stopRequested = true
-        if !hasExited { Darwin.kill(pid, SIGKILL) }
+        if !hasExited { channel.kill() }
     }
 
     private func timeOut(_ id: Int) {

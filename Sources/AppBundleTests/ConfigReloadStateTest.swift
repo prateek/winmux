@@ -56,4 +56,21 @@ final class ConfigReloadStateTest: XCTestCase {
         XCTAssertEqual(state.applicationFinished(fallback), ordinary)
         XCTAssertNil(state.applicationFinished(ordinary))
     }
+    func testDepartedPendingAttemptLeavesNoTurnToHandOff() {
+        var state = ConfigReloadState()
+        let applying = state.requested(dryRun: false).id
+        XCTAssertEqual(state.loaded(applying), .begin)
+        let pending = state.requested(dryRun: false).id
+        XCTAssertEqual(state.loaded(pending), .wait)
+        state.pendingDeparted(pending)
+        XCTAssertNil(state.pending)
+        XCTAssertNil(state.applicationFinished(applying))
+        let newer = state.requested(dryRun: false).id
+        XCTAssertEqual(state.loaded(newer), .begin)
+        let next = state.requested(dryRun: false).id
+        XCTAssertEqual(state.loaded(next), .wait)
+        state.pendingDeparted(pending)
+        XCTAssertEqual(state.pending, next, "an older cancellation cannot remove a newer waiter")
+    }
+
 }
