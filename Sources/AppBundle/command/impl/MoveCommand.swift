@@ -25,47 +25,45 @@ struct MoveCommand: Command {
         if !edge && neighbour == nil { return try await runBuiltIn(env, io) }
         let path = ColumnPolicy.hook("move-boundary", on: workspace)
         if path == nil && (edge || ColumnPolicy.hook("place", on: workspace) == nil) { return try await runBuiltIn(env, io) }
-        let location = ColumnPolicy.Location(window)
-        let result = await ColumnPolicy.call(path, window: window, workspace: workspace, edge: edge)
-        let abandoned = "The window moved before the move could finish"
-        guard location.contains(window), workspace.columns === columns else { return io.err(abandoned) }
-        if path != nil && result == nil { return try await runBuiltIn(env, io) }
-        let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")
-        guard (edge ? ["stop", "wrap", "next-workspace", "next-monitor"] : ["join", "swap"]).contains(action) else {
-            NickelSupervisor.shared.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
-            return try await runBuiltIn(env, io)
+        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true,
+            evaluate: { await PolicyHookCompletion.call(path, window: window, workspace: workspace, edge: edge) },
+            runList: { (path, PolicyHookCompletion.commands($0)) },
+            abandoned: { io.err("The window moved before the move could finish") }) { result, completion in
+            if path != nil && result == nil { return .fallback(try await runBuiltIn(env, io)) }
+            let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")
+            guard (edge ? ["stop", "wrap", "next-workspace", "next-monitor"] : ["join", "swap"]).contains(action) else {
+                PolicyHooks.current.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
+                return .fallback(try await runBuiltIn(env, io))
+            }
+            var success = true
+            switch action {
+                case "join":
+                    let overflow: OverflowPolicy
+                    if let selected = result?["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) { overflow = selected }
+                    else { overflow = try await completion.overflow() }
+                    window.unbindFromParent()
+                    workspace.bindToColumn(window, slot: destination, overflow: overflow)
+                case "swap":
+                    if let neighbour = workspace.rootTilingContainer.children.first(where: { $0.columnSlot == destination }) {
+                        let moving = workspace.rootTilingContainer.children.first { $0.columnSlot == slot }.orDie()
+                        moving.columnSlot = destination
+                        neighbour.columnSlot = slot
+                    }
+                case "wrap":
+                    window.unbindFromParent()
+                    workspace.bindToColumn(window, slot: direction.focusOffset > 0 ? 1 : columns.slotCount)
+                case "next-workspace":
+                    if let next = getNextPrevWorkspace(current: workspace, isNext: direction.focusOffset > 0, wrapAround: true, stdin: nil) {
+                        success = moveWindowToWorkspace(window, next, io, focusFollowsWindow: focus.windowOrNil == window, failIfNoop: false)
+                        if success, next !== workspace, !window.isFloating { try await ColumnPolicy.place(window, on: next) }
+                    } else { success = io.err("No adjacent workspace") }
+                case "next-monitor":
+                    success = try await MoveNodeToMonitorCommand(args: MoveNodeToMonitorCmdArgs(target: .direction(direction))
+                        .copy(\.windowId, window.windowId).copy(\.focusFollowsWindow, focus.windowOrNil == window)).run(env, io)
+                default: break
+            }
+            return .completed(success)
         }
-        var success = true
-        switch action {
-            case "join":
-                let overflow: OverflowPolicy
-                if let selected = result?["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) { overflow = selected }
-                else { overflow = await ColumnPolicy.decision(window: window, workspace: workspace).overflow }
-                guard location.contains(window), workspace.columns === columns else { return io.err(abandoned) }
-                window.unbindFromParent()
-                workspace.bindToColumn(window, slot: destination, overflow: overflow)
-            case "swap":
-                if let neighbour = workspace.rootTilingContainer.children.first(where: { $0.columnSlot == destination }) {
-                    let moving = workspace.rootTilingContainer.children.first { $0.columnSlot == slot }.orDie()
-                    moving.columnSlot = destination
-                    neighbour.columnSlot = slot
-                }
-            case "wrap":
-                window.unbindFromParent()
-                workspace.bindToColumn(window, slot: direction.focusOffset > 0 ? 1 : columns.slotCount)
-            case "next-workspace":
-                if let next = getNextPrevWorkspace(current: workspace, isNext: direction.focusOffset > 0, wrapAround: true, stdin: nil) {
-                    success = moveWindowToWorkspace(window, next, io, focusFollowsWindow: focus.windowOrNil == window, failIfNoop: false)
-                    if success, next !== workspace, !window.isFloating { try await ColumnPolicy.place(window, on: next) }
-                } else { success = io.err("No adjacent workspace") }
-            case "next-monitor":
-                success = try await MoveNodeToMonitorCommand(args: MoveNodeToMonitorCmdArgs(target: .direction(direction))
-                    .copy(\.windowId, window.windowId).copy(\.focusFollowsWindow, focus.windowOrNil == window)).run(env, io)
-            default: break
-        }
-        workspace.normalizeContainers()
-        if success, let path { try await ColumnPolicy.run(ColumnPolicy.commands(result), window: window, path: path) }
-        return success
     }
     @MainActor private func runBuiltIn(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         let direction = args.direction.val

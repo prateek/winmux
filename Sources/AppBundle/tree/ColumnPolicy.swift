@@ -38,71 +38,6 @@ enum ColumnPolicy {
         }
     }
 
-    private struct RunningHook: Hashable {
-        let windowId: UInt32
-        let path: String
-    }
-
-    /// Hook definitions whose `run` list is executing for a window. Keyed by window and path,
-    /// not by task: an unstructured `Task` inherits task-locals, so a task-local guard would
-    /// leak into later refresh sessions.
-    private static var runningWindows: Set<RunningHook> = []
-
-    static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
-                     supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
-        guard let path else { return nil }
-        let started = ContinuousClock.now
-        var argumentDuration: Duration?
-        defer {
-            if isDebug, ProcessInfo.processInfo.environment["WINMUX_DEBUG_POLICY_TIMING"] == "1", let argumentDuration {
-                func milliseconds(_ duration: Duration) -> Double {
-                    Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
-                }
-                debugFocusLog("policy-timing arguments-ms=\(milliseconds(argumentDuration)) total-ms=\(milliseconds(started.duration(to: .now)))")
-            }
-        }
-        do {
-            let argsWithoutEdge = try await withThrowingTaskGroup(of: (Int, JSONValue?).self) { group in
-                group.addTask { @MainActor @Sendable in
-                    guard var record = try await window.windowRecord(initialClass: initialClass) else { return (0, nil) }
-                    record.workspace = workspace.name
-                    record.project = workspace.projectId.rawValue
-                    record.monitor = MonitorRecord(workspace.workspaceMonitor)
-                    return (0, record.json)
-                }
-                group.addTask { @MainActor @Sendable in (1, try await filterContextRecord().json) }
-                group.addTask { @MainActor @Sendable in
-                    if let columnsSnapshot { return (2, columnsSnapshot) }
-                    return (2, try await workspace.columnRecords(excluding: edge == nil ? window : nil))
-                }
-                var values = [JSONValue?](repeating: nil, count: 3)
-                for try await (index, value) in group { values[index] = value }
-                return values
-            }
-            guard argsWithoutEdge.allSatisfy({ $0 != nil }) else { return nil }
-            var args = argsWithoutEdge.compactMap { $0 }
-            try Task.checkCancellation()
-            if let edge { args.append(.bool(edge)) }
-            argumentDuration = started.duration(to: .now)
-            switch await supervisor.hook(path, args: args) {
-                case .success(let result):
-                    guard accepts(result, hook: path.split(separator: ".").last.map(String.init) ?? path) else {
-                        supervisor.recordHookFailure("\(path): helper returned an invalid hook result")
-                        return nil
-                    }
-                    return result
-                case .failure(let failure):
-                    supervisor.recordHookFailure("\(path): \(failure.message)")
-                    return nil
-            }
-        } catch is CancellationError {
-            return nil
-        } catch {
-            supervisor.recordHookFailure("\(path): \(error.localizedDescription)")
-            return nil
-        }
-    }
-
     static func accepts(_ result: JSONValue, hook: String) -> Bool {
         guard case .object(let fields) = result else { return false }
         let allowed: Set<String>
@@ -139,17 +74,17 @@ enum ColumnPolicy {
     }
 
     static func decision(window: Window, workspace: Workspace, answer: JSONValue? = nil,
-                         supervisor: NickelSupervisor = .shared, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
+                         supervisor: any PolicyHookHelper = PolicyHooks.current, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
         var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
         // An Arrive answer is Arrive's result: name Arrive in its failures and as its source.
         let source = answer == nil ? path : config.arrive
         let result: JSONValue?
-        if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
+        if let answer { result = answer } else { result = await PolicyHookCompletion.call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
         builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let result else {
-            if path != nil { builtIn.failure = supervisor.status.lastError ?? "Hook unavailable" }
+            if path != nil { builtIn.failure = supervisor.lastHookError ?? "Hook unavailable" }
             return builtIn
         }
         let slot: Int
@@ -163,44 +98,42 @@ enum ColumnPolicy {
                 case "last": slot = columns.count
                 default:
                     supervisor.recordHookFailure("\(source ?? "arrive"): invalid Column target")
-                    builtIn.failure = supervisor.status.lastError
+                    builtIn.failure = supervisor.lastHookError
                     return builtIn
             }
         } else if case .int(let value) = result["column"] {
             guard (1...columns.count).contains(value) else {
                 supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(value) exceeds count \(columns.count)")
-                builtIn.failure = supervisor.status.lastError
+                builtIn.failure = supervisor.lastHookError
                 return builtIn
             }
             slot = value
             target = String(value)
         } else {
             supervisor.recordHookFailure("\(source ?? "arrive"): missing Column target")
-            builtIn.failure = supervisor.status.lastError
+            builtIn.failure = supervisor.lastHookError
             return builtIn
         }
         guard (1...columns.slotCount).contains(slot) else {
             supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(slot) exceeds count \(columns.slotCount)")
-            builtIn.failure = supervisor.status.lastError
+            builtIn.failure = supervisor.lastHookError
             return builtIn
         }
         return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
-                                 hook: source, run: commands(result))
+                                 hook: source, run: PolicyHookCompletion.commands(result))
     }
 
     @discardableResult
     static func place(_ window: Window, on workspace: Workspace, answer: JSONValue? = nil,
-                      supervisor: NickelSupervisor = .shared) async throws -> Bool {
+                      supervisor: any PolicyHookHelper = PolicyHooks.current) async throws -> Bool {
         guard workspace.columns != nil else { return false }
-        let location = Location(window)
-        let columns = workspace.columns
-        let decision = await decision(window: window, workspace: workspace, answer: answer, supervisor: supervisor)
-        guard location.contains(window), workspace.columns === columns else { return false }
-        if window.isBound { window.unbindFromParent() }
-        workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
-        workspace.normalizeContainers()
-        if let path = decision.hook { try await run(decision.run, window: window, path: path) }
-        return true
+        return try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true, helper: supervisor,
+            evaluate: { await decision(window: window, workspace: workspace, answer: answer, supervisor: supervisor) },
+            runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
+                if window.isBound { window.unbindFromParent() }
+                workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
+                return .completed(true)
+            }
     }
 
     static func afterTransfer(_ window: Window, from previous: Workspace?, didMove: Bool) async throws -> Bool {
@@ -212,7 +145,7 @@ enum ColumnPolicy {
     }
 
     static func arrive(_ window: Window, on detected: Workspace, floatingDefault: Bool,
-                       supervisor: NickelSupervisor = .shared) async throws {
+                       supervisor: any PolicyHookHelper = PolicyHooks.current) async throws {
         // With no hook to wait on, arrival binds without suspending, so nothing sees the window unplaced.
         guard config.arrive != nil || hook("place", on: detected) != nil else {
             return try await applyArrival(window, on: detected, floatingDefault: floatingDefault, supervisor: supervisor)
@@ -227,67 +160,38 @@ enum ColumnPolicy {
     }
 
     private static func applyArrival(_ window: Window, on detected: Workspace, floatingDefault: Bool,
-                                     supervisor: NickelSupervisor) async throws {
-        let location = Location(window)
+                                     supervisor: any PolicyHookHelper) async throws {
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
         let path = config.arrive
-        let result = await call(path, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass)
-        guard location.contains(window) else { return }
-        if window.parent === macosPopupWindowsContainer {
-            if let path { try await run(commands(result), window: window, path: path) }
-            return
-        }
-        let destination = result?["workspace"]?.stringOrNil.map { Workspace.get(byName: $0) } ?? detected
-        destination.seedMonitorIfNeeded(detected.workspaceMonitor)
-        let floating: Bool
-        if case .bool(let value) = result?["float"] { floating = value } else { floating = floatingDefault }
-        if floating {
-            if window.isBound { window.unbindFromParent() }
-            window.bindAsFloatingWindow(to: destination)
-        } else {
-            let explicit = result?["column"] == nil ? nil : result
-            var placement = explicit
-            if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
-            if destination.columns != nil {
-                if try await !place(window, on: destination, answer: placement, supervisor: supervisor) {
-                    // Abandoned: the window moved, or the workspace's Columns were replaced, during
-                    // the call. Only the second leaves it in the binding it was registered with.
-                    guard location.contains(window) else { return }
-                    window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+        _ = try await PolicyHookCompletion.perform(window: window, workspace: detected, checksColumns: false, normalizes: false, helper: supervisor,
+            evaluate: { await PolicyHookCompletion.call(path, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass) },
+            runList: { (path, PolicyHookCompletion.commands($0)) }, abandoned: { false }) { result, completion in
+                if window.parent === macosPopupWindowsContainer { return .completed(true) }
+                let destination = result?["workspace"]?.stringOrNil.map { Workspace.get(byName: $0) } ?? detected
+                destination.seedMonitorIfNeeded(detected.workspaceMonitor)
+                let floating: Bool
+                if case .bool(let value) = result?["float"] { floating = value } else { floating = floatingDefault }
+                if floating {
+                    if window.isBound { window.unbindFromParent() }
+                    window.bindAsFloatingWindow(to: destination)
+                } else {
+                    var placement = result?["column"] == nil ? nil : result
+                    if case .object(var fields) = placement { fields.removeValue(forKey: "run"); placement = .object(fields) }
+                    if destination.columns != nil {
+                        if try await !place(window, on: destination, answer: placement, supervisor: supervisor) {
+                            // Abandoned: the window moved, or the workspace's Columns were replaced, during
+                            // the call. Only the second leaves it in the binding it was registered with.
+                            guard completion.isAtOrigin else { return .fallback(false) }
+                            window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+                        }
+                    } else {
+                        window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+                    }
                 }
-            } else {
-                window.bind(to: bindingDataForNewTilingWindow(destination, window: window))
+                return .completed(true)
             }
-        }
-        if let path { try await run(commands(result), window: window, path: path) }
     }
 
-    static func commands(_ result: JSONValue?) -> [String] {
-        result?["run"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? []
-    }
-
-    static func run(_ commands: [String], window: Window, path: String) async throws {
-        guard !commands.isEmpty, window.isBound else { return }
-        let key = RunningHook(windowId: window.windowId, path: path)
-        guard runningWindows.insert(key).inserted else {
-            NickelSupervisor.shared.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
-            return
-        }
-        defer { runningWindows.remove(key) }
-        try await execute(commands, window: window)
-    }
-
-    private static func execute(_ commands: [String], window: Window) async throws {
-        for raw in commands {
-            guard window.isBound else { return }
-            switch parseCommand(raw) {
-                case .cmd(let command) where command.info.allowInConfig:
-                    _ = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: window.nodeWorkspace?.name ?? focus.workspace.name, windowId: window.windowId), .emptyStdin)
-                case .failure(let error): NickelSupervisor.shared.recordHookFailure("Policy run: \(error)")
-                default: NickelSupervisor.shared.recordHookFailure("Policy run: command is not allowed: \(raw)")
-            }
-        }
-    }
 }
 
 extension Workspace {
