@@ -5,7 +5,11 @@ import XCTest
 
 @MainActor
 final class ColumnPolicyTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws {
+        setUpWorkspacesForTests()
+        // A cancelled arrival schedules a refresh; a real one cannot run in a unit test.
+        setScheduledRefreshOverrideForTests { _, _ in }
+    }
 
     private func load(_ body: String, shared: Bool = false) async throws -> NickelSupervisor {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Run make helper") }
@@ -875,6 +879,7 @@ final class ColumnPolicyTest: XCTestCase {
         let gathering = expectation(description: "Arrival argument read suspended")
         var release: CheckedContinuation<Void, Never>?
         var reads = 0
+        defer { window.beforeAxRecord = nil }
         window.beforeAxRecord = {
             observeRead()
             reads += 1
@@ -893,7 +898,6 @@ final class ColumnPolicyTest: XCTestCase {
         whileSuspended()
         release?.resume()
         try await arrival.value
-        window.beforeAxRecord = nil
     }
 
     func testCancelledArriveStillAppliesColumnAndRunsCommands() async throws {
@@ -991,6 +995,28 @@ final class ColumnPolicyTest: XCTestCase {
         }
         XCTAssertTrue(observed)
         XCTAssertEqual(ws.columnSlot(containing: window), 3)
+    }
+
+    func testCancelledArriveSchedulesARefreshForWhatItChanged() async throws {
+        let supervisor = try await load("arrive = fun w ctx cols => { column = 3 }")
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        let refreshed = expectation(description: "Refresh scheduled after a cancelled arrival")
+        refreshed.assertForOverFulfill = false
+        setScheduledRefreshOverrideForTests { _, _ in refreshed.fulfill() }
+        try await cancelledArrival(window, on: ws, supervisor: supervisor)
+        await fulfillment(of: [refreshed], timeout: 2)
+        XCTAssertEqual(ws.columnSlot(containing: window), 3)
+    }
+
+    func testArriveWithoutHooksBindsBeforeYielding() async throws {
+        let ws = demo()
+        let window = TestWindow.new(id: 42, parent: ws)
+        var boundWhenProbed: Int?
+        let probe = Task { @MainActor in boundWhenProbed = ws.columnSlot(containing: window) }
+        try await ColumnPolicy.arrive(window, on: ws, floatingDefault: false)
+        await probe.value
+        XCTAssertNotNil(boundWhenProbed)
     }
 
 }

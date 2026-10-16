@@ -45,6 +45,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Two defects found while building `close`'s result** are with the follow-ups: a window that answers `close` with a save sheet drops out of WinMux until the sheet is dismissed, and staging the standing desk raises Python's local-network prompt.
 - **Building on Xcode 27** is with the follow-ups. The build machine moved to Xcode 27.0, and CI, the guest and the lockfile move to its Swift 6.4 with it.
 - **CI's swiftly is pinned** after the Xcode 27 move: Homebrew's cached swiftly 1.1.3 cannot fetch Swift 6.4.0.
+- **One defect found while shielding `arrive`** is with the follow-ups: a window registered or restored during a cancelled refresh misses its placement hook.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek

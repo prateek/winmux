@@ -205,10 +205,16 @@ enum ColumnPolicy {
 
     static func arrive(_ window: Window, on detected: Workspace, floatingDefault: Bool,
                        supervisor: NickelSupervisor = .shared) async throws {
+        // With no hook to wait on, arrival binds without suspending, so nothing sees the window unplaced.
+        guard config.arrive != nil || hook("place", on: detected) != nil else {
+            return try await applyArrival(window, on: detected, floatingDefault: floatingDefault, supervisor: supervisor)
+        }
         // Keep refresh task-locals while letting arrival outlive the detecting session.
         let task = Task { @MainActor in
             try await applyArrival(window, on: detected, floatingDefault: floatingDefault, supervisor: supervisor)
         }
+        // The cancelled session stops before its layout, so lay out what arrival changed.
+        defer { if Task.isCancelled { scheduleRefreshSession(.ax(kAXWindowCreatedNotification as String)) } }
         try await task.value
     }
 
