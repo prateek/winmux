@@ -27,36 +27,52 @@ Nothing.
 
 ## Done when
 
-- [ ] `winmux debug-lens-trace` over five grid openings of a fresh process shows the first within 50 ms of the others, with the stage that held the 548 ms named in the pull request.
-- [ ] The pull request has the refresh measurements for forty windows, and the decision they led to.
-- [ ] Startup drawing's duration, before and after, is in the pull request.
+- [x] `winmux debug-lens-trace` over five grid openings of a fresh process shows the first within 50 ms of the others, with the stage that held the 548 ms named in the pull request.
+  Six branch processes: maximum excess +29.4 ms; calibrated film excess +25.0 ms; base excess in `view built`.
+- [x] The pull request has the refresh measurements for forty windows, and the decision they led to.
+  3 valid release sets: median 0.06562 of one core; refresh stays at 500 ms for every live Tile.
+- [x] Startup drawing's duration, before and after, is in the pull request.
+  A: 966/589/605 → 741/446/447 ms; B: 1490/743/713 → 966/799/781 ms.
 
-## Built measurement support; acceptance incomplete
+## Built and measured
 
-`debug-lens-trace` records per-session thumbnail requests, successful completed
-captures and presented duration in text and JSON. Requests coalesced by the gate
-still count as requests; only successful captures started for that session count
-as completions, and dismissal freezes the totals. An opt-in
-`WINMUX_DEBUG_LENS_FRAMES=1` display-link observer reports intervals over 1.5
-refresh intervals and the longest interval. It creates no sampling link when off.
-Controlled-clock, injected-tick and controlled-capture tests cover the readers,
-ownership, coalescing, failure and dismissal. Grid and strip refresh expectations
-are unchanged.
+The six fresh-process branch comparisons pass the first-opening bound: scenario A
+excesses are +11.5, −21.2 and +29.4 ms; scenario B excesses are
++5.4, −14.4 and +7.8 ms. Each process has five key-triggered openings after one workspace warm.
+The calibrated fresh-process film passes the unchanged two-frame checker:
+177.9 ms first visible against a 152.8 ms later median, an excess of 25.0 ms.
 
-The first valid base process on the rich desk reproduced the excess in `view
-built`: 1,140.6 ms total, with 985.8 ms in that stage; later totals were 145.5,
-189.6, 145.1 and 219.7 ms. Startup drawing took 966 ms. Default startup settings
-already match the shipped windows Lens: real sizing, card Tiles, workspace
-sections. This excludes a settings mismatch, but does not distinguish empty-desk
-warming from the other real-opening differences.
+The base reproduced a 1,140.6 ms first opening, including 985.8 ms in `view built`.
+Smaller timed/profiled reproductions locate synchronous panel sizing through
+`NSHostingView.layout`, SwiftUI view-graph transactions and nested ZStack sizing;
+the original 986 ms event itself was not captured under Time Profiler. Startup
+settings already match the shipped grid's real sizing, card Tiles and workspace
+sections. Startup now draws fourteen varied picture/placeholder Tiles in four
+sections on an empty desktop and displays/flushes the hidden native backing once.
+It orders no panel front and requests no fresh capture. No second warm remains.
 
-A Python Local Network permission prompt interrupted restaging. It was preserved
-and left unanswered. The full six-process base comparison, a verified opening
-fix, the branch's timing tables and film, startup before/after comparison and
-forty-real-window release measurements remain unchecked. No refresh decision can
-be drawn from these data; no refresh schedule or startup drawing was changed.
-Installed-build checks, a second display and real sleep/wake/unlock remain
-Prateek's.
+Startup drawing, base → branch in milliseconds: A 966/589/605 → 741/446/447;
+B 1490/743/713 → 966/799/781. No paired branch increase exceeds 100 ms.
+
+`debug-lens-trace` retains requested/completed captures and presented duration.
+Capture completions belong to the Lens token that started the screenshot;
+dismissal freezes totals. `WINMUX_DEBUG_LENS_FRAMES=1` enables an interval
+observer: intervals longer than 1.5 refresh intervals and the longest interval.
+With the flag off, no sampling display link is created. Controlled-clock,
+controlled-capture and injected-tick tests cover these behaviors. Representative
+grid and hidden-backing tests fail with their fixes undone; all pre-existing
+preparation, grid and strip tests remain unchanged.
+
+Forty real windows, eleven live and twenty-nine Frozen, were measured on the
+signed release dry run from `5aa960c0`, at four cores, 6144 MB and 1920×1080.
+The 3 accepted sets have a median refresh share of 0.06562 of one core,
+below 0.08 and the 0.10 threshold. The refresh stays unchanged. Captures per
+actual presented second range from 20.85 to 21.18; requested
+session-count/30 rates, CPU deltas, guest idle and frame intervals are in the pull
+request. The frame observer and refresh were not changed for the observed long
+intervals; no total session frame count is recorded.
+
+Installed-build checks, a second display and real sleep/wake/unlock remain manual.
 
 ## Sources
 

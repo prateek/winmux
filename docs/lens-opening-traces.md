@@ -30,7 +30,11 @@ The stages, with start and duration relative to the input, are:
 | first frame presented | The calibrated display-link presentation observation after ordering |
 | gap | Time between recorded intervals, printed explicitly |
 
-The strip prepares its real view while hidden during the display delay, so view construction and first layout precede the delay row. The list and miniatures omit the delay entirely. Event sources that do not apply are absent. Cold SwiftUI drawing is prepared at startup using existing window snapshots and cached pictures, with neutral picture, placeholder and workspace-badge branches as the empty-desktop fallback. This neither orders a panel nor requests fresh thumbnails. Full bitmap rasterization happens only at startup; ordinary preparations use the hosting view’s display pass. Startup therefore pays work that previously blocked the first gesture: it runs on the main actor after WinMux is ready and any config saved during startup has reloaded, draws each Presentation once at the focused monitor's size with default Lens settings, and writes its duration to the unified log (`/usr/bin/log show --last 5m --predicate 'subsystem == "<app id>" && category == "lens"'`, the line starting `Lens startup preparation took`). A Lens that is open or opening when it would run owns the panel, so that launch skips it and its first opening is cold.
+The strip prepares its real view while hidden during the display delay, so view construction and first layout precede the delay row. The list and miniatures omit the delay entirely. Event sources that do not apply are absent.
+
+Cold SwiftUI drawing is prepared at startup using existing window snapshots and cached pictures, with fourteen picture and placeholder Tiles in four workspace sections as the empty-desktop grid fallback. That fallback includes real-size landscape, portrait and dialog shapes, images at the cache’s normal width, application icons and Frozen badges. This neither orders a panel nor requests fresh thumbnails. At startup, each Presentation is rasterized into a bitmap and the hidden window backing is displayed and its Core Animation transaction flushed before the root is cleared. Bitmap caching alone leaves the native backing path cold. The panel stays invisible throughout; ordinary preparations use the hosting view’s display pass. This remains one startup preparation, with no later window-triggered warm.
+
+Startup therefore pays work that previously blocked the first gesture: it runs on the main actor after WinMux is ready and any config saved during startup has reloaded, draws each Presentation once at the focused monitor's size with default Lens settings, and writes its duration to the unified log (`/usr/bin/log show --last 5m --predicate 'subsystem == "<app id>" && category == "lens"'`, the line starting `Lens startup preparation took`). A Lens that is open or opening when it would run owns the panel, so that launch skips it and its first opening is cold.
 
 Stage ownership stays with the work: `LensCommand` records binding/collection/Filter work; `LensLifecycle` owns the active trace, delay and cancellation; the panel records AppKit stages on that same trace. `LensTraceStore` bounds history and owns the reader/injectable stamps. Instrumentation does not move business logic between those owners.
 
@@ -79,6 +83,8 @@ The output repeats idle samples on a constant 60 fps timeline. Pull the movie, i
 ```sh
 python3 .claude/skills/demo/check-lens-film.py strip.mov strip.json --probe 500,280,250,180 --strip-edge 350,267,580
 ```
+
+For the shipped grid opened by Option-semicolon followed by W, pass `--presentation grid --opening-key W` and choose a probe inside the panel surface, clear of thumbnails (for example `--probe 600,800,200,100` at 1920×1080). The defaults remain the Cmd-Tab strip. Compare the first visible opening with the median of the next four as well as checking trace agreement; agreement alone does not establish the first-opening bound.
 
 At this desk size, the additional straight top-border probe rejects workspace motion that can fool centre pixels. It requires the bright strip edge to span most of its width, with darker pixels outside and inside; adjust the geometry for another Presentation size. Inspect the extracted PNGs before accepting the probes: it must detect the strip surface, including placeholders, rather than wait for fresh thumbnails. The helper first checks every encoded raw-frame timestamp against the measured receipt metadata, rejecting encoder reordering or an incorrect movie origin. The checker reads the movie's actual frame timestamps and rates, verifies 60 fps spacing, and prints each key time, first visible frame, trace total, difference in milliseconds and difference in frames. It also prints the posted-key to trace-origin shift and the actual endpoint difference on the shared clock; frame indices use the recorded trace origin, not an assumption that both starts coincide. It rejects missing openings, pending traces and disagreement over two frames. One frame is 16.667 ms in this file. Keep frames at the key press, the trace's first-frame estimate and the first frame a viewer calls present. Read back focused workspace and windows after the take.
 
@@ -133,10 +139,18 @@ interval includes ordinary intervals. With the flag off, neither field is presen
 and no sampling link is created. Callback intervals include main-thread stalls;
 they are not hardware scanout measurements.
 
-For a refresh-cost comparison, hold the same grid open without input for thirty
-seconds, dismiss, then read the session. Divide completed captures by thirty.
-Measure process CPU time separately with `ps -o cputime= -p <pid>` before and
-after each interval, and compare with a thirty-second interval with no Lens.
+For a refresh-cost comparison, keep the same grid open without input around a
+thirty-second CPU window, dismiss, then read the session. Record its actual
+presented duration as well as completed captures divided by thirty. When the
+session includes setup or screenshot time outside the CPU window, also report
+completed captures divided by presented seconds; the session counter covers both.
+
+Measure process CPU time with `ps -o cputime= -p <pid>` before and after the
+window. Bracket each read with the same monotonic clock and divide that process's
+CPU-time delta by the elapsed window, rather than assuming the sleep lasted
+exactly thirty seconds. Require one WinMux process and stable PIDs. Compare with
+a window of the same length with no Lens: screenshots at both idle endpoints must
+show it closed, and a screenshot during the open session must show the grid.
 Report WinMux alone as the threshold's CPU cost; report replayd and WindowServer
 alongside it for context. Sample guest-wide idle CPU at the start, middle and end;
 rerun a set if any sample is below 25%. Do not query WinMux during the interval:
