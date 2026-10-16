@@ -205,6 +205,15 @@ enum ColumnPolicy {
 
     static func arrive(_ window: Window, on detected: Workspace, floatingDefault: Bool,
                        supervisor: NickelSupervisor = .shared) async throws {
+        // Keep refresh task-locals while letting arrival outlive the detecting session.
+        let task = Task { @MainActor in
+            try await applyArrival(window, on: detected, floatingDefault: floatingDefault, supervisor: supervisor)
+        }
+        try await task.value
+    }
+
+    private static func applyArrival(_ window: Window, on detected: Workspace, floatingDefault: Bool,
+                                     supervisor: NickelSupervisor) async throws {
         let location = Location(window)
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
         let result = await call(config.arrive, window: window, workspace: detected, supervisor: supervisor, initialClass: initialClass)
