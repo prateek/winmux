@@ -42,7 +42,10 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
             session.changeSections(args.value.val)
             continue
         }
+        let closes = if case .cmd(let command) = parseCommand(raw) { command.args is CloseCmdArgs } else { false }
         for id in session.targets(forCommand: raw) {
+            // An earlier marked close can take this window with it; for close, gone is done.
+            if closes, Window.get(byId: id) == nil { continue }
             success = try await runLensWindowAction(raw, windowId: id, io: io) && success
         }
     }

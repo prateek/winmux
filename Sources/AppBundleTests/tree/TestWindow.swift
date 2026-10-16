@@ -39,8 +39,18 @@ final class TestWindow: Window, CustomStringConvertible {
         app.focusedWindow = self
     }
 
-    override func closeAxWindow() {
+    @MainActor var closeResult: WindowCloseResult = .closed
+    /// Runs after a close that succeeded, as an app closing a companion window along with this one.
+    @MainActor var onClose: (@MainActor () -> Void)?
+    @MainActor private(set) var closeAttempts = 0
+
+    @MainActor
+    override func closeAxWindow() async -> WindowCloseResult {
+        closeAttempts += 1
+        guard closeResult == .closed else { return closeResult }
         unbindFromParent()
+        onClose?()
+        return .closed
     }
 
     override var title: String {

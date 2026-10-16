@@ -15,6 +15,8 @@ struct CloseAllWindowsButCurrentCommand: Command {
         }
         var result = true
         for window in workspace.allLeafWindowsRecursive where window != focused {
+            // An app can close a companion window along with one closed earlier in this loop.
+            guard Window.get(byId: window.windowId) != nil else { continue }
             result = try await CloseCommand(args: args.closeArgs).run(env.copy(\.windowId, window.windowId), io) && result
         }
         return result

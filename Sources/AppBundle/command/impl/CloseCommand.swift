@@ -25,8 +25,11 @@ struct CloseCommand: Command {
                     return io.err("Failed to quit '\(window.app.name ?? "Unknown app")'")
                 }
             } else {
-                window.closeAxWindow()
-                return true
+                let appName = window.app.name ?? "Unknown app"
+                switch await window.closeAxWindow() {
+                    case .closed: return true
+                    case .notClosed(let reason): return io.err("Can't close '\(appName)': \(reason.rawValue)")
+                }
             }
         }
     }

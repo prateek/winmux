@@ -319,7 +319,7 @@ private func closeWindowsForProjectDeletion(_ windows: [Window]) async -> [Windo
                 remaining.append(window)
             }
         } else {
-            window.closeAxWindow()
+            _ = await window.closeAxWindow()
             if window.nodeWorkspace == nil {
                 handledWindowIds.insert(window.windowId)
             } else {

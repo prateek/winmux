@@ -348,6 +348,16 @@ extension AXUIElement: AxUiElementMock {
             : nil
     }
 
+    /// Like get, but surfaces the AXError, so a caller can tell a missing attribute from a window
+    /// that is gone or an app that did not answer.
+    func getWithError<Attr: ReadableAttr>(_ attr: Attr) -> (value: Attr.T?, error: AXError) {
+        let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
+        defer { signposter.endInterval(#function, state) }
+        var raw: AnyObject?
+        let error = AXUIElementCopyAttributeValue(self, attr.key as CFString, &raw)
+        return error == .success ? (raw.flatMap(attr.getter), error) : (nil, error)
+    }
+
     @discardableResult func set<Attr: WritableAttr>(_ attr: Attr, _ value: Attr.T) -> Bool {
         if serverArgs.isReadOnly { return false }
         let state = signposter.beginInterval(#function, "attr: \(attr.key) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
