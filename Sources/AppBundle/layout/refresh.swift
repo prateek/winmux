@@ -300,7 +300,6 @@ func refreshModel() {
     checkOnFocusChangedCallbacks()
     normalizeContainers()
     if let event = columnsEventTracker.event(for: focus.workspace) { broadcastEvent(event) }
-    if isWinMuxRuntimeReady, !isUnitTest { SwitcherPalettePanel.shared.prepareRealGridWhenAvailable() }
 }
 
 @MainActor

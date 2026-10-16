@@ -1,41 +1,14 @@
 import AppKit
+import QuartzCore
 
 @MainActor
 final class LensStartupPreparation {
-    typealias GridDraw = @MainActor @Sendable () -> Void
-    typealias GridPreparation = @MainActor @Sendable () async -> GridDraw?
-    private let clock: any Clock<Duration>
     private var prepared = false
-    private var realGridPrepared = false
-    private var pendingWindowIds: Set<UInt32>?
-    private var realGridTask: Task<Void, Never>?
-    private var generation = 0
-    var needsRealGridPreparation: Bool { prepared && !realGridPrepared }
 
-    init(clock: any Clock<Duration> = ContinuousClock()) { self.clock = clock }
-
-    @discardableResult
-    func scheduleRealGrid(windowIds: Set<UInt32>, isIdle: @escaping @MainActor @Sendable () -> Bool,
-                          prepare: @escaping GridPreparation) -> Bool {
-        guard needsRealGridPreparation, !windowIds.isEmpty, isIdle(), pendingWindowIds != windowIds else { return false }
-        generation += 1
-        let ticket = generation
-        pendingWindowIds = windowIds
-        realGridTask?.cancel()
-        let clock = self.clock
-        realGridTask = Task { @MainActor [weak self] in
-            do { try await clock.sleep(for: .seconds(1)) } catch { return }
-            guard let self, ticket == self.generation else { return }
-            guard isIdle() else { self.pendingWindowIds = nil; self.realGridTask = nil; return }
-            let draw = await prepare()
-            guard !Task.isCancelled, ticket == self.generation else { return }
-            self.pendingWindowIds = nil
-            self.realGridTask = nil
-            guard isIdle(), let draw else { return }
-            self.realGridPrepared = true
-            draw()
-        }
-        return true
+    static func drawHiddenBacking(_ window: NSWindow) {
+        guard !window.isVisible else { return }
+        window.display()
+        CATransaction.flush()
     }
 
     static func gridModel(size: CGSize, existingItems: [SwitcherPaletteItem], workspaces: [MiniatureWorkspace]) -> LensSession {
