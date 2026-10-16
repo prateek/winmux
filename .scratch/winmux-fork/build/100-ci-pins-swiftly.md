@@ -18,8 +18,8 @@ Nothing.
 
 ## Done when
 
-- [ ] CI's toolchain step installs swiftly 1.1.4 from the pinned package and Swift 6.4.0 from swift.org.
-- [ ] `Build and test` passes with it.
+- [x] CI's toolchain step installs swiftly 1.1.4 from the pinned package and Swift 6.4.0 from swift.org.
+- [x] `Build and test` passes with it.
 
 ## Sources
 
