@@ -147,18 +147,22 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
         for overflow in OverflowPolicy.allCases {
             reset()
             config.workspaceSidebar.enabled = false
+            config.enableNormalizationFlattenContainers = false
+            defer { config.enableNormalizationFlattenContainers = true }
             let hooks = columns(overflow)
             let destination = focus.workspace
             let source = Workspace.get(byName: "Source")
             destination.columns = ColumnState(count: 3)
             let root = destination.rootTilingContainer
             let anchor = TestWindow.new(id: 1, parent: root); anchor.columnSlot = 1
-            let empty = TilingContainer(parent: root, adaptiveWeight: 1, .v, .tabGroup, index: 1); empty.columnSlot = 2
-            _ = TilingContainer(parent: empty, adaptiveWeight: 1, .h, .tiles, index: 0)
             let incoming = TestWindow.new(id: 42, parent: source.rootTilingContainer)
             XCTAssertTrue(anchor.focusWindow())
             destination.normalizeContainers()
             try await destination.layoutWorkspace()
+            let empty = TilingContainer(parent: root, adaptiveWeight: 1, .v, .tabGroup, index: 1); empty.columnSlot = 2
+            _ = TilingContainer(parent: empty, adaptiveWeight: 1, .h, .tiles, index: 0)
+            XCTAssertTrue(empty.isBound)
+            XCTAssertTrue(root.children.first { $0.columnSlot == 2 } === empty)
             let model = lens(incoming, source: source, destination: destination, frame: CGRect(x: 10, y: 10, width: 200, height: 200))
             let owner = ownLens(model)
             model.send(.modifiersChanged(.option))
@@ -186,8 +190,11 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
                 config.gaps.outer.top = .constant(23)
                 let sourceRect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
                 let destinationRect = Rect(topLeftX: 1000, topLeftY: 0, width: destinationSize.width, height: destinationSize.height)
-                let left = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Left", rect: sourceRect, visibleRect: sourceRect, isMain: true)
-                let right = TestMonitor(monitorAppKitNsScreenScreensId: 2, name: "Right", rect: destinationRect, visibleRect: destinationRect, isMain: false)
+                let left = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Left", rect: sourceRect,
+                    visibleRect: Rect(topLeftX: 20, topLeftY: 30, width: 960, height: 710), isMain: true)
+                let right = TestMonitor(monitorAppKitNsScreenScreensId: 2, name: "Right", rect: destinationRect,
+                    visibleRect: Rect(topLeftX: 1040, topLeftY: 45, width: destinationSize.width - 80,
+                                      height: destinationSize.height - 120), isMain: false)
                 setMonitorsForTests([left, right])
                 let source = Workspace.get(byName: "Source")
                 let destination = Workspace.get(byName: "Destination")
@@ -216,23 +223,73 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
             }
         }
     }
-    func testSingleMonitorFloatingHintPreservesPartlyOffscreenFrameLikeSummon() async throws {
+    func testHiddenFloatingHintMatchesUnhideRestoreOnOneAndTwoMonitors() async throws {
+        for displayCount in [1, 2] {
+            for destinationSize in [CGSize(width: 1000, height: 800), CGSize(width: 1400, height: 1000)] {
+                for alreadyFloating in [false, true] {
+                    reset()
+                    _ = columns(.float)
+                    config.workspaceSidebar.enabled = false
+                    let sourceRect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
+                    let destinationRect = Rect(topLeftX: displayCount == 1 ? 0 : 1000, topLeftY: 0,
+                                               width: destinationSize.width, height: destinationSize.height)
+                    let left = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Left", rect: sourceRect,
+                        visibleRect: Rect(topLeftX: 20, topLeftY: 30, width: 960, height: 710), isMain: true)
+                    let right = TestMonitor(monitorAppKitNsScreenScreensId: 2, name: "Right", rect: destinationRect,
+                        visibleRect: Rect(topLeftX: destinationRect.minX + 40, topLeftY: 45,
+                                          width: destinationSize.width - 80, height: destinationSize.height - 120), isMain: false)
+                    setMonitorsForTests(displayCount == 1 ? [right] : [left, right])
+                    let source = Workspace.get(byName: "Source")
+                    let destination = Workspace.get(byName: "Destination")
+                    _ = right.setActiveWorkspace(destination)
+                    source.seedMonitorIfNeeded(displayCount == 1 ? right : left)
+                    destination.seedMonitorIfNeeded(right)
+                    XCTAssertFalse(source.isVisible)
+                    destination.columns = ColumnState(count: 3)
+                    let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
+                    destination.normalizeContainers()
+                    XCTAssertTrue(anchor.focusWindow())
+                    try await destination.layoutWorkspace()
+                    let saved = CGPoint(x: displayCount == 1 ? -0.06 : 0.12, y: 0.125)
+                    let frame = Rect(topLeftX: displayCount == 1 ? -60 : 120, topLeftY: 100, width: 240, height: 180)
+                    let window = TestWindow.new(id: 42, parent: alreadyFloating ? source : source.rootTilingContainer, rect: frame)
+                    window.testSavedProportionalPosition = saved
+                    let model = lens(window, source: source, destination: destination, frame: frame.cgRect, floating: alreadyFloating)
+                    let owner = ownLens(model)
+                    model.send(.modifiersChanged(.option))
+                    await owner.landingTask?.value
+                    let hint = try XCTUnwrap(model.miniatureLanding)
+                    let expected = CGRect(x: destinationRect.minX + max(0, saved.x) * destinationRect.width,
+                                          y: saved.y * destinationRect.height, width: 240, height: 180)
+                    // TestWindow cannot call MacWindow.unhideFromCorner; compare with its shared restore function.
+                    let restored = restoredFloatingWindowFrame(proportion: saved, size: frame.size, in: destinationRect.cgRect)
+                    XCTAssertEqual(restored, expected)
+                    XCTAssertEqual(hint, restored, "\(displayCount) monitors, \(destinationSize), floating: \(alreadyFloating)")
+                    owner.dismiss()
+                }
+            }
+        }
+    }
+
+    func testVisibleFloatingHintUsesMonitorUnderWindowCenter() async throws {
         for alreadyFloating in [false, true] {
             reset()
             _ = columns(.float)
-            config.workspaceSidebar.enabled = false
-            let rect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
-            let monitor = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Only", rect: rect, visibleRect: rect, isMain: true)
-            setMonitorsForTests([monitor])
-            let destination = Workspace.get(byName: "Destination")
+            let a = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
+            let b = Rect(topLeftX: 1000, topLeftY: 0, width: 1400, height: 1000)
+            let left = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Left", rect: a, visibleRect: a, isMain: true)
+            let right = TestMonitor(monitorAppKitNsScreenScreensId: 2, name: "Right", rect: b, visibleRect: b, isMain: false)
+            setMonitorsForTests([left, right])
             let source = Workspace.get(byName: "Source")
-            _ = monitor.setActiveWorkspace(destination)
+            let destination = Workspace.get(byName: "Destination")
+            _ = left.setActiveWorkspace(source); _ = right.setActiveWorkspace(destination)
+            source.seedMonitorIfNeeded(left); destination.seedMonitorIfNeeded(right)
             destination.columns = ColumnState(count: 3)
             let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
             destination.normalizeContainers()
             XCTAssertTrue(anchor.focusWindow())
             try await destination.layoutWorkspace()
-            let frame = Rect(topLeftX: -60, topLeftY: 100, width: 240, height: 180)
+            let frame = Rect(topLeftX: 1200, topLeftY: 150, width: 240, height: 180)
             let window = TestWindow.new(id: 42, parent: alreadyFloating ? source : source.rootTilingContainer, rect: frame)
             let model = lens(window, source: source, destination: destination, frame: frame.cgRect, floating: alreadyFloating)
             let owner = ownLens(model)
@@ -243,9 +300,75 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
             XCTAssertEqual(result.exitCode, 0)
             try await destination.layoutWorkspace()
             let actual = try await window.getAxRect()
-            XCTAssertEqual(hint, frame.cgRect)
             XCTAssertEqual(hint, actual?.cgRect)
+            XCTAssertEqual(hint, frame.cgRect)
             owner.dismiss()
+        }
+    }
+
+    func testColumnCountOffReevaluatesHintThroughCommand() async throws {
+        _ = columns(.squeeze)
+        let destination = focus.workspace
+        let source = Workspace.get(byName: "Source")
+        destination.columns = ColumnState(count: 3)
+        let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
+        let incoming = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        destination.normalizeContainers()
+        XCTAssertTrue(anchor.focusWindow())
+        try await destination.layoutWorkspace()
+        let model = lens(incoming, source: source, destination: destination, frame: CGRect(x: 10, y: 10, width: 200, height: 200))
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.modifiersChanged(.option))
+        await owner.landingTask?.value
+        let hint = try XCTUnwrap(model.miniatureLanding)
+        let selection = model.selectedId
+        let result = try await parseCommand("column-count off").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertNil(destination.columns)
+        XCTAssertNotEqual(model.miniatureLanding, hint)
+        XCTAssertNotNil(model.miniatureLanding)
+        XCTAssertEqual(model.selectedId, selection)
+        XCTAssertTrue(model.summonHintsShown)
+    }
+
+    func testConfigLoadDoesNotConstructLensPanel() async throws {
+        // In an isolated invocation this starts nil; the full suite may have opened the shared panel.
+        let before = SwitcherPalettePanel.sharedIfCreated
+        XCTAssertNil(before?.session)
+        var settings = config
+        settings.modes = ["main": .zero]
+        try await applyConfig(settings, url: URL(fileURLWithPath: "/tmp/winmux-test.ncl"))
+        XCTAssertTrue(SwitcherPalettePanel.sharedIfCreated === before)
+    }
+
+    func testCachedColumnRecordsKeepEmptyConsistentWithSnapshotWindows() async throws {
+        let hooks = columns(.squeeze)
+        let destination = focus.workspace
+        let source = Workspace.get(byName: "Source")
+        destination.columns = ColumnState(count: 3)
+        let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
+        let incoming = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        destination.normalizeContainers()
+        XCTAssertTrue(anchor.focusWindow())
+        try await destination.layoutWorkspace()
+        let model = lens(incoming, source: source, destination: destination, frame: CGRect(x: 10, y: 10, width: 200, height: 200))
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.modifiersChanged(.option))
+        await owner.landingTask?.value
+        let first = try XCTUnwrap(hooks.calls.last?.args.last?.arrayOrNil)
+        XCTAssertEqual(first[1]["empty"], .bool(false))
+        XCTAssertEqual(first[2]["empty"], .bool(true))
+        anchor.columnSlot = 3
+        model.send(.modifiersChanged([]))
+        model.send(.modifiersChanged(.option))
+        await owner.landingTask?.value
+        let records = try XCTUnwrap(hooks.calls.last?.args.last?.arrayOrNil)
+        XCTAssertEqual(records[1]["windows"], first[1]["windows"])
+        XCTAssertEqual(records[2]["windows"], first[2]["windows"])
+        for record in records {
+            XCTAssertEqual(record["empty"], .bool(record["windows"]?.arrayOrNil?.isEmpty == true))
         }
     }
 
@@ -271,7 +394,7 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
         let probe = ReloadProbe()
         probe.duringApply = { _ in
             config.columns = ColumnsConfig()
-            applyColumnsConfiguration(config.columns, updateLanding: owner.updateMiniatureLanding)
+            for workspace in Workspace.all { workspace.applyColumns(config.columns) }
         }
         let reloader = probe.owner()
         let scheduler = ConfigReloadScheduler(delay: .milliseconds(300), clock: clock) { await reloader.fileChanged() }
@@ -290,7 +413,7 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
         XCTAssertEqual(ordinary, CGRect(x: rect.midX + gap, y: rect.minY, width: rect.width / 2 - gap, height: rect.height))
         probe.duringApply = { _ in
             config.columns = ColumnsConfig(.object(["count": .int(3)]), workspaces: nil)
-            applyColumnsConfiguration(config.columns, updateLanding: owner.updateMiniatureLanding)
+            for workspace in Workspace.all { workspace.applyColumns(config.columns) }
         }
         scheduler.fileChanged()
         await clock.advance(by: .milliseconds(300))

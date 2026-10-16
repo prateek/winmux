@@ -56,11 +56,6 @@ extension Workspace {
         } else if !children.isEmpty {
             enforceColumnInvariant()
         }
+        LensLifecycle.columnsChanged(on: self)
     }
-}
-
-@MainActor
-func applyColumnsConfiguration(_ settings: ColumnsConfig, updateLanding: () -> Void) {
-    for workspace in Workspace.all { workspace.applyColumns(settings) }
-    updateLanding()
 }

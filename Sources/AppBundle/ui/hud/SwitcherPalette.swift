@@ -29,7 +29,12 @@ struct SwitcherPaletteItem: Identifiable {
 
 @MainActor
 final class SwitcherPalettePanel: NSPanelHud {
-    static let shared = SwitcherPalettePanel(emit: broadcastEvent)
+    static private(set) weak var sharedIfCreated: SwitcherPalettePanel?
+    static let shared: SwitcherPalettePanel = {
+        let panel = SwitcherPalettePanel(emit: broadcastEvent)
+        sharedIfCreated = panel
+        return panel
+    }()
     private let hostingView = LensHostingView(rootView: AnyView(EmptyView()))
     private let lifecycle: LensLifecycle
     private let startupPreparation = LensStartupPreparation()

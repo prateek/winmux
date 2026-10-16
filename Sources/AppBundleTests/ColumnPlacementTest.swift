@@ -156,15 +156,17 @@ final class ColumnPlacementTest: XCTestCase {
             let window = incoming as? Window ?? incoming.allLeafWindowsRecursive.first!
             let decision = PlacementDecision(slot: 2, target: "2", overflow: OverflowPolicy(rawValue: row.overflow)!, hook: nil)
             let placement = ColumnPlacement.resolve(decision, columns: workspace.columns!, children: workspace.rootTilingContainer.children, incoming: incoming)
-            let hint = miniatureColumnLanding(placement, in: rect, horizontalGap: 20, verticalGap: 12,
-                                              floatingFrame: CGRect(x: 10, y: 10, width: 200, height: 200), source: rect)
+            let hint = placement.verticalRange.map { _ in
+                miniatureColumnLanding(placement, in: rect, horizontalGap: 20, verticalGap: 12)
+            }
+            if row.occupied && row.overflow == "float" { XCTAssertNil(placement.verticalRange) }
             incoming.unbindFromParent()
             workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
             workspace.normalizeContainers()
             try await workspace.layoutWorkspace()
             let actual = region(row, workspace, incoming, window: window)
             XCTAssertEqual(actual, expected(row), String(describing: row))
-            XCTAssertEqual(hint, actual ?? CGRect(x: 10, y: 10, width: 200, height: 200), String(describing: row))
+            XCTAssertEqual(hint, actual, String(describing: row))
         }
     }
 

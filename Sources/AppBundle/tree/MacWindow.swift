@@ -227,14 +227,9 @@ final class MacWindow: Window {
         guard let parent else { return }
 
         func restoreToSavedWorkspacePosition() {
-            let workspaceRect = nodeWorkspace.workspaceMonitor.rect
-            var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
-            var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
-            let windowWidth = lastKnownActualRect?.width ?? lastFloatingSize?.width ?? 0
-            let windowHeight = lastKnownActualRect?.height ?? lastFloatingSize?.height ?? 0
-            newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-            newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
-            setAxFrame(CGPoint(x: newX, y: newY), nil)
+            let frame = restoredFloatingWindowFrame(proportion: prevUnhiddenProportionalPositionInsideWorkspaceRect,
+                size: lastKnownActualRect?.size ?? lastFloatingSize ?? .zero, in: nodeWorkspace.workspaceMonitor.rect.cgRect)
+            setAxFrame(frame.origin, nil)
         }
 
         switch getChildParentRelation(child: self, parent: parent) {
@@ -249,6 +244,8 @@ final class MacWindow: Window {
         self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
         self.hiddenInCorner = nil
     }
+
+    override var savedProportionalPosition: CGPoint? { prevUnhiddenProportionalPositionInsideWorkspaceRect }
 
     override var isHiddenInCorner: Bool {
         prevUnhiddenProportionalPositionInsideWorkspaceRect != nil

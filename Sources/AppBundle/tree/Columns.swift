@@ -234,10 +234,8 @@ extension Workspace {
                 return
             case .attach: break
         }
-        if let existing = rootTilingContainer.children.first(where: { $0.columnSlot == slot }),
-           !ColumnPlacement.isOccupied(existing, excluding: node) { existing.unbindFromParent() }
         if let group = node as? TilingContainer,
-           rootTilingContainer.children.contains(where: { $0.columnSlot == slot }) {
+           ColumnPlacement.isOccupied(rootTilingContainer.children.first { $0.columnSlot == slot }, excluding: node) {
             let windows = group.allLeafWindowsRecursive
             for window in windows {
                 window.unbindFromParent()

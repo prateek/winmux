@@ -115,7 +115,7 @@ extension LoadedConfig: ConfigReloadCandidate {
 @MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
     resetHotKeys()
     config = newConfig
-    applyColumnsConfiguration(config.columns, updateLanding: SwitcherPalettePanel.shared.updateMiniatureLanding)
+    for workspace in Workspace.all { workspace.applyColumns(config.columns) }
     config.workspaceSidebar.apply(readWorkspaceSidebarState())
     configUrl = url
     try await activateMode(config.modeToKeep(activeMode))

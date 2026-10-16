@@ -85,7 +85,7 @@ final class MiniatureRegressionTest: XCTestCase {
         let source = CGRect(x: 1920, y: 0, width: 1920, height: 1080)
         let destination = CGRect(x: 0, y: 24, width: 1000, height: 700)
         let frame = CGRect(x: 2880, y: 540, width: 600, height: 400)
-        XCTAssertEqual(miniatureFloatingLanding(frame, from: source, to: destination), CGRect(x: 400, y: 324, width: 600, height: 400))
+        XCTAssertEqual(mappedFloatingWindowFrame(frame, from: source, to: destination), CGRect(x: 400, y: 324, width: 600, height: 400))
     }
 }
 
