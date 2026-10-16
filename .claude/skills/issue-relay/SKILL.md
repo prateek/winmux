@@ -25,6 +25,8 @@ Take the brief's next issue. When it names none, take the open child of the umbr
 
 A child labelled `blocked on Prateek` is not buildable. Before taking an issue, read the open children of **Open with Prateek** (prateek/winmux #84). When the issue builds on a question still open there, label it `blocked on Prateek`, comment with the question's number, and take the next child. A rule Prateek has not agreed to is not built on, whatever the draft says.
 
+An issue whose draft says each of its parts is its own pull request is built one part per relay: the part is the issue for every step below. The builder brief scopes the pass to that part, the draft ticks only its Done-when items and says the part landed on its own, the description and squash body end `Part of #<issue>` instead of `Closes #<issue>`, and the issue stays open. The handoff names the next part as the next issue. The last part closes it.
+
 Done when you have one issue number and its draft. When no buildable child of the umbrella is open, the relay is over: stop and tell Prateek.
 
 ## 3. Cut the worktree and bring up the guest
@@ -99,7 +101,7 @@ The merge gate holds when all of these do:
 - Every Done-when item is met or left to Prateek as step 7 says.
 - When your harness gives you a reviewer or advisor tool that you would consult before merging and it is unavailable, do not merge on your own reading alone: ask a second model through the `utils-agent:acpx` skill to check the gate against this list, and say so in the description.
 
-When the gate holds, `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says: `gh pr merge <pr> -R prateek/winmux --squash --match-head-commit <sha> --body-file <file>`. Pass no `--subject`, so the subject stays `<title> (#<pr>)`, and no `--delete-branch`. The body ends with `Closes #<issue>` and the `Co-Authored-By` line. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
+When the gate holds, `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says: `gh pr merge <pr> -R prateek/winmux --squash --match-head-commit <sha> --body-file <file>`. Pass no `--subject`, so the subject stays `<title> (#<pr>)`, and no `--delete-branch`. The body ends with `Closes #<issue>` (or `Part of #<issue>`, for a part) and the `Co-Authored-By` line. GitHub reads "close", "fix" or "resolve" followed by an issue number anywhere in a pull request's description or squash body as closing that issue, even in a sentence that says the issue stays open: for a part, name the issue next to none of those words. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
 
 A question no issue settles does not stop the relay. Take the recommended answer, and list it in the description under **Decisions the relay made** so Prateek can reverse it. A new or vendored dependency is listed there with its tradeoff. A decision listed there is final unless he says otherwise; it is not repeated in a brief. When you expect him to reverse one, or it sets a rule a later issue builds on, it is also a question for step 10.
 
