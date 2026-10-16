@@ -208,7 +208,9 @@ extension ConfigTest {
 
     private func removalMessageFixture() throws -> String {
         let url = projectRootUrl.appending(path: "nickel-helper/tests/fixtures/on-window-detected-removed.txt")
-        return try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .newlines)
+        let text = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(text.hasSuffix("\n") && !text.hasSuffix("\n\n"), "the fixture ends in exactly one newline")
+        return String(text.dropLast())
     }
 
     func testRemovedDetectionMessageMatchesSharedFixture() throws {

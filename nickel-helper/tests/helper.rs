@@ -1490,58 +1490,63 @@ fn every_lenses_document_nickel_example_loads_as_a_whole_config() {
 
 #[test]
 fn removed_detection_message_matches_shared_fixture() {
+    assert!(!removal_message().ends_with('\n'), "the fixture ends in exactly one newline");
     assert_eq!(
         winmux_nickel::protocol::ON_WINDOW_DETECTED_REMOVED,
-        include_str!("fixtures/on-window-detected-removed.txt").trim_end_matches('\n'),
+        removal_message(),
     );
 }
 
-fn assert_removal_error(name: &str, source: &str, phase: &str) {
-    let message = include_str!("fixtures/on-window-detected-removed.txt").trim_end_matches('\n');
-    let path = std::env::temp_dir().join(format!("winmux-removal-{name}-{}.ncl", std::process::id()));
+fn removal_message() -> &'static str {
+    include_str!("fixtures/on-window-detected-removed.txt").strip_suffix('\n').unwrap()
+}
+
+/// Loads `source` from a file named `name` through the helper protocol and returns the load error.
+fn removal_load_error(name: &str, source: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("winmux-removal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
     std::fs::write(&path, source).unwrap();
-    match Engine::load(Source::File(&path), &library()) {
-        Err(_) => assert!(phase == "engine" || phase == "contract", "{name}: unexpected Engine failure"),
-        Ok(mut engine) => {
-            assert_ne!(phase, "engine", "{name}: expected Engine load failure");
-            let result = engine.static_json();
-            if phase == "key" { assert!(result.is_ok(), "{name}: {result:?}"); }
-            else { assert!(result.is_err(), "{name}: expected static evaluation failure"); }
-        }
-    }
     let mut helper = Helper::new(library());
     let reply = request(&mut helper, json!({"id": 1, "op": "load", "path": path}));
-    std::fs::remove_file(path).unwrap();
+    let _ = std::fs::remove_file(&path);
     assert_eq!(reply["ok"], false, "{name}: {reply}");
-    let error = reply["error"].as_str().unwrap();
-    assert_eq!(error.matches(message).count(), 1, "{name}: {error}");
-    assert!(error.ends_with(message), "{name}: {error}");
-    if phase == "key" { assert_eq!(error, message); }
-    if phase == "contract" { assert!(error.contains("extra field"), "{name}: {error}"); }
+    reply["error"].as_str().unwrap().to_owned()
 }
 
 #[test]
-fn removed_detection_reports_once_at_the_end_when_engine_load_fails() {
-    assert_removal_error("engine", "{ on-window-detected = }", "engine");
+fn removed_detection_is_the_whole_error_when_the_record_has_the_key() {
+    // A plain record, and one whose value would fail to evaluate: the key is read from the record.
+    for (name, source) in [("plain.ncl", "{ on-window-detected = [] }"), ("static.ncl", "{ on-window-detected = 1 + true }")] {
+        assert_eq!(removal_load_error(name, source), removal_message(), "{name}");
+    }
 }
 
 #[test]
-fn removed_detection_reports_once_at_the_end_when_static_json_fails() {
-    assert_removal_error("static", "{ on-window-detected = 1 + true }", "static");
-}
-
-#[test]
-fn removed_detection_reports_once_for_an_evaluated_plain_record() {
-    assert_removal_error("plain", "{ on-window-detected = [] }", "key");
-}
-
-#[test]
-fn removed_detection_preserves_contract_diagnostics_with_one_or_two_extra_fields() {
+fn removed_detection_follows_the_contract_diagnostic_after_one_blank_line() {
     for (name, source) in [
-        ("contract", r#"let W = import "winmux/winmux.ncl" in { on-window-detected = [] } | W.Config"#),
-        ("two-extra", r#"let W = import "winmux/winmux.ncl" in { bogus-key = true, on-window-detected = [] } | W.Config"#),
+        ("contract.ncl", r#"let W = import "winmux/winmux.ncl" in { on-window-detected = [] } | W.Config"#),
+        ("two-extra.ncl", r#"let W = import "winmux/winmux.ncl" in { bogus-key = true, on-window-detected = [] } | W.Config"#),
     ] {
-        assert_removal_error(name, source, "contract");
+        let error = removal_load_error(name, source);
+        let message = removal_message();
+        assert!(error.contains("extra field"), "{name}: {error}");
+        assert_eq!(error.matches(message).count(), 1, "{name}: {error}");
+        assert!(error.ends_with(&format!("\n\n{message}")), "{name}: {error}");
+        assert!(!error.ends_with(&format!("\n\n\n{message}")), "{name}: {error}");
+    }
+}
+
+#[test]
+fn removed_detection_is_not_appended_when_only_the_text_mentions_the_key() {
+    let message = removal_message();
+    for (name, source) in [
+        ("comment.ncl", "let W = import \"winmux/winmux.ncl\" in\n{ start-at-login = 3, # moved off on-window-detected\n} | W.Config"),
+        ("on-window-detected-notes.ncl", r#"let W = import "winmux/winmux.ncl" in { start-at-login = 3 } | W.Config"#),
+        ("syntax.ncl", "{ on-window-detected = }"),
+    ] {
+        let error = removal_load_error(name, source);
+        assert!(!error.contains(message), "{name}: {error}");
     }
 }
 

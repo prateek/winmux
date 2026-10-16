@@ -56,7 +56,10 @@ func readConfig(forceConfigUrl: URL? = nil) async -> Result<LoadedConfig, String
 }
 
 
-let onWindowDetectedRemovedMessage = "on-window-detected was removed. Rewrite it as an arrive hook; winmux config convert leaves each rule as a commented-out arrive branch."
+let onWindowDetectedRemovedMessage = """
+    on-window-detected was removed. Rewrite it as an arrive hook;
+    winmux config convert leaves each rule as a commented-out arrive branch.
+    """
 
 private let keyMappingConfigRootKey = "key-mapping"
 private let modeConfigRootKey = "mode"

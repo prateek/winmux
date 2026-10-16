@@ -48,7 +48,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Implementation and validation
 
-The shared fixture is `nickel-helper/tests/fixtures/on-window-detected-removed.txt`, exactly the message followed by one newline. Each language has its own constant and a fixture-equality test; neither reads the fixture at runtime. The helper's two diagnostic exits share one append function, and the evaluated-key exit returns the constant directly. Its stderr printer adds a newline only when absent, preserving Nickel's own diagnostic bytes.
+The shared fixture is `nickel-helper/tests/fixtures/on-window-detected-removed.txt`, exactly the message followed by one newline. The message is two lines, so the Config Error window, which does not wrap, shows the `winmux config convert` hint. Each language has its own constant and a fixture-equality test; neither reads the fixture at runtime. The helper reads the key from the evaluated config's field names and then returns the message alone. A record contract such as `W.Config` rejects the key before its fields can be read; then the message follows Nickel's diagnostic after one blank line, recognised from the contract's `extra field` line naming the key. A config that only mentions the name, in a comment or its path, or that fails to parse, gets no message. The stderr printer adds a final newline only when one is missing.
 
 Decided: Swift removes the key in the shared table parser before `parseTable` and emits a backtrace-less error. JSON null is mapped to an empty array before conversion to preserve key presence for that same check. No chosen default changed.
 
