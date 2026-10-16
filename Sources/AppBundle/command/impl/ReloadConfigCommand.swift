@@ -83,9 +83,10 @@ extension LoadedConfig: ConfigReloadCandidate {
     saves: .init(
         runtimeReady: { isWinMuxRuntimeReady },
         fileExists: { FileManager.default.fileExists(atPath: preferredEditableConfigUrl().path) },
-        session: {
-            guard let token: RunSessionGuard = .isServerEnabled else { return nil }
-            return { try await runLightSession(.configAutoReload, token, body: $0) }
+        serverEnabled: { RunSessionGuard.isServerEnabled != nil },
+        session: { body in
+            guard let token: RunSessionGuard = .isServerEnabled else { return false }
+            return try await runLightSession(.configAutoReload, token, body: body)
         },
     ),
     configPath: { preferredEditableConfigUrl().path },

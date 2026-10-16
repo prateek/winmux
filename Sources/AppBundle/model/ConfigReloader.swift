@@ -70,8 +70,9 @@ struct ConfigReloadReport {
 struct ConfigReloadSaves {
     var runtimeReady: () -> Bool
     var fileExists: () -> Bool
-    /// Returns nil when the server is disabled.
-    var session: () -> (@MainActor (@MainActor () async throws -> Bool) async throws -> Bool)?
+    var serverEnabled: @MainActor () -> Bool
+    /// Runs a save's reload inside the session a save runs in.
+    var session: @MainActor (@MainActor () async throws -> Bool) async throws -> Bool
 }
 
 struct ConfigReloadCompletion {
@@ -100,7 +101,12 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     private var state = ConfigReloadState()
     private var notifications = ConfigReloadNotifications()
     private var savedDuringStartup = false
+    /// Whether any attempt has adopted a candidate. Startup's fallback to the shipped defaults
+    /// does not replace a config a later reload put in effect.
+    private var hasAdopted = false
     private var waitingForIdle: [CheckedContinuation<Void, Never>] = []
+    /// Attempts whose load returned while another applied, each waiting for its turn.
+    private var waitingToApply: [Int: CheckedContinuation<Bool, Never>] = [:]
 
     private struct Attempt {
         let dryRun: Bool
@@ -108,13 +114,6 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         let trigger: ConfigReloadTrigger
         let path: String
     }
-    private struct Work {
-        let attempt: Attempt
-        let read: Result<Candidate, String>
-        let completion: CheckedContinuation<ConfigReloadCompletion, Never>
-    }
-    private var work: [Int: Work] = [:]
-    private var applications: [Int: Task<Void, Never>] = [:]
 
     init(
         load: @escaping @MainActor (URL?) async -> Result<Candidate, String>,
@@ -136,6 +135,8 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.configPath = configPath
     }
 
+    /// The application runs in the caller's task, so it keeps the caller's task-locals and
+    /// cancellation, as it did when `reloadConfig` applied the config itself.
     func request(
         forceConfigUrl: URL? = nil,
         dryRun: Bool = false,
@@ -150,23 +151,20 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         }
         let attempt = Attempt(dryRun: dryRun, noGui: noGui, trigger: trigger, path: forceConfigUrl?.path ?? configPath())
         let request = state.requested(dryRun: dryRun)
-        if let id = request.superseded { supersede(id) }
+        if let id = request.superseded { waitingToApply.removeValue(forKey: id)?.resume(returning: false) }
         let read = await load(forceConfigUrl)
         if dryRun { return completeDryRun(attempt, read) }
-        return await withCheckedContinuation { continuation in
-            work[request.id] = Work(attempt: attempt, read: read, completion: continuation)
-            switch state.loaded(request.id) {
-                case .supersede: supersede(request.id)
-                case .wait: break
-                case .begin: start(request.id)
-            }
+        let proceed: Bool
+        switch state.loaded(request.id) {
+            case .supersede: proceed = false
+            case .begin: proceed = true
+            case .wait: proceed = await withCheckedContinuation { waitingToApply[request.id] = $0 }
         }
-    }
-
-    private func supersede(_ id: Int) {
-        guard let work = work.removeValue(forKey: id) else { preconditionFailure("Missing reload attempt \(id)") }
-        if case .success(let candidate) = work.read { helper.dispose(candidate) }
-        work.completion.resume(returning: .init(result: .success(false), text: "A later reload replaced this one"))
+        guard proceed else {
+            if case .success(let candidate) = read { helper.dispose(candidate) }
+            return .init(result: .success(false), text: "A later reload replaced this one")
+        }
+        return await run(request.id, attempt, read)
     }
 
     private struct Reporting {
@@ -176,18 +174,14 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         var outcome = ConfigLoadOutcome.failed
     }
 
-    private func start(_ id: Int) {
-        guard let work = work[id] else { preconditionFailure("Missing reload attempt \(id)") }
-        var reporting = prepare(work.attempt, work.read)
-        guard case .success(let candidate) = work.read else {
-            finish(id, work, reporting, result: .success(false))
-            return
-        }
-        // Reserve and adopt without suspension; only application may yield to newer requests.
-        helper.adopt(candidate)
-        reporting.outcome = .loaded(imports: candidate.imports, library: candidate.library)
-        applications[id] = Task { @MainActor in
-            var result: Result<Bool, Error>
+    private func run(_ id: Int, _ attempt: Attempt, _ read: Result<Candidate, String>) async -> ConfigReloadCompletion {
+        var reporting = prepare(attempt, read)
+        var result: Result<Bool, Error> = .success(false)
+        if case .success(let candidate) = read {
+            // Adopt without suspending; only application may yield to newer requests.
+            helper.adopt(candidate)
+            hasAdopted = true
+            reporting.outcome = .loaded(imports: candidate.imports, library: candidate.library)
             do {
                 try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in
                     try await apply(candidate)
@@ -197,10 +191,21 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
                 report.log(.notice, "Loaded the config from \(reporting.path)")
                 result = .success(true)
             } catch {
-                failure("Loaded \(reporting.path), but applying it failed: \(error.localizedDescription)", work.attempt, &reporting)
+                failure("Loaded \(reporting.path), but applying it failed: \(error.localizedDescription)", attempt, &reporting)
                 result = .failure(error)
             }
-            finish(id, work, reporting, result: result)
+        }
+        watch(reporting.outcome)
+        if let event = configReloadEvent(dryRun: false, error: reporting.error, configPath: reporting.path) { emit(event) }
+        applicationFinished(id)
+        return .init(result: result, text: reporting.text)
+    }
+
+    private func applicationFinished(_ id: Int) {
+        if let next = state.applicationFinished(id) {
+            waitingToApply.removeValue(forKey: next).orDie("Missing reload attempt \(next)").resume(returning: true)
+        } else {
+            becameIdle()
         }
     }
 
@@ -234,25 +239,15 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         return .init(result: .success(reporting.error == nil), text: reporting.text)
     }
 
-    private func finish(_ id: Int, _ work: Work, _ reporting: Reporting, result: Result<Bool, Error>) {
-        watch(reporting.outcome)
-        if let event = configReloadEvent(dryRun: false, error: reporting.error, configPath: reporting.path) { emit(event) }
-        let next = state.applicationFinished(id)
-        self.work.removeValue(forKey: id)
-        applications.removeValue(forKey: id)
-        work.completion.resume(returning: .init(result: result, text: reporting.text))
-        if let next { start(next) } else { becameIdle() }
-    }
-
     func fileChanged() async {
         guard saves.runtimeReady() else { savedDuringStartup = true; return }
-        guard let session = saves.session() else { return }
+        guard saves.serverEnabled() else { return }
         guard saves.fileExists() else {
             report.log(.notice, "The config file is gone, so the config in effect stays")
             return
         }
         do {
-            _ = try await session { @MainActor in
+            _ = try await saves.session { @MainActor in
                 try await self.request(trigger: .fileChange).result.get()
             }
         } catch {
@@ -266,25 +261,19 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         await fileChanged()
     }
 
-    /// The shipped-default fallback has no helper or reload event, but shares application exclusion.
+    /// Applies the shipped defaults when startup's own load did not put a config in effect. It
+    /// waits for an application under way, and does nothing once any reload has adopted a
+    /// candidate: a reload that replaced startup's own wins over the defaults.
     func applyStartupFallback(_ application: @MainActor () async throws -> Void) async rethrows {
         while state.applying != nil {
             await withCheckedContinuation { waitingForIdle.append($0) }
         }
+        if hasAdopted { return }
         let id = state.beginFallback()
-        do {
-            try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in
-                try await application()
-            }
-        } catch {
-            finishFallback(id)
-            throw error
+        defer { applicationFinished(id) }
+        try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in
+            try await application()
         }
-        finishFallback(id)
-    }
-
-    private func finishFallback(_ id: Int) {
-        if let next = state.applicationFinished(id) { start(next) } else { becameIdle() }
     }
 
     private func becameIdle() {

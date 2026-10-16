@@ -63,7 +63,8 @@ struct ReloadTestDependencies {
     var saves = ConfigReloadSaves(
         runtimeReady: { XCTFail("Unconfigured reload adapter: saves.runtimeReady"); return false },
         fileExists: { XCTFail("Unconfigured reload adapter: saves.fileExists"); return false },
-        session: { XCTFail("Unconfigured reload adapter: saves.session"); return nil },
+        serverEnabled: { XCTFail("Unconfigured reload adapter: saves.serverEnabled"); return false },
+        session: { _ in XCTFail("Unconfigured reload adapter: saves.session"); return false },
     )
     var configPath: () -> String = { XCTFail("Unconfigured reload adapter: configPath"); return "/unconfigured" }
 
@@ -145,10 +146,8 @@ final class ReloadProbe {
         dependencies.emit = { self.events.append($0); self.completions.send() }
         dependencies.saves = .init(
             runtimeReady: { self.runtimeReady }, fileExists: { self.exists },
-            session: {
-                guard self.enabled else { return nil }
-                return { operation in self.sessions += 1; return try await operation() }
-            },
+            serverEnabled: { self.enabled },
+            session: { operation in self.sessions += 1; return try await operation() },
         )
         dependencies.configPath = { "/config/requested.ncl" }
         return dependencies.owner()

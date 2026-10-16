@@ -3,13 +3,17 @@ import Foundation
 import XCTest
 @testable import AppBundle
 
+private enum ReloadCaller {
+    @TaskLocal static var name: String?
+}
+
 private enum ReloadTestError: LocalizedError {
     case apply
     var errorDescription: String? { "test application failed" }
 }
 
 @MainActor
-final class ConfigReloadSequenceTest: SerialClockTestCase {
+final class ConfigReloaderTest: SerialClockTestCase {
     private func request(_ owner: ConfigReloader<ReloadCandidate>, _ name: String, dry: Bool = false, noGui: Bool = false, trigger: ConfigReloadTrigger = .command) async -> ConfigReloadCompletion {
         await owner.request(forceConfigUrl: URL(filePath: "/config/\(name).ncl"), dryRun: dry, noGui: noGui, trigger: trigger)
     }
@@ -389,36 +393,82 @@ final class ConfigReloadSequenceTest: SerialClockTestCase {
         XCTAssertEqual(probe.watches, 1)
     }
 
-    func testStartupFallbackWaitsForReloadAndSerializesReloadStartedDuringIt() async throws {
-        let probe = ReloadProbe(), gate = ReloadGate(), fallbackGate = ReloadGate()
+    func testStartupFallbackDoesNotReplaceAReloadThatReplacedStartup() async throws {
+        let probe = ReloadProbe(), startupGate = ReloadGate(), gate = ReloadGate()
         let owner = probe.owner()
+        probe.loadGates["startup"] = startupGate
         probe.applyGates["a"] = gate
+        let startup = Task { await self.request(owner, "startup") }
+        await startupGate.entered.wait()
         let a = Task { await self.request(owner, "a") }
         await gate.entered.wait()
-        var fallbackStarted = false
+        startupGate.release()
+        let startupResult = await startup.value
+        XCTAssertFalse(try startupResult.result.get())
+        XCTAssertEqual(startupResult.text, "A later reload replaced this one")
+        var fallbackRan = false
+        let fallback = Task { await owner.applyStartupFallback { fallbackRan = true } }
+        await TestClock<Duration>().advance()
+        XCTAssertFalse(fallbackRan, "the fallback waits for the application under way")
+        gate.release()
+        await fallback.value
+        let aResult = await a.value
+        XCTAssertTrue(try aResult.result.get())
+        XCTAssertFalse(fallbackRan, "the shipped defaults must not replace the reload that replaced startup's")
+        assertServing(probe, "a")
+        XCTAssertEqual(probe.disposed, ["startup"])
+        XCTAssertEqual(probe.events.count, 1)
+        try assertEvent(probe.events[0], path: "/config/a.ncl")
+    }
+
+    func testStartupFallbackAppliesAfterAFailedLoadAndSerializesReloadStartedDuringIt() async throws {
+        let probe = ReloadProbe(), fallbackGate = ReloadGate()
+        let owner = probe.owner()
+        probe.failures["startup"] = "broken"
+        let startup = await request(owner, "startup")
+        XCTAssertFalse(try startup.result.get())
         let fallback = Task {
             await owner.applyStartupFallback {
-                fallbackStarted = true
                 await fallbackGate.hold()
                 probe.activeConfig = "defaults"
             }
         }
-        await TestClock<Duration>().advance()
-        XCTAssertFalse(fallbackStarted)
-        gate.release()
         await fallbackGate.entered.wait()
         let b = Task { await self.request(owner, "b") }
         await probe.loadsFinished.wait(for: 2)
         await TestClock<Duration>().advance()
-        XCTAssertEqual(probe.adopted, ["a"])
+        XCTAssertTrue(probe.adopted.isEmpty, "a reload waits for the fallback's application")
+        XCTAssertEqual(probe.activeConfig, "serving")
         fallbackGate.release()
         await fallback.value
-        let aResult = await a.value, bResult = await b.value
-        XCTAssertTrue(try aResult.result.get())
+        let bResult = await b.value
         XCTAssertTrue(try bResult.result.get())
         assertServing(probe, "b")
         XCTAssertEqual(probe.events.count, 2)
-        try assertEvent(probe.events[0], path: "/config/a.ncl")
+        try assertEvent(probe.events[0], path: "/config/startup.ncl", error: "broken")
         try assertEvent(probe.events[1], path: "/config/b.ncl")
+    }
+
+    func testEachApplicationRunsInItsOwnCallersTask() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate()
+        let owner = probe.owner()
+        probe.applyGates["a"] = gate
+        var callers: [String: String] = [:]
+        var cancelled: [String: Bool] = [:]
+        probe.duringApply = { candidate in
+            callers[candidate.name] = ReloadCaller.name
+            cancelled[candidate.name] = Task.isCancelled
+        }
+        let a = Task { await ReloadCaller.$name.withValue("A") { await self.request(owner, "a") } }
+        await gate.entered.wait()
+        let b = Task { await ReloadCaller.$name.withValue("B") { await self.request(owner, "b") } }
+        await probe.loadsFinished.wait(for: 2)
+        a.cancel()
+        gate.release()
+        _ = await a.value
+        _ = await b.value
+        XCTAssertEqual(callers, ["a": "A", "b": "B"], "a waiting attempt applies in its own caller's task, not the one before it")
+        XCTAssertEqual(cancelled, ["a": true, "b": false], "cancelling a caller reaches its own application only")
+        assertServing(probe, "b")
     }
 }
