@@ -49,7 +49,7 @@ enum ColumnPolicy {
     private static var runningWindows: Set<RunningHook> = []
 
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
-                     supervisor: NickelSupervisor = .shared, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
+                     supervisor: any PolicyHookHelper = PolicyHooks.current, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
         guard let path else { return nil }
         let started = ContinuousClock.now
         var argumentDuration: Duration?
@@ -139,7 +139,7 @@ enum ColumnPolicy {
     }
 
     static func decision(window: Window, workspace: Workspace, answer: JSONValue? = nil,
-                         supervisor: NickelSupervisor = .shared, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
+                         supervisor: any PolicyHookHelper = PolicyHooks.current, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
         var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
@@ -149,7 +149,7 @@ enum ColumnPolicy {
         if let answer { result = answer } else { result = await call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
         builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let result else {
-            if path != nil { builtIn.failure = supervisor.status.lastError ?? "Hook unavailable" }
+            if path != nil { builtIn.failure = supervisor.lastHookError ?? "Hook unavailable" }
             return builtIn
         }
         let slot: Int
@@ -163,25 +163,25 @@ enum ColumnPolicy {
                 case "last": slot = columns.count
                 default:
                     supervisor.recordHookFailure("\(source ?? "arrive"): invalid Column target")
-                    builtIn.failure = supervisor.status.lastError
+                    builtIn.failure = supervisor.lastHookError
                     return builtIn
             }
         } else if case .int(let value) = result["column"] {
             guard (1...columns.count).contains(value) else {
                 supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(value) exceeds count \(columns.count)")
-                builtIn.failure = supervisor.status.lastError
+                builtIn.failure = supervisor.lastHookError
                 return builtIn
             }
             slot = value
             target = String(value)
         } else {
             supervisor.recordHookFailure("\(source ?? "arrive"): missing Column target")
-            builtIn.failure = supervisor.status.lastError
+            builtIn.failure = supervisor.lastHookError
             return builtIn
         }
         guard (1...columns.slotCount).contains(slot) else {
             supervisor.recordHookFailure("\(source ?? "arrive"): Column index \(slot) exceeds count \(columns.slotCount)")
-            builtIn.failure = supervisor.status.lastError
+            builtIn.failure = supervisor.lastHookError
             return builtIn
         }
         return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
@@ -190,7 +190,7 @@ enum ColumnPolicy {
 
     @discardableResult
     static func place(_ window: Window, on workspace: Workspace, answer: JSONValue? = nil,
-                      supervisor: NickelSupervisor = .shared) async throws -> Bool {
+                      supervisor: any PolicyHookHelper = PolicyHooks.current) async throws -> Bool {
         guard workspace.columns != nil else { return false }
         let location = Location(window)
         let columns = workspace.columns
@@ -212,7 +212,7 @@ enum ColumnPolicy {
     }
 
     static func arrive(_ window: Window, on detected: Workspace, floatingDefault: Bool,
-                       supervisor: NickelSupervisor = .shared) async throws {
+                       supervisor: any PolicyHookHelper = PolicyHooks.current) async throws {
         // With no hook to wait on, arrival binds without suspending, so nothing sees the window unplaced.
         guard config.arrive != nil || hook("place", on: detected) != nil else {
             return try await applyArrival(window, on: detected, floatingDefault: floatingDefault, supervisor: supervisor)
@@ -227,7 +227,7 @@ enum ColumnPolicy {
     }
 
     private static func applyArrival(_ window: Window, on detected: Workspace, floatingDefault: Bool,
-                                     supervisor: NickelSupervisor) async throws {
+                                     supervisor: any PolicyHookHelper) async throws {
         let location = Location(window)
         let initialClass: WindowClass? = window.parent === macosPopupWindowsContainer ? nil : (floatingDefault ? .floating : .tiled)
         let path = config.arrive
@@ -270,7 +270,7 @@ enum ColumnPolicy {
         guard !commands.isEmpty, window.isBound else { return }
         let key = RunningHook(windowId: window.windowId, path: path)
         guard runningWindows.insert(key).inserted else {
-            NickelSupervisor.shared.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
+            PolicyHooks.current.recordHookFailure("Policy run: \(path) is already running for this window; its run list is suppressed")
             return
         }
         defer { runningWindows.remove(key) }
@@ -283,8 +283,8 @@ enum ColumnPolicy {
             switch parseCommand(raw) {
                 case .cmd(let command) where command.info.allowInConfig:
                     _ = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: window.nodeWorkspace?.name ?? focus.workspace.name, windowId: window.windowId), .emptyStdin)
-                case .failure(let error): NickelSupervisor.shared.recordHookFailure("Policy run: \(error)")
-                default: NickelSupervisor.shared.recordHookFailure("Policy run: command is not allowed: \(raw)")
+                case .failure(let error): PolicyHooks.current.recordHookFailure("Policy run: \(error)")
+                default: PolicyHooks.current.recordHookFailure("Policy run: command is not allowed: \(raw)")
             }
         }
     }

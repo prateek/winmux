@@ -32,7 +32,7 @@ struct MoveCommand: Command {
         if path != nil && result == nil { return try await runBuiltIn(env, io) }
         let action = result?["action"]?.stringOrNil ?? (edge ? "stop" : "join")
         guard (edge ? ["stop", "wrap", "next-workspace", "next-monitor"] : ["join", "swap"]).contains(action) else {
-            NickelSupervisor.shared.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
+            PolicyHooks.current.recordHookFailure("\(path ?? "move-boundary"): action \(action) is not valid at this boundary")
             return try await runBuiltIn(env, io)
         }
         var success = true

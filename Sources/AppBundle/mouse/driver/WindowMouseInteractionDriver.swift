@@ -354,7 +354,7 @@ extension WindowMouseInteractionDriver {
             shakePlacementTask = Task { @MainActor in
                 var placed = false
                 do { placed = try await toggleFloatingForShakeWithPolicy(sourceWindow, on: workspace) }
-                catch { NickelSupervisor.shared.recordHookFailure("Shake placement: \(error.localizedDescription)") }
+                catch { PolicyHooks.current.recordHookFailure("Shake placement: \(error.localizedDescription)") }
                 // `stop()` cancels a placement its drag did not wait for; the next drag's state is not ours.
                 guard !Task.isCancelled else { return }
                 shakePlacementTask = nil
