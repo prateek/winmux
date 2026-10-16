@@ -6,6 +6,45 @@ import XCTest
 
 @MainActor
 final class LensPreparationTest: SerialClockTestCase {
+    func testEmptyDesktopGridPreparationExercisesRealPicturesSectionsAndFrozenDrawing() {
+        let model = LensStartupPreparation.gridModel(size: CGSize(width: 1920, height: 1050), existingItems: [], workspaces: [])
+        XCTAssertEqual(model.settings.presentation, "grid")
+        XCTAssertEqual(model.settings.grid.tileSize, "real")
+        XCTAssertEqual(model.tileKind, .card)
+        XCTAssertEqual(model.items.count, 14)
+        XCTAssertEqual(model.sections.count, 4)
+        XCTAssertEqual(model.gridLayout.headers.count, 4)
+        XCTAssertEqual(model.gridLayout.tiles.count, 14)
+        XCTAssertGreaterThan(Set(model.gridLayout.tiles.map { $0.frame.minY }).count, 1)
+        XCTAssertTrue(model.items.contains { $0.tile.realSize.height > $0.tile.realSize.width })
+        XCTAssertTrue(model.items.contains { $0.tile.realSize.width <= 400 })
+        XCTAssertTrue(model.items.contains { $0.tile.realSize.width >= 1400 })
+        XCTAssertTrue(model.items.contains { $0.tile.frozen && $0.tile.picture?.image != nil })
+        XCTAssertTrue(model.items.contains { !$0.tile.frozen && $0.tile.picture?.image != nil })
+        XCTAssertTrue(model.items.contains { $0.tile.picture != nil && $0.tile.picture?.image == nil })
+        XCTAssertTrue(model.items.contains { ($0.tile.picture?.image?.width ?? 0) >= 500 })
+        XCTAssertTrue(model.items.allSatisfy { $0.icon != nil && $0.miniature == nil })
+        XCTAssertEqual(model.miniatureWorkspaces.count, 4)
+        XCTAssertNil(model.owner)
+        XCTAssertNil(model.onAction)
+        XCTAssertNil(model.onControl)
+        model.refreshThumbnails(lens: 1) { _, _ in XCTFail("Synthetic preparation must never request a capture") }
+    }
+
+    func testGridPreparationRetainsRealSnapshotsAndTheirCachedPictures() {
+        let thumbnail = WindowThumbnail()
+        let item = SwitcherPaletteItem(id: 42, title: "Real", appName: "Editor", icon: nil, workspaceName: "real", isFocused: true,
+            tile: TileEntry(title: "Real", appName: "Editor", picture: thumbnail))
+        let workspace = MiniatureWorkspace(name: "real", title: "Real workspace", source: CGRect(x: 0, y: 0, width: 1920, height: 1050), current: true)
+        let model = LensStartupPreparation.gridModel(size: workspace.source.size, existingItems: [item], workspaces: [workspace])
+        XCTAssertEqual(model.items.map(\.id), [42])
+        XCTAssertTrue(model.items[0].tile.picture === thumbnail)
+        XCTAssertNil(thumbnail.image)
+        XCTAssertEqual(model.miniatureWorkspaces.map(\.name), ["real"])
+        XCTAssertNil(model.owner)
+        XCTAssertNil(model.onAction)
+    }
+
     func testStripPreparesWhileWaitingButIsNeverOrderedBeforeTheDeadline() async throws {
         let clock = TestClock<Duration>()
         var prepared = false

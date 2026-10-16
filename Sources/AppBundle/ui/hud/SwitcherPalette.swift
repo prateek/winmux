@@ -104,8 +104,10 @@ final class SwitcherPalettePanel: NSPanelHud {
             var settings = LensConfig()
             settings.presentation = presentation
             let items = presentationItems(entries, settings: settings, workspaces: workspaces)
-            let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size,
-                                                     existingItems: items, workspaces: workspaces)
+            let size = focus.workspace.workspaceMonitor.visibleRect.size
+            let model = presentation == "grid"
+                ? LensStartupPreparation.gridModel(size: size, existingItems: items, workspaces: workspaces)
+                : LensStartupPreparation.model(presentation: presentation, size: size, existingItems: items, workspaces: workspaces)
             prepare(model, startup: true)
         }
         guard drew else { return }
