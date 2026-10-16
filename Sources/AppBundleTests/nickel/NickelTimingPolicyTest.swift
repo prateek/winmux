@@ -117,6 +117,28 @@ final class NickelTimingPolicyTest: SerialClockTestCase {
         }
     }
 
+    func testRepliesReachTheCallerWhoseIdTheyCarryInAnyOrder() async throws {
+        let clock = TestClock(), factory = ControlledNickelFactory()
+        let channel = factory.prepare()
+        let supervisor = supervisor(clock, factory)
+        try await adopt(supervisor)
+        channel.expect("hook")
+        channel.expect("hook")
+        var first: Result<JSONValue, NickelFailure>?, second: Result<JSONValue, NickelFailure>?
+        let a = Task { first = await supervisor.hook("first", args: []) }
+        await drain(clock)
+        let b = Task { second = await supervisor.hook("second", args: []) }
+        await drain(clock)
+        let requests = channel.lines.suffix(2)
+        channel.reply(to: requests.last!, result: .string("second"))
+        channel.reply(to: requests.first!, result: .string("first"))
+        await a.value
+        await b.value
+        assertEquals(first, .success(.string("first")))
+        assertEquals(second, .success(.string("second")))
+        channel.close()
+    }
+
     func testCancelledLoadKeepsWaitingForItsOwnReply() async throws {
         let clock = TestClock(), factory = ControlledNickelFactory()
         let channel = factory.prepare(load: false)
