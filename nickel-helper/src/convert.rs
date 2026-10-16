@@ -451,3 +451,23 @@ fn field_name(name: &str) -> String {
         && !RESERVED.contains(&name);
     if plain { name.to_owned() } else { nickel_string(name) }
 }
+
+#[cfg(test)]
+mod keyboard_layout_tests {
+    use super::*;
+
+    #[test]
+    fn keyboard_layouts_match_shared_fixture() {
+        let fixture: BTreeMap<String, BTreeMap<String, String>> =
+            serde_json::from_str(include_str!("../tests/fixtures/keyboard-layouts.json")).unwrap();
+        assert_eq!(fixture.keys().map(String::as_str).collect::<Vec<_>>(), ["colemak", "dvorak"]);
+        for layout in ["dvorak", "colemak"] {
+            let settings = serde_json::json!({ "key-mapping": { "preset": layout } });
+            let changed: BTreeMap<_, _> = key_mapping(settings.as_object().unwrap())
+                .into_iter()
+                .filter(|(notation, physical)| notation != physical)
+                .collect();
+            assert_eq!(changed, fixture[layout], "{layout} differs from the shared fixture");
+        }
+    }
+}
