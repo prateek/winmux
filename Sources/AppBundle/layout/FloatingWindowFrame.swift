@@ -10,7 +10,7 @@ func restoredFloatingWindowFrame(proportion: CGPoint, size: CGSize, in destinati
 }
 
 func mappedFloatingWindowFrame(_ frame: CGRect, from source: CGRect, to destination: CGRect) -> CGRect {
-    let proportion = CGPoint(x: (frame.minX - source.minX) / source.width,
-                             y: (frame.minY - source.minY) / source.height)
+    let proportion = CGPoint(x: (frame.minX - source.minX) / max(1, source.width),
+                             y: (frame.minY - source.minY) / max(1, source.height))
     return restoredFloatingWindowFrame(proportion: proportion, size: frame.size, in: destination)
 }

@@ -12,8 +12,9 @@ final class LensLifecycle {
     private static weak var columnsObserver: LensLifecycle?
 
     static func columnsChanged(on workspace: Workspace) {
-        guard workspace === focus.workspace else { return }
-        columnsObserver?.updateMiniatureLanding()
+        // Workspaces are created while monitors are assigned, before `focus` can be resolved.
+        guard let observer = columnsObserver, workspace === focus.workspace else { return }
+        observer.updateMiniatureLanding()
     }
 
     enum PendingKey {
@@ -549,10 +550,11 @@ final class LensLifecycle {
 
     private func floatingLanding(_ entry: MiniatureWindow) -> CGRect {
         let destination = focus.workspace.workspaceMonitor
-        if entry.window.isHiddenInCorner, let proportion = entry.window.savedProportionalPosition {
-            return restoredFloatingWindowFrame(proportion: proportion,
-                size: entry.window.lastKnownActualRect?.size ?? entry.window.lastFloatingSize ?? .zero,
-                in: destination.rect.cgRect)
+        if let proportion = entry.window.savedProportionalPosition {
+            let size = entry.window.lastKnownActualRect?.size ?? entry.window.lastFloatingSize
+            let frame = restoredFloatingWindowFrame(proportion: proportion, size: size ?? .zero, in: destination.rect.cgRect)
+            // The restore clamps with no size when none was read; the window keeps its own.
+            return size == nil ? CGRect(origin: frame.origin, size: entry.frame.size) : frame
         }
         guard monitors.count > 1 else { return entry.frame }
         let source = CGPoint(x: entry.frame.midX, y: entry.frame.midY).monitorApproximation

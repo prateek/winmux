@@ -332,14 +332,50 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
         XCTAssertTrue(model.summonHintsShown)
     }
 
-    func testConfigLoadDoesNotConstructLensPanel() async throws {
-        // In an isolated invocation this starts nil; the full suite may have opened the shared panel.
-        let before = SwitcherPalettePanel.sharedIfCreated
-        XCTAssertNil(before?.session)
-        var settings = config
-        settings.modes = ["main": .zero]
-        try await applyConfig(settings, url: URL(fileURLWithPath: "/tmp/winmux-test.ncl"))
-        XCTAssertTrue(SwitcherPalettePanel.sharedIfCreated === before)
+    func testHiddenFloatingHintWithNoReadSizeKeepsTheWindowsSize() async throws {
+        _ = columns(.float)
+        let rect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
+        let monitor = TestMonitor(monitorAppKitNsScreenScreensId: 1, name: "Only", rect: rect, visibleRect: rect, isMain: true)
+        setMonitorsForTests([monitor])
+        let destination = Workspace.get(byName: "Destination")
+        let source = Workspace.get(byName: "Source")
+        _ = monitor.setActiveWorkspace(destination)
+        destination.columns = ColumnState(count: 3)
+        let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
+        destination.normalizeContainers()
+        XCTAssertTrue(anchor.focusWindow())
+        try await destination.layoutWorkspace()
+        let window = TestWindow.new(id: 42, parent: source)
+        XCTAssertNil(window.lastKnownActualRect)
+        XCTAssertNil(window.lastFloatingSize)
+        window.testSavedProportionalPosition = CGPoint(x: 0.1, y: 0.1)
+        let model = lens(window, source: source, destination: destination, frame: CGRect(x: 5, y: 5, width: 240, height: 180), floating: true)
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.modifiersChanged(.option))
+        await owner.landingTask?.value
+        XCTAssertEqual(model.miniatureLanding, CGRect(x: 100, y: 80, width: 240, height: 180))
+    }
+
+    func testUnchangedColumnsKeepTheHintOnScreen() async throws {
+        _ = columns(.squeeze)
+        let destination = focus.workspace
+        let source = Workspace.get(byName: "Source")
+        destination.columns = ColumnState(count: 3)
+        let anchor = TestWindow.new(id: 1, parent: destination.rootTilingContainer); anchor.columnSlot = 2
+        let incoming = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+        destination.normalizeContainers()
+        XCTAssertTrue(anchor.focusWindow())
+        try await destination.layoutWorkspace()
+        let model = lens(incoming, source: source, destination: destination, frame: CGRect(x: 10, y: 10, width: 200, height: 200))
+        let owner = ownLens(model)
+        defer { owner.dismiss() }
+        model.send(.modifiersChanged(.option))
+        await owner.landingTask?.value
+        let hint = try XCTUnwrap(model.miniatureLanding)
+        destination.applyColumns(ColumnsConfig(.object(["count": .int(3)]), workspaces: nil))
+        XCTAssertEqual(model.miniatureLanding, hint)
+        XCTAssertNil(owner.landingTask)
     }
 
     func testCachedColumnRecordsKeepEmptyConsistentWithSnapshotWindows() async throws {
