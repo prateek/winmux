@@ -51,9 +51,7 @@ The Dvorak and Colemak `p` entries were each changed from physical `r` to `t`, i
 
 Decided: use `ConfigReloadSequence` with a per-attempt result object, so the emitting `defer` observes path, error and watcher outcome even when the rest throws. This changes **The reload seam** default to meet its ordering mutation check; the fixture and handoff defaults are unchanged.
 
-Host and pinned Swift 6.4 guest `make check` pass: 1,295 Swift, 88 Rust (including four CLI tests) and 131 Python tests, with no skipped tests and no `Package.resolved` change.
-
-There is nothing to see or operate in this issue. The builder starts no debug application and publishes no release.
+There is nothing to see or operate in this issue.
 
 ## Sources
 
