@@ -511,4 +511,191 @@ final class ConfigReloaderTest: SerialClockTestCase {
         await owner.applyStartupFallback { fallbackRan = true }
         XCTAssertTrue(fallbackRan, "a reload that failed to apply leaves startup's fallback to the shipped defaults")
     }
+    func testCancelledWaiterReturnsBeforeApplicationAheadIsReleased() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate(), clock = TestClock<Duration>()
+        let owner = probe.owner()
+        probe.applyGates["a"] = gate
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        var returned = false
+        let b = Task { let result = await self.request(owner, "b"); returned = true; return result }
+        await probe.loadsFinished.wait(for: 2)
+        await clock.advance()
+        b.cancel()
+        await clock.advance()
+        XCTAssertTrue(returned, "a cancelled waiter must return before the applying caller is released")
+        XCTAssertEqual(probe.disposed, ["b"])
+        XCTAssertEqual(probe.adopted, ["a"])
+        let c = Task { await self.request(owner, "c") }
+        await probe.loadsFinished.wait(for: 3)
+        gate.release()
+        _ = await a.value
+        let cancelled = await b.value
+        XCTAssertThrowsError(try cancelled.result.get()) { XCTAssertTrue($0 is CancellationError) }
+        let next = await c.value
+        XCTAssertTrue(try next.result.get())
+        XCTAssertEqual(probe.adopted, ["a", "c"])
+    }
+
+    func testCancelledNewestReplacesSupersededSaveOnceEvenAcrossTwoCancellations() async throws {
+        for cancelledCount in [1, 2] {
+            let probe = ReloadProbe(), applyGate = ReloadGate(), clock = TestClock<Duration>()
+            let owner = probe.owner()
+            probe.applyGates["a"] = applyGate
+            let a = Task { await self.request(owner, "a") }
+            await applyGate.entered.wait()
+            let save = Task { await owner.request(noGui: true, trigger: .fileChange) }
+            await probe.loadsFinished.wait(for: 2)
+            await clock.advance()
+            var tasks: [Task<ConfigReloadCompletion, Never>] = []
+            var gates: [ReloadGate] = []
+            for index in 0 ..< cancelledCount {
+                let gate = ReloadGate(), name = "new\(index)"
+                gates.append(gate)
+                probe.loadGates[name] = gate
+                let task = Task { await self.request(owner, name) }
+                tasks.append(task)
+                await gate.entered.wait()
+            }
+            let superseded = await save.value
+            XCTAssertFalse(try superseded.result.get())
+            for task in tasks { task.cancel() }
+            for gate in gates { gate.release() }
+            for task in tasks { _ = await task.value }
+            await clock.advance()
+            applyGate.release()
+            _ = await a.value
+            await clock.advance()
+            XCTAssertEqual(probe.adopted, ["a", "save"], "owner reloads current content once after the newest cancellation")
+            XCTAssertEqual(probe.events.count, 2)
+            XCTAssertEqual(probe.disposed.sorted(), (["save"] + (0 ..< cancelledCount).map { "new\($0)" }).sorted())
+        }
+    }
+
+    func testCancelledAttemptThatSupersededNothingStartsNoReplacement() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate(), clock = TestClock<Duration>()
+        let owner = probe.owner()
+        probe.loadGates["a"] = gate
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        a.cancel()
+        gate.release()
+        let result = await a.value
+        XCTAssertThrowsError(try result.result.get()) { XCTAssertTrue($0 is CancellationError) }
+        await clock.advance()
+        XCTAssertEqual(probe.disposed, ["a"])
+        XCTAssertTrue(probe.adopted.isEmpty)
+        XCTAssertTrue(probe.events.isEmpty)
+    }
+
+    func testApplicationCancellationAfterAdoptionReportsPartialFailureAndNextProceeds() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate()
+        let owner = probe.owner()
+        probe.applyGates["a"] = gate
+        probe.duringApply = { candidate in if candidate.name == "a" { try Task.checkCancellation() } }
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        a.cancel()
+        gate.release()
+        let result = await a.value
+        XCTAssertThrowsError(try result.result.get()) { XCTAssertTrue($0 is CancellationError) }
+        XCTAssertEqual(probe.activeHelper, "a")
+        XCTAssertEqual(probe.watchedImports, [URL(filePath: "/imports/a.ncl")])
+        XCTAssertEqual(probe.recordedFailures.count, 1)
+        XCTAssertEqual(probe.shown.count, 1)
+        XCTAssertEqual(probe.events.count, 1)
+        XCTAssertTrue(probe.disposed.isEmpty)
+        let next = await request(owner, "b")
+        XCTAssertTrue(try next.result.get())
+        XCTAssertEqual(probe.adopted, ["a", "b"])
+    }
+
+    func testReplacementReadsCurrentFileAndReportsItsOwnFailureWithSupersededSaveOptions() async throws {
+        for noGui in [false, true] {
+            let probe = ReloadProbe(), applying = ReloadGate(), loading = ReloadGate(), clock = TestClock<Duration>()
+            let owner = probe.owner()
+            probe.applyGates["a"] = applying
+            let a = Task { await self.request(owner, "a") }
+            await applying.entered.wait()
+            let save = Task { await owner.request(noGui: noGui, trigger: .fileChange) }
+            await probe.loadsFinished.wait(for: 2)
+            await clock.advance()
+            probe.loadGates["new"] = loading
+            let newest = Task { await self.request(owner, "new") }
+            await loading.entered.wait()
+            _ = await save.value
+            probe.nextSave = "latest"
+            probe.failures["latest"] = "replacement load failed"
+            newest.cancel()
+            loading.release()
+            _ = await newest.value
+            await clock.advance()
+            applying.release()
+            _ = await a.value
+            await clock.advance()
+            XCTAssertEqual(probe.adopted, ["a"])
+            XCTAssertEqual(probe.recordedFailures, ["replacement load failed"])
+            XCTAssertEqual(probe.shown, noGui ? [] : ["replacement load failed"])
+            XCTAssertTrue(probe.logs.contains { $0.contains("The config failed to load: replacement load failed") })
+            XCTAssertEqual(probe.events.count, 2)
+            try assertEvent(probe.events[1], path: "/config/requested.ncl", error: "replacement load failed")
+        }
+    }
+
+    func testNewerOrdinaryRequestPreventsCancelledOlderFromStartingReplacement() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate(), clock = TestClock<Duration>()
+        let owner = probe.owner()
+        probe.loadGates["a"] = gate
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        let newer = await request(owner, "b")
+        XCTAssertTrue(try newer.result.get())
+        a.cancel(); gate.release()
+        _ = await a.value
+        await clock.advance()
+        XCTAssertEqual(probe.adopted, ["b"])
+        XCTAssertEqual(probe.events.count, 1)
+    }
+
+    func testCancelledFailedLoadDoesNotReportOrNotify() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate()
+        let owner = probe.owner()
+        probe.loadGates["a"] = gate
+        probe.failures["a"] = "deadline"
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        a.cancel(); gate.release()
+        let result = await a.value
+        XCTAssertThrowsError(try result.result.get()) { XCTAssertTrue($0 is CancellationError) }
+        XCTAssertTrue(probe.events.isEmpty)
+        XCTAssertTrue(probe.recordedFailures.isEmpty)
+        XCTAssertTrue(probe.shown.isEmpty)
+    }
+
+    func testCancelledNewestWhileWaitingStartsOneReplacementBeforeApplicationFinishes() async throws {
+        let probe = ReloadProbe(), gate = ReloadGate(), clock = TestClock<Duration>()
+        let owner = probe.owner()
+        probe.applyGates["a"] = gate
+        let a = Task { await self.request(owner, "a") }
+        await gate.entered.wait()
+        let save = Task { await owner.request(trigger: .fileChange) }
+        await probe.loadsFinished.wait(for: 2)
+        await clock.advance()
+        var returned = false
+        let newest = Task { let result = await self.request(owner, "new"); returned = true; return result }
+        await probe.loadsFinished.wait(for: 3)
+        await clock.advance()
+        _ = await save.value
+        newest.cancel()
+        await clock.advance()
+        XCTAssertTrue(returned)
+        XCTAssertEqual(probe.disposed, ["save", "new"])
+        gate.release()
+        _ = await a.value
+        _ = await newest.value
+        await clock.advance()
+        XCTAssertEqual(probe.adopted, ["a", "save"])
+        XCTAssertEqual(probe.events.count, 2)
+    }
+
 }

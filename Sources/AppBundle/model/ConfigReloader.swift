@@ -28,6 +28,10 @@ struct ConfigReloadState: Equatable {
         return .begin
     }
 
+    mutating func pendingDeparted(_ id: Int) {
+        if pending == id { pending = nil }
+    }
+
     mutating func applicationFinished(_ id: Int) -> Int? {
         precondition(applying == id)
         applying = pending
@@ -109,6 +113,10 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     /// when a newer request supersedes it.
     private var waitingToApply: (id: Int, turn: CheckedContinuation<Bool, Never>)?
 
+    private var attempts: [Int: Attempt] = [:]
+    /// Work an ordinary request displaced, retained until a successor begins application.
+    private var supersededWork: Attempt?
+
     private struct Attempt {
         let dryRun: Bool
         let noGui: Bool
@@ -150,21 +158,57 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
             return .init(result: .success(false), text: message)
         }
         let attempt = Attempt(dryRun: dryRun, noGui: noGui, trigger: trigger, path: forceConfigUrl?.path ?? configPath())
+        if !dryRun, let newest = state.newest, newest != state.applying,
+           let displaced = attempts[newest] {
+            supersededWork = supersededWork ?? displaced
+        }
         let request = state.requested(dryRun: dryRun)
+        attempts[request.id] = attempt
+        defer { attempts[request.id] = nil }
         if let id = request.superseded { takeWaiter(id).resume(returning: false) }
         let read = await load(forceConfigUrl)
         if dryRun { return completeDryRun(attempt, read) }
+        if Task.isCancelled {
+            if case .success(let candidate) = read { helper.dispose(candidate) }
+            replaceCancelledNewest(request.id)
+            return .init(result: .failure(CancellationError()), text: "")
+        }
         let proceed: Bool
         switch state.loaded(request.id) {
             case .supersede: proceed = false
             case .begin: proceed = true
-            case .wait: proceed = await withCheckedContinuation { waitingToApply = (request.id, $0) }
+            case .wait:
+                proceed = await withTaskCancellationHandler {
+                    await withCheckedContinuation { waitingToApply = (request.id, $0) }
+                } onCancel: {
+                    Task { @MainActor in self.cancelWaiter(request.id) }
+                }
+        }
+        if Task.isCancelled, !proceed {
+            if case .success(let candidate) = read { helper.dispose(candidate) }
+            replaceCancelledNewest(request.id)
+            return .init(result: .failure(CancellationError()), text: "")
         }
         guard proceed else {
             if case .success(let candidate) = read { helper.dispose(candidate) }
             return .init(result: .success(false), text: "A later reload replaced this one")
         }
         return await run(request.id, attempt, read)
+    }
+
+    private func cancelWaiter(_ id: Int) {
+        guard waitingToApply?.id == id else { return }
+        state.pendingDeparted(id)
+        takeWaiter(id).resume(returning: false)
+    }
+
+    private func replaceCancelledNewest(_ id: Int) {
+        guard state.newest == id, let displaced = supersededWork else { return }
+        Task { @MainActor in
+            guard self.state.newest == id, self.supersededWork != nil else { return }
+            self.supersededWork = nil
+            _ = await self.request(noGui: displaced.noGui, trigger: displaced.trigger)
+        }
     }
 
     private struct Reporting {
@@ -176,11 +220,13 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
 
     private func run(_ id: Int, _ attempt: Attempt, _ read: Result<Candidate, String>) async -> ConfigReloadCompletion {
         // A caller cancelled before adoption, as while it waited for its turn, adopts nothing.
-        if Task.isCancelled, case .success(let candidate) = read {
-            helper.dispose(candidate)
+        if Task.isCancelled {
+            if case .success(let candidate) = read { helper.dispose(candidate) }
             applicationFinished(id)
+            replaceCancelledNewest(id)
             return .init(result: .failure(CancellationError()), text: "")
         }
+        if id == state.newest { supersededWork = nil }
         var reporting = prepare(attempt, read)
         var result: Result<Bool, Error> = .success(false)
         if case .success(let candidate) = read {
