@@ -47,21 +47,21 @@ final class LensLifecycle {
     }
     struct Dependencies {
         var evaluate: LensInlineSearch.Evaluate
-        var requestThumbnail: (Window, Int) -> Void
+        var requestThumbnail: (Window, Int, CGSize) -> Void
         var closeThumbnails: (Int) -> Void
         var flags: () -> NSEvent.ModifierFlags
         var observeThumbnails: (Int, LensSessionStatistics) -> Void = { _, _ in }
 
         @MainActor
         static func live(isTesting: () -> Bool = { isUnitTest },
-                         request: @escaping @MainActor (Window, Int) -> Void = { ThumbnailCache.shared.request($0, lens: $1) }) -> Self {
+                         request: @escaping @MainActor (Window, Int, CGSize) -> Void = { ThumbnailCache.shared.request($0, lens: $1, demand: $2) }) -> Self {
             let testing = isTesting()
             return Self(evaluate: { body, context, windows in
                 precondition(!testing, "Unconfigured Lens dependency: NickelSupervisor.evalFilter")
                 return await NickelSupervisor.shared.evalFilter(body, context: context, windows: windows)
-            }, requestThumbnail: { window, token in
+            }, requestThumbnail: { window, token, size in
                 precondition(!testing, "Unconfigured Lens dependency: ThumbnailCache.request")
-                request(window, token)
+                request(window, token, size)
             }, closeThumbnails: { ThumbnailCache.shared.closeLens($0) },
             flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) },
             observeThumbnails: { ThumbnailCache.shared.observeLens($0, statistics: $1) })

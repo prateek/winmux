@@ -18,7 +18,7 @@ final class LensSessionStatisticsTest: SerialClockTestCase {
         let trace = store.begin(presentation: "grid", origin: .init(start: 0, received: 0, source: "test"))
         var statistics: LensSessionStatistics?
         var dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
-            requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { [] })
+            requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { [] })
         dependencies.observeThumbnails = { _, value in statistics = value }
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         var settings = LensConfig(); settings.presentation = "grid"

@@ -24,6 +24,57 @@ final class GridSessionTest: SerialClockTestCase {
         model.miniatureWorkspaces = ["1", "2"].map { MiniatureWorkspace(name: $0, title: $0, source: CGRect(x: 0, y: 0, width: 1920, height: 1080), current: $0 == "1") }
         return model
     }
+    func testEveryPresentationRequestsItsDrawnPixelsAtThePanelScale() {
+        for presentation in ["grid", "strip", "list", "miniatures"] {
+            var settings = LensConfig(); settings.tile = "picture"
+            let session = model(count: 3, settings: settings)
+            session.changePresentation(presentation)
+            session.thumbnailScale = 2
+            var requests: [UInt32: CGSize] = [:]
+            session.refreshThumbnails(lens: 7) { window, token, size in
+                XCTAssertEqual(token, 7)
+                requests[window.windowId] = size
+            }
+            XCTAssertNil(requests[3], "Frozen Tiles cannot be refreshed")
+            for item in session.results where item.id != 3 {
+                let points: CGSize
+                switch presentation {
+                case "grid": points = session.gridLayout.tiles[session.results.firstIndex(where: { $0.id == item.id })!].pictureSize
+                case "strip": points = session.stripSnapshot.layout.tiles[session.results.firstIndex(where: { $0.id == item.id })!].pictureSize
+                case "list": points = session.tileMetrics.fittedPicture(aspect: item.tile.aspect, in: CGSize(width: 96, height: 62))
+                default: points = session.miniatureFrames[item.id]!.size
+                }
+                // Only the grid and the strip enlarge the selected Tile.
+                let lift = presentation == "grid" || presentation == "strip" ? 1.045 : 1
+                XCTAssertEqual(requests[item.id]!.width, points.width * lift * 2, accuracy: 0.001, presentation)
+                XCTAssertEqual(requests[item.id]!.height, points.height * lift * 2, accuracy: 0.001, presentation)
+            }
+        }
+    }
+
+    func testThreeTileGridGrowsPastOldCapAndFortyTileGridShrinksBelowIt() {
+        for count in [3, 40] {
+            var settings = LensConfig(); settings.presentation = "grid"; settings.sections = "none"
+            let items = (1...count).map { id in
+                let window = TestWindow.new(id: UInt32(id), parent: focus.workspace.rootTilingContainer)
+                return SwitcherPaletteItem(id: UInt32(id), title: "Document", appName: "Editor", icon: nil, workspaceName: "1", isFocused: false,
+                    miniature: MiniatureWindow(workspace: "1", frame: CGRect(x: 0, y: 0, width: 1920, height: 1000), tray: false, frozen: false, accessory: false, floating: true, window: window),
+                    tile: TileEntry(title: "Document", appName: "Editor", aspect: 1.92, realSize: CGSize(width: 1920, height: 1000)))
+            }
+            let session = LensSession(name: "grid", settings: settings, items: items, search: "")
+            session.miniatureSize = CGSize(width: 1920, height: 1080)
+            session.refreshThumbnails(lens: 7) { _, _, size in
+                if count == 3 { XCTAssertGreaterThan(size.width, 582.4) }
+                else {
+                    XCTAssertLessThan(size.width, 582.4)
+                    let capture = ThumbnailCache.pixelSize(frame: CGRect(x: 0, y: 0, width: 1920, height: 1000), demand: size, scale: 1, windowScale: 1)
+                    XCTAssertEqual(capture.width, size.width, accuracy: 0.001)
+                    XCTAssertEqual(capture.height, size.height, accuracy: 0.001)
+                }
+            }
+        }
+    }
+
     func testSearchRanksMatchesAsTheListDoesAndResizesToOnlyMatches() {
         let session = model(count: 40)
         let before = session.gridLayout
@@ -84,7 +135,7 @@ final class GridSessionTest: SerialClockTestCase {
     func testLifecycleRefreshesEveryLiveMatchEachHalfSecondAndCancels() async throws {
         let clock = TestClock<Duration>()
         var requests: [UInt32] = [], closed: [Int] = []
-        let deps = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { [] })
+        let deps = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: deps, emit: { _ in }, show: { _ in }, hide: {})
         let session = model(count: 14)
         owner.complete(session, ticket: owner.begin("grid", toggle: false)!)
@@ -158,7 +209,7 @@ final class GridSessionTest: SerialClockTestCase {
         let session = LensSession(name: "strip", settings: settings, items: items, search: "")
         session.miniatureSize = CGSize(width: 1920, height: 1080)
         session.miniatureWorkspaces = ["1", "2"].map { MiniatureWorkspace(name: $0, title: $0, source: CGRect(x: 0, y: 0, width: 1920, height: 1080), current: $0 == "1") }
-        let owner = LensLifecycle(dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .option }),
+        let owner = LensLifecycle(dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { .option }),
                                   emit: { _ in }, show: { _ in }, hide: {})
         defer { owner.dismiss() }
         let ticket = owner.begin(session.name, toggle: false, strip: StripGesture(keyCode: 48, invoking: .option))!

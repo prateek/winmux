@@ -66,7 +66,7 @@ final class LensPreparationTest: SerialClockTestCase {
         XCTAssertNil(model.owner)
         XCTAssertNil(model.onAction)
         XCTAssertNil(model.onControl)
-        model.refreshThumbnails(lens: 1) { _, _ in XCTFail("Synthetic preparation must never request a capture") }
+        model.refreshThumbnails(lens: 1) { _, _, _ in XCTFail("Synthetic preparation must never request a capture") }
     }
 
     func testGridPreparationRetainsRealSnapshotsAndTheirCachedPictures() {

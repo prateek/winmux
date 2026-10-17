@@ -33,6 +33,13 @@ final class LensSession: ObservableObject {
     private var currentModifiers: NSEvent.ModifierFlags = []
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
+    var thumbnailScale: CGFloat = 1
+    /// `lifted` is for Presentations that enlarge the selected Tile, which any Tile can become.
+    func thumbnailDemand(_ points: CGSize, lifted: Bool) -> CGSize {
+        let factor = (lifted ? tileMetrics.selectionScale : 1) * thumbnailScale
+        return CGSize(width: points.width * factor, height: points.height * factor)
+    }
+
     var miniatureSize = CGSize(width: 1000, height: 700)
     private(set) var miniatureExcludedIds: Set<UInt32> = []
     var miniatureWorkspaces: [MiniatureWorkspace] = []

@@ -215,11 +215,11 @@ final class LensLifecycleTest: XCTestCase {
     func testLiveDependenciesReadTestEnvironmentOnceAtAssembly() {
         var reads = 0
         var requests = 0
-        let dependencies = LensLifecycle.Dependencies.live(isTesting: { reads += 1; return false }, request: { _, _ in requests += 1 })
+        let dependencies = LensLifecycle.Dependencies.live(isTesting: { reads += 1; return false }, request: { _, _, _ in requests += 1 })
         XCTAssertEqual(reads, 1)
         setUpWorkspacesForTests()
         let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
-        for _ in 0..<5 { dependencies.requestThumbnail(window, 1) }
+        for _ in 0..<5 { dependencies.requestThumbnail(window, 1, .zero) }
         XCTAssertEqual(reads, 1)
         XCTAssertEqual(requests, 5)
     }
