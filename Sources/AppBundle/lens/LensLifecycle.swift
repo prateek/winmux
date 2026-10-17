@@ -50,6 +50,7 @@ final class LensLifecycle {
         var requestThumbnail: (Window, Int) -> Void
         var closeThumbnails: (Int) -> Void
         var flags: () -> NSEvent.ModifierFlags
+        var observeThumbnails: (Int, LensSessionStatistics) -> Void = { _, _ in }
 
         @MainActor
         static func live(isTesting: () -> Bool = { isUnitTest },
@@ -62,7 +63,8 @@ final class LensLifecycle {
                 precondition(!testing, "Unconfigured Lens dependency: ThumbnailCache.request")
                 request(window, token)
             }, closeThumbnails: { ThumbnailCache.shared.closeLens($0) },
-            flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) })
+            flags: { NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)) },
+            observeThumbnails: { ThumbnailCache.shared.observeLens($0, statistics: $1) })
         }
     }
 
@@ -93,6 +95,7 @@ final class LensLifecycle {
     }
     var finishShow: (LensSession, ShowInstruction) -> Void = { _, _ in }
     var hide: () -> Void
+    var observeFrames: (LensSessionStatistics) -> Void = { _ in }
     private var stripDisplay: Task<Void, Never>?
     private var thumbnailRefresh: Task<Void, Never>?
     private var thumbnailToken: Int?
@@ -229,6 +232,10 @@ final class LensLifecycle {
         guard ticket == generation else { return }
         state = .presented(model)
         if !wasPresented {
+            if let statistics = trace?.statistics {
+                statistics.presented()
+                observeFrames(statistics)
+            }
             emit(.lensEvent(opened: true, lens: model.eventFilter == nil ? model.name : nil, filter: model.eventFilter))
         }
         guard session === model, ticket == generation else { return }
@@ -311,6 +318,7 @@ final class LensLifecycle {
         nextThumbnailToken += 1
         let token = nextThumbnailToken
         thumbnailToken = token
+        if let statistics = trace?.statistics { dependencies.observeThumbnails(token, statistics) }
         let ticket = generation
         let clock = self.clock
         thumbnailRefresh = Task { @MainActor [weak self, weak model] in
@@ -410,6 +418,7 @@ final class LensLifecycle {
     func dismiss() {
         if case .closed = state { return }
         let model = session
+        trace?.statistics.stop()
         if let model {
             model.endPeekOnDismiss()
             trace?.session(model, active: false)

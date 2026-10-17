@@ -1,8 +1,54 @@
 import AppKit
+import QuartzCore
 
 @MainActor
 final class LensStartupPreparation {
     private var prepared = false
+
+    static func drawHiddenBacking(_ window: NSWindow) {
+        guard !window.isVisible else { return }
+        window.display()
+        CATransaction.flush()
+    }
+
+    private static func placeholderImage(width: Int, height: Int) -> CGImage? {
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
+    }
+
+    static func gridModel(size: CGSize, existingItems: [SwitcherPaletteItem], workspaces: [MiniatureWorkspace]) -> LensSession {
+        if !existingItems.isEmpty {
+            return model(presentation: "grid", size: size, existingItems: existingItems, workspaces: workspaces)
+        }
+        let shapes = [CGSize(width: 1600, height: 1000), CGSize(width: 900, height: 650),
+                      CGSize(width: 600, height: 900), CGSize(width: 360, height: 180)]
+        let images = shapes.compactMap { placeholderImage(width: 582, height: Int(582 * $0.height / $0.width)) }
+        let icon = NSImage(named: NSImage.applicationIconName)
+        let counts = [4, 5, 3, 2]
+        var items: [SwitcherPaletteItem] = []
+        for (section, count) in counts.enumerated() {
+            let workspace = String(section + 1)
+            for _ in 0..<count {
+                let index = items.count
+                let shape = shapes[index % shapes.count]
+                let thumbnail = WindowThumbnail()
+                if index != 1, !images.isEmpty { thumbnail.accept(images[index % images.count]) }
+                let tile = TileEntry(icon: icon, title: "Window", appName: "Application", picture: thumbnail,
+                    aspect: shape.width / shape.height, realSize: shape,
+                    badges: TileBadges(workspaceLabel: workspace, onFocusedWorkspace: section == 0), frozen: section != 0)
+                items.append(SwitcherPaletteItem(id: UInt32(index + 1), title: tile.title, appName: tile.appName,
+                    icon: icon, workspaceName: workspace, isFocused: index == 0, tile: tile))
+            }
+        }
+        let workspaces = counts.indices.map { index in
+            MiniatureWorkspace(name: String(index + 1), title: "Workspace \(index + 1)", source: CGRect(origin: .zero, size: size), current: index == 0)
+        }
+        return model(presentation: "grid", size: size, existingItems: items, workspaces: workspaces)
+    }
+
     static func model(presentation: String, size: CGSize, existingItems: [SwitcherPaletteItem]? = nil, workspaces: [MiniatureWorkspace]? = nil) -> LensSession {
         var settings = LensConfig()
         settings.presentation = presentation
@@ -13,12 +59,7 @@ final class LensStartupPreparation {
             return model
         }
         let thumbnail = WindowThumbnail()
-        if let context = CGContext(data: nil, width: 160, height: 120, bitsPerComponent: 8, bytesPerRow: 0,
-                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
-            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: 160, height: 120))
-            if let image = context.makeImage() { thumbnail.accept(image) }
-        }
+        if let image = placeholderImage(width: 160, height: 120) { thumbnail.accept(image) }
         let fallback = thumbnail.image.map { NSImage(cgImage: $0, size: NSSize(width: 128, height: 128)) }
         let emptyThumbnail = WindowThumbnail()
         let items = (1...4).map { index in

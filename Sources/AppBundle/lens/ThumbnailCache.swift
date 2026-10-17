@@ -21,6 +21,7 @@ final class ThumbnailCache {
     private var windows: [UInt32: WeakWindow] = [:]
     private var captureWaiters: [UInt32: [UUID: CheckedContinuation<Void, Never>]] = [:]
     private var nativeFocusedWindow: WeakWindow?
+    private var lensStatistics: [Int: LensSessionStatistics] = [:]
     private struct WeakWindow { weak var value: Window? }
     private let capture: @Sendable (UInt32, CGSize) async throws -> CGImage
     private let now: () -> TimeInterval
@@ -38,6 +39,7 @@ final class ThumbnailCache {
 
     func request(_ window: Window, lens: Int? = nil, force: Bool = false) {
         guard window.isBound, !isMinimized(window), !isUnitTest || self !== Self.shared else { return }
+        if let lens { lensStatistics[lens]?.requestedCapture() }
         windows[window.windowId] = WeakWindow(value: window)
         gate.enqueue(window.windowId, lens: lens, now: now(), force: force)
         pump()
@@ -71,7 +73,11 @@ final class ThumbnailCache {
         nativeFocusedWindow = window.map { WeakWindow(value: $0) }
     }
 
-    func closeLens(_ lens: Int) { gate.closeLens(lens) }
+    func observeLens(_ lens: Int, statistics: LensSessionStatistics) { lensStatistics[lens] = statistics }
+    func closeLens(_ lens: Int) {
+        lensStatistics.removeValue(forKey: lens)
+        gate.closeLens(lens)
+    }
     func closeWindow(_ window: Window) {
         if nativeFocusedWindow?.value === window { nativeFocusedWindow = nil }
         gate.closeWindow(window.windowId)
@@ -104,10 +110,12 @@ final class ThumbnailCache {
                 let frame = thumbnailCaptureFrame(window)
                 let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
                 let size = Self.pixelSize(frame: frame, scale: scale)
+                let statistics = gate.activeLens(id).flatMap { lensStatistics[$0] }
                 lensLog.debug("thumbnail start id=\(id) in-flight=\(self.gate.inFlight)")
                 Task { [weak self, weak window, capture] in
                     let image = try? await capture(id, size)
                     guard let self else { return }
+                    if image != nil { statistics?.completedCapture() }
                     if let window, self.windows[id]?.value === window, !self.isHidden(window), !self.isMinimized(window), let image { window.thumbnail.accept(image) }
                     self.gate.finish(id)
                     self.completeWaiters(id)

@@ -9,6 +9,26 @@ spec.loader.exec_module(module)
 
 
 class LensFilmTest(unittest.TestCase):
+    def testGridLeaderOpeningsUseTheOpeningKeyAndKeepTheStripDefault(self):
+        events = [{'keys': key, 'bootSeconds': time} for key, time in
+                  [('⌘ Tab', 1), ('⌥ ;', 2), ('W', 2.2), ('Esc', 4), ('⌥ ;', 5), ('W', 5.2), ('Esc', 7)]]
+        traces = [{'id': number, 'presentation': presentation, 'signal': 'third display-link tick'}
+                  for number, presentation in [(1, 'strip'), (2, 'grid'), (3, 'grid'), (4, 'grid')]]
+        keys, selected = module.opening_samples(events, traces)
+        self.assertEqual([key['bootSeconds'] for key in keys], [1])
+        self.assertEqual([trace['id'] for trace in selected], [1])
+        keys, selected = module.opening_samples(events, traces, presentation='grid', opening_key='W')
+        self.assertEqual([key['bootSeconds'] for key in keys], [2.2, 5.2])
+        self.assertEqual([trace['id'] for trace in selected], [3, 4])
+
+    def testALeaderKeepsAKeyTypedIntoSearchOutOfTheOpenings(self):
+        events = [{'keys': key, 'bootSeconds': time} for key, time in
+                  [('⌥ ;', 2), ('W', 2.2), ('W', 3), ('Esc', 4), ('⌥ ;', 5), ('W', 5.2), ('Esc', 7)]]
+        traces = [{'id': number, 'presentation': 'grid', 'signal': 'third display-link tick'} for number in (1, 2)]
+        keys, selected = module.opening_samples(events, traces, presentation='grid', opening_key='W', leader='⌥ ;')
+        self.assertEqual([key['bootSeconds'] for key in keys], [2.2, 5.2])
+        self.assertEqual([trace['id'] for trace in selected], [1, 2])
+
     def testMovieOriginAndVariableFrameTimesControlComparison(self):
         rows = module.compare([0, .01, .025, .045, .060, .080, .10, .12], 100,
                               [{'bootSeconds': 100.025}], [{'id': 1, 'totalMs': 50}], [5])

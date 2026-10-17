@@ -4,6 +4,7 @@ import SwiftUI
 import QuartzCore
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
+private let lensFrameSamplingEnabled = ProcessInfo.processInfo.environment["WINMUX_DEBUG_LENS_FRAMES"] == "1"
 
 struct SwitcherPaletteItem: Identifiable {
     let id: UInt32
@@ -53,6 +54,12 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
+        lifecycle.observeFrames = { [weak self] statistics in
+            statistics.observeFrames(enabled: lensFrameSamplingEnabled) { [weak self] tick in
+                self?.hostingView.observeSessionFrames(tick)
+                return { [weak self] in self?.hostingView.stopSessionFrames() }
+            }
+        }
         identifier = NSUserInterfaceItemIdentifier(switcherPalettePanelId)
         hasShadow = true
         isFloatingPanel = true
@@ -98,8 +105,10 @@ final class SwitcherPalettePanel: NSPanelHud {
             var settings = LensConfig()
             settings.presentation = presentation
             let items = presentationItems(entries, settings: settings, workspaces: workspaces)
-            let model = LensStartupPreparation.model(presentation: presentation, size: focus.workspace.workspaceMonitor.visibleRect.size,
-                                                     existingItems: items, workspaces: workspaces)
+            let size = focus.workspace.workspaceMonitor.visibleRect.size
+            let model = presentation == "grid"
+                ? LensStartupPreparation.gridModel(size: size, existingItems: items, workspaces: workspaces)
+                : LensStartupPreparation.model(presentation: presentation, size: size, existingItems: items, workspaces: workspaces)
             prepare(model, startup: true)
         }
         guard drew else { return }
@@ -304,6 +313,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         if startup, let bitmap = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
             // Rasterizing the whole canvas is what pays SwiftUI's first drawing; an opening only displays.
             hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+            LensStartupPreparation.drawHiddenBacking(self)
         } else {
             hostingView.displayIfNeeded()
         }
@@ -696,6 +706,26 @@ private final class LensHostingView: NSHostingView<AnyView> {
     private var firstLayout = false
     private var displayTicks = 0
     private var firstFrameLink: CADisplayLink?
+    private var sessionFrameLink: CADisplayLink?
+    private var onSessionFrame: LensSessionStatistics.Tick?
+
+    func observeSessionFrames(_ tick: @escaping LensSessionStatistics.Tick) {
+        stopSessionFrames()
+        onSessionFrame = tick
+        let link = displayLink(target: self, selector: #selector(sessionFrameTick(_:)))
+        sessionFrameLink = link
+        link.add(to: .main, forMode: .common)
+    }
+    func stopSessionFrames() {
+        sessionFrameLink?.invalidate()
+        sessionFrameLink = nil
+        onSessionFrame = nil
+    }
+    @objc private func sessionFrameTick(_ link: CADisplayLink) {
+        guard link === sessionFrameLink else { return }
+        // The frame's own vsync time, so a late callback is not counted as a missed refresh.
+        onSessionFrame?(link.timestamp, link.duration)
+    }
 
     func disarm() {
         firstLayout = false
