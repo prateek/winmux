@@ -54,10 +54,25 @@ For an assigned relay guest, keep its disk and leave it running when finished. D
 resize, reboot, replace the image, or grant permissions to a recorder. Set
 `TART_HOME` in each host shell before using `vm`.
 
-After `vm sync` and `vm build`, run these through `vm ssh` (all paths below are
-guest paths):
+After `vm sync` and `vm build`, push the props and proof tools from the host:
 
 ```sh
+$SKILL/vm push <assigned-guest> .claude/skills/demo/desk desk
+$SKILL/vm push <assigned-guest> .scratch/winmux-fork/proofs/first-run first-run
+```
+
+Run the following through `vm ssh` (all paths below are guest paths). Clear a
+previous pending take before staging. The desk script leaves its SSH-launched
+manager running: stop it and allow quit restoration to finish before opening
+the untrusted bundle, so that manager cannot move the desk during setup.
+
+```sh
+pkill -x WinMuxApp || true
+sleep 3
+rm -f "$HOME/demo/setup-state/winmux/setup.json"
+zsh "$HOME/desk/stage-desk.sh"
+pkill -x WinMuxApp || true
+sleep 3
 bash "$HOME/winmux/.claude/skills/vm/setup-bundle.sh"
 app="$HOME/demo/WinMux Setup.app"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
@@ -65,9 +80,23 @@ tccutil reset Accessibility com.zimengxiong.winmux.debug
 tccutil reset ScreenCapture com.zimengxiong.winmux.debug
 mkdir -p "$HOME/demo/setup-config/winmux" "$HOME/demo/setup-state"
 cp "$HOME/desk/winmux.ncl" "$HOME/demo/setup-config/winmux/winmux.ncl"
+mkdir -p "$HOME/takes/first-run"
+swiftc "$HOME/first-run/frames.swift" -o "$HOME/demo/frames"
+swiftc "$HOME/first-run/ui.swift" -o "$HOME/demo/ui"
+"$HOME/demo/frames" > "$HOME/takes/first-run/before.frames.json"
+```
+
+Start the recorder before opening the bundle. Run this as a background host
+tool call and drive the UI through other `vm ssh` calls while it records:
+
+```sh
+app="$HOME/demo/WinMux Setup.app"
+screencapture -x -v -V 300 "$HOME/takes/first-run/setup.mov" &
+recorder=$!
 open --env XDG_CONFIG_HOME="$HOME/demo/setup-config" \
   --env XDG_STATE_HOME="$HOME/demo/setup-state" \
   --env WINMUX_NICKEL_HELPER="$HOME/winmux/nickel-helper/target/release/winmux-nickel" "$app"
+wait "$recorder"
 ```
 
 Stage the standing desk first with `desk/stage-desk.sh`. The wrapper copies the
