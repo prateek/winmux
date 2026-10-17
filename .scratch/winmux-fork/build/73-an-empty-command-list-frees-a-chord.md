@@ -34,7 +34,7 @@ Nothing.
 
 ## Build checks
 
-- Host and pinned-version guest `make check` pass: 1,444 Swift tests, 89 Rust/helper tests and 142 Python tests, with no skipped Swift tests. Removing the empty-list filter fails registration, sequence-consumption, parser and command-consumer regressions. Restoring the old duplicate check fails the empty-redeclaration regression. Removing array-command support fails the helper override regression; the Nickel contract is unchanged.
+- Host and pinned-version guest `make check` pass: 1,444 Swift tests, 89 Rust/helper tests and 142 Python tests, with no skipped Swift tests. Removing the empty-list filter fails registration, sequence-consumption, parser and command-consumer regressions. A regression holds that an empty spelling of a chord still collides with another spelling. Removing array-command support fails the helper override regression; the Nickel contract is unchanged.
 - The same guest key script reads only the control letter on the base and `÷x` on the new build, checked through both the clipboard and accessibility text. Saving the empty override over a running import-only config also reads `÷x`. Option-Shift-O opens overview on both builds. `config check` exits 0 silently, and `trigger-binding` reports the freed chord as unbound.
 - `docs/default-config.md` shows the empty-list override and the matching Lens-key recipe. `W.without-bindings` remains documented because the upgrade advice still uses record removal. Conversion comments stay unchanged.
 
