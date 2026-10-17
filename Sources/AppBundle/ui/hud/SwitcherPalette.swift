@@ -266,8 +266,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         scrollPaging = LensScrollStepper()
         gridLandingPanel.orderOut(nil)
         let monitor = focus.workspace.workspaceMonitor
-        model.thumbnailScale = NSScreen.screens.first { $0.frame.monitorFrameNormalized() == monitor.rect }?.backingScaleFactor
-            ?? NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
+        let screens = NSScreen.screens
+        model.thumbnailScale = screens.indices.contains(monitor.monitorAppKitNsScreenScreensId - 1)
+            ? screens[monitor.monitorAppKitNsScreenScreensId - 1].backingScaleFactor
+            : screens.map(\.backingScaleFactor).max() ?? 2
         let visible = monitor.visibleRect
         let sidebarInset = model.settings.presentation == "miniatures" ? monitor.workspaceSidebarInset : 0
         let rect = Rect(topLeftX: visible.minX + sidebarInset, topLeftY: visible.minY, width: visible.width - sidebarInset, height: visible.height)

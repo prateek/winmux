@@ -44,8 +44,10 @@ final class GridSessionTest: SerialClockTestCase {
                 case "list": points = session.tileMetrics.fittedPicture(aspect: item.tile.aspect, in: CGSize(width: 96, height: 62))
                 default: points = session.miniatureFrames[item.id]!.size
                 }
-                XCTAssertEqual(requests[item.id]!.width, points.width * 1.045 * 2, accuracy: 0.001, presentation)
-                XCTAssertEqual(requests[item.id]!.height, points.height * 1.045 * 2, accuracy: 0.001, presentation)
+                // Only the grid and the strip enlarge the selected Tile.
+                let lift = presentation == "grid" || presentation == "strip" ? 1.045 : 1
+                XCTAssertEqual(requests[item.id]!.width, points.width * lift * 2, accuracy: 0.001, presentation)
+                XCTAssertEqual(requests[item.id]!.height, points.height * lift * 2, accuracy: 0.001, presentation)
             }
         }
     }

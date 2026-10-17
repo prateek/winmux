@@ -21,23 +21,15 @@ final class ThumbnailCache {
     private var windows: [UInt32: WeakWindow] = [:]
     private struct CaptureWaiter {
         let size: CGSize
+        /// Any capture started from this serial on was asked for after the waiter.
+        let serial: Int
         let continuation: CheckedContinuation<Void, Never>
         let timeout: Task<Void, Never>
     }
     private var captureWaiters: [UInt32: [UUID: CaptureWaiter]] = [:]
     private var demands: [UInt32: [Int: CGSize]] = [:]
-    private struct InFlightCapture {
-        let size: CGSize
-        let demand: CGSize
-
-        func needsRecapture(size: CGSize, demand: CGSize) -> Bool {
-            let targetShortfall = self.size.width < size.width || self.size.height < size.height
-            let largerDemand = self.demand.width < demand.width || self.demand.height < demand.height
-            let demandShortfall = self.size.width < demand.width || self.size.height < demand.height
-            return targetShortfall || (largerDemand && demandShortfall)
-        }
-    }
-    private var activeCaptures: [UInt32: InFlightCapture] = [:]
+    private var activeCaptures: [UInt32: CGSize] = [:]
+    private var nextCaptureSerial = 0
     private let scales: (CGRect) -> (CGFloat, CGFloat)
     private var nativeFocusedWindow: WeakWindow?
     private var lensStatistics: [Int: LensSessionStatistics] = [:]
@@ -66,12 +58,11 @@ final class ThumbnailCache {
         windows[window.windowId] = WeakWindow(value: window)
         let id = window.windowId
         if let lens, let demand, demand.width > 0, demand.height > 0 { demands[id, default: [:]][lens] = demand }
-        let size = captureSize(window)
-        let required = self.demand(id) ?? size
+        let size = captureSize(window, outsideLens: lens == nil)
         let needsLarger = window.thumbnail.image.map {
-            CGFloat($0.width) < required.width || CGFloat($0.height) < required.height
+            CGFloat($0.width) < size.width.rounded(.down) || CGFloat($0.height) < size.height.rounded(.down)
         } ?? true
-        let recapture = activeCaptures[id]?.needsRecapture(size: size, demand: required) ?? false
+        let recapture = activeCaptures[id].map { $0.width < size.width || $0.height < size.height } ?? false
         gate.enqueue(id, lens: lens, now: now(), force: force, needsLarger: needsLarger, recapture: recapture)
         pump()
     }
@@ -83,21 +74,22 @@ final class ThumbnailCache {
     func captureBeforeMinimize(_ window: Window, timeout: Duration = .milliseconds(200)) async {
         guard !isMinimized(window), !isHidden(window), window.isBound, !isUnitTest || self !== Self.shared else { return }
         let token = UUID(), id = window.windowId
-        let size = captureSize(window)
+        let size = captureSize(window, outsideLens: true)
         await withCheckedContinuation { continuation in
             let deadline = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: timeout) } catch { return }
                 self?.captureWaiters[id]?.removeValue(forKey: token)?.continuation.resume()
             }
-            captureWaiters[id, default: [:]][token] = CaptureWaiter(size: size, continuation: continuation, timeout: deadline)
+            captureWaiters[id, default: [:]][token] = CaptureWaiter(size: size, serial: nextCaptureSerial, continuation: continuation, timeout: deadline)
             request(window, force: true)
         }
     }
 
-    private func completeWaiters(_ id: UInt32, size: CGSize? = nil) {
+    /// A capture started before the waiter completes it only when it is as large as the waiter asked for.
+    private func completeWaiters(_ id: UInt32, size: CGSize? = nil, serial: Int? = nil) {
         guard let waiters = captureWaiters[id] else { return }
         for (token, waiter) in waiters {
-            if let size, size.width < waiter.size.width || size.height < waiter.size.height { continue }
+            if let size, let serial, serial < waiter.serial, size.width < waiter.size.width || size.height < waiter.size.height { continue }
             captureWaiters[id]?.removeValue(forKey: token)
             waiter.timeout.cancel()
             waiter.continuation.resume()
@@ -113,7 +105,10 @@ final class ThumbnailCache {
 
     func observeLens(_ lens: Int, statistics: LensSessionStatistics) { lensStatistics[lens] = statistics }
     func closeLens(_ lens: Int) {
-        for id in Array(demands.keys) { demands[id]?.removeValue(forKey: lens) }
+        for id in Array(demands.keys) {
+            demands[id]?.removeValue(forKey: lens)
+            if demands[id]?.isEmpty == true { demands.removeValue(forKey: id) }
+        }
         lensStatistics.removeValue(forKey: lens)
         gate.closeLens(lens)
     }
@@ -142,23 +137,21 @@ final class ThumbnailCache {
         return CGSize(width: max(1, frame.width * ratio), height: max(1, frame.height * ratio))
     }
 
-    static func pixelSize(frame: CGRect, demand: CGSize?, scale: CGFloat, windowScale: CGFloat) -> CGSize {
+    /// A Lens's own refresh is sized by its demand alone; any other capture never goes below
+    /// today's size, so a small Presentation cannot shrink the picture a window parks with.
+    static func pixelSize(frame: CGRect, demand: CGSize?, scale: CGFloat, windowScale: CGFloat, outsideLens: Bool = false) -> CGSize {
         let width = max(1, frame.width), height = max(1, frame.height)
+        let today = pixelSize(frame: frame, scale: scale).width / width
         let requested = demand.map { max($0.width / width, $0.height / height) }
-            ?? (pixelSize(frame: frame, scale: scale).width / width)
-        let ratio = min(windowScale, requested)
+        let ratio = min(windowScale, outsideLens ? max(requested ?? 0, today) : requested ?? today)
         return CGSize(width: max(1, width * ratio), height: max(1, height * ratio))
     }
 
     static func windowScale(frame: CGRect) -> CGFloat {
-        let screens = NSScreen.screens
-        let screen = screens.max { a, b in
-            let left = a.frame.monitorFrameNormalized().cgRect.intersection(frame)
-            let right = b.frame.monitorFrameNormalized().cgRect.intersection(frame)
-            return (left.isNull ? 0 : left.width * left.height) < (right.isNull ? 0 : right.width * right.height)
-        }
-        if let screen, screen.frame.monitorFrameNormalized().cgRect.intersects(frame) { return screen.backingScaleFactor }
-        return screens.map(\.backingScaleFactor).max() ?? 2
+        let screens = NSScreen.screens.map { (frame: $0.frame.monitorFrameNormalized().cgRect, scale: $0.backingScaleFactor) }
+        let screen = screens.max { $0.frame.intersection(frame).area < $1.frame.intersection(frame).area }
+        if let screen, screen.frame.intersects(frame) { return screen.scale }
+        return screens.map(\.scale).max() ?? 2
     }
 
     private func demand(_ id: UInt32) -> CGSize? {
@@ -166,10 +159,10 @@ final class ThumbnailCache {
         return CGSize(width: sizes.map(\.width).max()!, height: sizes.map(\.height).max()!)
     }
 
-    private func captureSize(_ window: Window) -> CGSize {
+    private func captureSize(_ window: Window, outsideLens: Bool) -> CGSize {
         let frame = thumbnailCaptureFrame(window)
         let (scale, windowScale) = scales(frame)
-        return Self.pixelSize(frame: frame, demand: demand(window.windowId), scale: scale, windowScale: windowScale)
+        return Self.pixelSize(frame: frame, demand: demand(window.windowId), scale: scale, windowScale: windowScale, outsideLens: outsideLens)
     }
 
     private func pump() {
@@ -178,10 +171,11 @@ final class ThumbnailCache {
             for id in ready {
                 guard let window = windows[id]?.value, !isHidden(window), !isMinimized(window) else { gate.finish(id); completeWaiters(id); continue }
                 let frame = thumbnailCaptureFrame(window)
-                let size = captureSize(window)
-                let requested = demand(id)
-                activeCaptures[id] = InFlightCapture(size: size, demand: requested ?? size)
-                let demand = requested ?? .zero
+                let size = captureSize(window, outsideLens: gate.activeLens(id) == nil)
+                let serial = nextCaptureSerial
+                nextCaptureSerial += 1
+                activeCaptures[id] = size
+                let demand = demand(id) ?? .zero
                 let statistics = gate.activeLens(id).flatMap { lensStatistics[$0] }
                 lensLog.debug("thumbnail start id=\(id) frame=\(String(describing: frame), privacy: .public) demand=\(String(describing: demand), privacy: .public) size=\(String(describing: size), privacy: .public) in-flight=\(self.gate.inFlight)")
                 Task { [weak self, weak window, capture] in
@@ -194,7 +188,7 @@ final class ThumbnailCache {
                     if let window, self.windows[id]?.value === window, !self.isHidden(window), !self.isMinimized(window), let image { window.thumbnail.accept(image) }
                     self.activeCaptures.removeValue(forKey: id)
                     self.gate.finish(id)
-                    self.completeWaiters(id, size: size)
+                    self.completeWaiters(id, size: size, serial: serial)
                     self.pump()
                 }
             }

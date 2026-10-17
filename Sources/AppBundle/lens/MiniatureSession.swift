@@ -146,7 +146,7 @@ extension LensSession {
         let frames = miniatureFrames
         for item in items {
             guard let entry = item.miniature, !entry.frozen, names.contains(entry.workspace) else { continue }
-            if let frame = frames[item.id] { request(entry.window, lens, thumbnailDemand(frame.size)) }
+            if let frame = frames[item.id] { request(entry.window, lens, thumbnailDemand(frame.size, lifted: false)) }
         }
     }
 }

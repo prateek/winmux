@@ -728,10 +728,10 @@ At most two captures run at once. Hidden apps retain their
 last frame; a window with no frame shows its app icon. Inactive native-fullscreen windows use the
 same fallback. Opening draws the cache immediately; current-workspace windows on the visible
 page refresh every 500 ms. Grid and strip refresh every live Tile; picture lists refresh visible rows.
-Each Presentation requests its fitted picture size in pixels, including the 4.5% selection enlargement.
+Each Presentation requests its fitted picture size in pixels; the grid and the strip add the 4.5% enlargement of the selected Tile.
 The cache captures at the largest demand from an open Lens, capped at the window's own pixel size.
 A small saved picture stays visible while its larger replacement gets priority over ordinary Lens refreshes.
-With no open demand, captures keep the 582.4-point width limit. Frozen pictures cannot be retaken.
+Parking, focus loss and minimize never capture below the 582.4-point width, even while a small Lens is open. Frozen pictures cannot be retaken.
 Closing cancels queued Lens refreshes and removes that Lens's size demands. Capture needs an existing Screen
 Recording grant; background capture does not request one.
 

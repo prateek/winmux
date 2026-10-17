@@ -40,7 +40,7 @@ Nothing. **The grid's first opening, and what refreshing every Tile costs** meas
 
 ## Built and checked
 
-Every Presentation sends its fitted picture size × 1.045 selection enlargement × the Lens screen’s backing scale. Each open Lens token owns a demand; captures cover the largest demand while preserving the capture frame’s aspect and respecting the window’s own screen-pixel cap. Without a demand, the original size helper remains in use, subject to that cap. Frozen guards, Peek and startup preparation are unchanged.
+Every Presentation sends its fitted picture size × the Lens screen’s backing scale; the grid and the strip, which enlarge the selected Tile, also multiply by its 1.045. Each open Lens token owns a demand; captures cover the largest demand while preserving the capture frame’s aspect and respecting the window’s own screen-pixel cap. A capture made outside a Lens's own refresh (parking, focus loss, minimize) never goes below the original size, so a small Presentation cannot shrink the picture a window parks with; it too is subject to the window cap. Frozen guards, Peek and startup preparation are unchanged.
 
 At 1920 × 1080 and backing scale 1, the selected text picture draws at 613.1 × 309.7 pixels: the base captures 583 × 295, the new build 614 × 310. Lossless 1:1 comparison stills were checked. Forty varied-shape live windows on one workspace capture at their selected picture demands; the largest is 190 × 99 rather than the base’s 583 × 617. A selected 180 × 120 native window is capped at exactly 180 × 120 despite a 188.1 × 125.4 demand.
 

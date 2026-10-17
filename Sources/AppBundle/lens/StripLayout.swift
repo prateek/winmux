@@ -123,7 +123,7 @@ extension LensSession {
             if let entry = items[index].miniature, !entry.frozen {
                 let picture = tileMetrics.fittedPicture(aspect: items[index].tile.aspect,
                     in: CGSize(width: tileMetrics.listPictureWidth, height: tileMetrics.listPictureHeight - 2 * tileMetrics.rowVerticalPadding))
-                request(entry.window, lens, thumbnailDemand(picture))
+                request(entry.window, lens, thumbnailDemand(picture, lifted: false))
             }
         }
     }

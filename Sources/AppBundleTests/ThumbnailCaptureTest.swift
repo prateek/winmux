@@ -178,7 +178,7 @@ final class ThumbnailCacheTest: XCTestCase {
         cache.request(window, force: true)
         await cache.waitUntilIdle()
         let sizes = await capture.sizes
-        XCTAssertEqual(sizes.map(\.width), [300, 900, 900, 400, 582.4])
+        XCTAssertEqual(sizes.map(\.width), [300, 900, 900, 582.4, 582.4], "A capture outside a Lens never goes below today's size")
         cache.closeWindow(window)
         cache.request(window, force: true)
         await cache.waitUntilIdle()
@@ -187,7 +187,7 @@ final class ThumbnailCacheTest: XCTestCase {
     }
 
     func testLargerDemandDuringFlightCapturesAgainAndKeepsSavedPicture() async {
-        for nativeWidth: CGFloat in [1600, 200] {
+        for nativeWidth: CGFloat in [1600, 600] {
             let capture = ControlledCapture()
             let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
             let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
@@ -229,7 +229,7 @@ final class ThumbnailCacheTest: XCTestCase {
     }
 
     func testCacheRefreshesAnUndersizedSavedPictureBeforeOneThatAlreadyCoversItsDemand() async {
-        for nativeSize in [CGSize(width: 1600, height: 800), CGSize(width: 100, height: 50)] {
+        for nativeSize in [CGSize(width: 1600, height: 800), CGSize(width: 200, height: 100)] {
             let capture = ControlledCapture()
             let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
             let windows = (1...4).map { TestWindow.new(id: UInt32($0), parent: focus.workspace.rootTilingContainer) }
@@ -252,6 +252,58 @@ final class ThumbnailCacheTest: XCTestCase {
             await capture.finish(4, image: image())
             await cache.waitUntilIdle()
         }
+    }
+
+    func testCaptureOutsideALensKeepsTodaysSizeWhileASmallLensIsOpen() async {
+        let capture = ControlledCapture()
+        await capture.completeFutureCaptures(with: image())
+        let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800)
+        cache.request(window, lens: 1, demand: CGSize(width: 200, height: 100))
+        await cache.waitUntilIdle()
+        cache.request(window, force: true)
+        await cache.waitUntilIdle()
+        await cache.captureBeforeMinimize(window, timeout: .seconds(30))
+        let sizes = await capture.sizes
+        XCTAssertEqual(sizes.map(\.width), [200, 582.4, 582.4])
+    }
+
+    func testAWindowCappedBelowItsDemandIsNotUndersizedOnceCapturedAtItsCap() async {
+        let capture = ControlledCapture()
+        let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let windows = (1...4).map { TestWindow.new(id: UInt32($0), parent: focus.workspace.rootTilingContainer) }
+        for window in windows { window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800) }
+        windows[2].miniatureFrame = CGRect(x: 0, y: 0, width: 300, height: 150)
+        windows[2].thumbnail.accept(image(width: 300, height: 150))
+        windows[3].thumbnail.accept(image(width: 100, height: 50))
+        cache.request(windows[0], force: true)
+        cache.request(windows[1], force: true)
+        await capture.waitForStarts(2)
+        cache.request(windows[2], lens: 1, demand: CGSize(width: 900, height: 450))
+        cache.request(windows[3], lens: 1, demand: CGSize(width: 500, height: 250))
+        await capture.finish(1, image: image())
+        await capture.waitForStarts(3)
+        let started = await capture.started
+        XCTAssertEqual(started[2], 4, "A picture already at its window's size does not jump the queue")
+        for id: UInt32 in [2, 4] { await capture.finish(id, image: image()) }
+        await capture.waitForStarts(4)
+        await capture.finish(3, image: image())
+        await cache.waitUntilIdle()
+    }
+
+    func testAGrowingDemandOnACappedWindowStartsNoFollowUp() async {
+        let capture = ControlledCapture()
+        let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        window.miniatureFrame = CGRect(x: 0, y: 0, width: 300, height: 150)
+        cache.request(window, lens: 1, demand: CGSize(width: 900, height: 450))
+        await capture.waitForStarts(1)
+        cache.request(window, lens: 1, demand: CGSize(width: 1200, height: 600))
+        await capture.finish(1, image: image())
+        await cache.waitUntilIdle()
+        let sizes = await capture.sizes
+        XCTAssertEqual(sizes, [CGSize(width: 300, height: 150)])
     }
 
     func testSessionCountersCountRequestsAndSuccessfulCapturesWithTheirOriginalOwner() async {
@@ -430,6 +482,36 @@ final class ThumbnailMinimizeCaptureTest: SerialClockTestCase {
         XCTAssertTrue(finished)
         let sizes = await capture.sizes
         XCTAssertEqual(sizes.map(\.width), [100, 582.4])
+    }
+
+    func testMinimizeFinishesOnACaptureStartedAfterItEvenWhenTheSizeDropped() async {
+        let image = CGContext(data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 8,
+                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()!
+        let capture = ControlledCapture()
+        let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let windows = (1...3).map { TestWindow.new(id: UInt32($0), parent: focus.workspace.rootTilingContainer) }
+        for window in windows { window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800) }
+        cache.request(windows[1], force: true)
+        cache.request(windows[2], force: true)
+        await capture.waitForStarts(2)
+        cache.request(windows[0], lens: 1, demand: CGSize(width: 900, height: 450))
+        var finished = false
+        let minimizing = Task { @MainActor in
+            await cache.captureBeforeMinimize(windows[0], timeout: .seconds(30))
+            finished = true
+        }
+        await Task.megaYield()
+        cache.closeLens(1)
+        await capture.finish(2, image: image)
+        await capture.waitForStarts(3)
+        await capture.finish(1, image: image)
+        await Task.megaYield()
+        XCTAssertTrue(finished, "The capture started after the waiter completes it at the size it now has")
+        await capture.finish(3, image: image)
+        await minimizing.value
+        await cache.waitUntilIdle()
+        let sizes = await capture.sizes
+        XCTAssertEqual(sizes.last?.width, 582.4)
     }
 }
 

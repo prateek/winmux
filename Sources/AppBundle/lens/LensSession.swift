@@ -34,8 +34,9 @@ final class LensSession: ObservableObject {
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
     var thumbnailScale: CGFloat = 1
-    func thumbnailDemand(_ points: CGSize) -> CGSize {
-        let factor = tileMetrics.selectionScale * thumbnailScale
+    /// `lifted` is for Presentations that enlarge the selected Tile, which any Tile can become.
+    func thumbnailDemand(_ points: CGSize, lifted: Bool) -> CGSize {
+        let factor = (lifted ? tileMetrics.selectionScale : 1) * thumbnailScale
         return CGSize(width: points.width * factor, height: points.height * factor)
     }
 
