@@ -102,6 +102,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On a display larger than 1920 × 1080 (an ultrawide or a 1440p external), open the same grid with two windows, then with one window parked on another workspace so its Tile is Frozen. Live pictures are crisp. Say here how soft the Frozen one looks next to them: that answers "Should a parked window's picture be as large as a grid draws it?" in Open with Prateek.
 - [ ] With a Retina laptop and a 1x external display, open the grid on each display in turn. The pictures are crisp on both, and none looks blocky on the 1x display.
 
+**Ctrl-Up does nothing while the pointer is over the expanded sidebar**
+- [ ] On the installed build, with a terminal focused and no Lens open, rest the pointer on the left edge until the sidebar expands, keep it there, and press Ctrl-Up: Mission Control opens. Close it with Ctrl-Up, then do the same with Ctrl-Down: App Exposé opens for the terminal. Then press Cmd-N with the pointer still on the sidebar: the terminal opens a new window, and its name stays in the menu bar.
+- [ ] Still on the installed build, with the pointer over the expanded sidebar, type a few letters so the sidebar searches, click once in the sidebar's search field, then press Cmd-Delete: the search clears. Say here if it does not.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

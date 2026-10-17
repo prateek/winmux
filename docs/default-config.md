@@ -60,6 +60,8 @@ Option-Shift-O types `Ø` on US and ABC layouts when WinMux is not listening; th
 
 Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and the other removed chords are free for the focused app or another switcher.
 
+Hovering over the expanded workspace sidebar starts type-to-search without activating WinMux. A chord with Control, Command or Option, and a Globe chord with a letter, passes through to the system and the focused app. Command-Delete and Option-Delete stay edits in a rename, in search opened with `open-sidebar`, and once a click on the sidebar has brought WinMux forward; otherwise, under the pointer, they go to the focused app. Plain and Shift-only search keys still go to the sidebar. Search opened with `open-sidebar`, renames and clicks keep their usual activation behavior.
+
 ## The windowing mode
 
 `alt-semicolon` enters the `window` binding mode. It has exactly these 44 keys:

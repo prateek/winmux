@@ -48,6 +48,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Two defects found while shielding `arrive`** are with the follow-ups: a window registered or restored during a cancelled refresh misses its placement hook, and a read-only command drops the refresh it cancels, so a new window stays unmanaged.
 - **One defect found while putting refresh timing under a controlled clock** is with the follow-ups: the per-app refresh deadline does not bound a stopped app.
 - **One defect found while fixing the landing and placement edge cases** is with the follow-ups: a strip or list landing hint uses a floating window's old frame.
+- **One defect found while landing Ctrl-Up over the sidebar** is with the follow-ups: with `always-expanded`, the sidebar's search takes every key typed anywhere.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
