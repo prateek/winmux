@@ -6,7 +6,7 @@ Each prompt file is **Every pass** followed by one pass's section, copied whole,
 
 Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: resize or reboot it only where this pass's section says to, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
 
-Edit files with `apply_patch`, not with a Python script that rewrites them, and wait for a background command once, with a long yield, instead of polling it in a loop.
+Edit files with `apply_patch`, not with a Python script that rewrites them. Run a build, a check or a staging script in the background and wait for it with one yield of 120 seconds, then read its output; repeat that single long wait only while it is still running. A loop of short waits is polling, and it costs a model turn each time.
 
 This pass writes one report, named in its section, once, at the end. Your last message is that report's path and nothing more.
 
