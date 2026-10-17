@@ -750,6 +750,14 @@ Parking, focus loss and minimize never capture below the 582.4-point width, even
 Closing cancels queued Lens refreshes and removes that Lens's size demands. Capture needs an existing Screen
 Recording grant; background capture does not request one.
 
+A picture normally comes from the entry's own window id. With a known actual frame,
+a missing id, a nonzero window layer, or a window narrower or shorter than a quarter of that
+frame permits a fallback: exactly one layer-0 window of the same app must match the actual
+position and size within two points. An ordinary content window keeps its own id through
+resizes. An uncertain choice keeps the last good picture, or the app icon when none exists.
+Without an actual frame, capture keeps the id lookup. Peek and the double-sided flip use
+the same check.
+
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
