@@ -3,41 +3,43 @@ import XCTest
 
 final class WindowCaptureTargetTest: XCTestCase {
     private let page = CGRect(x: 100, y: 80, width: 913, height: 700)
-
-    private func candidate(_ id: UInt32, pid: Int32? = 42, frame: CGRect? = nil, layer: Int = 0, onScreen: Bool = true) -> WindowCaptureCandidate {
-        WindowCaptureCandidate(id: id, ownerPID: pid, frame: frame ?? page, layer: layer, onScreen: onScreen)
-    }
-
     private var strip: CGRect { CGRect(x: 0, y: 1080, width: 913, height: 16) }
 
-    private func choose(_ candidates: [WindowCaptureCandidate], frame: CGRect? = nil) -> UInt32? {
-        chooseWindowToCapture(WindowCaptureTarget(id: 1, ownerPID: 42, actualFrame: frame ?? page), from: candidates)
+    private func candidate(_ id: UInt32, pid: Int32? = 42, frame: CGRect? = nil, layer: Int = 0) -> WindowCaptureCandidate {
+        WindowCaptureCandidate(id: id, ownerPID: pid, frame: frame ?? page, layer: layer)
     }
 
-    func testOwnContentIdWinsEvenWhenAnotherWindowAgrees() {
+    private func choose(_ candidates: [WindowCaptureCandidate], frame: CGRect? = nil) -> UInt32? {
+        chooseWindowToCapture(WindowCaptureTarget(id: 1, ownerPID: 42, entryFrame: frame ?? page), from: candidates)
+    }
+
+    func testOwnWindowWinsEvenWhenAnotherWindowAgrees() {
         XCTAssertEqual(choose([candidate(2), candidate(1)]), 1)
     }
 
     func testThinHelperFallsBackToItsOwnersPage() {
-        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 0, y: 1080, width: 913, height: 16)), candidate(2)]), 2)
+        XCTAssertEqual(choose([candidate(1, frame: strip), candidate(2)]), 2)
     }
 
-    func testSameSizedPagesAreDisambiguatedByPosition() {
+    func testSameSizedPagesAreToldApartByPosition() {
         let elsewhere = page.offsetBy(dx: 950, dy: 0)
         XCTAssertEqual(choose([candidate(1, frame: strip), candidate(2, frame: elsewhere), candidate(3)]), 3)
     }
 
-    func testDisagreeingHelperWithNoMatchingPageFailsClosed() {
+    func testSliverWithNoMatchingPageFailsClosed() {
         XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, frame: page.offsetBy(dx: 40, dy: 0))]))
+        XCTAssertNil(choose([candidate(1, frame: strip), candidate(2), candidate(3)]), "Two matches are no choice")
+        XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, layer: 3)]), "A fallback must be layer 0")
     }
 
-    func testOtherOwnersPageIsNeverTheFallback() {
+    func testOtherAppsPageIsNeverTheFallback() {
         XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, pid: 99)]))
-        XCTAssertNil(choose([candidate(1, pid: 99), candidate(2)]), "A wrong owner on the id is not grounds for substituting a different window")
     }
 
-    func testNonContentIdStillAllowsOnlyItsEntryOwnersMatchingPage() {
-        XCTAssertEqual(choose([candidate(1, pid: 99, frame: strip), candidate(2)]), 2)
+    func testOwnWindowOfAnotherProcessKeepsItsId() {
+        // A sandboxed app's open panel is drawn by an XPC service.
+        XCTAssertEqual(choose([candidate(1, pid: 99), candidate(2)]), 1)
+        XCTAssertEqual(choose([candidate(1, pid: nil), candidate(2)]), 1)
     }
 
     func testOwnDialogAboveLayerZeroKeepsItsId() {
@@ -46,46 +48,44 @@ final class WindowCaptureTargetTest: XCTestCase {
         XCTAssertEqual(choose([candidate(1, frame: dialog, layer: 3), candidate(2, frame: bar)], frame: dialog), 1)
     }
 
-    func testOwnWindowWithUnknownOwnerKeepsItsId() {
-        XCTAssertEqual(choose([candidate(1, pid: nil), candidate(2)]), 1)
-    }
-
-    func testOwnLayerZeroWindowKeepsIdDuringResizeOrMinimumSizeRefusal() {
+    func testOwnWindowKeepsItsIdThroughResizeOrMinimumSizeRefusal() {
         let resized = CGRect(x: 0, y: 40, width: page.width + 100, height: page.height + 100)
         XCTAssertEqual(choose([candidate(1, frame: resized), candidate(2)]), 1)
+        let refused = CGRect(x: page.minX, y: page.minY, width: 574, height: page.height)
+        XCTAssertEqual(choose([candidate(1, frame: refused), candidate(2, frame: refused)], frame: CGRect(origin: page.origin, size: CGSize(width: 400, height: 700))), 1)
     }
 
-    func testMissingIdNeedsExactlyOneMatchingContentWindow() {
-        XCTAssertEqual(choose([candidate(2)]), 2)
-        XCTAssertNil(choose([candidate(2), candidate(3)]))
-        XCTAssertNil(choose([candidate(2, layer: 3)]))
+    func testMissingIdHasNoFallback() {
+        XCTAssertNil(choose([candidate(2)]))
+    }
+
+    func testFallbackAgainstALayoutFrameReachesOnlyAPageThatHonoursIt() {
+        let layout = CGRect(x: 960, y: 40, width: 640, height: 1000)
+        XCTAssertEqual(choose([candidate(1, frame: strip), candidate(2, frame: layout)], frame: layout), 2)
+        let narrower = CGRect(x: 960, y: 40, width: 620, height: 1000)
+        XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, frame: narrower)], frame: layout))
     }
 
     func testToleranceIsTwoPointsOnEachFrameComponent() {
         let close = CGRect(x: page.minX + 2, y: page.minY - 2, width: page.width + 2, height: page.height - 2)
-        XCTAssertEqual(choose([candidate(2, frame: close)]), 2)
+        XCTAssertEqual(choose([candidate(1, frame: strip), candidate(2, frame: close)]), 2)
         for frame in [page.offsetBy(dx: 2.1, dy: 0), page.offsetBy(dx: 0, dy: 2.1),
                       CGRect(x: page.minX, y: page.minY, width: page.width + 2.1, height: page.height),
                       CGRect(x: page.minX, y: page.minY, width: page.width, height: page.height + 2.1)] {
-            XCTAssertNil(choose([candidate(2, frame: frame)]))
+            XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, frame: frame)]))
         }
     }
 
-    func testDegenerateWidthAndHeightUseStrictQuarterThreshold() {
+    func testSliverIsUnderAQuarterOfEitherSide() {
         for size in [CGSize(width: page.width / 4 - 1, height: page.height), CGSize(width: page.width, height: page.height / 4 - 1)] {
             XCTAssertEqual(choose([candidate(1, frame: CGRect(origin: page.origin, size: size)), candidate(2)]), 2)
         }
         XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 100, y: 80, width: page.width / 4, height: page.height / 4)), candidate(2)]), 1)
     }
 
-    func testOffscreenContentIsStillCapturable() {
-        XCTAssertEqual(choose([candidate(2, onScreen: false)]), 2)
-        XCTAssertEqual(choose([candidate(1, onScreen: false)]), 1)
-    }
-
-    func testUnknownActualFrameKeepsLegacyIdLookup() {
+    func testUnknownEntryFrameKeepsTheIdLookup() {
         let target = WindowCaptureTarget(id: 1, ownerPID: 42)
-        XCTAssertEqual(chooseWindowToCapture(target, from: [candidate(1, pid: 99, layer: 3)]), 1)
+        XCTAssertEqual(chooseWindowToCapture(target, from: [candidate(1, frame: strip), candidate(2)]), 1)
         XCTAssertNil(chooseWindowToCapture(target, from: [candidate(2)]))
     }
 }

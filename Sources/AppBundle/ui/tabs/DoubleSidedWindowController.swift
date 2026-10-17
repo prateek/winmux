@@ -74,7 +74,7 @@ final class DoubleSidedWindowController {
             .insetBy(dx: -padding, dy: -padding)
         async let frontImage = snapshot(front)
         async let backImage = snapshot(back)
-        async let backdrop = try? WindowScreenshot.captureScreen(area, excluding: [front.id, back.id])
+        async let backdrop = try? WindowScreenshot.captureScreen(area, excluding: [front, back])
         guard let frontImage = await frontImage, let backImage = await backImage else { return nil }
         return Snapshots(front: frontImage, back: backImage, backdrop: await backdrop)
     }

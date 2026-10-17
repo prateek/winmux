@@ -32,9 +32,16 @@ final class WindowCaptureRoutingTest: XCTestCase {
         await cache.waitUntilIdle()
         let targets = await requests.targets, sizes = await requests.sizes
         XCTAssertEqual(targets, [window.captureTarget], "Thumbnail capture needs the entry's owner and actual frame")
-        XCTAssertNotEqual(targets.first?.actualFrame, window.lastAppliedLayoutPhysicalRect?.cgRect)
+        XCTAssertEqual(targets.first?.entryFrame, CGRect(x: 100, y: 80, width: 913, height: 700))
         XCTAssertEqual(sizes, [ThumbnailCache.pixelSize(frame: thumbnailCaptureFrame(window), scale: 1)], "Identity checking must not change pixel demand")
         XCTAssertNotNil(window.thumbnail.image)
+    }
+
+    func testTiledWindowWhoseActualFrameWasClearedCarriesItsLayoutFrame() {
+        let window = window()
+        window.invalidateLastKnownNativeState()
+        XCTAssertEqual(window.captureTarget.entryFrame, CGRect(x: 200, y: 180, width: 813, height: 600))
+        XCTAssertEqual(window.captureTarget.ownerPID, window.app.pid)
     }
 
     func testPeekCarriesEntryIdentityAndKeepsRequestedPixels() async {
@@ -64,7 +71,7 @@ final class WindowCaptureRoutingTest: XCTestCase {
         window.thumbnail.accept(saved)
         let cache = ThumbnailCache(captureWindow: { target, _ in
             let helper = WindowCaptureCandidate(id: target.id, ownerPID: target.ownerPID,
-                                                frame: CGRect(x: 0, y: 0, width: 913, height: 16), layer: 0, onScreen: false)
+                                                frame: CGRect(x: 0, y: 0, width: 913, height: 16), layer: 0)
             guard chooseWindowToCapture(target, from: [helper]) != nil else { throw WindowScreenshotError.windowNotFound(target.id) }
             return saved.copy()!
         })

@@ -28,14 +28,17 @@ Nothing.
 
 ## Build
 
-Capture chooses an SCWindow with a pure identity check. The entry's own window, on any
-layer, keeps its id through normal size differences. If the id is missing, or its window is
-narrower or shorter than a quarter of the entry's actual frame, exactly one other layer-0
-window of the same owner must agree in x, y, width and height within two points. Otherwise capture fails and retains the last good picture or icon, and the cached window
-list is refreshed for the next request. No actual
-frame keeps id lookup. This uses `lastKnownActualRect`, never the layout-shaped capture
-frame. Capture sizing, throttling, Frozen/minimized gates, minimize capture and the injected
-id/size closure stay in place. Peek and flip snapshots carry the same identity.
+Capture chooses an SCWindow with a pure identity check. The entry's own window keeps its id,
+on any layer, of any owning process, and through any size difference. Only a window narrower
+or shorter than a quarter of the entry's frame is not the window the entry stands for. The
+entry's frame is its last known actual frame, or, since a move or resize clears that, the
+frame its picture is sized from. A sliver is checked again on a fresh window list, because
+cached frames go stale as windows move. On the fresh list, exactly one other layer-0 window
+of the same app must agree with the entry's frame in x, y, width and height within two
+points. Otherwise capture fails and the Tile keeps its last picture or icon. A missing id
+has no fallback. Capture sizing, throttling, Frozen/minimized gates, minimize capture and the
+injected id/size closure stay in place. Peek and flip snapshots carry the same identity, and
+the flip's backdrop leaves out the window a snapshot came from.
 
 Host and pinned-version guest `make check` pass: 1,432 Swift tests, helper suites and 138
 script tests. New chooser and routing regressions fail with their fixes removed; existing
