@@ -15,16 +15,15 @@ func parseBindings(
     }
     var chordResult: [String: HotkeyBinding] = [:]
     var seqResult: [String: SequenceBinding] = [:]
-    var seenChords: Set<String> = []
-    var seenSequences: Set<String> = []
     for (binding, rawCommand): (String, TOMLValueConvertible) in rawTable {
         let backtrace = backtrace + .key(binding)
-        if parseSequenceBindingIfPresent(binding, rawCommand, backtrace, mapping, errors: &errors, seen: &seenSequences, result: &seqResult) {
+        if parseSequenceBindingIfPresent(binding, rawCommand, backtrace, mapping, errors: &errors, result: &seqResult) {
             continue
         }
-        parseChordBinding(binding, rawCommand, backtrace, mapping, errors: &errors, seen: &seenChords, result: &chordResult)
+        parseChordBinding(binding, rawCommand, backtrace, mapping, errors: &errors, result: &chordResult)
     }
-    return (chordResult, seqResult)
+    // A binding with no commands is not registered, so its key reaches the focused app.
+    return (chordResult.filter { !$0.value.commands.isEmpty }, seqResult.filter { !$0.value.commands.isEmpty })
 }
 
 func parseBinding(_ raw: String, _ backtrace: TomlBacktrace, _ mapping: [String: Key]) -> ParsedToml<(NSEvent.ModifierFlags, Key)> {
@@ -49,7 +48,6 @@ private func parseSequenceBindingIfPresent(
     _ backtrace: TomlBacktrace,
     _ mapping: [String: Key],
     errors: inout [TomlParseError],
-    seen: inout Set<String>,
     result: inout [String: SequenceBinding]
 ) -> Bool {
     guard looksLikeSequenceBinding(binding, mapping) else { return false }
@@ -61,12 +59,10 @@ private func parseSequenceBindingIfPresent(
         }
     }
     guard let seqBinding = seqBindingResult.getOrNil(appendErrorTo: &errors) else { return true }
-    if !seen.insert(seqBinding.descriptionWithKeyNotation).inserted {
+    if result.keys.contains(seqBinding.descriptionWithKeyNotation) {
         errors.append(.semantic(backtrace, "'\(seqBinding.descriptionWithKeyNotation)' Sequence binding redeclaration"))
     }
-    if !seqBinding.commands.isEmpty {
-        result[seqBinding.descriptionWithKeyNotation] = seqBinding
-    }
+    result[seqBinding.descriptionWithKeyNotation] = seqBinding
     return true
 }
 
@@ -76,7 +72,6 @@ private func parseChordBinding(
     _ backtrace: TomlBacktrace,
     _ mapping: [String: Key],
     errors: inout [TomlParseError],
-    seen: inout Set<String>,
     result: inout [String: HotkeyBinding]
 ) {
     let parsed: ParsedToml<HotkeyBinding> = parseBinding(binding, backtrace, mapping).flatMap { modifiers, key in
@@ -85,12 +80,10 @@ private func parseChordBinding(
         }
     }
     if let chord = parsed.getOrNil(appendErrorTo: &errors) {
-        if !seen.insert(chord.descriptionWithKeyCode).inserted {
+        if result.keys.contains(chord.descriptionWithKeyCode) {
             errors.append(.semantic(backtrace, "'\(chord.descriptionWithKeyCode)' Binding redeclaration"))
         }
-        if !chord.commands.isEmpty {
-            result[chord.descriptionWithKeyCode] = chord
-        }
+        result[chord.descriptionWithKeyCode] = chord
     }
 }
 
