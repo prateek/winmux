@@ -236,6 +236,35 @@ class DogfoodReleaseTest(unittest.TestCase):
                 self.assertEqual(interrupted.exception.code, 143)
                 self.assertEqual(worker.wait.call_count, 3)
 
+    def test_second_signal_while_cleanup_handles_its_own_error_is_dropped(self):
+        cancellation = release.Cancellation()
+        def wait(timeout=None):
+            if worker.wait.call_count == 1:
+                cancellation.handle(signal.SIGTERM, None)
+            if timeout is not None:
+                try:
+                    raise subprocess.TimeoutExpired('worker', timeout)
+                except subprocess.TimeoutExpired:
+                    cancellation.handle(signal.SIGINT, None)
+                    raise
+            return 0
+        def killpg(pid, signum):
+            try:
+                raise PermissionError(1, 'Operation not permitted')
+            except PermissionError:
+                cancellation.handle(signal.SIGHUP, None)
+                raise
+        worker = unittest.mock.Mock(pid=4242)
+        worker.wait.side_effect = wait
+        with patch.object(release, 'CANCELLATION', cancellation), \
+                patch.object(release.subprocess, 'Popen', return_value=worker), \
+                patch.object(release.os, 'killpg', side_effect=killpg) as signalled:
+            with self.assertRaises(SystemExit) as interrupted:
+                release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
+        self.assertEqual(interrupted.exception.code, 143)
+        self.assertEqual([call.args[1] for call in signalled.call_args_list], [signal.SIGTERM, signal.SIGKILL])
+        self.assertEqual(worker.wait.call_count, 3)
+
     def read_lines(self, process, count):
         """The script's next lines of stdout. A script that ended first fails with everything it wrote."""
         lines = []
@@ -376,9 +405,7 @@ sys.path.insert(0, sys.argv[1])
 import dogfood_release as release
 class Swallowed:
     def __del__(self):
-        os.kill(os.getpid(), signal.SIGTERM)
-        for _ in range(1000):
-            pass
+        release.CANCELLATION.handle(signal.SIGTERM, None)
 original_wait = subprocess.Popen.wait
 def wait(self, timeout=None):
     if self.args[0] == 'bash' and timeout is None and not getattr(wait, 'done', False):

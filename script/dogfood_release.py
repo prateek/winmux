@@ -106,14 +106,17 @@ def verify_tree(repo, head_sha):
 
 
 class Cancellation:
-    """A SIGTERM, SIGINT or SIGHUP cancels the release. One that arrives while that cancellation's SystemExit is being
-    handled is dropped, so it can neither interrupt the cleanup of a cancelled build nor replace the exit code."""
+    """A SIGTERM, SIGINT or SIGHUP cancels the release. A later one is dropped from the moment the cancellation is
+    raised, so it can neither interrupt the cleanup of a cancelled build nor replace the exit code. A cancellation
+    Python swallowed, as it does one raised in __del__, leaves the next signal to cancel."""
 
     SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
     def __init__(self):
-        self.first = None
-        # A list while the worker is spawning; a signal waits in it until the worker's handle exists.
+        self.raised = None
+        # Set when build_release starts stopping its worker, and never cleared: the release is ending.
+        self.stopping = False
+        # While the worker is spawning, the signal that waits for its handle; a list so the first one wins.
         self.held = None
 
     def install(self):
@@ -121,7 +124,8 @@ class Cancellation:
             signal.signal(signum, self.handle)
 
     def handle(self, signum, frame):
-        if self.cancelling():
+        # Until the cleanup sets stopping, the cancellation in flight is the exception being handled.
+        if self.stopping or (self.raised is not None and sys.exc_info()[1] is self.raised):
             return
         if self.held is not None:
             self.held.append(signum)
@@ -129,12 +133,8 @@ class Cancellation:
         self.cancel(signum)
 
     def cancel(self, signum):
-        self.first = signum
-        raise SystemExit(128 + signum)
-
-    def cancelling(self):
-        error = sys.exc_info()[1]
-        return isinstance(error, SystemExit) and self.first is not None and error.code == 128 + self.first
+        self.raised = SystemExit(128 + signum)
+        raise self.raised
 
 
 CANCELLATION = Cancellation()
@@ -157,6 +157,7 @@ def build_release(repo, version, dry_run, head_sha):
             CANCELLATION.cancel(held[0])
         status = process.wait()
     except BaseException:
+        CANCELLATION.stopping = True
         if process is not None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
