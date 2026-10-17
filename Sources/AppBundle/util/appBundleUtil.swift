@@ -21,8 +21,6 @@ private struct AppServerTerminationHandler: TerminationHandler {
         try await terminationOnce.run {
             systemSymbolicHotkeys.restoreAndShutDown()
             persistFrozenWorldForRestartIfPossible()
-            // A refresh running beside the restore would tile or park the windows it just moved.
-            await stopRefreshSessionsForTermination()
             await restoreWindowsOnQuit()
             await toggleReleaseServerIfDebug(.on)
         }
@@ -32,6 +30,9 @@ private struct AppServerTerminationHandler: TerminationHandler {
 @MainActor
 private func restoreWindowsOnQuit() async {
     let start = ContinuousClock.now
+    windowFramesForTermination.freeze()
+    for app in MacApp.allAppsMap.values { app.cancelFrameJobsForTermination() }
+    let draggedAside = WindowMouseInteractionOpacityController.shared.endForTermination()
     // Shutdown also runs with a damaged or unbound tree.
     let windows = MacWindow.allWindowsMap
     let displays = monitors
@@ -39,7 +40,9 @@ private func restoreWindowsOnQuit() async {
     let plans = windows.values.sorted { $0.windowId < $1.windowId }.map { window in
         QuitWindowFrame(appId: window.macApp.pid, windowId: window.windowId,
             action: quitFrameAction(record: startupWindowFrames[window.windowId], hidden: window.isHiddenInCorner,
-                parkedOn: window.hiddenOnMonitorVisibleRect, lastKnownFrame: window.lastKnownActualRect, floatingSize: window.lastFloatingSize,
+                parkedOn: window.hiddenOnMonitorVisibleRect, draggedAsideFrom: draggedAside[window.windowId],
+                lastKnownFrame: window.lastKnownActualRect ?? window.lastAppliedLayoutPhysicalRect,
+                floatingSize: window.lastFloatingSize,
                 restoreOriginal: config.restoreWindowsOnQuit, monitors: displays, main: main))
     }
     await restoreQuitWindowFrames(plans, write: { id, frame in

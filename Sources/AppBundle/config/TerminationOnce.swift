@@ -22,9 +22,9 @@ final class TerminationOnce {
 @MainActor
 public final class ApplicationTerminationDelegate: NSObject, NSApplicationDelegate {
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Without Accessibility, startup quits before it has seen a window: a cleanup then would
-        // only delete the frozen world a relaunch restores.
-        if terminationOnce.isFinished || !AXIsProcessTrusted() { return .terminateNow }
+        // Before startup has seen its windows (Accessibility denied, say) a cleanup would only
+        // delete the frozen world a relaunch restores.
+        if terminationOnce.isFinished || !isWinMuxRuntimeReady { return .terminateNow }
         let reply = ApplicationTerminationReply { sender.reply(toApplicationShouldTerminate: true) }
         DispatchQueue.main.asyncAfter(deadline: .now() + terminationTimeout) { reply.finish() }
         Task { @MainActor in

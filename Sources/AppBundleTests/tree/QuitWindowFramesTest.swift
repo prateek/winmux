@@ -28,9 +28,11 @@ final class QuitWindowFramesTest: XCTestCase {
         XCTAssertEqual(startupWindowFrames, [1: original])
     }
 
-    func choice(record: Rect?, hidden: Bool = false, parkedOn: Rect? = nil, last: Rect?, enabled: Bool = true,
-                displays: [Monitor]? = nil, size: CGSize? = CGSize(width: 400, height: 300)) -> QuitFrameAction {
-        quitFrameAction(record: record, hidden: hidden, parkedOn: parkedOn, lastKnownFrame: last, floatingSize: size,
+    func choice(record: Rect?, hidden: Bool = false, parkedOn: Rect? = nil, dragged: Rect? = nil, last: Rect?,
+                enabled: Bool = true, displays: [Monitor]? = nil,
+                size: CGSize? = CGSize(width: 400, height: 300)) -> QuitFrameAction {
+        quitFrameAction(record: record, hidden: hidden, parkedOn: parkedOn, draggedAsideFrom: dragged,
+            lastKnownFrame: last, floatingSize: size,
             restoreOriginal: enabled, monitors: displays ?? [primary, secondary], main: primary)
     }
 
@@ -72,6 +74,16 @@ final class QuitWindowFramesTest: XCTestCase {
             .center(Rect(topLeftX: 2520, topLeftY: 150, width: 400, height: 300)))
         XCTAssertEqual(choice(record: nil, hidden: true, parkedOn: primary.visibleRect, last: atEdge),
             .center(Rect(topLeftX: 760, topLeftY: 390, width: 400, height: 300)))
+        // The Dock or menu bar changed since the window was parked.
+        let olderVisible = Rect(topLeftX: 0, topLeftY: 25, width: 1920, height: 980)
+        XCTAssertEqual(choice(record: nil, hidden: true, parkedOn: olderVisible, last: atEdge),
+            .center(Rect(topLeftX: 760, topLeftY: 390, width: 400, height: 300)))
+    }
+
+    func testWindowMovedAsideForADragGoesBackWhereItWas() {
+        let aside = Rect(topLeftX: -399, topLeftY: 1079, width: 400, height: 300)
+        XCTAssertEqual(choice(record: nil, dragged: moved, last: aside), .restore(moved))
+        XCTAssertEqual(choice(record: original, dragged: moved, last: aside), .restore(original))
     }
 
     func testCenteredFrameLargerThanTheMonitorKeepsItsTitleBarOnScreen() {
@@ -135,6 +147,15 @@ final class QuitWindowFramesTest: XCTestCase {
         }
         XCTAssertEqual(attributes, [Ax.sizeAttr.key, Ax.topLeftCornerAttr.key, Ax.sizeAttr.key])
         XCTAssertThrowsError(try writeQuitFrame(original) { _, _ in .invalidUIElement })
+    }
+
+    func testQuitWriterAcceptsAFirstSizeWriteThatTheSecondOneFixes() throws {
+        var sizeWrites = 0
+        try writeQuitFrame(original) { attribute, _ in
+            guard attribute == Ax.sizeAttr.key else { return .success }
+            sizeWrites += 1
+            return sizeWrites == 1 ? .cannotComplete : .success
+        }
     }
 
     func testQuitWriterStillMovesAWindowThatRefusesItsSize() {

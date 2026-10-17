@@ -7,17 +7,16 @@ struct QuitFrameWriteError: Error {
     let error: AXError
 }
 
-/// Every write is attempted: a window that refuses its size still gets its position.
+/// Every write is attempted: a window that refuses its size still gets its position. The first
+/// size write may fail where the window stands; only the position and the last size count.
 func writeQuitFrame(_ frame: Rect, set: (String, CFTypeRef) -> AXError) throws {
     let writes: [(String, CFTypeRef)] = [
         (Ax.sizeAttr.key, Ax.sizeAttr.setter(frame.size)!),
         (Ax.topLeftCornerAttr.key, Ax.topLeftCornerAttr.setter(frame.topLeftCorner)!),
         (Ax.sizeAttr.key, Ax.sizeAttr.setter(frame.size)!),
     ]
-    var firstError: QuitFrameWriteError?
-    for (attribute, value) in writes {
-        let error = set(attribute, value)
-        if error != .success, firstError == nil { firstError = QuitFrameWriteError(attribute: attribute, error: error) }
+    let results = writes.map { attribute, value in (attribute, set(attribute, value)) }
+    if let (attribute, error) = results.dropFirst().first(where: { $0.1 != .success }) {
+        throw QuitFrameWriteError(attribute: attribute, error: error)
     }
-    if let firstError { throw firstError }
 }

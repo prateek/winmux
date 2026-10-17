@@ -10,7 +10,9 @@ final class MonitorConfigurationObserver {
     private init() {}
 
     func prepareForStartup() {
-        refreshMonitorPolicy(refreshReason: "MonitorConfigurationObserver.prepareForStartup")
+        // Chrome only: startup's own session discovers the windows, and a refresh scheduled here
+        // would reach some of them first and bind them to the focused workspace.
+        refreshChrome()
     }
 
     func startObserving() {
@@ -31,9 +33,13 @@ final class MonitorConfigurationObserver {
         scheduleSettledRefresh()
     }
 
-    private func refreshMonitorPolicy(refreshReason: String) {
+    private func refreshChrome() {
         WorkspaceSidebarPanel.refreshAll()
         WindowTabStripPanelController.shared.refresh()
+    }
+
+    private func refreshMonitorPolicy(refreshReason: String) {
+        refreshChrome()
         if TrayMenuModel.shared.isEnabled {
             scheduleRefreshSession(.globalObserver(refreshReason))
         }

@@ -52,6 +52,17 @@ final class WindowMouseInteractionOpacityController {
         WindowTabStripPanelController.shared.clearHiddenPassiveTabGroupChrome()
     }
 
+    /// Makes hidden windows visible again and hands back the frames of windows moved aside for a
+    /// drag, for the quit to write, since frame writes are frozen by then.
+    func endForTermination() -> [UInt32: Rect] {
+        if !hiddenWindowIds.isEmpty {
+            setWindowListAlpha(windowIds: Array(hiddenWindowIds), alpha: mouseInteractionVisibleWindowAlpha)
+        }
+        hiddenWindowIds.removeAll()
+        defer { temporarilyMovedWindows.removeAll() }
+        return temporarilyMovedWindows
+    }
+
     func shouldSuppressObserverEvent(windowId: UInt32?) -> Bool {
         guard let windowId else { return false }
         return temporarilyMovedWindows.keys.contains(windowId)

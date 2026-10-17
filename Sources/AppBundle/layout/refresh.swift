@@ -50,22 +50,6 @@ func shouldSyncFocusBackToMacOs(
 }
 
 @MainActor
-private var refreshSessionsStopped = false
-
-/// Termination's last word on window frames: no refresh runs or starts after this returns.
-@MainActor
-func stopRefreshSessionsForTermination() async {
-    refreshSessionsStopped = true
-    pendingRefreshRequest = nil
-    activeScheduledRefreshGeneration += 1
-    let task = activeRefreshTask
-    activeRefreshTask = nil
-    activeScheduledRefreshEvent = nil
-    task?.cancel()
-    _ = await task?.result
-}
-
-@MainActor
 private var pendingRefreshRequest: (event: RefreshSessionEvent, optimisticallyPreLayoutWorkspaces: Bool)? = nil
 
 /// When two refresh requests coalesce, keep the event whose session does more work, so the
@@ -82,7 +66,6 @@ func scheduleRefreshSession(
     _ event: RefreshSessionEvent,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) {
-    if refreshSessionsStopped { return }
     if shouldDropScheduledRefresh(event, activeEvent: activeScheduledRefreshEvent) ||
         shouldDropScheduledRefresh(event, activeEvent: pendingRefreshRequest?.event)
     {
@@ -137,7 +120,7 @@ func runRefreshSessionBlocking(
 ) async throws {
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
-    if !TrayMenuModel.shared.isEnabled || refreshSessionsStopped { return }
+    if !TrayMenuModel.shared.isEnabled { return }
     let focusSnapshot = captureRefreshSessionFocusSnapshot()
     debugFocusLog("runRefreshSessionBlocking begin event=\(event) snapshot=\(debugDescribe(focusSnapshot))")
     try await $refreshSessionEvent.withValue(event) {
@@ -213,7 +196,6 @@ func runLightSession<T>(
 ) async throws -> T {
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
-    if refreshSessionsStopped { throw CancellationError() }
     activeRefreshTask?.cancel() // Give priority to runSession
     activeRefreshTask = nil
     // Invalidate the cancelled task's generation so its defer doesn't spawn a coalesced
@@ -267,7 +249,6 @@ func setScheduledRefreshOverrideForTests(
     activeRefreshTask = nil
     activeScheduledRefreshEvent = nil
     pendingRefreshRequest = nil
-    refreshSessionsStopped = false
     scheduledRefreshOverrideForTests = override
 }
 

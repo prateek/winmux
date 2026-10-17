@@ -1,5 +1,17 @@
 import AppKit
 
+/// Set once at quit, before the restore: from then on no layout, Lens, drag or command moves a
+/// window, whichever session or controller asks, and only the restore writes frames.
+final class WindowFrameFreeze: @unchecked Sendable {
+    private let lock = NSLock()
+    private var frozen = false
+
+    var isFrozen: Bool { lock.withLock { frozen } }
+    func freeze() { lock.withLock { frozen = true } }
+}
+
+let windowFramesForTermination = WindowFrameFreeze()
+
 enum QuitFrameAction: Equatable, Sendable {
     case restore(Rect)
     case leave
@@ -21,18 +33,22 @@ enum QuitFrameAction: Equatable, Sendable {
     }
 }
 
-/// `parkedOn` is the visible rect of the monitor a window hidden in a corner was parked on.
-func quitFrameAction(record: Rect?, hidden: Bool, parkedOn: Rect?, lastKnownFrame: Rect?, floatingSize: CGSize?,
-                     restoreOriginal: Bool, monitors: [Monitor], main: Monitor) -> QuitFrameAction {
+/// `parkedOn` is the visible rect of the monitor a window hidden in a corner was parked on;
+/// `draggedAsideFrom` is where a window moved out of view for a drag belongs.
+func quitFrameAction(record: Rect?, hidden: Bool, parkedOn: Rect?, draggedAsideFrom: Rect?, lastKnownFrame: Rect?,
+                     floatingSize: CGSize?, restoreOriginal: Bool, monitors: [Monitor], main: Monitor) -> QuitFrameAction {
     if restoreOriginal {
         if let record, monitors.contains(where: { $0.rect.contains(record.center) }) { return .restore(record) }
+        if let draggedAsideFrom, monitors.contains(where: { $0.rect.contains(draggedAsideFrom.center) }) {
+            return .restore(draggedAsideFrom)
+        }
         // Only hiding moves a window off its monitor, so an unhidden window with no cached frame is on screen.
         if !hidden, lastKnownFrame.map({ frame in monitors.contains { $0.rect.contains(frame.center) } }) ?? true {
             return .leave
         }
     }
-    let monitor = parkedOn.flatMap { rect in monitors.first { $0.visibleRect == rect } }
-        ?? lastKnownFrame.flatMap { frame in
+    let monitor = parkedOn.flatMap { rect in monitors.first { $0.rect.contains(rect.center) } }
+        ?? (draggedAsideFrom ?? lastKnownFrame).flatMap { frame in
             monitors.min { frame.center.distance(toOuterFrame: $0.rect) < frame.center.distance(toOuterFrame: $1.rect) }
         } ?? main
     let visible = monitor.visibleRect

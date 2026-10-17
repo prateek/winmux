@@ -39,7 +39,7 @@ final class MacWindow: Window {
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
-        recordStartupWindowFrame(windowId, rect: rect, atStartup: !isWinMuxRuntimeReady,
+        recordStartupWindowFrame(windowId, rect: rect, atStartup: isRecordingStartupWindowFrames,
             isPopup: data.parent === macosPopupWindowsContainer)
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.recordAuthoritativeActualRect(rect)

@@ -4,6 +4,7 @@ import Foundation
 
 @MainActor public func initAppBundle() {
     Task {
+        defer { isRecordingStartupWindowFrames = false }
         initTerminationHandler()
         armSymbolicHotkeyRestoration()
         isCli = false
@@ -50,6 +51,7 @@ import Foundation
             _ = try await config.afterStartupCommand.runCmdSeq(.defaultEnv, .emptyStdin)
         }
         isWinMuxRuntimeReady = true
+        isRecordingStartupWindowFrames = false
         await reloadConfigIfSavedDuringStartup()
         await SwitcherPalettePanel.shared.prepareAtStartup()
         if bootstrappedConfigUrl != nil {

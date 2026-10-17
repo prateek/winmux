@@ -224,6 +224,7 @@ final class MacApp: AbstractApp {
     }
 
     func setAxFrame(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { [axApp] window, job in
             try setFrame(window, app: axApp.threadGuarded, topLeft, size, job)
@@ -231,14 +232,21 @@ final class MacApp: AbstractApp {
     }
 
     func setAxFrameBlocking(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) async throws {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         try await withWindow(windowId) { [axApp] window, job in
             try setFrame(window, app: axApp.threadGuarded, topLeft, size, job)
         }
     }
 
+    /// A job already running finishes its current write before the app thread takes the quit's.
+    func cancelFrameJobsForTermination() {
+        for job in setFrameJobs.values { job.cancel() }
+        setFrameJobs.removeAll()
+    }
+
+    /// The one frame write left once `windowFramesForTermination` is frozen.
     func restoreFrameOnQuit(_ windowId: UInt32, _ frame: Rect) async throws {
-        setFrameJobs.removeValue(forKey: windowId)?.cancel()
         let wrote: Bool? = try await withWindow(windowId) { [axApp] window, job in
             try disableAnimations(app: axApp.threadGuarded, job) {
                 try writeQuitFrame(frame) { attribute, value in
