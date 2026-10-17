@@ -78,19 +78,31 @@ The assigned Tahoe guest supports `open --env`. On an older guest, use
 `launchctl setenv` for these variables before `open`, and `launchctl unsetenv`
 afterwards; never change the host environment for this purpose.
 
-Film the welcome window, each Settings button and its correct pane. Toggle
-WinMux's Accessibility entry and answer the native password sheet with the
-guest's local admin password (`admin` in the recipe). Return to setup to show
-its live state. A native permission alert may sit behind Settings; answer its
-**Open System Settings** button too, then return to setup. Repeat for Screen
-Recording. Choosing **Later** on macOS's
+Film the welcome window, each Settings button and its correct pane. Answer the
+native Accessibility alert's **Open System Settings** button too; an alert can
+sit behind Settings. Verify the pane heading is **Accessibility**, then toggle
+WinMux's entry and answer the native password sheet with the guest's local
+admin password (`admin` in the recipe). Close Settings and show the live state.
+Repeat for Screen Recording, verifying **Screen & System Audio Recording** and
+the disabled WinMux entry before clicking its toggle. Both buttons register the
+bundle natively; the final cold-bundle run needed no TCC database fixture.
+Choosing **Later** on macOS's
 Quit & Reopen sheet lets the film show **Granted · relaunch to finish** and
 WinMux's own **Relaunch WinMux** button. That button preserves the environment
-and returns at **Start WinMux**. Alternatively test macOS's Quit & Reopen.
-The debug wrapper's macOS Quit & Reopen test quit without reopening; do not
-describe that as a verified path. WinMux's own button did reopen at go with the
-XDG environment intact. Keep the OS-driven path as a separate installed-build
-check if it still fails in the demo guest.
+and returns at **Start WinMux**. Also test macOS's Quit & Reopen: leave Settings
+running until the replacement process appears. Wait at least 20 seconds before
+reading `config status`; verify the original config path and `waiting-for-go`.
+Do not fill a failed reopen with `open`. Only after proving the new process is
+running may `open -a` bring its existing setup window forward. Close Settings
+before Start so it does not become part of the tiled desk.
+
+macOS drops custom launch options on its own reopen. `WinMuxEntry` restores a
+pending launch before SwiftUI and config loading by re-executing with the
+original arguments and environment. The resume record is volatile shared
+memory; the pending marker and decline still use only `setup.json`. Start
+clears the resume record. Deleting the pending state file invalidates it for a
+second take. An explicit differing XDG launch keeps its own config and still
+honours the pending Go gate.
 Film **Continue without Screen Recording** as a separate supported path: it
 leads to the same go step and remembers the choice on later launches.
 
@@ -116,13 +128,12 @@ Use `screencapture -x -v -V <seconds> <movie>` to record, keep the recorder's PI
 and wait for it to finish before pulling the directory. Read a frame from the
 movie as well as a still screenshot to verify it actually captured the flow.
 
-Repeated reset testing on Tahoe produced a Screen Recording request that opened
-the pane but did not add a row. Do not call that a successful registration test.
-`seed-screen-denial.sh` is a diagnostic fixture: it copies this bundle's own AX
-identity to a **denied** ScreenCapture row, never a grant. If needed, label that
-take as modified-testbed evidence, then give the grant with the real toggle and
-password sheet. Prefer a fresh native request for the first-launch take. The
-optional no-Screen-Recording path needs no fixture.
+Old native permission alerts can outlive a quit during repeated takes. Inspect
+and dismiss WinMux's own stale alerts before resetting; each can open a
+different pane, so verify the heading again before touching a toggle. Quit can
+end the app before AX replies: verify process disappearance even if AXPress
+reports `cannotComplete`. `seed-screen-denial.sh` is retained only as a historical
+diagnostic that writes a denial; it is not part of the verified filming flow.
 
 WinMux's own Accessibility, Screen Recording and password prompts are the
 subject of this flow. A private-window-picker bypass prompt for the recorder

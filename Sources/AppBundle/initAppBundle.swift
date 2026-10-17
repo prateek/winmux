@@ -2,12 +2,17 @@ import AppKit
 import Common
 import Foundation
 
-@MainActor public func runPermissionSubprocessIfRequested() {
+@MainActor public func prepareWinMuxProcess() {
     switch CommandLine.arguments.dropFirst().first {
         case "--permission-probe-screen-recording": Darwin.exit(CGPreflightScreenCaptureAccess() ? 0 : 1)
         case "--permission-request-accessibility":
             Darwin.exit(AXIsProcessTrustedWithOptions([axTrustedCheckOptionPrompt: true] as CFDictionary) ? 0 : 1)
         default: break
+    }
+    do { try resumeFirstRunLaunchIfNeeded() }
+    catch {
+        fputs("WinMux could not resume its pending setup: \(error.localizedDescription)\n", stderr)
+        Darwin.exit(1)
     }
 }
 

@@ -50,24 +50,22 @@ A configured Cmd-Tab takeover applies at config load and remains idle until
 Start, so that configuration consumes Cmd-Tab during setup. Shipped shortcut
 defaults remain unchanged. The go text follows `restore-windows-on-quit`.
 
-Repeated-reset testing in the Tahoe guest found that the native Screen Recording
-request opened its pane without adding a row. The granted-path live test seeded
-only a denied row with the bundle's actual code requirement, then used the
-native toggle and password sheet. The live child-process grant read and WinMux's
-own relaunch were verified; automatic native Screen Recording row creation
-remains unverified in that guest. The no-grant path through the explicit
-Continue without Screen Recording choice requires no fixture.
-macOS's Quit & Reopen quit the debug wrapper without reopening it; WinMux's own
-relaunch returned at go with its XDG environment intact. The pending marker is
-saved before either path. Native OS-driven reopening needs an installed-build
-check.
+The cold bundled guest run registers both native permission rows and uses the
+real toggles and password sheets, with no TCC database writes. A fresh child
+reads a Screen Recording grant the parent cannot yet use. Both WinMux's relaunch
+and macOS's Quit & Reopen return at go. The system path drops custom launch
+options, so a volatile per-user resume record restores the original arguments
+and environment before SwiftUI and config loading. Start clears it; pending and
+decline still use one persistent JSON file. A differing explicit XDG launch
+keeps its own config and still honours the pending go gate. The sidebar also
+waits for Start. Host and pinned-version guest checks cover these paths.
 
 - [ ] Installed, downloaded/quarantined build and Gatekeeper first launch.
 - [ ] Second display and real sleep, wake or unlock.
 
 ## Done when
 
-- [x] On a guest with no grants, a person reaches a tiled desktop from the first launch using only what WinMux shows them, filmed. The clean native path grants Accessibility and uses Continue without Screen Recording; the granted Screen Recording path uses the diagnostic fixture described above.
+- [x] On a guest with no grants, a person reaches a tiled desktop from the first launch using only what WinMux shows them, filmed. Both permissions are registered and granted natively; the supported Screen Recording decline is also checked.
 - [x] With one permission missing, `winmux config status` names it.
 - [x] No window moves before the person says go. Independent CG frame samples of all four staged application windows agree before launch and after 22 seconds at each setup step, including after relaunch and quit-before-go; they change after Start.
 

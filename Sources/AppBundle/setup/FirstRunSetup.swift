@@ -6,12 +6,18 @@ import SwiftUI
 final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     static let shared = FirstRunSetup(readGrants: {
         PermissionGrants(accessibility: AXIsProcessTrusted(), screenRecording: CGPreflightScreenCaptureAccess())
-    }, probeScreenRecording: { await runPermissionProcess("--permission-probe-screen-recording") })
+    }, probeScreenRecording: { await runPermissionProcess("--permission-probe-screen-recording") },
+       resumePending: firstRunLaunchWasResumed,
+       saveLaunchContext: { try writeFirstRunLaunchContext($0) }, clearLaunchContext: { clearFirstRunLaunchContext() })
 
     private let readGrants: () -> PermissionGrants
     private let probeScreenRecording: () async -> Bool
     private let stateUrl: URL
     private let present: ((FirstRunSetup) -> Void)?
+    private let resumePending: Bool
+    private let saveLaunchContext: (FirstRunLaunchContext) throws -> Void
+    private let clearLaunchContext: () -> Void
+    private var launchContext: FirstRunLaunchContext?
     private var freshScreenGrant = false
     private var state = FirstRunState()
     private var continuation: CheckedContinuation<Void, Never>?
@@ -23,11 +29,15 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     var waiting = false
 
     init(readGrants: @escaping () -> PermissionGrants, stateUrl: URL = firstRunStateUrl(), present: ((FirstRunSetup) -> Void)? = nil,
-         probeScreenRecording: @escaping () async -> Bool = { false }) {
+         probeScreenRecording: @escaping () async -> Bool = { false }, resumePending: Bool = false,
+         saveLaunchContext: @escaping (FirstRunLaunchContext) throws -> Void = { _ in }, clearLaunchContext: @escaping () -> Void = {}) {
         self.readGrants = readGrants
         self.probeScreenRecording = probeScreenRecording
         self.stateUrl = stateUrl
         self.present = present
+        self.resumePending = resumePending
+        self.saveLaunchContext = saveLaunchContext
+        self.clearLaunchContext = clearLaunchContext
     }
 
     private var grants: PermissionGrants {
@@ -103,10 +113,16 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
 
     func run() async {
         state = readFirstRunState(from: stateUrl)
+        state.pending = state.pending || resumePending
         snapshot = grants
-        guard step != .done else { return }
+        guard step != .done else { clearLaunchContext(); return }
         state.pending = true
-        _ = save()
+        let saved = save()
+        let context = FirstRunLaunchContext(arguments: CommandLine.arguments, environment: ProcessInfo.processInfo.environment,
+                                            stateURL: stateUrl, stateWasSaved: saved, token: UUID().uuidString)
+        launchContext = context
+        do { try saveLaunchContext(context) }
+        catch { self.error = "Could not prepare setup relaunch: \(error.localizedDescription)" }
         waiting = true
         await withCheckedContinuation {
             continuation = $0
@@ -164,6 +180,8 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
         guard step == .go else { return }
         state.pending = false
         guard save() else { state.pending = true; return }
+        clearLaunchContext()
+        launchContext = nil
         waiting = false
         window?.orderOut(nil)
         window = nil
@@ -186,11 +204,15 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     func relaunch() {
         Task { @MainActor in
             do {
+                guard var context = launchContext else { return }
+                context.environment = ProcessInfo.processInfo.environment
+                context.environment[setupResumeTokenKey] = context.token
+                try saveLaunchContext(context)
                 try await relaunchFirstRunApplication(
                     bundleURL: Bundle.main.bundleURL,
                     executableURL: URL(filePath: CommandLine.arguments[0]),
                     arguments: Array(CommandLine.arguments.dropFirst()),
-                    environment: ProcessInfo.processInfo.environment,
+                    environment: context.environment,
                 )
             } catch {
                 self.error = "Could not relaunch WinMux: \(error.localizedDescription)"

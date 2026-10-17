@@ -1,6 +1,7 @@
 #!/bin/bash
 # Guest-only fixture for a Screen Recording request that failed to create its disabled row.
 # This writes a denial, never a grant, and preserves this bundle's actual code requirement.
+# Historical diagnostic only; the verified native filming flow does not use it.
 set -euo pipefail
 db='/Library/Application Support/com.apple.TCC/TCC.db'
 client=com.zimengxiong.winmux.debug

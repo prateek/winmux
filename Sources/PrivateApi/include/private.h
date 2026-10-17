@@ -2,6 +2,12 @@
 #define private_header_h
 
 #import <ApplicationServices/ApplicationServices.h>
+#include <sys/mman.h>
+
+// Swift cannot import shm_open's variadic signature.
+static inline int winMuxOpenSetupMemory(const char *name, int flags, mode_t mode) {
+    return shm_open(name, flags, mode);
+}
 
 // Potential alternative 1?
 // func allWindowsOnCurrentMacOsSpace() {

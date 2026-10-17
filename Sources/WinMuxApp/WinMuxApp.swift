@@ -5,6 +5,13 @@ import SwiftUI
 // This file is shared between SPM and xcode project
 
 @main
+enum WinMuxEntry {
+    @MainActor static func main() {
+        prepareWinMuxProcess()
+        WinMuxApp.main()
+    }
+}
+
 struct WinMuxApp: App {
     @NSApplicationDelegateAdaptor(ApplicationTerminationDelegate.self) private var applicationDelegate
     @StateObject var viewModel = TrayMenuModel.shared
@@ -13,7 +20,6 @@ struct WinMuxApp: App {
     @Environment(\.openWindow) var openWindow: OpenWindowAction
 
     init() {
-        runPermissionSubprocessIfRequested()
         #if !DEBUG
             AutomaticUpdates.start()
         #endif
