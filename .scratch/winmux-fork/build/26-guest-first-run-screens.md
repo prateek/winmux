@@ -62,7 +62,7 @@ No ticket settled these. Each is a starting default: change one if the code argu
 
 ## Recipe
 
-- Zed: `session.trust_all_worktrees` in the desk's copied `zed/settings.json`, verified against the installed release's default settings.
+- Zed: `session.trust_all_worktrees` in the image's `guest/zed-settings.json`, restored by both desks from `~/vm/zed-settings.json`, verified against the installed release's default settings.
 - Ghostty updates: `auto-update = off` in `guest/first-run.sh`; `window-save-state = never` and quitting its lowercase `ghostty` process prevent its initialization window returning at clone login.
 - Dock tile notice: launch Ghostty once in the image; `guest/dismiss-registration.swift` waits for the notice, hovers its AX frame to expose the labelled Close button, presses it and verifies the notice disappeared. No fixed coordinate is used.
 - Notes: local-account initialization, then `hasShownWelcomeScreen`, `bypassICloudAlert` and the current OS in `lastShownStartupVersion-1`, in its initialized container preferences (`guest/first-run.sh`).

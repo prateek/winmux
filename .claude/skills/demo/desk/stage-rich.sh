@@ -14,7 +14,8 @@ mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes ~/desk/docs ~/desk/
 # film and the probes run ~/desk/keys without building it.
 swiftc -O ~/winmux/.claude/skills/demo/keys.swift -o ~/desk/keys
 zsh ~/desk/make-repo.sh
-cp ~/desk/zed/settings.json ~/.config/zed/settings.json
+[[ -f ~/vm/zed-settings.json ]] || { echo 'stage-rich: missing image Zed settings; rebuild with vm build-image' >&2; exit 1; }
+cp ~/vm/zed-settings.json ~/.config/zed/settings.json
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
 ~/winmux/nickel-helper/target/release/winmux-nickel check ~/.config/winmux/winmux.ncl || exit 1
 python3 - <<'BOOT'

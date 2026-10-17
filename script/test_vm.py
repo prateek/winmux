@@ -365,6 +365,23 @@ with contextlib.closing(sqlite3.connect(path)) as db, db:
 
 
 class FirstRunRecipeTest(unittest.TestCase):
+    def test_announcement_seed_refuses_missing_or_changed_zed_database(self):
+        import runpy
+        import sqlite3
+        quiet = runpy.run_path(str(VM.parent / 'guest/quiet-zed.py'))['quiet']
+        with tempfile.TemporaryDirectory() as temp:
+            database = Path(temp) / 'db.sqlite'
+            with self.assertRaises(sqlite3.OperationalError):
+                quiet(database)
+            self.assertFalse(database.exists())
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE unrelated (value TEXT)')
+                db.execute("INSERT INTO unrelated VALUES ('preserved')")
+            with self.assertRaises(sqlite3.OperationalError):
+                quiet(database)
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(db.execute('SELECT * FROM unrelated').fetchall(), [('preserved',)])
+
     def test_initializes_local_props_and_preserves_notes_onboarding_settings(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -374,9 +391,24 @@ class FirstRunRecipeTest(unittest.TestCase):
             vm.mkdir()
             (vm / 'quiet-desktop.py').write_text('')
             (vm / 'dock-tile-registered').touch()
+            import shutil
+            import sqlite3
+            for name in ['zed-settings.json', 'quiet-zed.py']:
+                source = VM.parent / 'guest' / name
+                shutil.copy2(source, vm / name)
+            database = root / 'Library/Application Support/Zed/db/0-stable/db.sqlite'
+            database.parent.mkdir(parents=True)
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT')
+                db.executemany('INSERT INTO kv_store VALUES (?, ?)', [
+                    ('auto-updater-should-show-updated-notification', '1'),
+                    ('unrelated', 'preserved'),
+                ])
             for tool in ['sleep', 'killall', 'pkill']:
                 (binary / tool).write_text('#!/bin/sh\nexit 0\n')
                 (binary / tool).chmod(0o755)
+            (binary / 'pgrep').write_text('#!/bin/sh\nexit 1\n')
+            (binary / 'pgrep').chmod(0o755)
             shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sys
 root = pathlib.Path(os.environ['HOME'])
 p = root / 'prefs.json'
@@ -394,8 +426,25 @@ p.write_text(json.dumps(s))
             subprocess.run(['bash', str(VM.parent / 'guest/first-run.sh')], check=True,
                            env=dict(os.environ, HOME=str(root), PATH=str(binary) + ':' + os.environ['PATH']))
             state = json.loads((root / 'prefs.json').read_text())
-            self.assertEqual(state['opened'], ['Notes', 'Calendar', 'Music'])
+            self.assertEqual(state['opened'], ['/Applications/Zed.app', 'Notes', 'Calendar', 'Music'])
             self.assertEqual(state['quit'], ['Notes', 'Calendar', 'Music'])
+            settings = json.loads((root / '.config/zed/settings.json').read_text())
+            self.assertTrue(settings['session']['trust_all_worktrees'])
+            self.assertFalse(settings['title_bar']['show_onboarding_banner'])
+            self.assertFalse(settings['auto_update'])
+            self.assertEqual((root / '.config/ghostty/config').read_text().splitlines(), [
+                'auto-update = off', 'window-save-state = never', 'confirm-close-surface = false',
+            ])
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(dict(db.execute('SELECT key, value FROM kv_store')), {
+                    'delta_announcement_dismissed': '1', 'unrelated': 'preserved',
+                })
+            subprocess.run([sys.executable, str(vm / 'quiet-zed.py')], check=True,
+                           env=dict(os.environ, HOME=str(root)))
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(dict(db.execute('SELECT key, value FROM kv_store')), {
+                    'delta_announcement_dismissed': '1', 'unrelated': 'preserved',
+                })
             prefs = state['prefs']
             notes = str(root / 'Library/Containers/com.apple.Notes/Data/Library/Preferences/com.apple.Notes')
             self.assertEqual(prefs[notes + ':hasShownWelcomeScreen'], ['-bool', 'true'])

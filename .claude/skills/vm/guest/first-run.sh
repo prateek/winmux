@@ -11,7 +11,15 @@ defaults write com.apple.WindowManager StageManagerHideWidgets -bool true
 defaults write com.apple.notificationcenterui widgets '<dict><key>vers</key><integer>1</integer><key>instances</key><array/></dict>'
 defaults write com.apple.tips TipsEnabled -bool false
 mkdir -p ~/.config/ghostty
-printf 'auto-update = off\nwindow-save-state = never\n' > ~/.config/ghostty/config
+printf 'auto-update = off\nwindow-save-state = never\nconfirm-close-surface = false\n' > ~/.config/ghostty/config
+mkdir -p ~/.config/zed
+cp ~/vm/zed-settings.json ~/.config/zed/settings.json
+open /Applications/Zed.app
+sleep 5
+pkill -x zed || true
+sleep 2
+pgrep -x zed >/dev/null && { echo 'first-run: Zed did not quit' >&2; exit 1; }
+python3 quiet-zed.py
 open -a Notes
 sleep 5
 osascript -e 'tell application "Notes" to quit'
