@@ -1,0 +1,13 @@
+A picture as sharp as the Tile that draws it
+
+func captureSize(frame: CGRect, demand: CGSize) -> CGSize {
+    let ratio = max(demand.width / frame.width,
+                    demand.height / frame.height)
+    return CGSize(width: frame.width * ratio,
+                  height: frame.height * ratio)
+}
+
+The selected Tile is drawn at 104.5 percent.
+Small text should survive a trip through the picture cache.
+Forty windows ask for fewer pixels. Three windows ask for more.
+The saved picture stays visible while its replacement arrives.
