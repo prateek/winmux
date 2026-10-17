@@ -3,6 +3,9 @@ import contextlib
 import json
 import os
 from pathlib import Path
+import runpy
+import shutil
+import sqlite3
 import subprocess
 import signal
 import select
@@ -366,8 +369,6 @@ with contextlib.closing(sqlite3.connect(path)) as db, db:
 
 class FirstRunRecipeTest(unittest.TestCase):
     def test_announcement_seed_refuses_missing_or_changed_zed_database(self):
-        import runpy
-        import sqlite3
         quiet = runpy.run_path(str(VM.parent / 'guest/quiet-zed.py'))['quiet']
         with tempfile.TemporaryDirectory() as temp:
             database = Path(temp) / 'db.sqlite'
@@ -391,8 +392,6 @@ class FirstRunRecipeTest(unittest.TestCase):
             vm.mkdir()
             (vm / 'quiet-desktop.py').write_text('')
             (vm / 'dock-tile-registered').touch()
-            import shutil
-            import sqlite3
             for name in ['zed-settings.json', 'quiet-zed.py']:
                 source = VM.parent / 'guest' / name
                 shutil.copy2(source, vm / name)
@@ -404,23 +403,29 @@ class FirstRunRecipeTest(unittest.TestCase):
                     ('auto-updater-should-show-updated-notification', '1'),
                     ('unrelated', 'preserved'),
                 ])
-            for tool in ['sleep', 'killall', 'pkill']:
+            for tool in ['sleep', 'killall']:
                 (binary / tool).write_text('#!/bin/sh\nexit 0\n')
                 (binary / tool).chmod(0o755)
             (binary / 'pgrep').write_text('#!/bin/sh\nexit 1\n')
             (binary / 'pgrep').chmod(0o755)
-            shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sys
+            shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sqlite3, sys
 root = pathlib.Path(os.environ['HOME'])
 p = root / 'prefs.json'
-s = json.loads(p.read_text()) if p.exists() else {'opened': [], 'quit': [], 'prefs': {}}
+s = json.loads(p.read_text()) if p.exists() else {'opened': [], 'quit': [], 'prefs': {}, 'killed': []}
 tool = pathlib.Path(sys.argv[0]).name
 a = sys.argv[1:]
-if tool == 'open': s['opened'].append(a[-1])
+if tool == 'open':
+    s['opened'].append(a[-1])
+    if a[-1].endswith('Zed.app'): s['zed settings at launch'] = (root / '.config/zed/settings.json').exists()
+elif tool == 'pkill':
+    database = root / 'Library/Application Support/Zed/db/0-stable/db.sqlite'
+    seeded = sqlite3.connect(database).execute("SELECT 1 FROM kv_store WHERE key = 'delta_announcement_dismissed'").fetchone()
+    s['killed'].append([a[-1], seeded is not None])
 elif tool == 'osascript': s['quit'].append(a[-1].split('"')[1])
 elif tool == 'defaults': s['prefs'][a[1] + ':' + a[2]] = a[3:]
 p.write_text(json.dumps(s))
 '''
-            for tool in ['open', 'osascript', 'defaults']:
+            for tool in ['open', 'osascript', 'defaults', 'pkill']:
                 (binary / tool).write_text(shim)
                 (binary / tool).chmod(0o755)
             subprocess.run(['bash', str(VM.parent / 'guest/first-run.sh')], check=True,
@@ -428,6 +433,8 @@ p.write_text(json.dumps(s))
             state = json.loads((root / 'prefs.json').read_text())
             self.assertEqual(state['opened'], ['/Applications/Zed.app', 'Notes', 'Calendar', 'Music'])
             self.assertEqual(state['quit'], ['Notes', 'Calendar', 'Music'])
+            self.assertTrue(state['zed settings at launch'])
+            self.assertEqual(state['killed'][0], ['zed', False])
             settings = json.loads((root / '.config/zed/settings.json').read_text())
             self.assertTrue(settings['session']['trust_all_worktrees'])
             self.assertFalse(settings['title_bar']['show_onboarding_banner'])

@@ -6,8 +6,7 @@ W=$HOME/winmux/.build/debug/winmux
 for app in Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Music Updater osascript WinMuxApp; do pkill -x $app; done
 sleep 1
 mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes
-[[ -f ~/vm/zed-settings.json ]] || { echo 'stage-desk: missing image Zed settings; rebuild with vm build-image' >&2; exit 1; }
-cp ~/vm/zed-settings.json ~/.config/zed/settings.json || exit 1
+cp ~/winmux/.claude/skills/vm/guest/zed-settings.json ~/.config/zed/settings.json || exit 1
 cp ~/desk/winmux.ncl ~/.config/winmux/winmux.ncl
 rm -f ~/Library/Containers/com.apple.Safari/Data/Library/Safari/SafariTabs.db*
 rm -rf ~/Library/Saved\ Application\ State/com.apple.Safari.savedState ~/Library/Saved\ Application\ State/com.apple.TextEdit.savedState

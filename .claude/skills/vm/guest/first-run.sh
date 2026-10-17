@@ -14,10 +14,12 @@ mkdir -p ~/.config/ghostty
 printf 'auto-update = off\nwindow-save-state = never\nconfirm-close-surface = false\n' > ~/.config/ghostty/config
 mkdir -p ~/.config/zed
 cp ~/vm/zed-settings.json ~/.config/zed/settings.json
+# Launch Zed once so it creates its database, then seed its announcement state with Zed stopped.
 open /Applications/Zed.app
-sleep 5
+for _ in $(seq 1 60); do python3 quiet-zed.py --ready && break; sleep 1; done
+sleep 3
 pkill -x zed || true
-sleep 2
+for _ in $(seq 1 30); do pgrep -x zed >/dev/null || break; sleep 1; done
 pgrep -x zed >/dev/null && { echo 'first-run: Zed did not quit' >&2; exit 1; }
 python3 quiet-zed.py
 open -a Notes
