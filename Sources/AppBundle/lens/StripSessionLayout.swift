@@ -47,7 +47,8 @@ struct StripSnapshot {
     static func entries(_ items: [SwitcherPaletteItem], kind: TileKind, settings: LensConfig) -> [GridLayout.Entry] {
         items.map {
             GridLayout.Entry(aspect: $0.tile.aspect, realSize: $0.tile.realSize, kind: kind, accessory: $0.tile.accessory,
-                             monitorHeightFraction: $0.tile.monitorHeightFraction, accessoryActualSize: settings.accessoryWindow == "actual-size")
+                             monitorHeightFraction: $0.tile.monitorHeightFraction, accessoryActualSize: settings.accessoryWindow == "actual-size",
+                             barWidth: kind == .card ? $0.tile.cardBarWidth(badges: settings.badges) : 0)
         }
     }
 }

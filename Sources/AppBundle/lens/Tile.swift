@@ -122,9 +122,18 @@ struct TileEntry {
     var displayTitle: String { title.isEmpty ? appName : title }
     var footerAppName: String? { displayTitle == appName ? nil : appName }
 
+    func cardBarWidth(badges enabled: Bool) -> CGFloat {
+        guard appCount != nil else { return 0 }
+        let metrics = TileMetrics(scale: 1)
+        let title = min(240, ceil((displayTitle as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: metrics.titleFont, weight: .semibold)]).width))
+        let chips = chips(enabled: enabled)
+        let chipWidths = chips.map { ceil(($0 as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: metrics.chipFont, weight: .semibold)]).width) + 2 * metrics.chipHorizontalPadding }
+        return metrics.icon + 2 * metrics.gap + title + chipWidths.reduce(0, +) + CGFloat(max(0, chips.count - 1)) * metrics.chipGap
+    }
+
     func chips(enabled: Bool, includeWorkspace: Bool = true) -> [String] {
         var badges = badges
         if !includeWorkspace { badges.onFocusedWorkspace = true }
-        return badges.chips(enabled: enabled) + (appCount.map { ["\($0) windows"] } ?? [])
+        return badges.chips(enabled: enabled) + (appCount.map { ["\($0) \($0 == 1 ? "window" : "windows")"] } ?? [])
     }
 }

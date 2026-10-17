@@ -2,8 +2,7 @@ import Foundation
 
 struct GridLayoutCache {
     let ids: [UInt32]
-    let realSizes: [CGSize]
-    let kind: TileKind
+    let entries: [GridLayout.Entry]
     let visibleSize: CGSize
     let tileSize: String
     let grouping: String
@@ -17,16 +16,21 @@ extension LensSession {
     var gridLayout: GridLayout { gridLayout(items: results) }
 
     func gridLayout(items results: [SwitcherPaletteItem]) -> GridLayout {
-        let ids = results.map(\.id), realSizes = results.map(\.tile.realSize), kind = tileKind
-        if let cache = gridLayoutCache, cache.ids == ids, cache.realSizes == realSizes, cache.kind == kind,
+        let ids = results.map(\.id), kind = tileKind
+        func entry(_ item: SwitcherPaletteItem) -> GridLayout.Entry {
+            GridLayout.Entry(aspect: item.tile.aspect, realSize: item.tile.realSize, kind: kind,
+                             barWidth: kind == .card ? item.tile.cardBarWidth(badges: settings.badges) : 0)
+        }
+        let entries = results.map(entry)
+        if let cache = gridLayoutCache, cache.ids == ids, cache.entries == entries,
            cache.visibleSize == miniatureSize, cache.tileSize == settings.grid.tileSize, cache.grouping == settings.sections,
            cache.arrangement == settings.grid.sectionsArrangement, cache.sectionKeys == results.map { $0.sectionKey(settings.sections) } {
             return cache.layout
         }
         let layout = GridLayout(sections: sections(for: results).map { section in
-            GridLayout.Section(label: section.label, current: section.current, entries: section.entries.map { GridLayout.Entry(aspect: $0.tile.aspect, realSize: $0.tile.realSize, kind: kind) })
+            GridLayout.Section(label: section.label, current: section.current, entries: section.entries.map(entry))
         }, visibleSize: miniatureSize, tileSize: settings.grid.tileSize, arrangement: settings.grid.sectionsArrangement, minimumWidth: sectionControlMinimumWidth)
-        gridLayoutCache = GridLayoutCache(ids: ids, realSizes: realSizes, kind: kind, visibleSize: miniatureSize, tileSize: settings.grid.tileSize, grouping: settings.sections, arrangement: settings.grid.sectionsArrangement, sectionKeys: results.map { $0.sectionKey(settings.sections) }, layout: layout)
+        gridLayoutCache = GridLayoutCache(ids: ids, entries: entries, visibleSize: miniatureSize, tileSize: settings.grid.tileSize, grouping: settings.sections, arrangement: settings.grid.sectionsArrangement, sectionKeys: results.map { $0.sectionKey(settings.sections) }, layout: layout)
         return layout
     }
     func moveGridSelection(_ direction: GridLayout.Direction) {

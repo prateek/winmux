@@ -33,6 +33,7 @@ struct GridLayout {
         var accessory = false
         var monitorHeightFraction: CGFloat = 1
         var accessoryActualSize = false
+        var barWidth: CGFloat = 0
     }
     struct Tile {
         let frame: CGRect
@@ -135,7 +136,8 @@ struct GridLayout {
                     picture = CGSize(width: fitted.width * factor, height: fitted.height * factor)
                 }
                 let floor = entry.kind == .card && titleFloor ? min(200 * chrome, max(1.2 * height, 110 * chrome)) : 0
-                let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor) + 2 * metrics.padding
+                let bar = entry.kind == .card && titleFloor ? entry.barWidth * chrome : 0
+                let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor, bar) + 2 * metrics.padding
                 let tileHeight = metrics.height(kind: entry.kind, rowHeight: box.height)
                 sizes.append(Tile(frame: CGRect(x: 0, y: 0, width: width, height: tileHeight), pictureSize: entry.kind == .text ? .zero : picture))
             }
