@@ -6,7 +6,9 @@ W=$HOME/winmux/.build/debug/winmux
 for app in Zed zed Ghostty ghostty Safari TextEdit Notes Calendar Music Updater osascript WinMuxApp; do pkill -x $app; done
 sleep 1
 mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes
-cp ~/winmux/.claude/skills/vm/guest/zed-settings.json ~/.config/zed/settings.json || exit 1
+# A synced tree from before the settings moved has none: fall back to the image's copy.
+cp ~/winmux/.claude/skills/vm/guest/zed-settings.json ~/.config/zed/settings.json 2>/dev/null ||
+  cp ~/vm/zed-settings.json ~/.config/zed/settings.json || exit 1
 cp ~/desk/winmux.ncl ~/.config/winmux/winmux.ncl
 rm -f ~/Library/Containers/com.apple.Safari/Data/Library/Safari/SafariTabs.db*
 rm -rf ~/Library/Saved\ Application\ State/com.apple.Safari.savedState ~/Library/Saved\ Application\ State/com.apple.TextEdit.savedState

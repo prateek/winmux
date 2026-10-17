@@ -5,6 +5,7 @@ There is no general announcement setting; auto_update=false prevents later updat
 """
 import sqlite3
 import sys
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -27,8 +28,20 @@ def quiet(database):
                    ('auto-updater-should-show-updated-notification',))
 
 
+def wait(database, seconds):
+    deadline = time.monotonic() + seconds
+    while not ready(database):
+        if time.monotonic() >= deadline:
+            sys.exit(f'quiet-zed: Zed created no kv_store in {database} within {seconds} s')
+        time.sleep(1)
+
+
 if __name__ == '__main__':
     database = Path.home() / 'Library/Application Support/Zed/db/0-stable/db.sqlite'
-    if sys.argv[1:] == ['--ready']:
-        sys.exit(0 if ready(database) else 1)
-    quiet(database)
+    args = sys.argv[1:]
+    if not args:
+        quiet(database)
+    elif len(args) == 2 and args[0] == '--wait':
+        wait(database, int(args[1]))
+    else:
+        sys.exit('usage: quiet-zed.py [--wait <seconds>]')

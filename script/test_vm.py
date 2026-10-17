@@ -383,6 +383,23 @@ class FirstRunRecipeTest(unittest.TestCase):
             with contextlib.closing(sqlite3.connect(database)) as db:
                 self.assertEqual(db.execute('SELECT * FROM unrelated').fetchall(), [('preserved',)])
 
+    def test_zed_database_is_ready_only_once_it_has_kv_store(self):
+        helper = runpy.run_path(str(VM.parent / 'guest/quiet-zed.py'))
+        with tempfile.TemporaryDirectory() as temp:
+            database = Path(temp) / 'db.sqlite'
+            self.assertFalse(helper['ready'](database))
+            self.assertFalse(database.exists())
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE other (value TEXT)')
+            self.assertFalse(helper['ready'](database))
+            with self.assertRaises(SystemExit) as timeout:
+                helper['wait'](database, 0)
+            self.assertIn('no kv_store', str(timeout.exception.code))
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+            self.assertTrue(helper['ready'](database))
+            helper['wait'](database, 0)
+
     def test_initializes_local_props_and_preserves_notes_onboarding_settings(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

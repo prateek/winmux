@@ -16,7 +16,7 @@ mkdir -p ~/.config/zed
 cp ~/vm/zed-settings.json ~/.config/zed/settings.json
 # Launch Zed once so it creates its database, then seed its announcement state with Zed stopped.
 open /Applications/Zed.app
-for _ in $(seq 1 60); do python3 quiet-zed.py --ready && break; sleep 1; done
+python3 quiet-zed.py --wait 60
 sleep 3
 pkill -x zed || true
 for _ in $(seq 1 30); do pgrep -x zed >/dev/null || break; sleep 1; done
