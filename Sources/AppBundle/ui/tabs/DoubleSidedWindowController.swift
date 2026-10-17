@@ -19,12 +19,11 @@ final class DoubleSidedWindowController {
         guard !isAnimating, let (other, rect) = flipTarget(of: window) else { return }
         let backId = other.windowId
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && CGPreflightScreenCaptureAccess() {
-            let frontId = window.windowId
             let workspace = focus.workspace
             isCapturing = true
             let snapshots = await firstResult(within: captureTimeout) {
                 await Self.resizeHiddenWindow(other, toMatch: rect)
-                return await Self.snapshots(front: frontId, back: backId, rect: rect, padding: self.rotationPadding)
+                return await Self.snapshots(front: window.captureTarget, back: other.captureTarget, rect: rect, padding: self.rotationPadding)
             }
             isCapturing = false
             // The capture takes long enough for the pair to change or the user to move on.
@@ -70,18 +69,18 @@ final class DoubleSidedWindowController {
         let backdrop: CGImage?
     }
 
-    private static func snapshots(front: UInt32, back: UInt32, rect: Rect, padding: CGFloat) async -> Snapshots? {
+    private static func snapshots(front: WindowCaptureTarget, back: WindowCaptureTarget, rect: Rect, padding: CGFloat) async -> Snapshots? {
         let area = CGRect(x: rect.topLeftX, y: rect.topLeftY, width: rect.width, height: rect.height)
             .insetBy(dx: -padding, dy: -padding)
         async let frontImage = snapshot(front)
         async let backImage = snapshot(back)
-        async let backdrop = try? WindowScreenshot.captureScreen(area, excluding: [front, back])
+        async let backdrop = try? WindowScreenshot.captureScreen(area, excluding: [front.id, back.id])
         guard let frontImage = await frontImage, let backImage = await backImage else { return nil }
         return Snapshots(front: frontImage, back: backImage, backdrop: await backdrop)
     }
 
-    private static func snapshot(_ id: UInt32) async -> CGImage? {
-        guard let image = try? await WindowScreenshot.capture(id) else { return nil }
+    static func snapshot(_ target: WindowCaptureTarget, capture: @Sendable (WindowCaptureTarget) async throws -> CGImage = { try await WindowScreenshot.capture($0) }) async -> CGImage? {
+        guard let image = try? await capture(target) else { return nil }
         // Trim the native one-point outline so it does not become a bright edge when the
         // snapshot rotates.
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)

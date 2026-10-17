@@ -9,6 +9,7 @@ final class LensPeekCapture: ObservableObject {
     private(set) var windowId: UInt32?
     private var frozen = false
     private var pixelSize = CGSize.zero
+    private var target: WindowCaptureTarget?
     /// Bumped each time a window turns Frozen, so a capture taken before cannot stand in for one
     /// taken after it is restored.
     private var freezes: [UInt32: Int] = [:]
@@ -19,18 +20,24 @@ final class LensPeekCapture: ObservableObject {
     private var outstanding: [(serial: Int, id: UInt32, freezes: Int, expired: Bool)] = []
     private var serial = 0
     private(set) var task: Task<Void, Never>?
-    private let capture: Capture
+    private let capture: WindowImageCapture
     let deadline: Duration
     var completed: (Double) -> Void = { _ in }
 
-    init(capture: @escaping Capture = { try await WindowScreenshot.capture($0, pixelSize: $1) }, deadline: Duration = .seconds(1)) {
-        self.capture = capture
+    init(capture: @escaping Capture, deadline: Duration = .seconds(1)) {
+        self.capture = { try await capture($0.id, $1) }
+        self.deadline = deadline
+    }
+
+    init(captureWindow: @escaping WindowImageCapture = { try await WindowScreenshot.capture($0, pixelSize: $1) }, deadline: Duration = .seconds(1)) {
+        self.capture = captureWindow
         self.deadline = deadline
     }
 
     var outstandingCount: Int { outstanding.count }
 
-    func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero) {
+    func select(_ id: UInt32?, frozen: Bool = false, pixelSize: CGSize = .zero, target: WindowCaptureTarget? = nil) {
+        self.target = target ?? id.map { WindowCaptureTarget(id: $0) }
         guard id != windowId || frozen != self.frozen else { return }
         if let id, frozen { freezes[id, default: 0] += 1 }
         image = nil
@@ -43,7 +50,7 @@ final class LensPeekCapture: ObservableObject {
     }
 
     private func pump() {
-        guard wanted, let id = windowId else { return }
+        guard wanted, let id = windowId, let target else { return }
         let epoch = freezes[id] ?? 0
         // A capture of this window is already out and inside its deadline: its image will do.
         if outstanding.contains(where: { $0.id == id && $0.freezes == epoch && !$0.expired }) { return }
@@ -53,7 +60,7 @@ final class LensPeekCapture: ObservableObject {
         let started = LensTimebase.now()
         outstanding.append((ticket, id, epoch, false))
         task = Task { @MainActor [weak self] in
-            let image = try? await capture(id, size)
+            let image = try? await capture(target, size)
             guard let self else { return }
             self.outstanding.removeAll { $0.serial == ticket }
             if self.windowId == id, !self.frozen, self.freezes[id] ?? 0 == epoch {
@@ -261,7 +268,7 @@ final class LensPeekController {
         panel.takesMouse = !follows
         follow = follows
         showing = item.id
-        capture.select(item.id, frozen: drawing.frozen, pixelSize: CGSize(width: real.width * screen.backingScaleFactor, height: real.height * screen.backingScaleFactor))
+        capture.select(item.id, frozen: drawing.frozen, pixelSize: CGSize(width: real.width * screen.backingScaleFactor, height: real.height * screen.backingScaleFactor), target: window.captureTarget)
         if reduce, !first, changedSelection {
             drawing.rect = destination
             drawing.opacity = 0

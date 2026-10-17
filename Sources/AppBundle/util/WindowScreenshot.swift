@@ -42,11 +42,19 @@ enum WindowScreenshot {
     /// - Parameter pixelSize: Size of the returned image. `nil` gives one pixel per point of the
     ///   window's own size.
     static func capture(_ windowId: CGWindowID, pixelSize: CGSize? = nil, cachedOnly: Bool = false) async throws -> CGImage {
-        let window: SCWindow
-        if cachedOnly {
-            guard let cached = content?.windows.first(where: { $0.windowID == windowId }) else { throw WindowScreenshotError.windowNotFound(windowId) }
-            window = cached
-        } else { window = try await shareableWindow(windowId) }
+        try await capture(WindowCaptureTarget(id: windowId), pixelSize: pixelSize, cachedOnly: cachedOnly)
+    }
+
+    static func capture(_ target: WindowCaptureTarget, pixelSize: CGSize? = nil, cachedOnly: Bool = false) async throws -> CGImage {
+        var selected = windowToCapture(target)
+        if selected == nil, !cachedOnly {
+            guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
+            await refreshWindowList()
+            guard content != nil else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
+            selected = windowToCapture(target)
+        }
+        guard let window = selected else { throw WindowScreenshotError.windowNotFound(target.id) }
+        lensLog.debug("screenshot entry=\(target.id) captured=\(window.windowID) owner=\(window.owningApplication?.processID ?? -1) layer=\(window.windowLayer) frame=\(String(describing: window.frame), privacy: .public)")
         let configuration = baseConfiguration()
         if let pixelSize {
             configuration.width = Int(pixelSize.width.rounded(.up))
@@ -55,6 +63,16 @@ enum WindowScreenshot {
         configuration.ignoreShadows = true
         configuration.includeChildWindows = false
         return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
+    }
+
+    private static func windowToCapture(_ target: WindowCaptureTarget) -> SCWindow? {
+        guard let windows = content?.windows else { return nil }
+        let candidates = windows.map {
+            WindowCaptureCandidate(id: $0.windowID, ownerPID: $0.owningApplication?.processID,
+                                   frame: $0.frame, layer: $0.windowLayer, onScreen: $0.isOnScreen)
+        }
+        guard let id = chooseWindowToCapture(target, from: candidates) else { return nil }
+        return windows.first { $0.windowID == id }
     }
 
     /// What the screen shows in `rect` with the given windows left out, at one pixel per point.

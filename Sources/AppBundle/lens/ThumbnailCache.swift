@@ -34,7 +34,7 @@ final class ThumbnailCache {
     private var nativeFocusedWindow: WeakWindow?
     private var lensStatistics: [Int: LensSessionStatistics] = [:]
     private struct WeakWindow { weak var value: Window? }
-    private let capture: @Sendable (UInt32, CGSize) async throws -> CGImage
+    private let capture: WindowImageCapture
     private let now: () -> TimeInterval
     private let isHidden: (Window) -> Bool
 
@@ -43,13 +43,15 @@ final class ThumbnailCache {
          scales: @escaping (CGRect) -> (CGFloat, CGFloat) = { frame in
              (NSScreen.screens.map(\.backingScaleFactor).max() ?? 2, ThumbnailCache.windowScale(frame: frame))
          },
-         capture: @escaping @Sendable (UInt32, CGSize) async throws -> CGImage = { id, size in
-             try await WindowScreenshot.capture(id, pixelSize: size, cachedOnly: true)
-         }) {
+         captureWindow: @escaping WindowImageCapture = { target, size in
+             try await WindowScreenshot.capture(target, pixelSize: size, cachedOnly: true)
+         },
+         capture: (@Sendable (UInt32, CGSize) async throws -> CGImage)? = nil) {
         self.scales = scales
         self.now = now
         self.isHidden = isHidden
-        self.capture = capture
+        if let capture { self.capture = { try await capture($0.id, $1) } }
+        else { self.capture = captureWindow }
     }
 
     func request(_ window: Window, lens: Int? = nil, demand: CGSize? = nil, force: Bool = false) {
@@ -186,9 +188,10 @@ final class ThumbnailCache {
                 nextCaptureSerial += 1
                 activeCaptures[id] = size
                 let statistics = gate.activeLens(id).flatMap { lensStatistics[$0] }
+                let target = window.captureTarget
                 lensLog.debug("thumbnail start id=\(id) frame=\(String(describing: frame), privacy: .public) demand=\(String(describing: self.demand(id) ?? .zero), privacy: .public) size=\(String(describing: size), privacy: .public) in-flight=\(self.gate.inFlight)")
                 Task { [weak self, weak window, capture] in
-                    let image = try? await capture(id, size)
+                    let image = try? await capture(target, size)
                     guard let self else { return }
                     if let image {
                         lensLog.debug("thumbnail captured id=\(id) pixels=\(image.width)x\(image.height)")
