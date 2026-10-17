@@ -1,12 +1,12 @@
 # Builder briefs
 
-Each prompt file is **Every pass** followed by one pass's section, copied whole, with each `<…>` filled. The builder reads only the prompt file, so each one stands on its own.
+Each prompt file is **Every pass** followed by one pass's section, copied whole, with each `<…>` filled. The builder never sees this file, so each prompt file carries both sections.
 
 ## Every pass
 
-Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: do not resize or reboot it, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
+Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: resize or reboot it only where this pass's section says to, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
 
-Pass `-R prateek/winmux` to every `gh` command: without it `gh` resolves to upstream, where the same number is a different issue. A `gh` call that fails once is tried again. Edit files with `apply_patch`, not with a Python script that rewrites them, and wait for a background command once, with a long yield, instead of polling it in a loop.
+Edit files with `apply_patch`, not with a Python script that rewrites them, and wait for a background command once, with a long yield, instead of polling it in a loop.
 
 This pass writes one report, named in its section, once, at the end. Your last message is that report's path and nothing more.
 
@@ -14,9 +14,9 @@ This pass writes one report, named in its section, once, at the end. Your last m
 
 You are building issue #<number> of prateek/winmux, "<title>", in the worktree `<WT>` on branch `<branch>`. You have full write access and the network. The host's desktop is not yours: every debug build runs in a guest.
 
-Read first, end to end: `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, `.claude/skills/vm/SKILL.md`, the issue (`gh issue view <number> -R prateek/winmux --json title,body,comments`) and its draft `.scratch/winmux-fork/build/<draft>.md`. The issue is authoritative. Its **Decisions** are settled; a **Default chosen for you** may change when the code argues for it, and you say so.
+Read first, end to end: `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, `.claude/skills/vm/SKILL.md`, the issue (`gh issue view <number> -R prateek/winmux --json title,body,comments`) and its draft `.scratch/winmux-fork/build/<draft>.md`. Pass `-R prateek/winmux` to every `gh` command: without it `gh` resolves to upstream, where the same number is a different issue. A `gh` call that fails once is tried again. The issue is authoritative. Its **Decisions** are settled; a **Default chosen for you** may change when the code argues for it, and you say so.
 
-**This is the one full builder pass this issue gets, and it has <hours> hours.** The whole issue is its job. Write the report only when each Done-when item is built, tested and, where visible, checked in a live run. Stopping early with a list of remaining work fails the issue. If something truly cannot be done here, do everything around it and say exactly what and why.
+**This is the one full builder pass this issue gets, and it has <hours> hours.** The whole issue, or the part the rulings name, is its job. Write the report only when each Done-when item is built, tested and, where visible, checked in a live run. Stopping early with a list of remaining work fails the issue. If something truly cannot be done here, do everything around it and say exactly what and why.
 
 You have no one to ask. Where this prompt or the issue does not settle something, take the answer the issue recommends or the nearest one, record it in the report and in `pr.md` on a line starting "Decided:", and keep going. Record each **Default chosen for you** that you change, by name.
 

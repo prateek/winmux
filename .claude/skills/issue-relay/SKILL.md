@@ -9,16 +9,16 @@ You are the **driver**. Each driver lands exactly one child issue of the **umbre
 
 Every debug build runs in a **guest**, a Tart VM from the `vm` skill, named `relay-<issue number>`. The host's desktop is never part of a run. A driver holds one guest: two relays can run side by side; a third waits.
 
-Nothing in a relay waits on Prateek: no question to him through your harness, and no step held for his password, his sudo or a login. What only he can give goes where [Items for Prateek](#items-for-prateek) says, and the relay carries on. The relay halts only at a **stop**, and [Stops](#stops) lists every one.
+Nothing in a relay waits on Prateek: no question to him through your harness, and no step held for his password, his sudo or a login. What only he can give goes where [Items for Prateek](#items-for-prateek) says, and the relay carries on. When the issue in hand needs it, label the issue `blocked on Prateek`, put the question in #84, and take the next child. The relay halts only at a **stop**, and [Stops](#stops) lists every one.
 
 The steps say what you do and when it is done. [reference.md](reference.md) holds the mechanics they point to; open the named section when a step names it.
 
 ## Where you work
 
+- `$SKILL` is this skill's directory, `$VM` is `.claude/skills/vm/vm`, `$WT` the issue worktree, and `$STATE` is `${XDG_STATE_HOME:-$HOME/.local/state}/issue-relay/<issue number>`, which holds the builder's prompts, logs, captures, storyboard, demos and description draft.
 - Run from the worktree the brief started you in, and keep it on its branch: the next driver starts beside you and reads `$SKILL` from it. Read a pull request or another branch with `gh pr diff`, `git show`, or a worktree of its own.
 - Trunk is `fork/fork` after a `git fetch fork`; write it that way, since bare `fork` names both a remote and a branch here and is ambiguous. Read it with `git show`, since another session may hold the worktree that has `fork` checked out.
 - Your shell is zsh, where an unquoted `$var` holding several issue numbers is one argument: hold a list in an array.
-- `$SKILL` is this skill's directory, `$VM` is `.claude/skills/vm/vm`, `$WT` the issue worktree, and `$STATE` is `${XDG_STATE_HOME:-$HOME/.local/state}/issue-relay/<issue number>`, which holds the builder's prompts, logs, captures, storyboard, demos and description draft.
 
 ## 1. Orient
 
