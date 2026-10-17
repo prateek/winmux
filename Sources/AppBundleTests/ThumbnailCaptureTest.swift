@@ -291,6 +291,46 @@ final class ThumbnailCacheTest: XCTestCase {
         }
     }
 
+    func testClosingALensTakesThePicturesItShrankBackUpToTodaysSize() async {
+        let capture = ControlledCapture()
+        var time = 0.0
+        let cache = ThumbnailCache(now: { time }, scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let windows = (1...2).map { TestWindow.new(id: UInt32($0), parent: focus.workspace.rootTilingContainer) }
+        for window in windows { window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800) }
+        cache.request(windows[0], lens: 1, demand: CGSize(width: 200, height: 100))
+        cache.request(windows[1], lens: 1, demand: CGSize(width: 900, height: 450))
+        await capture.waitForStarts(2)
+        await capture.finish(1, image: image(width: 200, height: 100))
+        await capture.finish(2, image: image(width: 900, height: 450))
+        await cache.waitUntilIdle()
+        time = 0.3
+        cache.closeLens(1)
+        await capture.waitForStarts(3)
+        await capture.finish(1, image: image(width: 583, height: 292))
+        await cache.waitUntilIdle()
+        let started = await capture.started, sizes = await capture.sizes
+        XCTAssertEqual(started, [1, 2, 1], "Only the picture below today's size is taken again")
+        XCTAssertEqual(sizes.last?.width, 582.4)
+        XCTAssertEqual(windows[0].thumbnail.image?.width, 583)
+    }
+
+    func testAWindowWhoseCapturesFailStaysThrottled() async {
+        let capture = ControlledCapture()
+        var time = 0.0
+        let cache = ThumbnailCache(now: { time }, scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+        let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800)
+        cache.request(window)
+        await capture.waitForStarts(1)
+        await capture.finish(1, image: nil)
+        await cache.waitUntilIdle()
+        time = 0.3
+        cache.request(window)
+        await cache.waitUntilIdle()
+        let started = await capture.started
+        XCTAssertEqual(started, [1], "A window with no picture is throttled like any other departure")
+    }
+
     func testAWindowCappedBelowItsDemandIsNotUndersizedOnceCapturedAtItsCap() async {
         let capture = ControlledCapture()
         let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })

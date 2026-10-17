@@ -33,8 +33,9 @@ extension LensSession {
         if let index = gridLayout.nearest(from: selection, direction: direction) { send(.selectionChanged(index)) }
     }
     func refreshGridThumbnails(lens: Int, request: (Window, Int, CGSize) -> Void) {
-        let layout = settings.presentation == "strip" ? stripSnapshot.layout : gridLayout
-        for (item, tile) in zip(results, layout.tiles) {
+        let items = results
+        let layout = settings.presentation == "strip" ? stripSnapshot(items: items).layout : gridLayout(items: items)
+        for (item, tile) in zip(items, layout.tiles) {
             if let entry = item.miniature, !entry.frozen, tile.pictureSize != .zero {
                 request(entry.window, lens, thumbnailDemand(tile.pictureSize, lifted: true))
             }

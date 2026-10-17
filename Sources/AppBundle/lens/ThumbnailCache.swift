@@ -59,9 +59,11 @@ final class ThumbnailCache {
         let id = window.windowId
         if let lens, let demand, demand.width > 0, demand.height > 0 { demands[id, default: [:]][lens] = demand }
         let size = captureSize(window, outsideLens: lens == nil)
+        // A window with no picture yet is not "undersized": one whose captures keep failing would
+        // otherwise skip the throttle and jump the queue for good.
         let needsLarger = window.thumbnail.image.map {
             CGFloat($0.width) < size.width.rounded(.down) || CGFloat($0.height) < size.height.rounded(.down)
-        } ?? true
+        } ?? false
         let recapture = activeCaptures[id].map { $0.width < size.width || $0.height < size.height } ?? false
         gate.enqueue(id, lens: lens, now: now(), force: force, needsLarger: needsLarger, recapture: recapture)
         pump()
@@ -105,12 +107,20 @@ final class ThumbnailCache {
 
     func observeLens(_ lens: Int, statistics: LensSessionStatistics) { lensStatistics[lens] = statistics }
     func closeLens(_ lens: Int) {
+        var sized: [UInt32] = []
         for id in Array(demands.keys) {
-            demands[id]?.removeValue(forKey: lens)
+            if demands[id]?.removeValue(forKey: lens) != nil { sized.append(id) }
             if demands[id]?.isEmpty == true { demands.removeValue(forKey: id) }
         }
         lensStatistics.removeValue(forKey: lens)
         gate.closeLens(lens)
+        // The Lens may have left pictures below today's size, and a window hidden or minimized
+        // outside WinMux freezes with whatever it has. Take them back up now.
+        for id in sized {
+            guard let window = windows[id]?.value, let image = window.thumbnail.image else { continue }
+            let size = captureSize(window, outsideLens: true)
+            if CGFloat(image.width) < size.width.rounded(.down) || CGFloat(image.height) < size.height.rounded(.down) { request(window) }
+        }
     }
     func closeWindow(_ window: Window) {
         if nativeFocusedWindow?.value === window { nativeFocusedWindow = nil }
@@ -175,9 +185,8 @@ final class ThumbnailCache {
                 let serial = nextCaptureSerial
                 nextCaptureSerial += 1
                 activeCaptures[id] = size
-                let demand = demand(id) ?? .zero
                 let statistics = gate.activeLens(id).flatMap { lensStatistics[$0] }
-                lensLog.debug("thumbnail start id=\(id) frame=\(String(describing: frame), privacy: .public) demand=\(String(describing: demand), privacy: .public) size=\(String(describing: size), privacy: .public) in-flight=\(self.gate.inFlight)")
+                lensLog.debug("thumbnail start id=\(id) frame=\(String(describing: frame), privacy: .public) demand=\(String(describing: self.demand(id) ?? .zero), privacy: .public) size=\(String(describing: size), privacy: .public) in-flight=\(self.gate.inFlight)")
                 Task { [weak self, weak window, capture] in
                     let image = try? await capture(id, size)
                     guard let self else { return }

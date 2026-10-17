@@ -723,7 +723,8 @@ the group's smaller side. Every tab has a selectable edge and uses its cached pi
 icon. Standalone windows, floating windows and tray entries keep their existing positions. The fan is drawn from the active tab's frame, below the group's tab bar, and fans only the tabs the Lens draws.
 
 Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
-with an 800 ms per-window throttle for ordinary departure requests; forced minimize captures bypass it.
+with an 800 ms per-window throttle. Minimize bypasses it, and so does a departure that would enlarge a
+picture a Lens left smaller. Closing a Lens takes such pictures back up to the 582.4-point width.
 At most two captures run at once. Hidden apps retain their
 last frame; a window with no frame shows its app icon. Inactive native-fullscreen windows use the
 same fallback. Opening draws the cache immediately; current-workspace windows on the visible
