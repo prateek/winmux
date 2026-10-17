@@ -1,4 +1,5 @@
 @testable import AppBundle
+import AppKit
 import XCTest
 import Common
 
@@ -189,6 +190,63 @@ final class SymbolicHotkeyTest: XCTestCase {
 
 @MainActor
 final class SymbolicHotkeyBindingStateTest: XCTestCase {
+    func testEmptySequenceDoesNotConsumeSecondKey() async throws {
+        setUpWorkspacesForTests()
+        let (parsed, errors) = parseConfig("""
+        [mode.main.binding]
+        esc-h = []
+        """)
+        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        config = parsed
+        resetHotKeys()
+        defer { resetHotKeys() }
+        try await activateMode("main")
+        XCTAssertTrue(sequenceBindingsPrefixKeys.isEmpty)
+        noteSequencePrefixKeyPressed(.escape)
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, characters: "h", charactersIgnoringModifiers: "h",
+            isARepeat: false, keyCode: 4
+        ))
+        XCTAssertFalse(handleSequenceKeyDown(event: event))
+    }
+
+    func testEmptyChordIsAbsentFromRegisteredHotkeys() async throws {
+        setUpWorkspacesForTests()
+        let (parsed, errors) = parseConfig("""
+        [mode.main.binding]
+        alt-slash = []
+        cmd-tab = 'focus left'
+        """)
+        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        config = parsed
+        resetHotKeys()
+        defer { resetHotKeys() }
+        try await activateMode("main")
+        XCTAssertEqual(listeningHotkeyChords(), [SymbolicHotkeyChord(keyCode: 48, modifiers: 0x100000)])
+    }
+
+    func testEmptyCmdTabDoesNotHoldSystemTabPartners() async throws {
+        setUpWorkspacesForTests()
+        let (parsed, errors) = parseConfig("""
+        [mode.main.binding]
+        cmd-tab = []
+        alt-slash = 'focus left'
+        """)
+        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        config = parsed
+        resetHotKeys()
+        defer { resetHotKeys() }
+        try await activateMode("main")
+        let table = FakeSymbolicTable(), marker = MemorySymbolicMarker()
+        let reconciler = SymbolicHotkeyReconciler(table: table, marker: marker)
+        reconciler.reconcile(listeningHotkeyChords())
+        XCTAssertTrue(reconciler.heldIds.isEmpty)
+        XCTAssertTrue(reconciler.markerIds.isEmpty)
+        XCTAssertEqual(table.read(1)?.enabled, true)
+        XCTAssertEqual(table.read(2)?.enabled, true)
+    }
+
     func testLoadedDefaultsHoldNoSystemShortcutsAndExplicitOptInHoldsOnlyTabPartners() async throws {
         let originalModes = config.modes
         defer { XCTAssertEqual(config.modes, originalModes, "The ownership check must leave global config unchanged") }
