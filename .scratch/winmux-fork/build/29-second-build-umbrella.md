@@ -33,6 +33,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Display profiles is no longer deferred.** Prateek answered its open questions on 2026-10-13. It is with the follow-ups, and its last check needs his hardware.
 - **Two defects found while building the short list of default shortcuts** are with the follow-ups: three screens a fresh guest still shows, and `winmux doctor` naming a stale commit.
 - **One defect found while ending the CI failures that were not the change's** is with the follow-ups: a second signal during a release's cleanup leaving the worker running.
+- **Two defects found while building the second signal during a release's cleanup** are with the follow-ups: a killed release freeing its lock while its worker runs, and an interrupted release emptying an unfinished one's record.
 - **One defect found while building the Hold's replacement** is with the follow-ups: keys queued while a Lens opens are decided by a copy of the session's rules, which loses a global chord pressed straight after Return.
 - **One defect found while building `'miniatures` filling the screen** is with the follow-ups: `overview` draws a workspace not yet shown since WinMux started at the wrong positions.
 - **Two defects found while building the strip's pictures at one height** are with the follow-ups: floating picture Tiles drawn at a fallback shape after an app resizes its windows, and WinMux dying when an app quits while a command reads its windows.

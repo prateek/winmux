@@ -105,30 +105,60 @@ def verify_tree(repo, head_sha):
         raise ReleaseError('working tree changed during the release; commit or stash first')
 
 
+class Cancellation:
+    """A SIGTERM, SIGINT or SIGHUP cancels the release. Only the first one raises; a later one returns at once, so it
+    can neither interrupt the cleanup of a cancelled build nor replace the exit code."""
+
+    SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+    def __init__(self):
+        self.code = None
+
+    def install(self):
+        for signum in self.SIGNALS:
+            signal.signal(signum, self.handle)
+
+    def handle(self, signum, frame):
+        if self.code is None:
+            self.code = 128 + signum
+            raise SystemExit(self.code)
+
+    def check(self):
+        """Raise a cancellation Python swallowed, as it does one raised in __del__."""
+        if self.code is not None:
+            raise SystemExit(self.code)
+
+
+def worker_signals(mask):
+    """In the worker before exec: neither the release's handlers nor its block around Popen are the worker's."""
+    for signum in Cancellation.SIGNALS:
+        signal.signal(signum, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+
+
+CANCELLATION = Cancellation()
+
+
 def build_release(repo, version, dry_run, head_sha):
     command = ['bash', str(repo / 'script/dogfood-release-build'), version]
     if dry_run:
         command.append('--dry-run')
-    handled = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
-    original = {signum: signal.getsignal(signum) for signum in handled}
-    deferred = []
     process = None
-    def defer(signum, frame):
-        deferred.append(signum)
     try:
-        # Cancellation must not orphan a worker before Popen returns its handle.
-        for signum in handled:
-            signal.signal(signum, defer)
-        process = subprocess.Popen(command, cwd=repo, start_new_session=True,
-                                   env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
-        for signum, handler in original.items():
-            signal.signal(signum, handler)
-        if deferred:
-            raise SystemExit(128 + deferred[0])
+        CANCELLATION.check()
+        # Cancellation must not orphan a worker before Popen returns its handle, so it waits, blocked, until then.
+        # Read the mask before blocking: a pending signal raises out of the call that blocks, after it has blocked.
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        try:
+            signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
+            process = subprocess.Popen(command, cwd=repo, start_new_session=True, preexec_fn=lambda: worker_signals(mask),
+                                       env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+        CANCELLATION.check()
         status = process.wait()
+        CANCELLATION.check()
     except BaseException:
-        for signum in handled:
-            signal.signal(signum, defer)
         if process is not None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -145,9 +175,6 @@ def build_release(repo, version, dry_run, head_sha):
                 pass
             process.wait()
         raise
-    finally:
-        for signum, handler in original.items():
-            signal.signal(signum, handler)
     if status:
         raise ReleaseError(f'build/publish worker exited {status}')
 
@@ -228,15 +255,15 @@ def run(args, repo, tags=None, build=None, lock_path=None, log=log):
 
 
 def main():
-    def interrupted(signum, frame):
-        raise SystemExit(128 + signum)
-    for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(signum, interrupted)
+    CANCELLATION.install()
     try:
         return run(sys.argv[1:], Path(__file__).resolve().parent.parent)
     except ReleaseError as error:
         print(f'[dogfood-release] error: {error}', file=sys.stderr)
         return 1
+    finally:
+        # A cancellation Python swallowed still decides the exit code.
+        CANCELLATION.check()
 
 
 if __name__ == '__main__':
