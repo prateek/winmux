@@ -42,11 +42,12 @@ enum WindowScreenshot {
     /// - Parameter pixelSize: Size of the returned image. `nil` gives one pixel per point of the
     ///   window's own size.
     static func capture(_ windowId: CGWindowID, pixelSize: CGSize? = nil, cachedOnly: Bool = false) async throws -> CGImage {
-        let window: SCWindow
-        if cachedOnly {
-            guard let cached = content?.windows.first(where: { $0.windowID == windowId }) else { throw WindowScreenshotError.windowNotFound(windowId) }
-            window = cached
-        } else { window = try await shareableWindow(windowId) }
+        try await capture(WindowCaptureTarget(id: windowId), pixelSize: pixelSize, cachedOnly: cachedOnly)
+    }
+
+    static func capture(_ target: WindowCaptureTarget, pixelSize: CGSize? = nil, cachedOnly: Bool = false) async throws -> CGImage {
+        let window = try await windowToCapture(target, cachedOnly: cachedOnly)
+        lensLog.debug("screenshot entry=\(target.id) captured=\(window.windowID) owner=\(window.owningApplication?.processID ?? -1) layer=\(window.windowLayer) frame=\(String(describing: window.frame), privacy: .public)")
         let configuration = baseConfiguration()
         if let pixelSize {
             configuration.width = Int(pixelSize.width.rounded(.up))
@@ -57,12 +58,35 @@ enum WindowScreenshot {
         return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
     }
 
+    private static func windowToCapture(_ target: WindowCaptureTarget, cachedOnly: Bool) async throws -> SCWindow {
+        let id = try await resolveWindowToCapture(target, cachedOwn: content?.windows.first { $0.windowID == target.id }.map(candidate),
+                                                  cachedOnly: cachedOnly) {
+            guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
+            await refreshWindowList()
+            guard let windows = content?.windows else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
+            return windows.map(candidate)
+        }
+        guard let id, let window = content?.windows.first(where: { $0.windowID == id }) else {
+            throw WindowScreenshotError.windowNotFound(target.id)
+        }
+        return window
+    }
+
+    private static func candidate(_ window: SCWindow) -> WindowCaptureCandidate {
+        WindowCaptureCandidate(id: window.windowID, ownerPID: window.owningApplication?.processID, frame: window.frame, layer: window.windowLayer)
+    }
+
     /// What the screen shows in `rect` with the given windows left out, at one pixel per point.
     /// - Parameter rect: In global display coordinates, origin at the top left of the main display.
-    static func captureScreen(_ rect: CGRect, excluding windowIds: [CGWindowID]) async throws -> CGImage {
+    /// Leaves out each target's own window and, when it differs, the window its picture comes from.
+    static func captureScreen(_ rect: CGRect, excluding targets: [WindowCaptureTarget]) async throws -> CGImage {
         var excluded: [SCWindow] = []
-        for id in windowIds {
-            excluded.append(try await shareableWindow(id))
+        for target in targets {
+            excluded.append(try await shareableWindow(target.id))
+            if let windows = content?.windows, let id = chooseWindowToCapture(target, from: windows.map(candidate)), id != target.id,
+               let window = windows.first(where: { $0.windowID == id }) {
+                excluded.append(window)
+            }
         }
         guard let display = content?.displays.first(where: { $0.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) }) else {
             throw WindowScreenshotError.captureFailed("no display contains the requested area")

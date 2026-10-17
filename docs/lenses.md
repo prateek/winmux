@@ -750,6 +750,12 @@ Parking, focus loss and minimize never capture below the 582.4-point width, even
 Closing cancels queued Lens refreshes and removes that Lens's size demands. Capture needs an existing Screen
 Recording grant; background capture does not request one.
 
+A picture comes from the entry's own window, on any layer and through any resize.
+The one exception is a sliver: a window under 40 points wide or tall, and under a quarter of the entry's frame on that side.
+WinMux then reads a fresh window list and takes the one layer-0 window of the same app that matches the entry's position and size within two points.
+With no such window, the Tile keeps its last picture, or the app icon when it has none.
+Peek and the double-sided flip use the same check.
+
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
