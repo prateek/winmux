@@ -24,6 +24,8 @@ struct TileView: View {
     private var miniature: Bool { presentation == "miniatures" }
     private var row: Bool { presentation == "list" }
     private var line: Bool { kind == .text || row }
+    /// A per-app card's bar is sized to its name and chips, so its mark goes on the picture.
+    private var appCard: Bool { kind == .card && entry.appCount != nil && !line }
     private var selectionRing: CGFloat { miniature ? metrics.miniatureRing : metrics.selectionRing }
     private var radius: CGFloat { miniature ? metrics.miniatureRadius : line ? metrics.textRadius : metrics.radius }
     var extremeAspect: Bool { !line && !miniature && (entry.aspect < 0.3 || entry.aspect > 3.6) }
@@ -94,7 +96,7 @@ struct TileView: View {
                 title.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
             }
             TileChips(entry: entry, metrics: metrics, enabled: settings.badges)
-            if marked { Image(systemName: "checkmark.circle.fill") }
+            if marked && !appCard { Image(systemName: "checkmark.circle.fill") }
             if entry.accessory && line { chip("menu-bar app") }
             if line {
                 if let hint { label(hint) }
@@ -182,7 +184,7 @@ struct TileView: View {
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: metrics.adornmentGap) {
-                    if marked && !row && kind != .card { Image(systemName: "checkmark.circle.fill").foregroundStyle(LensTheme.dark.text) }
+                    if marked && !row && (kind != .card || appCard) { Image(systemName: "checkmark.circle.fill").foregroundStyle(LensTheme.dark.text) }
                     if let hint, !line { label(hint, onPicture: true) }
                 }.padding(metrics.gap)
             }

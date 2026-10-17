@@ -16,10 +16,10 @@ extension LensSession {
     var gridLayout: GridLayout { gridLayout(items: results) }
 
     func gridLayout(items results: [SwitcherPaletteItem]) -> GridLayout {
-        let ids = results.map(\.id), kind = tileKind
+        let ids = results.map(\.id), kind = tileKind, scale = TileMetrics(visibleSize: miniatureSize).scale
         func entry(_ item: SwitcherPaletteItem) -> GridLayout.Entry {
             GridLayout.Entry(aspect: item.tile.aspect, realSize: item.tile.realSize, kind: kind,
-                             barWidth: kind == .card ? item.tile.cardBarWidth(badges: settings.badges) : 0)
+                             barWidth: kind == .card ? item.tile.cardBarWidth(badges: settings.badges, scale: scale) : 0)
         }
         let entries = results.map(entry)
         if let cache = gridLayoutCache, cache.ids == ids, cache.entries == entries,

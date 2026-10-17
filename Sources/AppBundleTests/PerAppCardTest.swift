@@ -86,6 +86,14 @@ final class PerAppCardTest: XCTestCase {
         XCTAssertEqual(entry.cardBarWidth(badges: true), 0)
     }
 
+    func testABarWiderThanItsColumnKeepsTheTitleFloor() {
+        let card = GridLayout.Entry(aspect: 4 / 3, realSize: CGSize(width: 800, height: 600), kind: .card, barWidth: 300)
+        let sections = (1...8).map { GridLayout.Section(label: "App \($0)", current: false, entries: [card]) }
+        let layout = GridLayout(sections: sections, visibleSize: screen, tileSize: "same-height", arrangement: "columns")
+        XCTAssertFalse(layout.relaxedTitleFloor, "Eight one-app columns fit without dropping every bar")
+        XCTAssertGreaterThan(layout.rowHeight, 36)
+    }
+
     func testPicturesAndTextIgnoreBarsAndCrowdedCardsRelaxThemToFit() {
         for kind in TileKind.allCases {
             let plain = GridLayout.Entry(aspect: 4 / 3, realSize: CGSize(width: 800, height: 600), kind: kind)

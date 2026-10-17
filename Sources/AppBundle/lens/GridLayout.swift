@@ -33,6 +33,7 @@ struct GridLayout {
         var accessory = false
         var monitorHeightFraction: CGFloat = 1
         var accessoryActualSize = false
+        /// A per-app card's bar, in points at the layout's scale. It holds while the title floor does, when the chrome is that scale.
         var barWidth: CGFloat = 0
     }
     struct Tile {
@@ -110,6 +111,9 @@ struct GridLayout {
         func plan(height: CGFloat, chrome: CGFloat, titleFloor: Bool) -> Plan {
             let metrics = TileMetrics(scale: chrome)
             let gap = 14 * chrome
+            let columnWidth = max(1, (maxWidth - 30 * chrome * CGFloat(sections.count - 1)) / CGFloat(sections.count))
+            // A bar wider than its row would only shrink the pictures until the floor relaxes.
+            let barCap = max(0, (labelled && arrangement == "columns" && sections.count > 1 ? columnWidth : maxWidth) - 2 * metrics.padding)
             var sizes: [Tile] = []
             for entry in entries {
                 let box: CGSize
@@ -136,7 +140,7 @@ struct GridLayout {
                     picture = CGSize(width: fitted.width * factor, height: fitted.height * factor)
                 }
                 let floor = entry.kind == .card && titleFloor ? min(200 * chrome, max(1.2 * height, 110 * chrome)) : 0
-                let bar = entry.kind == .card && titleFloor ? entry.barWidth * chrome : 0
+                let bar = entry.kind == .card && titleFloor ? min(entry.barWidth, barCap) : 0
                 let width = entry.kind == .text ? metrics.textWidth : max(box.width, floor, bar) + 2 * metrics.padding
                 let tileHeight = metrics.height(kind: entry.kind, rowHeight: box.height)
                 sizes.append(Tile(frame: CGRect(x: 0, y: 0, width: width, height: tileHeight), pictureSize: entry.kind == .text ? .zero : picture))
@@ -152,7 +156,6 @@ struct GridLayout {
                     result.tiles.append(Tile(frame: tile.frame.offsetBy(dx: x, dy: y), pictureSize: tile.pictureSize))
                 }
                 if arrangement == "columns" && sections.count > 1 {
-                    let columnWidth = max(1, (maxWidth - 30 * chrome * CGFloat(sections.count - 1)) / CGFloat(sections.count))
                     var offset = 0, x0: CGFloat = 0
                     for (section, count) in zip(sections, counts) {
                         var y = hd, width: CGFloat = 0

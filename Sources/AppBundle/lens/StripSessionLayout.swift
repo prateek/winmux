@@ -12,7 +12,7 @@ extension LensSession {
     var stripSnapshot: StripSnapshot { stripSnapshot(items: results) }
 
     func stripSnapshot(items: [SwitcherPaletteItem]) -> StripSnapshot {
-        let entries = StripSnapshot.entries(items, kind: tileKind, settings: settings)
+        let entries = StripSnapshot.entries(items, kind: tileKind, settings: settings, size: miniatureSize)
         let ids = items.map(\.id)
         if let cache = stripLayoutCache, cache.ids == ids, cache.entries == entries,
            cache.visibleSize == miniatureSize, cache.tileSize == settings.grid.tileSize {
@@ -40,15 +40,16 @@ struct StripSnapshot {
         self.items = items
         let metrics = TileMetrics(visibleSize: size)
         minimumWidth = min(size.width * 0.9, metrics.textWidth + 88 * metrics.scale)
-        layout = GridLayout(sections: [.init(label: nil, current: false, entries: Self.entries(items, kind: kind, settings: settings))],
+        layout = GridLayout(sections: [.init(label: nil, current: false, entries: Self.entries(items, kind: kind, settings: settings, size: size))],
                             visibleSize: size, tileSize: settings.grid.tileSize, minimumWidth: minimumWidth, sizing: .strip)
     }
 
-    static func entries(_ items: [SwitcherPaletteItem], kind: TileKind, settings: LensConfig) -> [GridLayout.Entry] {
-        items.map {
+    static func entries(_ items: [SwitcherPaletteItem], kind: TileKind, settings: LensConfig, size: CGSize) -> [GridLayout.Entry] {
+        let scale = TileMetrics(visibleSize: size).scale
+        return items.map {
             GridLayout.Entry(aspect: $0.tile.aspect, realSize: $0.tile.realSize, kind: kind, accessory: $0.tile.accessory,
                              monitorHeightFraction: $0.tile.monitorHeightFraction, accessoryActualSize: settings.accessoryWindow == "actual-size",
-                             barWidth: kind == .card ? $0.tile.cardBarWidth(badges: settings.badges) : 0)
+                             barWidth: kind == .card ? $0.tile.cardBarWidth(badges: settings.badges, scale: scale) : 0)
         }
     }
 }
