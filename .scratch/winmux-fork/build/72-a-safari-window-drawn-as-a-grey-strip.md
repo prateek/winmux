@@ -28,11 +28,11 @@ Nothing.
 
 ## Build
 
-Capture chooses an SCWindow with a pure identity check. A plausible layer-0 window of the
-entry's owner keeps its own id through normal size differences. If the id is missing,
-nonzero-layer, or narrower or shorter than a quarter of the entry's actual frame, exactly
-one other layer-0 window of the same owner must agree in x, y, width and height within
-two points. Otherwise capture fails and retains the last good picture or icon. No actual
+Capture chooses an SCWindow with a pure identity check. The entry's own window, on any
+layer, keeps its id through normal size differences. If the id is missing, or its window is
+narrower or shorter than a quarter of the entry's actual frame, exactly one other layer-0
+window of the same owner must agree in x, y, width and height within two points. Otherwise capture fails and retains the last good picture or icon, and the cached window
+list is refreshed for the next request. No actual
 frame keeps id lookup. This uses `lastKnownActualRect`, never the layout-shaped capture
 frame. Capture sizing, throttling, Frozen/minimized gates, minimize capture and the injected
 id/size closure stay in place. Peek and flip snapshots carry the same identity.
@@ -62,12 +62,11 @@ The standing desk is skipped after the rich desk while **The standing desk does 
 after the rich desk in the same guest** remains unresolved. The proof tools and reproduction
 instructions are in `.scratch/winmux-fork/proofs/safari-picture/`.
 
-## Known consequence of the capture rule
+## Windows above layer 0
 
-The staged Updater dialog is a real layer-3 window. The required layer-0 rule rejects a
-fresh capture of it, and no layer-0 window of its owner matches its actual frame. Its Tile
-therefore shows an icon where the base showed its dialog. Other staged apps' layer-0
-windows keep their own pictures. No exception to the settled layer rule is made here.
+The staged Updater dialog is a real layer-3 window. An early version of the rule required
+layer 0 for the entry's own window, and the Updater Tile showed its icon. The own window
+is now accepted on any layer, and only a fallback candidate must be layer 0.
 
 ## Checks for Prateek
 

@@ -36,9 +36,8 @@ through the guest's global preference, restarts the debug app, records the two T
 faces and their focus readbacks, quits the app and restores that preference. Their output
 directories are `head-extras` and `head-flip` beside the main runs.
 
-The required layer-0 rule also rejects the staged Updater's real layer-3 dialog. It shows
-an icon on the changed build; the other apps' layer-0 windows retain their pictures. This
-is a visible policy consequence, not evidence that Updater was a Safari helper.
+The staged Updater dialog is a real layer-3 window. A first version that held the entry's
+own window to layer 0 drew it as an icon; the own window is now accepted on any layer.
 
 The standing desk is skipped after the rich desk while **The standing desk does not
 stage after the rich desk in the same guest** remains unresolved. No installed-build,

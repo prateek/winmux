@@ -751,8 +751,7 @@ Closing cancels queued Lens refreshes and removes that Lens's size demands. Capt
 Recording grant; background capture does not request one.
 
 A picture normally comes from the entry's own window id. With a known actual frame,
-a missing id, a nonzero window layer, or a window narrower or shorter than a quarter of that
-frame permits a fallback: exactly one layer-0 window of the same app must match the actual
+a missing id, or a window narrower or shorter than a quarter of that frame, permits a fallback: exactly one layer-0 window of the same app must match the actual
 position and size within two points. An ordinary content window keeps its own id through
 resizes. An uncertain choice keeps the last good picture, or the app icon when none exists.
 Without an actual frame, capture keeps the id lookup. Peek and the double-sided flip use

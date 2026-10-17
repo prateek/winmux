@@ -28,9 +28,10 @@ func chooseWindowToCapture(_ target: WindowCaptureTarget, from candidates: [Wind
     guard let actual = target.actualFrame, actual.width > 0, actual.height > 0, let pid = target.ownerPID else {
         return own?.id
     }
-    if let own {
-        let degenerate = own.frame.width < actual.width / 4 || own.frame.height < actual.height / 4
-        if own.layer == 0, !degenerate { return own.ownerPID == pid ? own.id : nil }
+    // Any layer: an app's real dialog can sit above layer 0. Only a sliver of the entry's
+    // frame, such as Safari's 16-point strip, is not the window the entry stands for.
+    if let own, own.frame.width >= actual.width / 4, own.frame.height >= actual.height / 4 {
+        return own.ownerPID == nil || own.ownerPID == pid ? own.id : nil
     }
     // Parked windows are capturable too. On-screen state must not decide their identity.
     let matches = candidates.filter {

@@ -53,7 +53,11 @@ enum WindowScreenshot {
             guard content != nil else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
             selected = windowToCapture(target)
         }
-        guard let window = selected else { throw WindowScreenshotError.windowNotFound(target.id) }
+        guard let window = selected else {
+            // The cached frame can be from before the window grew; the next request reads a fresh list.
+            if cachedOnly { invalidateWindowList() }
+            throw WindowScreenshotError.windowNotFound(target.id)
+        }
         lensLog.debug("screenshot entry=\(target.id) captured=\(window.windowID) owner=\(window.owningApplication?.processID ?? -1) layer=\(window.windowLayer) frame=\(String(describing: window.frame), privacy: .public)")
         let configuration = baseConfiguration()
         if let pixelSize {

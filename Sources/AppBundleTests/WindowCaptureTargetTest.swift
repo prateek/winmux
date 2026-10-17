@@ -4,9 +4,11 @@ import XCTest
 final class WindowCaptureTargetTest: XCTestCase {
     private let page = CGRect(x: 100, y: 80, width: 913, height: 700)
 
-    private func candidate(_ id: UInt32, pid: Int32 = 42, frame: CGRect? = nil, layer: Int = 0, onScreen: Bool = true) -> WindowCaptureCandidate {
+    private func candidate(_ id: UInt32, pid: Int32? = 42, frame: CGRect? = nil, layer: Int = 0, onScreen: Bool = true) -> WindowCaptureCandidate {
         WindowCaptureCandidate(id: id, ownerPID: pid, frame: frame ?? page, layer: layer, onScreen: onScreen)
     }
+
+    private var strip: CGRect { CGRect(x: 0, y: 1080, width: 913, height: 16) }
 
     private func choose(_ candidates: [WindowCaptureCandidate], frame: CGRect? = nil) -> UInt32? {
         chooseWindowToCapture(WindowCaptureTarget(id: 1, ownerPID: 42, actualFrame: frame ?? page), from: candidates)
@@ -22,20 +24,30 @@ final class WindowCaptureTargetTest: XCTestCase {
 
     func testSameSizedPagesAreDisambiguatedByPosition() {
         let elsewhere = page.offsetBy(dx: 950, dy: 0)
-        XCTAssertEqual(choose([candidate(1, layer: 3), candidate(2, frame: elsewhere), candidate(3)]), 3)
+        XCTAssertEqual(choose([candidate(1, frame: strip), candidate(2, frame: elsewhere), candidate(3)]), 3)
     }
 
     func testDisagreeingHelperWithNoMatchingPageFailsClosed() {
-        XCTAssertNil(choose([candidate(1, layer: 3), candidate(2, frame: page.offsetBy(dx: 40, dy: 0))]))
+        XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, frame: page.offsetBy(dx: 40, dy: 0))]))
     }
 
     func testOtherOwnersPageIsNeverTheFallback() {
-        XCTAssertNil(choose([candidate(1, layer: 3), candidate(2, pid: 99)]))
+        XCTAssertNil(choose([candidate(1, frame: strip), candidate(2, pid: 99)]))
         XCTAssertNil(choose([candidate(1, pid: 99), candidate(2)]), "A wrong owner on the id is not grounds for substituting a different window")
     }
 
     func testNonContentIdStillAllowsOnlyItsEntryOwnersMatchingPage() {
-        XCTAssertEqual(choose([candidate(1, pid: 99, layer: 3), candidate(2)]), 2)
+        XCTAssertEqual(choose([candidate(1, pid: 99, frame: strip), candidate(2)]), 2)
+    }
+
+    func testOwnDialogAboveLayerZeroKeepsItsId() {
+        let dialog = CGRect(x: 740, y: 400, width: 440, height: 202)
+        let bar = CGRect(x: 0, y: 0, width: 1920, height: 30)
+        XCTAssertEqual(choose([candidate(1, frame: dialog, layer: 3), candidate(2, frame: bar)], frame: dialog), 1)
+    }
+
+    func testOwnWindowWithUnknownOwnerKeepsItsId() {
+        XCTAssertEqual(choose([candidate(1, pid: nil), candidate(2)]), 1)
     }
 
     func testOwnLayerZeroWindowKeepsIdDuringResizeOrMinimumSizeRefusal() {
