@@ -10,6 +10,7 @@
   columns = { count | default = 'off, width-presets | default = [1/3, 1/2, 2/3] },
   auto-add-new-windows-to-tab-group | default = true,
   automatically-tile-new-windows | default = true,
+  restore-windows-on-quit | default = true,
   automatically-unhide-macos-hidden-apps | default = false,
   default-root-container-layout | default = "tiles",
   default-root-container-orientation | default = "auto",

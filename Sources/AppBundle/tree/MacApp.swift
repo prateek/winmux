@@ -224,6 +224,7 @@ final class MacApp: AbstractApp {
     }
 
     func setAxFrame(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { [axApp] window, job in
             try setFrame(window, app: axApp.threadGuarded, topLeft, size, job)
@@ -231,10 +232,26 @@ final class MacApp: AbstractApp {
     }
 
     func setAxFrameBlocking(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) async throws {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         try await withWindow(windowId) { [axApp] window, job in
             try setFrame(window, app: axApp.threadGuarded, topLeft, size, job)
         }
+    }
+
+    /// The one frame write left once `windowFramesForTermination` is frozen. It drops this window's
+    /// queued job, which it supersedes; other windows' jobs, queued before the freeze, still run.
+    func restoreFrameOnQuit(_ windowId: UInt32, _ frame: Rect) async throws {
+        setFrameJobs.removeValue(forKey: windowId)?.cancel()
+        let wrote: Bool? = try await withWindow(windowId) { [axApp] window, job in
+            try disableAnimations(app: axApp.threadGuarded, job) {
+                try writeQuitFrame(frame) { attribute, value in
+                    AXUIElementSetAttributeValue(window, attribute as CFString, value)
+                }
+            }
+            return true
+        }
+        if wrote != true { throw QuitFrameWindowGone() }
     }
 
     func getAxWindowsCount() async throws -> Int? {
@@ -282,6 +299,7 @@ final class MacApp: AbstractApp {
     }
 
     func setNativeFullscreen(_ windowId: UInt32, _ value: Bool) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { window, job in
             window.set(Ax.isFullscreenAttr, value)
@@ -289,6 +307,7 @@ final class MacApp: AbstractApp {
     }
 
     func setNativeMinimized(_ windowId: UInt32, _ value: Bool) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { window, job in
             window.set(Ax.minimizedAttr, value)

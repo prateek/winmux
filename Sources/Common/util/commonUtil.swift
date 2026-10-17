@@ -54,7 +54,8 @@ public func dieT<T>(
             message: message,
         )
     }
-    if !isUnitTest && !recursionDetectorDuringTermination {
+    // The cleanup needs the main actor, so a die on the main thread could only wait out the deadline.
+    if !isUnitTest && !recursionDetectorDuringTermination && !Thread.isMainThread {
         let semaphore = DispatchSemaphore(value: 0)
         Task {
             defer { semaphore.signal() }
@@ -62,7 +63,7 @@ public func dieT<T>(
                 try await terminationHandler.beforeTermination()
             }
         }
-        semaphore.wait()
+        _ = semaphore.wait(timeout: .now() + terminationTimeout)
     }
     fatalError("\n" + message)
 }

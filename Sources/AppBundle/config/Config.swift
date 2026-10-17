@@ -51,6 +51,7 @@ struct Config: ConvenienceCopyable {
     var reloadOnSave: Bool = true
     var automaticallyUnhideMacosHiddenApps: Bool = false
     var automaticallyTileNewWindows: Bool = true
+    var restoreWindowsOnQuit: Bool = true
     var enableShakeToToggleTiling: Bool = true
     var shortcutsPreset: ShortcutsPreset = .none
     var tabGroupPadding: Int = 30

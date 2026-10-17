@@ -4,6 +4,7 @@ import Foundation
 
 @MainActor public func initAppBundle() {
     Task {
+        defer { isRecordingStartupWindowFrames = false }
         initTerminationHandler()
         armSymbolicHotkeyRestoration()
         isCli = false
@@ -43,6 +44,7 @@ import Foundation
         _ = Workspace.all.first?.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()
         try await runRefreshSessionBlocking(.startup, layoutWorkspaces: false)
+        isRecordingStartupWindowFrames = false
         try await runLightSession(.startup, .forceRun) {
             if !didLoadPersistedFrozenWorld {
                 smartLayoutAtStartup()

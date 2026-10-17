@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Starting WinMux re-tiles every window. Quitting it centres every window on its monitor, at its last floating size or at the monitor's full size (`makeAllWindowsVisibleAndRestoreSize` in `Sources/AppBundle/util/appBundleUtil.swift`). Someone who tries WinMux for ten minutes and quits finds a desktop they did not arrange.
+Starting WinMux re-tiles every window. Quitting it used to centre every window on its monitor, at its last floating size or at the monitor's full size. Someone who tried WinMux for ten minutes and quit found a desktop they did not arrange. `restoreWindowsOnQuit` in `Sources/AppBundle/util/appBundleUtil.swift` now restores startup frames by default.
 
 On a normal quit, each window that was open before WinMux started goes back to the frame it had then.
 
@@ -26,18 +26,26 @@ Nothing.
 
 ## Defaults chosen for you
 
-- **What is recorded.** Each window's frame and display when WinMux first sees it at launch, before it is tiled. A window opened while WinMux runs has no record and stays where it is at quit, on screen.
-- **Where.** In memory, and in the state directory so a quit after a config reload or a long session still has it. A record older than the running session is not used.
-- **When it restores.** A normal quit and the signals that already run the shutdown path. A setting to turn it off, on by default.
+- **What is recorded.** Each non-popup window's global frame when WinMux first sees it before startup finishes, before binding or layout. A window first seen after startup, including a slow app's window or one `after-startup-command` opens, has no record. At quit, a window without a record stays where it is unless it is parked on a hidden workspace or its cached frame is off every display; then it is centred on screen.
+- **Where (changed).** In memory only, keyed by window id and written once. Config reload preserves the map. WinMux has no in-process restart; a Sparkle relaunch quits and restores, then launches and records again. A disk copy would serve a later process, which must not use an older session's record.
+- **When it restores.** The menu's Quit and the system's quit Apple Event, through one application delegate, and the three signals. A die off the main thread runs the cleanup within the same deadline. `restore-windows-on-quit` is a Bool, default `true`; turning it off centres every window as before, with the visible-rectangle origin fixed.
 - **A window the person moved to another display or resized by hand while floating** still goes back to its recorded frame. Say so in the docs.
+
+## Built behavior
+
+`StartupWindowFrames.swift` records the frame `MacWindow.getOrRegister` already reads, for every window registered while `isRecordingStartupWindowFrames` is set: from launch until startup's discovery session ends, or until startup throws. Whichever refresh registers a window first, its frame is the one before WinMux moved it.
+
+`quitFrameAction` makes the restore, leave or centre choice from cached state and current monitors. A recorded frame is restored when its centre lies on a current display; a window moved aside for a drag goes back to its frame from before the drag. Without either, an unparked window stays where it is unless its last frame, actual or laid out, is off every display. A parked window is centred on the display it was parked on; any other is centred on the display nearest its last frame, or the main one, inside the visible rect.
+
+The restore first freezes windows (`windowFramesForTermination`). From then on `MacApp.setAxFrame`, `setAxFrameBlocking`, `setNativeFullscreen` and `setNativeMinimized` do nothing, and a drag no longer hides or moves windows aside: every path that moves or resizes a window goes through one of them, so nothing moves a window after its restore. Each app thread runs its jobs in order. A window the quit writes has its own queued job dropped; another window's queued job, an unhide the tree already counts as done, say, still runs. The quit's own writes read no AX frame, run concurrently across apps and in order within one, and try the position even when the size is refused. A failed or vanished window is logged and stops no other. Every quit, the menu's included, goes through the application delegate, which shares one cleanup and the two-second deadline with the signals; before startup has registered a window it exits at once and keeps the frozen world. A die off the main thread waits for the cleanup up to the deadline; on the main thread it cannot run, and does not wait. A ten-window, five-app, three-workspace restore took 92.4 ms in a guest.
 
 ## Done when
 
-- [ ] Five windows at known frames, WinMux started, windows moved across two workspaces, WinMux quit: every window is at its recorded frame, on screen, checked in a guest by reading the frames before and after.
-- [ ] A window opened after launch is on screen after quit.
-- [ ] After `SIGTERM` with windows on three workspaces, every window is on screen.
-- [ ] A window closed while WinMux ran is not reopened and causes no error.
-- [ ] The pull request shows the desktop before launch, tiled, and after quit.
+- [x] Five windows at known frames, WinMux started, windows moved across two workspaces, WinMux quit: every window is at its recorded frame, on screen, checked in a guest by reading the frames before and after. Checked through both the menu's Quit and a quit Apple Event, using an independent CoreGraphics reader.
+- [x] A window opened after launch is on screen after quit. Checked after menu, Apple Event and signal quits; a late floating window also kept its exact new frame after config reload.
+- [x] After `SIGTERM` with windows on three workspaces, every window is on screen. All nine startup windows returned to their exact frames, and the tenth, opened later, was on screen.
+- [x] A window closed while WinMux ran is not reopened and causes no error. Closing Blue left it closed and restored the four surviving startup windows; injected AX failure also cannot stop later windows or another app.
+- [x] The pull request shows the desktop before launch, tiled, and after quit. Stills of all three, and GIFs of the menu's Quit, a late window and SIGTERM, filmed from the code that merged.
 
 ## Sources
 

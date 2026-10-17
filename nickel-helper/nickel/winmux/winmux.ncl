@@ -245,6 +245,7 @@ Contract
     reload-on-save | Bool | optional,
     automatically-unhide-macos-hidden-apps | Bool | optional,
     automatically-tile-new-windows | Bool | optional,
+    restore-windows-on-quit | Bool | optional,
     enable-shake-to-toggle-tiling | Bool | optional,
     auto-add-new-windows-to-tab-group | Bool | optional,
     enable-normalization-flatten-containers | Bool | optional,
