@@ -72,13 +72,7 @@ The staged Updater dialog is a real layer-3 window. An early version of the rule
 layer 0 for the entry's own window, and the Updater Tile showed its icon. The own window
 is now accepted on any layer, and only a fallback candidate must be layer 0.
 
-## Checks for Prateek
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
-
-The builder publishes no release.
+Whether an installed build still draws a grey strip, where the original was seen, is Prateek's check on an installed build.
 
 ## Sources
 
