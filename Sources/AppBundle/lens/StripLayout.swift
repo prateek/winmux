@@ -116,15 +116,19 @@ extension LensSession {
         return (item.miniature?.workspace ?? item.workspaceIdentity ?? item.workspaceName) != current.name
     }
 
-    func refreshListThumbnails(lens: Int, request: (Window, Int) -> Void) {
+    func refreshListThumbnails(lens: Int, request: (Window, Int, CGSize) -> Void) {
         let items = results
         let layout = listLayout(count: items.count)
         for index in layout.visibleRange(selection: selection, count: items.count) {
-            if let entry = items[index].miniature, !entry.frozen { request(entry.window, lens) }
+            if let entry = items[index].miniature, !entry.frozen {
+                let picture = tileMetrics.fittedPicture(aspect: items[index].tile.aspect,
+                    in: CGSize(width: tileMetrics.listPictureWidth, height: tileMetrics.listPictureHeight - 2 * tileMetrics.rowVerticalPadding))
+                request(entry.window, lens, thumbnailDemand(picture))
+            }
         }
     }
 
-    func refreshThumbnails(lens: Int, request: (Window, Int) -> Void) {
+    func refreshThumbnails(lens: Int, request: (Window, Int, CGSize) -> Void) {
         guard drawsPictures else { return }
         switch settings.presentation {
             case "strip", "grid": refreshGridThumbnails(lens: lens, request: request)

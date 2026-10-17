@@ -4,7 +4,7 @@ import Common
 
 @MainActor
 func testLensLifecycle(clock: any Clock<Duration> = ContinuousClock(), emit: @escaping (ServerEvent) -> Void = { _ in }, show: @escaping (LensSession) -> Void = { _ in }, hide: @escaping () -> Void = {}) -> LensLifecycle {
-    LensLifecycle(clock: clock, dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .command }), emit: emit, show: show, hide: hide)
+    LensLifecycle(clock: clock, dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { .command }), emit: emit, show: show, hide: hide)
 }
 
 @MainActor
