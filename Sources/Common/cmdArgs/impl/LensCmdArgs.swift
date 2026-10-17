@@ -38,7 +38,7 @@ func parseLensCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LensCmdArgs> {
         .filter("Possible --tile kinds: card, picture, text") { $0.tile == nil || ["card", "picture", "text"].contains($0.tile!) }
         .filter("--tile is not allowed with miniatures") { $0.tile == nil || $0.presentation != "miniatures" }
         .filter("--sections requires a Lens name or --filter") { $0.sections == nil || $0.name != nil || $0.filter != nil }
-        .filter("Possible --sections values: none, workspace, project, monitor, app") { $0.sections == nil || ["none", "workspace", "project", "monitor", "app"].contains($0.sections!) }
+        .filter("Possible sections values: \(sectionGroupings.joined(separator: ", "))") { $0.sections == nil || sectionGroupings.contains($0.sections!) }
         .filter("--sections is not allowed with miniatures") { $0.sections == nil || $0.presentation != "miniatures" }
         .filter("Unknown sort key") { $0.sort == nil || $0.sort!.split(separator: ",", omittingEmptySubsequences: false).allSatisfy { ["mru", "previous", "spatial", "workspace", "app", "title", "created"].contains(String($0)) } }
         .filter("--search requires a Lens name or --filter") { $0.search == nil || $0.name != nil || $0.filter != nil }

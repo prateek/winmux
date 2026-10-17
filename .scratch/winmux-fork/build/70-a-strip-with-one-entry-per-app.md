@@ -28,9 +28,15 @@ Nothing.
 
 ## Done when
 
-- [ ] A per-app card on the staged desk shows its app name whole and its chips beside it.
-- [ ] One window reads "1 window".
-- [ ] The pull request shows ten and eleven apps before and after.
+- [x] A per-app card on the staged desk shows its app name whole and its chips beside it.
+- [x] One window reads "1 window".
+- [x] The pull request shows ten and eleven apps before and after.
+
+## How it was built
+
+A per-app card reserves its bar's whole width in the strip and the grid: the icon, the app name at the selected weight (up to 240 points), and the chips, measured with the fonts of the layout's scale and capped at the row's or column's width. The reservation drops with the title floor when a layout has to shrink everything to fit. A marked per-app card draws its mark on the picture. Window-entry cards and picture and text Tiles are unchanged.
+
+**The jump at eleven** stays: per-app entries get no height cap. On the rich desk at 1920 by 1080, wider cards wrap a strip of apps at seven, so ten and eleven apps both take two rows at one card size, where the base held them in one row.
 
 ## Sources
 

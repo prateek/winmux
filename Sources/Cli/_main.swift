@@ -57,16 +57,7 @@ struct Main {
             case .help(let help):
                 exit(0, out: help)
             case .failure(let e):
-                let isConfigAction = args.first == "config" && args.dropFirst().contains { ConfigAction(rawValue: $0) != nil }
-                let isLensCommand = ["lens", "list-lenses", "summon"].contains(args.first ?? "")
-                    || (args.first == "list-windows" && args.contains { ["--lens", "--filter", "--search"].contains($0) })
-                let isColumnCommand: Bool
-                switch CmdKind(rawValue: args.first ?? "") {
-                    case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .listColumns, .columnCount, .place:
-                        isColumnCommand = true
-                    default: isColumnCommand = false
-                }
-                exit(isConfigAction || isLensCommand || isColumnCommand ? 2 : 1, err: e)
+                exit(parseFailureExitCode(args), err: e)
         }
 
         if let configArgs = parsedArgs as? ConfigCmdArgs {

@@ -89,6 +89,13 @@ one-line title bar and add a small picture at the left. Miniatures always uses `
 accepts `tile = 'picture`, including in `when.default`, and rejects `card` and `text`. A grid defaults to `card`. The Lens contract leaves `tile` absent so Swift can
 resolve it after a Presentation override.
 
+Titles in card bars, text Tiles and list rows truncate in the middle, keeping their
+start and end. In text Tiles and list rows, the app name truncates at its tail
+before the title gives way. A long app name keeps at least one third of the
+space shared by those two labels; a short app name keeps its natural width.
+Icons, chips and hints take their space first. Presentation footers keep their
+existing layout.
+
 The shipped `recent` Lens uses `tile = 'picture` and
 `grid.tile-size = 'same-height`: pictures share a row height and the selected title stays
 in the footer. To give `recent` cards with relative window sizes, merge:
@@ -110,7 +117,8 @@ its picture rows. The windowing mode's `r` and `a` explicitly choose `--tile tex
 otherwise its display name, truncated after twelve characters with an ellipsis. These are followed by
 `floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
 marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App entries use the
-app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
+app name as their title and retain their window-count chip. A per-app card widens to show its app name
+and chips whole, reserving up to 240 points for the name. Chips stay beside a title: a picture-only
 strip or grid puts the selected entry's chips in its footer, and miniatures puts them after the selected
 title under its workspace cell, omitting the workspace chip that the cell already names.
 With the default `hints = 'held` and `hints-key = 'alt`, holding Option shows four hints:
@@ -630,9 +638,15 @@ winmux sections workspace
 `--sections` accepts the five values above, needs a Lens name or `--filter`, and changes this
 opening only. Miniatures refuses it with exit 2; a strip accepts and ignores it until conversion
 to a list. `list-lenses --json` continues to report the configured values.
+An invalid `--sections` value exits 2 with empty stdout and one stderr line:
+`Possible sections values: none, workspace, project, monitor, app`.
 The `sections` command changes an open list or grid without closing it or emitting `lens-opened` or `lens-closed` subscription
 events. With no Lens open it exits 2 with `No Lens is open`; miniatures and strips stay open
 and ignore it. A grouping change lasts until this Lens closes. Converting a strip retains it.
+It accepts `next` as well as the five groupings. An invalid value exits 2 with empty stdout
+and one stderr line: `Possible sections values: next, none, workspace, project, monitor, app`.
+Neither invalid-value message has an `ERROR: ` prefix. Other `sections` parse failures
+(a missing value, an extra argument or an unknown flag) also exit 2 and keep that prefix.
 
 The default Lens key `cmd-g = "sections next"` cycles grouping. A value outside the cycle
 advances to `none`. Bound chords win during a Hold: `cmd-g` changes grouping in a

@@ -1,5 +1,11 @@
 import AppKit
 
+func tileBarTextWidths(available: CGFloat, titleIdeal: CGFloat, appIdeal: CGFloat) -> (title: CGFloat, app: CGFloat) {
+    let available = max(0, available)
+    let app = min(max(0, appIdeal), max(available / 3, available - max(0, titleIdeal)))
+    return (available - app, app)
+}
+
 enum TileKind: String, CaseIterable, Sendable {
     case card, picture, text
 
@@ -116,9 +122,30 @@ struct TileEntry {
     var displayTitle: String { title.isEmpty ? appName : title }
     var footerAppName: String? { displayTitle == appName ? nil : appName }
 
+    /// The width a per-app card's bar needs at `scale`, measured with that scale's fonts: text does not scale linearly with its size.
+    func cardBarWidth(badges enabled: Bool, scale: CGFloat) -> CGFloat {
+        guard appCount != nil else { return 0 }
+        let metrics = TileMetrics(scale: scale)
+        let title = min(240 * scale, tileSemiboldWidth(displayTitle, size: metrics.titleFont))
+        let chips = chips(enabled: enabled)
+        let chipWidths = chips.map { tileSemiboldWidth($0, size: metrics.chipFont) + 2 * metrics.chipHorizontalPadding }
+        return metrics.icon + 2 * metrics.gap + title + chipWidths.reduce(0, +) + CGFloat(max(0, chips.count - 1)) * metrics.chipGap
+    }
+
     func chips(enabled: Bool, includeWorkspace: Bool = true) -> [String] {
         var badges = badges
         if !includeWorkspace { badges.onFocusedWorkspace = true }
-        return badges.chips(enabled: enabled) + (appCount.map { ["\($0) windows"] } ?? [])
+        return badges.chips(enabled: enabled) + (appCount.map { ["\($0) \($0 == 1 ? "window" : "windows")"] } ?? [])
     }
+}
+
+// Layouts are looked up on every pointer move, and each lookup measures every per-app bar.
+private nonisolated(unsafe) let tileSemiboldWidths = NSCache<NSString, NSNumber>()
+
+func tileSemiboldWidth(_ text: String, size: CGFloat) -> CGFloat {
+    let key = "\(size)|\(text)" as NSString
+    if let width = tileSemiboldWidths.object(forKey: key) { return CGFloat(width.doubleValue) }
+    let width = ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: .semibold)]).width)
+    tileSemiboldWidths.setObject(NSNumber(value: Double(width)), forKey: key)
+    return width
 }

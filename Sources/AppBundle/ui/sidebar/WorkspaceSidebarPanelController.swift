@@ -19,6 +19,7 @@ final class WorkspaceSidebarPanel: NSPanelHud {
     var menuTrackingDepth = 0
     var menuTrackingGraceUntil: Date = .distantPast
     var inlineTextEditingActive = false
+    var inlineTextEditingOrigin: WorkspaceSidebarInlineTextEditingOrigin?
     var inlineTextEditingLocksExpansion = true
     var inlineTextEditingCancelsOnPointerExit = true
     var inlineTextEditingCancel: (@MainActor () -> Void)?
@@ -177,7 +178,8 @@ final class WorkspaceSidebarPanel: NSPanelHud {
 
     override func keyDown(with event: NSEvent) {
         debugWorkspaceSidebarRenameLog("panel keyDown keyCode=\(event.keyCode) chars=\(event.charactersIgnoringModifiers ?? "nil") firstResponder=\(String(describing: firstResponder)) inline=\(inlineTextEditingActive)")
-        if handleInlineTextEditingKey(inlineTextKey(from: event)) {
+        // A key-down reaches the panel only while it is key, so WinMux is the active app.
+        if handleInlineTextEditingKey(Self.inlineTextKey(from: event, keepsDeleteEdits: true)) {
             return
         }
         super.keyDown(with: event)
