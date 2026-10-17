@@ -24,8 +24,7 @@ struct WindowCaptureCandidate: Sendable {
     let layer: Int
 }
 
-/// The entry's own window, unless it is a sliver of the entry's frame, such as Safari's 16-point
-/// strip. Then the one layer-0 window of the same app that matches the entry's frame within two
+/// The entry's own window, unless it is a sliver, such as Safari's 16-point strip. Then the one layer-0 window of the same app that matches the entry's frame within two
 /// points, or none. A missing id has no fallback.
 func chooseWindowToCapture(_ target: WindowCaptureTarget, from candidates: [WindowCaptureCandidate]) -> UInt32? {
     guard let own = candidates.first(where: { $0.id == target.id }) else { return nil }
@@ -39,9 +38,22 @@ func chooseWindowToCapture(_ target: WindowCaptureTarget, from candidates: [Wind
     return matches.count == 1 ? matches[0].id : nil
 }
 
+/// Under 40 points and under a quarter of the entry's frame on the same side. The entry frame is
+/// often a layout the app does not honour, so the quarter alone would catch a window that keeps a
+/// fixed size in a wide tile; no window drawn for reading is 40 points thin.
 func isSliver(_ frame: CGRect, of entryFrame: CGRect?) -> Bool {
     guard let entryFrame, entryFrame.width > 0, entryFrame.height > 0 else { return false }
-    return frame.width < entryFrame.width / 4 || frame.height < entryFrame.height / 4
+    return frame.width < min(40, entryFrame.width / 4) || frame.height < min(40, entryFrame.height / 4)
+}
+
+/// The cached list answers when it shows the entry's own window whole. A sliver is checked again on
+/// a fresh list, since cached frames go stale as windows move, and only the fresh list may choose
+/// another window. A capture limited to the cached list fails on a missing id.
+func resolveWindowToCapture(_ target: WindowCaptureTarget, cachedOwn: WindowCaptureCandidate?, cachedOnly: Bool,
+                            fresh: () async throws -> [WindowCaptureCandidate]) async rethrows -> UInt32? {
+    if let cachedOwn, !isSliver(cachedOwn.frame, of: target.entryFrame) { return cachedOwn.id }
+    if cachedOwn == nil, cachedOnly { return nil }
+    return chooseWindowToCapture(target, from: try await fresh())
 }
 
 extension Window {

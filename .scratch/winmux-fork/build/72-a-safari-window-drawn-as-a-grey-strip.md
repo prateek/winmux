@@ -29,8 +29,9 @@ Nothing.
 ## Build
 
 Capture chooses an SCWindow with a pure identity check. The entry's own window keeps its id,
-on any layer, of any owning process, and through any size difference. Only a window narrower
-or shorter than a quarter of the entry's frame is not the window the entry stands for. The
+on any layer, of any owning process, and through any size difference. Only a sliver, a window under 40 points and under a quarter of the entry's frame on
+the same side, is not the window the entry stands for. The 40-point floor keeps a window
+that holds a fixed size in a wide tile from counting as one. The
 entry's frame is its last known actual frame, or, since a move or resize clears that, the
 frame its picture is sized from. A sliver is checked again on a fresh window list, because
 cached frames go stale as windows move. On the fresh list, exactly one other layer-0 window

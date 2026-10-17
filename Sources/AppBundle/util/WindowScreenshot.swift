@@ -58,27 +58,22 @@ enum WindowScreenshot {
         return try await screenshot(SCContentFilter(desktopIndependentWindow: window), configuration)
     }
 
-    /// The cached list answers when it shows the entry's own window whole. A sliver is checked
-    /// again on a fresh list, since cached frames go stale as windows move, and only the fresh
-    /// list may choose another window.
     private static func windowToCapture(_ target: WindowCaptureTarget, cachedOnly: Bool) async throws -> SCWindow {
-        let cachedOwn = content?.windows.first { $0.windowID == target.id }
-        if let cachedOwn, !isSliver(cachedOwn.frame, of: target.entryFrame) { return cachedOwn }
-        if cachedOwn == nil, cachedOnly { throw WindowScreenshotError.windowNotFound(target.id) }
-        guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
-        await refreshWindowList()
-        guard let windows = content?.windows else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
-        guard let id = chosen(target), let window = windows.first(where: { $0.windowID == id }) else {
+        let id = try await resolveWindowToCapture(target, cachedOwn: content?.windows.first { $0.windowID == target.id }.map(candidate),
+                                                  cachedOnly: cachedOnly) {
+            guard CGPreflightScreenCaptureAccess() else { throw WindowScreenshotError.screenRecordingNotGranted }
+            await refreshWindowList()
+            guard let windows = content?.windows else { throw WindowScreenshotError.captureFailed("the window list is unavailable") }
+            return windows.map(candidate)
+        }
+        guard let id, let window = content?.windows.first(where: { $0.windowID == id }) else {
             throw WindowScreenshotError.windowNotFound(target.id)
         }
         return window
     }
 
-    private static func chosen(_ target: WindowCaptureTarget) -> UInt32? {
-        guard let windows = content?.windows else { return nil }
-        return chooseWindowToCapture(target, from: windows.map {
-            WindowCaptureCandidate(id: $0.windowID, ownerPID: $0.owningApplication?.processID, frame: $0.frame, layer: $0.windowLayer)
-        })
+    private static func candidate(_ window: SCWindow) -> WindowCaptureCandidate {
+        WindowCaptureCandidate(id: window.windowID, ownerPID: window.owningApplication?.processID, frame: window.frame, layer: window.windowLayer)
     }
 
     /// What the screen shows in `rect` with the given windows left out, at one pixel per point.
@@ -88,7 +83,8 @@ enum WindowScreenshot {
         var excluded: [SCWindow] = []
         for target in targets {
             excluded.append(try await shareableWindow(target.id))
-            if let id = chosen(target), id != target.id, let window = content?.windows.first(where: { $0.windowID == id }) {
+            if let windows = content?.windows, let id = chooseWindowToCapture(target, from: windows.map(candidate)), id != target.id,
+               let window = windows.first(where: { $0.windowID == id }) {
                 excluded.append(window)
             }
         }

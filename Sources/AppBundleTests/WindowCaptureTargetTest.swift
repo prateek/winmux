@@ -76,16 +76,60 @@ final class WindowCaptureTargetTest: XCTestCase {
         }
     }
 
-    func testSliverIsUnderAQuarterOfEitherSide() {
-        for size in [CGSize(width: page.width / 4 - 1, height: page.height), CGSize(width: page.width, height: page.height / 4 - 1)] {
+    func testSliverIsUnderFortyPointsAndAQuarterOnTheSameSide() {
+        for size in [CGSize(width: 39, height: page.height), CGSize(width: page.width, height: 39)] {
             XCTAssertEqual(choose([candidate(1, frame: CGRect(origin: page.origin, size: size)), candidate(2)]), 2)
         }
-        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 100, y: 80, width: page.width / 4, height: page.height / 4)), candidate(2)]), 1)
+        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 100, y: 80, width: 40, height: 40)), candidate(2)]), 1)
+        let small = CGRect(x: 0, y: 0, width: 100, height: 100)
+        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 0, y: 0, width: 24, height: 100)), candidate(2, frame: small)], frame: small), 2)
+        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 0, y: 0, width: 25, height: 100)), candidate(2, frame: small)], frame: small), 1)
+    }
+
+    func testWindowKeepingAFixedSizeInAWideTileIsNotASliver() {
+        let tile = CGRect(x: 0, y: 40, width: 3440, height: 1400)
+        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 0, y: 40, width: 800, height: 600))], frame: tile), 1)
+        let unknown = CGRect(x: 0, y: 0, width: 800, height: 600)
+        XCTAssertEqual(choose([candidate(1, frame: CGRect(x: 500, y: 300, width: 180, height: 60))], frame: unknown), 1, "A mini player against the default frame")
     }
 
     func testUnknownEntryFrameKeepsTheIdLookup() {
         let target = WindowCaptureTarget(id: 1, ownerPID: 42)
         XCTAssertEqual(chooseWindowToCapture(target, from: [candidate(1, frame: strip), candidate(2)]), 1)
         XCTAssertNil(chooseWindowToCapture(target, from: [candidate(2)]))
+    }
+
+    private func resolve(cachedOwn: WindowCaptureCandidate?, cachedOnly: Bool = true, fresh: [WindowCaptureCandidate]) async -> (UInt32?, Bool) {
+        var refreshed = false
+        let id = await resolveWindowToCapture(WindowCaptureTarget(id: 1, ownerPID: 42, entryFrame: page), cachedOwn: cachedOwn, cachedOnly: cachedOnly) {
+            refreshed = true
+            return fresh
+        }
+        return (id, refreshed)
+    }
+
+    func testCachedWholeOwnWindowAnswersWithoutAFreshList() async {
+        let (id, refreshed) = await resolve(cachedOwn: candidate(1), fresh: [])
+        XCTAssertEqual(id, 1)
+        XCTAssertFalse(refreshed)
+    }
+
+    func testCachedSliverIsCheckedAgainOnAFreshList() async {
+        var (id, refreshed) = await resolve(cachedOwn: candidate(1, frame: strip), fresh: [candidate(1), candidate(2)])
+        XCTAssertEqual(id, 1, "The fresh list shows the own window whole")
+        XCTAssertTrue(refreshed)
+        (id, refreshed) = await resolve(cachedOwn: candidate(1, frame: strip), fresh: [candidate(1, frame: strip), candidate(2)])
+        XCTAssertEqual(id, 2)
+        (id, refreshed) = await resolve(cachedOwn: candidate(1, frame: strip), fresh: [candidate(1, frame: strip), candidate(2, frame: page.offsetBy(dx: 300, dy: 0))])
+        XCTAssertNil(id, "Only the fresh list's frames choose another window")
+    }
+
+    func testMissingIdFailsOnTheCacheAndOtherwiseLooksOnAFreshList() async {
+        var (id, refreshed) = await resolve(cachedOwn: nil, fresh: [candidate(1)])
+        XCTAssertNil(id)
+        XCTAssertFalse(refreshed)
+        (id, refreshed) = await resolve(cachedOwn: nil, cachedOnly: false, fresh: [candidate(1)])
+        XCTAssertEqual(id, 1)
+        XCTAssertTrue(refreshed)
     }
 }
