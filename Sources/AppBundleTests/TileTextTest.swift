@@ -25,20 +25,21 @@ final class TileTextTest: XCTestCase {
         XCTAssertEqual(longName.count, 92)
         let metrics = TileMetrics(visibleSize: screen)
         let list = ListLayout(count: 3, kind: .text, visibleSize: screen)
-        for (presentation, size) in [
-            ("list", CGSize(width: list.width - 40 * metrics.scale, height: list.rowHeight)),
-            ("strip", CGSize(width: metrics.textWidth, height: metrics.textHeight)),
-        ] {
-            let image = try render(title: "A controlled window title", app: longName, kind: .text, presentation: presentation, size: size, metrics: metrics, margin: 800)
-            let bitmap = NSBitmapImageRep(cgImage: image)
+        let crowded = TileBadges(workspaceLabel: "2", onFocusedWorkspace: false, floating: true, minimized: true)
+        for (presentation, size, badges, hint) in [
+            ("list", CGSize(width: list.width - 40 * metrics.scale, height: list.rowHeight), TileBadges(workspaceLabel: nil, onFocusedWorkspace: true), nil),
+            ("strip", CGSize(width: metrics.textWidth, height: metrics.textHeight), TileBadges(workspaceLabel: nil, onFocusedWorkspace: true), nil),
+            ("crowded strip", CGSize(width: metrics.textWidth, height: metrics.textHeight), crowded, "⌥3"),
+        ] as [(String, CGSize, TileBadges, String?)] {
+            let entry = TileEntry(title: "A controlled window title", appName: longName, badges: badges)
+            let image = try render(entry: entry, kind: .text, presentation: presentation == "list" ? "list" : "strip", size: size, metrics: metrics, hint: hint, margin: 40)
+            let ink = try alphaMask(image)
             var outsideInk = 0
             var insideInk = 0
             for y in 0..<image.height {
-                for x in 0..<image.width {
-                    if try XCTUnwrap(bitmap.colorAt(x: x, y: y)).alphaComponent > 0.01 {
-                        if x < 800 || x >= 800 + Int(size.width) || y < 800 || y >= 800 + Int(size.height) { outsideInk += 1 }
-                        else { insideInk += 1 }
-                    }
+                for x in 0..<image.width where ink[y * image.width + x] {
+                    if x < 40 || x >= 40 + Int(size.width) || y < 40 || y >= 40 + Int(size.height) { outsideInk += 1 }
+                    else { insideInk += 1 }
                 }
             }
             XCTAssertGreaterThan(insideInk, 100, "The renderer must draw visible text")
@@ -51,22 +52,32 @@ final class TileTextTest: XCTestCase {
         let layout = GridLayout(entries: input, visibleSize: screen, tileSize: "real")
         let metrics = TileMetrics(scale: layout.tileScale)
         let size = try XCTUnwrap(layout.tiles.first).frame.size
+        // Identical up to their last word, so no wider bar can tell them apart by a prefix.
         let titles = [
             "prateek/winmux pull request 201: a controlled long title for the tile comparison — alpha",
-            "prateek/winmux pull request 203: a controlled long title for the tile comparison — omega",
+            "prateek/winmux pull request 201: a controlled long title for the tile comparison — omega",
         ]
         XCTAssertTrue(titles.allSatisfy { (80...95).contains($0.count) })
-        var bars: [Data] = []
+        var bars: [[Bool]] = []
         for title in titles {
-            let image = try render(title: title, app: "Demo", kind: .card, presentation: "grid", size: size, metrics: metrics)
+            let image = try render(entry: TileEntry(title: title, appName: "Demo"), kind: .card, presentation: "grid", size: size, metrics: metrics)
             let bar = try XCTUnwrap(image.cropping(to: CGRect(x: 0, y: 0, width: CGFloat(image.width), height: ceil(metrics.padding + metrics.barHeight))))
-            bars.append(try XCTUnwrap(bar.dataProvider?.data) as Data)
+            bars.append(try alphaMask(bar))
         }
-        XCTAssertNotEqual(bars[0], bars[1], "Card bars must retain the distinguishing title suffix")
+        XCTAssertTrue(bars[0] != bars[1], "Card bars must retain the distinguishing title suffix")
     }
 
-    private func render(title: String, app: String, kind: TileKind, presentation: String, size: CGSize, metrics: TileMetrics, margin: CGFloat = 0) throws -> CGImage {
-        let tile = TileView(entry: TileEntry(title: title, appName: app), kind: kind, presentation: presentation, metrics: metrics, size: size, settings: LensConfig(), selected: false, marked: false, hint: nil)
+    /// Draws the image into a fresh RGBA buffer, so a cropped image is compared by its own pixels.
+    private func alphaMask(_ image: CGImage) throws -> [Bool] {
+        let context = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 4 * image.width,
+                                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let bytes = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: 4 * image.width * image.height)
+        return (0..<image.width * image.height).map { bytes[4 * $0 + 3] > 2 }
+    }
+
+    private func render(entry: TileEntry, kind: TileKind, presentation: String, size: CGSize, metrics: TileMetrics, hint: String? = nil, margin: CGFloat = 0) throws -> CGImage {
+        let tile = TileView(entry: entry, kind: kind, presentation: presentation, metrics: metrics, size: size, settings: LensConfig(), selected: false, marked: hint != nil, hint: hint)
         let renderer = ImageRenderer(content: tile.padding(margin))
         renderer.scale = 1
         return try XCTUnwrap(renderer.cgImage)

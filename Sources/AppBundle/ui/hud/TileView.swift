@@ -89,7 +89,6 @@ struct TileView: View {
                         .font(.system(size: metrics.appFont)).foregroundStyle(theme.ink(0.62))
                         .lineLimit(1).truncationMode(.tail)
                 }
-                .frame(maxWidth: .infinity)
                 .layoutPriority(1)
             } else {
                 title.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
@@ -195,20 +194,31 @@ struct TileView: View {
 private struct TileBarTextLayout: SwiftUI.Layout {
     let gap: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let title = subviews[0].sizeThatFits(.unspecified)
-        let app = subviews[1].sizeThatFits(.unspecified)
-        return CGSize(width: proposal.width ?? title.width + gap + app.width, height: max(title.height, app.height))
+    struct Measures {
+        let title: CGSize
+        let app: CGSize
+        let appMinWidth: CGFloat
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let widths = tileBarTextWidths(available: bounds.width - gap,
-                                       titleIdeal: subviews[0].sizeThatFits(.unspecified).width,
-                                       appIdeal: subviews[1].sizeThatFits(.unspecified).width)
+    func makeCache(subviews: Subviews) -> Measures {
+        Measures(title: subviews[0].sizeThatFits(.unspecified), app: subviews[1].sizeThatFits(.unspecified),
+                 appMinWidth: subviews[1].sizeThatFits(ProposedViewSize(width: 0, height: nil)).width)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Measures) -> CGSize {
+        CGSize(width: proposal.width ?? cache.title.width + gap + cache.app.width, height: max(cache.title.height, cache.app.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Measures) {
+        let available = max(0, bounds.width - gap)
+        // Rounded up, so a title offered its own width is not cut by pixel rounding.
+        let widths = tileBarTextWidths(available: available, titleIdeal: ceil(cache.title.width), appIdeal: ceil(cache.app.width))
+        // A Text draws no narrower than its ellipsis; the title gives up the difference.
+        let app = max(widths.app, min(cache.appMinWidth, available))
         subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
-                          proposal: ProposedViewSize(width: widths.title, height: bounds.height))
-        subviews[1].place(at: CGPoint(x: bounds.maxX - widths.app, y: bounds.midY), anchor: .leading,
-                          proposal: ProposedViewSize(width: widths.app, height: bounds.height))
+                          proposal: ProposedViewSize(width: available - app, height: bounds.height))
+        subviews[1].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing,
+                          proposal: ProposedViewSize(width: app, height: bounds.height))
     }
 }
 
