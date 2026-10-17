@@ -38,12 +38,6 @@ Nothing.
 - The same guest key script reads only the control letter on the base and `÷x` on the new build, checked through both the clipboard and accessibility text. Saving the empty override over a running import-only config also reads `÷x`. Option-Shift-O opens overview on both builds. `config check` exits 0 silently, and `trigger-binding` reports the freed chord as unbound.
 - `docs/default-config.md` shows the empty-list override and the matching Lens-key recipe. `W.without-bindings` remains documented because the upgrade advice still uses record removal. Conversion comments stay unchanged.
 
-## Checks left to Prateek
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
-
 ## Sources
 
 - The audit of the default shortcuts, 2026-10-07, citing a note in Prateek's config from 2026-10-06.
