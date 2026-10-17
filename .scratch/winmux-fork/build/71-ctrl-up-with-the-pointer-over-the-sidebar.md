@@ -12,7 +12,7 @@ Confirmed against base `3877046b`: expanding the sidebar starts a session-wide s
 
 - **Reproduce first**, and find out whether other system shortcuts are lost the same way.
 - **A system shortcut works wherever the pointer is.**
-- **Modified chords pass through.** Control always passes through; Command and Option do too, except Delete, which keeps their existing delete-to-beginning and delete-word edits. Plain and Shift-only search keys retain their behavior.
+- **Modified chords pass through.** Control, Command, Option and Globe chords pass through. Command-Delete and Option-Delete stay edits in a rename and in search opened with the sidebar command, and go to the focused app under hover search. Plain and Shift-only search keys retain their behavior.
 - **Hover search keeps the working app in front.** It requests neither a key window nor activation. Command-opened search, both rename paths and sidebar clicks retain their existing activation behavior; hover exit activates nothing.
 - **Plain letters remain type-to-search.** This applies on base and head and is outside the shortcut fix.
 

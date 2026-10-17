@@ -257,8 +257,19 @@ enum WorkspaceSidebarInlineTextKey: Equatable {
 }
 
 private let workspaceSidebarInlineTextEventTapCallback: CGEventTapCallBack = { _, type, event, _ in
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        // Hover search's panel is not key, so the tap is its only way to get keys.
+        DispatchQueue.main.async {
+            if let tap = WorkspaceSidebarPanel.activeInlineTextEditingPanel?.inlineTextEditingKeyEventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+        }
+        return Unmanaged.passUnretained(event)
+    }
     guard type == .keyDown else { return Unmanaged.passUnretained(event) }
-    let key = workspaceSidebarInlineTextKey(from: event)
+    // The tap's run loop source is on the main run loop.
+    let origin = MainActor.assumeIsolated { WorkspaceSidebarPanel.activeInlineTextEditingPanel?.inlineTextEditingOrigin }
+    let key = workspaceSidebarInlineTextKey(from: event, keepsDeleteEdits: origin != .hoverSearch)
     if case .ignored = key {
         return Unmanaged.passUnretained(event)
     }
@@ -268,7 +279,7 @@ private let workspaceSidebarInlineTextEventTapCallback: CGEventTapCallBack = { _
     return nil
 }
 
-func workspaceSidebarInlineTextKey(from event: CGEvent) -> WorkspaceSidebarInlineTextKey {
+func workspaceSidebarInlineTextKey(from event: CGEvent, keepsDeleteEdits: Bool) -> WorkspaceSidebarInlineTextKey {
     var length = 0
     var chars = [UniChar](repeating: 0, count: 8)
     event.keyboardGetUnicodeString(maxStringLength: chars.count, actualStringLength: &length, unicodeString: &chars)
@@ -276,6 +287,7 @@ func workspaceSidebarInlineTextKey(from event: CGEvent) -> WorkspaceSidebarInlin
         keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
         modifiers: NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue)),
         text: String(utf16CodeUnits: chars, count: length),
+        keepsDeleteEdits: keepsDeleteEdits,
     )
 }
 
@@ -283,11 +295,13 @@ func workspaceSidebarInlineTextKey(
     keyCode: UInt16,
     modifiers: NSEvent.ModifierFlags,
     text: String?,
+    keepsDeleteEdits: Bool,
 ) -> WorkspaceSidebarInlineTextKey {
     let usesCommand = modifiers.contains(.command)
     let usesOption = modifiers.contains(.option)
-    let usesControl = modifiers.contains(.control)
-    guard !usesControl, keyCode == 51 || (!usesCommand && !usesOption) else {
+    // Hover search leaves the focused app in front, so its Cmd-Delete and Option-Delete stay the app's.
+    let isDeleteEdit = keyCode == 51 && keepsDeleteEdits
+    guard !modifiers.contains(.control), isDeleteEdit || (!usesCommand && !usesOption) else {
         return .ignored
     }
     switch keyCode {
@@ -313,7 +327,9 @@ func workspaceSidebarInlineTextKey(
             break
     }
 
-    guard let text,
+    // Globe-letter chords are the system's; arrow and function keys carry the flag too.
+    guard !modifiers.contains(.function),
+          let text,
           !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
     else {
         return .ignored
@@ -335,8 +351,13 @@ enum WorkspaceSidebarInlineTextEditingOrigin {
 }
 
 extension WorkspaceSidebarPanel {
-    nonisolated static func inlineTextKey(from event: NSEvent) -> WorkspaceSidebarInlineTextKey {
-        workspaceSidebarInlineTextKey(keyCode: event.keyCode, modifiers: event.modifierFlags, text: event.characters)
+    nonisolated static func inlineTextKey(from event: NSEvent, keepsDeleteEdits: Bool) -> WorkspaceSidebarInlineTextKey {
+        workspaceSidebarInlineTextKey(
+            keyCode: event.keyCode,
+            modifiers: event.modifierFlags,
+            text: event.characters,
+            keepsDeleteEdits: keepsDeleteEdits,
+        )
     }
 
     func beginInlineTextEditing(
@@ -348,6 +369,7 @@ extension WorkspaceSidebarPanel {
     ) {
         debugWorkspaceSidebarRenameLog("beginInlineTextEditing isKeyBefore=\(isKeyWindow) firstResponder=\(String(describing: firstResponder)) mouseInside=\(isMouseInsideVisibleRegion())")
         inlineTextEditingActive = true
+        inlineTextEditingOrigin = origin
         inlineTextEditingLocksExpansion = locksExpansion
         inlineTextEditingCancelsOnPointerExit = cancelsOnPointerExit
         WorkspaceSidebarPanel.activeInlineTextEditingPanel = self
@@ -364,6 +386,7 @@ extension WorkspaceSidebarPanel {
         guard inlineTextEditingActive else { return }
         debugWorkspaceSidebarRenameLog("endInlineTextEditing isKey=\(isKeyWindow) firstResponder=\(String(describing: firstResponder))")
         inlineTextEditingActive = false
+        inlineTextEditingOrigin = nil
         inlineTextEditingLocksExpansion = true
         inlineTextEditingCancelsOnPointerExit = true
         if WorkspaceSidebarPanel.activeInlineTextEditingPanel === self {

@@ -32,10 +32,28 @@ final class WorkspaceSidebarInlineTextTest: XCTestCase {
         check(53, .ignored, modifiers: .option)
     }
 
+    func testHoverSearchLeavesModifiedDeleteToTheFocusedApp() {
+        check(51, .ignored, modifiers: .command, keepsDeleteEdits: false)
+        check(51, .ignored, modifiers: .option, keepsDeleteEdits: false)
+        check(51, .ignored, modifiers: [.command, .shift], keepsDeleteEdits: false)
+        check(51, .deleteBackward, keepsDeleteEdits: false)
+        check(51, .deleteBackward, modifiers: .shift, keepsDeleteEdits: false)
+    }
+
+    func testGlobeLettersAndFunctionKeyGlyphsAreNotSearchText() {
+        check(14, .ignored, modifiers: .function, text: "e")
+        check(3, .ignored, modifiers: .function, text: "f")
+        check(123, .ignored, modifiers: .function, text: "\u{F702}")
+        check(124, .ignored, modifiers: .function, text: "\u{F703}")
+        check(122, .ignored, modifiers: .function, text: "\u{F704}")
+        check(126, .moveUp, modifiers: .function, text: "\u{F700}")
+        check(117, .deleteForward, modifiers: .function, text: "\u{F728}")
+    }
+
     func testControlUpThroughCGEventEntryPoint() throws {
         let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 126, keyDown: true))
         event.flags = .maskControl
-        XCTAssertEqual(workspaceSidebarInlineTextKey(from: event), .ignored)
+        XCTAssertEqual(workspaceSidebarInlineTextKey(from: event, keepsDeleteEdits: true), .ignored)
     }
 
     func testControlUpThroughNSEventEntryPoint() throws {
@@ -44,7 +62,7 @@ final class WorkspaceSidebarInlineTextTest: XCTestCase {
             windowNumber: 0, context: nil, characters: "\u{F700}",
             charactersIgnoringModifiers: "\u{F700}", isARepeat: false, keyCode: 126,
         ))
-        XCTAssertEqual(WorkspaceSidebarPanel.inlineTextKey(from: event), .ignored)
+        XCTAssertEqual(WorkspaceSidebarPanel.inlineTextKey(from: event, keepsDeleteEdits: true), .ignored)
     }
 
     func testRenameAndCommandSearchStillOrderMakeKeyAndActivate() {
@@ -72,12 +90,13 @@ final class WorkspaceSidebarInlineTextTest: XCTestCase {
         _ expected: WorkspaceSidebarInlineTextKey,
         modifiers: NSEvent.ModifierFlags = [],
         text: String? = nil,
+        keepsDeleteEdits: Bool = true,
         file: StaticString = #filePath,
         line: UInt = #line,
     ) {
         XCTAssertEqual(
-            workspaceSidebarInlineTextKey(keyCode: code, modifiers: modifiers, text: text), expected,
-            "keyCode=\(code), modifiers=\(modifiers.rawValue)", file: file, line: line,
+            workspaceSidebarInlineTextKey(keyCode: code, modifiers: modifiers, text: text, keepsDeleteEdits: keepsDeleteEdits), expected,
+            "keyCode=\(code), modifiers=\(modifiers.rawValue), keepsDeleteEdits=\(keepsDeleteEdits)", file: file, line: line,
         )
     }
 }
