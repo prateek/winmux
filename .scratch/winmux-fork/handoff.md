@@ -4,7 +4,7 @@ The fork foundation is built on top of upstream `v0.5.6`: the deployment target,
 
 ## Start here
 
-- **Done, with checks left:** **Long names and titles in a Tile** keeps long app names inside list and text-strip Tiles and truncates titles in the middle in every Tile bar. Width-allocation and ImageRenderer regressions fail when their fixes are independently undone; host and pinned-version guest checks pass. Identical base/head guest runs check three-window list/strip containment, unchanged short app names, fourteen-card suffixes and visible Search highlights. Installed-build behavior, a physical second display and real sleep/wake/unlock remain Prateek's; the builder publishes no release. Fixtures are in `.scratch/winmux-fork/proofs/tile-text/`.
+- **Done:** **Long names and titles in a Tile** keeps long app names inside list and text-strip Tiles and truncates titles in the middle in every Tile bar. Width-allocation and ImageRenderer regressions fail when their fixes are independently undone; host and pinned-version guest checks pass. Identical base/head guest runs check three-window list/strip containment, unchanged short app names, fourteen-card suffixes and visible Search highlights. Fixtures are in `.scratch/winmux-fork/proofs/tile-text/`.
 
 - **Done:** **`sections` and `--sections` refuse a bad value with the same exit code**: every `sections` parse failure exits 2, like the other Lens commands, and a bad grouping prints `Possible sections values: <accepted values>` from both. `parseFailureExitCode` in Common decides the CLI's parse-failure exit code and is tested per command.
 

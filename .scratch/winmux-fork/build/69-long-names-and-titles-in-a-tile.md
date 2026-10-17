@@ -57,13 +57,7 @@ three owned windows in list and text strip, fourteen in the card grid, and fourt
 title matches for Search `pr`. The long app name stays bounded, short app names
 remain whole, card suffixes distinguish the windows and the retained title fragments
 keep their highlights. The reproducible fixtures are in
-`.scratch/winmux-fork/proofs/tile-text/`. The builder publishes no release.
-
-## Checks for Prateek
-
-- [ ] Check the installed build.
-- [ ] Check a physical second display.
-- [ ] Check real sleep, wake and unlock.
+`.scratch/winmux-fork/proofs/tile-text/`.
 
 ## Sources
 
