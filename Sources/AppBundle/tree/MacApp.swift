@@ -239,9 +239,10 @@ final class MacApp: AbstractApp {
         }
     }
 
-    /// The one frame write left once `windowFramesForTermination` is frozen. The app thread runs
-    /// jobs in order, so a write queued before the freeze lands before this one.
+    /// The one frame write left once `windowFramesForTermination` is frozen. It drops this window's
+    /// queued job, which it supersedes; other windows' jobs, queued before the freeze, still run.
     func restoreFrameOnQuit(_ windowId: UInt32, _ frame: Rect) async throws {
+        setFrameJobs.removeValue(forKey: windowId)?.cancel()
         let wrote: Bool? = try await withWindow(windowId) { [axApp] window, job in
             try disableAnimations(app: axApp.threadGuarded, job) {
                 try writeQuitFrame(frame) { attribute, value in
