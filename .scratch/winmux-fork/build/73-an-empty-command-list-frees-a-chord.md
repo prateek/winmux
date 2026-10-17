@@ -4,9 +4,9 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-A config that imports the defaults and wants one chord back writes it with an empty command list. Prateek's own config notes say the chord stays registered: WinMux still takes the key in every app and runs nothing, and the only way to free it is to rebuild the binding record without that chord. `docs/default-config.md` documents that recipe with `std.record.remove`; his config needed three nested record updates to do it.
+A config that imports the defaults and wants one chord back writes it with an empty command list. Before this change, the chord stayed registered: WinMux took the key in every app and ran nothing, and the only way to free it was to rebuild the binding record without that chord. `docs/default-config.md` documented record removal; the reported config needed three nested record updates to do it.
 
-This was reported, not reproduced. If it holds, overriding a default is harder than it should be, and a key goes dead with no sign of why.
+Reproduced on the base build: overriding `alt-slash` with `[]` consumed Option-/ in TextEdit and typed only the control letter. Empty chord and sequence command lists are now omitted when parsing a mode, so their keys reach the focused app. Seen chords are tracked separately so an empty binding still participates in redeclaration checks. Empty modifier-tap bindings remain present.
 
 ## Decisions
 
@@ -28,9 +28,21 @@ Nothing.
 
 ## Done when
 
-- [ ] A test that fails before the change: a binding with an empty command list is absent from the registered hotkeys.
-- [ ] In a guest, a default chord overridden with an empty list types its character in a text field.
-- [ ] The docs show the one-line override.
+- [x] A test that fails before the change: a binding with an empty command list is absent from the registered hotkeys.
+- [x] In a guest, a default chord overridden with an empty list types its character in a text field.
+- [x] The docs show the one-line override.
+
+## Build checks
+
+- Host and pinned-version guest `make check` pass: 1,444 Swift tests, 89 Rust/helper tests and 142 Python tests, with no skipped Swift tests. Removing the empty-list filter fails registration, sequence-consumption, parser and command-consumer regressions. Restoring the old duplicate check fails the empty-redeclaration regression. Removing array-command support fails the helper override regression; the Nickel contract is unchanged.
+- The same guest key script reads only the control letter on the base and `÷x` on the new build, checked through both the clipboard and accessibility text. Saving the empty override over a running import-only config also reads `÷x`. Option-Shift-O opens overview on both builds. `config check` exits 0 silently, and `trigger-binding` reports the freed chord as unbound.
+- `docs/default-config.md` shows the empty-list override and the matching Lens-key recipe. `W.without-bindings` remains documented because the upgrade advice still uses record removal. Conversion comments stay unchanged.
+
+## Checks left to Prateek
+
+- [ ] Installed-build behavior.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
