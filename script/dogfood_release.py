@@ -105,26 +105,44 @@ def verify_tree(repo, head_sha):
         raise ReleaseError('working tree changed during the release; commit or stash first')
 
 
+class Cancellation:
+    """The first SIGTERM, SIGINT or SIGHUP cancels the release. Later ones are recorded and dropped, so none can
+    interrupt the cleanup of a cancelled build or replace the first one's exit code."""
+
+    SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+    def __init__(self):
+        self.received = []
+        self.held = False
+
+    def install(self):
+        for signum in self.SIGNALS:
+            signal.signal(signum, self.handle)
+
+    def handle(self, signum, frame):
+        self.received.append(signum)
+        if len(self.received) == 1 and not self.held:
+            raise SystemExit(128 + signum)
+
+
+CANCELLATION = Cancellation()
+
+
 def build_release(repo, version, dry_run, head_sha):
     command = ['bash', str(repo / 'script/dogfood-release-build'), version]
     if dry_run:
         command.append('--dry-run')
-    handled = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
-    original = {signum: signal.getsignal(signum) for signum in handled}
-    deferred = []
     process = None
-    def defer(signum, frame):
-        deferred.append(signum)
-        if len(deferred) == 1 and process is not None:
-            raise SystemExit(128 + signum)
     try:
         # Cancellation must not orphan a worker before Popen returns its handle.
-        for signum in handled:
-            signal.signal(signum, defer)
-        process = subprocess.Popen(command, cwd=repo, start_new_session=True,
-                                   env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
-        if deferred:
-            raise SystemExit(128 + deferred[0])
+        CANCELLATION.held = True
+        try:
+            process = subprocess.Popen(command, cwd=repo, start_new_session=True,
+                                       env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
+        finally:
+            CANCELLATION.held = False
+        if CANCELLATION.received:
+            raise SystemExit(128 + CANCELLATION.received[0])
         status = process.wait()
     except BaseException:
         if process is not None:
@@ -143,9 +161,6 @@ def build_release(repo, version, dry_run, head_sha):
                 pass
             process.wait()
         raise
-    finally:
-        for signum, handler in original.items():
-            signal.signal(signum, handler)
     if status:
         raise ReleaseError(f'build/publish worker exited {status}')
 
@@ -226,10 +241,7 @@ def run(args, repo, tags=None, build=None, lock_path=None, log=log):
 
 
 def main():
-    def interrupted(signum, frame):
-        raise SystemExit(128 + signum)
-    for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(signum, interrupted)
+    CANCELLATION.install()
     try:
         return run(sys.argv[1:], Path(__file__).resolve().parent.parent)
     except ReleaseError as error:
