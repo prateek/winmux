@@ -93,8 +93,8 @@ Titles in card bars, text Tiles and list rows truncate in the middle, keeping th
 start and end. In text Tiles and list rows, the app name truncates at its tail
 before the title gives way. A long app name keeps at least one third of the
 space shared by those two labels; a short app name keeps its natural width.
-Icons, chips and hints take their space first. Presentation footers still show
-the whole title.
+Icons, chips and hints take their space first. Presentation footers keep their
+existing layout.
 
 The shipped `recent` Lens uses `tile = 'picture` and
 `grid.tile-size = 'same-height`: pictures share a row height and the selected title stays

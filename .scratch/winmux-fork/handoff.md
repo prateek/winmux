@@ -1,8 +1,10 @@
 # Handoff: building the WinMux fork foundation
 
-The fork foundation is built on top of upstream `v0.5.6`: the deployment target, Nickel config, dogfood release, Filter contract, Global MRU, config hot reload, Lenses, thumbnail cache, miniatures, Accessory defaults, shared Tiles, strip and cmd-tab ownership, fixed Columns and Column Policy hooks are implemented. The shipped defaults now provide all six Lenses, their Triggers and the `window` binding mode, with Columns off; subscriptions include config, Lens and Column events. `0.5.6-dogfood.1` is published. Every child of the foundation umbrella issue is built; the installed/release and physical-device checks below remain Prateek's. Releases now follow every land to `fork`. Last updated 2026-10-16.
+The fork foundation is built on top of upstream `v0.5.6`: the deployment target, Nickel config, dogfood release, Filter contract, Global MRU, config hot reload, Lenses, thumbnail cache, miniatures, Accessory defaults, shared Tiles, strip and cmd-tab ownership, fixed Columns and Column Policy hooks are implemented. The shipped defaults now provide all six Lenses, their Triggers and the `window` binding mode, with Columns off; subscriptions include config, Lens and Column events. `0.5.6-dogfood.1` is published. Every child of the foundation umbrella issue is built; the installed/release and physical-device checks below remain Prateek's. Releases now follow every land to `fork`. Last updated 2026-10-17.
 
 ## Start here
+
+- **Done, with checks left:** **Long names and titles in a Tile** keeps long app names inside list and text-strip Tiles and truncates titles in the middle in every Tile bar. Width-allocation and ImageRenderer regressions fail when their fixes are independently undone; host and pinned-version guest checks pass. Identical base/head guest runs check three-window list/strip containment, unchanged short app names, fourteen-card suffixes and visible Search highlights. Installed-build behavior, a physical second display and real sleep/wake/unlock remain Prateek's; the builder publishes no release. Fixtures are in `.scratch/winmux-fork/proofs/tile-text/`.
 
 - **Done:** **`sections` and `--sections` refuse a bad value with the same exit code**: every `sections` parse failure exits 2, like the other Lens commands, and a bad grouping prints `Possible sections values: <accepted values>` from both. `parseFailureExitCode` in Common decides the CLI's parse-failure exit code and is tested per command.
 
@@ -246,6 +248,10 @@ Tabs, trackpad gestures, Display profiles and proactive registration of Accessor
   title, app name, observable picture, aspect, separate badges, Frozen/Accessory flags and app count.
   Items build it once per opening from the capture-frame helper and shared workspace snapshot;
   `SwitcherPaletteView`, `StripView` and `MiniaturesView` keep layout, routing and their footers.
+  `TileBarTextLayout` measures the actual attributed Texts and calls `tileBarTextWidths`:
+  the app name yields first down to one third of the shared label space, while a short name
+  keeps its natural width. App names truncate at the tail; bar titles truncate in the middle.
+  Chips and hints retain their fixed widths. Footer and peek-label drawing is unchanged.
 - `MiniatureSession` extends `LensSession`; `MiniatureLayout` is pure scale, grid, page and
   navigation geometry. Both fit values choose the column count that makes workspaces widest,
   with fewer rows on ties. The title/workspace/tray rows are centred below Search; page mode
