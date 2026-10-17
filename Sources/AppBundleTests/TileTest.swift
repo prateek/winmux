@@ -154,7 +154,7 @@ final class TileSnapshotTest: XCTestCase {
         }
         let session = LensSession(name: "pictures", settings: settings, items: items, search: "")
         var requested: [UInt32] = []
-        session.refreshListThumbnails(lens: 10) { window, token in
+        session.refreshListThumbnails(lens: 10) { window, token, _ in
             XCTAssertEqual(token, 10)
             requested.append(window.windowId)
         }

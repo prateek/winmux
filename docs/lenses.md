@@ -723,10 +723,17 @@ the group's smaller side. Every tab has a selectable edge and uses its cached pi
 icon. Standalone windows, floating windows and tray entries keep their existing positions. The fan is drawn from the active tab's frame, below the group's tab bar, and fans only the tabs the Lens draws.
 
 Each window keeps its last good thumbnail. Parking, focus loss and minimize request a capture,
-with an 800 ms per-window throttle and at most two captures in flight. Hidden apps retain their
+with an 800 ms per-window throttle. Minimize bypasses it, and so does a departure that would enlarge a
+picture a Lens left smaller. Closing a Lens takes such pictures back up to the 582.4-point width.
+At most two captures run at once. Hidden apps retain their
 last frame; a window with no frame shows its app icon. Inactive native-fullscreen windows use the
 same fallback. Opening draws the cache immediately; current-workspace windows on the visible
-page refresh every 500 ms. Closing cancels queued Lens refreshes. Capture needs an existing Screen
+page refresh every 500 ms. Grid and strip refresh every live Tile; picture lists refresh visible rows.
+Each Presentation requests its fitted picture size in pixels; the grid and the strip add the 4.5% enlargement of the selected Tile.
+The cache captures at the largest demand from an open Lens, capped at the window's own pixel size.
+A small saved picture stays visible while its larger replacement gets priority over ordinary Lens refreshes.
+Parking, focus loss and minimize never capture below the 582.4-point width, even while a small Lens is open. Frozen pictures cannot be retaken.
+Closing cancels queued Lens refreshes and removes that Lens's size demands. Capture needs an existing Screen
 Recording grant; background capture does not request one.
 
 ```nickel

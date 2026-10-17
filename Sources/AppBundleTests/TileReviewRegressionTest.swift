@@ -165,7 +165,7 @@ final class TileReviewRegressionTest: SerialClockTestCase {
         session.miniatureSize = CGSize(width: 1920, height: 1080)
         session.send(.selectionChanged(20))
         var requests: [UInt32] = []
-        let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { _ in }, flags: { [] })
+        let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { window, _, _ in requests.append(window.windowId) }, closeThumbnails: { _ in }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         owner.complete(session, ticket: owner.begin("pictures", toggle: false)!)
         await clock.advance()

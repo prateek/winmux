@@ -38,7 +38,7 @@ final class LensHintsTest: XCTestCase {
         for presentation in ["list", "grid", "miniatures"] {
             for liveFlags: NSEvent.ModifierFlags in [[], .option] {
                 let model = session(presentation)
-                let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { liveFlags })
+                let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { liveFlags })
                 let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
                 defer { owner.dismiss() }
                 let gesture = StripGesture(keyCode: nil, invoking: .option)
@@ -57,7 +57,7 @@ final class LensHintsTest: XCTestCase {
     func testLiveFlagsWinOverAHoldReleaseRecordedWhileOpening() {
         for presentation in ["list", "grid", "miniatures"] {
             let model = session(presentation)
-            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { .option })
+            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { .option })
             let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
             defer { owner.dismiss() }
             let ticket = owner.begin("test", toggle: false, invocation: StripGesture(keyCode: 48, invoking: .command))!
@@ -216,7 +216,7 @@ final class LensHintsTest: XCTestCase {
     func testReadinessSamplesPhysicalModifiersInEveryPresentation() {
         for presentation in ["strip", "list", "grid", "miniatures"] {
             let model = session(presentation)
-            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { [.command, .option] })
+            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { [.command, .option] })
             let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
             defer { owner.dismiss() }
             let gesture = StripGesture(keyCode: 48, invoking: .command)

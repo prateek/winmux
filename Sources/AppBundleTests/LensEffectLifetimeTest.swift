@@ -84,7 +84,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
             var requests = 0
             var closed = 0
             let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([true]) },
-                requestThumbnail: { _, _ in requests += 1 }, closeThumbnails: { _ in closed += 1 }, flags: { .command })
+                requestThumbnail: { _, _, _ in requests += 1 }, closeThumbnails: { _ in closed += 1 }, flags: { .command })
             let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { events.append($0) }, show: { _ in }, hide: {})
             var instructions: [LensLifecycle.ShowInstruction] = []
             owner.finishShow = { _, instruction in instructions.append(instruction) }
@@ -113,7 +113,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var finishes: [CheckedContinuation<Result<[Bool], NickelFailure>, Never>] = []
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in
             await withCheckedContinuation { finishes.append($0); started.send() }
-        }, requestThumbnail: { _, _ in XCTFail("List must not poll") }, closeThumbnails: { _ in }, flags: { [] })
+        }, requestThumbnail: { _, _, _ in XCTFail("List must not poll") }, closeThumbnails: { _ in }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         let first = model("old", presentation: "list", search: "= true")
         owner.complete(first, ticket: owner.begin("old", toggle: false)!)
@@ -150,7 +150,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var events: [ServerEvent] = []
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in
             await withCheckedContinuation { finish = $0; reached.send() }
-        }, requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { [] })
+        }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { [] })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { events.append($0) }, show: { _ in }, hide: {})
         let session = model("overview", presentation: "miniatures", search: "= true")
         owner.complete(session, ticket: owner.begin("overview", toggle: false)!, ids: [1])
@@ -191,7 +191,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         let clock = TestClock()
         var flags: NSEvent.ModifierFlags = .command
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
-            requestThumbnail: { _, _ in }, closeThumbnails: { _ in }, flags: { flags })
+            requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { flags })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         var settings = LensConfig(); settings.presentation = "strip"; settings.keys["alt-enter"] = ["summon"]
         let session = LensSession(name: "recent", settings: settings, items: [], search: "")
@@ -214,7 +214,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var requests: [UInt32] = []
         var closed: [Int] = []
         let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
-            requestThumbnail: { window, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { .command })
+            requestThumbnail: { window, _, _ in requests.append(window.windowId) }, closeThumbnails: { closed.append($0) }, flags: { .command })
         let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
         owner.complete(model("old", presentation: "miniatures"), ticket: owner.begin("old", toggle: false)!)
         owner.session?.miniatureWorkspaces = [MiniatureWorkspace(name: "1", title: "Demo", source: CGRect(x: 0, y: 0, width: 1000, height: 700), current: true)]

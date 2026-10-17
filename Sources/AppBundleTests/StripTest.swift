@@ -104,7 +104,7 @@ final class StripSessionTest: SerialClockTestCase {
         }
         let session = LensSession(name: "recent", settings: settings, items: items, search: "")
         var requests: [UInt32] = []
-        session.refreshThumbnails(lens: 1) { window, _ in requests.append(window.windowId) }
+        session.refreshThumbnails(lens: 1) { window, _, _ in requests.append(window.windowId) }
         XCTAssertEqual(requests, Array(1...13).map(UInt32.init))
     }
 

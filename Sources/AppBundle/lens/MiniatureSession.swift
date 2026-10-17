@@ -141,11 +141,12 @@ extension LensSession {
         if let entry = results.first(where: { names.contains($0.miniature?.workspace ?? "") }) { hover(entry.id) }
     }
 
-    func refreshVisibleThumbnails(lens: Int, request: (Window, Int) -> Void) {
+    func refreshVisibleThumbnails(lens: Int, request: (Window, Int, CGSize) -> Void) {
         let names = Set(miniatureLayout.cells(on: miniaturePage).map(\.workspace))
+        let frames = miniatureFrames
         for item in items {
             guard let entry = item.miniature, !entry.frozen, names.contains(entry.workspace) else { continue }
-            request(entry.window, lens)
+            if let frame = frames[item.id] { request(entry.window, lens, thumbnailDemand(frame.size, lifted: false)) }
         }
     }
 }
