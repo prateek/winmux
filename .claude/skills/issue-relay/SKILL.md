@@ -22,7 +22,7 @@ The steps say what you do and when it is done. [reference.md](reference.md) hold
 
 ## 1. Orient
 
-Read the brief named in your prompt, `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, and the `vm` and `demo` skills end to end. Check that the relay can finish: the installed `ho` skill (`~/.agents/plugins/plugins/utils-agent/skills/ho/SKILL.md`) has no `disable-model-invocation` line, or step 11 cannot run, and `tart list` shows `winmux-golden`.
+Read the brief named in your prompt, `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, and the `vm` and `demo` skills end to end. The brief's **For the next pull request** section, when it has one, lists rules the last driver learned too late for its own pull request: they go into yours at step 6. Check that the relay can finish: the installed `ho` skill (`~/.agents/plugins/plugins/utils-agent/skills/ho/SKILL.md`) has no `disable-model-invocation` line, or step 11 cannot run, and `tart list` shows `winmux-golden`.
 
 Done when you can name the umbrella, and the issue the brief points to or that it points to none, `ho` is invocable, and the golden image exists.
 
@@ -78,7 +78,7 @@ Done when the draft pull request is open with its description, and `Build and te
 
 Run `/code-review high <pull request number> --max-findings all`, telling it the pull request is on `prateek/winmux` and what the change claims, so it compares paths with the base; for a second run give it the commit range and what those commits claim to fix. It runs for about ten minutes in the background. Pass `--max-findings all` on every run: without it a run reports at most ten findings, so a run that returned ten had hit its cap, not the bottom, and the last choice sticks for every `/code-review` on the machine until one runs with `--max-findings default`. Keep `all` a word of its own: `--max-findings all.` with a full stop is not a valid value, the run says it ignored the flag on its first line, and the cap of ten applies. Read that line before trusting the count. Tell it also to read the pull request with `gh pr diff` and `git show`, and not to check it out: a run on #212 left the driver's checkout detached at the pull request's head, under every session reading `$SKILL` there. After each run, `git status -sb` in your checkout should still name your branch.
 
-Verify each finding against the code, and check a finding's precondition in the code before declining it as rare. Fix the ones that hold, each with a test seen to fail without its fix where a test can show it, and record each declined finding with its reason in the description. Push the fixes in one push with every change they imply in the draft, the handoff and the skills: each commit after a green run costs a CI run and, under the gate, a guest check. Then wait for CI.
+Verify each finding against the code, and check a finding's precondition in the code before declining it as rare. Fix the ones that hold, each with a test seen to fail without its fix where a test can show it, and record each declined finding with its reason in the description. Before the push, classify every Done-when item as step 7 says, so you know which are left to Prateek. Then push the fixes in one push with everything else the pull request carries as of now: the changes they imply in the draft and the handoff, any relay note for this skill or the `vm` and `demo` skills, the rules the brief carried under **For the next pull request**, and the `49-prateeks-checks.md` line for each item left to Prateek, as [Items for Prateek](#items-for-prateek) says. Every push carries all of that as of its moment, since you cannot know which push is the last: each commit after a green run costs a CI run and, under the gate, a guest check. Then wait for CI.
 
 A third round that finds as much as the first says the rulings are wrong somewhere, not that the fixes are: reread them against the findings, and put what remains into step 7's pass.
 
@@ -103,7 +103,7 @@ Done when nothing is pending. Anything still pending after this pass and your ow
 The demos are filmed once, from the commit that will merge, so they show the fixes too. Finish the review's fixes before the storyboard goes out: the demos are then the fixes' live check, and a fix after filming costs a fresh guest, a `make check` and a whole filming.
 
 1. Write `$STATE/storyboard.md` yourself, as the `demo` skill's step 1 says: you have read the issue, the diff and the review, and the storyboard is where you decide what a reviewer needs to see.
-2. Fill **Every pass** and **Demo pass** into `$STATE/demo.prompt.md`, naming each thing no live run has seen since the builder's last one. Launch it with `demo` names as [Launching a builder pass](reference.md#launching-a-builder-pass) says.
+2. Fill **Every pass** and **Demo pass** into `$STATE/demo.prompt.md`, naming each thing no live run has seen since the builder's last one. The storyboard, `demos.md` and the captures live in `$STATE`, not on the branch, so filming adds no commit. Launch it with `demo` names as [Launching a builder pass](reference.md#launching-a-builder-pass) says.
 3. Check every demo the builder made as the `demo` skill's step 5 says, and each take's reported ending against its **Watch**.
    - A take that misses its **Watch** because of the filming is filmed again: launch the demo pass once more, with the list.
    - A take that shows the change is wrong is a finding. Fix it as step 6 says, then film every demo again from the new head. If the second filming still shows it wrong, that is a stop.
@@ -119,12 +119,14 @@ Done when the description has the demos under their captions with the Done-when 
 The **merge gate** holds when all of these do:
 
 - `Build and test` is green on the head.
-- The head contains the tip of `fork/fork`: `git merge-base --is-ancestor fork/fork HEAD` after a fetch. Otherwise merge `fork/fork` in, push and wait for CI.
+- The head contains the tip of `fork/fork`: `git merge-base --is-ancestor fork/fork HEAD` after a fetch. Otherwise merge `fork/fork` in, push and wait for CI; that push carries the merge and nothing else.
 - `make check` passed in the guest on the head itself. A **docs-only** commit, one that changes only Markdown files or `.scratch/`, leaves the result as it was, and the description says so. Run it again after any other commit; it takes a few minutes.
 - Every finding is fixed or declined with a reason.
 - The description has the demos or says there is nothing to show, and the demos show the head. When a commit lands after filming, film again, unless the commit cannot change what a demo shows; then the description names the filmed commit, the commits since and why no demo changes.
 - Every Done-when item is met or left to Prateek, as step 7 says.
 - When your harness gives you a reviewer or advisor tool that you would consult before merging and it is unavailable, a second model checks the gate against this list through the `utils-agent:acpx` skill before you merge, and the description says so.
+
+The **last push** is the one the gate's green run is on. After it the branch changes only for a finding, a demo that shows the change wrong, or the `fork/fork` merge above; a docs change learned later goes where [Items for Prateek](#items-for-prateek) and step 11 say, never into a commit of its own.
 
 When the gate holds, `gh pr ready <pull request number> -R prateek/winmux`, and squash-merge as `AGENTS.md` step 7 says: `gh pr merge <pr> -R prateek/winmux --squash --match-head-commit <sha> --body-file <file>`. Pass no `--subject`, so the subject stays `<title> (#<pr>)`, and no `--delete-branch`. The body ends with the closing line [The pull request description](#the-pull-request-description) names and the `Co-Authored-By` line. Prateek authorised merging under this gate; it replaces his per-merge go-ahead for the relay only.
 
@@ -143,7 +145,7 @@ Done when the issue is closed, its body matches its draft, the release is record
 
 Run `/ho --here Continue the issue relay; Run the issue-relay skill.` The brief names the umbrella, the next issue, what this issue left for the next one to build on, and the release version cut (or that it was skipped or failed, with the reason). It links #84 and lists nothing from it: no "for Prateek to look at", and no "still open from earlier briefs".
 
-A brief carries what is true of this handoff. What is true of the relay goes into this skill, the builder briefs, or the `vm` and `demo` skills, in the issue's pull request or a docs pull request merged under the gate, so the next driver reads it in step 1 and nobody copies it forward. Before writing "things that will bite", move each one that will still be true in five issues to the file it belongs in.
+A brief carries what is true of this handoff. What is true of the relay goes into this skill, the builder briefs, or the `vm` and `demo` skills, in the issue's pull request by its last push, so the next driver reads it in step 1 and nobody copies it forward. A rule learned after the last push is the one exception: the brief names it under **For the next pull request**, with the file it belongs in, and the next driver puts it in its own pull request by that one's last push. Before writing "things that will bite", move each one that will still be true in five issues to the file it belongs in.
 
 Done when `ho` has started the next driver.
 
@@ -168,9 +170,9 @@ The squash body ends with the same closing line. GitHub reads "close", "fix" or 
 Everything you would have written under "for Prateek to look at" ends in one of four places. None of them is the brief.
 
 - **A decision the relay made.** A question no issue settles does not stop the relay: take the recommended answer and list it in the description under **Decisions the relay made** so Prateek can reverse it. A new or vendored dependency is listed there with its tradeoff. A decision listed there is final unless he says otherwise, and no brief repeats it. When you expect him to reverse one, or it sets a rule a later issue builds on, it is also a question.
-- **A defect**, found on the way or declined in review as real and out of scope, becomes a build issue. Write its draft in `.scratch/winmux-fork/build/` in the house form, create the issue from the rendered draft as [Issue bodies](reference.md#issue-bodies) says, link it as a sub-issue of the build umbrella and add it to the umbrella's child list and draft. A defect you know of before the merge has its draft in the issue's own pull request. One found at Land goes in a docs pull request of its own, merged when CI is green on a head that contains `fork/fork`; the rest of the gate has nothing to check in it. This covers defects only: an issue that adds or changes behaviour Prateek has not asked for is a question.
+- **A defect**, found on the way or declined in review as real and out of scope, becomes a build issue. Write its draft in `.scratch/winmux-fork/build/` in the house form, create the issue from the rendered draft as [Issue bodies](reference.md#issue-bodies) says, link it as a sub-issue of the build umbrella and add it to the umbrella's child list and draft. A defect you know of by the last push has its draft in the issue's own pull request. One found after it goes in a docs pull request of its own at Land, merged when CI is green on a head that contains `fork/fork`; the rest of the gate has nothing to check in it. This covers defects only: an issue that adds or changes behaviour Prateek has not asked for is a question.
 - **A question** becomes a child of #84: the context, the choices, your recommendation, and the issue that builds on the answer. Label that issue `blocked on Prateek` when the answer could change it.
-- **A check** only Prateek can make becomes a line in **Prateek's checks on an installed build and real hardware** (#85), under the issue's title, with the exact steps and what a pass looks like. Its draft is `49-prateeks-checks.md`; change the draft and the body together.
+- **A check** only Prateek can make becomes a line in **Prateek's checks on an installed build and real hardware** (#85), under the issue's title, with the exact steps and what a pass looks like. Its draft is `49-prateeks-checks.md`: the line goes into the issue's pull request with step 6's push, once step 7's classification names the item, and the same line goes into #85's live body at Land. A check found after the last push still goes into #85's body at Land, so nothing for Prateek waits on it; its draft line goes to the next driver under the brief's **For the next pull request**.
 
 ## Stops
 
