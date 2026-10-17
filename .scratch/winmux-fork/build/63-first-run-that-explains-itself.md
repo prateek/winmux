@@ -15,7 +15,7 @@ This issue is the note to fix that as one experience, once the pieces it leans o
 
 ## Decisions
 
-None yet. Prateek asked for a follow-up issue; the shape below is a starting point.
+No decisions were settled before the build. The built defaults and departures below record the relay's choices.
 
 ## Not in this issue
 

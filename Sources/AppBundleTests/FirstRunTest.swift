@@ -5,6 +5,18 @@ import XCTest
 
 @MainActor
 final class FirstRunTest: XCTestCase {
+    func testExistingSidebarRefreshRunsAfterGoAndStaysIdleDuringSetup() {
+        let previous = mayArrangeWindows
+        defer { mayArrangeWindows = previous }
+        var refreshes = 0
+        mayArrangeWindows = true
+        WorkspaceSidebarPanel.refreshAll(updatePanels: { refreshes += 1 })
+        XCTAssertEqual(refreshes, 1)
+        mayArrangeWindows = false
+        WorkspaceSidebarPanel.refreshAll(updatePanels: { refreshes += 1 })
+        XCTAssertEqual(refreshes, 1)
+    }
+
     func testStatusRefreshDetectsAGrantAfterSetupHasFinishedWithoutScreenRecording() async {
         var freshGrant = false
         var probes = 0
