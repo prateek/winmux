@@ -112,8 +112,9 @@ struct GridLayout {
             let metrics = TileMetrics(scale: chrome)
             let gap = 14 * chrome
             let columnWidth = max(1, (maxWidth - 30 * chrome * CGFloat(sections.count - 1)) / CGFloat(sections.count))
-            // A bar wider than its row would only shrink the pictures until the floor relaxes.
-            let barCap = max(0, (labelled && arrangement == "columns" && sections.count > 1 ? columnWidth : maxWidth) - 2 * metrics.padding)
+            // A bar wider than its row would only shrink the pictures until the floor relaxes. The half point keeps
+            // a row of capped Tiles from summing a rounding step past `maxWidth`.
+            let barCap = max(0, (labelled && arrangement == "columns" && sections.count > 1 ? columnWidth : maxWidth) - 2 * metrics.padding - 0.5)
             var sizes: [Tile] = []
             for entry in entries {
                 let box: CGSize

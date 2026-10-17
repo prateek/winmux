@@ -74,6 +74,28 @@ final class TileTextTest: XCTestCase {
         }
     }
 
+    func testAMarkedPerAppCardDrawsItsMarkOnThePicture() throws {
+        let entry = TileEntry(title: "Calculator", appName: "Calculator", appCount: 1)
+        let metrics = TileMetrics(scale: 1)
+        let size = CGSize(width: 252, height: 246)
+        let picture = tilePictureRect(entry: entry, kind: .card, size: size, pictureSize: nil, metrics: metrics, presentation: "strip", selected: false)
+        let corner = CGRect(x: picture.maxX - 40, y: picture.minY, width: 40, height: 40).integral
+        var corners: [[UInt8]] = []
+        for marked in [false, true] {
+            let tile = TileView(entry: entry, kind: .card, presentation: "strip", metrics: metrics, size: size,
+                                settings: LensConfig(), selected: false, marked: marked, hint: nil)
+            let renderer = ImageRenderer(content: tile.environment(\.lensTheme, .light).background(Color.black))
+            renderer.scale = 1
+            let crop = try XCTUnwrap(XCTUnwrap(renderer.cgImage).cropping(to: corner))
+            let context = try XCTUnwrap(CGContext(data: nil, width: crop.width, height: crop.height, bitsPerComponent: 8, bytesPerRow: 4 * crop.width,
+                                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            let bytes = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: 4 * crop.width * crop.height)
+            corners.append(Array(UnsafeBufferPointer(start: bytes, count: 4 * crop.width * crop.height)))
+        }
+        XCTAssertNotEqual(corners[0], corners[1], "A marked per-app card shows its mark in the picture's top-trailing corner")
+    }
+
     private func assertPerAppCardTitleIsWhole(screen: CGSize, marked: Bool) throws {
         let entry = TileEntry(title: "Calculator", appName: "Calculator", badges: TileBadges(workspaceLabel: "W3", onFocusedWorkspace: false), appCount: 1)
         let input = GridLayout.Entry(aspect: entry.aspect, realSize: entry.realSize, kind: .card,

@@ -38,7 +38,7 @@ final class PerAppCardTest: XCTestCase {
             TileEntry(title: index.isMultiple(of: 2) ? "Calculator" : "Safari", appName: "App",
                       badges: TileBadges(workspaceLabel: "W3", onFocusedWorkspace: false), appCount: index.isMultiple(of: 2) ? 1 : 3)
         }
-        let entries = tiles.map { GridLayout.Entry(aspect: $0.aspect, realSize: $0.realSize, kind: .card, barWidth: $0.cardBarWidth(badges: true)) }
+        let entries = tiles.map { GridLayout.Entry(aspect: $0.aspect, realSize: $0.realSize, kind: .card, barWidth: $0.cardBarWidth(badges: true, scale: 1)) }
         func pack(_ entries: [GridLayout.Entry]) -> GridLayout {
             GridLayout(sections: [.init(label: nil, current: false, entries: entries)], visibleSize: screen, tileSize: "real", sizing: .strip)
         }
@@ -69,7 +69,7 @@ final class PerAppCardTest: XCTestCase {
         for (layout, input) in [(strip, original), (grid, original), (widerStrip, wider), (widerGrid, wider)] {
             for (tile, item) in zip(layout.tiles, input) {
                 XCTAssertGreaterThanOrEqual(tile.frame.width - 2 * TileMetrics(scale: layout.tileScale).padding + 0.001,
-                                            item.tile.cardBarWidth(badges: true) * layout.tileScale)
+                                            item.tile.cardBarWidth(badges: true, scale: 1) * layout.tileScale)
             }
         }
         XCTAssertNotEqual(strip.tiles.map(\.frame), widerStrip.tiles.map(\.frame), "Strip cache must include the bar width")
@@ -80,18 +80,21 @@ final class PerAppCardTest: XCTestCase {
         var entry = TileEntry(title: String(repeating: "W", count: 80), appName: "App",
                               badges: TileBadges(workspaceLabel: "W3", onFocusedWorkspace: false), appCount: 1)
         let count = ceil(("1 window" as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 14
-        XCTAssertEqual(entry.cardBarWidth(badges: false), 26 + 8 + 240 + 8 + count)
-        XCTAssertGreaterThan(entry.cardBarWidth(badges: true), entry.cardBarWidth(badges: false))
+        XCTAssertEqual(entry.cardBarWidth(badges: false, scale: 1), 26 + 8 + 240 + 8 + count)
+        XCTAssertGreaterThan(entry.cardBarWidth(badges: true, scale: 1), entry.cardBarWidth(badges: false, scale: 1))
         entry.appCount = nil
-        XCTAssertEqual(entry.cardBarWidth(badges: true), 0)
+        XCTAssertEqual(entry.cardBarWidth(badges: true, scale: 1), 0)
     }
 
     func testABarWiderThanItsColumnKeepsTheTitleFloor() {
         let card = GridLayout.Entry(aspect: 4 / 3, realSize: CGSize(width: 800, height: 600), kind: .card, barWidth: 300)
-        let sections = (1...8).map { GridLayout.Section(label: "App \($0)", current: false, entries: [card]) }
-        let layout = GridLayout(sections: sections, visibleSize: screen, tileSize: "same-height", arrangement: "columns")
-        XCTAssertFalse(layout.relaxedTitleFloor, "Eight one-app columns fit without dropping every bar")
-        XCTAssertGreaterThan(layout.rowHeight, 36)
+        // 2560 by 1415 and 3440 by 1440 sum capped columns a rounding step past the row without slack.
+        for (screen, columns) in [(screen, 8), (CGSize(width: 2560, height: 1415), 8), (CGSize(width: 3440, height: 1440), 7), (CGSize(width: 1920, height: 1055), 5)] {
+            let sections = (1...columns).map { GridLayout.Section(label: "App \($0)", current: false, entries: [card]) }
+            let layout = GridLayout(sections: sections, visibleSize: screen, tileSize: "same-height", arrangement: "columns")
+            XCTAssertFalse(layout.relaxedTitleFloor, "\(columns) one-app columns on \(screen) fit without dropping every bar")
+            XCTAssertGreaterThan(layout.rowHeight, 36 * layout.tileScale)
+        }
     }
 
     func testPicturesAndTextIgnoreBarsAndCrowdedCardsRelaxThemToFit() {

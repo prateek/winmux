@@ -123,7 +123,7 @@ struct TileEntry {
     var footerAppName: String? { displayTitle == appName ? nil : appName }
 
     /// The width a per-app card's bar needs at `scale`, measured with that scale's fonts: text does not scale linearly with its size.
-    func cardBarWidth(badges enabled: Bool, scale: CGFloat = 1) -> CGFloat {
+    func cardBarWidth(badges enabled: Bool, scale: CGFloat) -> CGFloat {
         guard appCount != nil else { return 0 }
         let metrics = TileMetrics(scale: scale)
         let title = min(240 * scale, tileSemiboldWidth(displayTitle, size: metrics.titleFont))
