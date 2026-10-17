@@ -33,7 +33,7 @@ let entries: [GridLayout.Entry] = representatives.map { window in
                          badges: TileBadges(workspaceLabel: workspace, onFocusedWorkspace: workspace == "1", floating: window["layout"] as? String == "floating"),
                          appCount: grouped[window["pid"] as! Int]!.count)
     #if HEAD
-    let width = tile.cardBarWidth(badges: true)
+    let width = tile.cardBarWidth(badges: true, scale: TileMetrics(visibleSize: NSScreen.main!.visibleFrame.size).scale)
     print("BAR \(name): \(width), chips \(tile.chips(enabled: true))")
     return GridLayout.Entry(aspect: tile.aspect, realSize: size, kind: .card, barWidth: width)
     #else
@@ -59,7 +59,7 @@ var cheaper = entries
 for index in cheaper.indices {
     let count = grouped[representatives[index]["pid"] as! Int]!.count
     let countText = "\(count) \(count == 1 ? "window" : "windows")"
-    let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+    let font = NSFont.systemFont(ofSize: 12 * TileMetrics(visibleSize: NSScreen.main!.visibleFrame.size).scale, weight: .semibold)
     cheaper[index].barWidth -= ceil((countText as NSString).size(withAttributes: [.font: font]).width) - ceil(("\(count)" as NSString).size(withAttributes: [.font: font]).width)
     print("BARE NUMBER BAR \(representatives[index]["appName"]!): \(cheaper[index].barWidth)")
 }

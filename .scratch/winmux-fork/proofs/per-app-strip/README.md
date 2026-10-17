@@ -37,11 +37,7 @@ cache. The 88-point cap and bare-number count are numerical experiments only;
 neither is enabled in the app. First wrapping uses successive prefixes of the
 same app-sorted desk.
 
-The builder's live pass stopped on the private-picker prompt. Its initial script
-also counted names instead of processes and used fresh state directories; the
-corrected staging/count/state flow has only a syntax check, pending a usable image.
-Its captures are invalid acceptance evidence. Offline measurements from that
-interrupted desk are explicitly separate from a live head comparison.
+Restarting WinMux between the two builds can leave Ghostty floating and Atlas tiled differently, so the base and head stills of window entries are not the same desk. Per-app cards show the change regardless; for like-for-like numbers run both measuring tools on one build's `*-world.json`.
 
 The driver films final-commit PR demos separately. Installed-build behavior,
 a second display and real sleep/wake/unlock remain human checks. Leave the guest
