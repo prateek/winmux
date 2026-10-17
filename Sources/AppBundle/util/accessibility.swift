@@ -3,17 +3,12 @@ import Common
 import PrivateApi
 
 @MainActor
-func checkAccessibilityPermissions(
-    trusted: () -> Bool = { AXIsProcessTrustedWithOptions([axTrustedCheckOptionPrompt: true] as CFDictionary) },
-    reset: () -> Void = { resetAccessibility() },
-    terminate: () -> Void = { terminateApp() }
-) -> Bool {
-    if !trusted() {
-        reset() // Because macOS doesn't reset it for us when the app signature changes...
-        terminate()
-        return false
+func checkAccessibilityPermissions() {
+    let options = [axTrustedCheckOptionPrompt: true]
+    if !AXIsProcessTrustedWithOptions(options as CFDictionary) {
+        resetAccessibility() // Because macOS doesn't reset it for us when the app signature changes...
+        terminateApp()
     }
-    return true
 }
 
 func requestScreenRecordingPermissionsIfNeeded() {

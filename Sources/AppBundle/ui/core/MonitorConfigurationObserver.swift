@@ -6,21 +6,11 @@ final class MonitorConfigurationObserver {
 
     private var observer: NSObjectProtocol?
     private var screenChangeGeneration: UInt64 = 0
-    private let refreshChrome: @MainActor () -> Void
-    private let scheduleRefresh: @MainActor (String) -> Void
 
-    init(refreshChrome: @escaping @MainActor () -> Void = {
-        WorkspaceSidebarPanel.refreshAll()
-        WindowTabStripPanelController.shared.refresh()
-    }, scheduleRefresh: @escaping @MainActor (String) -> Void = { reason in
-        if TrayMenuModel.shared.isEnabled { scheduleRefreshSession(.globalObserver(reason)) }
-    }) {
-        self.refreshChrome = refreshChrome
-        self.scheduleRefresh = scheduleRefresh
-    }
+    private init() {}
 
     func prepareForStartup() {
-        refreshChrome()
+        refreshMonitorPolicy(refreshReason: "MonitorConfigurationObserver.prepareForStartup")
     }
 
     func startObserving() {
@@ -41,9 +31,12 @@ final class MonitorConfigurationObserver {
         scheduleSettledRefresh()
     }
 
-    func refreshMonitorPolicy(refreshReason: String) {
-        refreshChrome()
-        scheduleRefresh(refreshReason)
+    private func refreshMonitorPolicy(refreshReason: String) {
+        WorkspaceSidebarPanel.refreshAll()
+        WindowTabStripPanelController.shared.refresh()
+        if TrayMenuModel.shared.isEnabled {
+            scheduleRefreshSession(.globalObserver(refreshReason))
+        }
     }
 
     private func scheduleSettledRefresh() {

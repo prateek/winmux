@@ -41,6 +41,35 @@ final class RefreshBurstTest: SerialClockTestCase {
         }
     }
 
+    func testTerminationStopWaitsForTheActiveSessionAndRunsNoOther() async throws {
+        let first = ReloadGate()
+        var events: [String] = [], cancelled = false
+        setScheduledRefreshOverrideForTests { event, _ in
+            events.append(event.description)
+            await first.hold()
+            cancelled = Task.isCancelled
+        }
+        scheduleRefreshSession(.onTabSwitched)
+        await first.entered.wait()
+        scheduleRefreshSession(.configAutoReload)
+        var stopping = false
+        let stop = Task {
+            stopping = true
+            await stopRefreshSessionsForTermination()
+        }
+        while !stopping { await Task.yield() }
+        first.release()
+        await stop.value
+        XCTAssertTrue(cancelled)
+        scheduleRefreshSession(.onFocusChanged)
+        try await waitForScheduledRefreshForTests()
+        XCTAssertEqual(events, ["onTabSwitched"])
+        do {
+            try await runLightSession(.onFocusChanged, .forceRun) { XCTFail("light session ran after the stop") }
+            XCTFail("expected cancellation")
+        } catch is CancellationError {}
+    }
+
     func testContinuousBurstCompletesOneSessionPerRoundAndKeepsLastEvent() async throws {
         let gates = (0 ..< 5).map { _ in ReloadGate() }
         var events: [String] = [], completed = 0

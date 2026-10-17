@@ -26,18 +26,18 @@ Nothing.
 
 ## Defaults chosen for you
 
-- **What is recorded.** Each non-popup window's global frame when the startup refresh first sees it, before binding or layout. A window first seen in a later refresh, including a slow app's window, has no record. At quit, a window without a record stays where it is when its cached frame is on screen and it is not parked; otherwise it is brought back on screen.
+- **What is recorded.** Each non-popup window's global frame when WinMux first sees it before startup finishes, before binding or layout, whichever refresh sees it. A window first seen after startup, including a slow app's window or one `after-startup-command` opens, has no record. At quit, a window without a record stays where it is unless it is parked on a hidden workspace or its cached frame is off every display; then it is centred on screen.
 - **Where (changed).** In memory only, keyed by window id and written once. Config reload preserves the map. WinMux has no in-process restart; a Sparkle relaunch quits and restores, then launches and records again. A disk copy would serve a later process, which must not use an older session's record.
-- **When it restores.** The menu's Quit, the system's quit Apple Event, and the existing signal and fatal-error cleanup paths. `restore-windows-on-quit` is a Bool, default `true`; turning it off centres every window as before, with the visible-rectangle origin fixed.
+- **When it restores.** The menu's Quit and the system's quit Apple Event, through one application delegate, and the three signals. The die path still runs the cleanup off the main thread, and no longer waits for it without limit. `restore-windows-on-quit` is a Bool, default `true`; turning it off centres every window as before, with the visible-rectangle origin fixed.
 - **A window the person moved to another display or resized by hand while floating** still goes back to its recorded frame. Say so in the docs.
 
 ## Built behavior
 
-`StartupWindowFrames.swift` records the frame already read by `MacWindow.getOrRegister`. Monitor preparation refreshes its chrome without scheduling a competing discovery refresh: that race previously let ordinary discovery register startup windows first. Startup tiling policy is unchanged.
+`StartupWindowFrames.swift` records the frame `MacWindow.getOrRegister` already reads, for every window registered before `isWinMuxRuntimeReady`. A refresh the startup session did not start can register a window first, so recording follows the runtime's readiness, not the session's event.
 
-`quitFrameAction` makes the restore/leave/centre choice from cached state and current monitors. A recorded frame is restored when its centre lies on a current display. With no usable record, an on-screen, unparked cached frame is left alone; otherwise the window is centred on the monitor nearest its last known frame, or the main monitor if that frame is unknown. The centre includes the visible rectangle's global origin.
+`quitFrameAction` makes the restore, leave or centre choice from cached state and current monitors. A recorded frame is restored when its centre lies on a current display. Without a usable record, an unparked window stays where it is unless its cached frame is off every display; a move or resize drops that cache, so a tiled window often has none, and is still left alone. A parked window is centred on the display it was parked on; any other is centred on the display nearest its last frame, or the main one. A centred frame starts inside the visible rect, so its title bar stays reachable.
 
-Quit writes read no AX frame, run concurrently across apps, and keep each app's windows in order. A failed window is logged without stopping another. Cleanup runs once per process, preserving the hotkeys, frozen-world, frames order. The application delegate waits for cleanup or the same two-second deadline as signals, then allows termination. A ten-window, five-app, three-workspace guest restore took 92.4 ms, so the deadline remains two seconds.
+Before the frames are written, refresh sessions stop: the active one is cancelled and awaited, and none starts again, so nothing tiles or parks a window after it is restored. The writes read no AX frame, run concurrently across apps and in order within one, and try the position even when the size is refused. A failed or vanished window is logged and stops no other. The menu's Quit goes through the application delegate, so every quit shares one cleanup and the two-second deadline; with Accessibility denied, startup's own quit skips the cleanup and keeps the frozen world. A ten-window, five-app, three-workspace restore took 92.4 ms in a guest.
 
 ## Done when
 
@@ -46,13 +46,6 @@ Quit writes read no AX frame, run concurrently across apps, and keep each app's 
 - [x] After `SIGTERM` with windows on three workspaces, every window is on screen. All nine startup windows returned to their exact frames, and the tenth, opened later, was on screen.
 - [x] A window closed while WinMux ran is not reopened and causes no error. Closing Blue left it closed and restored the four surviving startup windows; injected AX failure also cannot stop later windows or another app.
 - [ ] The pull request shows the desktop before launch, tiled, and after quit.
-
-## Checks on an installed build and real hardware
-
-- [ ] Move a recorded floating window to a second display and resize it; quit and verify its original display, position and size return.
-- [ ] With restoration off, quit with a window on a second display whose origin is nonzero; verify it centres within that display's visible rectangle.
-- [ ] Disconnect a recorded display; verify quit leaves an already visible window alone and brings a parked or off-screen window to the nearest remaining display (the main display when it is the only one).
-- [ ] Installed-build behavior and real sleep, wake and unlock.
 
 ## Sources
 

@@ -109,6 +109,12 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **A Safari window's picture is a thin grey strip**
 - [ ] On the installed build, open three Safari windows on different pages, wait a few seconds, then run `winmux lens --filter true --presentation grid --sections app` and, after Escape, hold Cmd-Tab for the strip: every Safari Tile shows its page, none a thin grey strip or the Safari icon. Say here if one does, with a screenshot.
 
+**Quitting WinMux puts windows back where they were**
+- [ ] On the installed build with two displays: put a floating window on display A, start WinMux, drag the window to display B and resize it, then quit from the menu. Pass: it is back on A at its old position and size.
+- [ ] Set `restore-windows-on-quit = false` and reload. Put a window on the display that is not the main one, then quit. Pass: the window is centred on that display, not on the main one.
+- [ ] Start WinMux with a window on display B, unplug B, then quit. Pass: every window is on the remaining display, none off screen.
+- [ ] Log out with WinMux running and windows on two workspaces, then log back in before WinMux starts. Pass: Cmd-Tab is Apple's again, and no window sat in a screen corner at logout.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

@@ -1,6 +1,5 @@
+import Common
 import Foundation
-
-let terminationTimeout: TimeInterval = 2
 
 final class SignalTermination: @unchecked Sendable {
     private let lock = NSLock()

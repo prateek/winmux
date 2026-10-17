@@ -38,10 +38,8 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
             openURLString(winmuxNewIssueURL)
         }
         Button("Quit \(winMuxAppName)") {
-            Task {
-                defer { terminateApp() }
-                try await terminationHandler.beforeTermination()
-            }
+            // The application delegate runs the cleanup, under the same deadline as every other quit.
+            NSApplication.shared.terminate(nil)
         }.keyboardShortcut("Q", modifiers: .command)
     } label: {
         if viewModel.isEnabled {

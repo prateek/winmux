@@ -28,9 +28,9 @@ final class QuitWindowFramesTest: XCTestCase {
         XCTAssertEqual(startupWindowFrames, [1: original])
     }
 
-    func choice(record: Rect?, hidden: Bool = false, last: Rect?, enabled: Bool = true,
+    func choice(record: Rect?, hidden: Bool = false, parkedOn: Rect? = nil, last: Rect?, enabled: Bool = true,
                 displays: [Monitor]? = nil, size: CGSize? = CGSize(width: 400, height: 300)) -> QuitFrameAction {
-        quitFrameAction(record: record, hidden: hidden, lastKnownFrame: last, floatingSize: size,
+        quitFrameAction(record: record, hidden: hidden, parkedOn: parkedOn, lastKnownFrame: last, floatingSize: size,
             restoreOriginal: enabled, monitors: displays ?? [primary, secondary], main: primary)
     }
 
@@ -54,8 +54,29 @@ final class QuitWindowFramesTest: XCTestCase {
             .center(Rect(topLeftX: 760, topLeftY: 390, width: 400, height: 300)))
     }
 
+    func testUnhiddenWindowWithNoCachedFrameStaysWhereItIs() {
+        // A tiled window's cached frame is dropped by every move or resize event.
+        XCTAssertEqual(choice(record: nil, last: nil), .leave)
+        XCTAssertEqual(choice(record: moved, last: nil, displays: [primary]), .leave)
+    }
+
     func testUnknownFrameUsesMainVisibleRectAndUnknownSizeUsesVisibleSize() {
-        XCTAssertEqual(choice(record: nil, last: nil, size: nil), .center(primary.visibleRect))
+        XCTAssertEqual(choice(record: nil, hidden: true, last: nil, size: nil), .center(primary.visibleRect))
+        XCTAssertEqual(choice(record: nil, last: nil, enabled: false, size: nil), .center(primary.visibleRect))
+    }
+
+    func testParkedWindowIsCenteredOnTheMonitorItWasParkedOn() {
+        // Parked at the main monitor's right edge, its frame's centre lies on the second monitor.
+        let atEdge = Rect(topLeftX: 1919, topLeftY: 500, width: 400, height: 300)
+        XCTAssertEqual(choice(record: nil, hidden: true, last: atEdge),
+            .center(Rect(topLeftX: 2520, topLeftY: 150, width: 400, height: 300)))
+        XCTAssertEqual(choice(record: nil, hidden: true, parkedOn: primary.visibleRect, last: atEdge),
+            .center(Rect(topLeftX: 760, topLeftY: 390, width: 400, height: 300)))
+    }
+
+    func testCenteredFrameLargerThanTheMonitorKeepsItsTitleBarOnScreen() {
+        XCTAssertEqual(choice(record: nil, hidden: true, last: nil, size: CGSize(width: 2500, height: 1400)),
+            .center(Rect(topLeftX: 0, topLeftY: 25, width: 2500, height: 1400)))
     }
 
     func testFeatureOffCentersRecordedAndNewWindowsWithDisplayOriginFix() {
@@ -90,7 +111,7 @@ final class QuitWindowFramesTest: XCTestCase {
                 }
                 if id == 1 { throw CancellationError() }
                 written.append(id)
-            }, failed: { id, _ in failed.append(id) })
+            }, failed: { plan, _ in failed.append(plan.windowId) })
         }
         await fulfillment(of: [firstStarted, secondStarted], timeout: 1)
         XCTAssertFalse(written.contains(2))
@@ -114,5 +135,14 @@ final class QuitWindowFramesTest: XCTestCase {
         }
         XCTAssertEqual(attributes, [Ax.sizeAttr.key, Ax.topLeftCornerAttr.key, Ax.sizeAttr.key])
         XCTAssertThrowsError(try writeQuitFrame(original) { _, _ in .invalidUIElement })
+    }
+
+    func testQuitWriterStillMovesAWindowThatRefusesItsSize() {
+        var written: [String] = []
+        XCTAssertThrowsError(try writeQuitFrame(original) { attribute, _ in
+            written.append(attribute)
+            return attribute == Ax.sizeAttr.key ? .attributeUnsupported : .success
+        })
+        XCTAssertEqual(written, [Ax.sizeAttr.key, Ax.topLeftCornerAttr.key, Ax.sizeAttr.key])
     }
 }

@@ -62,7 +62,8 @@ public func dieT<T>(
                 try await terminationHandler.beforeTermination()
             }
         }
-        semaphore.wait()
+        // The cleanup needs the main actor, so a die on the main thread can only time out here.
+        _ = semaphore.wait(timeout: .now() + terminationTimeout)
     }
     fatalError("\n" + message)
 }

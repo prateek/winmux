@@ -21,6 +21,8 @@ private struct AppServerTerminationHandler: TerminationHandler {
         try await terminationOnce.run {
             systemSymbolicHotkeys.restoreAndShutDown()
             persistFrozenWorldForRestartIfPossible()
+            // A refresh running beside the restore would tile or park the windows it just moved.
+            await stopRefreshSessionsForTermination()
             await restoreWindowsOnQuit()
             await toggleReleaseServerIfDebug(.on)
         }
@@ -37,22 +39,22 @@ private func restoreWindowsOnQuit() async {
     let plans = windows.values.sorted { $0.windowId < $1.windowId }.map { window in
         QuitWindowFrame(appId: window.macApp.pid, windowId: window.windowId,
             action: quitFrameAction(record: startupWindowFrames[window.windowId], hidden: window.isHiddenInCorner,
-                lastKnownFrame: window.lastKnownActualRect, floatingSize: window.lastFloatingSize,
+                parkedOn: window.hiddenOnMonitorVisibleRect, lastKnownFrame: window.lastKnownActualRect, floatingSize: window.lastFloatingSize,
                 restoreOriginal: config.restoreWindowsOnQuit, monitors: displays, main: main))
     }
     await restoreQuitWindowFrames(plans, write: { id, frame in
         try await windows[id]?.macApp.restoreFrameOnQuit(id, frame)
-    }, failed: { id, error in
-        let action = plans.first { $0.windowId == id }?.action.name ?? "unknown"
-        quitFramesLog.error("Quit frame window=\(id) action=\(action, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+    }, failed: { plan, error in
+        quitFramesLog.error("Quit frame window=\(plan.windowId) action=\(plan.action.name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
     })
     let elapsed = start.duration(to: .now)
     quitFramesLog.info("Quit frames finished duration=\(String(describing: elapsed), privacy: .public) windows=\(plans.count)")
 }
 
 @MainActor
-func terminateApp() {
+func terminateApp() -> Never {
     NSApplication.shared.terminate(nil)
+    die("Unreachable code")
 }
 
 extension String {

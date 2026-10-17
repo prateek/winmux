@@ -2,16 +2,7 @@
 
 With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new windows use ordinary tree tiling. Startup does not write a starter file unless it is converting a legacy config. “Open config” creates an editable import-only starter when needed.
 
-`restore-windows-on-quit` is a Bool, default `true`. Normal quits (including the system's Quit)
-and SIGTERM, SIGINT and SIGHUP restore the frames recorded during the startup refresh.
-A window moved to another display or resized by hand still goes back to its recorded frame.
-A window opened while WinMux ran stays where it is if it is on screen; a parked or off-screen
-window is brought back on screen. If its recorded display is gone, an on-screen window stays
-where it is; otherwise it is centred on the nearest current monitor, or the main monitor when
-its last frame is unknown. With only the main display remaining, it is centred there.
-The records stay in memory for this process, including config reloads, and never restore
-closed windows. Set `restore-windows-on-quit = false` to centre every window at its last
-floating size (or the monitor's visible size), as earlier versions did.
+`restore-windows-on-quit` is a Bool, default `true`. Quitting WinMux, from its menu, the system's Quit or logout, or SIGTERM, SIGINT and SIGHUP, puts each window that was open when WinMux started back at the frame it had then. A window moved to another display or resized by hand still goes back to that frame. A window opened while WinMux ran stays where it is, and one parked on a hidden workspace is centred on its display. A window whose recorded display is gone stays where it is if it is on screen, and is otherwise centred on the nearest display. The records live in memory for one run of WinMux: a config reload keeps them, and a closed window is never reopened. Set `restore-windows-on-quit = false` to centre every window at its last floating size, as earlier versions did.
 
 A config imports defaults explicitly. This import-only config has the same static settings as a fresh install:
 

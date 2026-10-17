@@ -9,6 +9,7 @@ final class MacWindow: Window {
     /// monitor), the old corner position is wrong and the window must be re-parked even
     /// though the corner still matches. One value so the two can't desync.
     private var hiddenInCorner: (corner: OptimalHideCorner, monitorVisibleRect: Rect)?
+    var hiddenOnMonitorVisibleRect: Rect? { hiddenInCorner?.monitorVisibleRect }
 
     @MainActor
     private init(_ id: UInt32, _ actor: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
@@ -38,7 +39,7 @@ final class MacWindow: Window {
 
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
-        recordStartupWindowFrame(windowId, rect: rect, atStartup: isStartup,
+        recordStartupWindowFrame(windowId, rect: rect, atStartup: !isWinMuxRuntimeReady,
             isPopup: data.parent === macosPopupWindowsContainer)
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         window.recordAuthoritativeActualRect(rect)
