@@ -87,7 +87,7 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
             continue
         }
         if let err {
-            await answerToClient(exitCode: 1, stderr: err)
+            await answerToClient(exitCode: parseFailureExitCode(request.args.slice), stderr: err)
             continue
         }
         if command?.isExec == true {

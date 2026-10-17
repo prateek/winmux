@@ -630,9 +630,15 @@ winmux sections workspace
 `--sections` accepts the five values above, needs a Lens name or `--filter`, and changes this
 opening only. Miniatures refuses it with exit 2; a strip accepts and ignores it until conversion
 to a list. `list-lenses --json` continues to report the configured values.
+An invalid `--sections` value exits 2 with empty stdout and one stderr line:
+`Possible sections values: none, workspace, project, monitor, app`.
 The `sections` command changes an open list or grid without closing it or emitting `lens-opened` or `lens-closed` subscription
 events. With no Lens open it exits 2 with `No Lens is open`; miniatures and strips stay open
 and ignore it. A grouping change lasts until this Lens closes. Converting a strip retains it.
+It accepts `next` as well as the five groupings. An invalid value exits 2 with empty stdout
+and one stderr line: `Possible sections values: next, none, workspace, project, monitor, app`.
+Neither invalid-value message has an `ERROR: ` prefix. Other `sections` parse failures
+(a missing value, an extra argument or an unknown flag) also exit 2 and keep that prefix.
 
 The default Lens key `cmd-g = "sections next"` cycles grouping. A value outside the cycle
 advances to `none`. Bound chords win during a Hold: `cmd-g` changes grouping in a

@@ -20,7 +20,13 @@ Nothing.
 
 ## Done when
 
-- [ ] `winmux sections spiral` and `winmux lens <name> --sections spiral` exit 2 with the same message and empty stdout.
+- [x] `winmux sections spiral` and `winmux lens <name> --sections spiral` exit 2 with empty stdout and the same message, `Possible sections values:` followed by the values each one accepts.
+
+## Built
+
+Both refusals print `Possible sections values: <accepted values>` on stderr, without an `ERROR: ` prefix, and exit 2 with empty stdout. `sections` lists `next, none, workspace, project, monitor, app`; `lens --sections` lists the five groupings, since it does not take `next`. Both parsers read one grouping list in Common.
+
+`parseFailureExitCode` in Common holds the CLI's parse-failure exit codes, with a test table for the commands it leaves unchanged. Every `sections` parse failure exits 2; a missing value, an extra argument and an unknown flag keep the generic parser's `ERROR: ` text.
 
 ## Sources
 

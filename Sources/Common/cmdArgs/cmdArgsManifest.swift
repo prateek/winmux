@@ -107,7 +107,7 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(parseLayoutCmdArgs)
             case .lens: result[kind.rawValue] = SubCommandParser(parseLensCmdArgs)
             case .listLenses: result[kind.rawValue] = SubCommandParser(ListLensesCmdArgs.init)
-            case .sections: result[kind.rawValue] = SubCommandParser(SectionsCmdArgs.init)
+            case .sections: result[kind.rawValue] = SubCommandParser(parseSectionsCmdArgs)
             case .summon: result[kind.rawValue] = SubCommandParser(SummonCmdArgs.init)
             case .listApps:
                 result[kind.rawValue] = SubCommandParser(parseListAppsCmdArgs)
