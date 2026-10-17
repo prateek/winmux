@@ -17,6 +17,7 @@ struct ThumbnailCaptureGate {
     mutating func enqueue(_ id: UInt32, lens: Int? = nil, now: TimeInterval, force: Bool = false, needsLarger: Bool = false, recapture: Bool = false) {
         guard active[id] == nil || recapture else { return }
         var lenses = lens.map { Set([$0]) } ?? []
+        // A departure that would enlarge the picture skips the throttle: the capture it follows may be a small Lens refresh.
         if let index = queued.firstIndex(where: { $0.id == id }) {
             lenses.formUnion(queued[index].lenses)
             if lens != nil, queued[index].lens != nil { queued[index].lenses = lenses }
@@ -25,7 +26,7 @@ struct ThumbnailCaptureGate {
             let upgrade = needsLarger && !previous.needsLarger && previous.lens != nil
             guard departure || upgrade else { return }
             queued.remove(at: index)
-        } else if !force, lens == nil, let last = lastStarted[id], now - last < 0.8 { return }
+        } else if !force, lens == nil, !needsLarger, !recapture, let last = lastStarted[id], now - last < 0.8 { return }
         let request = Request(id: id, lens: lens, lenses: lens == nil ? [] : lenses, needsLarger: needsLarger)
         let index: Int
         if force { index = 0 }

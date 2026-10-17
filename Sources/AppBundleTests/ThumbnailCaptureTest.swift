@@ -269,6 +269,28 @@ final class ThumbnailCacheTest: XCTestCase {
         XCTAssertEqual(sizes.map(\.width), [200, 582.4, 582.4])
     }
 
+    func testDepartureRightAfterASmallLensCaptureIsNotThrottled() async {
+        for inFlight in [false, true] {
+            let capture = ControlledCapture()
+            var time = 0.0
+            let cache = ThumbnailCache(now: { time }, scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
+            let window = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+            window.miniatureFrame = CGRect(x: 0, y: 0, width: 1600, height: 800)
+            cache.request(window, lens: 1, demand: CGSize(width: 200, height: 100))
+            await capture.waitForStarts(1)
+            if !inFlight { await capture.finish(1, image: image(width: 200, height: 100)) }
+            cache.closeLens(1)
+            time = 0.3
+            cache.request(window)
+            if inFlight { await capture.finish(1, image: image(width: 200, height: 100)) }
+            await capture.waitForStarts(2)
+            await capture.finish(1, image: image(width: 583, height: 292))
+            await cache.waitUntilIdle()
+            let sizes = await capture.sizes
+            XCTAssertEqual(sizes.map(\.width), [200, 582.4], inFlight ? "in flight" : "just finished")
+        }
+    }
+
     func testAWindowCappedBelowItsDemandIsNotUndersizedOnceCapturedAtItsCap() async {
         let capture = ControlledCapture()
         let cache = ThumbnailCache(scales: { _ in (1, 1) }, capture: { id, size in try await capture.capture(id, size: size) })
