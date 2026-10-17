@@ -11,20 +11,21 @@ final class LensStartupPreparation {
         CATransaction.flush()
     }
 
+    private static func placeholderImage(width: Int, height: Int) -> CGImage? {
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
+    }
+
     static func gridModel(size: CGSize, existingItems: [SwitcherPaletteItem], workspaces: [MiniatureWorkspace]) -> LensSession {
         if !existingItems.isEmpty {
             return model(presentation: "grid", size: size, existingItems: existingItems, workspaces: workspaces)
         }
         let shapes = [CGSize(width: 1600, height: 1000), CGSize(width: 900, height: 650),
                       CGSize(width: 600, height: 900), CGSize(width: 360, height: 180)]
-        let images = shapes.compactMap { shape -> CGImage? in
-            let width = 582, height = Int(CGFloat(width) * shape.height / shape.width)
-            guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-            return context.makeImage()
-        }
+        let images = shapes.compactMap { placeholderImage(width: 582, height: Int(582 * $0.height / $0.width)) }
         let icon = NSImage(named: NSImage.applicationIconName)
         let counts = [4, 5, 3, 2]
         var items: [SwitcherPaletteItem] = []
@@ -58,12 +59,7 @@ final class LensStartupPreparation {
             return model
         }
         let thumbnail = WindowThumbnail()
-        if let context = CGContext(data: nil, width: 160, height: 120, bitsPerComponent: 8, bytesPerRow: 0,
-                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
-            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: 160, height: 120))
-            if let image = context.makeImage() { thumbnail.accept(image) }
-        }
+        if let image = placeholderImage(width: 160, height: 120) { thumbnail.accept(image) }
         let fallback = thumbnail.image.map { NSImage(cgImage: $0, size: NSSize(width: 128, height: 128)) }
         let emptyThumbnail = WindowThumbnail()
         let items = (1...4).map { index in

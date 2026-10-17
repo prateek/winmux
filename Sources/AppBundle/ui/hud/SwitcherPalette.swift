@@ -4,6 +4,7 @@ import SwiftUI
 import QuartzCore
 
 private let switcherPalettePanelId = "WinMux.switcherPalette"
+private let lensFrameSamplingEnabled = ProcessInfo.processInfo.environment["WINMUX_DEBUG_LENS_FRAMES"] == "1"
 
 struct SwitcherPaletteItem: Identifiable {
     let id: UInt32
@@ -54,7 +55,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         lifecycle.observeFrames = { [weak self] statistics in
-            statistics.observeFrames(enabled: ProcessInfo.processInfo.environment["WINMUX_DEBUG_LENS_FRAMES"] == "1") { [weak self] tick in
+            statistics.observeFrames(enabled: lensFrameSamplingEnabled) { [weak self] tick in
                 self?.hostingView.observeSessionFrames(tick)
                 return { [weak self] in self?.hostingView.stopSessionFrames() }
             }
@@ -722,7 +723,8 @@ private final class LensHostingView: NSHostingView<AnyView> {
     }
     @objc private func sessionFrameTick(_ link: CADisplayLink) {
         guard link === sessionFrameLink else { return }
-        onSessionFrame?(LensTimebase.now(), link.duration)
+        // The frame's own vsync time, so a late callback is not counted as a missed refresh.
+        onSessionFrame?(link.timestamp, link.duration)
     }
 
     func disarm() {

@@ -72,7 +72,7 @@ session-count/30 rates, CPU deltas, guest idle and frame intervals are in the pu
 request. The frame observer and refresh were not changed for the observed long
 intervals; no total session frame count is recorded.
 
-Installed-build checks, a second display and real sleep/wake/unlock remain manual.
+The first opening on an installed build, and the grid's smoothness on real hardware, are in Prateek's checks.
 
 ## Sources
 

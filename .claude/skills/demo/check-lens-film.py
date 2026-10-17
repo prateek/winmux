@@ -24,8 +24,10 @@ def require_presented(keys, traces):
             raise ValueError(f"opening {trace['id']} did not present a frame: {signal}")
 
 
-def opening_samples(events, traces, presentation='strip', opening_key='⌘ Tab'):
-    keys = [event for event in events if event['keys'] == opening_key]
+def opening_samples(events, traces, presentation='strip', opening_key='⌘ Tab', leader=None):
+    # Behind a leader, the opening key counts only as the leader's next key, not when typed into Search.
+    keys = [event for index, event in enumerate(events) if event['keys'] == opening_key
+            and (leader is None or (index > 0 and events[index - 1]['keys'] == leader))]
     traces = [trace for trace in traces if trace['presentation'] == presentation]
     traces = traces[-len(keys):] if keys else []
     require_presented(keys, traces)
@@ -85,6 +87,7 @@ def main():
     parser.add_argument('traces', type=pathlib.Path)
     parser.add_argument('--presentation', choices=['strip', 'list', 'grid', 'miniatures'], default='strip')
     parser.add_argument('--opening-key', default='⌘ Tab', help='event-log chord that opens this Presentation')
+    parser.add_argument('--leader', help='event-log chord that must directly precede the opening key')
     parser.add_argument('--probe', required=True, help='x,y,width,height')
     parser.add_argument('--threshold', type=float, default=0.25, help='fraction of pixels changed by >20 levels')
     parser.add_argument('--strip-edge', help='x,y,width of the straight top border; reject background motion')
@@ -95,7 +98,7 @@ def main():
     raw_frames = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames", "-of", "json", str(raw)]))["frames"]
     validate_sample_times([float(frame["best_effort_timestamp_time"]) for frame in raw_frames], metadata)
     events = json.loads(movie.with_suffix('.events.json').read_text())
-    keys, traces = opening_samples(events, json.loads(args.traces.read_text()), args.presentation, args.opening_key)
+    keys, traces = opening_samples(events, json.loads(args.traces.read_text()), args.presentation, args.opening_key, args.leader)
     probe = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames', '-show_streams', '-of', 'json', str(movie)]))
     frames = [float(frame['best_effort_timestamp_time']) for frame in probe['frames']]
     stream = probe['streams'][0]

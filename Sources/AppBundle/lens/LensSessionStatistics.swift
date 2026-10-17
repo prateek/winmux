@@ -8,7 +8,6 @@ final class LensSessionStatistics {
     private let stamp: () -> Double
     private var startedAt: Double?
     private var stoppedAt: Double?
-    private var stopped = false
     private var stopFrames: (() -> Void)?
     private var previousFrame: Double?
     private(set) var capturesRequested = 0
@@ -17,6 +16,8 @@ final class LensSessionStatistics {
     private(set) var longestFrameIntervalMs: Double?
 
     init(stamp: @escaping () -> Double) { self.stamp = stamp }
+
+    private var stopped: Bool { stoppedAt != nil }
 
     var presentedMs: Double {
         guard let startedAt else { return 0 }
@@ -51,7 +52,6 @@ final class LensSessionStatistics {
     func stop() {
         guard !stopped else { return }
         stoppedAt = stamp()
-        stopped = true
         stopFrames?()
         stopFrames = nil
     }
