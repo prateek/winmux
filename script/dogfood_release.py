@@ -115,20 +115,18 @@ def build_release(repo, version, dry_run, head_sha):
     process = None
     def defer(signum, frame):
         deferred.append(signum)
+        if len(deferred) == 1 and process is not None:
+            raise SystemExit(128 + signum)
     try:
         # Cancellation must not orphan a worker before Popen returns its handle.
         for signum in handled:
             signal.signal(signum, defer)
         process = subprocess.Popen(command, cwd=repo, start_new_session=True,
                                    env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
-        for signum, handler in original.items():
-            signal.signal(signum, handler)
         if deferred:
             raise SystemExit(128 + deferred[0])
         status = process.wait()
     except BaseException:
-        for signum in handled:
-            signal.signal(signum, defer)
         if process is not None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
